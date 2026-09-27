@@ -28,7 +28,7 @@ local req = Http.get("https://demiengine.de/api/news")</code></pre>
     connect_timeout_ms = 5000,
     max_response_bytes = 16 * 1024 * 1024,
     max_header_bytes = 64 * 1024,
-    ca_certificate_pem = extra_ca_pem_text
+    ca_certificate_pem = trusted_ca_pem_text
 })</code></pre>
 <table>
   <thead><tr><th>Field</th><th>Meaning</th></tr></thead>
@@ -42,7 +42,7 @@ local req = Http.get("https://demiengine.de/api/news")</code></pre>
     <tr><td><code>connect_timeout_ms</code></td><td>Connection setup timeout in milliseconds. Default <code>5000</code>.</td></tr>
     <tr><td><code>max_response_bytes</code></td><td>Cap on response size. Default 16 MiB; larger responses fail instead of exhausting memory.</td></tr>
     <tr><td><code>max_header_bytes</code></td><td>Cap on response header size. Default 64 KiB.</td></tr>
-    <tr><td><code>ca_certificate_pem</code></td><td>Optional PEM text of extra certificate authorities to trust for this request.</td></tr>
+    <tr><td><code>ca_certificate_pem</code></td><td>Optional explicit PEM trust bundle for this request. A nonempty bundle replaces the default trust sources; it is not appended to them. Certificate and hostname verification stay enabled.</td></tr>
   </tbody>
 </table>
 <p><code>Http.request(...)</code> returns <code>request</code>, <code>nil</code> on success (a handle and no error), or <code>nil</code>, <code>err</code> when the request cannot start. A started request is not a finished one — check it every frame.</p>
@@ -56,13 +56,13 @@ end</code></pre>
 <ul>
   <li><code>req:done()</code> — returns a boolean: <code>true</code> when the request finished (successfully or not), <code>false</code> while it is in flight.</li>
   <li><code>req:response()</code> — returns the response table once <code>done()</code> is <code>true</code>, or <code>nil</code> if no response is available.</li>
-  <li><code>req:cancel()</code> — abandons the request. Returns nothing; <code>done()</code> becomes <code>true</code> with a cancellation error.</li>
+  <li><code>req:cancel()</code> — requests cancellation. Returns nothing; <code>done()</code> becomes <code>true</code> with a cancellation error.</li>
 </ul>
 <p>The response table:</p>
 <pre><code>local res = req:response()
 if res.ok then
     print(res.status)           -- integer HTTP status
-    local data = res.json       -- decoded JSON table, or nil
+    local data = res.json       -- decoded JSON value, or nil
     for name, values in pairs(res.headers) do
         print(name, values[1])  -- header names are lowercase; values are arrays
     end
@@ -73,42 +73,43 @@ end</code></pre>
 <table>
   <thead><tr><th>Field</th><th>Meaning</th></tr></thead>
   <tbody>
-    <tr><td><code>ok</code></td><td>Boolean, <code>true</code> when the status is in the success range 200–299.</td></tr>
-    <tr><td><code>status</code></td><td>Integer HTTP status code.</td></tr>
+    <tr><td><code>ok</code></td><td>Boolean, <code>true</code> when transport succeeded and the status is 200–299.</td></tr>
+    <tr><td><code>status</code></td><td>Integer HTTP status code, or zero on transport failure.</td></tr>
     <tr><td><code>body</code></td><td>Raw response body as a string.</td></tr>
-    <tr><td><code>error</code></td><td>Error message string when the transport or parse failed.</td></tr>
+    <tr><td><code>error</code></td><td>Transport error message, empty for completed HTTP responses including 4xx/5xx.</td></tr>
     <tr><td><code>error_code</code></td><td>Stable error code string for scripts to branch on.</td></tr>
-    <tr><td><code>json</code></td><td>Decoded JSON table when the body parsed, otherwise <code>nil</code>.</td></tr>
-    <tr><td><code>json_error</code></td><td>Parse error message when <code>json</code> is <code>nil</code> despite a body.</td></tr>
+    <tr><td><code>json</code></td><td>Decoded JSON value when the body parsed; JSON null uses <code>Data.null</code>. Empty or invalid JSON returns <code>nil</code>.</td></tr>
+    <tr><td><code>json_error</code></td><td>JSON parse or conversion error; empty for an empty or valid JSON body. It does not change <code>ok</code>.</td></tr>
     <tr><td><code>headers</code></td><td>Table of response headers: names lowercased, values arrays of strings.</td></tr>
   </tbody>
 </table>
 
 <h2>HTTPS, redirects, and Android</h2>
 <ul>
-  <li><strong>HTTPS verifies the certificate chain and the hostname.</strong> A certificate that does not match the URL host fails with an error code instead of being accepted. Trust extra authorities with <code>ca_certificate_pem</code> when your service uses a private certificate.</li>
+  <li><strong>HTTPS verifies the certificate chain and hostname.</strong> A mismatch fails the request. Omit <code>ca_certificate_pem</code> to use platform trust, or supply the full bundle you intend to trust for this request. A supplied bundle replaces the platform trust sources.</li>
   <li><strong>3xx redirects are not followed.</strong> The response arrives with its status and <code>Location</code> header so your code can decide to retry — the engine will not silently change the destination of a request.</li>
-  <li><strong>Android needs the INTERNET permission.</strong> Declare <code>android.permission.INTERNET</code> in the project's build settings or validation reports <code>PROJECT_BUILD_PERMISSION_NETWORK_MISSING</code>. See <a href="{{ path('docs_page', {slug: 'android-builds'}) }}">Android builds</a>.</li>
+  <li><strong>Android needs the INTERNET permission.</strong> For a project with explicit Android build settings, declare <code>android.permission.INTERNET</code>; validation reports <code>PROJECT_BUILD_PERMISSION_NETWORK_MISSING</code> when a network service is used without it. See <a href="{{ path('docs_page', {slug: 'android-builds'}) }}">Android builds</a>.</li>
 </ul>
 
 <h2>TLS client and server</h2>
-<p><strong>TLS</strong> (Transport Layer Security) encrypts a byte stream between two peers and proves each side's identity with certificates. Use the TLS services when you speak a custom protocol that must be private, rather than HTTP.</p>
+<p><strong>TLS</strong> (Transport Layer Security) encrypts a byte stream and lets the client verify the server certificate and hostname. Use the TLS services for a custom byte-stream protocol.</p>
 <ul>
-  <li><code>demi.network.tls.client</code> — wraps an outbound connection in TLS: verify the server certificate and hostname, then exchange application bytes.</li>
-  <li><code>demi.network.tls.server</code> — accepts inbound TLS connections with your server certificate and key.</li>
+  <li><code>demi.network.tls.client</code> — <code>connect(host, port, trusted_certificate_path[, server_name])</code> starts an outbound TLS connection. Poll <code>events()</code> or <code>is_connected()</code>; <code>send(message)</code> returns a boolean.</li>
+  <li><code>demi.network.tls.server</code> — <code>listen(port, certificate_path, private_key_path[, max_clients])</code> accepts inbound TLS connections. Poll <code>events()</code> for client IDs and use <code>send(client_id, message)</code>.</li>
 </ul>
-<p>Both follow the same idea as HTTP: start a handshake, poll until done, then read and write application data. Certificates are supplied as PEM text; private material is passed in at setup and never printed to logs.</p>
+<p>The TLS bindings resolve certificate arguments as project paths to certificate and key files. This differs from HTTP's <code>ca_certificate_pem</code>, which takes PEM text. The client verifies the supplied trust chain and server name. The server presents its certificate; these APIs do not require client certificates.</p>
 
 <h2>Crypto helpers</h2>
 <p>Three small helpers cover the common secrets work of a networked game:</p>
 <pre><code>local crypto = require("demi.network.crypto")
 
-local token = crypto.random_token(32)             -- 32 random bytes as a string
-local hash  = crypto.password_hash("hunter2")     -- salted hash string
+local token = crypto.random_token(32)             -- 64 hex characters from 32 random bytes
+local salt  = crypto.random_token(16)
+local hash  = crypto.password_hash("hunter2", salt) -- PBKDF2-SHA256 hash hex
 local same  = crypto.secure_equals(hash, hash)    -- boolean</code></pre>
 <ul>
-  <li><code>crypto.random_token(n)</code> — returns <code>n</code> cryptographically random bytes as a string. Use for session tokens and nonces.</li>
-  <li><code>crypto.password_hash(password)</code> — returns a salted password hash string suitable for storage. Never store the password itself.</li>
+  <li><code>crypto.random_token(n)</code> — returns a lowercase hex string generated from <code>n</code> random bytes (clamped to 1–64); an empty string indicates failure. Use for session tokens and salts.</li>
+  <li><code>crypto.password_hash(password, salt[, iterations])</code> — derives a PBKDF2-SHA256 hash and returns its hex string, or an empty string on failure. Store the salt and iteration count alongside the hash; the function does not embed them in its result.</li>
   <li><code>crypto.secure_equals(a, b)</code> — returns a boolean comparison that does not short-circuit on the first differing byte, so timing does not leak how much of a secret matched.</li>
 </ul>
 <p>Signing material, certificates, and credentials must never enter source, command output, or packaged content.</p>
@@ -116,10 +117,10 @@ local same  = crypto.secure_equals(hash, hash)    -- boolean</code></pre>
 <h2>Low-level transport</h2>
 <p>Under the session layer sits a small transport API in <code>demi.network</code> for building custom protocols:</p>
 <ul>
-  <li><code>host(port)</code> — opens a UDP/TCP host socket and returns a handle.</li>
-  <li><code>host_dtls(...)</code> — opens a host socket wrapped in DTLS (datagram TLS) and returns a handle.</li>
-  <li><code>connect(host, port)</code> — starts a client connection and returns a handle.</li>
-  <li><code>send(...)</code> — queues bytes on a handle.</li>
+  <li><code>host(port[, max_peers])</code> — opens an ENet UDP host and returns a boolean.</li>
+  <li><code>host_dtls(port, certificate_path, private_key_path[, max_peers])</code> — opens an ENet host with DTLS and returns a boolean.</li>
+  <li><code>connect(host, port)</code> or <code>connect_dtls(host, port, trusted_certificate_path[, server_name])</code> — starts a client connection and returns a boolean.</li>
+  <li><code>send(message[, reliable, peer_id, channel])</code> — queues a byte string and returns a boolean.</li>
   <li><code>events()</code> — drains the transport event queue and returns an array of connect, data, and disconnect events.</li>
 </ul>
 <p>Most games never need this layer: <a href="{{ path('docs_page', {slug: 'sessions-and-contracts'}) }}">Sessions &amp; contracts</a> builds replication, validation, and ownership on top of it. Choose the low-level API only when the session model does not fit your protocol.</p>

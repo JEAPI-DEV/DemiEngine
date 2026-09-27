@@ -6,7 +6,7 @@
 <ul>
   <li><strong>Entity</strong> — one thing in the world. A player, a crate, a light, a camera. An entity is an identity with a name and a list of abilities; it is not a picture or a physics body by itself.</li>
   <li><strong>Component</strong> — one ability attached to an entity. A transform (where it is), a sprite (how it looks), a collider (what it bumps into), a script (what it does). An entity is a plain identity; components give it behavior.</li>
-  <li><strong>Scene</strong> — the file that holds a set of entities, plus optional ready-made copies (instances) and an optional heads-up display (the on-screen UI).</li>
+  <li><strong>Scene</strong> — the file that holds ordinary entities and prefab placements together, plus an optional heads-up display (the on-screen UI).</li>
 </ul>
 <p>Why split things this way? Because you reuse abilities. Ten crates can each have their own transform but share the same sprite component settings, and one player entity can combine a transform, a collider, and a script without any of those knowing about each other.</p>
 <p>Every scene document starts with <code>format_version</code>. Documents without it are rejected — the engine needs to know which shape of file it is reading.</p>
@@ -33,7 +33,7 @@
     <tr><td><code>format_version</code></td><td>Always required. Declares which document shape this file uses.</td></tr>
     <tr><td><code>id</code></td><td>The scene's stable identity, written as a <code>scene://</code> URI. The project file and other documents refer to scenes by this ID, never by file path.</td></tr>
     <tr><td><code>name</code></td><td>Human-readable label shown in the editor and tooling.</td></tr>
-    <tr><td><code>entities</code></td><td>Required. The list of entities that exist in this scene. May be empty, but the field must be present — <code>instances</code> does not replace it.</td></tr>
+    <tr><td><code>entities</code></td><td>Required. A shared list of ordinary entities and prefab placements. It may be empty.</td></tr>
   </tbody>
 </table>
 <p>The scene ID maps to a conventional file location: <code>scene://game/main</code> lives at <code>scenes/main.scene.json</code> inside the project (here, <code>games/my_game</code>). The project can also give the scene an explicit path. See <a href="{{ path('docs_page', {slug: 'project-json'}) }}">demi.project.json</a> for how scenes are registered.</p>
@@ -121,8 +121,7 @@
   "format_version": 1,
   "id": "scene://game/main",
   "name": "Main",
-  "entities": [],
-  "instances": [
+  "entities": [
     {
       "id": "player",
       "prefab": "prefab://characters/player",
@@ -140,7 +139,8 @@
     <tr><td><code>overrides</code></td><td>Optional per-field changes applied after the prefab expands. Fields you do not override keep the prefab's values.</td></tr>
   </tbody>
 </table>
-<p>After expansion, the instance above produces entities named <code>player</code> and <code>player/body</code> (and so on) inside the running scene. The override <code>"body.Transform2D.position"</code> targets one field on one prefab entity using a dotted key; everything else is inherited. Full override rules — merging objects, replacing arrays, removing with <code>null</code> — are written out on <a href="{{ path('docs_page', {slug: 'prefab-json'}) }}">Prefab files</a>.</p>
+<p>Ordinary entities and prefab placements share the <code>entities</code> array; placements can also appear under an entity's <code>children</code>. The separate top-level <code>instances</code> form remains accepted, but new authoring should use the unified list.</p>
+<p>The placement above expands to <code>player/body</code> and any other prefab-local entities prefixed with <code>player/</code>. The placement ID itself does not create an extra runtime entity. The dotted override changes that body's position; other fields remain inherited. See <a href="{{ path('docs_page', {slug: 'prefab-json'}) }}">Prefab files</a> for nested-merge and exact-field override rules.</p>
 
 <h2>Entity presets and shorthand</h2>
 <p>Presets are ready-made entity shapes. You name a preset and give only what differs; the engine expands it into a full entity before the scene is parsed.</p>

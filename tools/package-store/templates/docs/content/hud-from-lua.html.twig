@@ -1,22 +1,22 @@
 <h1>HUD from Lua</h1>
-<p>Layout is authored in JSON and stays fixed; scripts change content and state while the game runs. This page is the working reference for that: how to address nodes safely, every setter and what it returns, how UI events arrive, how to animate with tweens, and how to build and recycle nodes at runtime.</p>
+<p>Layout is authored in JSON; scripts can change node content, state, and rectangles or create nodes while the game runs. This page covers addressing nodes, setters, events, tweens, and runtime nodes.</p>
 
 <h2>find and handles</h2>
-<p>Every call takes either a node <code>id</code> string or a <strong>handle</strong> — a checked reference returned by <code>find</code> and <code>create</code>.</p>
+<p><code>Hud.find</code> returns a <strong>handle</strong> for structural operations such as clone, remove, reparent, tween, and row recycling. Content and state setters take node ID strings.</p>
 <pre><code>local Hud = require("demi.hud")
 
 local node = Hud.find("health_bar")   -- handle, or nil if missing
 if node then
-    Hud.set_value(node, 1.0)
+    Hud.set_value(node.id, 1.0)
 end</code></pre>
 <ul>
   <li><code>Hud.find(id)</code> looks up an authored or runtime node by id. Returns a generation-checked handle, or <code>nil</code> when no such node exists.</li>
-  <li>A <strong>stale handle</strong> is a handle kept after the node was removed. Generation checking means calls on a stale handle fail cleanly (they do nothing or return nil) instead of touching a reused slot. Always re-<code>find</code> or use the new handle after <code>remove</code> / <code>clear_children</code>.</li>
-  <li>Passing the id string every frame is fine for simple games; keep handles when you create and destroy nodes.</li>
+  <li>A <strong>stale handle</strong> is a handle kept after the node was removed. Generation checking makes structural operations fail instead of touching a reused slot. Re-<code>find</code> after <code>remove</code> / <code>clear_children</code>.</li>
+  <li>Setters look up the current node by ID. Keep handles for operations that require them.</li>
 </ul>
 
 <h2>Setters</h2>
-<p>Each setter takes the node (id or handle) first and returns a success boolean.</p>
+<p>Each node setter takes an ID string first and returns a success boolean.</p>
 <table>
   <thead><tr><th>Call</th><th>Effect</th><th>Returns</th></tr></thead>
   <tbody>
@@ -35,7 +35,7 @@ end</code></pre>
     <tr><td><code>Hud.set_position(node, x, y)</code></td><td>Moves the node in canvas units.</td><td>boolean</td></tr>
     <tr><td><code>Hud.set_size(node, w, h)</code></td><td>Resizes the node in canvas units.</td><td>boolean</td></tr>
     <tr><td><code>Hud.focus_next(reverse?)</code></td><td>Moves focus to the next control (previous when <code>reverse</code> is true).</td><td>boolean</td></tr>
-    <tr><td><code>Hud.focused()</code></td><td>Which node has focus.</td><td>focused node id string</td></tr>
+    <tr><td><code>Hud.focused()</code></td><td>Which node has focus.</td><td>focused node ID, or an empty string</td></tr>
   </tbody>
 </table>
 <pre><code>local Hud = require("demi.hud")
@@ -46,32 +46,30 @@ Hud.set_value("health_bar", 0.75)
 Hud.set_disabled("start", false)
 Hud.set_visible("hint", false)
 Hud.set_opacity("fade", 0.5)
-print(Hud.focused())                  -- "start" or nil</code></pre>
-<p>All of these take an id string or a <code>find</code> handle as the first argument. <code>Hud.get_text</code> and <code>Hud.focused</code> are the two readers; everything else writes and reports success with a boolean.</p>
+print(Hud.focused())                  -- "start" or ""</code></pre>
+<p>Node setters and <code>Hud.get_text</code> take an ID string. <code>Hud.focus_next</code> returns a boolean; <code>Hud.focused</code> returns an ID string (empty when no node is focused).</p>
 
 <h2>UI event handlers</h2>
-<p>HUD interaction arrives as methods on your script — no polling needed.</p>
-<pre><code>function Menu:on_ui_event(e)
-    if e.type == "press" and e.id == "start" then
-        Scene.load("scene://levels/forge")
-    end
+<p>Subscribe to the shared UI event stream in a menu script. Entity callbacks named <code>on_ui_event</code> or <code>on_ui_&lt;event type&gt;</code> receive an event only when that script's entity ID matches the HUD node ID.</p>
+<pre><code>local Events = require("demi.events")
+local Scene = require("demi.scene")
+
+function Menu:on_start()
+    self.ui_subscription = Events.subscribe("ui_event", function(e)
+        if e.type == "press" and e.id == "start" then
+            Scene.load("scene://levels/forge")
+        elseif e.type == "submit" and e.id == "seed_input" then
+            print("seed:", e.text)
+        end
+    end)
 end
 
-function Menu:on_ui_value_changed(e)
-    if e.id == "volume" then
-        Audio.set_bus_volume("music", e.value)
-    end
-end
-
-function Menu:on_ui_submit(e)
-    if e.id == "seed_input" then
-        print("seed:", e.text)
-    end
+function Menu:on_destroy()
+    Events.unsubscribe(self.ui_subscription)
 end</code></pre>
 <ul>
-  <li><code>on_ui_event(e)</code> — receives every interaction as one payload table.</li>
-  <li><code>on_ui_value_changed(e)</code> — convenience for slider/toggle changes.</li>
-  <li><code>on_ui_submit(e)</code> — fired when a text input submits (Enter or equivalent).</li>
+  <li><code>Events.subscribe("ui_event", callback)</code> receives all HUD events. Unsubscribe when the script is destroyed.</li>
+  <li><code>on_ui_event(e)</code> and typed callbacks such as <code>on_ui_value_changed(e)</code> / <code>on_ui_submit(e)</code> are for a script attached to an entity with the same ID as the emitting HUD node.</li>
 </ul>
 <p>Payload fields — only those relevant to the event type are filled:</p>
 <table>
@@ -92,7 +90,7 @@ end</code></pre>
   </tbody>
 </table>
 <p>Event types: <code>value_changed</code>, <code>focus_gained</code>, <code>focus_lost</code>, <code>submit</code>, <code>cancel</code>, <code>pointer_enter</code>, <code>pointer_exit</code>, <code>press</code>, <code>release</code>, <code>drag_start</code>, <code>drag</code>, <code>drag_end</code>, <code>drop</code>, <code>scroll</code>.</p>
-<p>Always branch on <code>e.type</code> first — a <code>press</code> has no <code>value</code>, and a <code>scroll</code> has no <code>checked</code>. The same stream is also available to subscribers: <code>Events.subscribe("ui_event", …)</code> and <code>Events.subscribe("ui_submit", …)</code>.</p>
+<p>Always branch on <code>e.type</code> first — a <code>press</code> has no <code>value</code>, and a <code>scroll</code> has no <code>checked</code>. The same stream is available by event type with <code>Events.subscribe("ui_submit", …)</code>.</p>
 
 <h2>Tweens</h2>
 <p>A tween animates one property over time. Use them for fades and slides instead of per-frame setters.</p>
@@ -109,7 +107,7 @@ Hud.set_reduced_motion(true)</code></pre>
 <p>The fade line takes the node’s opacity to 0 over 0.35 seconds. Call <code>set_reduced_motion</code> from your options screen and keep honoring it.</p>
 
 <h2>Runtime create, clone, remove, reparent</h2>
-<p>Nodes can be built while the game runs — inventory rows, chat lines, score popups. The definition shape matches authored HUD JSON.</p>
+<p>Nodes can be built while the game runs — inventory rows, chat lines, score popups. <code>Hud.create</code> accepts the flat fields listed in the <code>HudNodeDefinition</code> stub; create children separately.</p>
 <pre><code>local Hud = require("demi.hud")
 
 function Inventory:refresh(items)
@@ -119,15 +117,12 @@ function Inventory:refresh(items)
         local row = Hud.create("list", {
             id = "row_" .. i,
             type = "panel",
-            stack = "row",
-            gap = 8,
-            children = {
-                { type = "image", texture = item.icon, size = [32, 32] },
-                { type = "label", text = item.name },
-            },
+            text = item.name,
         })
 
-        local copy = Hud.clone(row, "compare_" .. i, "compare_panel")
+        if row then
+            Hud.clone(row, "compare_" .. i, "compare_panel")
+        end
     end
 end
 

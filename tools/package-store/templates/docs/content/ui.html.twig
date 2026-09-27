@@ -12,7 +12,7 @@
   "theme": "../ui/themes/dark.json",
   "localization_file": "../ui/en.localization.json",
   "variables": ["game_title"],
-  "action_map": { "confirm": "menu_accept" },
+  "action_map": { "submit": "confirm" },
   "action_effects": {
     "menu_accept": { "focus": "start" }
   },
@@ -25,12 +25,12 @@
     "gap": 12,
     "children": [
       { "id": "title", "type": "label", "text": "${game_title}", "font_size": 32 },
-      { "id": "start", "type": "button", "text": "Start", "action": "confirm" },
-      { "id": "options", "type": "button", "text": "Options", "action": "confirm" }
+      { "id": "start", "type": "button", "text": "Start", "action": "menu_accept" },
+      { "id": "options", "type": "button", "text": "Options", "action": "menu_options" }
     ]
   }
 }</code></pre>
-<p>Walkthrough: <code>canvas_size</code> is the design resolution every position and size is measured against. <code>theme</code> and <code>localization_file</code> are paths relative to the HUD file. <code>root</code> is a full-screen column with 24 units of padding and 12 units between children. The title interpolates <code>${game_title}</code>; the top-level <code>variables</code> array declares variable names — never values — and <code>Hud.set_variable</code> fills them at runtime. The button <code>action</code> names an input action, and <code>action_effects</code> can move focus or show/hide nodes (id arrays) when that action fires.</p>
+<p>Walkthrough: <code>canvas_size</code> is the design resolution every position and size is measured against. <code>theme</code> and <code>localization_file</code> are paths relative to the HUD file. <code>root</code> is a full-screen column with 24 units of padding and 12 units between children. The title interpolates <code>${game_title}</code>; the top-level <code>variables</code> array declares variable names — never values — and <code>Hud.set_variable</code> fills them at runtime. A button's <code>action</code> names the UI action it emits. <code>action_effects</code> can focus or show/hide nodes when that UI action fires. <code>action_map</code> maps navigation slots (<code>next</code>, <code>previous</code>, <code>submit</code>, <code>cancel</code>) to input action names.</p>
 <p>You can omit <code>root</code> and write top-level <code>children</code> instead — an implicit fill container is inserted. Prefer <code>dock</code>, <code>stack</code>, <code>pad</code>, and <code>at</code> before raw anchors.</p>
 
 <h2>Node types</h2>
@@ -62,20 +62,20 @@
   <li><code>"font": "asset://fonts/body"</code> picks a <code>Font2D</code> asset. The default is embedded Inter Variable.</li>
   <li><code>text_wrap</code>: <code>none|word|grapheme</code>. <code>text_overflow</code>: <code>visible|clip|ellipsis</code>.</li>
   <li><code>text_alignment</code> / <code>text_vertical_alignment</code>: <code>start|center|end</code>. <code>max_lines</code> caps the block.</li>
-  <li>Rich text tags: <code>[color]</code>, <code>[em]</code>, <code>[strong]</code>, <code>[link]</code>, <code>[icon]</code>.</li>
+  <li><code>Text.parse_rich</code> can parse <code>[color]</code>, <code>[em]</code>, <code>[strong]</code>, <code>[link]</code>, and <code>[icon]</code> into spans for scripts; HUD nodes currently render plain text.</li>
   <li><code>${name}</code> in <code>text</code> interpolates a native variable — a mechanism separate from localization. Localized strings are selected per node with <code>localization_key</code> and come from <code>localization_file</code> (or an embedded <code>locales</code> object).</li>
 </ul>
 <pre><code>local Hud = require("demi.hud")
 Hud.set_variable("game_title", "Skyforge II")
-Hud.set_locale("de")             -- reapply localization keys in German
+Hud.set_locale("de")             -- requires a loaded "de" entry in HUD locales
 Hud.set_pseudo_locale(true)      -- pseudo-localization for layout QA</code></pre>
 <p><code>Hud.has_variable(name)</code> returns a boolean; <code>Hud.get_variable(name)</code> returns the string or <code>nil</code>; <code>Hud.reset_variables()</code> clears runtime values, so unresolved names render as <code>${name}</code>.</p>
 
 <h2>Themes</h2>
-<p>A theme document supplies <code>styles</code> and an optional <code>action_map</code>. A localization file supplies a <code>localization</code> object. Values written on the node itself win over the theme. Reference a style with <code>"style": "menu_button"</code>.</p>
+<p>A theme document supplies <code>styles</code> and an optional <code>action_map</code>. A localization file supplies the initially loaded <code>localization</code> object. <code>Hud.set_locale</code> selects among embedded <code>locales</code> in the HUD; it does not load another localization file. Reference a style with <code>"style": "menu_button"</code>. Theme styles support colors, padding, gap, font size, minimum size, and control/row height; explicitly authored text color, font size, and minimum size take precedence.</p>
 
 <h2>Mutating UI from Lua</h2>
-<p>Layout stays authored. Scripts change content and state through <code>demi.hud</code>:</p>
+<p>Scripts change content, state, and rectangles through <code>demi.hud</code>:</p>
 <pre><code>local Hud = require("demi.hud")
 
 Hud.set_text("title", "Ready?")           -- label/text content
@@ -96,24 +96,24 @@ Hud.set_position("popup", 120, 80)        -- canvas units
 Hud.set_size("popup", 480, 260)
 
 Hud.focus_next()                          -- move keyboard/gamepad focus
-local focused = Hud.focused()             -- node ID or nil</code></pre>
-<p>Every setter takes a node ID first. <code>Hud.find(id)</code> returns a generation-checked handle (or <code>nil</code> if the node is gone) — use it when you create and destroy nodes at runtime so stale handles fail cleanly.</p>
+local focused = Hud.focused()             -- node ID or empty string</code></pre>
+<p>Every setter takes a node ID string first. <code>Hud.find(id)</code> returns a generation-checked handle (or <code>nil</code> if the node is gone) for structural operations and tweens.</p>
 
 <h2>Runtime-created UI</h2>
-<pre><code>local node = Hud.create("menu", {
+<pre><code>local node, err = Hud.create("menu", {
     id = "continue",
     type = "button",
     text = "Continue",
     action = "confirm",
 })
-print(node.id)                  -- handle for the new node
+if not node then error(err) end
+print(node.id)                  -- ID on the returned handle
 
 local copy = Hud.clone(node, "continue_copy")  -- duplicate under a new root id
 Hud.reparent(copy, "other_panel")
 local kids = Hud.children("menu")   -- array of child ids
-Hud.clear_children("menu")
 Hud.remove(node)                -- delete a runtime node</code></pre>
-<p><code>Hud.create</code> builds a node from the same definition shape as authored HUD JSON and returns its handle plus an error string. Keep handles in locals if you will mutate the node later.</p>
+<p><code>Hud.create</code> accepts flat node fields such as <code>id</code>, <code>type</code>, <code>text</code>, <code>x</code>, <code>y</code>, <code>width</code>, and <code>height</code>; it does not parse nested <code>children</code> or layout shorthand. It returns a handle plus an error string. Keep handles for structural operations.</p>
 
 <h2>UI prefabs</h2>
 <p>Reusable subtrees live as <code>*.ui.prefab.json</code> with typed parameters (<code>string</code>, <code>number</code>, <code>integer</code>, <code>boolean</code>, <code>array</code>, <code>object</code>):</p>
@@ -149,24 +149,25 @@ Hud.set_reduced_motion(true) -- honor accessibility preference</code></pre>
 <p>Animatable properties: <code>opacity</code>, <code>x</code>, <code>y</code>, <code>scale</code>. <code>Hud.tween</code> returns the tween handle plus an error string; <code>Hud.cancel_tween</code> takes that handle.</p>
 
 <h2>Events</h2>
-<pre><code>function Menu:on_ui_event(e)
-    -- e.type, e.id, e.related_id, e.action, e.text, e.source,
-    -- e.pointer_id, e.x, e.y, e.delta_x, e.delta_y,
-    -- e.value, e.checked, e.cancelled
-    if e.type == "press" and e.id == "start" then
-        print("start pressed by", e.source)  -- "pointer", "key", "gamepad", …
-    end
+<pre><code>local Events = require("demi.events")
+
+function Menu:on_start()
+    self.ui_subscription = Events.subscribe("ui_event", function(e)
+        if e.type == "press" and e.id == "start" then
+            print("start pressed by", e.source)
+        elseif e.type == "value_changed" then
+            print(e.id, e.value, e.checked)
+        elseif e.type == "submit" then
+            print(e.id, e.text)
+        end
+    end)
 end
 
-function Menu:on_ui_value_changed(e)
-    print(e.id, e.value, e.checked)
-end
-
-function Menu:on_ui_submit(e)
-    print(e.id, e.text)   -- current text_input contents
+function Menu:on_destroy()
+    Events.unsubscribe(self.ui_subscription)
 end</code></pre>
 <p>Event types: <code>value_changed</code>, <code>focus_gained</code>, <code>focus_lost</code>, <code>submit</code>, <code>cancel</code>, <code>pointer_enter</code>, <code>pointer_exit</code>, <code>press</code>, <code>release</code>, <code>drag_start</code>, <code>drag</code>, <code>drag_end</code>, <code>drop</code>, <code>scroll</code>.</p>
-<p>Only the fields relevant to the type are filled — check <code>e.type</code> first. You can also subscribe globally with <code>Events.subscribe("ui_event", …)</code> and <code>Events.subscribe("ui_submit", …)</code>.</p>
+<p>Only the fields relevant to the type are filled — check <code>e.type</code> first. <code>Events.subscribe("ui_event", …)</code> receives the whole stream. Entity callbacks such as <code>on_ui_submit</code> only receive events from a HUD node whose ID matches that script's entity ID.</p>
 
 <h2>Accessibility</h2>
 <pre><code>local snapshot = Hud.accessibility_snapshot()

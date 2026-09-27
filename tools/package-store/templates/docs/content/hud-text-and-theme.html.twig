@@ -1,5 +1,5 @@
 <h1>Text, theme &amp; locale</h1>
-<p>This page covers how HUD text is drawn, where its words come from, and how one theme styles a whole tree. <strong>Fonts</strong> shape the letters, <strong>variables</strong> fill in changing values, <strong>rich text</strong> adds inline emphasis, a <strong>theme</strong> supplies shared styles, and <strong>localization</strong> swaps languages. Together they keep Skyforge’s HUD readable in every language without per-node rewrites.</p>
+<p>This page covers HUD fonts, variables, theme styles, and localization. The text module can parse rich-text markup for scripts, but HUD nodes currently render plain text.</p>
 
 <h2>Fonts</h2>
 <p>A font is a <code>Font2D</code> asset. Reference it by URI on any text-bearing node:</p>
@@ -46,12 +46,12 @@
 <h2>${variables} interpolation</h2>
 <p>Text can reference named variables. At draw time each <code>${name}</code> is replaced with the variable’s current value.</p>
 <pre><code>{
-  "id": "score",
-  "type": "label",
-  "text": "Score: ${score}"
-}
-
-"variables": ["game_title", "score"]</code></pre>
+  "format_version": 1,
+  "variables": ["score"],
+  "children": [
+    { "id": "score", "type": "label", "text": "Score: ${score}" }
+  ]
+}</code></pre>
 <ul>
   <li>Top-level <code>variables</code> in the HUD document is an array of variable <em>names</em> — never a name→value map. Values are runtime strings set from Lua with <code>Hud.set_variable</code> / <code>Hud.set_variables</code>; unresolved names stay visible as <code>${name}</code>.</li>
   <li>Node <code>text</code> may mix literal words and <code>${name}</code> markers anywhere in the string.</li>
@@ -74,23 +74,21 @@ Hud.reset_variables()                      -- clear runtime values</code></pre>
 <p>The score label redraws with the new number — no need to rebuild the node.</p>
 
 <h2>Rich text tags</h2>
-<p>Inside any <code>text</code> or <code>label</code> you can mark up parts of the string:</p>
-<pre><code>{
-  "id": "tip",
-  "type": "label",
-  "text": "[strong]Forge tip:[/strong] hold [em]guard[/em] near the [color=#ffd27a]core[/color]."
-}</code></pre>
+<p><code>Text.parse_rich(markup, strict?)</code> parses supported tags into plain text, spans, and diagnostics for scripts. HUD labels do not consume those spans, so putting tags directly in a node's <code>text</code> does not style it.</p>
+<pre><code>local Text = require("demi.text")
+local parsed = Text.parse_rich("[strong]Forge tip:[/strong] hold guard")
+-- parsed.text, parsed.spans, parsed.diagnostics</code></pre>
 <table>
-  <thead><tr><th>Tag</th><th>Renders</th></tr></thead>
+  <thead><tr><th>Tag</th><th>Parsed metadata</th></tr></thead>
   <tbody>
-    <tr><td><code>[color=…][/color]</code></td><td>Tinted text. The color is hex, like <code>#ffd27a</code>.</td></tr>
-    <tr><td><code>[em][/em]</code></td><td>Emphasized (italic) text.</td></tr>
-    <tr><td><code>[strong][/strong]</code></td><td>Strong (bold) text.</td></tr>
-    <tr><td><code>[link=…][/link]</code></td><td>Styled link region for tappable help entries.</td></tr>
-    <tr><td><code>[icon=…][/icon]</code></td><td>Inline icon from a named image.</td></tr>
+    <tr><td><code>[color=…][/color]</code></td><td>A color span with a value such as <code>#ffd27a</code>.</td></tr>
+    <tr><td><code>[em][/em]</code></td><td>An emphasis span.</td></tr>
+    <tr><td><code>[strong][/strong]</code></td><td>A strong span.</td></tr>
+    <tr><td><code>[link=…][/link]</code></td><td>A link span with a value.</td></tr>
+    <tr><td><code>[icon=…]</code></td><td>A zero-length icon span with a value.</td></tr>
   </tbody>
 </table>
-<p>Tags are literal text in the <code>text</code> field and are not drawn. Everything outside them renders in the node’s normal style.</p>
+<p>The parser only describes spans; it does not make HUD text bold, italic, linked, or insert an image.</p>
 
 <h2>Theme styles</h2>
 <p>A <strong>theme</strong> is a JSON document of reusable styles. Reference one from the HUD and apply it per node with <code>style</code>.</p>
@@ -105,19 +103,19 @@ Hud.reset_variables()                      -- clear runtime values</code></pre>
       "min_size": [280, 52]
     },
     "title": {
-      "font": "asset://fonts/head",
       "font_size": 48,
       "color": "#ffffff"
     }
   },
-  "action_map": { "confirm": "ui_ok" }
+  "action_map": { "submit": "ui_ok" }
 }</code></pre>
 <ul>
-  <li><code>styles</code> — map of style name to shared node fields (fonts, colors, padding, sizes — any appearance field).</li>
-  <li><code>action_map</code> — optional map from an input action name to a UI action name, so the same button works from keyboard and pad.</li>
+  <li><code>styles</code> — map of style name to supported fields: <code>color</code>, <code>background_color</code>, <code>text_color</code>, <code>padding</code>, <code>gap</code>, <code>font_size</code>, <code>min_size</code>, <code>control_height</code>, and <code>row_height</code>. Set <code>font</code> directly on the node.</li>
+  <li><code>action_map</code> — optional map from HUD navigation slots (<code>next</code>, <code>previous</code>, <code>submit</code>, <code>cancel</code>) to project input action names.</li>
 </ul>
-<p>Applying a style:</p>
+<p>Applying a style in a HUD document:</p>
 <pre><code>{
+  "format_version": 1,
   "theme": "../ui/themes/dark.json",
   "children": [
     { "id": "title", "type": "label", "text": "${game_title}", "style": "title" },
@@ -127,12 +125,12 @@ Hud.reset_variables()                      -- clear runtime values</code></pre>
 <ul>
   <li>Top-level <code>theme</code> names the theme file path, relative to the HUD file.</li>
   <li><code>style</code> on a node copies that style’s fields onto the node.</li>
-  <li>A field written on the node itself wins over the style. The <code>start</code> button above would keep its own <code>text</code> even if <code>menu_button</code> defined one.</li>
+  <li>Explicit node <code>text_color</code>, <code>font_size</code>, and <code>min_size</code> take precedence. Styles can still replace node <code>color</code> and <code>background_color</code>; they fill padding and gap when those values are zero.</li>
 </ul>
 <p>Why themes: one change to <code>menu_button</code> restyles every menu button in Skyforge. Individual exceptions stay readable on the node.</p>
 
 <h2>Localization</h2>
-<p>A <strong>localization file</strong> supplies translated strings for one locale. The HUD references it once; each node pulls its string by key when the document loads.</p>
+<p>A <strong>localization file</strong> supplies initially loaded strings. The HUD references one file; each node pulls its string by key when the document loads. Runtime locale switching uses the HUD's embedded <code>locales</code> map.</p>
 <pre><code>{
   "format_version": 1,
   "localization": {
@@ -141,6 +139,7 @@ Hud.reset_variables()                      -- clear runtime values</code></pre>
   }
 }</code></pre>
 <pre><code>{
+  "format_version": 1,
   "localization_file": "../ui/de.localization.json",
   "children": [
     { "id": "start", "type": "button", "text": "Start", "localization_key": "play", "style": "menu_button" },
@@ -148,12 +147,13 @@ Hud.reset_variables()                      -- clear runtime values</code></pre>
   ]
 }</code></pre>
 <ul>
-  <li>The file holds a flat <code>localization</code> object mapping string keys to translated text — one file per locale, e.g. <code>en.localization.json</code> and <code>de.localization.json</code>.</li>
+  <li>The file holds a flat <code>localization</code> object mapping string keys to translated text. A HUD loads only the file named by <code>localization_file</code>.</li>
   <li><code>localization_file</code> on the HUD names that file, relative to the HUD file.</li>
   <li>A node’s <code>localization_key</code> (and <code>placeholder_localization_key</code> for text inputs) selects the string; its value replaces the node’s text (or placeholder) when the document loads.</li>
-  <li>For small string sets the HUD can instead embed a <code>locales</code> object plus a default <code>locale</code>:</li>
+  <li>For runtime switching, embed a <code>locales</code> object plus a default <code>locale</code> in the HUD:</li>
 </ul>
 <pre><code>{
+  "format_version": 1,
   "locale": "en",
   "locales": {
     "en": { "play": "Start", "quit": "Quit" },
@@ -167,16 +167,16 @@ Hud.reset_variables()                      -- clear runtime values</code></pre>
 
 Hud.set_locale("de")             -- reapply every localization key in German</code></pre>
 <ul>
-  <li><code>Hud.set_locale(code)</code> reapplies every node’s localization key with that locale’s strings. Returns <code>true</code> when the locale applied, plus an error string; the last valid locale is kept on failure.</li>
+  <li><code>Hud.set_locale(code)</code> selects a loaded entry in <code>locales</code> and reapplies localization keys. It cannot load another <code>localization_file</code>. Returns <code>true</code> on success, plus an error string; the last valid locale is kept on failure.</li>
   <li><code>${name}</code> variables are a separate native-variable mechanism — they are interpolated, not localized.</li>
 </ul>
 
 <h2>Pseudo-locale QA</h2>
-<p>Translated text is often longer than English. <strong>Pseudo-localization</strong> expands and accented-izes strings so layout bugs show up before real translations arrive.</p>
+<p>Translated text is often longer than English. <strong>Pseudo-localization</strong> brackets strings and repeats vowels so some layout bugs show up before real translations arrive.</p>
 <pre><code>Hud.set_pseudo_locale(true)      -- stress-test layout with fake translations</code></pre>
 <ul>
   <li><code>Hud.set_pseudo_locale(enabled)</code> takes a boolean and switches displayed strings to a pseudo-locale build of the current strings. No return value.</li>
-  <li>Strings render accented and padded (English “Start” becomes something like “[Šţàŕţ—]”), so truncation, wrapping, and <code>max_lines</code> are visible immediately.</li>
+  <li>Localized strings render with doubled vowels inside brackets (English “Start” becomes “[Staart]”), making some truncation and wrapping problems easier to see.</li>
   <li>Run Skyforge’s menu in pseudo-locale before each release; fix anything that clips or overflows.</li>
 </ul>
 

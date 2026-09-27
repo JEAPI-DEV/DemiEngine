@@ -19,6 +19,7 @@
       "id": "body",
       "components": {
         "Transform3D": { "position": [0, 0, 0] },
+        "CapsuleCollider3D": { "radius": 0.3, "height": 1.8 },
         "CharacterController3D": { "slope_limit": 45 }
       },
       "children": [
@@ -40,7 +41,7 @@
 </ul>
 
 <h2>Placing an instance in a scene</h2>
-<p>Scenes list prefab placements in an <code>instances</code> array next to their own <code>entities</code>:</p>
+<p>List prefab placements alongside ordinary entities in <code>entities</code>. An entry with <code>prefab</code> expands a reusable source rather than defining its own component set:</p>
 <pre><code>{
   "format_version": 1,
   "id": "scene://game/main",
@@ -59,7 +60,7 @@
   ]
 }</code></pre>
 <ul>
-  <li><code>id: "player"</code> — the instance identity inside this scene. This is the name scripts and tests use.</li>
+  <li><code>id: "player"</code> — the placement's prefix. Scripts address expanded entities such as <code>player/body</code>.</li>
   <li><code>prefab: "prefab://characters/player"</code> — which prefab to place. A URI reference, not a path.</li>
   <li><code>overrides</code> — a map of per-instance changes keyed by the prefab's local entity IDs. Here <code>body</code> gets a different start position.</li>
 </ul>
@@ -101,17 +102,19 @@
 <pre><code>"overrides": {
   "body": {
     "components": {
-      "Transform3D": { "position": [2, 0, 0] },
-      "MeshRenderer": null
+      "Transform3D": { "position": [2, 0, 0] }
     },
     "tags": ["boss"]
+  },
+  "visual": {
+    "components": { "MeshRenderer": null }
   }
 }</code></pre>
 <ul>
   <li><code>Transform3D.position</code> → <code>[2, 0, 0]</code> — merged in, replacing the prefab's position.</li>
   <li><code>Transform3D.rotation</code> and any other transform fields — inherited from the prefab because they are absent from the override.</li>
   <li><code>CharacterController3D</code> — inherited entirely; the merge touched other components only.</li>
-  <li><code>MeshRenderer</code> — removed from this instance because the override value is <code>null</code>.</li>
+  <li>The <code>visual</code> child's <code>MeshRenderer</code> — removed because its override is <code>null</code>; the body and its controller remain.</li>
   <li><code>tags</code> → <code>["boss"]</code> — replaced as a whole because it is an array.</li>
 </ul>
 

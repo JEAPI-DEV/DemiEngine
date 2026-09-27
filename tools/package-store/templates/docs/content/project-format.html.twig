@@ -75,7 +75,7 @@
 </ul>
 
 <h2>Scene — <code>*.scene.json</code></h2>
-<p>Required: <code>format_version</code>, <code>id</code> (<code>scene://…</code>), and <code>entities</code> always (it may be empty; <code>instances</code> does not replace it).</p>
+<p>Required: <code>format_version</code>, <code>id</code> (<code>scene://…</code>), and <code>entities</code>. The shared list contains ordinary entities and prefab placements and may be empty.</p>
 <pre><code>{
   "format_version": 1,
   "id": "scene://game/main",
@@ -97,9 +97,7 @@
       "children": [
         { "id": "player/sword", "components": { "Sprite": { "texture": "asset://sprites/sword" } } }
       ]
-    }
-  ],
-  "instances": [
+    },
     {
       "id": "doorway",
       "prefab": "prefab://doorway",
@@ -112,7 +110,7 @@
 <p>Optional entity fields: <code>enabled</code> (default true), <code>persistent</code> (default false), <code>layer</code>, <code>preset</code> shorthand expanded before parse: <code>static_box_3d</code> accepts <code>size</code>, <code>trigger_sphere_3d</code> accepts <code>radius</code>, <code>prop_2d</code> accepts <code>texture</code>, and <code>character_3d</code> accepts no shorthand (it only expands components).</p>
 
 <h2>Prefab — <code>*.prefab.json</code></h2>
-<p>Required: <code>format_version</code>, <code>id</code> (<code>prefab://…</code>), and at least one of <code>entities</code> / <code>instances</code> / <code>elements</code>.</p>
+<p>Author entity prefabs with <code>format_version</code>, a <code>prefab://…</code> identity, and an <code>entities</code> array containing ordinary entities and prefab references. Use <code>children</code> for meaningful local hierarchies. The loader also accepts a separate <code>instances</code> array, but it is unnecessary for this workflow.</p>
 <pre><code>{
   "format_version": 1,
   "id": "prefab://characters/player",
@@ -121,6 +119,7 @@
       "id": "body",
       "components": {
         "Transform3D": { "position": [0, 0, 0] },
+        "CapsuleCollider3D": { "radius": 0.3, "height": 1.8 },
         "CharacterController3D": { "slope_limit": 45 }
       },
       "children": [

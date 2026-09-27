@@ -6,15 +6,18 @@
 <p>Models exist so characters, props, and stations can be authored once in a DCC tool and reused everywhere: same asset, many placed instances, one import pipeline.</p>
 
 <h2>Importing a model</h2>
-<p>Author in glTF or GLB — the standard interchange format for real-time 3D. The importer also accepts OBJ, IQM, and M3D.</p>
-<pre><code>demi asset import games/skyforge/assets/models/drone.glb \
-  --output games/skyforge/assets/models/drone.asset.json</code></pre>
+<p>Author renderable models in glTF or GLB. The asset importer also recognizes OBJ, IQM, and M3D, but the current 3D renderer loads <code>Model3D</code> geometry through its glTF/GLB loaders; convert other source formats to glTF/GLB for this workflow. The glTF loaders draw triangle primitives; line and point primitives are skipped.</p>
+<pre><code>demi asset import games/skyforge/source/drone.glb \
+  --project games/skyforge --id asset://models/drone \
+  --preset animated_character</code></pre>
 <ul>
   <li>The first path is the source file produced by your art tool.</li>
-  <li><code>--output</code> is the <code>*.asset.json</code> manifest DemiEngine cooks and references.</li>
-  <li>The command returns after writing the asset; validate the project with <code>demi validate</code> to confirm every reference resolves.</li>
+  <li><code>--id</code> gives the model a stable asset URI; the importer writes its <code>*.asset.json</code> manifest under the project's <code>assets/</code> directory.</li>
+  <li><code>--preset animated_character</code> enables animation import. The default <code>static_prop</code> preset does not import animations.</li>
+  <li>The importer writes <code>settings.model_import</code>. Runtime clip names come from animation names in the glTF/GLB; the optional <code>settings.animations.clips</code> list is manifest metadata and does not enable import or rename glTF clips.</li>
+  <li>Validate the project with <code>demi validate games/skyforge</code> to check its references.</li>
 </ul>
-<p>Skeletal clips live in the asset settings so the engine knows what the file contains:</p>
+<p>An animated asset can also record clip metadata in its manifest:</p>
 <pre><code>{
   "settings": {
     "animations": {
@@ -26,9 +29,8 @@
   }
 }</code></pre>
 <ul>
-  <li><code>clips</code> lists the animation clips to expose at runtime.</li>
-  <li><code>name</code> is the clip name scripts and state machines refer to (for example <code>play</code> requests).</li>
-  <li><code>skeleton</code> names the skeleton the clip drives. Clips must share names across level-of-detail models to blend correctly.</li>
+  <li><code>clips</code> records names for manifest validation. The glTF/GLB animation names supply the actual runtime clips; keep metadata names aligned with them.</li>
+  <li><code>skeleton</code> records a skeleton name for validation. Listed clips in one asset must not name different skeletons. Animated LOD variants need matching runtime clip names and durations for the renderer to switch models.</li>
 </ul>
 
 <h2>MeshRenderer</h2>
@@ -36,7 +38,9 @@
   "MeshRenderer": {
     "model": "asset://models/drone",
     "medium_lod_model": "asset://models/drone_med",
-    "low_lod_model": "asset://models/drone_low"
+    "medium_lod_distance": 25,
+    "low_lod_model": "asset://models/drone_low",
+    "low_lod_distance": 60
   }
 }</code></pre>
 <table>
@@ -44,46 +48,47 @@
   <tbody>
     <tr><td><code>model</code></td><td>The full-detail <code>Model3D</code> asset URI to draw.</td></tr>
     <tr><td><code>medium_lod_model</code></td><td>Optional mid-distance model. Used when the camera is far enough that the full mesh is wasted.</td></tr>
+    <tr><td><code>medium_lod_distance</code></td><td>Camera distance in world units where the medium model starts. Zero disables this threshold.</td></tr>
     <tr><td><code>low_lod_model</code></td><td>Optional far-distance model.</td></tr>
+    <tr><td><code>low_lod_distance</code></td><td>Camera distance in world units where the low model starts. Zero disables this threshold.</td></tr>
   </tbody>
 </table>
-<p>Level of detail (LOD) keeps a deck full of crates cheap: near ones use <code>model</code>, distant ones use the reduced meshes. LOD variants are ordinary authored models — build them in your art tool with the same proportions and give them the <strong>same clip names and durations</strong> so animation keeps working when the swap happens.</p>
+<p>Level of detail (LOD) keeps a deck full of crates cheap: near ones use <code>model</code>, distant ones use the reduced meshes. LOD variants are ordinary authored models — build them in your art tool with the same proportions and give them the <strong>same clip names and durations</strong> so animation keeps working when the swap happens. Animated LOD stays on the full-detail model during authored layers, tracked transition progress, or procedural bone overrides.</p>
 <p>Skeletal playback is controlled by <code>AnimationPlayer3D</code> plus per-entity visual update settings:</p>
 <pre><code>{
   "AnimationPlayer3D": {
-    "clip": "Fly",
+    "clip_name": "Fly",
     "loop": true,
     "visual_update_rate": 30,
     "visual_update_distance": 40
   }
 }</code></pre>
 <ul>
-  <li><code>clip</code> names a clip from the asset’s clip list.</li>
+  <li><code>clip_name</code> names an imported glTF/GLB animation clip.</li>
   <li><code>loop</code> repeats the clip.</li>
   <li><code>visual_update_rate</code> is how many times per second distant poses refresh. Lower rates save work on background crowds.</li>
   <li><code>visual_update_distance</code> is the distance beyond which poses are held rather than refreshed every frame.</li>
 </ul>
-<p>GPU skinning is applied automatically when the platform supports it. Set the environment variable <code>DEMI_GPU_SKINNING=0</code> to force the CPU path while profiling.</p>
+<p>On Vulkan, supported rigs use GPU skinning automatically; unsupported rigs use CPU skinning. The GPU path supports up to 128 referenced skin/node matrices across multiple skins and rigid parts, with up to four influences per vertex. It requires the built-in material and valid authored normals; procedural bone segments, authored layers, and tracked transition progress use the CPU path. Those fallback cases do not imply visual layer or transition pose blending. OpenGL/OpenGLES also use CPU skinning. Set <code>DEMI_GPU_SKINNING=0</code> before launch to force the CPU path while profiling.</p>
 <p>Clip switching and blend rules live in <a href="{{ path('docs_page', {slug: 'state-machines'}) }}">State machines</a>.</p>
 
 <h2>MeshInstances3D</h2>
-<p>A station corridor with two hundred identical pipes should not carry two hundred full renderers. <code>MeshInstances3D</code> draws many copies of one model from a single component.</p>
+<p>A station corridor with two hundred identical pipes can use one entity with <code>MeshRenderer</code> and <code>MeshInstances3D</code>. The latter draws labeled, render-only copies of the entity's shared static mesh.</p>
 <pre><code>{
+  "MeshRenderer": { "model": "asset://models/pipe" },
   "MeshInstances3D": {
-    "model": "asset://models/pipe",
-    "instances": [
-      { "position": [0, 0, 0],  "rotation_euler": [0, 0, 0], "scale": [1, 1, 1] },
-      { "position": [2, 0, 0],  "rotation_euler": [0, 0, 0], "scale": [1, 1, 1] },
-      { "position": [4, 0, 0],  "rotation_euler": [0, 0.4, 0], "scale": [1, 1, 1] }
-    ]
+    "transforms": {
+      "pipe_a": { "position": [0, 0, 0] },
+      "pipe_b": { "position": [2, 0, 0] },
+      "pipe_c": { "position": [4, 0, 0], "rotation": [0, 0.4, 0], "scale": [1, 1, 1] }
+    }
   }
 }</code></pre>
 <ul>
-  <li><code>model</code> is the shared <code>Model3D</code> asset every instance draws.</li>
-  <li><code>instances</code> is a list of per-copy transforms.</li>
-  <li><code>position</code> is world offset, <code>rotation_euler</code> is rotation in radians, <code>scale</code> is non-uniform scale.</li>
+  <li><code>MeshRenderer.model</code> supplies the shared model; <code>MeshInstances3D.transforms</code> maps nonempty stable labels to local transforms.</li>
+  <li>Each transform accepts <code>position</code>, Euler <code>rotation</code> in radians, and <code>scale</code>. These are composed with the owning entity's transform. Omitted fields use identity values; no scale axis may be zero.</li>
 </ul>
-<p>Use <code>MeshInstances3D</code> for debris fields, rivet rows, and any repeated prop. Use a normal <code>MeshRenderer</code> when each copy needs its own animation or physics.</p>
+<p>Use it for static repeated props. Copies have no individual entities, colliders, or scripts, and the component cannot share an entity with <code>AnimationPlayer3D</code>. Use separate entities when each copy needs animation or physics.</p>
 
 <h2>World text</h2>
 <p><code>WorldText3D</code> places a text label in the world — docking bay numbers, cargo tags, callouts over objectives. It behaves like a mesh for placement and depth, and takes its string and style from authored fields.</p>
@@ -92,31 +97,29 @@
 <p>Some geometry is not worth exporting from a tool: debug hulls, generated floors, voxel caves. The <code>demi.mesh.procedural</code> module builds a mesh at runtime and attaches it to an entity.</p>
 <pre><code>local Proc = require("demi.mesh.procedural")
 
-local mesh = Proc.create()
-mesh:clear()
-mesh:add_vertex(x, y, z, nx, ny, nz, u, v)
-mesh:add_quad(a, b, c, d)
-mesh:add_voxel_blocks(blocks)
-mesh:add_voxel_heightfield(heights)
+local mesh = Proc.create(4)
+mesh:add_quad(0, 1, 0,
+    0, 0, 0, 0, 0,  1, 0, 0, 1, 0,
+    1, 0, 1, 1, 1,  0, 0, 1, 0, 1)
 
-Proc.apply(entity_id, mesh)</code></pre>
+local applied = Proc.apply(entity_id, mesh)</code></pre>
 <table>
   <thead><tr><th>Call</th><th>Arguments</th><th>Returns</th></tr></thead>
   <tbody>
-    <tr><td><code>create</code></td><td>none</td><td>A new empty mesh builder handle.</td></tr>
+    <tr><td><code>create</code></td><td>optional vertex capacity</td><td>A new empty mesh builder handle.</td></tr>
     <tr><td><code>clear</code></td><td>on the builder</td><td>Nothing. Empties accumulated geometry.</td></tr>
-    <tr><td><code>reserve</code></td><td>on the builder, expected counts</td><td>Nothing. Preallocates space for large builds.</td></tr>
+    <tr><td><code>reserve</code></td><td>on the builder, vertex count</td><td>Nothing. Preallocates space for large builds.</td></tr>
     <tr><td><code>add_vertex</code></td><td>position, normal, UV components</td><td>Nothing. Appends one vertex.</td></tr>
-    <tr><td><code>add_quad</code></td><td>four corner indices</td><td>Nothing. Appends a quad face.</td></tr>
-    <tr><td><code>add_voxel_blocks</code></td><td>block data</td><td>Nothing. Appends blocky voxel geometry.</td></tr>
-    <tr><td><code>add_voxel_heightfield</code></td><td>height samples</td><td>Nothing. Appends a heightfield surface.</td></tr>
-    <tr><td><code>apply</code></td><td>entity id, builder</td><td>Nothing. Uploads the built geometry so the entity draws it.</td></tr>
+    <tr><td><code>add_quad</code></td><td>one normal and four positions/UVs</td><td>Nothing. Appends a quad face.</td></tr>
+    <tr><td><code>add_voxel_blocks</code></td><td>blocks, occupancy, tile mapping, atlas columns, occupancy stride</td><td>Nothing. Appends blocky voxel geometry.</td></tr>
+    <tr><td><code>add_voxel_heightfield</code></td><td>height and block layers, rocky columns, tile mapping, atlas columns, chunk and section dimensions, fill depth</td><td>Nothing. Appends a heightfield surface.</td></tr>
+    <tr><td><code>apply</code></td><td>entity id, builder, optional texture/material/render layer</td><td>Boolean success. Uploads built geometry for the entity.</td></tr>
   </tbody>
 </table>
 <p>Build, then apply. A cleared builder can be refilled and reapplied without creating a new handle.</p>
 
 <h2>Voxel worlds</h2>
-<p>For large editable block volumes — mining asteroids in Skyforge, cave systems, destructible terrain — use <code>demi.voxel.world</code>. It stores the volume of cells, lets scripts read and write them, and meshes the visible surface for drawing. Pair it with procedural mesh building when you need custom surfaces on top of the voxel data.</p>
+<p>For sectioned editable block volumes, use <code>demi.voxel.world</code>. Scripts set or erase sections, then call <code>build_section_mesh</code> and <code>Proc.apply</code> for the sections they want to draw. This is an explicit section-meshing API, not automatic world streaming or terrain excavation.</p>
 
 <h2>Picking the right tool</h2>
 <ul>

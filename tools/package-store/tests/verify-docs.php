@@ -48,6 +48,7 @@ foreach ([
 }
 
 foreach (App\Docs::pages() as $meta) {
+    $beforePage = $failures;
     $body = page($kernel, '/docs/'.$meta['slug']);
     preg_match_all('~href="/docs/([^"?#]+)~', $body, $links);
     foreach (array_unique($links[1]) as $slug) {
@@ -63,7 +64,7 @@ foreach (App\Docs::pages() as $meta) {
             $failures++;
         }
     }
-    if ($failures === 0 || true) {
+    if ($failures === $beforePage) {
         echo "OK   /docs/{$meta['slug']}\n";
     }
 }

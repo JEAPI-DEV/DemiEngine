@@ -1,5 +1,5 @@
 <h1>Animation &amp; audio</h1>
-<p>One animation state machine drives sprites and skeletal clips. Audio is a runtime API with buses, snapshots, streaming, and spatial voices.</p>
+<p>One animation state machine can select sprite or skeletal clips. Audio is a runtime API with buses, snapshots, streaming, and spatial voices.</p>
 
 <h2>Animation state machines</h2>
 <pre><code>{
@@ -9,46 +9,50 @@
   "pause_policy": "pause",
   "states": {
     "idle": { "model_clip_name": "Idle", "duration": 1.0, "loop": true },
-    "run":  { "sprite_clip": "run", "loop": true,
-              "events": [{ "time": 0.4, "name": "footstep" }] }
+    "run":  { "model_clip_name": "Run", "duration": 0.8, "loop": true,
+              "events": [{ "time": 0.4, "name": "footstep" }] },
+    "aim":  { "model_clip_name": "Aim", "duration": 1.0, "loop": true }
   },
-  "blend_spaces": [
-    { "name": "locomotion", "parameter_x": "speed",
+  "parameters": { "speed": 0.0 },
+  "blend_spaces": {
+    "idle": { "parameter_x": "speed",
       "points": [{ "x": 0, "state": "idle" }, { "x": 1, "state": "run" }] }
-  ],
-  "layers": [
-    { "state": "aim", "weight": 0.5, "additive": true, "mask": ["spine", "arm_l"] }
-  ],
-  "transitions": [
-    { "from": "idle", "to": "run", "condition": "speed &gt; 0.1", "blend_duration": 0.15 },
-    { "from": "jump", "to": "idle", "condition": "finished" }
-  ]
+  },
+  "layers": {
+    "upper": { "state": "aim", "weight": 0.5, "additive": true, "mask": ["spine", "arm_l"] }
+  },
+  "transitions": {
+    "start_run": { "from": "idle", "to": "run", "condition": "greater",
+                   "parameter": "speed", "threshold": 0.1, "blend_duration": 0.15 },
+    "stop_run": { "from": "run", "to": "idle", "condition": "less",
+                  "parameter": "speed", "threshold": 0.1 }
+  }
 }</code></pre>
 <ul>
   <li>A state plays a model clip (<code>model_clip_name</code>) or a sprite clip (<code>sprite_clip</code>).</li>
-  <li><code>events</code> fire at normalized <code>time</code> (0…1) inside the state — listen for <code>animation_event</code>.</li>
-  <li><code>blend_spaces</code> interpolate between states by a numeric parameter.</li>
-  <li><code>layers</code> stack or add poses over a bone <code>mask</code>.</li>
-  <li><code>transitions</code> switch when a <code>condition</code> matches (for example <code>finished</code> or <code>speed &gt; 0.1</code>) and blend over <code>blend_duration</code> seconds.</li>
+  <li><code>events</code> fire at <code>time</code> in seconds inside the state — listen for <code>animation_event</code>.</li>
+  <li><code>blend_spaces</code> are keyed by the active state name and sample named states by parameter value. Current playback chooses the highest-weight state; it does not mix visual poses.</li>
+  <li><code>layers</code> store secondary states, weights, and a bone <code>mask</code>, but the current 3D renderer does not compose layer poses.</li>
+  <li><code>transitions</code> switch when a <code>condition</code> matches (<code>greater</code>/<code>less</code> with <code>parameter</code> and <code>threshold</code>, <code>trigger</code>, or <code>finished</code>). <code>blend_duration</code> tracks progress; the renderer does not yet cross-fade poses.</li>
   <li><code>pause_policy</code> is <code>pause</code> (freeze while the game is paused) or <code>continue</code>.</li>
 </ul>
 <pre><code>local Animation = require("demi.animation")
 
 Animation.set_number(id, "speed", 0.8)     -- feed a parameter
 Animation.set_bool(id, "grounded", true)
-Animation.trigger(id, "jump")              -- one-shot trigger
+-- Animation.trigger(id, "jump")           -- if a trigger transition uses "jump"
 
-print(Animation.state(id))                 -- current state name, or nil
+print(Animation.state(id))                 -- current state name, or ""
 Animation.play(id, "idle")                 -- force a state
 Animation.set_speed(id, 1.25)              -- playback rate
 local t = Animation.normalized_time(id)    -- 0…1 inside the current state
-Animation.transition(id, "run")            -- request a switch now
-Animation.set_layer_weight(id, 2, 0.3)     -- blend a layer
+local transition = Animation.transition(id) -- {from, to, progress, active}
+Animation.set_layer_weight(id, "upper", 0.3)
 Animation.set_root_motion(id, true)</code></pre>
 <p><code>animation_event</code> payloads carry <code>entity_id</code>, <code>state</code>, and <code>name</code>, so one handler can service footstep, hit, and reload timings.</p>
 
 <h2>Sprite sheets</h2>
-<p>For simple frame animation, <code>SpriteAnimator2D</code> is enough (see <a href="{{ path('docs_page', {slug: 'gameplay-2d'}) }}">2D &amp; isometric</a>). Model clip lists live in the asset <code>settings.animations.clips</code> with <code>name</code> and <code>skeleton</code>. Root motion is off unless enabled and uses evenly spaced <code>root_motion_track</code> samples.</p>
+<p>For simple frame animation, <code>SpriteAnimator2D</code> is enough (see <a href="{{ path('docs_page', {slug: 'gameplay-2d'}) }}">2D &amp; isometric</a>). Model clips come from glTF/GLB animation names when <code>settings.model_import.import_animations</code> is enabled; <code>settings.animations.clips</code> is optional validation metadata. Root motion is off unless enabled and uses evenly spaced <code>root_motion_track</code> samples authored on a state.</p>
 
 <h2>Two-bone IK</h2>
 <pre><code>local Animation = require("demi.animation")
@@ -90,8 +94,9 @@ Audio.transition_snapshot("quiet", 0.4)  -- fade over 0.4 seconds</code></pre>
     x = 2, y = 0, z = 4,       -- world position for spatial playback
     min_distance = 1.5,
     max_distance = 30,
-    rolloff = "linear",
-    doppler = 1.0,
+    attenuation = "linear",
+    rolloff = 1.0,
+    doppler = false,
     delay = 0.0,
     fade_in = 0.05,
     concurrency_group = "impacts",
@@ -100,7 +105,7 @@ Audio.transition_snapshot("quiet", 0.4)  -- fade over 0.4 seconds</code></pre>
     pause_with_game = true,
 })
 Audio.stop(handle)             -- silence and release the voice</code></pre>
-<p><code>Audio.play</code> returns a voice handle (or <code>nil</code> if the asset is missing). Pass it to <code>Audio.stop</code>. <code>voice_stealing</code> decides what happens when <code>max_voices</code> is reached: reject the new sound, steal the oldest, or steal the quietest. <code>Audio.crossfade(old, new, seconds)</code> fades between two handles.</p>
+<p><code>Audio.play</code> returns an integer voice handle, or <code>0</code> when playback cannot start. Pass a nonzero handle to <code>Audio.stop</code>. <code>voice_stealing</code> decides what happens when <code>max_voices</code> is reached: reject the new sound, steal the oldest, or steal the quietest. <code>Audio.crossfade(old_handle, new_asset_id, seconds)</code> starts a new asset and fades the old voice out. Current Lua and entity-source playback submit zero source/listener velocity, so the <code>doppler</code> flag alone does not create motion-based pitch changes.</p>
 <p>Mark long music and ambience clips with <code>settings.streaming</code> on the <code>AudioClip</code> asset so they are not fully decoded into memory.</p>
 
 <h2>Entity-attached sources</h2>
@@ -110,7 +115,7 @@ Audio.stop(handle)             -- silence and release the voice</code></pre>
     "bus": "sfx",
     "loop": true,
     "spatial": "3d",
-    "autoplay": true
+    "play_on_start": true
   },
   "AudioListener": {}
 }</code></pre>

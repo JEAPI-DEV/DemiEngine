@@ -6,31 +6,32 @@
 <pre><code>local Hud = require("demi.hud")
 
 local bar = Hud.find("skyforge_health_bar")   -- node handle, or nil if the ID is unknown</code></pre>
-<p><code>Hud.find(id)</code> takes the authored node ID and returns a handle for later calls, or <code>nil</code> when no node has that ID. Keep the handle; every other call accepts it.</p>
+<p><code>Hud.find(id)</code> returns a generation-checked handle, or <code>nil</code> when the ID is missing. Structural operations and tweens use handles; content and state setters use ID strings.</p>
 
 <h2>Creating and structuring nodes</h2>
 <pre><code>local Hud = require("demi.hud")
 
-local panel = Hud.find("skyforge_menu")
-local row = Hud.create(panel, {
-    type = "stack",                -- node type
-    id = "skyforge_row_1",         -- stable ID for later find()
-    -- plus type-specific fields: text, style, dock, …
+local row, err = Hud.create("skyforge_menu", {
+    type = "panel",
+    id = "skyforge_row_1",
+    text = "Continue",
+    width = 240, height = 48,
 })
--- row: new node handle, or nil if the definition is invalid
+if not row then print(err) end
 
-Hud.clone(row)                    -- duplicate a node (returns the new handle, or nil)
-Hud.reparent(row, Hud.find("skyforge_other_panel"))
-Hud.clear_children(panel)
-local kids = Hud.children(panel)  -- array of child handles (possibly empty)
-Hud.remove(row)</code></pre>
+if row then
+    local copy, clone_err = Hud.clone(row, "skyforge_row_2")
+    if copy then Hud.reparent(copy, "skyforge_other_panel") end
+end
+local kids = Hud.children("skyforge_menu")  -- array of child IDs
+Hud.clear_children("skyforge_menu")          -- invalidates handles to its children</code></pre>
 <ul>
-  <li><code>Hud.create(parent, def)</code> — creates a node under <code>parent</code> from a definition table. Returns the handle, or <code>nil</code> when the definition is invalid.</li>
-  <li><code>Hud.clone(node)</code> → copy handle, or <code>nil</code>.</li>
-  <li><code>Hud.remove(node)</code> — deletes the node and its subtree. Returns nothing.</li>
-  <li><code>Hud.reparent(node, newParent)</code> — moves a node. Returns nothing.</li>
-  <li><code>Hud.clear_children(node)</code> — removes all children. Returns nothing.</li>
-  <li><code>Hud.children(node)</code> → array of child handles; empty when there are none, never <code>nil</code>.</li>
+  <li><code>Hud.create(parent_id, def)</code> — creates a node under a parent ID string. The definition supports flat fields such as <code>id</code>, <code>type</code>, <code>text</code>, <code>style</code>, <code>x</code>, <code>y</code>, <code>width</code>, and <code>height</code>; nested <code>children</code> and layout shorthands are not accepted here. Returns handle or <code>nil</code>, plus an error string.</li>
+  <li><code>Hud.clone(source_handle, new_root_id, parent_id?)</code> — copies a subtree. Returns handle or <code>nil</code>, plus an error string.</li>
+  <li><code>Hud.remove(handle)</code> — deletes a node and its subtree. Returns success boolean plus an error string.</li>
+  <li><code>Hud.reparent(handle, parent_id)</code> — moves a node. Returns success boolean plus an error string.</li>
+  <li><code>Hud.clear_children(parent_id)</code> — removes all children. Returns success boolean plus an error string.</li>
+  <li><code>Hud.children(parent_id)</code> — returns an array of child ID strings.</li>
 </ul>
 
 <h2>Content and appearance</h2>
@@ -41,24 +42,24 @@ print(Hud.get_text("skyforge_score"))    -- "0"
 
 Hud.set_font("skyforge_score", "asset://fonts/skyforge_ui")
 Hud.set_font_size("skyforge_score", 18)
-Hud.set_color("skyforge_score", { 1, 1, 1, 1 })
-Hud.set_background_color("skyforge_score", { 0, 0, 0, 0.5 })
-Hud.set_image("skyforge_portrait", "asset://textures/skyforge_ace")
+Hud.set_color("skyforge_score", 1, 1, 1, 1)
+Hud.set_background_color("skyforge_score", 0, 0, 0, 0.5)
+Hud.set_image("skyforge_portrait", "asset://textures/skyforge_ace", 0, 0, 256, 256)
 Hud.set_opacity("skyforge_score", 0.8)</code></pre>
 <table>
   <thead><tr><th>Call</th><th>Takes</th><th>Returns</th></tr></thead>
   <tbody>
-    <tr><td><code>Hud.set_text(node, text)</code></td><td>Handle/ID, string</td><td>Nothing</td></tr>
-    <tr><td><code>Hud.get_text(node)</code></td><td>Handle/ID</td><td>String, or <code>nil</code> when the node is missing or has no text</td></tr>
-    <tr><td><code>Hud.set_font(node, uri)</code></td><td>Handle/ID, <code>asset://</code> font URI</td><td>Nothing</td></tr>
-    <tr><td><code>Hud.set_font_size(node, size)</code></td><td>Handle/ID, number in canvas units</td><td>Nothing</td></tr>
-    <tr><td><code>Hud.set_color(node, rgba)</code></td><td>Handle/ID, 4-number array <code>{r,g,b,a}</code> 0…1</td><td>Nothing</td></tr>
-    <tr><td><code>Hud.set_background_color(node, rgba)</code></td><td>Handle/ID, 4-number array</td><td>Nothing</td></tr>
-    <tr><td><code>Hud.set_image(node, uri)</code></td><td>Handle/ID, texture URI</td><td>Nothing</td></tr>
-    <tr><td><code>Hud.set_opacity(node, alpha)</code></td><td>Handle/ID, number 0…1</td><td>Nothing</td></tr>
+    <tr><td><code>Hud.set_text(id, text)</code></td><td>ID string, text string</td><td>boolean</td></tr>
+    <tr><td><code>Hud.get_text(id)</code></td><td>ID string</td><td>String, or <code>nil</code> when the node is missing</td></tr>
+    <tr><td><code>Hud.set_font(id, uri)</code></td><td>ID string, <code>asset://</code> font URI or empty string for fallback</td><td>boolean</td></tr>
+    <tr><td><code>Hud.set_font_size(id, size)</code></td><td>ID string, number in canvas units</td><td>boolean</td></tr>
+    <tr><td><code>Hud.set_color(id, r, g, b, a?)</code></td><td>ID string, 0…1 color components</td><td>boolean</td></tr>
+    <tr><td><code>Hud.set_background_color(id, r, g, b, a?)</code></td><td>ID string, 0…1 color components</td><td>boolean</td></tr>
+    <tr><td><code>Hud.set_image(id, uri, x, y, w, h)</code></td><td>ID string, texture URI, source rectangle</td><td>boolean</td></tr>
+    <tr><td><code>Hud.set_opacity(id, alpha)</code></td><td>ID string, number 0…1</td><td>boolean</td></tr>
   </tbody>
 </table>
-<p>Colors are RGBA arrays of numbers from 0 to 1 (index 1 = red, 2 = green, 3 = blue, 4 = alpha). Sizes and positions use the HUD document's <code>canvas_size</code> units, not raw screen pixels.</p>
+<p>Lua color setters take separate red, green, blue, and optional alpha numbers from 0 to 1. JSON color fields can use arrays or hex strings. Sizes and positions use HUD canvas units.</p>
 <pre><code>Hud.set_value("skyforge_health_bar", 0.75)   -- progress-style nodes: 0…1 (or the node's range)
 Hud.set_checked("skyforge_mute_toggle", true)
 Hud.set_disabled("skyforge_play_button", true)
@@ -66,50 +67,51 @@ Hud.set_visible("skyforge_warning", false)
 Hud.set_position("skyforge_banner", 40, 12)
 Hud.set_size("skyforge_banner", 200, 48)</code></pre>
 <ul>
-  <li><code>Hud.set_value(node, number)</code> — fills sliders and progress bars. Returns nothing.</li>
+  <li><code>Hud.set_value(id, number)</code> — fills sliders and progress bars. Returns a success boolean.</li>
   <li><code>Hud.set_checked(node, boolean)</code> — checkbox/toggle state.</li>
   <li><code>Hud.set_disabled(node, boolean)</code> — blocks interaction and can grey out the look.</li>
   <li><code>Hud.set_visible(node, boolean)</code> — shows or hides without destroying the node.</li>
-  <li><code>Hud.set_position(node, x, y)</code> / <code>Hud.set_size(node, w, h)</code> — canvas-unit layout overrides. Return nothing.</li>
+  <li><code>Hud.set_position(id, x, y)</code> / <code>Hud.set_size(id, w, h)</code> — canvas-unit layout overrides. Return success booleans.</li>
 </ul>
 
 <h2>Focus</h2>
 <pre><code>Hud.focus_next()
-print(Hud.focused())    -- focused node ID string, or nil when nothing has focus</code></pre>
-<p><code>Hud.focus_next()</code> moves keyboard/controller focus to the next focusable node and returns nothing. <code>Hud.focused()</code> returns the focused node's ID string, or <code>nil</code>. Use these for menu navigation on gamepad and keyboard.</p>
+print(Hud.focused())    -- focused node ID string, or "" when nothing has focus</code></pre>
+<p><code>Hud.focus_next(reverse?)</code> moves keyboard/controller focus and returns whether it succeeded. <code>Hud.focused()</code> returns the focused node's ID string, or an empty string when nothing has focus.</p>
 
 <h2>Variables and localization</h2>
 <p>Variables are named values that text nodes can interpolate, so one script write updates every label bound to that name.</p>
 <pre><code>local Hud = require("demi.hud")
 
-Hud.set_variable("score", 1200)
-Hud.set_variables({ wave = 3, lives = 2 })
+Hud.set_variable("score", "1200")
+Hud.set_variables({ wave = "3", lives = "2" })
 print(Hud.has_variable("score"))       -- true
-print(Hud.get_variable("score"))       -- 1200, or nil when unset
+print(Hud.get_variable("score"))       -- "1200", or nil when unset
 
-Hud.reset_variables()                  -- back to authored defaults
+Hud.reset_variables()                  -- clear runtime values
 
 Hud.set_locale("de")
 Hud.set_pseudo_locale(true)            -- stretch text to spot overflow</code></pre>
 <ul>
-  <li><code>Hud.set_variable(name, value)</code> / <code>Hud.set_variables(table)</code> — assign one or many. Return nothing.</li>
+  <li><code>Hud.set_variable(name, value)</code> / <code>Hud.set_variables(table)</code> — assign declared names to string values. Return a success boolean plus an error string.</li>
   <li><code>Hud.has_variable(name)</code> → boolean.</li>
   <li><code>Hud.get_variable(name)</code> → the value, or <code>nil</code> when unset.</li>
-  <li><code>Hud.reset_variables()</code> — restores authored defaults.</li>
-  <li><code>Hud.set_locale(tag)</code> / <code>Hud.set_pseudo_locale(on)</code> — language selection and layout stress-testing.</li>
+  <li><code>Hud.reset_variables()</code> — clears runtime values; unresolved markers remain visible.</li>
+  <li><code>Hud.set_locale(tag)</code> — selects a locale in the loaded HUD's <code>locales</code> object; returns a boolean and error string. <code>Hud.set_pseudo_locale(on)</code> changes presentation without a return value.</li>
 </ul>
 
 <h2>Tweens and motion</h2>
 <p>A tween animates one property over time. Supported properties: <code>opacity</code>, <code>x</code>, <code>y</code>, <code>scale</code>.</p>
 <pre><code>local Hud = require("demi.hud")
 
+local banner = Hud.find("skyforge_banner")
 local handle, err = Hud.tween(banner, "opacity", 0, 0.35)
 if not handle then print(err) end
 
 Hud.cancel_tween(handle)          -- stop mid-flight; returns true when cancelled
 Hud.set_reduced_motion(true)      -- honour accessibility preference</code></pre>
 <ul>
-  <li><code>Hud.tween(node, property, target, duration)</code> → <code>integer handle, string error</code>. Animates <code>opacity</code>, <code>x</code>, <code>y</code>, or <code>scale</code> toward <code>target</code> over <code>duration</code> seconds. Tweens cancel themselves when the node is removed.</li>
+  <li><code>Hud.tween(handle, property, target, duration)</code> → tween ID and error string. Animates <code>opacity</code>, <code>x</code>, <code>y</code>, or <code>scale</code> toward <code>target</code> over <code>duration</code> seconds. Tweens cancel themselves when the node is removed.</li>
   <li><code>Hud.cancel_tween(handle)</code> → boolean.</li>
   <li><code>Hud.set_reduced_motion(enabled)</code> — finishes presentation changes immediately for players who prefer fewer animations.</li>
 </ul>

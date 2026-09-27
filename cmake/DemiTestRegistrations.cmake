@@ -14,6 +14,12 @@ add_test(NAME demi-prefab-template-cache-tests COMMAND demi-prefab-template-cach
 add_test(NAME demi-variable-font-tests COMMAND demi-variable-font-tests)
 add_test(NAME demi-cosmetic-debris3d-tests COMMAND demi-cosmetic-debris3d-tests)
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
+add_test(NAME demi-doc-prefab-examples
+  COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/docs_prefab_examples_tests.py"
+    --binary $<TARGET_FILE:demi>)
+set_tests_properties(demi-doc-prefab-examples PROPERTIES TIMEOUT 60)
+add_test(NAME demi-doc-lua-service-names
+  COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/docs_lua_service_names_tests.py")
 add_test(NAME demi-android-crowd-benchmark-tests
   COMMAND "${Python3_EXECUTABLE}"
     "${CMAKE_SOURCE_DIR}/tests/android_crowd_benchmark_tests.py")

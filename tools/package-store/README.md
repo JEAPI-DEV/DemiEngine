@@ -40,6 +40,22 @@ When adding a page:
 3. Extend `tests/verify-docs.php` expectations if the page needs special checks
    (the default loop already asserts sidebar, article, pager, and current-nav).
 
+Prefab examples carry `data-engine-example` markers so tests can use the exact
+published snippets rather than independent copies. `composer test` checks JSON
+syntax across audited guides and the prefabs' unified `entities` authoring shape.
+From the engine root, run the native
+composition check with:
+
+    python3 tests/docs_prefab_examples_tests.py --binary build/linux-release/demi
+
+That check imports a fixture texture, validates the examples, and uses
+`demi scene expand` to verify nested IDs, parent links and override results.
+It is also registered as `demi-doc-prefab-examples` in CTest. Update the marked
+examples and this test together when their authoring contract changes.
+`python3 tests/docs_lua_service_names_tests.py` checks direct calls to known
+native services against the Lua stubs. It is a call-name guard, not a substitute
+for checking arguments, return values, instance methods or runtime behavior.
+
 ## Listing metadata
 
 All new listings require a title, description, publisher, license, category,

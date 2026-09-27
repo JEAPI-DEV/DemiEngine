@@ -12,16 +12,17 @@
   "parameters": {
     "label":   { "type": "string",  "default": "Continue" },
     "hint":    { "type": "string",  "default": "" },
-    "enabled": { "type": "boolean", "default": true },
+    "disabled": { "type": "boolean", "default": false },
     "pad":     { "type": "integer", "default": 12 }
   },
   "root": {
+    "id": "menu_button",
     "type": "panel",
     "stack": "column",
     "padding": "${pad}",
     "gap": 4,
     "children": [
-      { "id": "button", "type": "button", "text": "${label}", "action": "ui_ok", "disabled": "${enabled}" },
+      { "id": "button", "type": "button", "text": "${label}", "action": "ui_ok", "disabled": "${disabled}" },
       { "id": "hint",   "type": "label",  "text": "${hint}", "font_size": 14, "accessibility_hidden": true }
     ]
   }
@@ -32,26 +33,30 @@
   <li><code>parameters</code> — map of parameter name to <code>{type, default}</code>. Types: <code>string</code>, <code>number</code>, <code>integer</code>, <code>boolean</code>, <code>array</code>, <code>object</code>. Omitted parameters fall back to their <code>default</code>.</li>
   <li><code>root</code> — the subtree that gets expanded. Its <code>${name}</code> markers are filled from the arguments at instantiation.</li>
 </ul>
-<p>Read it as: “this prefab is a column panel with a button and a small hint label; the caller supplies the label text, an optional hint, whether the button is enabled, and the padding.”</p>
+<p>Read it as: “this prefab is a column panel with a button and a small hint label; the caller supplies the label text, an optional hint, whether the button is disabled, and the padding.”</p>
 
 <h2>Instancing with arguments and overrides</h2>
-<p>A HUD references the prefab in a node position and passes two optional maps:</p>
+<p>A HUD references the prefab in a node position and passes two optional maps. For example, these are entries in its <code>children</code> array:</p>
 <pre><code>{
-  "id": "confirm",
-  "prefab": "ui-prefab://controls/menu_button",
-  "arguments": { "label": "Confirm", "hint": "A / Enter" },
-  "overrides": { "style": "primary" }
-}
-
-{
-  "id": "back",
-  "prefab": "ui-prefab://controls/menu_button",
-  "arguments": { "label": "Back", "enabled": false }
+  "format_version": 1,
+  "children": [
+    {
+      "id": "confirm",
+      "prefab": "ui-prefab://controls/menu_button",
+      "arguments": { "label": "Confirm", "hint": "A / Enter" },
+      "overrides": { "style": "primary" }
+    },
+    {
+      "id": "back",
+      "prefab": "ui-prefab://controls/menu_button",
+      "arguments": { "label": "Back", "disabled": true }
+    }
+  ]
 }</code></pre>
 <ul>
   <li><code>id</code> — the instance’s id in the hosting HUD. Required and document-unique.</li>
   <li><code>prefab</code> — the <code>ui-prefab://</code> URI to expand. Required.</li>
-  <li><code>arguments</code> — map of parameter name to value. Every value must match the declared <code>type</code>. Omitted names use the parameter <code>default</code>. This is how <code>${label}</code>, <code>${hint}</code>, <code>${enabled}</code>, and <code>${pad}</code> get filled.</li>
+  <li><code>arguments</code> — map of parameter name to value. Every value must match the declared <code>type</code>. Omitted names use the parameter <code>default</code>. This is how <code>${label}</code>, <code>${hint}</code>, <code>${disabled}</code>, and <code>${pad}</code> get filled.</li>
   <li><code>overrides</code> — map of field name to value, applied to the expanded root node. <code>id</code>, <code>children</code>, and <code>prefab</code> are reserved and rejected. Use it for one-off tweaks like the instance’s <code>action</code> or <code>style</code>.</li>
 </ul>
 <p>The first instance expands to a “Confirm” button with the hint “A / Enter” and the <code>primary</code> style on the expanded root. The second is a disabled “Back” button with the default hint (empty) and default padding 12.</p>
@@ -61,7 +66,7 @@
 <table>
   <thead><tr><th>Prefab node</th><th>In instance <code>confirm</code></th><th>In instance <code>back</code></th></tr></thead>
   <tbody>
-    <tr><td>root (unnamed)</td><td><code>confirm</code></td><td><code>back</code></td></tr>
+    <tr><td><code>menu_button</code> (root)</td><td><code>confirm</code></td><td><code>back</code></td></tr>
     <tr><td><code>button</code></td><td><code>confirm.button</code></td><td><code>back.button</code></td></tr>
     <tr><td><code>hint</code></td><td><code>confirm.hint</code></td><td><code>back.hint</code></td></tr>
   </tbody>
@@ -70,13 +75,10 @@
 <pre><code>local Hud = require("demi.hud")
 
 Hud.set_text("confirm.hint", "Tap to confirm")
-local btn = Hud.find("back.button")
-if btn then
-    Hud.set_disabled(btn, false)
-end</code></pre>
+Hud.set_disabled("back.button", false)</code></pre>
 <ul>
-  <li><code>"confirm.hint"</code> is the <code>hint</code> label inside the <code>confirm</code> instance. <code>Hud.set_text</code> takes the id and the new string; returns nothing.</li>
-  <li><code>Hud.find("back.button")</code> returns that button’s handle, or <code>nil</code> if the instance is gone. Generation checking keeps stale handles safe (see <a href="{{ path('docs_page', {slug: 'hud-from-lua'}) }}">HUD from Lua</a>).</li>
+  <li><code>"confirm.hint"</code> is the <code>hint</code> label inside the <code>confirm</code> instance. <code>Hud.set_text</code> takes the id and the new string; returns a success boolean.</li>
+  <li><code>Hud.set_disabled("back.button", false)</code> enables the button. Setters take node ID strings; <code>Hud.find</code> returns a generation-checked handle for structural operations (see <a href="{{ path('docs_page', {slug: 'hud-from-lua'}) }}">HUD from Lua</a>).</li>
 </ul>
 <p>The instance id itself addresses the expanded root, so <code>Hud.set_visible("confirm", false)</code> hides the whole group.</p>
 

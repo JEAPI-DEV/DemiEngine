@@ -9,7 +9,7 @@ Audio.play("asset://audio/skyforge_rune_collect", {
     bus = "sfx",
     volume = 0.8,
 })</code></pre>
-<p><code>Audio.play(uri, options)</code> starts a sound from an audio asset URI. The options table says how it plays (fields below). It returns an integer <strong>handle</strong> for the playing voice (or <code>0</code>/<code>nil</code> when nothing could be started); pass the handle to <code>Audio.stop</code> when you need to end it early.</p>
+<p><code>Audio.play(uri, options)</code> starts a sound from an audio asset URI. The options table says how it plays (fields below). It returns an integer <strong>handle</strong> for the playing voice, or <code>0</code> when nothing could be started; pass a nonzero handle to <code>Audio.stop</code> when you need to end it early.</p>
 
 <h2>Play options</h2>
 <table>
@@ -21,11 +21,12 @@ Audio.play("asset://audio/skyforge_rune_collect", {
     <tr><td><code>volume</code></td><td>number</td><td>Per-sound loudness multiplier</td></tr>
     <tr><td><code>pitch</code></td><td>number</td><td>Playback rate multiplier (1 = normal)</td></tr>
     <tr><td><code>pan</code></td><td>number</td><td>Stereo placement for non-spatial sounds</td></tr>
-    <tr><td><code>spatial</code></td><td>string</td><td><code>none</code>, <code>2d</code>, or <code>3d</code> — how the sound sits in the world</td></tr>
+    <tr><td><code>spatial</code></td><td>string</td><td><code>none</code>, <code>2d</code>, or <code>3d</code>. Only <code>3d</code> enables backend spatialization; use <code>pan</code> for non-spatial stereo placement.</td></tr>
+    <tr><td><code>attenuation</code></td><td>string</td><td>Distance falloff: <code>none</code>, <code>inverse</code>, <code>linear</code>, or <code>exponential</code></td></tr>
     <tr><td><code>x</code> / <code>y</code> / <code>z</code></td><td>numbers</td><td>World position for spatial sounds (scalars, like transforms)</td></tr>
-    <tr><td><code>min_distance</code> / <code>max_distance</code></td><td>numbers</td><td>Range where a 3D sound is loudest / inaudible</td></tr>
-    <tr><td><code>rolloff</code></td><td>number</td><td>How fast volume falls off with distance</td></tr>
-    <tr><td><code>doppler</code></td><td>number</td><td>Amount of pitch shift from relative motion</td></tr>
+    <tr><td><code>min_distance</code> / <code>max_distance</code></td><td>numbers</td><td>Near and far distance bounds for spatial attenuation; the sound is not necessarily silent at <code>max_distance</code></td></tr>
+    <tr><td><code>rolloff</code></td><td>number</td><td>Nonnegative distance-falloff factor</td></tr>
+    <tr><td><code>doppler</code></td><td>boolean</td><td>Enable the backend Doppler factor; current Lua and entity-source requests submit zero source/listener velocity, so transform motion alone does not produce a shift</td></tr>
     <tr><td><code>delay</code></td><td>number</td><td>Seconds to wait before the sound starts</td></tr>
     <tr><td><code>fade_in</code></td><td>number</td><td>Seconds to ramp volume up at the start</td></tr>
     <tr><td><code>concurrency_group</code></td><td>string</td><td>Pool name limiting how many similar sounds play at once</td></tr>
@@ -34,7 +35,7 @@ Audio.play("asset://audio/skyforge_rune_collect", {
     <tr><td><code>pause_with_game</code></td><td>boolean</td><td>Whether <code>Time.set_paused</code> also pauses this sound</td></tr>
   </tbody>
 </table>
-<p>All distances and times are numbers in the usual units (world units and seconds). Omitted options use the asset's authored defaults — there is no need to repeat every field.</p>
+<p>Distances use world units and times use seconds. Omitted play options use runtime defaults (for example <code>sfx</code>, no loop, <code>spatial = "none"</code>, inverse attenuation, and game-pause enabled); an asset's <code>settings.streaming</code> can additionally force streaming.</p>
 <pre><code>local Audio = require("demi.audio")
 
 Audio.play("asset://audio/skyforge_wind", {
@@ -56,7 +57,7 @@ Audio.play("asset://audio/skyforge_step", {
     max_voices = 3,
     voice_stealing = "oldest",
 })</code></pre>
-<p>The first call is looping streamed wind in 3D at a world position, fading in over two seconds and pausing with the game clock. The second is a 2D footstep limited to three simultaneous voices: a fourth step steals the oldest one. Sounds with <code>spatial = "none"</code> ignore position and distance entirely.</p>
+<p>The first call is looping streamed wind in 3D at a world position, fading in over two seconds and pausing with the game clock. The second is a non-spatial footstep limited to three simultaneous voices: a fourth step steals the oldest one. Both <code>spatial = "none"</code> and <code>spatial = "2d"</code> leave backend 3D positioning disabled.</p>
 
 <h2>Snapshots and transitions</h2>
 <p>A snapshot is a saved mix — bus volumes for a moment like “underwater” or “low health”. Switching between snapshots can be instant or gradual.</p>
@@ -74,14 +75,14 @@ Audio.transition_snapshot("skyforge_low_health", 0.5)  -- blend over 0.5 s
 -- swap the music track under the player with a crossfade:
 local music = Audio.play("asset://audio/skyforge_normal", { bus = "music" })
 local next = Audio.crossfade(music, "asset://audio/skyforge_low_health", 1.2)
-Audio.stop(music)   -- stop one voice by handle</code></pre>
+-- crossfade already fades out music; stop(next) later if needed</code></pre>
 <ul>
   <li><code>Audio.define_snapshot(name, buses)</code> — saves a bus-volume table under <code>name</code>. Returns nothing.</li>
   <li><code>Audio.transition_snapshot(name, seconds)</code> — blends the live mix toward that snapshot. Returns <code>true</code> when the transition started.</li>
-  <li><code>Audio.crossfade(from_handle, asset_id, duration, bus?, loop?, streaming?)</code> — starts <code>asset_id</code> and fades it in while fading the voice <code>from_handle</code> out. Returns the new voice handle.</li>
+  <li><code>Audio.crossfade(from_handle, asset_id, duration, bus?, loop?, streaming?)</code> — starts <code>asset_id</code> and fades it in while fading the voice <code>from_handle</code> out. The optional arguments default to <code>music</code>, <code>true</code>, and <code>true</code>. Returns the new voice handle, or <code>0</code> on failure.</li>
   <li><code>Audio.stop(handle)</code> — stops one playing voice. Returns <code>true</code> when stopped.</li>
 </ul>
-<p>Snapshot tables map bus names to volume numbers. Define them once at startup (in <code>on_start</code> or <code>on_create</code> of an audio director script) and switch during play.</p>
+<p>Snapshot tables map bus names to volume numbers. Define them once at startup (in <code>on_start</code> or <code>on_create</code> of an audio director script) and switch during play. The crossfade starts a new asset; its second argument is an <code>asset://</code> ID, not a voice handle.</p>
 
 <h2>Entity-attached playback</h2>
 <p>An <code>AudioSource</code> component holds the clip and playback settings on the entity itself. Starting it makes the sound follow the entity and obey its position, which is what 3D world sounds need.</p>
@@ -98,7 +99,7 @@ AudioSource.stop("skyforge_rune")                  -- stop whatever this entity 
 
 Entity.add_component(Entity.find("skyforge_player"), "AudioListener", {})
 -- from then on, 3D sounds are mixed relative to the player's position</code></pre>
-<p><code>Entity.add_component(id, "AudioListener", fields)</code> attaches the listener; the fields table can be empty. After that, <code>min_distance</code>, <code>max_distance</code>, <code>rolloff</code>, and <code>doppler</code> on spatial sounds are measured against the listener's position.</p>
+<p><code>Entity.add_component(id, "AudioListener", fields)</code> attaches the listener; the fields table can be empty. Spatial distance attenuation uses the listener's position and the sound's <code>min_distance</code>, <code>max_distance</code>, <code>attenuation</code>, and <code>rolloff</code> settings. Doppler would require relative velocity, which these Lua and entity-source paths currently leave at zero.</p>
 
 <h2>Next steps</h2>
 <ul>

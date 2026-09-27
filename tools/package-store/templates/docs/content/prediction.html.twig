@@ -1,10 +1,10 @@
 <h1>Prediction</h1>
-<p>In a networked game, information takes time to travel. If a player's shot only appears after the server confirms it, the game feels sluggish. <strong>Prediction</strong> is the technique of simulating the local result immediately — moving the player, firing the weapon — and correcting later when the authoritative state arrives. <strong>Query history</strong> is its companion: a short memory of past simulation state so a late message can be checked against the world as it was, not as it is now. This page covers both APIs in <code>demi.network.session</code>, building on <a href="{{ path('docs_page', {slug: 'sessions-and-contracts'}) }}">Sessions &amp; contracts</a>.</p>
+<p>Networked input takes time to reach the host. <strong>Prediction</strong> applies a locally owned entity's input immediately, then reconciles it with the host's authoritative controller state. <strong>Query history</strong> stores selected 2D collision circles on the host so a late hit query can use a recent past tick. Both APIs live in <code>demi.network.session</code>; see <a href="{{ path('docs_page', {slug: 'sessions-and-contracts'}) }}">Sessions &amp; contracts</a> for the contract and ownership rules.</p>
 
 <h2>Why prediction exists</h2>
 <p>Authority stays with the server: the server's state is the truth. But waiting a full round trip for every input makes controls feel heavy. With prediction:</p>
 <ul>
-  <li>The local player's input is applied immediately to the local simulation.</li>
+  <li>The input immediately updates the client's predicted controller state through the game-defined <code>apply</code> callback. Game code applies that state to its local entity.</li>
   <li>Inputs are also sent to the server as messages declared in the contract.</li>
   <li>When an authoritative state snapshot arrives, the client compares and, if needed, reconciles.</li>
   <li>Remote entities interpolate toward received states and stop extrapolating after a limit.</li>
@@ -24,83 +24,83 @@ Session.configure({
     interpolation_delay = 0.1,
     extrapolation_limit = 0.25,
     prediction_history_limit = 32,
-    prediction_visual_decay = 0.15
+    prediction_visual_decay = 12.0
 })</code></pre>
 <ul>
-  <li><code>input_queue_capacity</code> — how many predicted input frames may wait in the queue before old ones are dropped.</li>
-  <li><code>input_future_window</code> — how many ticks ahead of the last confirmed tick inputs may be scheduled.</li>
-  <li><code>input_head_of_line_timeout</code> — seconds to wait for a missing input before skipping ahead, so one lost packet cannot stall the stream.</li>
+  <li><code>input_queue_capacity</code> — maximum queued authoritative inputs per entity.</li>
+  <li><code>input_future_window</code> — maximum accepted sequence distance ahead of the current queue.</li>
+  <li><code>input_head_of_line_timeout</code> — seconds to wait for a missing sequence before skipping it.</li>
   <li><code>input_max_per_tick</code> — maximum input frames applied in one simulation tick.</li>
   <li><code>snapshot_buffer</code> — how many authoritative state snapshots to retain for reconciliation.</li>
   <li><code>interpolation_delay</code> — seconds remote entities render behind the latest state, smoothing jerky arrivals.</li>
   <li><code>extrapolation_limit</code> — seconds a remote entity may keep moving on its last known state before freezing instead of guessing.</li>
   <li><code>prediction_history_limit</code> — how many local prediction states to keep for rollback comparison.</li>
-  <li><code>prediction_visual_decay</code> — seconds over which a visual correction blends, so a snapped-back position does not pop.</li>
+  <li><code>prediction_visual_decay</code> — exponential visual-offset decay rate per second. Zero disables smoothing.</li>
 </ul>
-<p><code>configure</code> returns nothing; invalid values are rejected with diagnostics before the session starts.</p>
+<p><code>configure</code> returns nothing. Prediction is opt-in and requires nonzero configured history; invalid or missing prediction requirements cause <code>enable_prediction</code> to return <code>false</code>.</p>
 
 <h2>Enabling prediction for an entity</h2>
 <p>Prediction is per entity. <code>enable_prediction</code> registers how that entity's inputs are named, what its state looks like, and how to apply one tick of input:</p>
-<pre><code>local Character = require("demi.physics.character_controller3d")
-
-Session.enable_prediction({
+<pre><code>local enabled = Session.enable_prediction({
     network_id = network_id,
-    input_message = "player_input",
-    state = { x = 0, y = 0, z = 0 },
+    input_message = "move_input", -- owner-to-server owned_entity contract message
+    state = { x = 0, y = 0 },
     apply = function(state, input)
-        Character.set_velocity(self.id, input.x, 0, input.y)
-        local x, y, z = Transform3D.get_position(self.id)
-        return { x = x, y = y, z = z }
+        return {
+            x = state.x + input.dx * input.dt,
+            y = state.y + input.dy * input.dt,
+        }
     end
 })</code></pre>
 <ul>
   <li><code>network_id</code> — the replicated entity's network ID from <code>Session.spawn</code>.</li>
   <li><code>input_message</code> — the contract message name that carries this entity's inputs.</li>
-  <li><code>state</code> — the entity's initial predicted controller state as a plain table (numbers and arrays).</li>
+  <li><code>state</code> — the initial predicted controller state as an object-like serializable table.</li>
   <li><code>apply(state, input)</code> — a deterministic function that applies one input table to the state and returns the new state. This is what gets replayed during rollback.</li>
 </ul>
-<p>Returns <code>true</code> when prediction was enabled. Call it after the entity is spawned and bound to a local entity.</p>
+<p>Returns <code>true</code> when prediction was enabled. It requires a connected client that owns this contract entity. The callback must return a table; a failed callback disables prediction.</p>
 
 <h2>The predict and reconcile cycle</h2>
-<pre><code>local input = { x = 1, y = 0, jump = false }
-Session.predict_input(network_id, input)</code></pre>
+<pre><code>local input = { dx = 1, dy = 0, dt = fixed_dt, tick = local_tick }
+local sequence = Session.predict_input(network_id, input)</code></pre>
 <ul>
-  <li><code>Session.predict_input(network_id, input)</code> — queues one input frame for immediate local application and for sending to the server. Returns nothing.</li>
+  <li><code>Session.predict_input(network_id, input)</code> — applies one input locally, records it for replay, and sends it through the declared contract message. Returns its sequence number, or <code>nil</code> if prediction could not produce an input. Include any game-specific fields required by the message schema.</li>
 </ul>
 <pre><code>for _, input in ipairs(Session.take_inputs(network_id)) do
-    apply(input.value, input.dt)   -- input.value, input.dt
+    state = apply_input(state, input) -- input carries authored fields and seq
 end</code></pre>
 <ul>
-  <li><code>Session.take_inputs(network_id)</code> — returns the array of input frames ready to apply this tick.</li>
-  <li>Each entry has <code>value</code> (the input table) and <code>dt</code> (seconds to simulate). Apply them in order.</li>
+  <li><code>Session.take_inputs(network_id)</code> — host only: returns ordered accepted input tables ready for this authoritative tick. Each table retains the input fields and gains <code>seq</code>. Apply them in order.</li>
 </ul>
-<pre><code>Session.publish_snapshot(network_id, state_table)</code></pre>
+<pre><code>local published = Session.publish_snapshot(network_id, state)</code></pre>
 <ul>
-  <li><code>Session.publish_snapshot(network_id, state)</code> — host side: records and sends an authoritative state snapshot for that entity. Returns nothing.</li>
+  <li><code>Session.publish_snapshot(network_id, state, options)</code> — host only: records and sends an authoritative object state. Returns a boolean. Optional <code>options.marker</code> is <code>normal</code>, <code>teleport</code>, or <code>reset</code>; teleport and reset clear incompatible client history.</li>
 </ul>
 <pre><code>local state = Session.prediction_state(network_id)  -- table or nil</code></pre>
 <ul>
   <li><code>Session.prediction_state(network_id)</code> — returns the current predicted state table for the entity, or <code>nil</code> when prediction is not enabled for it.</li>
 </ul>
-<pre><code>local dx, dy = Session.prediction_visual_offset(network_id)</code></pre>
+<pre><code>local predicted = Session.prediction_state(network_id)
+local offset = Session.prediction_visual_offset(network_id)
+if predicted then draw_x = predicted.x + (offset and offset.x or 0) end</code></pre>
 <ul>
-  <li><code>Session.prediction_visual_offset(network_id)</code> — returns the two current visual smoothing offsets (numbers) between the predicted and reconciled positions. Add them to the drawn position instead of teleporting the mesh.</li>
+  <li><code>Session.prediction_visual_offset(network_id)</code> — returns a table of numeric offsets keyed by controller-state field, or <code>nil</code>. Use it only in rendering; do not feed it back into the simulation.</li>
 </ul>
 <pre><code>local remote = Session.remote_state(network_id)  -- table or nil</code></pre>
 <ul>
-  <li><code>Session.remote_state(network_id)</code> — returns the latest interpolated remote state table for an entity this peer does not own, or <code>nil</code> when nothing has arrived yet.</li>
+  <li><code>Session.remote_state(network_id)</code> — returns an interpolated, boundedly extrapolated remote state table, or <code>nil</code> when no sample is available.</li>
 </ul>
 <pre><code>local d = Session.prediction_diagnostics()</code></pre>
 <ul>
-  <li><code>Session.prediction_diagnostics()</code> — returns a table of counters describing queue depth, rollback count, and correction magnitudes. Use it to tune the configure values.</li>
+  <li><code>Session.prediction_diagnostics()</code> — returns a table with <code>channels</code> keyed by network ID; each channel reports replay, correction, server-queue, and interpolation counters.</li>
 </ul>
-<pre><code>Session.reset_prediction(network_id)</code></pre>
+<pre><code>local rebased = Session.reset_prediction(network_id, new_state)</code></pre>
 <ul>
-  <li><code>Session.reset_prediction(network_id)</code> — clears the prediction history for one entity, for example after a respawn. Returns nothing.</li>
+  <li><code>Session.reset_prediction(network_id, state)</code> — rebases one enabled controller to a supplied object state after a same-session scene change. Returns a boolean.</li>
 </ul>
 
 <h2>Query history: rewinding questions</h2>
-<p>Some questions are about the past: "would that shot have hit at the tick the player fired?". <strong>Query history</strong> keeps a ring buffer of simulation snapshots so such questions are answered against the state of that tick. It exists because authoritative messages arrive late, and fairness requires checking hits at fire time rather than at arrival time.</p>
+<p><strong>Query history</strong> keeps bounded snapshots of selected 2D collision circles on the authoritative host. It answers raycasts without rewinding the live world. Gameplay must decide which circles to record and how to interpret the hit.</p>
 <pre><code>Session.configure({
     query_history_capacity = 128,
     query_history_max_entities = 64,
@@ -108,26 +108,31 @@ end</code></pre>
 })</code></pre>
 <ul>
   <li><code>query_history_capacity</code> — how many ticks of snapshots to retain.</li>
-  <li><code>query_history_max_entities</code> — how many entities are tracked per snapshot.</li>
-  <li><code>query_history_rewind_ticks</code> — how many ticks a query may rewind; older ticks are refused rather than guessed.</li>
+  <li><code>query_history_max_entities</code> — maximum circles in one snapshot.</li>
+  <li><code>query_history_rewind_ticks</code> — maximum requested rewind. Queries beyond this bound are clamped to the retained window and report their actual sampled tick.</li>
 </ul>
-<pre><code>Session.record_query_snapshot(tick)</code></pre>
+<pre><code>local recorded = Session.record_query_snapshot(server_tick, {
+    { entity_id = target_network_id, layer = "players", x = x, y = y, radius = 0.45 },
+})</code></pre>
 <ul>
-  <li><code>Session.record_query_snapshot(tick)</code> — stores the current simulation state under the given integer tick. Call once per fixed step for entities you want rewound.</li>
+  <li><code>Session.record_query_snapshot(server_tick, circles)</code> — host with a contract only. Stores a detached set of authored circles under a monotonically increasing tick; returns a boolean. Invalid or over-limit snapshots are rejected.</li>
 </ul>
-<pre><code>local hit = Session.historical_raycast(tick, x0, y0, z0, x1, y1, z1)
+<pre><code>local hit = Session.historical_raycast(
+    requested_tick, origin_x, origin_y, direction_x, direction_y,
+    max_distance, "players", shooter_network_id
+)
 if hit then
-    -- hit.entity, hit.x, hit.y, hit.z, hit.distance
+    -- hit.entity_id, hit.x, hit.y, hit.distance, hit.sampled_tick
 end</code></pre>
 <ul>
-  <li><code>Session.historical_raycast(tick, ...)</code> — casts a ray through the recorded state of <code>tick</code>.</li>
-  <li>Returns a hit table (<code>entity</code>, hit point coordinates, and <code>distance</code>) or <code>nil</code> when the ray missed or the tick is outside the retained window.</li>
+  <li><code>Session.historical_raycast(requested_tick, origin_x, origin_y, direction_x, direction_y, maximum_distance, layer, ignored_entity_id)</code> — host only. Casts a 2D ray through recorded circles, optionally filtering by layer and ignoring one entity.</li>
+  <li>Returns a hit table with <code>entity_id</code>, <code>layer</code>, <code>sampled_tick</code>, <code>x</code>, <code>y</code>, <code>normal_x</code>, <code>normal_y</code>, and <code>distance</code>; returns <code>nil</code> on a miss or unavailable history.</li>
 </ul>
 <pre><code>local d = Session.query_history_diagnostics()
 Session.clear_query_history()</code></pre>
 <ul>
-  <li><code>Session.query_history_diagnostics()</code> — returns a table of counters: recorded ticks, rewinds performed, and refused out-of-window queries.</li>
-  <li><code>Session.clear_query_history()</code> — drops every recorded snapshot. Returns nothing. Use on scene change or match restart.</li>
+  <li><code>Session.query_history_diagnostics()</code> — returns <code>depth</code>, <code>latest_tick</code>, <code>recorded</code>, <code>rejected</code>, <code>dropped</code>, <code>queries</code>, <code>clamped_queries</code>, and <code>misses</code>.</li>
+  <li><code>Session.clear_query_history()</code> — host only. Drops recorded snapshots and returns a boolean. Use at an authoritative scene or tick reset boundary.</li>
 </ul>
 
 <h2>Tuning and determinism</h2>
@@ -136,10 +141,10 @@ Session.clear_query_history()</code></pre>
   <tbody>
     <tr><td>Local movement feels fine, remote players stutter</td><td>Raise <code>interpolation_delay</code> slightly, or check packet loss with <code>diagnostics()</code> counters.</td></tr>
     <tr><td>Remote players freeze at edges</td><td>Raise <code>extrapolation_limit</code>, accepting longer guessing.</td></tr>
-    <tr><td>Frequent visible snap-backs</td><td>Raise <code>prediction_history_limit</code> and <code>prediction_visual_decay</code> so corrections blend.</td></tr>
+    <tr><td>Frequent visible snap-backs</td><td>Check correction counters and the deterministic <code>apply</code> callback; a lower positive <code>prediction_visual_decay</code> retains visual offsets longer.</td></tr>
     <tr><td>Inputs stall behind one lost packet</td><td>Lower <code>input_head_of_line_timeout</code>.</td></tr>
-    <tr><td>Hit checks disagree across peers</td><td>Record snapshots every tick and keep <code>query_history_rewind_ticks</code> above your maximum latency window.</td></tr>
+    <tr><td>Hit checks disagree across peers</td><td>Run hit checks on the host, record the intended circles every authoritative tick, and inspect <code>sampled_tick</code> and query diagnostics.</td></tr>
   </tbody>
 </table>
-<p>Prediction assumes the deterministic simulation described in <a href="{{ path('docs_page', {slug: 'simulation-and-seeds'}) }}">Simulation &amp; seeds</a>: the same fixed timestep and seed on every peer, and the same input sequence replayed during rollback. Without that, corrections grow without bound.</p>
+<p>Prediction requires a deterministic <code>apply(state, input)</code> callback for replay. Keep game-defined timing and random inputs explicit; see <a href="{{ path('docs_page', {slug: 'simulation-and-seeds'}) }}">Simulation &amp; seeds</a>.</p>
 <p>Contract rules for who may send inputs and state live in <a href="{{ path('docs_page', {slug: 'sessions-and-contracts'}) }}">Sessions &amp; contracts</a>.</p>

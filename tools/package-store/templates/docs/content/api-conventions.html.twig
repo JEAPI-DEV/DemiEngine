@@ -8,7 +8,7 @@ local Transform3D = require("demi.transform3d")
 
 local id = Entity.find("skyforge_player")
 local x, y, z = Transform3D.get_position(id)</code></pre>
-<p><code>require("demi.entity")</code> returns the entity service table. <code>Entity.find("skyforge_player")</code> looks up an authored entity by its stable ID and returns its live handle, or <code>nil</code> when no entity has that name. <code>Transform3D.get_position(id)</code> returns three scalar numbers (the entity's local position) or three <code>nil</code> values when the entity has no transform. The local names (<code>Entity</code>, <code>Transform3D</code>) are yours to choose; the <code>"demi.…"</code> strings are the contract.</p>
+<p><code>require("demi.entity")</code> returns the entity service table. <code>Entity.find("skyforge_player")</code> looks up an entity by ID or name and returns its stable ID string, or nil when missing. <code>Transform3D.get_position(id)</code> returns three local-position scalars, or three nil values when unavailable. The local names (<code>Entity</code>, <code>Transform3D</code>) are yours to choose; the <code>"demi.…"</code> strings are the contract.</p>
 
 <h2>Vector annotations</h2>
 <p>When an API documents a vector type it uses the names <code>Vec2</code> and <code>Vec3</code>. Those are annotations for readers and editor tooling, not Lua classes: a <code>Vec3</code> is just three numbers. How you hold them depends on the call:</p>
@@ -22,7 +22,7 @@ local x, y, z = Transform3D.get_position(id)</code></pre>
 })
 
 local px, py, pz = Transform3D.get_position(crate)  -- three scalars</code></pre>
-<p><code>Entity.spawn(name, options)</code> takes the entity name and an optional options table. <code>position</code> and <code>velocity</code> are <code>Vec3</code> numeric arrays (<code>index 1 = x</code>, <code>2 = y</code>, <code>3 = z</code>). The call returns <code>true</code> when creation was queued, or <code>false</code> plus an error string on failure — the entity is created at the next creation step, not synchronously. The follow-up getter returns three scalars, not a table.</p>
+<p><code>Entity.spawn(id, options)</code> takes the new stable ID and an options table. Its <code>position</code> and <code>velocity</code> shorthands are dense numeric arrays of length two or three; their dimensions must agree when both are supplied. It returns true when creation was queued, or false plus an error string on failure. The entity is created at the next creation step, not synchronously. The transform getter returns separate scalars.</p>
 
 <h2>How results come back</h2>
 <table>
@@ -35,12 +35,17 @@ local px, py, pz = Transform3D.get_position(crate)  -- three scalars</code></pre
     </tr>
     <tr>
       <td><code>{ x, y }</code> / <code>{ x, y, z }</code></td>
-      <td>Vectors inside tables (hits, spawn options, sizes)</td>
-      <td>Numeric arrays of fixed length. Index from 1. A field documented as a vector is never a string like <code>"1,2,3"</code>.</td>
+      <td>Dense coordinate inputs, such as spawn position/velocity and authored sizes</td>
+      <td>Numeric arrays indexed from 1. Follow the particular function's input contract.</td>
+    </tr>
+    <tr>
+      <td><code>{x = …, y = …, z = …}</code></td>
+      <td>Named vectors returned inside ray, contact and other result tables</td>
+      <td>Read fields such as <code>hit.point.x</code>. Do not assume these outputs use the dense-array shape required by some inputs.</td>
     </tr>
     <tr>
       <td><code>value, nil</code> or <code>nil, err</code></td>
-      <td><code>Data.load</code>, <code>Data.parse_yaml</code>, HTTP requests</td>
+      <td><code>Data.load</code>, <code>Data.parse_yaml</code></td>
       <td>Check the first result. Success is <code>value, nil</code>. Failure is <code>nil</code> plus an error table (shape below).</td>
     </tr>
     <tr>
@@ -67,7 +72,7 @@ local navPath = Navigation2D.path(0, 0, 5, 5)
 <p><code>Grid.path(start_x, start_y, goal_x, goal_y)</code> takes four tile coordinates and returns either an array of waypoints or <code>nil</code> plus a diagnostic code. <code>Navigation2D.path(start_x, start_y, goal_x, goal_y, diagonal?)</code> returns a (possibly empty) waypoint array and a diagnostic string you can pass to <code>Debug.log</code>.</p>
 
 <h2>Error shapes</h2>
-<p>Calls that can fail for content reasons (bad data, missing files, network trouble) return <code>nil</code> plus a small error table instead of raising. The standard shape is:</p>
+<p>Data-loading and YAML-parsing failures use <code>nil, DataError</code>. This is not a universal error convention: many entity/network operations return booleans, while HTTP request creation returns a handle or <code>nil, error_string</code>. Poll an HTTP handle's response for transport/HTTP errors. Use each service's documented return shape. A data error looks like:</p>
 <pre><code>local Data = require("demi.data")
 
 local value, err = Data.load("asset://data/skyforge_enemies")

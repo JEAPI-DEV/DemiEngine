@@ -1,14 +1,14 @@
 <h1>Networking &amp; HTTP</h1>
-<p>Multiplayer is host-authoritative: the host owns spawning, ownership, and message validation. HTTP/HTTPS is available separately for REST backends and is async so gameplay never blocks.</p>
+<p>Multiplayer sessions use a host-authoritative network contract for spawning, ownership, and message validation. HTTP/HTTPS is a separate asynchronous service for REST backends; it needs no multiplayer contract.</p>
 
 <h2>Network contract</h2>
 <p>Declare a contract asset in the project:</p>
 <pre><code>"network_contract": "asset://network/arena_contract"</code></pre>
-<p>The <code>NetworkContract</code> asset is the single source of network rules: which prefabs the server may spawn, who may write which fields, message names and directions, size and rate limits, and payload schemas. Both sides hash the contract at session setup and refuse to start on mismatch.</p>
+<p>The <code>NetworkContract</code> asset declares replicated prefab keys, field writers, message names and directions, size and rate limits, and payload schemas. The runtime includes the contract and referenced schemas in a compatibility hash; incompatible packets are rejected during session setup.</p>
 <table>
   <thead><tr><th>Policy</th><th>Values</th><th>Meaning</th></tr></thead>
   <tbody>
-    <tr><td>Senders / writers</td><td><code>server</code>, <code>owner</code>, <code>all</code></td><td>Who may spawn or write a replicated field</td></tr>
+    <tr><td>Senders / writers</td><td><code>server</code>, <code>owner</code>, <code>all</code></td><td>Who may send a message or write a replicated field; only the server may spawn</td></tr>
     <tr><td>Disconnect</td><td><code>despawn</code>, <code>return_to_server</code>, <code>transfer_by_game_policy</code></td><td>What happens to that player’s entities</td></tr>
     <tr><td>Message targets</td><td><code>owned_entity</code>, <code>entity</code>, <code>none</code></td><td>What the message is addressed to</td></tr>
   </tbody>
@@ -18,37 +18,35 @@
 <pre><code>local NetworkSession = require("demi.network.session")
 
 -- Host:
-NetworkSession.host(39420)                       -- returns true or nil, err
+NetworkSession.host(39420)                       -- boolean
 NetworkSession.start_session({
     scene_id = "scene://game",
     seed     = 42,
 })
 
 -- Client:
-NetworkSession.connect("127.0.0.1", 39420)       -- returns true or nil, err</code></pre>
-<p>Once running, pump the session every frame:</p>
+NetworkSession.connect("127.0.0.1", 39420)       -- boolean: attempt started</code></pre>
+<p><code>start_session(metadata)</code> sends metadata from the host; it does not load the named scene or seed the simulation. Check <code>process_events()</code> for connection and session events.</p>
+<p>Poll the session each frame:</p>
 <pre><code>function Game:on_update(dt)
-    local events = NetworkSession.process_events()
-    -- events is an array of validated contract messages
-    for _, e in ipairs(events) do
+    local update = NetworkSession.process_events()
+    for _, e in ipairs(update.events) do
         print(e.name, e.sender_id)
     end
-
-    NetworkSession.update_entity(network_id, dt)
 end</code></pre>
-<p><code>process_events</code> returns the validated messages received since the last call (empty array when idle). Invalid or unauthorized traffic is rejected before Lua sees it. <code>update_entity</code> captures the contract-declared replicated fields for one entity.</p>
-<p>Lifecycle phases: <code>closed</code> → <code>connected</code> → <code>authenticated</code> → <code>ready</code> → <code>active</code>, plus <code>reconnecting</code>. Query status with:</p>
+<p><code>process_events()</code> returns an update table with <code>connected</code>, <code>disconnected</code>, <code>session_started</code>, <code>session</code>, <code>messages</code>, and <code>events</code>. The events array contains accepted gameplay and prediction events; invalid contract traffic is rejected before delivery. On an owning peer, call <code>update_entity(network_id, dt)</code> to publish contract-declared replicated fields at the configured interval.</p>
+<p>Diagnostics expose the lifecycle phase, including <code>closed</code>, <code>connected</code>, <code>authenticated</code>, <code>ready</code>, and <code>active</code>:</p>
 <pre><code>local d = NetworkSession.diagnostics()
--- d.phase, d.epoch, d.contract_hash, plus send/receive counters
+-- d.phase, d.session_epoch, d.contract_hash, d.sent_messages, d.rejected_messages
 
 print(NetworkSession.is_connected())   -- boolean
 print(NetworkSession.is_host())        -- boolean
-print(NetworkSession.sender_id())      -- this peer’s ID
-print(NetworkSession.current_session())-- session info table or nil</code></pre>
+print(NetworkSession.sender_id())      -- string peer ID
+print(NetworkSession.current_session())-- metadata table or nil</code></pre>
 
 <h2>Authority and spawning</h2>
 <pre><code>-- Host only:
-local id = NetworkSession.spawn(prefab_key, entity_id, owner)
+local id = NetworkSession.spawn("player", entity_id, owner_id) -- contract prefab key
 NetworkSession.transfer(network_id, new_owner)
 NetworkSession.despawn(network_id)
 
@@ -58,16 +56,16 @@ end
 
 local owner = NetworkSession.owner(network_id)
 local nid = NetworkSession.network_id_for_owner(owner_id)
-NetworkSession.bind_local_entity(entity_id, network_id)</code></pre>
-<p><code>spawn</code> creates a contract-declared prefab on every peer and returns the network ID. <code>transfer</code> hands authority to another player. <code>has_authority</code> is the gate every gameplay write should check. Late joiners automatically receive retained spawn state.</p>
+NetworkSession.bind_local_entity(network_id, entity_id)</code></pre>
+<p><code>spawn</code> accepts a key in <code>replicated_prefabs</code> and an existing local entity ID; it returns a string network ID or <code>nil</code>. <code>transfer</code>, <code>despawn</code>, and <code>bind_local_entity</code> return booleans. Binding is permitted only for the owning peer. <code>has_authority</code> tests ownership; individual field and message rules still apply. Late joiners receive retained spawn state.</p>
 
 <h2>Messages</h2>
-<pre><code>local ok = NetworkSession.send("fire", { x = 1, y = 2 }, { target = "server" })
--- ok is true when the message passed contract checks and was queued</code></pre>
-<p>Only contract-declared message names are accepted. The payload table must match the declared schema (finite numbers, allowed shape, size limits). The validation pipeline checks header, protocol, contract hash, epoch, sequence, size, structure, schema, sender, destination, ownership generation, and rate before delivery.</p>
+<pre><code>local ok = NetworkSession.send("player_join", nil, { color = { 0.2, 0.4, 0.8, 1.0 } })
+-- second argument is a network entity ID when the contract requires a target</code></pre>
+<p>Only contract-declared message names are accepted. A payload must match its declared schema, finite-number rules, and size limits. The validation pipeline checks header, protocol, contract hash, epoch, sequence, size, structure, schema, sender, destination, ownership generation, and rate before delivery.</p>
 
 <h2>Prediction and reconciliation</h2>
-<p>Optional, for responsive movement on remote entities:</p>
+<p>Optional, for responsive movement on a locally owned client entity:</p>
 <pre><code>NetworkSession.configure({
     input_queue_capacity = 64,
     input_future_window = 8,
@@ -77,66 +75,72 @@ NetworkSession.bind_local_entity(entity_id, network_id)</code></pre>
     interpolation_delay = 0.1,
     extrapolation_limit = 0.25,
     prediction_history_limit = 128,
-    prediction_visual_decay = 0.2,
+    prediction_visual_decay = 12.0,
 })
 
+local owned_id = NetworkSession.network_id_for_owner(NetworkSession.sender_id())
 NetworkSession.enable_prediction({
-    network_id = nid,
-    input_message = "input",   -- contract message carrying inputs
-    state = function()          -- return the state to replicate
-        return { x = px, y = py }
-    end,
-    apply = function(state)     -- push an authoritative state
-        Transform2D.set_position(nid, state.x, state.y)
+    network_id = owned_id,
+    input_message = "move_input", -- declared owner-to-server owned_entity message
+    state = { x = 0, y = 0 },
+    apply = function(state, input)
+        return {
+            x = state.x + input.dx * input.dt,
+            y = state.y + input.dy * input.dt,
+        }
     end,
 })</code></pre>
+<p>The <code>apply</code> callback returns a deterministic next controller state. The host consumes inputs and publishes authoritative snapshots.</p>
 <p>Related calls and what they return:</p>
 <table>
   <thead><tr><th>Call</th><th>Returns</th></tr></thead>
   <tbody>
-    <tr><td><code>NetworkSession.publish_snapshot()</code></td><td>Publishes the current predicted state to the host.</td></tr>
-    <tr><td><code>NetworkSession.predict_input(...)</code></td><td>Applies one predicted input locally.</td></tr>
-    <tr><td><code>NetworkSession.take_inputs()</code></td><td>Queued input array since the last call.</td></tr>
+    <tr><td><code>NetworkSession.publish_snapshot(nid, state)</code></td><td>Host publishes authoritative state; returns a boolean.</td></tr>
+    <tr><td><code>NetworkSession.predict_input(nid, input)</code></td><td>Applies and sends one client input; returns its sequence number or <code>nil</code>.</td></tr>
+    <tr><td><code>NetworkSession.take_inputs(nid)</code></td><td>Host receives ordered accepted input tables, each with <code>seq</code>.</td></tr>
     <tr><td><code>NetworkSession.prediction_state(nid)</code></td><td>Current predicted state table, or <code>nil</code>.</td></tr>
-    <tr><td><code>NetworkSession.prediction_visual_offset(nid)</code></td><td>Interpolation offset to apply visually.</td></tr>
-    <tr><td><code>NetworkSession.remote_state(nid)</code></td><td>Last authoritative state table.</td></tr>
-    <tr><td><code>NetworkSession.prediction_diagnostics()</code></td><td>Counters for corrections and queue depth.</td></tr>
-    <tr><td><code>NetworkSession.reset_prediction(nid)</code></td><td>Clears history after a teleport.</td></tr>
+    <tr><td><code>NetworkSession.prediction_visual_offset(nid)</code></td><td>Render-only offset table keyed by state field, or <code>nil</code>.</td></tr>
+    <tr><td><code>NetworkSession.remote_state(nid)</code></td><td>Interpolated remote state table, or <code>nil</code>.</td></tr>
+    <tr><td><code>NetworkSession.prediction_diagnostics()</code></td><td>Per-channel counters under <code>channels</code>.</td></tr>
+    <tr><td><code>NetworkSession.reset_prediction(nid, state)</code></td><td>Rebases to a supplied state; returns a boolean.</td></tr>
   </tbody>
 </table>
-<p>Historical 2D queries rewind the world for lag-compensated hits:</p>
+<p>On the host, historical 2D queries use recorded collision circles for lag-compensated hits:</p>
 <pre><code>NetworkSession.configure({
     query_history_capacity = 64,
     query_history_max_entities = 128,
     query_history_rewind_ticks = 8,
 })
-NetworkSession.record_query_snapshot()
-local hit = NetworkSession.historical_raycast(tick, x1, y1, x2, y2)  -- hit or nil</code></pre>
+NetworkSession.record_query_snapshot(server_tick, {
+    { entity_id = nid, x = px, y = py, radius = 0.5 },
+})
+local hit = NetworkSession.historical_raycast(
+    requested_tick, origin_x, origin_y, direction_x, direction_y, max_distance
+) -- 2D circle hit table or nil</code></pre>
 
 <h2>Low-level transport</h2>
 <pre><code>local Network = require("demi.network")
 
 print(Network.available())          -- true when transport is compiled in
 Network.host(port)                   -- ENet
-Network.host_dtls(port)              -- DTLS
+Network.host_dtls(port, cert_path, key_path) -- DTLS
 Network.connect(host, port)
-Network.send(peer, bytes, reliable)  -- raw bytes payload
-local events = Network.events()      -- connection-event array</code></pre>
+Network.send(bytes, reliable, peer_id, channel) -- raw bytes payload
+local events = Network.events()      -- connected, disconnected, and message events</code></pre>
 <p>Use this layer for custom protocols. Most games want <code>demi.network.session</code> instead.</p>
 
 <h2>TLS</h2>
 <pre><code>local TlsServer = require("demi.network.tls.server")
 local TlsClient = require("demi.network.tls.client")
 
-TlsServer.listen(port, cert_pem, key_pem)
-local ok = TlsClient.connect(host, port, { ca_certificate_pem = ca })
+TlsServer.listen(port, cert_path, key_path)
+local ok = TlsClient.connect(host, port, trusted_cert_path, server_name)
 if not ok then print(TlsClient.error()) end
 
-TlsClient.send(handle, payload)
+TlsClient.send(payload)
 local events = TlsClient.events()    -- receive queue
 print(TlsClient.is_connected())      -- boolean</code></pre>
-<p>TLS always verifies the certificate chain and hostname.</p>
-<p><code>demi.network.crypto</code> provides <code>random_token()</code>, <code>password_hash()</code>, and <code>secure_equals(a, b)</code> for constant-time comparison.</p>
+<p>The TLS client verifies the certificate chain against the supplied trust file and verifies the server name. <code>connect</code> starts the connection; poll <code>events()</code> or <code>is_connected()</code> for the result. <code>demi.network.crypto</code> provides <code>random_token()</code>, <code>password_hash(password, salt[, iterations])</code>, and <code>secure_equals(a, b)</code>. Tokens are hex strings.</p>
 
 <h2>HTTP / HTTPS</h2>
 <pre><code>local Http = require("demi.network.http")
@@ -174,7 +178,7 @@ end</code></pre>
   <li>Response fields: <code>ok</code>, <code>status</code>, <code>body</code>, <code>error</code>, <code>error_code</code>, <code>json</code>, <code>json_error</code>, <code>headers</code> (lowercase names, array values).</li>
   <li>Use either <code>json</code> or <code>body</code> on the request, not both.</li>
   <li>Redirects come back as 3xx — follow them yourself if you want to.</li>
-  <li>Android builds need <code>android.permission.INTERNET</code> in the project <code>build.android.permissions</code>.</li>
+  <li>Android projects with an explicit build block need <code>android.permission.INTERNET</code> in <code>build.android.permissions</code> when they use network services. Projects without an authored build block receive the engine's default permission.</li>
 </ul>
 
 <h2>Dedicated server</h2>

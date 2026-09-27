@@ -15,7 +15,7 @@
   }
 }</code></pre>
 <ul>
-  <li>Import glTF/GLB (also OBJ, IQM, M3D) as <code>Model3D</code> assets.</li>
+  <li>Use glTF/GLB for renderable <code>Model3D</code> assets. The importer recognizes additional extensions, but the current renderer's geometry loaders use glTF/GLB; see <a href="{{ path('docs_page', {slug: 'models-and-meshes'}) }}">Models &amp; meshes</a>.</li>
   <li>LOD models are separate authored models that share clip names and durations.</li>
   <li><code>MeshInstances3D</code> draws many copies of one model efficiently.</li>
   <li><code>WorldText3D</code> places world-space labels.</li>
@@ -23,11 +23,14 @@
 </ul>
 <pre><code>local Proc = require("demi.mesh.procedural")
 local mesh = Proc.create()
+mesh:add_vertex(0, 0, 0, 0, 0, 1, 0, 0)
+mesh:add_vertex(1, 0, 0, 0, 0, 1, 1, 0)
+mesh:add_vertex(0, 1, 0, 0, 0, 1, 0, 1)
 Proc.apply(entity_id, mesh)   -- attach a built mesh to an entity</code></pre>
 <p>The builder (<code>mesh:clear()</code>, <code>reserve</code>, <code>add_vertex</code>, <code>add_quad</code>, <code>add_voxel_blocks</code>, <code>add_voxel_heightfield</code>) accumulates geometry that <code>Proc.apply</code> uploads.</p>
 
 <h2>Skeletal animation</h2>
-<p><code>AnimationPlayer3D</code> plays skeletal clips declared in the model asset’s <code>settings.animations.clips</code>. Visual LOD holds poses beyond <code>visual_update_distance</code> and refreshes at <code>visual_update_rate</code>.</p>
+<p><code>AnimationPlayer3D</code> plays clips imported from the glTF/GLB. Use the <code>animated_character</code> import preset or enable <code>settings.model_import.import_animations</code>. <code>settings.animations.clips</code> is manifest metadata, not a clip importer or renaming mechanism. Visual LOD holds poses beyond <code>visual_update_distance</code> and refreshes at <code>visual_update_rate</code>.</p>
 <p>Vulkan GPU skinning is applied automatically for supported models. Set <code>DEMI_GPU_SKINNING=0</code> to force the CPU path while profiling.</p>
 <p>Procedural leg IK:</p>
 <pre><code>local Animation = require("demi.animation")

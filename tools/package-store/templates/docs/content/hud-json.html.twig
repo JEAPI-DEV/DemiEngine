@@ -6,7 +6,7 @@
 <p>Like every DemiEngine document, a HUD file starts with <code>format_version</code>.</p>
 
 <h2>Canvas size and units</h2>
-<pre><code>"canvas_size": [1280, 720]</code></pre>
+<pre><code>{ "format_version": 1, "canvas_size": [1280, 720], "children": [] }</code></pre>
 <ul>
   <li><code>canvas_size</code> is <code>[width, height]</code> in interface units — the design resolution the layout is authored against.</li>
   <li>Positions, sizes, gaps, and padding in the file are in these units. On a real screen the whole canvas is scaled to fit, so a layout designed at 1280×720 works on other resolutions without rewriting numbers.</li>
@@ -29,7 +29,7 @@
         "type": "label",
         "text": "Skyforge",
         "font_size": 48,
-        "alignment": "center"
+        "text_alignment": "center"
       },
       {
         "id": "start_button",
@@ -54,8 +54,8 @@
     <tr><td><code>children</code></td><td>Nested nodes, laid out by this node's layout settings.</td></tr>
     <tr><td><code>text</code></td><td>The string a label or button shows.</td></tr>
     <tr><td><code>font_size</code></td><td>Text size in canvas units.</td></tr>
-    <tr><td><code>alignment</code></td><td>Where content sits inside the node: <code>start</code>, <code>center</code>, <code>end</code>, or <code>stretch</code>.</td></tr>
-    <tr><td><code>action</code></td><td>Input action this control feeds. Pressing the button is the same as pressing the <code>confirm</code> action.</td></tr>
+    <tr><td><code>text_alignment</code></td><td>Horizontal text alignment: <code>start</code>, <code>center</code>, or <code>end</code>. <code>alignment</code> instead arranges a container's children on its cross axis.</td></tr>
+    <tr><td><code>action</code></td><td>UI action name emitted when the control is activated; the project input map can bind a keyboard/gamepad action to it.</td></tr>
     <tr><td><code>size</code></td><td>Explicit <code>[width, height]</code> when the node should not auto-size.</td></tr>
   </tbody>
 </table>
@@ -126,16 +126,19 @@
 
 <h2>Variables: <code>${name}</code></h2>
 <p>Text fields can contain placeholders written as <code>${name}</code>. At run time each placeholder is replaced with the value of the HUD variable <code>name</code>. Declare the names the HUD uses:</p>
-<pre><code>"variables": ["score", "player_name"],
-"root": {
-  "id": "hud_root",
-  "children": [
-    {
-      "id": "score_label",
-      "type": "label",
-      "text": "${player_name} — score ${score}"
-    }
-  ]
+<pre><code>{
+  "format_version": 1,
+  "variables": ["score", "player_name"],
+  "root": {
+    "id": "hud_root",
+    "children": [
+      {
+        "id": "score_label",
+        "type": "label",
+        "text": "${player_name} — score ${score}"
+      }
+    ]
+  }
 }</code></pre>
 <ul>
   <li><code>variables</code> is an <strong>array of names</strong>. It declares which runtime variables the HUD uses — for values set by scripts or by runtime-created UI — and <strong>never</strong> holds default values or translated text.</li>
@@ -146,10 +149,14 @@
 
 <h2>Theme and localization</h2>
 <p>Two optional file references, both resolved <strong>relative to the HUD file</strong>:</p>
-<pre><code>"theme": "../ui/default.theme.json",
-"localization_file": "../ui/en.localization.json"</code></pre>
+<pre><code>{
+  "format_version": 1,
+  "theme": "../ui/default.theme.json",
+  "localization_file": "../ui/en.localization.json",
+  "children": []
+}</code></pre>
 <ul>
-  <li><code>theme</code> — a path to a theme JSON file relative to the HUD file (for example <code>examples/ui_showcase/scenes/main.hud.json</code> points at <code>../ui/default.theme.json</code>). It supplies default colors, fonts, and styles. Node-level fields still win where you set them explicitly.</li>
+  <li><code>theme</code> — a path to a theme JSON file relative to the HUD file (for example <code>examples/ui_showcase/scenes/main.hud.json</code> points at <code>../ui/default.theme.json</code>). It supplies styles and HUD navigation mappings; supported style fields include colors, padding, gap, font size, minimum size, and control/row height.</li>
   <li><code>localization_file</code> — a path to a localization file relative to the HUD file, one per locale (for example <code>en.localization.json</code>, <code>de.localization.json</code>). The file holds a flat key→string map under <code>localization</code>:</li>
 </ul>
 <pre><code>{
@@ -167,42 +174,65 @@
   <li>Keys that do not resolve leave the authored text untouched.</li>
 </ul>
 <p>A HUD document can also carry embedded translations. <code>locales</code> is an <strong>object keyed by locale</strong> whose values are key→string maps, and <code>locale</code> names the default:</p>
-<pre><code>"locales": { "de": { "play": "Spielen" } },
-"locale": "en"</code></pre>
+<pre><code>{
+  "format_version": 1,
+  "locale": "en",
+  "locales": {
+    "en": { "play": "Play" },
+    "de": { "play": "Spielen" }
+  },
+  "children": [
+    { "id": "play_button", "type": "button", "localization_key": "play" }
+  ]
+}</code></pre>
 <p><code>Hud.set_locale("de")</code> switches languages at run time and reapplies every node's localization key; an invalid locale keeps the last valid one. Inline <code>localization</code> values declared directly in the HUD document take precedence over strings pulled from the localization file.</p>
 <p><code>${name}</code> variables are a separate mechanism (native values set with <code>Hud.set_variable</code>); they are not localized.</p>
 
 <h2>action_map and action_effects</h2>
-<p>Controls do not talk to gameplay directly; they feed named input actions, and optionally trigger effects when an action fires.</p>
-<pre><code>"action_map": { "confirm": "menu_accept" },
-"action_effects": {
-  "menu_accept": { "focus": "start" }
+<p>Controls emit UI actions and can optionally trigger HUD effects when an action fires.</p>
+<pre><code>{
+  "format_version": 1,
+  "action_map": { "submit": "confirm" },
+  "action_effects": {
+    "menu_accept": { "focus": "start" }
+  },
+  "children": [
+    { "id": "start", "type": "button", "text": "Start", "action": "menu_accept" }
+  ]
 }</code></pre>
 <ul>
-  <li><code>action_map</code> — control node ID → action name. Pressing <code>confirm</code> is the same as the <code>menu_accept</code> action. The action itself must exist in the project's input setup.</li>
-  <li><code>action_effects</code> — keyed by <strong>action name</strong> (not node ID). Each value may set <code>show</code> (array of node IDs to reveal), <code>hide</code> (array of node IDs to hide), and/or <code>focus</code> (one node ID to focus). Here, firing <code>menu_accept</code> focuses the <code>start</code> node.</li>
-  <li>The <code>action</code> field on a node is shorthand for adding that node to <code>action_map</code>.</li>
+  <li><code>action_map</code> — navigation slot (<code>next</code>, <code>previous</code>, <code>submit</code>, <code>cancel</code>) → project input action name. Here, the project's <code>confirm</code> input activates the currently focused control through the <code>submit</code> slot.</li>
+  <li><code>action_effects</code> — keyed by <strong>UI action name</strong> (not node ID). Each value may set <code>show</code> (array of node IDs to reveal), <code>hide</code> (array of node IDs to hide), and/or <code>focus</code> (one node ID to focus). Here, a control with <code>"action": "menu_accept"</code> focuses the <code>start</code> node when activated.</li>
+  <li>The <code>action</code> field on a node names the UI action that node emits; it does not add an <code>action_map</code> entry.</li>
 </ul>
-<p>Action names must match the project's input declarations. See <a href="{{ path('docs_page', {slug: 'input-bindings'}) }}">Input bindings</a> and <a href="{{ path('docs_page', {slug: 'project-json'}) }}">demi.project.json</a>.</p>
+<p>Values in <code>action_map</code> must match project input declarations. See <a href="{{ path('docs_page', {slug: 'input-bindings'}) }}">Input bindings</a> and <a href="{{ path('docs_page', {slug: 'project-json'}) }}">demi.project.json</a>.</p>
 
 <h2><code>root</code> versus top-level <code>children</code></h2>
 <p>There are two equivalent ways to write the top of the tree:</p>
-<pre><code>"root": {
-  "id": "screen",
-  "type": "container",
-  "children": [ … ]
+<pre><code>{
+  "format_version": 1,
+  "root": {
+    "id": "screen",
+    "type": "container",
+    "children": [
+      { "id": "title", "type": "label", "text": "Skyforge" }
+    ]
+  }
 }</code></pre>
 <p>or, without naming a root node:</p>
-<pre><code>"children": [
-  { "id": "title", "type": "label", "text": "Skyforge" },
-  { "id": "start_button", "type": "button", "text": "Start" }
-]</code></pre>
+<pre><code>{
+  "format_version": 1,
+  "children": [
+    { "id": "title", "type": "label", "text": "Skyforge" },
+    { "id": "start_button", "type": "button", "text": "Start" }
+  ]
+}</code></pre>
 <ul>
   <li>With <code>root</code>, you own the outermost node: give it an ID, a type, and layout fields that govern the whole screen.</li>
   <li>With top-level <code>children</code>, the engine supplies an implicit fill root and your nodes become its children.</li>
   <li>Use <code>root</code> when the screen needs one named outer container (for modal management or full-screen styling); use top-level <code>children</code> for small, simple screens.</li>
 </ul>
-<p>Each node may also use <code>prefab</code>, <code>arguments</code>, and <code>overrides</code> to place a reusable interface prefab instead of inlining every child. The override rules match prefab overrides: absent fields inherit, objects merge, arrays replace, <code>null</code> removes, and dotted keys set one field. See <a href="{{ path('docs_page', {slug: 'prefab-json'}) }}">Prefab files</a>.</p>
+<p>A node position may use <code>id</code>, <code>prefab</code>, <code>arguments</code>, and <code>overrides</code> to place a reusable UI prefab. Each override directly replaces one field on the expanded root; <code>id</code>, <code>children</code>, and <code>prefab</code> are reserved. See <a href="{{ path('docs_page', {slug: 'ui-prefabs'}) }}">UI prefabs</a>.</p>
 
 <h2>Safe areas</h2>
 <p>A <strong>safe area</strong> is the part of the screen guaranteed to be unobstructed — cutouts, rounded corners, and system bars on phones sit outside it.</p>
