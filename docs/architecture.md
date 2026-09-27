@@ -12,8 +12,8 @@ consume the same project and scene model.
 - **Explicitly deferred:** high-end Unity-style 3D rendering, terrain tooling,
   visual scripting, shader graphs, and editor-only content formats.
 
-See [the capability matrix](capabilities.md) for the current status of each
-subsystem.
+See [the capability matrix](https://demiengine.de/docs/capabilities) for the
+current status of each subsystem.
 
 ## Runtime Layers
 

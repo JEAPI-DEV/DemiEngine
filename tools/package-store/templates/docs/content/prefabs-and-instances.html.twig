@@ -117,6 +117,7 @@
 
 <h2>How IDs expand</h2>
 <p>When a prefab is instantiated, every entity ID inside it is prefixed with the instance ID so copies never collide. Local ID <code>body</code> under instance <code>player</code> becomes <code>player/body</code>; local <code>visual</code> becomes <code>player/visual</code>. Override keys use the <strong>local</strong> name (<code>body</code>), while runtime lookups use the <strong>expanded</strong> name (<code>player/body</code>). Expansion is identity bookkeeping only — nested children in the prefab are still ordinary hierarchy, not a separate ID syntax.</p>
+<p>Child IDs remain document-wide: a child <code>visual</code> under <code>body</code> expands to <code>player/visual</code>, not <code>player/body/visual</code>. Nest entities that share a spatial domain under their owner. The owner needs a transform; a child without one receives an identity transform in that domain. Conflicting explicit parents, mixed transform domains, duplicate IDs, and nesting beyond 128 levels are validation errors. Explicit <code>parent</code> links are for relationships a local source tree cannot express.</p>
 
 <h2>Nested prefabs</h2>
 <p>A prefab may place other prefabs, so compositions stay modular: a <code>prefab://characters/hero</code> can contain an instance of <code>prefab://weapons/sword</code>. Override and ID expansion rules apply level by level, and the expanded IDs keep accumulating prefixes so every leaf stays unique. A prefab that eventually contains itself is a cycle; validation rejects it and reports the chain of files involved so you can break the loop.</p>
@@ -126,13 +127,15 @@
 <pre><code>local Prefab = require("demi.prefab")
 
 local id = Prefab.instantiate("prefab://characters/player", {
+    id = "player_2",
     position = { 2, 0, 0 }
 })</code></pre>
 <ul>
   <li><code>require("demi.prefab")</code> — imports the prefab service; the call returns its function table.</li>
-  <li><code>Prefab.instantiate(uri, overrides)</code> — places a prefab at runtime. <code>uri</code> is the <code>prefab://</code> identity; <code>overrides</code> is optional and follows the same combine rules as authored overrides.</li>
-  <li>Returns <code>id</code> — the expanded root entity ID of the new instance (a string), which you pass to other APIs to find and control the object.</li>
+  <li><code>Prefab.instantiate(uri, options)</code> — places a prefab at runtime. <code>options.id</code> is required; optional <code>position</code>, <code>overrides</code>, and <code>pooled</code> configure this instance.</li>
+  <li>Returns the <strong>instance ID</strong> string, or <code>nil</code> on failure. Expanded entity IDs such as <code>player_2/body</code> address its contents.</li>
 </ul>
+<p><code>Prefab.release(instance_id)</code> releases the instance. A pooled release disables its entities; the next matching instantiate resets them from prefab source before enabling them. Without pooling, release queues destruction.</p>
 <p>Return shapes, options for nested IDs, and cleanup are covered in <a href="{{ path('docs_page', {slug: 'scene-and-prefab-api'}) }}">Scene &amp; prefab API</a>.</p>
 
 <h2>Next steps</h2>

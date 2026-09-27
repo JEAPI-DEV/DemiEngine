@@ -228,6 +228,7 @@ set_tests_properties(demi-gpu-skinning3d-tests PROPERTIES ENVIRONMENT "DEMI_GPU_
 add_test(NAME demi-mesh-deformation3d-tests COMMAND demi-mesh-deformation3d-tests)
 add_test(NAME demi-mesh-geometry3d-tests COMMAND demi-mesh-geometry3d-tests)
 add_test(NAME demi-bgfx-renderer3d-tests COMMAND demi-bgfx-renderer3d-tests)
+add_test(NAME demi-shadow-cascade-layout-tests COMMAND demi-shadow-cascade-layout-tests)
 add_test(NAME demi-bgfx-scene-extraction-tests
   COMMAND demi-bgfx-scene-extraction-tests)
 add_test(NAME demi-scene-visibility3d-tests

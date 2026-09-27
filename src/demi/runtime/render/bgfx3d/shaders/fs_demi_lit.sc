@@ -4,11 +4,17 @@ $input v_color0, v_normal, v_texcoord0, v_worldPos
 
 SAMPLER2D(s_texColor, 0);
 SAMPLER2D(s_shadowMap, 1);
-uniform vec4 u_shadowX;
-uniform vec4 u_shadowY;
-uniform vec4 u_shadowZ;
-// x: disabled=0, receiver=1, depth pass=-1; y: bias; z: texel; w: flip V.
-uniform vec4 u_shadowParams;
+uniform vec4 u_shadowX[4];
+uniform vec4 u_shadowY[4];
+uniform vec4 u_shadowZ[4];
+// Per cascade: normalized bias, nominal near depth, far depth, reserved.
+uniform vec4 u_shadowParams[4];
+// Phase (off/receive/cast), active cast index, cascade count, blend fraction.
+uniform vec4 u_shadowConfig;
+// Atlas columns/rows, signed texel size (negative = hard), local flip V.
+uniform vec4 u_shadowAtlas;
+uniform vec4 u_shadowSplits;
+uniform vec4 u_shadowCamera;
 uniform vec4 u_lightDirection;
 uniform vec4 u_lightColor;
 uniform vec4 u_ambientColor;
@@ -41,6 +47,63 @@ vec3 encodeColor(vec3 color)
                step(vec3(0.0031308), color));
 }
 
+float compareShadowTap(int cascade, vec2 tap, float receiverDepth)
+{
+    float texel = abs(u_shadowAtlas.z);
+    tap = clamp(tap, vec2(texel * 0.5), vec2(1.0 - texel * 0.5));
+    vec2 tile = vec2(mod(float(cascade), u_shadowAtlas.x), floor(float(cascade) / u_shadowAtlas.x));
+    if (u_shadowAtlas.w < 0.5)
+        tile.y = u_shadowAtlas.y - 1.0 - tile.y;
+    vec2 atlasUv = (tile + tap) / u_shadowAtlas.xy;
+    vec4 encoded = texture2D(s_shadowMap, atlasUv);
+    float stored = dot(encoded, vec4(1.0, 1.0/255.0, 1.0/65025.0, 1.0/16581375.0));
+    return step(receiverDepth, stored);
+}
+
+float cascadeVisibility(int cascade, vec4 worldPosition, vec3 worldDx, vec3 worldDy, float diffuse)
+{
+    vec2 uv = vec2(dot(u_shadowX[cascade], worldPosition), dot(u_shadowY[cascade], worldPosition));
+    if (u_shadowAtlas.w > 0.5) uv.y = 1.0 - uv.y;
+    float depth = dot(u_shadowZ[cascade], worldPosition);
+    // Receiver-plane correction prevents broad PCF footprints self-shadowing
+    // sloped surfaces. Compute derivatives before coverage branches.
+    vec2 uvDx = vec2(dot(u_shadowX[cascade].xyz, worldDx), dot(u_shadowY[cascade].xyz, worldDx));
+    vec2 uvDy = vec2(dot(u_shadowX[cascade].xyz, worldDy), dot(u_shadowY[cascade].xyz, worldDy));
+    if (u_shadowAtlas.w > 0.5) { uvDx.y = -uvDx.y; uvDy.y = -uvDy.y; }
+    vec2 dz = vec2(dot(u_shadowZ[cascade].xyz, worldDx), dot(u_shadowZ[cascade].xyz, worldDy));
+    float determinant = uvDx.x * uvDy.y - uvDx.y * uvDy.x;
+    vec2 gradient = vec2(0.0);
+    if (abs(determinant) > 0.000000000001)
+        gradient = vec2(uvDy.y * dz.x - uvDx.y * dz.y,
+                        uvDx.x * dz.y - uvDy.x * dz.x) / determinant;
+    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0 || depth < 0.0 || depth > 1.0)
+        return 1.0;
+    float texel = abs(u_shadowAtlas.z);
+    float compareDepth = depth - u_shadowParams[cascade].x * (2.0 - diffuse);
+    if (u_shadowAtlas.z < 0.0)
+    {
+        vec2 tap = (floor(uv / texel) + 0.5) * texel;
+        return compareShadowTap(cascade, tap, compareDepth + dot(gradient, tap - uv));
+    }
+    // Continuous 3x3 bilinear PCF, regrouped as 16 weighted comparisons.
+    // Never interpolate packed depth bytes themselves or sample another tile.
+    vec2 position = uv / texel - 0.5;
+    vec2 base = floor(position);
+    vec2 fraction = fract(position);
+    vec4 weightsX = vec4(1.0 - fraction.x, 1.0, 1.0, fraction.x);
+    vec4 weightsY = vec4(1.0 - fraction.y, 1.0, 1.0, fraction.y);
+    float visibility = 0.0;
+    for (int y = 0; y < 4; ++y)
+        for (int x = 0; x < 4; ++x)
+        {
+            vec2 tap = clamp((base + vec2(float(x - 1), float(y - 1)) + 0.5) * texel,
+                             vec2(texel * 0.5), vec2(1.0 - texel * 0.5));
+            visibility += weightsX[x] * weightsY[y] * compareShadowTap(cascade, tap,
+                compareDepth + dot(gradient, tap - uv)) / 9.0;
+        }
+    return visibility;
+}
+
 void main()
 {
     vec4 albedo = texture2D(s_texColor, v_texcoord0) * v_color0 * u_tint;
@@ -48,9 +111,11 @@ void main()
         discard;
 
     vec4 worldPosition = vec4(v_worldPos, 1.0);
-    float shadowDepth = dot(u_shadowZ, worldPosition);
-    if (u_shadowParams.x < -0.5)
+    vec3 worldDx = dFdx(v_worldPos);
+    vec3 worldDy = dFdy(v_worldPos);
+    if (u_shadowConfig.x < -0.5)
     {
+        float shadowDepth = dot(u_shadowZ[int(u_shadowConfig.y)], worldPosition);
         vec4 packedDepth = fract(clamp(shadowDepth, 0.0, 0.999999) *
                                  vec4(1.0, 255.0, 65025.0, 16581375.0));
         gl_FragColor = packedDepth - packedDepth.yzww *
@@ -65,34 +130,25 @@ void main()
                                 max(length(directionalVector), 0.0001);
     float diffuse = max(dot(normal, directionalDirection), 0.0);
     float visibility = 1.0;
-    if (u_shadowParams.x > 0.5)
+    if (u_shadowConfig.x > 0.5)
     {
-        vec2 shadowUv = vec2(dot(u_shadowX, worldPosition), dot(u_shadowY, worldPosition));
-        if (u_shadowParams.w > 0.5) shadowUv.y = 1.0 - shadowUv.y;
-        // Compare each PCF tap against the receiver plane at that texel,
-        // rather than against the depth at the centre of a sloped footprint.
-        vec2 uvDx = dFdx(shadowUv);
-        vec2 uvDy = dFdy(shadowUv);
-        vec2 depthDerivative = vec2(dFdx(shadowDepth), dFdy(shadowDepth));
-        float determinant = uvDx.x * uvDy.y - uvDx.y * uvDy.x;
-        vec2 depthGradient = vec2(0.0);
-        if (abs(determinant) > 0.000000000001)
-            depthGradient = vec2(uvDy.y * depthDerivative.x - uvDx.y * depthDerivative.y,
-                                 uvDx.x * depthDerivative.y - uvDy.x * depthDerivative.x) / determinant;
-        if (shadowUv.x >= 0.0 && shadowUv.x <= 1.0 &&
-            shadowUv.y >= 0.0 && shadowUv.y <= 1.0 && shadowDepth >= 0.0 && shadowDepth <= 1.0)
+        float viewDepth = dot(u_shadowCamera, worldPosition);
+        int cascade = 0;
+        if (viewDepth > u_shadowSplits.x && u_shadowConfig.z > 1.5) cascade = 1;
+        if (viewDepth > u_shadowSplits.y && u_shadowConfig.z > 2.5) cascade = 2;
+        if (viewDepth > u_shadowSplits.z && u_shadowConfig.z > 3.5) cascade = 3;
+        visibility = cascadeVisibility(cascade, worldPosition, worldDx, worldDy, diffuse);
+        float farDepth = u_shadowParams[cascade].z;
+        float blendWidth = max((farDepth - u_shadowParams[cascade].y) * u_shadowConfig.w, 0.00001);
+        float blend = smoothstep(farDepth - blendWidth, farDepth, viewDepth);
+        if (cascade + 1 < int(u_shadowConfig.z))
         {
-            visibility = 0.0;
-            float compareDepth = shadowDepth - u_shadowParams.y * (2.0 - diffuse);
-            for (int y = -1; y <= 1; ++y)
-                for (int x = -1; x <= 1; ++x)
-                {
-                    vec2 tap = (floor(shadowUv / u_shadowParams.z) + vec2(float(x),float(y)) + 0.5) * u_shadowParams.z;
-                    vec4 encoded = texture2D(s_shadowMap, tap);
-                    float stored = dot(encoded, vec4(1.0, 1.0/255.0, 1.0/65025.0, 1.0/16581375.0));
-                    visibility += step(compareDepth + dot(depthGradient, tap - shadowUv), stored) / 9.0;
-                }
+            if (blend > 0.0)
+                visibility = mix(visibility, cascadeVisibility(cascade + 1, worldPosition, worldDx, worldDy, diffuse), blend);
         }
+        else
+            visibility = mix(visibility, 1.0, blend);
+        if (viewDepth < 0.0 || viewDepth > farDepth) visibility = 1.0;
     }
     vec3 lighting = u_ambientColor.rgb +
                     u_lightColor.rgb * diffuse * u_lightDirection.w * visibility;

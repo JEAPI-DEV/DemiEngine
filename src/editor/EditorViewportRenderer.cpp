@@ -1,4 +1,5 @@
 #include "editor/EditorViewportRenderer.h"
+#include "editor/EditorRenderViews.h"
 
 #include "demi/assets/AssetRegistry.h"
 #include "demi/runtime/render/BgfxRenderer2D.h"
@@ -85,7 +86,7 @@ bool EditorViewportRenderer::render3D(const runtime::World &world,
   frame.debugGeometry = camera.debugGeometry;
   frame.viewportWidth = area.width;
   frame.viewportHeight = area.height;
-  frame.viewId = 1;
+  frame.viewId = EditorSceneFirstView;
   frame.frameBuffer = target_->frameBuffer;
   if (camera.studioLighting) {
     runtime::render::SceneLighting3D lighting;

@@ -127,6 +127,134 @@ bool testDerivedFieldMutation() {
   return true;
 }
 
+bool testEnvironmentShadowContract() {
+  using namespace demi::runtime;
+  using namespace demi::runtime::scene_loading;
+  using Json = nlohmann::json;
+
+  const auto *descriptor = findComponentDescriptor("Environment3D");
+  if (descriptor == nullptr)
+    return false;
+  const auto &defaults = componentDefaults(*descriptor);
+  const auto schema = componentSchema(*descriptor)["properties"];
+  if (defaults.at("shadow_cascades") != 4 ||
+      defaults.at("shadow_split_lambda") != 0.85 ||
+      defaults.at("shadow_blend") != 0.1 ||
+      defaults.at("shadow_filter") != "pcf" ||
+      defaults.at("shadow_resolution") != 1024 ||
+      defaults.at("shadow_distance") != 80 ||
+      defaults.at("shadow_bias") != 0.005 ||
+      defaults.at("max_shadow_lights") != 1 ||
+      schema["shadow_cascades"]["enum"] != Json::array({1, 2, 3, 4}) ||
+      schema["shadow_filter"]["enum"] != Json::array({"hard", "pcf"}) ||
+      schema["shadow_split_lambda"]["maximum"] != 1.0 ||
+      schema["shadow_blend"]["maximum"] != 1.0) {
+    std::cerr << "Shadow defaults or schema choices disagree.\n";
+    return false;
+  }
+
+  for (int cascades : {1, 2, 3, 4}) {
+    for (const char *filter : {"hard", "pcf"}) {
+      const Json values{{"shadow_cascades", cascades},
+                        {"shadow_split_lambda", 1.0},
+                        {"shadow_blend", 0.3},
+                        {"shadow_filter", filter},
+                        {"max_shadow_lights", 2}};
+      Entity entity;
+      if (!validateComponent(*descriptor, values).empty() ||
+          !RuntimeObjectModel::addComponent(entity, "Environment3D", values)) {
+        std::cerr << "Valid shadow quality mode was rejected.\n";
+        return false;
+      }
+      const auto *environment = entity.component<Environment3DComponent>();
+      if (environment->shadowCascades != cascades ||
+          environment->shadowSplitLambda != 1.0F ||
+          environment->shadowBlend != 0.3F ||
+          environment->shadowFilter != filter ||
+          environment->maxShadowLights != 2 ||
+          descriptor->serialize(entity) != values) {
+        std::cerr << "Shadow quality mode did not round-trip.\n";
+        return false;
+      }
+    }
+  }
+
+  Entity disabled;
+  const Json zeroSettings{{"shadow_distance", 0},     {"shadow_resolution", 1},
+                          {"shadow_split_lambda", 0}, {"shadow_blend", 0},
+                          {"shadow_bias", 0},         {"max_shadow_lights", 0}};
+  if (!validateComponent(*descriptor, zeroSettings).empty() ||
+      !RuntimeObjectModel::addComponent(disabled, "Environment3D",
+                                        zeroSettings) ||
+      disabled.component<Environment3DComponent>()->shadowDistance != 0 ||
+      disabled.component<Environment3DComponent>()->shadowBlend != 0 ||
+      disabled.component<Environment3DComponent>()->maxShadowLights != 0) {
+    std::cerr << "Valid shadow lower bounds were rejected.\n";
+    return false;
+  }
+
+  Entity entity;
+  if (!RuntimeObjectModel::addComponent(entity, "Environment3D",
+                                        Json::object()) ||
+      !RuntimeObjectModel::setComponentField(entity, "Environment3D",
+                                             "shadow_cascades", 2) ||
+      !RuntimeObjectModel::setComponentField(entity, "Environment3D",
+                                             "shadow_split_lambda", 0.4) ||
+      !RuntimeObjectModel::setComponentField(entity, "Environment3D",
+                                             "shadow_blend", 0.2) ||
+      !RuntimeObjectModel::setComponentField(entity, "Environment3D",
+                                             "shadow_filter", "hard")) {
+    std::cerr << "Valid runtime shadow edit was rejected.\n";
+    return false;
+  }
+  const auto *edited = entity.component<Environment3DComponent>();
+  if (edited->shadowCascades != 2 || edited->shadowSplitLambda != 0.4F ||
+      edited->shadowBlend != 0.2F || edited->shadowFilter != "hard" ||
+      edited->shadowDistance != 80.0F ||
+      descriptor->serialize(entity).at("shadow_filter") != "hard") {
+    std::cerr << "Runtime shadow edit lost native or authored state.\n";
+    return false;
+  }
+
+  const Json invalidValues = Json::array(
+      {Json{{"shadow_cascades", 0}}, Json{{"shadow_cascades", 5}},
+       Json{{"shadow_cascades", 4.5}}, Json{{"shadow_cascades", "4"}},
+       Json{{"shadow_split_lambda", -0.01}},
+       Json{{"shadow_split_lambda", 1.01}}, Json{{"shadow_blend", -0.01}},
+       Json{{"shadow_blend", 1.01}}, Json{{"shadow_filter", "soft"}},
+       Json{{"shadow_filter", 1}}, Json{{"shadow_distance", -1}},
+       Json{{"shadow_bias", -0.01}}, Json{{"shadow_distance", 1e100}},
+       Json{{"shadow_bias", 1e100}}, Json{{"shadow_resolution", 0}},
+       Json{{"max_shadow_lights", -1}},
+       Json{{"shadow_blend", std::numeric_limits<double>::infinity()}}});
+  for (const Json &values : invalidValues) {
+    if (validateComponent(*descriptor, values).empty()) {
+      std::cerr << "Invalid shadow value passed reflection validation.\n";
+      return false;
+    }
+    Entity direct;
+    bool rejected = false;
+    try {
+      Environment3DComponent::parse(values, direct);
+    } catch (const std::exception &) {
+      rejected = true;
+    }
+    if (!rejected || direct.hasComponent<Environment3DComponent>() ||
+        RuntimeObjectModel::setComponentField(entity, "Environment3D",
+                                              values.begin().key(),
+                                              values.begin().value())) {
+      std::cerr << "Invalid shadow value reached native or runtime state.\n";
+      return false;
+    }
+  }
+  if (edited->shadowCascades != 2 || edited->shadowBlend != 0.2F ||
+      edited->shadowFilter != "hard") {
+    std::cerr << "Rejected shadow edit changed live state.\n";
+    return false;
+  }
+  return true;
+}
+
 bool testSpriteAnimatorFieldMutation() {
   using namespace demi::runtime;
   using Json = nlohmann::json;
@@ -382,8 +510,8 @@ bool testStateMachineFieldMutation() {
 
 int main() {
   using namespace demi::runtime::scene_loading;
-  if (!testDerivedFieldMutation() || !testSpriteAnimatorFieldMutation() ||
-      !testStateMachineFieldMutation())
+  if (!testDerivedFieldMutation() || !testEnvironmentShadowContract() ||
+      !testSpriteAnimatorFieldMutation() || !testStateMachineFieldMutation())
     return 1;
   nlohmann::json encodedNumber;
   if (!demi::runtime::runtimeFieldJson(0.05F, encodedNumber) ||

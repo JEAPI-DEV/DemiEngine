@@ -25,7 +25,7 @@
     <tr><td><code>android.permissions</code></td><td>Android permission strings the app needs, for example <code>android.permission.INTERNET</code> for networked games.</td></tr>
   </tbody>
 </table>
-<p>Declare the INTERNET permission for any game that uses HTTP or sessions. Validation reports <code>PROJECT_BUILD_PERMISSION_NETWORK_MISSING</code> when networking is required and the permission is absent. HTTP usage is described in <a href="{{ path('docs_page', {slug: 'http-and-tls'}) }}">HTTP &amp; TLS</a>.</p>
+<p>If you author an Android <code>permissions</code> list, include <code>android.permission.INTERNET</code> when the project uses HTTP or sessions. Validation reports <code>PROJECT_BUILD_PERMISSION_NETWORK_MISSING</code> when such an authored list omits it. Projects without an authored <code>build</code> block retain the Gradle default permissions, including INTERNET. HTTP usage is described in <a href="{{ path('docs_page', {slug: 'http-and-tls'}) }}">HTTP &amp; TLS</a>.</p>
 
 <h2>Validate the Android target</h2>
 <p>Android can do less than a desktop in some optional areas. Validate for this platform before building so capability problems are named instead of discovered on a device:</p>

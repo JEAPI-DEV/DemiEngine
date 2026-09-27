@@ -275,8 +275,9 @@ all-device, full-game or thermal-soak qualification.
 - Materials and data assets can now be created and registered in the editor.
 - Runtime directional shadow maps now update from current geometry, including
   detached masonry. Quality controls use Environment3D; the pass is opt-in.
-  Desktop Vulkan visual checks cover a moving caster at 1080p. Cascades,
-  point/spot shadows, custom vertex deformation, and Android qualification remain
+  Desktop Vulkan visual checks cover a moving caster at 1080p. Cascaded
+  directional shadows and continuous PCF now cover close-up quality; point/spot
+  shadows, custom vertex deformation, and Android qualification remain
   open; this does not close the broader rendering milestone.
 - 3D MSAA defaults to 4× and is controlled by `Environment3D.msaa_samples`
   (`0`, `2`, `4`, `8`, `16`). The shared path covers editor images, native
@@ -362,7 +363,7 @@ Alpha/beta cleanup follows `docs/compatibility.md`: migrate repository consumers
 instead of adding aliases for unreleased contracts. The event-queue package is
 now `demi.gameplay.events` (formerly `demi.gameplay.core`); dependent manifests,
 the three affected example locks and package tests use the new name. Its README
-documents dispatch, ownership and failure behavior. `docs/engine-concepts.md`
+documents dispatch, ownership and failure behavior. The website's `/docs/core-concepts`
 introduces authoring concepts and distinguishes native services from packages.
 Package renames are local; the hosted registry has not been republished. The
 expanded naming and ownership work is recorded below.
@@ -596,7 +597,18 @@ Remaining work:
 - [ ] Verify texture/material parity for nested prefabs, overrides, imported
   models, and custom fracture inputs, including Save/reopen and Play transitions.
 - [x] Directional shadows update from current geometry, including detached pieces.
-- [ ] Track point/spot shadows, cascades, custom-deformation shadow correctness,
+- [x] Replace the broad single directional map with configurable 1–4-cascade
+  atlas quality modes, camera-frustum fitting, texel snapping, overlap blending,
+  and continuous PCF comparisons. Environment3D defaults use four 1024-pixel
+  cascades; runtime/editor share the path and reserve disjoint view slots.
+  Vulkan barrel captures at 1080p and 1440p exercise an 80-metre receiver range.
+  Tests cover projection/splits, settings/reflection, atlas views, multiple
+  cameras and disabled shadows. This is quality coverage, not a performance or
+  Android qualification claim. Maintained usage is on the website's 3D page.
+  Release verification: 331/331 tests pass, including Android packaging gates.
+  The full run also repaired two stale editor interaction tests from the prior
+  authoring pass. Actual Android shadow rendering still needs device testing.
+- [ ] Track point/spot shadows, custom-deformation shadow correctness,
   and platform qualification in the rendering milestone. Directional-light
   support does not close the full real-time-shadow requirement.
 - [x] Removed the cited 256-cell/part/chunk/body and 2,048-bond authoring caps;

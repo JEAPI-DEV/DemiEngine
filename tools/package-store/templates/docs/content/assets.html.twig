@@ -48,38 +48,47 @@
     "upload_ms_per_frame": 3
   }
 }</code></pre>
-<p><code>budget</code> caps resident and decoded memory and the GPU upload cost per frame, so a level load cannot stall a frame.</p>
+<p><code>budget</code> records resident and decoded memory limits and the per-frame upload budget. Measure the loaded group's actual memory use with <code>Assets.memory_report()</code> when tuning these values.</p>
 
 <h2>Loading from Lua</h2>
 <pre><code>local Assets = require("demi.assets")
+local Audio = require("demi.audio")
+local Game = {}
 
-Assets.load("asset://music/theme")   -- starts a non-blocking request
+local request, err = Assets.load("asset://music/theme")
+if not request or request == 0 then error(err) end
+local started = false
 
 function Game:on_update()
-    if Assets.is_ready("asset://music/theme") then
-        Audio.play("asset://music/theme")
+    if Assets.is_ready(request) then
+        if not started then
+            Audio.play("asset://music/theme", { bus = "music", loop = true })
+            started = true
+        end
     else
-        local p = Assets.progress("asset://music/theme")
-        -- p is 0.0 … 1.0 across resolve → read → decode → upload → ready
+        local p = Assets.progress(request)
+        -- p.stage names the stage; p.fraction is 0.0 … 1.0
     end
 end
 
-local bytes = Assets.text("asset://data/readme")  -- resident text as a string
-Assets.cancel("asset://music/theme")              -- abort a pending load
-Assets.unload("asset://music/theme")              -- free when done
-Assets.reload("asset://music/theme")              -- re-import after a change
-local report = Assets.memory_report()             -- resident/decoded totals</code></pre>
+function Game:on_stop_music()
+    Assets.cancel(request)                  -- only matters while pending
+    Assets.unload("asset://music/theme")    -- release this owner
+end
+
+return Game</code></pre>
 <table>
   <thead><tr><th>Call</th><th>Returns</th></tr></thead>
   <tbody>
-    <tr><td><code>Assets.load(uri)</code></td><td>Starts a request. Stages: <code>resolve</code>, <code>read</code>, <code>decode</code>, <code>upload</code>, <code>ready</code>, <code>failed</code>, <code>cancelled</code>.</td></tr>
-    <tr><td><code>Assets.is_ready(uri)</code></td><td>Boolean, <code>true</code> when the asset is resident.</td></tr>
-    <tr><td><code>Assets.progress(uri)</code></td><td>Number 0…1, or <code>0</code> when unknown.</td></tr>
-    <tr><td><code>Assets.text(uri)</code></td><td>String contents of a text asset, or <code>nil</code>.</td></tr>
-    <tr><td><code>Assets.memory_report()</code></td><td>Table of current and peak memory figures.</td></tr>
+    <tr><td><code>Assets.load(uri)</code></td><td>Request ID and error string. Keep the ID to poll or cancel this load.</td></tr>
+    <tr><td><code>Assets.is_ready(request)</code></td><td>Boolean, <code>true</code> when the request reached <code>ready</code>.</td></tr>
+    <tr><td><code>Assets.progress(request)</code></td><td>Table with <code>stage</code>, <code>fraction</code> (0…1), asset counts, byte totals, and <code>error</code>. Stages: <code>resolve</code>, <code>read</code>, <code>decode</code>, <code>upload</code>, <code>ready</code>, <code>failed</code>, <code>cancelled</code>.</td></tr>
+    <tr><td><code>Assets.text(uri)</code></td><td>Cached contents of a loaded text asset, or <code>nil</code>, plus an error string.</td></tr>
+    <tr><td><code>Assets.memory_report()</code></td><td>Current pending, decoded, and resident bytes plus per-asset entries.</td></tr>
   </tbody>
 </table>
 <p>Scene transitions build an implicit group from the <code>scene://</code> root and activate atomically at a frame boundary. A failed reload keeps the previous resident version.</p>
+<p>For other loaded resources, <code>Assets.text(asset_id)</code> returns cached text or <code>nil</code> plus an error string; <code>Assets.reload(asset_id)</code> picks up a changed source; <code>Assets.memory_report()</code> reports pending, decoded, and resident bytes and per-asset owners.</p>
 
 <h2>Cooking</h2>
 <pre><code>demi cook --platform linux</code></pre>
@@ -96,7 +105,7 @@ demi asset import-package brick_pack.demipack
 <h2>Collider assets</h2>
 <pre><code>demi asset collider assets/models/crate.glb.asset.json \
   --id asset://colliders/crate</code></pre>
-<p>Generates a <code>Collider3D</code> asset from a model for use as a static <code>ModelCollider3D</code>.</p>
+<p>Generates a <code>Collider3D</code> asset from a model. Triangle-mesh results are static-only; convex or compound collider assets can support moving bodies. See <a href="{{ path('docs_page', {slug: 'colliders'}) }}">Colliders</a> for authored collider sources and attachment.</p>
 
 <h2>Performance budgets</h2>
 <pre><code>demi asset budget games/my_game/demi.project.json --platform android</code></pre>

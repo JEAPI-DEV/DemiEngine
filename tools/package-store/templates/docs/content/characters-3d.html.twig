@@ -69,51 +69,52 @@
 <h2>Driving the controller from Lua</h2>
 <pre><code>local Character = require("demi.physics.character_controller3d")
 
-Character.set_velocity(id, vx, vy, vz)
-Character.jump(id)
+Character.set_velocity(id, vx, 0, vz) -- horizontal intent; Y is physics-owned
+local queued = Character.jump(id, 7) -- upward speed in world units/second
 
 local state = Character.state(id)
--- state → table:
---   grounded          boolean
---   velocity          { x, y, z }
---   normal            { x, y, z }</code></pre>
+-- state → table or nil: grounded, velocity { x, y, z }, ground_entity</code></pre>
 <table>
   <thead><tr><th>Call</th><th>Arguments</th><th>Returns</th></tr></thead>
   <tbody>
-    <tr><td><code>set_velocity</code></td><td><code>id</code>, desired velocity <code>vx, vy, vz</code> this step</td><td>Nothing. The controller moves the character and resolves collision with the authored shape.</td></tr>
-    <tr><td><code>jump</code></td><td><code>id</code></td><td>Nothing. Applies the upward jump impulse if the character may leave the ground.</td></tr>
-    <tr><td><code>state</code></td><td><code>id</code></td><td>A table with <code>grounded</code>, <code>velocity</code> <code>{ x, y, z }</code>, and ground <code>normal</code> <code>{ x, y, z }</code>.</td></tr>
+    <tr><td><code>set_velocity</code></td><td><code>id</code>, desired <code>vx, vy, vz</code></td><td>Boolean: <code>true</code> when the controller accepted the value. The current 3D movement step reads the horizontal X/Z values; gravity and jumping control Y.</td></tr>
+    <tr><td><code>jump</code></td><td><code>id</code>, positive upward <code>speed</code> in world units/second</td><td>Boolean: <code>true</code> when the request was queued. The physics step applies it only when grounded; acceptance is not proof of a jump.</td></tr>
+    <tr><td><code>state</code></td><td><code>id</code></td><td>Table with <code>grounded</code>, <code>velocity</code> <code>{ x, y, z }</code>, and <code>ground_entity</code>; <code>nil</code> without a controller.</td></tr>
   </tbody>
 </table>
 <p>A complete Skyforge pilot loop:</p>
 <pre><code>local Character = require("demi.physics.character_controller3d")
 local Input = require("demi.input")
-local T = require("demi.transform3d")
+local Player = {}
 
-function on_fixed_update(self_id, fixed_dt)
-    local state = Character.state(self_id)
-    -- state.grounded           on the floor or not
-    -- state.velocity           current { x, y, z }
-    -- state.normal             ground surface { x, y, z }
+function Player:on_create()
+    self.move_x, self.move_y = 0, 0
+    self.jump_requested = false
+end
 
-    local mx, my = Input.vector("move")
-    -- mx, my → -1..1 stick/keyboard values
+function Player:on_update(dt)
+    self.move_x, self.move_y = Input.vector("move")
+    self.jump_requested = self.jump_requested or Input.pressed("jump")
+end
 
+function Player:on_fixed_update(fixed_dt)
+    local state = Character.state(self.entity_id)
+    if not state then return end
     local speed = 4.0
-    Character.set_velocity(self_id, mx * speed, state.velocity.y, my * speed)
+    Character.set_velocity(self.entity_id,
+        self.move_x * speed, 0, self.move_y * speed)
 
-    if state.grounded and Input.pressed("jump") then
-        Character.jump(self_id)
-        -- nothing returned; the controller leaves the ground next step
+    if self.jump_requested and state.grounded then
+        Character.jump(self.entity_id, 7)
     end
-end</code></pre>
+    self.jump_requested = false
+end
+
+return Player</code></pre>
 <ul>
-  <li><code>Character.state</code> is read every step so horizontal intent keeps the current vertical velocity (gravity and jump).</li>
-  <li><code>Input.vector("move")</code> returns two normalized scalars in -1..1.</li>
-  <li><code>Character.set_velocity</code> applies the desired motion and returns nothing.</li>
-  <li><code>Input.pressed("jump")</code> is <code>true</code> on the frame the action went down.</li>
-  <li><code>Character.jump</code> applies the impulse and returns nothing.</li>
-  <li>Everything runs in <code>on_fixed_update</code> so movement matches the simulation timestep.</li>
+  <li><code>on_update</code> samples the action values and stores the jump edge so a fixed step can consume it.</li>
+  <li><code>on_fixed_update</code> applies horizontal intent; the controller maintains vertical gravity and jump velocity.</li>
+  <li><code>Character.state</code> reports grounded state and a one-based <code>velocity</code> array. <code>Character.jump</code> takes an upward speed; the grounded check prevents an airborne request from being discarded by the physics step.</li>
 </ul>
 <p>Details the controller handles for you:</p>
 <ul>
@@ -123,47 +124,43 @@ end</code></pre>
 </ul>
 <p>Trigger events still fire from the character’s shape, so zones notice the pilot (<a href="{{ path('docs_page', {slug: 'physics-events'}) }}">Physics events</a>).</p>
 
-<h2>Coyote time is game logic</h2>
-<p>Players expect to jump a moment after walking off a ledge. The controller reports only the literal truth: <code>grounded</code> is <code>true</code> on the floor and <code>false</code> in the air, from the first airborne step.</p>
-<p>Forgiving jump windows are your gameplay code, not a controller setting. Track how long the character has been ungrounded and allow a late jump inside a grace period:</p>
+<h2>Jump buffering and coyote time</h2>
+<p>A press just before landing can be buffered in script state and consumed on a grounded fixed step. Keep the buffer on <code>self</code> so two characters do not share one timer:</p>
 <pre><code>local Character = require("demi.physics.character_controller3d")
 local Input = require("demi.input")
+local BufferedJump = {}
 
-local coyote = 0.12   -- seconds of grace after leaving a ledge
-local since_ground = 1.0
+function BufferedJump:on_create()
+    self.jump_buffer = 0
+end
 
-function on_fixed_update(self_id, fixed_dt)
-    local state = Character.state(self_id)
+function BufferedJump:on_update(dt)
+    if Input.pressed("jump") then self.jump_buffer = 0.12 end
+end
 
-    if state.grounded then
-        since_ground = 0
+function BufferedJump:on_fixed_update(fixed_dt)
+    local state = Character.state(self.entity_id)
+    if state and state.grounded and self.jump_buffer > 0 then
+        if Character.jump(self.entity_id, 7) then self.jump_buffer = 0 end
     else
-        since_ground = since_ground + fixed_dt
+        self.jump_buffer = math.max(0, self.jump_buffer - fixed_dt)
     end
+end
 
-    local may_jump = state.grounded or since_ground &lt;= coyote
-    if may_jump and Input.pressed("jump") then
-        Character.jump(self_id)
-        since_ground = coyote   -- consume the grace so it cannot double-fire
-    end
-end</code></pre>
-<ul>
-  <li><code>state.grounded</code> resets the grace timer to 0.</li>
-  <li><code>since_ground</code> accumulates <code>fixed_dt</code> while airborne.</li>
-  <li><code>may_jump</code> is <code>true</code> on the floor or within <code>coyote</code> seconds of leaving it.</li>
-  <li>Setting <code>since_ground = coyote</code> after jumping spends the grace so one leave-edge cannot trigger two jumps.</li>
-</ul>
-<p>The same pattern covers jump buffering (remember a press just before landing), double jumps, and variable jump height. All of it is script state built on the controller’s <code>grounded</code> and <code>velocity</code> readouts.</p>
+return BufferedJump</code></pre>
+<p><code>Character.jump</code> queues a request but the native step uses it only while grounded. Calling it during an airborne grace period does not produce coyote time. A true late jump off a ledge needs a separate movement policy; this controller API does not expose one.</p>
 
 <h2>Character visuals</h2>
-<p>The controller only moves the entity. The body is a <a href="{{ path('docs_page', {slug: 'models-and-meshes'}) }}">model</a>, and locomotion animation is driven by a <a href="{{ path('docs_page', {slug: 'state-machines'}) }}">state machine</a> fed from the same velocity and <code>grounded</code> values:</p>
+<p>The controller moves the entity; a <a href="{{ path('docs_page', {slug: 'models-and-meshes'}) }}">model</a> supplies its visual. An <a href="{{ path('docs_page', {slug: 'state-machines'}) }}">animation state machine</a> can read movement speed and grounded state. Add this method to the <code>Player</code> script above and call it after reading <code>state</code>:</p>
 <pre><code>local Animation = require("demi.animation")
 
-Animation.set_number(id, "speed", math.abs(mx) + math.abs(my))
-Animation.set_bool(id, "grounded", state.grounded)
-Animation.trigger(id, "jump")</code></pre>
+function Player:update_animation(state)
+    local vx, vz = state.velocity[1], state.velocity[3]
+    Animation.set_number(self.entity_id, "speed", math.sqrt(vx * vx + vz * vz))
+    Animation.set_bool(self.entity_id, "grounded", state.grounded)
+end</code></pre>
 <ul>
-  <li><code>set_number</code>, <code>set_bool</code>, and <code>trigger</code> feed state-machine parameters and return nothing.</li>
+  <li><code>set_number</code> and <code>set_bool</code> feed state-machine parameters; call <code>Animation.trigger</code> only when a jump is actually started.</li>
   <li>Blend spaces pick idle/run from <code>speed</code>; transitions react to <code>grounded</code>.</li>
 </ul>
 
@@ -173,5 +170,5 @@ Animation.trigger(id, "jump")</code></pre>
   <li>Capsule sized to the character with <code>offset</code> lifting it to the feet.</li>
   <li><code>slope_limit</code>, <code>step_height</code>, <code>skin_width</code>, and <code>gravity</code> tuned for the level’s stairs and ramps.</li>
   <li>Movement applied in <code>on_fixed_update</code> through <code>set_velocity</code>.</li>
-  <li>Jump forgiveness and extras implemented in script from <code>state</code>.</li>
+  <li>Jump presses buffered in script when needed; native <code>jump</code> applies only while grounded.</li>
 </ul>

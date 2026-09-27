@@ -91,7 +91,7 @@ them. See [Animation and Audio](animation-and-audio.md).
 `DataAsset` manifests map stable IDs to versioned JSON documents for dialogue,
 items, quests, characters, and other game-specific content. Optional
 `DataSchema` dependencies validate their structure and references before the
-runtime sees them. See [Data Assets](data-assets.md).
+runtime sees them. See [Data assets](https://demiengine.de/docs/game-data).
 
 ### Render assets
 

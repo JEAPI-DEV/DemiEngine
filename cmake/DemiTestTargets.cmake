@@ -382,6 +382,8 @@
   add_executable(demi-mesh-geometry3d-tests tests/mesh_geometry3d_tests.cpp)
   target_link_libraries(demi-mesh-geometry3d-tests PRIVATE demi-render3d-bgfx)
   add_executable(demi-bgfx-renderer3d-tests tests/bgfx_renderer3d_tests.cpp)
+  add_executable(demi-shadow-cascade-layout-tests tests/shadow_cascade_layout_tests.cpp)
+  target_link_libraries(demi-shadow-cascade-layout-tests PRIVATE demi-render3d-bgfx demi-runtime-lib)
   target_link_libraries(demi-bgfx-renderer3d-tests PRIVATE demi-render3d-bgfx demi-runtime-lib)
   target_compile_definitions(demi-bgfx-renderer3d-tests PRIVATE
     DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")

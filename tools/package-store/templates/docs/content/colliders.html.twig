@@ -61,7 +61,7 @@
     <tr><td><code>SphereCollider3D</code></td><td>Sphere</td><td><code>radius</code></td><td>Pickup orbs, cannonballs, trigger volumes.</td></tr>
     <tr><td><code>CapsuleCollider3D</code></td><td>Capsule</td><td><code>radius</code>, <code>height</code></td><td>Standing characters and columns.</td></tr>
     <tr><td><code>ConvexCollider3D</code></td><td>Convex hull from a model</td><td>model reference</td><td>Sloped rocks and props that must stay movable.</td></tr>
-    <tr><td><code>ModelCollider3D</code></td><td>Static triangle mesh</td><td>model reference</td><td>Stationary level geometry only.</td></tr>
+    <tr><td><code>ModelCollider3D</code></td><td>Asset-backed triangle mesh, convex hull, or compound</td><td><code>asset</code> reference</td><td>Static geometry, or movable convex/compound bodies.</td></tr>
   </tbody>
 </table>
 <p>Shared fields match the 2D list minus <code>density</code>: <code>offset</code> <code>[x, y, z]</code>, <code>is_trigger</code>, <code>layer</code>, <code>friction</code>, <code>restitution</code>, <code>category_bits</code>, <code>mask_bits</code>.</p>
@@ -85,15 +85,25 @@
 
 <h2>One collider per entity, and why</h2>
 <p>Validation rejects a second 3D collider on the same entity. The reason is that one entity is one simulated body, and a body has one shape. Stacking two shapes would silently change mass, contact ordering, and how forces resolve.</p>
-<p>When you need a complex outline — a Skyforge hangar with wings, crates, and a crane all blocking as one object — use a compound collider asset instead of stacking components. Generate one with the CLI:</p>
-<pre><code>demi asset collider games/skyforge/assets/models/hangar \
-  --output games/skyforge/assets/colliders/hangar.collider.json</code></pre>
-<p>That command writes a <code>Collider3D</code> asset describing the compound hulls. Reference the asset from a single <code>ModelCollider3D</code> (static) or convex setup on the entity. The entity still has one collider component; the asset supplies the many sub-shapes inside it.</p>
+<p>When you need several convex parts as one body, author a compound <code>*.collider.json</code> source, import it as a <code>Collider3D</code> asset, and attach it through one <code>ModelCollider3D</code> component. A compound asset can belong to a static, kinematic, or dynamic body. A triangle-mesh asset remains static-only.</p>
 <p>Two more validation rules protect you from silent misconfiguration:</p>
 <ul>
-  <li>A moving body cannot use <code>ModelCollider3D</code>. Triangle meshes are static-only; use a convex hull for movers.</li>
+  <li>A moving body cannot use a triangle-mesh collider. Use a convex hull or compound asset for movers.</li>
   <li>A moving body needs a collider of its own. A mover with no shape would fall through the world with nothing to hit.</li>
 </ul>
+
+<h2>Reusable 3D collider assets</h2>
+<p>A self-contained <code>*.collider.json</code> source needs no model or prefab. It keeps geometry in source and obtains its stable identity from a generated <code>*.asset.json</code> manifest:</p>
+<pre><code>{
+  "format_version": 1,
+  "shape": "convex_hull",
+  "points": [[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]]
+}</code></pre>
+<p>Convex hulls require 4–256 finite, non-coplanar local points. A compound source uses <code>"shape": "compound"</code> and a <code>parts</code> array of uniquely named convex hulls. Part IDs survive reordering; a 3D raycast can return <code>collider_part_id</code> for the part it struck. Shape casts and overlap queries do not report part IDs.</p>
+<pre><code>demi asset import props/barrel.collider.json --project path/to/game --id asset://colliders/barrel
+demi asset reimport path/to/game/assets/colliders/barrel/barrel.collider.asset.json</code></pre>
+<p>The <code>.collider.json</code> suffix selects the collider-shape importer. In the editor, select a <code>Model3D</code> asset and use <strong>Generate Collider Asset...</strong> for model-derived geometry, then add <strong>Collider Asset 3D</strong> to an entity and choose its <code>Collider3D</code> asset. The Inspector attaches the <code>ModelCollider3D</code> component and reference together. Generation of an existing collider requires an explicit replacement confirmation.</p>
+<p>Scene references load through normal scene asset discovery. For an asset used only by later scripted creation, load its URI with <code>Assets.load</code>, wait on the returned request ID with <code>Assets.is_ready</code>, then create the body. Unreferenced manifests are not automatically resident.</p>
 
 <h2>Triggers versus solid colliders</h2>
 <p>A <strong>solid</strong> collider blocks movement and generates collision events. A <strong>trigger</strong> (<code>is_trigger: true</code>) never blocks anything; it only notices overlap and generates trigger events.</p>

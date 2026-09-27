@@ -11,7 +11,8 @@
 #include <string>
 
 namespace demi::runtime::render {
-inline constexpr std::uint16_t CameraViewCount3D = 5;
+// Four shadow cascades, the scene pass, and up to three resolve/post passes.
+inline constexpr std::uint16_t CameraViewCount3D = 8;
 
 struct BgfxCameraFrame3D {
   std::string cameraId;

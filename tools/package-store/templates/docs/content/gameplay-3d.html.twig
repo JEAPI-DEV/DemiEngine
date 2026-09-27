@@ -57,32 +57,34 @@ Animation.clear_bone_segments(id)</code></pre>
 }</code></pre>
 <pre><code>local Character = require("demi.physics.character_controller3d")
 
-Character.set_velocity(id, vx, vy, vz)   -- desired motion this step
-Character.jump(id)                       -- apply the jump impulse
+Character.set_velocity(id, vx, 0, vz)    -- horizontal intent; physics owns Y
+Character.jump(id, 6)                    -- upward jump speed in metres/second
 
 local state = Character.state(id)
 -- state.grounded   boolean
 -- state.velocity   {x, y, z}
--- state.normal     {x, y, z} ground normal</code></pre>
+-- state.ground_entity  supporting entity ID</code></pre>
 <ul>
   <li>Requires exactly one non-trigger primitive/convex collider on the same root, and no <code>Rigidbody3D</code>.</li>
   <li>Handles slopes up to <code>slope_limit</code> (degrees), steps up to <code>step_height</code>, and wall slide.</li>
   <li>Inherits velocity from moving platforms.</li>
-  <li>Coyote time and jump buffering are gameplay — implement them in your script using <code>state.grounded</code>.</li>
+  <li>Buffer jump input in Lua if needed. The current native step applies a queued jump only while grounded; it does not expose an airborne coyote-time override.</li>
 </ul>
 
 <h2>Camera3D</h2>
 <pre><code>local Camera3D = require("demi.camera3d")
 
-local hit = Camera3D.screen_ray(id, mx, my, viewport_w, viewport_h)
-if hit then
-    -- hit.entity_id, hit.point {x,y,z}, hit.distance
+local ray = Camera3D.screen_ray(id, mx, my, viewport_w, viewport_h)
+if ray then
+    -- ray.origin and ray.direction are Vec3 tables.
+    -- This constructs a ray; it does not query physics or return a hit.
 end
 
-local sx, sy = Camera3D.world_to_screen(id, x, y, z, viewport_w, viewport_h)
--- sx, sy in screen pixels (top-left origin), or nil if behind the camera
+local screen = Camera3D.world_to_screen(id, x, y, z, viewport_w, viewport_h)
+-- screen.x / screen.y, or nil outside the camera's near/far depth
 
-local wx, wy, wz = Camera3D.screen_to_world(id, sx, sy, viewport_w, viewport_h)</code></pre>
+local wx, wy, wz = Camera3D.screen_to_world(id, mx, my, viewport_w, viewport_h, 10)
+-- World point 10 metres along the normalized screen ray.</code></pre>
 <p>Always pass the viewport size — the camera does not assume a resolution. Screen coordinates have the origin top-left with +Y down. <code>orthographic_size</code> is the full visible height; FOV is in degrees. <code>Transform3D.look_at</code> resolves the parent chain before aiming.</p>
 <p>Third-person and orbit cameras ship in the <code>demi.gameplay.third_person</code> package.</p>
 
@@ -97,10 +99,52 @@ local wx, wy, wz = Camera3D.screen_to_world(id, sx, sy, viewport_w, viewport_h)<
 </ul>
 <pre><code>local Deform = require("demi.mesh.deformation")
 
-Deform.dent(id, x, y, z, radius, depth)   -- push vertices inward at a point
-Deform.impact(id, x, y, z, strength)      -- dent helper with falloff
-Deform.reset(id)                          -- restore the original mesh</code></pre>
+local accepted, error = Deform.dent(id, {
+    point = {x = x, y = y, z = z},
+    direction = {x = 0, y = 0, z = -1},
+    radius = 0.32, depth = 0.08,
+})
+-- For physics-driven dents, pass the collision event's contact record:
+-- Deform.impact(id, contact, optional_material_overrides)
+-- The record supplies point_x/y/z, normal_x/y/z and impact_energy (joules).
+Deform.reset(id) -- restore this instance's original visual mesh</code></pre>
 <p>Denting is visual only — combine it with destruction or gameplay events for physical consequences.</p>
+
+<h3 id="directional-shadows">Directional shadows</h3>
+<p>Enable <code>casts_shadows</code> on a <code>DirectionalLight</code>. Shadow quality is configured on an enabled <code>Environment3D</code> component, using the same settings in the editor Viewport and the running game. Light intensity changes illumination, not the size or resolution of the shadow.</p>
+<pre><code>{
+  "DirectionalLight": {
+    "direction": [-0.5, -0.7, -1],
+    "intensity": 3,
+    "casts_shadows": true
+  },
+  "Environment3D": {
+    "shadow_distance": 80,
+    "shadow_resolution": 1024,
+    "shadow_cascades": 4,
+    "shadow_split_lambda": 0.85,
+    "shadow_blend": 0.1,
+    "shadow_filter": "pcf",
+    "shadow_bias": 0.005
+  }
+}</code></pre>
+<p>These are the default shadow-quality settings. Cascades divide the camera's visible depth range, allocating finer shadow detail near the camera. Each cascade is fitted to its camera slice and snapped to shadow texels to reduce shimmering. Neighboring cascades overlap and blend, and the last fades out at the shadow distance.</p>
+<table>
+  <thead><tr><th>Property</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>shadow_distance</code></td><td>Maximum receiver depth along the camera's forward direction, in metres, also bounded by its far clip. Zero disables shadows. This now describes visible depth, not the older map's coverage radius.</td></tr>
+    <tr><td><code>shadow_resolution</code></td><td>Resolution of each square cascade. Four 1024-pixel cascades occupy one 2048×2048 atlas. The device's texture-size limit applies to the whole atlas.</td></tr>
+    <tr><td><code>shadow_cascades</code></td><td>1–4 cascades; the current shader has four slots. More cascades improve nearby detail but add geometry passes. Three and four cascades use the same 2×2 atlas allocation, while three saves one geometry pass.</td></tr>
+    <tr><td><code>shadow_split_lambda</code></td><td>0–1. Balances uniform and logarithmic perspective-camera splits; larger values concentrate resolution nearby. Orthographic cameras use uniform splits.</td></tr>
+    <tr><td><code>shadow_blend</code></td><td>0–1. Fraction of each depth interval used for transitions. Zero produces a hard boundary; larger values increase overlap and transition-sampling work.</td></tr>
+    <tr><td><code>shadow_filter</code></td><td><code>pcf</code> smoothly interpolates neighboring depth comparisons instead of producing stepped bands. <code>hard</code> uses one comparison for sharper, cheaper shadows. PCF softness is filtering, not physically sized area-light shadows.</td></tr>
+    <tr><td><code>shadow_bias</code></td><td>Depth offset in metres. Increase slightly for self-shadow speckles; reduce if shadows detach from objects. A large bias does not fix coarse shadow resolution.</td></tr>
+    <tr><td><code>max_shadow_lights</code></td><td>Zero disables the pass. Currently one directional light is supported; increasing this does not add point/spot shadows.</td></tr>
+  </tbody>
+</table>
+<p>For a small room or close-up prop, shorten the distance before increasing resolution. For a large level, keep cascades enabled rather than spreading one map over the whole level. On lower-cost targets, try two cascades or a smaller per-cascade resolution and measure the result. A larger atlas consumes memory even if the scene contains only a few objects.</p>
+<p>Shadow geometry updates each rendered frame, including moving rigid fragments, built-in mesh denting and supported skeletal meshes. Custom vertex-deformation shaders and point/spot shadows are not covered by this implementation. The renderer reports <code>Renderer3D.shadow_cascades</code> and <code>Renderer3D.shadow_batches</code> for inspection.</p>
+<p>Implementation background: <a href="https://learn.microsoft.com/en-us/windows/win32/dxtecharts/cascaded-shadow-maps">Microsoft's cascaded shadow maps overview</a>.</p>
 
 <figure class="docs-figure">
   <img src="/images/docs-destruction.jpg" alt="The destruction weapons lab: brick walls, a steel door, prototype textures, and a hammer." width="1920" height="1080" loading="lazy">
@@ -116,15 +160,19 @@ Deform.reset(id)                          -- restore the original mesh</code></p
 </ul>
 <pre><code>local Destruction = require("demi.physics.destruction3d")
 
-Destruction.impact(id, x, y, z, nx, ny, nz, energy)
+local accepted, error, affected = Destruction.impact({
+    entity = id, position = {x = x, y = y, z = z},
+    radius = 0.5, energy = 200, impulse = 20,
+})
 Destruction.damage_part(id, part, amount)
 
 local state = Destruction.state(id)
--- table of remaining integrity and active fragments
+-- status, error, revision, bodies, and part-to-entity mappings
 
-Destruction.checkpoint(id)     -- snapshot current damage
-Destruction.restore(id)        -- return to the checkpoint
-Destruction.retire_debris(id)  -- clean up cosmetic debris</code></pre>
+local checkpoint, error = Destruction.checkpoint(id)
+-- Restore on a fresh attached assembly; queued changes must have committed.
+if checkpoint then Destruction.restore(fresh_id, checkpoint) end
+Destruction.retire_debris(id) -- retire detached physical groups</code></pre>
 <p>Optional gameplay packages add weapons and proximity streaming. Runnable labs: <code>destruction_3d_lab</code>, <code>destruction_weapons_3d_lab</code>, <code>fracture_prefab_lab</code>.</p>
 
 <h2>Transforms</h2>

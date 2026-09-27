@@ -10,6 +10,15 @@
 </ul>
 <p>There is no second, modal interface editor and no separate HUD preview model: one workspace, one editing contract, three document kinds. Document shapes are described in <a href="{{ path('docs_page', {slug: 'project-json'}) }}">demi.project.json</a>.</p>
 
+<h2>Create and finish a project in the editor</h2>
+<ol>
+  <li>Use <strong>File → New project</strong> to choose a starter. <strong>File → New document</strong> (also under <strong>Assets → Create</strong>) creates a 2D/3D scene, HUD, entity or UI prefab, or Lua behaviour. The Assets Create menu also offers materials and data assets.</li>
+  <li>Build the scene and HUD in their stages. Use <strong>Scene → Create prefab from selection</strong> to copy an authored hierarchy into a reusable source while leaving the original in the scene. Add it through <strong>Scene → Add prefab instance</strong>, the Assets action, or a drag onto the Scene viewport.</li>
+  <li>Attach a HUD with <strong>Scene → HUD</strong>. Set the built game's <strong>Start scene</strong> in Project Settings; the open editor scene does not choose it for you.</li>
+  <li>Double-click a Lua behaviour to edit it in your configured external code editor. Use <strong>Ctrl+S</strong> or <strong>File → Save all</strong> for authored documents and project settings, then <strong>Build → Build Project</strong> for the saved game.</li>
+</ol>
+<p>In the Inspector, changing an inherited default authors that field; <strong>Reset</strong> removes the authored value or instance override. Hover a property label to see its origin. <strong>Unpack preset</strong> turns preset-inherited components into editable independent components when you need to restructure them. An instance's <strong>Add Component</strong> affects only that instance; <strong>Open source prefab</strong> edits the shared source.</p>
+
 <h2>Building a scene</h2>
 <p>A <strong>scene</strong> is one file describing everything that loads together — a level, a menu screen, an arena. In the editor you assemble it like this:</p>
 <ol>

@@ -137,13 +137,17 @@ local cast = Q3.sphere_cast(ox, oy, oz, radius, dir_x, dir_y, dir_z, distance)</
 <pre><code>local Q3 = require("demi.physics.query3d")
 local Camera3D = require("demi.camera3d")
 
-local hit = Camera3D.screen_ray(camera_id, mx, my, view_w, view_h)
-if hit then
-    -- hit.entity_id, hit.point {x, y, z}, hit.distance
+local ray = Camera3D.screen_ray(camera_id, mx, my, view_w, view_h)
+if ray then
+    local o, d = ray.origin, ray.direction
+    local hit = Q3.raycast(o.x, o.y, o.z, d.x, d.y, d.z, 100)
+    if hit then
+        -- hit.entity_id, hit.point {x, y, z}, hit.distance
+    end
 end</code></pre>
 <ul>
-  <li><code>screen_ray</code> builds a world ray from a mouse position and casts it for you.</li>
-  <li>It returns the same hit shape as <code>query3d.raycast</code>, or <code>nil</code> when the click is empty sky.</li>
+  <li><code>screen_ray</code> only builds a world-space origin and normalized direction.</li>
+  <li><code>Q3.raycast</code> performs the physics query and returns a hit or nil. The example limits it to 100 world units.</li>
 </ul>
 
 <h2>Nil versus empty array</h2>

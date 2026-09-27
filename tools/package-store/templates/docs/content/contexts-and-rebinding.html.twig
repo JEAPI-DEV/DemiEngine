@@ -32,6 +32,8 @@ local live = Input.context_enabled("gameplay")  -- boolean</code></pre>
 <h2>Worked example: a pause menu</h2>
 <p>Skyforge pauses with Escape or gamepad Start. The menu should navigate with confirm/cancel while the ship cannot move or fire.</p>
 <pre><code>local Input = require("demi.input")
+local Hud = require("demi.hud")
+local PauseMenu = {}
 
 function PauseMenu:on_open()
     Input.disable_context("gameplay")
@@ -49,7 +51,9 @@ function PauseMenu:on_close()
     Hud.set_visible("pause_panel", false)
     Input.disable_context("menu")
     Input.enable_context("gameplay")
-end</code></pre>
+end
+
+return PauseMenu</code></pre>
 <p>Walkthrough: <code>on_open</code> turns the <code>gameplay</code> context off so <code>move</code> and <code>jump</code> immediately read as released, then turns <code>menu</code> on so <code>ui_ok</code> and <code>ui_cancel</code> work. <code>on_close</code> reverses both calls. No gameplay script is touched — the controller simply sees zeros while paused.</p>
 
 <h2>Assigning gamepads to players</h2>
@@ -91,7 +95,8 @@ end</code></pre>
 
 <h2>Saving and loading bindings</h2>
 <p>Remaps should survive quitting. Persistence writes a small JSON file of current bindings.</p>
-<pre><code>local root = Application.user_data_path()
+<pre><code>local Application = require("demi.application")
+local root = Application.user_data_path()
 Input.save_bindings("input/bindings.json")
 local ok = Input.load_bindings("input/bindings.json")  -- true when loaded</code></pre>
 <ul>
@@ -122,11 +127,13 @@ end</code></pre>
 <p>Read it as: “<code>jump</code> is now fed by key E and the gamepad south button; <code>move</code> uses the left stick.” You can restore the authored defaults by deleting the file — <code>load_bindings</code> returns <code>false</code> and the project’s <code>input.actions</code> remain in force.</p>
 
 <h2>Replay and contexts</h2>
+<p>Relative binding-save paths are resolved below <code>Application.user_data_path()</code>, never the current working directory, and are rejected before user-data storage is configured. Absolute paths are used as supplied. Initialization enables <code>gameplay</code>; raw key queries bypass the context filter.</p>
 <p>Input replay re-plays recorded action frames through the same context filter as live play. Two consequences:</p>
 <ul>
-  <li>A recorded action only applies while its context is enabled. If the fixture pauses into <code>menu</code>, gameplay rows in the file wait just as real input would.</li>
+  <li>A recorded action only applies while its context is enabled; disabling a context suppresses its recorded values rather than pausing replay time.</li>
   <li>When a recorded action is active it takes precedence over physical bindings, so a fixture runs the same on any machine.</li>
 </ul>
+<p>Replay rows carry resolved values, not context metadata. The filter uses the current authored action definition. An undefined recorded action is neutral in filtered gameplay queries; unfiltered native replay consumers can still read it. An empty enabled-context set disables all named actions.</p>
 <pre><code>demi run \
   --input-replay fixtures/smoke.replay.json</code></pre>
 <p>This runs Skyforge with a recorded input stream. Keep the project’s fixed timestep equal to the fixture’s so frames line up. More on the test workflow: <a href="{{ path('docs_page', {slug: 'testing'}) }}">Testing &amp; debugging</a>.</p>

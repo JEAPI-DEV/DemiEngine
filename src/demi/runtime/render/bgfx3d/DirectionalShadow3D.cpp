@@ -1,41 +1,36 @@
 #include "demi/runtime/render/bgfx3d/DirectionalShadow3D.h"
+#include "demi/runtime/render/bgfx3d/ShadowCascadeLayout3D.h"
+
+#include <algorithm>
 #include <cmath>
-#include <vector>
 
 namespace demi::runtime::render {
-namespace {
-float dot(Vec3 a, Vec3 b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
-Vec3 cross(Vec3 a, Vec3 b) {
-  return {a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x};
-}
-Vec3 unit(Vec3 a) {
-  const float n = std::sqrt(dot(a, a));
-  return n > 1e-6F ? Vec3{a.x / n, a.y / n, a.z / n} : Vec3{};
-}
-} // namespace
+
 bool DirectionalShadow3D::initialize(std::string &error) {
   if (fallback_)
     return true;
   sampler_ = resources_.createSampler("s_shadowMap", error);
-  const char *names[] = {"u_shadowX", "u_shadowY", "u_shadowZ",
-                         "u_shadowParams"};
-  for (int i = 0; i < 4; ++i)
-    uniforms_[i] =
-        resources_.createUniform(names[i], UniformType::Vec4, 1, error);
+  constexpr std::array names{
+      "u_shadowX",      "u_shadowY",     "u_shadowZ",      "u_shadowParams",
+      "u_shadowConfig", "u_shadowAtlas", "u_shadowSplits", "u_shadowCamera"};
+  for (std::size_t index = 0; index < names.size(); ++index)
+    uniforms_[index] = resources_.createUniform(names[index], UniformType::Vec4,
+                                                index < 4 ? 4 : 1, error);
   const std::array<std::byte, 4> white{std::byte{255}, std::byte{255},
                                        std::byte{255}, std::byte{255}};
   fallback_ = resources_.createTexture({.data = white,
                                         .filter = TextureFilter::Nearest,
                                         .debugName = "shadow fallback"},
                                        error);
-  if (!fallback_ || !sampler_ || !uniforms_[0] || !uniforms_[1] ||
-      !uniforms_[2] || !uniforms_[3]) {
+  if (!fallback_ || !sampler_ ||
+      std::ranges::any_of(uniforms_, [](auto handle) { return !handle; })) {
     shutdown();
     return false;
   }
   sampled_ = fallback_;
   return true;
 }
+
 void DirectionalShadow3D::clearTargets() {
   for (auto &[id, target] : targets_) {
     if (target.handles.frameBuffer)
@@ -46,10 +41,13 @@ void DirectionalShadow3D::clearTargets() {
       resources_.destroy(target.handles.color);
   }
   targets_.clear();
-  frame_.reset();
+  frames_.clear();
   sampled_ = fallback_;
-  values_ = {};
+  receiverTexture_ = {};
+  cascadeValues_ = {};
+  sharedValues_ = {};
 }
+
 void DirectionalShadow3D::shutdown() {
   clearTargets();
   if (fallback_)
@@ -64,41 +62,48 @@ void DirectionalShadow3D::shutdown() {
   sampler_ = {};
   uniforms_ = {};
 }
+
 bool DirectionalShadow3D::prepare(const SceneLighting3D &light,
                                   const BgfxCameraFrame3D &camera,
                                   std::string &error) {
-  frame_.reset();
-  values_ = {};
+  frames_.clear();
+  cascadeValues_ = {};
+  sharedValues_ = {};
   sampled_ = fallback_;
+  receiverTexture_ = {};
   if (!light.castsShadows || light.shadowBudget == 0 ||
       light.shadowDistance == 0 || !camera.updateContent)
     return true;
+  const auto layout = makeShadowCascadeLayout3D(light, camera, error);
+  if (!layout)
+    return false;
+  if (layout->count == 0)
+    return true;
+  const int columns = layout->count == 1 ? 1 : 2;
+  const int rows = layout->count > 2 ? 2 : 1;
   const auto caps = resources_.limits();
-  if (light.shadowResolution < 1 || light.shadowResolution > 65535 ||
-      (std::uint32_t(light.shadowResolution) > caps.maxTextureSize ||
-       camera.viewId + 4U >= caps.maxViews)) {
-    error =
-        "Directional shadow resolution or camera views exceed device limits";
+  if (light.shadowResolution > 65535 / columns ||
+      light.shadowResolution > 65535 / rows ||
+      std::uint32_t(light.shadowResolution) > caps.maxTextureSize / columns ||
+      std::uint32_t(light.shadowResolution) > caps.maxTextureSize / rows ||
+      camera.viewId + std::uint32_t(layout->count) + 3U >= caps.maxViews) {
+    error = "Directional shadow atlas or camera views exceed device limits; "
+            "reduce shadow_resolution or shadow_cascades";
     return false;
   }
-  const Vec3 direction =
-      unit({light.direction[0], light.direction[1], light.direction[2]});
-  if (dot(direction, direction) < .5F ||
-      !std::isfinite(dot(direction, direction)) ||
-      !std::isfinite(light.shadowDistance * 8.F) || light.shadowDistance <= 0 ||
-      !std::isfinite(1.F / light.shadowDistance) ||
-      !std::isfinite(light.shadowBias) || light.shadowBias < 0) {
-    error = "Invalid directional shadow direction, distance or bias";
+  if (!std::isfinite(light.shadowBias) || light.shadowBias < 0) {
+    error = "Directional shadow bias must be finite and nonnegative";
     return false;
   }
   const auto key =
       camera.cameraId.empty() ? std::to_string(camera.viewId) : camera.cameraId;
   auto &target = targets_[key];
-  if (target.resolution != light.shadowResolution) {
+  if (target.resolution != light.shadowResolution ||
+      target.cascades != layout->count) {
     const auto replacement = resources_.createRenderTarget(
-        {.width = std::uint16_t(light.shadowResolution),
-         .height = std::uint16_t(light.shadowResolution),
-         .debugName = "directional shadow: " + key,
+        {.width = std::uint16_t(light.shadowResolution * columns),
+         .height = std::uint16_t(light.shadowResolution * rows),
+         .debugName = "directional shadow atlas: " + key,
          .filter = TextureFilter::Nearest},
         error);
     if (!replacement.frameBuffer)
@@ -109,73 +114,76 @@ bool DirectionalShadow3D::prepare(const SceneLighting3D &light,
       resources_.destroy(target.handles.depth);
     if (target.handles.color)
       resources_.destroy(target.handles.color);
-    target = {replacement, light.shadowResolution};
+    target = {replacement, light.shadowResolution, layout->count};
   }
-  const float radius = light.shadowDistance;
-  const Vec3 right = unit(cross(
-      direction, std::abs(direction.y) > .99F ? Vec3{0, 0, 1} : Vec3{0, 1, 0}));
-  const Vec3 up = cross(right, direction);
-  const auto forward = unit(camera.forward);
-  Vec3 center{camera.position.x + forward.x * radius * .5F,
-              camera.position.y + forward.y * radius * .5F,
-              camera.position.z + forward.z * radius * .5F};
-  const float texel = 2 * radius / light.shadowResolution;
-  for (auto axis : {right, up}) {
-    const float amount =
-        std::round(dot(center, axis) / texel) * texel - dot(center, axis);
-    center = {center.x + axis.x * amount, center.y + axis.y * amount,
-              center.z + axis.z * amount};
+  receiverTexture_ = target.handles.color;
+  sharedValues_[0] = {-1, 0, float(layout->count), light.shadowBlend};
+  sharedValues_[1] = {float(columns), float(rows),
+                      (light.shadowFilter == "hard" ? -1.F : 1.F) /
+                          light.shadowResolution,
+                      caps.originBottomLeft ? 0.F : 1.F};
+  sharedValues_[2] = layout->splits;
+  sharedValues_[3] = layout->cameraDepth;
+  for (int index = 0; index < layout->count; ++index) {
+    const auto &cascade = layout->cascades[index];
+    const std::array<float, 4> parameters{
+        light.shadowBias / cascade.depthRange,
+        index == 0 ? camera.camera.nearClip : layout->splits[index - 1],
+        cascade.receiverFar, 0};
+    const std::array values{cascade.x, cascade.y, cascade.z, parameters};
+    for (std::size_t row = 0; row < values.size(); ++row)
+      std::copy(values[row].begin(), values[row].end(),
+                cascadeValues_[row].begin() + index * 4);
+    auto frame = camera;
+    frame.viewId = std::uint16_t(camera.viewId + index);
+    frame.destinationSamples = 1;
+    frame.lodPosition = camera.lodPosition.value_or(camera.position);
+    frame.camera.renderTarget.clear();
+    frame.camera.renderScale = 1;
+    frame.camera.perspective = false;
+    frame.camera.orthographicSize = cascade.radius * 2;
+    frame.camera.nearClip = 0.001F;
+    frame.camera.farClip = cascade.depthRange;
+    frame.camera.clearMode = "color";
+    frame.camera.clearColor = {1, 1, 1, 1};
+    frame.camera.renderHud = false;
+    frame.camera.debugMode.clear();
+    frame.position = cascade.eye;
+    frame.forward = cascade.direction;
+    frame.up = cascade.up;
+    frame.viewportX = std::uint16_t((index % columns) * light.shadowResolution);
+    frame.viewportY = std::uint16_t((index / columns) * light.shadowResolution);
+    frame.viewportWidth = frame.viewportHeight =
+        std::uint16_t(light.shadowResolution);
+    frame.frameBuffer = target.handles.frameBuffer;
+    frame.postProcess.reset();
+    frame.debugGeometry = {};
+    frames_.push_back(std::move(frame));
   }
-  const Vec3 eye{center.x - direction.x * radius * 2,
-                 center.y - direction.y * radius * 2,
-                 center.z - direction.z * radius * 2};
-  values_[0] = {right.x / (2 * radius), right.y / (2 * radius),
-                right.z / (2 * radius), .5F - dot(right, eye) / (2 * radius)};
-  values_[1] = {up.x / (2 * radius), up.y / (2 * radius), up.z / (2 * radius),
-                .5F - dot(up, eye) / (2 * radius)};
-  values_[2] = {direction.x / (4 * radius), direction.y / (4 * radius),
-                direction.z / (4 * radius),
-                -dot(direction, eye) / (4 * radius)};
-  values_[3] = {-1, light.shadowBias / (4 * radius),
-                1.F / light.shadowResolution,
-                caps.originBottomLeft ? 0.F : 1.F};
-  frame_ = camera;
-  frame_->destinationSamples = 1;
-  frame_->lodPosition = camera.lodPosition.value_or(camera.position);
-  frame_->camera.renderTarget.clear();
-  frame_->camera.renderScale = 1;
-  frame_->camera.perspective = false;
-  frame_->camera.orthographicSize = radius * 2;
-  frame_->camera.nearClip = radius * .001F;
-  frame_->camera.farClip = radius * 4;
-  frame_->camera.clearMode = "color";
-  frame_->camera.clearColor = {1, 1, 1, 1};
-  frame_->camera.renderHud = false;
-  frame_->camera.debugMode.clear();
-  frame_->position = eye;
-  frame_->forward = direction;
-  frame_->up = up;
-  frame_->viewportX = frame_->viewportY = 0;
-  frame_->viewportWidth = frame_->viewportHeight =
-      std::uint16_t(light.shadowResolution);
-  frame_->frameBuffer = target.handles.frameBuffer;
-  frame_->postProcess.reset();
-  frame_->debugGeometry = {};
   return true;
 }
-void DirectionalShadow3D::receive() {
-  values_[3][0] = frame_ ? 1.F : 0.F;
-  if (frame_) {
-    const auto key = frame_->cameraId.empty() ? std::to_string(frame_->viewId)
-                                              : frame_->cameraId;
-    sampled_ = targets_.at(key).handles.color;
-  }
+
+void DirectionalShadow3D::cast(std::size_t cascade) {
+  sharedValues_[0][0] = -1.F;
+  sharedValues_[0][1] = float(cascade);
+  sampled_ = fallback_;
 }
+
+void DirectionalShadow3D::receive() {
+  sharedValues_[0][0] = frames_.empty() ? 0.F : 1.F;
+  sampled_ = frames_.empty() ? fallback_ : receiverTexture_;
+}
+
 template <class Draw>
 bool DirectionalShadow3D::submitMesh(Draw draw, std::string &error) {
   drawUniforms_.assign(draw.uniforms.begin(), draw.uniforms.end());
-  for (std::size_t i = 0; i < 4; ++i)
-    drawUniforms_.push_back({.handle = uniforms_[i], .values = values_[i]});
+  for (std::size_t index = 0; index < 4; ++index) {
+    drawUniforms_.push_back({.handle = uniforms_[index],
+                             .values = cascadeValues_[index],
+                             .count = 4});
+    drawUniforms_.push_back(
+        {.handle = uniforms_[index + 4], .values = sharedValues_[index]});
+  }
   drawTextures_.assign(draw.textures.begin(), draw.textures.end());
   drawTextures_.push_back(
       {.stage = 1, .texture = sampled_, .sampler = sampler_});

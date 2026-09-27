@@ -140,13 +140,13 @@ local instance = Prefab.instantiate("prefab://enemies/grunt", {
     },
     pooled = true,                       -- reuse on release
 })
--- instance is the root handle; children are "wave_4_grunt_12/body", …
+-- instance is the instance ID; entities are "wave_4_grunt_12/body", …
 
 local placed = Prefab.placements(instance)
 print(#placed)
 
 Prefab.release(instance)                 -- or release any child handle</code></pre>
-<p><code>instantiate</code> expands the prefab and returns the root entity handle. Child IDs are the instance ID joined with the prefab-local ID (<code>wave_4_grunt_12/body</code>). <code>overrides</code> merges into the expanded entities by local ID: objects merge, arrays replace, and <code>null</code> removes a field. <code>pooled = true</code> keeps the entities in a pool on <code>release</code> instead of destroying them; <code>Prefab.pooled_count(id)</code> reports how many are waiting.</p>
+<p><code>instantiate</code> requires <code>options.id</code>, expands the prefab, and returns that instance ID or <code>nil</code> on failure. Entity IDs join the instance ID with a prefab-local ID (<code>wave_4_grunt_12/body</code>). <code>overrides</code> merges into expanded entities by local ID: objects merge, arrays replace, and <code>null</code> removes a field. <code>pooled = true</code> keeps entities for reuse on <code>release</code>; <code>Prefab.pooled_count(prefab_uri)</code> reports how many are idle.</p>
 <pre><code>Scene.prepare("scene://game/level_two")   -- start loading
 -- …
 if Scene.is_prepared() then
@@ -155,7 +155,7 @@ end
 print(Scene.progress())                   -- 0.0 … 1.0
 print(Scene.active())                     -- current scene URI
 print(Scene.error())                      -- empty string when healthy</code></pre>
-<p>Loading is two-phase: <code>prepare</code> reads and decodes without changing the live world, then <code>activate</code> swaps atomically at a frame boundary. Poll <code>progress</code> or <code>is_prepared</code> while a load screen is up — both take no arguments and describe the pending prepare. <code>Scene.load</code> is the one-step form; <code>reload</code> refreshes the current scene; <code>cancel</code> aborts a prepare; <code>unload</code> frees a prepared scene; <code>set_persistent(entity_id, true)</code> marks one entity to survive scene switches.</p>
+<p>Loading is two-phase: <code>prepare</code> reads and decodes without changing the live world, then <code>activate</code> swaps atomically at a frame boundary. Poll <code>progress</code> or <code>is_prepared</code> while a load screen is up — both take no arguments and describe the pending prepare. <code>Scene.load</code> is the one-step form; <code>reload</code> refreshes the current scene; <code>cancel</code> aborts a prepare; <code>unload(scene_id)</code> removes an additive scene; <code>set_persistent(entity_id, true)</code> marks one entity to survive full transitions.</p>
 
 <h2>Math helpers</h2>
 <pre><code>local Vector3 = require("demi.math.vector3")

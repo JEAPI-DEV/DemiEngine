@@ -47,7 +47,7 @@
     "continuous": true,
     "friction": 0.6,
     "restitution": 0.05,
-    "damping": 0.02,
+    "linear_damping": 0.02,
     "solver_velocity_steps": 0,
     "solver_position_steps": 0,
     "report_contacts": true
@@ -61,7 +61,7 @@
     <tr><td><code>continuous</code></td><td>Continuous collision detection for fast movers.</td><td><code>true</code> for projectiles</td></tr>
     <tr><td><code>friction</code></td><td>How much the surface resists sliding. Combine with the collider’s own friction for the contact result.</td><td><code>0.5</code></td></tr>
     <tr><td><code>restitution</code></td><td>Bounciness. <code>0</code> lands dead; <code>1</code> returns most of the impact speed.</td><td><code>0</code> for crates</td></tr>
-    <tr><td><code>damping</code></td><td>Linear and angular damping factor applied each step.</td><td><code>0.02</code></td></tr>
+    <tr><td><code>linear_damping</code> / <code>angular_damping</code></td><td>How quickly linear or angular motion slows down.</td><td><code>0.02</code> / <code>0.05</code></td></tr>
     <tr><td><code>solver_velocity_steps</code> / <code>solver_position_steps</code></td><td>How much extra solving a step performs. Range 0–128; <code>0</code> means the engine default. Raise them only for stacks that jitter.</td><td><code>0</code></td></tr>
     <tr><td><code>report_contacts</code></td><td>Same job as 2D: fill <code>physics3d_contact</code> with contact points.</td><td><code>true</code> for impact FX</td></tr>
   </tbody>
@@ -80,7 +80,7 @@
 <p>Rule of thumb: if the effect should accumulate over time, use a force every fixed step. If it should happen once and be over, use an impulse. In Skyforge, thruster lift is a force applied every step; a jump pad is a single impulse.</p>
 
 <h2>Damping and sleep</h2>
-<p><strong>Damping</strong> is friction with the air: each step multiplies velocity by a little less than one. Without damping, a crate shoved across a frictionless floor never stops. With <code>linear_damping</code> (2D) or <code>damping</code> (3D), it coasts to rest.</p>
+<p><strong>Damping</strong> slows motion over time. Without damping, a crate shoved across a frictionless floor can keep moving. Both 2D and 3D bodies have <code>linear_damping</code> and <code>angular_damping</code> fields.</p>
 <p><strong>Sleep</strong> is an optimization the simulation applies to bodies that have come to rest. A sleeping body costs almost nothing until something touches it. The catch: a force applied to a sleeping body does nothing until the body is awake. Call <code>set_awake(id, true)</code> before <code>add_force</code> or <code>add_impulse</code> if the body may have settled.</p>
 
 <h2>Continuous collision detection</h2>
@@ -90,43 +90,45 @@
 <p>Kinematic bodies do not react to pushes, so you move them yourself. Two helpers exist in 2D, both meant to run inside <code>on_fixed_update</code>.</p>
 <pre><code>local Body = require("demi.physics.rigidbody2d")
 
--- Slide along walls using the authored collider shape
-Body.move_and_slide(id, vx, vy, fixed_dt)
+-- Request a displacement this step; receive the applied displacement.
+local moved_x, moved_y = Body.move_and_slide(id, vx * fixed_dt, vy * fixed_dt)
 
--- Absolute placement this step (x, y, angle in radians)
-Body.move_kinematic(id, 3.5, 4.0, 0, fixed_dt)</code></pre>
+-- Set velocity to reach an absolute 2D target over this step.
+Body.move_kinematic(id, 3.5, 4.0, fixed_dt)</code></pre>
 <table>
   <thead><tr><th>Call</th><th>Arguments</th><th>Returns</th></tr></thead>
   <tbody>
-    <tr><td><code>move_and_slide</code></td><td><code>id</code>, desired velocity <code>vx, vy</code>, the fixed timestep <code>fixed_dt</code></td><td>Nothing. The body is moved and slides along anything solid it meets.</td></tr>
-    <tr><td><code>move_kinematic</code></td><td><code>id</code>, target <code>x, y</code>, <code>angle</code> radians, <code>fixed_dt</code></td><td>Nothing. The body is placed at the target over the step.</td></tr>
+    <tr><td><code>move_and_slide</code></td><td><code>id</code>, requested displacement <code>motion_x, motion_y</code></td><td>Applied <code>x, y</code> displacement, or <code>nil, nil</code> if unavailable. Clips against static collider bounds.</td></tr>
+    <tr><td><code>move_kinematic</code></td><td><code>id</code>, target <code>x, y</code>, optional <code>fixed_dt</code></td><td>Boolean. Sets the body's velocity toward the target for this step; the fixed timestep defaults to 1/60, so pass your project's actual step.</td></tr>
   </tbody>
 </table>
-<p>Prefer <code>move_and_slide</code> for anything that can brush walls (players, hover carts). Use <code>move_kinematic</code> for rails and platforms that follow a known path and should never be blocked. The 3D equivalent is <code>move_kinematic(id, x, y, z, rx, ry, rz, fixed_dt)</code> with Euler rotation in radians.</p>
+<p>Use <code>move_and_slide</code> for 2D motion that should clip and slide against static collider bounds. Use <code>move_kinematic</code> for rails and platforms following a known target. The 3D version is <code>move_kinematic(id, x, y, z, rx, ry, rz, fixed_dt)</code> with Euler rotation in radians.</p>
 
 <h2>Full 2D example</h2>
 <p>A Skyforge cargo crate that can be shoved, then settles and sleeps.</p>
 <pre><code>local Body = require("demi.physics.rigidbody2d")
+local Crate = {}
 
-function on_fixed_update(self_id, fixed_dt)
-    local vx, vy = Body.get_velocity(self_id)
+function Crate:on_start()
+    Body.set_continuous(self.id, true)
+    Body.set_report_contacts(self.id, true)
+end
+
+function Crate:on_fixed_update(fixed_dt)
+    local vx, vy = Body.get_velocity(self.id)
     -- vx, vy → current speed in world units per second (nil per axis when missing)
 
-    if vx and math.abs(vx) &lt; 0.05 and math.abs(vy) &lt; 0.05 then
-        Body.set_awake(self_id, false)
+    if vx and vy and math.abs(vx) &lt; 0.05 and math.abs(vy) &lt; 0.05 then
+        Body.set_awake(self.id, false)
     end
 end
 
-function on_start(self_id)
-    Body.set_continuous(self_id, true)      -- no tunneling at high shove speeds
-    Body.set_report_contacts(self_id, true) -- emit physics_contact with hit points
-    Body.set_velocity(self_id, 0, 0)        -- clear any editor preview motion
+function Crate:shove()
+    Body.set_awake(self.id, true)
+    Body.add_impulse(self.id, 4, 2)
 end
 
--- When the player shoves the crate:
-Body.set_awake(self_id, true)               -- wake before pushing
-Body.add_impulse(self_id, 4, 2)             -- instant kick: +4 x, +2 y
-Body.add_force(self_id, 0, -9.8)            -- gravity-like pull, reapply each step</code></pre>
+return Crate</code></pre>
 <ul>
   <li><code>get_velocity(id)</code> returns two scalars, <code>x</code> and <code>y</code>, in world units per second. Missing bodies report <code>nil</code> per axis.</li>
   <li><code>set_velocity(id, x, y)</code> sets speed directly and returns <code>true</code> when applied.</li>
@@ -140,17 +142,19 @@ Body.add_force(self_id, 0, -9.8)            -- gravity-like pull, reapply each s
 <h2>Full 3D example</h2>
 <p>A Skyforge supply pod that falls, reports impacts, and can be read back for a HUD.</p>
 <pre><code>local Body = require("demi.physics.rigidbody3d")
+local Pod = {}
 
-function on_start(self_id)
-    Body.set_continuous(self_id, true)
-    Body.set_report_contacts(self_id, true)
+function Pod:on_start()
+    Body.set_continuous(self.id, true)
+    Body.set_report_contacts(self.id, true)
+    self.nudged = false
 end
 
-function on_fixed_update(self_id, fixed_dt)
-    local vx, vy, vz = Body.get_velocity(self_id)
+function Pod:on_fixed_update(fixed_dt)
+    local vx, vy, vz = Body.get_velocity(self.id)
     -- three scalars, or nil per axis when the body is missing
 
-    local state = Body.state(self_id)
+    local state = Body.state(self.id)
     -- state → table, or nil when the body is missing:
     --   body_type            "static" | "kinematic" | "dynamic"
     --   mass                 number
@@ -159,10 +163,13 @@ function on_fixed_update(self_id, fixed_dt)
     --   velocity             { x, y, z }
     --   angular_velocity     { x, y, z }
 
-    if state and state.velocity[1] == 0 then
-        Body.add_impulse(self_id, 0, 6, 0)  -- nudge it for a demo
+    if state and not self.nudged then
+        Body.add_impulse(self.id, 0, 6, 0)  -- nudge it for a demo
+        self.nudged = true
     end
-end</code></pre>
+end
+
+return Pod</code></pre>
 <ul>
   <li><code>get_velocity(id)</code> returns <code>x, y, z</code> scalars. Any missing axis comes back as <code>nil</code>, so guard before arithmetic.</li>
   <li><code>set_velocity(id, x, y, z)</code> sets the linear velocity and returns <code>true</code> when applied.</li>

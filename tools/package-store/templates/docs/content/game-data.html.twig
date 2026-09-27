@@ -44,6 +44,7 @@
   }
 }</code></pre>
 <p><code>content_type</code> and <code>tags</code> are query keys — group items, quests, or dialogue lines by type and tag without scanning every asset.</p>
+<p>To start with a generic data asset, run <code>demi asset import content.json --project demi.project.json --id asset://data/content</code>, then add a domain-specific <code>content_type</code>, tags, and schema to its manifest. Reimport after editing the source so its hash and derived content stay current: <code>demi asset reimport path/to/content.asset.json</code>. Validation checks the source, schema, and referenced assets before cooking.</p>
 
 <h2>Read data from Lua</h2>
 <pre><code>local Data = require("demi.data")
@@ -64,7 +65,7 @@ print(#results)                   -- 0 when nothing matches
 for _, item in ipairs(results) do
     print(item.name, item.damage)
 end</code></pre>
-<p><code>Data.query</code> returns an array of loaded documents matching the content type and tags (an item must include every requested tag). Empty array means “no matches”, not an error.</p>
+<p><code>Data.query</code> returns detached snapshots matching the content type and tags (an item must include every requested tag), ordered by stable asset ID. Empty array means “no matches”, not an error. Mutating a snapshot does not change the engine's source document or other snapshots.</p>
 <table>
   <thead><tr><th>Call</th><th>Returns</th></tr></thead>
   <tbody>
@@ -83,6 +84,9 @@ end</code></pre>
     print(e.id, "now at revision", e.new_revision)
 end)</code></pre>
 <p>An invalid document keeps the previous revision and prints diagnostics, so a bad edit cannot break a running game.</p>
+
+<h2>YAML as input</h2>
+<p><code>Data.parse_yaml(text, source?)</code> converts YAML mappings, sequences, and scalars to the same detached Lua value shapes as JSON data. It returns <code>value, nil</code> or <code>nil, DataError</code>; <code>source</code> is a diagnostic label. The parser observes the data-document size, depth, element, and string limits. Locale selection and other game rules belong in gameplay or packages.</p>
 
 <h2>Gameplay data packages</h2>
 <p>Optional pure-Lua packages provide flags, conditions, inventories, quests, and dialogue helpers on top of <code>DataAsset</code>. Install them like any other package and require their public modules.</p>

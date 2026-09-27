@@ -153,88 +153,9 @@ resolution independently.
 
 ### Real-time directional shadows
 
-Set `DirectionalLight.casts_shadows: true` to render a shadow map whenever the
-camera content updates. Moving objects and detached masonry use their current
-geometry and transforms. The shared renderer supports this in standalone Play,
-Game View, and the scene Viewport.
-
-`Environment3D` controls map quality:
-
-- `shadow_resolution`: square map size, default 1024. Unsupported device sizes
-  fail with a diagnostic; values are not silently clamped to 4096.
-- `shadow_distance`: coverage radius in metres around a point ahead of the
-  camera, default 80. Smaller coverage gives more detail at the same resolution.
-- `shadow_bias`: depth offset in metres, default 0.02. Filtering adjusts samples
-  for the receiving surface's slope to reduce self-shadow striping.
-- `max_shadow_lights: 0` or `shadow_distance: 0` disables the pass.
-
-The current implementation shadows the selected directional light, matching
-the existing single-directional-light shading path. Larger light budgets do
-not add point/spot shadow maps. Those requests produce validation warnings.
-Maps use 3×3 filtered comparisons and independent per-camera targets. Geometry
-outside the camera view can cast into it when inside the shadow volume.
-
-Opaque meshes and alpha-cutout materials cast shadows. Transparent shadow casting,
-custom vertex-shader deformation, cascades and point/spot shadows are not
-implemented. Custom fragment shaders need their own receiver support. Shadows
-add a geometry pass; they are opt-in and remain off by default.
-
-Try [the moving-shadow example](../examples/shadows_3d/README.md). Directional
-shadows are also enabled in the destruction weapon lab. Visual checks cover
-desktop Vulkan at 1080p; Android shadow qualification remains open.
-
-### Panorama sky background
-
-Texture manifests with `settings.mipmaps: true` now upload a complete RGBA8
-box-filtered mip chain. Linear filtering interpolates between mip levels;
-nearest filtering selects the nearest level. This reduces distant texture
-aliasing without changing UVs or mesh geometry. Filtering currently averages
-encoded source channels; linear-light/premultiplied-alpha filtering is future
-work.
-
-Set `Environment3D.sky_texture` to a `Texture2D` asset containing a 2:1
-equirectangular, tone-mapped panorama (JPEG/PNG). It uses the normal scene asset
-loading path. The camera-centered background renders unlit at the far plane,
-without writing depth, so moving the camera creates no sky parallax and scene
-geometry always remains in front. The same pass is used by the editor and game.
-Only perspective cameras with `clear_mode: "color"` draw a sky; orthographic
-and overlay cameras retain their existing clear behavior. Omit the reference
-to keep the camera's solid background. The last enabled Environment3D wins,
-matching ambient-environment selection.
-
-This is a visible LDR background. EXR decoding, HDR lighting, reflection
-probes, and image-based lighting are separate work. Sun and ambient
-illumination remain explicit.
-The destruction weapon lab uses the supplied evening panorama plus Kenney
-prototype grid textures on its floor and rear wall.
-
-## Particles
-
-`ParticleEmitter2D` and `ParticleEmitter3D` provide point/area emission,
-continuous rate plus burst, lifetime, velocity, gravity, size and color
-transitions, rotation, sorting, deterministic seeds, pooled storage, and
-separate desktop/mobile budgets. Simulation advances once per frame; extra
-cameras only filter and draw existing particles. A non-looping emitter is a
-one-shot burst; stopping and starting it explicitly arms that burst again.
-
-## Post effects and text
-
-Attach `PostProcessStack` to a camera for exposure, contrast, saturation,
-tint, vignette, thresholded bloom, and fade. `WorldText3D` renders labeled
-world objects with distance and render-mask filtering.
-
-## Diagnostics
-
-`demi run linux --profiler` and profiler reports expose:
-
-- `Renderer3D.stats.batches`
-- `Renderer3D.stats.triangles`
-- `Renderer3D.stats.particles`
-- `Renderer3D.stats.lights`
-- `Renderer3D.directional_shadow` (CPU preparation/submission scope)
-- `Renderer3D.shadow_batches` (most recently rendered camera's shadow draws)
-- `Renderer3D.stats.render_target_bytes`
-
-Keep mobile particle budgets and camera target sizes conservative. A minimap
-adds another world pass even when its target is physically small, so give
-secondary cameras an explicit `update_interval`.
+The maintained authoring contract is in the website's
+[directional shadow guide](https://demiengine.de/docs/gameplay-3d#directional-shadows).
+The shared renderer now uses configurable per-camera cascades and continuously
+weighted PCF. Vulkan barrel captures and renderer/layout tests cover this change;
+physical Android shadow qualification, point/spot shadows and custom vertex
+deformation remain open. See `plan.md` for the remaining rendering work.

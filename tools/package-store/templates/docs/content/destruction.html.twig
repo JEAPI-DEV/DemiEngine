@@ -1,34 +1,34 @@
 <h1>Destruction</h1>
-<p>Destruction lets authored objects break into pieces when hit hard enough. This page explains how to author a breakable, how to apply damage at runtime, what <code>state</code> reports, and how to snapshot, restore, and clean up debris.</p>
+<p>Destruction lets authored objects split into physical groups when bonds fail. This page covers the component recipe, spatial impacts and part damage, state queries, checkpoints, and debris cleanup.</p>
 
 <h2>What destruction is</h2>
-<p>A crate that simply vanishes when shot feels cheap. Real breakage leaves chunks that fall, scatter, and settle. DemiEngine destruction takes an ordinary prefab, describes how it should split, and then breaks it live when impacts accumulate.</p>
-<p>The point is to keep authoring simple: model and place the object as usual, add a few description components, and gameplay code calls <code>impact</code> or <code>damage_part</code>. The system handles fragments, contacts, and debris from there.</p>
+<p>An ordinary scene or prefab can carry a compact fracture recipe. Cooking prepares its geometry; at runtime, accepted impacts and part damage queue changes to the physical assembly. Gameplay chooses when to issue those calls and checks <code>state</code> for the committed result.</p>
 
 <figure class="docs-figure">
   <img src="/images/docs-destruction.jpg" alt="The destruction weapons lab: brick walls, a steel door, prototype textures, and a hammer." width="1280" height="720" loading="lazy">
   <figcaption>The destruction weapons lab example: fracture-authored brickwork and a hammer weapon loop.</figcaption>
 </figure>
 <h2>Authoring workflow</h2>
-<p>Three layers build a breakable, in order.</p>
+<p>Author the intact visual and fracture recipe in one scene or prefab:</p>
 <ol>
-  <li><strong>Prefab</strong> — the intact object as you normally build it: <a href="{{ path('docs_page', {slug: 'models-and-meshes'}) }}">meshes</a> for the visual, <a href="{{ path('docs_page', {slug: 'colliders'}) }}">colliders</a> for the solid shell.</li>
-  <li><strong>Fracture description</strong> — how each mesh splits. Two components cover the common cases.</li>
-  <li><strong>Assembly</strong> — the component that owns the intact object and performs the split at runtime.</li>
+  <li><strong>Assembly root</strong> — an unparented entity with <code>Transform3D</code> and <code>Destructible3D</code>; an optional <code>Rigidbody3D</code> supplies body settings.</li>
+  <li><strong>Participating visuals</strong> — child meshes with <code>Fracture3D</code>, or compact <code>Masonry3D</code> regions for repeated brickwork. The compiler prepares collider geometry and part mappings; do not add a second root collider or independent physics to those children.</li>
+  <li><strong>Optional effects</strong> — <code>FractureDebris3D</code> on the root emits cosmetic chips on accepted spatial impacts. <code>debris_lifetime</code> on a fracture or masonry source controls fading of actual detached rubble.</li>
 </ol>
 
 <h3>Fracture3D</h3>
-<p><code>Fracture3D</code> sits on mesh children and describes how that mesh should split under load.</p>
+<p><code>Fracture3D</code> sits on a participating mesh and describes its generated pieces and bonds.</p>
 <pre><code>{
   "Fracture3D": {
-    "chunk_count": 12,
-    "min_impact_energy": 6.0
+    "pieces": 12,
+    "bond_health": 1.0,
+    "anchor_below": 0.01
   }
 }</code></pre>
 <ul>
-  <li><code>chunk_count</code> is how many pieces the mesh prefers to split into when broken.</li>
-  <li><code>min_impact_energy</code> is the impact energy threshold this mesh needs before it fractures at all.</li>
-  <li>Place it on the mesh child, not the root — the root carries the assembly.</li>
+  <li><code>pieces</code> is the number of generated pieces; one piece can detach whole without further subdivision.</li>
+  <li><code>bond_health</code> is authored connection strength. Spatial impact energy is converted to these units through the root's <code>energy_per_health</code>.</li>
+  <li><code>anchor_below</code> attaches low parts to the foundation using an assembly-local Y threshold. Omit it when the object should start free.</li>
 </ul>
 
 <h3>Masonry3D</h3>
@@ -37,149 +37,165 @@
   "Masonry3D": {
     "rows": 6,
     "columns": 4,
-    "material_density": 1.8
+    "size": [4, 3, 0.4],
+    "density": 1800
   }
 }</code></pre>
 <ul>
-  <li><code>rows</code> and <code>columns</code> are the brick grid covering the mesh.</li>
-  <li><code>material_density</code> scales how heavy each brick is when it becomes debris.</li>
-  <li>Use masonry for Skyforge cargo walls and station bulkheads; use <code>Fracture3D</code> for irregular props like generators.</li>
+  <li><code>rows</code> and <code>columns</code> define the compact brick grid over <code>size</code>.</li>
+  <li><code>density</code> is mass density in kg/m³; it does not set bond health. Use <code>bond_health</code> for fracture resistance.</li>
+  <li>Use masonry for repeated walls; use <code>Fracture3D</code> for authored meshes.</li>
 </ul>
 
 <h3>Destructible3D</h3>
-<p><code>Destructible3D</code> sits on the prefab root and owns the intact assembly until damage splits it.</p>
+<p><code>Destructible3D</code> marks the assembly root. It has no <code>integrity</code> field; connectivity comes from generated parts and their bonds.</p>
 <pre><code>{
   "Destructible3D": {
-    "integrity": 100
+    "energy_per_health": 1000,
+    "max_bodies": 64
   }
 }</code></pre>
 <ul>
-  <li><code>integrity</code> is the starting durability of the whole assembly. Damage subtracts from it; at zero the object breaks apart.</li>
-  <li>Fracture and masonry children supply the pieces the assembly creates.</li>
-  <li>The intact object keeps its normal collider until it splits, so it still blocks and lands like a solid prop.</li>
+  <li><code>energy_per_health</code> converts spatial impact joules to authored bond-health units; it does not change <code>damage_part</code> units.</li>
+  <li><code>max_bodies</code> bounds the physical body count for the assembly.</li>
+  <li>Fracture and masonry sources supply the geometry. Foundation anchors determine whether a generated assembly starts static or dynamic.</li>
 </ul>
 
 <h3>FractureDebris3D</h3>
-<p><code>FractureDebris3D</code> covers the cosmetic scraps that should not live forever: chips, dust-scale shards, small bounce pieces.</p>
+<p><code>FractureDebris3D</code> emits optional cosmetic chips at accepted spatial impact contacts. These chips are separate from detached physical rubble.</p>
 <pre><code>{
   "FractureDebris3D": {
-    "lifetime": 8.0
+    "count": 16,
+    "lifetime": 3.0,
+    "fade_duration": 1.0
   }
 }</code></pre>
 <ul>
-  <li><code>lifetime</code> is how many seconds a debris piece stays before it is retired automatically.</li>
-  <li>Debris is visual cleanup, not a gameplay body — it will not be something a script must track.</li>
+  <li><code>count</code> chips are emitted per accepted spatial impact, subject to <code>max_fragments</code>.</li>
+  <li><code>lifetime</code> and <code>fade_duration</code> control chip removal. Chips have no entities, colliders, or physics bodies.</li>
 </ul>
 
 <h2>Applying damage at runtime</h2>
-<p>Gameplay decides when something is hit. Two Lua calls cover point impacts and targeted parts.</p>
+<p>Gameplay chooses when to issue a spatial impact or damage a known collider part. Both calls queue work for the next fixed step; acceptance is not completion.</p>
 <pre><code>local Destruction = require("demi.physics.destruction3d")
 
-Destruction.impact(id, x, y, z, nx, ny, nz, energy)
-Destruction.damage_part(id, part, amount)
+local accepted, issue, affected = Destruction.impact({
+    entity = "cargo_wall",             -- optional root/current-fragment filter
+    position = { 0, 1, 0 },            -- required world-space point
+    radius = 0.3,                      -- metres; default 0.5
+    energy = 6000,                     -- joules shared across affected bonds
+    impulse = 180,                     -- optional momentum budget in N*s
+    direction = { 0, 0, 1 },           -- optional; omit for radial impulse
+})
+if not accepted then print(issue) end
 
-local state = Destruction.state(id)</code></pre>
+local damaged, damage_issue = Destruction.damage_part("cargo_wall", "joint_l", 0.6)
+if not damaged then print(damage_issue) end</code></pre>
 <table>
   <thead><tr><th>Call</th><th>Arguments</th><th>Returns</th></tr></thead>
   <tbody>
-    <tr><td><code>impact</code></td><td><code>id</code>, hit point <code>x, y, z</code>, direction <code>nx, ny, nz</code>, <code>energy</code></td><td>Nothing. Applies a directional impact at a point. Fragments near the hit may separate when energy exceeds their threshold.</td></tr>
-    <tr><td><code>damage_part</code></td><td><code>id</code>, part name or id, <code>amount</code></td><td>Nothing. Subtracts durability from one named part of the assembly.</td></tr>
-    <tr><td><code>state</code></td><td><code>id</code></td><td>Table of live integrity and fragment information (see below), or <code>nil</code> when the assembly is missing.</td></tr>
+    <tr><td><code>impact(options)</code></td><td>Table with required <code>position</code> and at least one positive <code>energy</code> or <code>impulse</code>; optional <code>radius</code>, <code>direction</code>, <code>entity</code></td><td><code>accepted, error, affected_assemblies</code>. It selects nearby collider parts and shares the supplied budgets.</td></tr>
+    <tr><td><code>damage_part(id, part_id, damage)</code></td><td>Root or current fragment ID, stable collider part ID, positive bond-health damage</td><td><code>accepted, error</code>. Queues damage to incident bonds and the part's foundation attachment.</td></tr>
+    <tr><td><code>state(id)</code></td><td>Root or current fragment ID</td><td>A status table including revision and current part owners; see below.</td></tr>
   </tbody>
 </table>
-<p>Driving destruction from a physics contact — a Skyforge freighter clip that crumples a cargo wall:</p>
+<p><code>direction</code> is normalized internally; an omitted or zero direction makes impulses radial. Omit <code>entity</code> to affect all nearby attached destructible assemblies. Physical attachment requires the first physics step. Spatial hits do not automatically follow from ordinary collisions; gameplay must call <code>impact</code>.</p>
+<p>A physics contact event can supply a point, normal, and measured impact energy. This script belongs on the wall and subscribes when it starts:</p>
 <pre><code>local Events = require("demi.events")
 local Destruction = require("demi.physics.destruction3d")
+local Wall = {}
 
-Events.subscribe("physics3d_contact", function(e)
-    if e.other_id ~= wall_id then return end
-    -- e.point_x, e.point_y, e.point_z
-    -- e.normal_x, e.normal_y, e.normal_z
-    Destruction.impact(wall_id, e.point_x, e.point_y, e.point_z,
-                       e.normal_x, e.normal_y, e.normal_z, 12.0)
-end)</code></pre>
-<ul>
-  <li>The contact event supplies the flattened hit point and normal.</li>
-  <li><code>impact</code> feeds those values and an energy of 12.0 into the assembly and returns nothing.</li>
-  <li>Low-energy bumps leave the wall intact; only hits above each mesh’s <code>min_impact_energy</code> split pieces free.</li>
-</ul>
+function Wall:on_start()
+    self.contact_token = Events.subscribe("physics3d_contact", function(e)
+        if e.entity_id ~= self.entity_id or e.is_trigger or e.impact_energy &lt;= 0 then
+            return
+        end
+        local accepted, issue = Destruction.impact({
+            entity = self.entity_id,
+            position = { e.point_x, e.point_y, e.point_z },
+            direction = { e.normal_x, e.normal_y, e.normal_z },
+            energy = e.impact_energy,
+            radius = 0.3,
+        })
+        if not accepted then print(issue) end
+    end)
+end
+
+function Wall:on_destroy()
+    Events.unsubscribe(self.contact_token)
+end
+
+return Wall</code></pre>
+<p>The contact event exposes <code>entity_id</code>, <code>other_entity_id</code>, flattened point and normal coordinates, and <code>impact_energy</code>. The example filters to this wall and skips zero-energy contacts. <code>energy_per_health</code> on the assembly converts impact joules into bond damage; an accepted call can still leave a structure intact.</p>
 <p>Targeting one joint when a boss exposes a weak point:</p>
 <pre><code>local Destruction = require("demi.physics.destruction3d")
 
-Destruction.damage_part(id, "joint_l", 25)</code></pre>
+local accepted, issue = Destruction.damage_part(id, "joint_l", 0.6)
+if not accepted then print(issue) end</code></pre>
 <ul>
-  <li><code>id</code> is the assembly entity.</li>
-  <li><code>"joint_l"</code> names the part to wound.</li>
-  <li><code>25</code> is the durability to subtract. The call returns nothing; visible change appears when the part or the whole assembly gives out.</li>
+  <li><code>id</code> is the assembly root or one of its current fragment entities.</li>
+  <li><code>"joint_l"</code> is a stable collider part ID, not a generated array index.</li>
+  <li><code>0.6</code> is positive damage in authored bond-health units. Check <code>state</code> after the fixed step for the committed result.</li>
 </ul>
 
 <h2>Reading state</h2>
-<pre><code>local state = Destruction.state(id)
--- state → table:
---   integrity            remaining durability number
---   max_integrity        starting durability number
---   broken               boolean, assembly has split
---   fragments            array of active fragment ids
---   fragment_count       number of entries in fragments</code></pre>
+<pre><code>local Destruction = require("demi.physics.destruction3d")
+local state = Destruction.state("cargo_wall")
+-- state.root, state.status, state.error, state.revision, state.bodies
+-- state.parts[part_id] is the part's current physical entity ID</code></pre>
 <table>
   <thead><tr><th>Field</th><th>Meaning</th></tr></thead>
   <tbody>
-    <tr><td><code>integrity</code></td><td>How much durability remains. Reaches 0 when the assembly can no longer hold.</td></tr>
-    <tr><td><code>max_integrity</code></td><td>Starting durability for ratio displays (health bars on breakable doors).</td></tr>
-    <tr><td><code>broken</code></td><td><code>true</code> once the assembly has split apart.</td></tr>
-    <tr><td><code>fragments</code></td><td>Array of fragment ids currently active in the world.</td></tr>
-    <tr><td><code>fragment_count</code></td><td>Length of <code>fragments</code>, for cheap HUD counters.</td></tr>
+    <tr><td><code>root</code></td><td>Owning assembly root ID. An empty value with <code>unattached</code> means no attached assembly was found.</td></tr>
+    <tr><td><code>status</code></td><td><code>unattached</code>, <code>ready</code>, <code>queued</code>, <code>applied</code>, or <code>failed</code>.</td></tr>
+    <tr><td><code>error</code></td><td>Failure detail when a queued transaction fails.</td></tr>
+    <tr><td><code>revision</code></td><td>Advances after successful committed batches; compare it with the value before queuing damage.</td></tr>
+    <tr><td><code>bodies</code></td><td>Current number of physical bodies in the assembly.</td></tr>
+    <tr><td><code>parts</code></td><td>Map from stable collider part IDs to their current physical entity IDs.</td></tr>
   </tbody>
 </table>
-<p>Guard with <code>if state then</code> — the table is <code>nil</code> when the entity has no destruction assembly. Use <code>integrity</code> and <code>max_integrity</code> to draw a damage bar; use <code>broken</code> to switch gameplay logic from “wall” to “rubble path”.</p>
+<p><code>state</code> returns a table, including for an unattached ID. Check <code>status</code> and <code>error</code>, then use <code>revision</code>, <code>bodies</code>, or <code>parts</code> for gameplay. It does not expose a single integrity meter, a <code>broken</code> flag, or a fragment-ID array. Resolve a part's current physical owner through <code>parts</code> rather than constructing generated IDs.</p>
 
 <h2>Checkpoint and restore</h2>
-<p>Practice modes, retries, and network rollback all need to undo damage. Two calls snapshot and rewind a destructible without respawning the prefab.</p>
+<p><code>checkpoint</code> returns a versioned, geometry-free snapshot of committed damage and fragment poses. Save it if the game needs later recovery. <code>restore</code> validates that snapshot against a <strong>fresh attached assembly</strong> with matching geometry and part identities, then queues restoration. It does not rewind the already damaged live assembly in place.</p>
 <pre><code>local Destruction = require("demi.physics.destruction3d")
 
-Destruction.checkpoint(id)
-Destruction.restore(id)</code></pre>
+local snapshot, issue = Destruction.checkpoint("cargo_wall")
+if not snapshot then error(issue) end
+-- Persist snapshot through demi.save if it must survive a restart.
+
+-- Later, after loading a fresh matching cargo_wall assembly:
+local accepted, restore_issue = Destruction.restore("cargo_wall", snapshot)
+if not accepted then error(restore_issue) end
+-- Poll Destruction.state("cargo_wall") after the fixed step.</code></pre>
 <table>
   <thead><tr><th>Call</th><th>Arguments</th><th>Returns</th></tr></thead>
   <tbody>
-    <tr><td><code>checkpoint</code></td><td><code>id</code></td><td>Nothing. Snapshots the current damage: which fragments are detached and how much integrity remains.</td></tr>
-    <tr><td><code>restore</code></td><td><code>id</code></td><td>Nothing. Returns the assembly to the last checkpoint.</td></tr>
+    <tr><td><code>checkpoint(id)</code></td><td>Assembly root or current fragment ID</td><td>Snapshot table and error string, or <code>nil, error</code> while commands are queued or the assembly is unavailable.</td></tr>
+    <tr><td><code>restore(id, snapshot)</code></td><td>Fresh attached assembly and a prior checkpoint table</td><td><code>accepted, error</code>. Poll <code>state</code> for completion or failure.</td></tr>
   </tbody>
 </table>
-<p>A Skyforge range scenario that resets the target wall between attempts:</p>
-<pre><code>local Destruction = require("demi.physics.destruction3d")
-
-function begin_attempt(wall_id)
-    Destruction.restore(wall_id)      -- back to the checkpoint
-end
-
-function record_practice_state(wall_id)
-    Destruction.checkpoint(wall_id)   -- snapshot after setup
-end</code></pre>
-<ul>
-  <li><code>checkpoint</code> is called once after setup so the pristine state is saved.</li>
-  <li><code>restore</code> is called at the start of each attempt and returns nothing.</li>
-  <li>Calling <code>checkpoint</code> again replaces the snapshot with the current state — useful for saving mid-fight damage as the new baseline.</li>
-</ul>
+<p>Only committed damage can be captured. A matching fresh assembly must finish its first physics attachment before restoration, and incompatible geometry or part IDs are rejected. A retry that simply needs the authored pristine scene can reload that scene; a checkpoint is for restoring a specific prior damage state.</p>
 
 <h2>Debris cleanup</h2>
-<p>Long fights leave scraps everywhere. Cosmetic debris retires itself after its <code>lifetime</code>, and gameplay can sweep early when the area is clear.</p>
+<p>Cosmetic chips from <code>FractureDebris3D</code> expire after their authored lifetime. Separately, <code>retire_debris</code> queues opt-in cleanup of detached dynamic physical groups while preserving supported geometry.</p>
 <pre><code>local Destruction = require("demi.physics.destruction3d")
 
-Destruction.retire_debris(id)</code></pre>
+local accepted, issue = Destruction.retire_debris("cargo_wall")
+if not accepted then print(issue) end</code></pre>
 <ul>
-  <li><code>id</code> is the assembly whose cosmetic debris should go away.</li>
-  <li>The call returns nothing. Debris pieces stop rendering and stop colliding.</li>
-  <li>Gameplay fragments — the chunks a player can stand on — are not retired by this call; they are real pieces until you handle them yourself.</li>
+  <li><code>id</code> identifies the owning assembly.</li>
+  <li>The call returns <code>accepted, error</code>; the fixed step performs the retirement.</li>
+  <li>Retired detached groups are recorded as missing in checkpoints. Use this deliberately if those physical pieces matter to gameplay.</li>
 </ul>
-<p>Call <code>retire_debris</code> when the camera leaves the room, after a round ends, or whenever <code>state.fragment_count</code> grows past your budget.</p>
+<p>For fading actual detached rubble without a Lua cleanup call, set positive <code>debris_lifetime</code> and <code>debris_fade</code> on its <code>Fracture3D</code> or <code>Masonry3D</code> source. Those chunks become non-colliding while fading; connected supported chunks stay physical.</p>
 
 <h2>Putting it together</h2>
 <ul>
-  <li>Author the intact prefab normally, add <code>Fracture3D</code> or <code>Masonry3D</code> on mesh children, <code>Destructible3D</code> on the root, <code>FractureDebris3D</code> where scraps should vanish on their own.</li>
-  <li>Feed hits with <code>impact</code> from <a href="{{ path('docs_page', {slug: 'physics-events'}) }}">contact points</a>, or <code>damage_part</code> from scripted weak points.</li>
-  <li>Read <code>state</code> for HUD and gameplay switches.</li>
-  <li><code>checkpoint</code> before action, <code>restore</code> on retries.</li>
-  <li><code>retire_debris</code> when the spectacle has settled.</li>
+  <li>Author a normal scene or prefab with <code>Destructible3D</code> at the assembly root and <code>Fracture3D</code> meshes or <code>Masonry3D</code> regions beneath it.</li>
+  <li>Call <code>impact(options)</code> with world-space position and positive energy or impulse, or <code>damage_part</code> with a stable collider part ID.</li>
+  <li>Read <code>state.status</code>, <code>revision</code>, <code>bodies</code>, and <code>parts</code> to observe committed changes.</li>
+  <li>Capture a checkpoint after queued work commits; restore it only onto a fresh matching assembly.</li>
+  <li>Use source <code>debris_lifetime</code> for fading detached rubble; <code>FractureDebris3D</code> supplies separate cosmetic chips.</li>
 </ul>
-<p>Cosmetic dents that should not break the object belong in <a href="{{ path('docs_page', {slug: 'lights-and-camera-3d'}) }}">Lights &amp; camera</a> denting. The pieces that become physical bodies are ordinary dynamic shapes described in <a href="{{ path('docs_page', {slug: 'rigidbodies'}) }}">Rigidbodies</a>.</p>
+<p>Cosmetic dents belong to mesh deformation, while physical pieces use ordinary 3D body behavior described in <a href="{{ path('docs_page', {slug: 'rigidbodies'}) }}">Rigidbodies</a>.</p>

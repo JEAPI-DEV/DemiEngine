@@ -34,11 +34,28 @@ int main() {
   World world;
   const SceneLighting3D defaults = collectSceneLighting3D(world, {});
   assert(defaults.ambient[0] == 1.0F);
+  assert(defaults.shadowCascades == 4);
+  assert(defaults.shadowSplitLambda == .85F);
+  assert(defaults.shadowBlend == .1F);
+  assert(defaults.shadowFilter == "pcf");
+  assert(defaults.shadowResolution == 1024);
+  assert(defaults.shadowDistance == 80.F);
+  assert(defaults.shadowBias == .005F);
+  assert(defaults.shadowBudget == 1);
 
   Entity environment;
   environment.id = "environment";
-  environment.setComponent(Environment3DComponent{
-      .ambientColor = {0.5F, 0.25F, 1.0F, 1.0F}, .ambientIntensity = 0.4F});
+  environment.setComponent(
+      Environment3DComponent{.ambientColor = {0.5F, 0.25F, 1.0F, 1.0F},
+                             .ambientIntensity = 0.4F,
+                             .shadowDistance = 50.F,
+                             .shadowResolution = 512,
+                             .shadowCascades = 2,
+                             .shadowSplitLambda = .6F,
+                             .shadowBlend = .2F,
+                             .shadowFilter = "hard",
+                             .shadowBias = .01F,
+                             .maxShadowLights = 2});
   world.entities.push_back(std::move(environment));
 
   Entity maskedLight;
@@ -58,7 +75,14 @@ int main() {
   const SceneLighting3D foreground =
       collectSceneLighting3D(world, "foreground");
   assert(foreground.direction[3] == 3.0F);
-  assert(foreground.castsShadows && foreground.shadowResolution==1024);
+  assert(foreground.castsShadows && foreground.shadowResolution == 512);
+  assert(foreground.shadowDistance == 50.F);
+  assert(foreground.shadowCascades == 2);
+  assert(foreground.shadowSplitLambda == .6F);
+  assert(foreground.shadowBlend == .2F);
+  assert(foreground.shadowFilter == "hard");
+  assert(foreground.shadowBias == .01F);
+  assert(foreground.shadowBudget == 2);
   assert(foreground.directionalColor[0] == 1.0F);
 
   // The shader has a documented four-light budget. Extra lights must be

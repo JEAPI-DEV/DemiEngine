@@ -55,6 +55,7 @@ Tower.levels = 16
 Tower.projectile_mass = 60</code></pre>
 <p><code>columns</code> and <code>levels</code> are typed <code>integer</code> with slider ranges, so the Inspector renders constrained number boxes and rejects fractional overrides.</p>
 <div class="docs-note"><strong>One script per entity</strong><p>An entity supports a single Lua script, so the editor disables further Lua choices with an explanation. The component added to the scene is the standard <code>LuaScript</code>; the annotations only describe its module.</p></div>
+<p>The editor also omits native components already attached to the selected entity from Add Component. Adding a script or native component does not duplicate one already present.</p>
 
 <h2>Property types</h2>
 <table>
@@ -98,7 +99,7 @@ return Player</code></pre>
   <li><code>type</code> — one of the property types above (string).</li>
   <li><code>default</code> — value installed when the scene does not override it.</li>
   <li><code>minimum</code> / <code>maximum</code> — numeric bounds for <code>number</code> and <code>integer</code>.</li>
-  <li><code>required</code> — boolean; when <code>true</code>, an override must be supplied.</li>
+  <li><code>required</code> — boolean; when true and no default is declared, an authored value must be supplied.</li>
   <li><code>values</code> — allowed values for an <code>enum</code>, as an array of strings.</li>
 </ul>
 <p>Both forms describe the same contract: unknown properties, wrong types, invalid enum values, and out-of-range numbers reject script activation.</p>
@@ -107,12 +108,14 @@ return Player</code></pre>
 <p>The owning scene or prefab supplies only overrides:</p>
 <pre><code>{
   "id": "skyforge_rune",
-  "LuaScript": {
-    "module": "script://scripts/hover_rune.lua",
-    "properties": {
-      "amplitude": 0.3,
-      "label": "Sky Rune",
-      "style": "ancient"
+  "components": {
+    "LuaScript": {
+      "module": "script://scripts/hover_rune.lua",
+      "properties": {
+        "amplitude": 0.3,
+        "label": "Sky Rune",
+        "style": "ancient"
+      }
     }
   }
 }</code></pre>

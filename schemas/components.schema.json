@@ -1665,7 +1665,7 @@
           "maximum": 2147483647.0,
           "minimum": 0.0,
           "type": "integer",
-          "x-demi-editor-help": "Zero disables shadows. The current renderer supports one directional shadow map per camera.",
+          "x-demi-editor-help": "Maximum directional lights casting shadows. Zero disables shadows; the current renderer supports one directional light per camera.",
           "x-demi-editor-label": "Max Shadow Lights",
           "x-demi-editor-step": 1.0,
           "x-demi-lua-readable": true,
@@ -1708,7 +1708,8 @@
           "x-demi-lua-writable": true
         },
         "shadow_bias": {
-          "default": 0.02,
+          "default": 0.005,
+          "maximum": 3.4028234663852886e+38,
           "minimum": 0.0,
           "type": "number",
           "x-demi-editor-help": "Depth offset in metres. Large values detach shadows from their casters.",
@@ -1717,12 +1718,52 @@
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
-        "shadow_distance": {
-          "default": 80.0,
+        "shadow_blend": {
+          "default": 0.1,
+          "maximum": 1.0,
           "minimum": 0.0,
           "type": "number",
-          "x-demi-editor-help": "Shadow coverage radius in metres. Zero disables the pass.",
+          "x-demi-editor-help": "Cascade transition blend fraction, from 0 to 1.",
+          "x-demi-editor-label": "Shadow Blend",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "shadow_cascades": {
+          "default": 4,
+          "enum": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "type": "integer",
+          "x-demi-editor-help": "Directional shadow quality: 1 to 4 cascades. The current shader has four cascade slots.",
+          "x-demi-editor-label": "Shadow Cascades",
+          "x-demi-editor-step": 1.0,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "shadow_distance": {
+          "default": 80.0,
+          "maximum": 3.4028234663852886e+38,
+          "minimum": 0.0,
+          "type": "number",
+          "x-demi-editor-help": "Maximum camera-view depth in metres for shadow receivers. Zero disables shadows.",
           "x-demi-editor-label": "Shadow Distance",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "shadow_filter": {
+          "default": "pcf",
+          "enum": [
+            "hard",
+            "pcf"
+          ],
+          "type": "string",
+          "x-demi-editor-help": "Shadow sampling: hard or PCF filtered.",
+          "x-demi-editor-label": "Shadow Filter",
           "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
@@ -1732,9 +1773,20 @@
           "maximum": 65535.0,
           "minimum": 1.0,
           "type": "integer",
-          "x-demi-editor-help": "Square map resolution. The rendering device's texture limits apply.",
+          "x-demi-editor-help": "Square map resolution per cascade. The rendering device's texture limits apply.",
           "x-demi-editor-label": "Shadow Resolution",
           "x-demi-editor-step": 1.0,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "shadow_split_lambda": {
+          "default": 0.85,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number",
+          "x-demi-editor-help": "Cascade split balance: 0 uniform, 1 logarithmic.",
+          "x-demi-editor-label": "Shadow Split Lambda",
+          "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },

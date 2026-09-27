@@ -1,4 +1,5 @@
 #pragma once
+#include "editor/EditorRenderViews.h"
 
 #include <cstdint>
 #include <string>
@@ -28,7 +29,7 @@ struct EditorGpuTimingSample {
 [[nodiscard]] EditorGpuTimingSample
 buildEditorGpuTimingSample(std::int64_t timerFrequency,
                            const std::vector<EditorGpuViewCounters> &views,
-                           std::uint16_t firstGameView = 8,
-                           std::uint16_t lastGameView = 12);
+                           std::uint16_t firstGameView = EditorGameFirstView,
+                           std::uint16_t lastGameView = EditorGameLastView);
 
 } // namespace demi::editor

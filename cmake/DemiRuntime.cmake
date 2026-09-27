@@ -40,7 +40,6 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/audio/AudioSystem.cpp
   src/demi/runtime/audio/MiniaudioAudioBackend.cpp
   src/demi/runtime/media/MediaSystem.cpp
-  src/demi/runtime/math/VectorMath.cpp
   src/demi/runtime/network/DtlsTransport.cpp
   src/demi/runtime/network/GameNetworkSession.cpp
   src/demi/runtime/network/HttpClient.cpp

@@ -9,6 +9,9 @@ $failures = 0;
 function page(App\Kernel $kernel, string $url): string {
     $request = Request::create($url);
     $response = $kernel->handle($request);
+    if ($response->getStatusCode() !== 200) {
+        throw new RuntimeException("Documentation request failed: $url (".$response->getStatusCode().")");
+    }
     $body = $response->getContent();
     $kernel->terminate($request, $response);
     return $body;
@@ -46,6 +49,13 @@ foreach ([
 
 foreach (App\Docs::pages() as $meta) {
     $body = page($kernel, '/docs/'.$meta['slug']);
+    preg_match_all('~href="/docs/([^"?#]+)~', $body, $links);
+    foreach (array_unique($links[1]) as $slug) {
+        if (App\Docs::find(rawurldecode($slug)) === null) {
+            echo "MISS /docs/{$meta['slug']}: unknown documentation link $slug\n";
+            $failures++;
+        }
+    }
     foreach (['class="docs-article"', 'class="docs-sidebar"', 'class="docs-pager"', 'aria-current="page"', htmlspecialchars($meta['title'], ENT_QUOTES | ENT_HTML5)] as $needle) {
         $ok = str_contains($body, $needle);
         if (!$ok) {
@@ -55,6 +65,24 @@ foreach (App\Docs::pages() as $meta) {
     }
     if ($failures === 0 || true) {
         echo "OK   /docs/{$meta['slug']}\n";
+    }
+}
+
+$lighting = page($kernel, '/docs/lights-and-camera-3d');
+$gameplay = page($kernel, '/docs/gameplay-3d');
+foreach (['shadow_cascades', 'shadow_split_lambda', 'shadow_blend', 'shadow_filter',
+          'shadow_resolution', 'directional-shadows', 'Deform.dent(id, {',
+          'Destruction.impact({', 'Character.jump(id, 6)'] as $needle) {
+    if (!str_contains($gameplay, $needle)) {
+        echo "MISS 3D contract: $needle\n";
+        $failures++;
+    }
+}
+foreach (['inner_cone_degrees', '"shadows":', '"panorama":',
+          'Deform.dent(id, x,', 'local hit = Camera3D.screen_ray'] as $obsolete) {
+    if (str_contains($lighting, $obsolete)) {
+        echo "MISS lighting contract: obsolete example $obsolete\n";
+        $failures++;
     }
 }
 

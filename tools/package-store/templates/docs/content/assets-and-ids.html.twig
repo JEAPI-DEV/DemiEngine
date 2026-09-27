@@ -86,10 +86,12 @@
 <p>From Lua, the same URIs address assets at runtime:</p>
 <pre><code>local Assets = require("demi.assets")
 
-Assets.load("asset://textures/brick")</code></pre>
+local request, err = Assets.load("asset://textures/brick")
+if not request or request == 0 then error(err) end
+-- Assets.is_ready(request) tells you when the texture is resident.</code></pre>
 <ul>
   <li><code>require("demi.assets")</code> — imports the asset service; returns its function table.</li>
-  <li><code>Assets.load(uri)</code> — starts a non-blocking load of the named asset. Returns nothing immediately; progress is queried separately.</li>
+  <li><code>Assets.load(uri)</code> — starts a non-blocking load and returns a request ID plus an error string. Pass the ID to <code>Assets.is_ready</code>, <code>Assets.progress</code>, or <code>Assets.cancel</code>.</li>
 </ul>
 <p>The full call set is in <a href="{{ path('docs_page', {slug: 'assets-time-api'}) }}">Assets, time &amp; timers</a>.</p>
 

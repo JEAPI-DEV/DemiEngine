@@ -21,7 +21,7 @@
   <li><code>executable_name</code> must match <code>^[a-z0-9][a-z0-9_-]*$</code> — lowercase letters, digits, hyphens, or underscores, starting with a letter or digit.</li>
   <li>Icons and splash screens: PNG, JPEG, WebP, or SVG (SVG rasterized host-side via <code>rsvg-convert</code>).</li>
   <li>Discovery skips dot-directories, <code>build</code>, <code>generated</code>, <code>node_modules</code>, and <code>__pycache__</code>.</li>
-  <li>Android networking requires the explicit <code>android.permission.INTERNET</code> permission.</li>
+  <li>When you author <code>build.android.permissions</code> and the project uses networking, include <code>android.permission.INTERNET</code>. Projects without an authored <code>build</code> block retain the Gradle default permission set, which includes it.</li>
 </ul>
 
 <h2>Validate the shipping target</h2>
@@ -34,7 +34,7 @@ demi validate games/my_game --platform android</code></pre>
     <tr><td><code>PROJECT_BUILD_FEATURE_MEDIA_UNSUPPORTED</code></td><td>FFmpeg missing</td></tr>
     <tr><td><code>PROJECT_BUILD_FEATURE_NETWORK_UNSUPPORTED</code></td><td>ENet missing</td></tr>
     <tr><td><code>PROJECT_BUILD_FEATURE_SVG_UNSUPPORTED</code></td><td>Runtime SVG unavailable</td></tr>
-    <tr><td><code>PROJECT_BUILD_PERMISSION_NETWORK_MISSING</code></td><td>Android INTERNET permission not declared</td></tr>
+    <tr><td><code>PROJECT_BUILD_PERMISSION_NETWORK_MISSING</code></td><td>An authored Android permission list omits INTERNET while reachable content uses networking</td></tr>
     <tr><td><code>BUILD_PACKAGE_CONTENT_UNEXPECTED</code></td><td>Package contains non-audited paths</td></tr>
   </tbody>
 </table>
@@ -72,6 +72,10 @@ export DEMI_ANDROID_KEY_PASSWORD=...</code></pre>
 
 <h2>Transactional packaging</h2>
 <p>A failed or cancelled build leaves the previous artifact intact and never publishes a partial staging directory. Verify with <code>build-report.json</code> after every release build.</p>
+
+<h2>Saves and rollback</h2>
+<p>Save documents retain <code>format_version</code>. Register a <code>Save.register_migration</code> handler for each older released version of a slot that the current game must read. Incompatible data must report an error instead of being silently discarded. Save slots live in platform user-data outside the artifact, so replacing or rolling back a build does not replace the slots.</p>
+<p>Keep the previous artifact for rollback. Transactional packaging leaves it intact when a build fails; reinstalling it restores the earlier executable and cooked content. If a newer game has already written an incompatible save format, the older game must reject that format explicitly or include a deliberate reverse migration. Signing keys and certificates never belong in cooked content.</p>
 
 <h2>Capability gates</h2>
 <pre><code>demi capabilities export --output capabilities.json

@@ -3,8 +3,7 @@
 
 <h2>What a script module is</h2>
 <p>A script is a Lua file under your project's <code>scripts/</code> folder, referenced from a scene as <code>script://…</code>. The file <strong>returns a table of hook functions</strong>. The engine creates one instance of that table per entity that uses the script, then calls the hooks at the right times.</p>
-<pre><code>local Entity = require("demi.entity")
-local Transform3D = require("demi.transform3d")
+<pre><code>local Debug = require("demi.debug")
 
 local SkyforgeRune = {}
 
@@ -13,7 +12,7 @@ function SkyforgeRune:on_create()
 end
 
 return SkyforgeRune</code></pre>
-<p>The returned table is the script definition. <code>on_create</code> is one hook on it; in practice most examples set up in <code>on_start</code>, and reserve <code>on_create</code> for state that must exist before anything else runs. The engine instantiates a copy per entity, so upvalues (locals declared at the top of the file) are shared per script instance and safe for per-entity state you declare inside hooks on <code>self</code>. Nothing runs until the scene (or a prefab) attaches the script to an entity.</p>
+<p>The returned table is the script definition. <code>on_create</code> is one hook on it; use <code>on_start</code> for lookups that need the whole scene. The engine creates an instance per entity. Module locals and upvalues are shared by those instances, so put per-entity mutable state on <code>self</code>. Nothing runs until a scene or prefab attaches the script to an entity.</p>
 
 <h2>self and self.id</h2>
 <p>Inside every hook, <code>self</code> is the script instance. <code>self.id</code> is the entity this instance belongs to. Use <code>self</code> to store per-entity state (counters, flags, targets) and <code>self.id</code> with the entity and transform APIs.</p>
@@ -84,10 +83,12 @@ return SkyforgeHoverRune</code></pre>
 <p>A scene entity carries a <code>LuaScript</code> component that names the module and its property overrides:</p>
 <pre><code>{
   "id": "skyforge_rune",
-  "LuaScript": {
-    "module": "script://scripts/hover_rune.lua",
-    "properties": {
-      "speed": 8.5
+  "components": {
+    "LuaScript": {
+      "module": "script://scripts/hover_rune.lua",
+      "properties": {
+        "speed": 8.5
+      }
     }
   }
 }</code></pre>

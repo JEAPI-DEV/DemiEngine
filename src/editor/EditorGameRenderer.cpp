@@ -1,4 +1,5 @@
 #include "editor/EditorGameRenderer.h"
+#include "editor/EditorRenderViews.h"
 
 #include "demi/assets/AssetRegistry.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
@@ -90,11 +91,11 @@ bool EditorGameRenderer::render(const runtime::World &world,
   if (!runtime::sceneIs3D(world)) {
     const runtime::Camera2DComponent fallback;
     const runtime::Camera2DComponent *camera = runtime::activeCamera(world);
-    if (!renderer2D_->beginFrameRegion(camera != nullptr ? *camera : fallback,
-                                       runtime::activeCameraPosition(world), 8,
-                                       area.x, area.y, area.width, area.height,
-                                       deltaSeconds, error, interpolationAlpha,
-                                       target_->frameBuffer))
+    if (!renderer2D_->beginFrameRegion(
+            camera != nullptr ? *camera : fallback,
+            runtime::activeCameraPosition(world), EditorGameFirstView, area.x,
+            area.y, area.width, area.height, deltaSeconds, error,
+            interpolationAlpha, target_->frameBuffer))
       return false;
     const bool rendered =
         renderer2D_->drawWorld(world) && renderer2D_->drawHud(world);
@@ -116,7 +117,7 @@ bool EditorGameRenderer::render(const runtime::World &world,
   frame.viewportY = area.y;
   frame.viewportWidth = area.width;
   frame.viewportHeight = area.height;
-  frame.viewId = 8;
+  frame.viewId = EditorGameFirstView;
   frame.frameBuffer = target_->frameBuffer;
   frame.camera.renderHudToTarget = true;
   const auto cameras = runtime::renderCameras3D(world);

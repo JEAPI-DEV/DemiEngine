@@ -142,10 +142,10 @@
 
 <h2>Children versus <code>parent</code></h2>
 <p>Inside a prefab, organize entities with the <code>children</code> array whenever they share the same kind of transform and form one visual unit. The body/shadow example above does this: the shadow follows the body automatically, and no field has to name anyone.</p>
-<p>An explicit <code>parent</code> field is for links nesting cannot express — most often pointing one entity at an entity in another prefab or another domain (for example, a 2D interface element that follows a 3D object). Rules of thumb:</p>
+<p>An explicit transform <code>parent</code> field is for spatial links nesting cannot express, such as a relationship across prefab or scene source boundaries. Parent and child transforms must use a compatible spatial domain. Rules of thumb:</p>
 <ul>
   <li>Same-domain, visually attached parts → <code>children</code>.</li>
-  <li>Cross-prefab or cross-domain relationships → explicit <code>parent</code>, referring to the other entity's stable ID.</li>
+  <li>Cross-prefab or cross-scene spatial relationships → explicit <code>parent</code>, referring to the other entity's stable ID.</li>
 </ul>
 <p>Keeping ordinary relationships in <code>children</code> keeps documents readable and local: you see the whole unit in one block instead of hunting for IDs.</p>
 

@@ -4,6 +4,8 @@
 #include "demi/runtime/scene/components/RuntimeFieldBinding.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 
+#include <limits>
+
 namespace demi::runtime {
 
 struct Environment3DComponent {
@@ -11,36 +13,153 @@ struct Environment3DComponent {
   static constexpr bool exposedToLua = false;
   static constexpr ComponentDomain domain = ComponentDomain::ThreeDimensional;
   static constexpr std::array msaaOptions{0,2,4,8,16};
+  static constexpr std::array shadowCascadeOptions{1, 2, 3, 4};
+  static constexpr std::array<std::string_view, 2> shadowFilterOptions{"hard",
+                                                                       "pcf"};
   static constexpr std::array fields{
-      ComponentFieldDescriptor{"msaa_samples",ComponentFieldType::Integer,false,true,{},0,true,false,true,true,false,16,true}
+      ComponentFieldDescriptor{"msaa_samples",
+                               ComponentFieldType::Integer,
+                               false,
+                               true,
+                               {},
+                               0,
+                               true,
+                               false,
+                               true,
+                               true,
+                               false,
+                               16,
+                               true}
           .withIntegerChoices(msaaOptions)
-          .withHelp("3D edge anti-aliasing: 0 off, 2, 4 (default), 8 or 16 samples. Device support may lower the request."),
-      ComponentFieldDescriptor{"relief_cache_meshes", ComponentFieldType::Integer, false, true, {}, 0, true},
-      ComponentFieldDescriptor{"relief_image_cache_mb", ComponentFieldType::Integer, false, true, {}, 0, true},
+          .withHelp("3D edge anti-aliasing: 0 off, 2, 4 (default), 8 or 16 "
+                    "samples. Device support may lower the request."),
+      ComponentFieldDescriptor{"relief_cache_meshes",
+                               ComponentFieldType::Integer,
+                               false,
+                               true,
+                               {},
+                               0,
+                               true},
+      ComponentFieldDescriptor{"relief_image_cache_mb",
+                               ComponentFieldType::Integer,
+                               false,
+                               true,
+                               {},
+                               0,
+                               true},
       ComponentFieldDescriptor::assetReference("sky_texture"),
       ComponentFieldDescriptor{"ambient_color", ComponentFieldType::Color},
-      ComponentFieldDescriptor{"ambient_intensity", ComponentFieldType::Number,
-                               false, true, {}, 0.0, true},
+      ComponentFieldDescriptor{"ambient_intensity",
+                               ComponentFieldType::Number,
+                               false,
+                               true,
+                               {},
+                               0.0,
+                               true},
       ComponentFieldDescriptor{"fog_color", ComponentFieldType::Color},
-      ComponentFieldDescriptor{"fog_start", ComponentFieldType::Number, false,
-                               true, {}, 0.0, true},
-      ComponentFieldDescriptor{"fog_end", ComponentFieldType::Number, false,
-                               true, {}, 0.001, true},
-      ComponentFieldDescriptor{"shadow_distance", ComponentFieldType::Number,
-                               false, true, {}, 0.0, true}.withHelp("Shadow coverage radius in metres. Zero disables the pass."),
-      ComponentFieldDescriptor{"shadow_resolution", ComponentFieldType::Integer,
-                               false, true, {}, 1.0, true, false, true, true,
-                               false, 65535.0, true}.withHelp("Square map resolution. The rendering device's texture limits apply."),
+      ComponentFieldDescriptor{
+          "fog_start", ComponentFieldType::Number, false, true, {}, 0.0, true},
+      ComponentFieldDescriptor{
+          "fog_end", ComponentFieldType::Number, false, true, {}, 0.001, true},
+      ComponentFieldDescriptor{"shadow_distance",
+                               ComponentFieldType::Number,
+                               false,
+                               true,
+                               {},
+                               0.0,
+                               true,
+                               false,
+                               true,
+                               true,
+                               false,
+                               std::numeric_limits<float>::max(),
+                               true}
+          .withHelp("Maximum camera-view depth in metres for shadow receivers. "
+                    "Zero disables shadows."),
+      ComponentFieldDescriptor{"shadow_resolution",
+                               ComponentFieldType::Integer,
+                               false,
+                               true,
+                               {},
+                               1.0,
+                               true,
+                               false,
+                               true,
+                               true,
+                               false,
+                               65535.0,
+                               true}
+          .withHelp("Square map resolution per cascade. The rendering "
+                    "device's texture limits apply."),
+      ComponentFieldDescriptor{"shadow_cascades", ComponentFieldType::Integer}
+          .withIntegerChoices(shadowCascadeOptions)
+          .withHelp("Directional shadow quality: 1 to 4 cascades. The current "
+                    "shader has four cascade slots."),
+      ComponentFieldDescriptor{"shadow_split_lambda",
+                               ComponentFieldType::Number,
+                               false,
+                               true,
+                               {},
+                               0.0,
+                               true,
+                               false,
+                               true,
+                               true,
+                               false,
+                               1.0,
+                               true}
+          .withHelp("Cascade split balance: 0 uniform, 1 logarithmic."),
+      ComponentFieldDescriptor{"shadow_blend",
+                               ComponentFieldType::Number,
+                               false,
+                               true,
+                               {},
+                               0.0,
+                               true,
+                               false,
+                               true,
+                               true,
+                               false,
+                               1.0,
+                               true}
+          .withHelp("Cascade transition blend fraction, from 0 to 1."),
+      ComponentFieldDescriptor{"shadow_filter", ComponentFieldType::String,
+                               false, true, shadowFilterOptions}
+          .withHelp("Shadow sampling: hard or PCF filtered."),
       [] {
-        auto field=ComponentFieldDescriptor{"shadow_bias", ComponentFieldType::Number, false, true, {}, 0, true};
+        auto field = ComponentFieldDescriptor{"shadow_bias",
+                                              ComponentFieldType::Number,
+                                              false,
+                                              true,
+                                              {},
+                                              0,
+                                              true,
+                                              false,
+                                              true,
+                                              true,
+                                              false,
+                                              std::numeric_limits<float>::max(),
+                                              true};
         field.editor.help="Depth offset in metres. Large values detach shadows from their casters.";
         field.editor.numericStep=.001;
         return field;
       }(),
       ComponentFieldDescriptor{"max_shadow_lights",
-                               ComponentFieldType::Integer, false, true, {},
-                               0.0, true, false, true, true, false, 2147483647.0,
-                               true}.withHelp("Zero disables shadows. The current renderer supports one directional shadow map per camera.")};
+                               ComponentFieldType::Integer,
+                               false,
+                               true,
+                               {},
+                               0.0,
+                               true,
+                               false,
+                               true,
+                               true,
+                               false,
+                               2147483647.0,
+                               true}
+          .withHelp("Maximum directional lights casting shadows. Zero disables "
+                    "shadows; the current renderer supports one directional "
+                    "light per camera.")};
   static constexpr ComponentEditorMetadata editor{"Lighting",
                                                   "3D Environment"};
   static void parse(const nlohmann::json &json, Entity &entity);
@@ -59,7 +178,11 @@ struct Environment3DComponent {
   float fogEnd = 220.0F;
   float shadowDistance = 80.0F;
   int shadowResolution = 1024;
-  float shadowBias = .02F;
+  int shadowCascades = 4;
+  float shadowSplitLambda = .85F;
+  float shadowBlend = .1F;
+  std::string shadowFilter = "pcf";
+  float shadowBias = .005F;
   int maxShadowLights = 1;
   static constexpr std::array runtimeFields{
       RuntimeFieldBinding<Environment3DComponent>::member<
@@ -78,14 +201,22 @@ struct Environment3DComponent {
       RuntimeFieldBinding<Environment3DComponent>::member<
           &Environment3DComponent::fogColor>("fog_color"),
       RuntimeFieldBinding<Environment3DComponent>::memberWithDerived<
-          &Environment3DComponent::fogStart,
-          &Environment3DComponent::fogEnd>("fog_start"),
+          &Environment3DComponent::fogStart, &Environment3DComponent::fogEnd>(
+          "fog_start"),
       RuntimeFieldBinding<Environment3DComponent>::member<
           &Environment3DComponent::fogEnd>("fog_end"),
       RuntimeFieldBinding<Environment3DComponent>::member<
           &Environment3DComponent::shadowDistance>("shadow_distance"),
       RuntimeFieldBinding<Environment3DComponent>::member<
           &Environment3DComponent::shadowResolution>("shadow_resolution"),
+      RuntimeFieldBinding<Environment3DComponent>::member<
+          &Environment3DComponent::shadowCascades>("shadow_cascades"),
+      RuntimeFieldBinding<Environment3DComponent>::member<
+          &Environment3DComponent::shadowSplitLambda>("shadow_split_lambda"),
+      RuntimeFieldBinding<Environment3DComponent>::member<
+          &Environment3DComponent::shadowBlend>("shadow_blend"),
+      RuntimeFieldBinding<Environment3DComponent>::member<
+          &Environment3DComponent::shadowFilter>("shadow_filter"),
       RuntimeFieldBinding<Environment3DComponent>::member<
           &Environment3DComponent::shadowBias>("shadow_bias"),
       RuntimeFieldBinding<Environment3DComponent>::member<

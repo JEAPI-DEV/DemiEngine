@@ -5,24 +5,34 @@
 <p>An asset is a file the game needs at runtime — a Skyforge texture, a music track, a font. Loading is <strong>non-blocking</strong>: you ask, the engine works through stages in the background, and you poll until the asset is ready. That keeps a frame budget intact while a level fills in.</p>
 <pre><code>local Assets = require("demi.assets")
 
-local request = Assets.load("asset://music/skyforge_theme")</code></pre>
-<p><code>Assets.load(uri)</code> takes an <code>asset://</code> URI (or an <code>asset-group://</code> batch) and starts loading. It returns the integer <strong>request ID</strong> plus an error string (empty on success) — readiness is queried with that ID, not by the call itself. Keep the request ID; every poll below takes it.</p>
+local request, err = Assets.load("asset://music/skyforge_theme")
+if not request or request == 0 then error(err) end</code></pre>
+<p><code>Assets.load(uri)</code> takes an <code>asset://</code> URI (or an <code>asset-group://</code> batch) and starts loading. It returns the integer <strong>request ID</strong> plus an error string (empty on success). Check the ID before polling; every poll below takes it.</p>
 
 <h2>Load stages and readiness</h2>
 <p>Every request moves through named stages: <code>resolve</code> → <code>read</code> → <code>decode</code> → <code>upload</code> → <code>ready</code>. It can also end in <code>failed</code> or <code>cancelled</code>.</p>
 <pre><code>local Assets = require("demi.assets")
+local Audio = require("demi.audio")
+local Game = {}
 
-local request = Assets.load("asset://music/skyforge_theme")
+local request, err = Assets.load("asset://music/skyforge_theme")
+if not request or request == 0 then error(err) end
+local started = false
 
 function Game:on_update()
     if Assets.is_ready(request) then
-        Audio.play("asset://music/skyforge_theme")
+        if not started then
+            Audio.play("asset://music/skyforge_theme", { bus = "music", loop = true })
+            started = true
+        end
     else
         local p = Assets.progress(request)
         -- p.stage: the named stage above; p.fraction: number 0 … 1
         -- p.completed_assets / p.total_assets for batches
     end
-end</code></pre>
+end
+
+return Game</code></pre>
 <ul>
   <li><code>Assets.is_ready(request)</code> → boolean, <code>true</code> when the asset is resident and usable.</li>
   <li><code>Assets.progress(request)</code> → progress table: <code>stage</code>, <code>fraction</code> (0…1), <code>completed_assets</code>, <code>total_assets</code>, byte totals, and an <code>error</code> string.</li>
@@ -52,7 +62,7 @@ local report = Assets.memory_report()
     <tr><td><code>Assets.memory_report()</code></td><td>Nothing</td><td>Report table with pending/decoded/resident byte totals and per-asset entries</td></tr>
   </tbody>
 </table>
-<p><code>Assets.text</code> returns a single <code>nil</code> for “nothing to hand you” — missing URI, wrong kind, not loaded. That is different from an empty string, which means “loaded and blank”. For batched level streaming see <a href="{{ path('docs_page', {slug: 'asset-groups'}) }}">Asset groups &amp; streaming</a>.</p>
+<p><code>Assets.text</code> returns <code>nil</code> and an error string for a missing URI, wrong kind, or unloaded text asset. An empty string means “loaded and blank”. For batched level streaming see <a href="{{ path('docs_page', {slug: 'asset-groups'}) }}">Asset groups &amp; streaming</a>.</p>
 
 <h2>What the clock is</h2>
 <p><code>demi.time</code> is a table of plain fields plus a few calls. All values are in <strong>seconds</strong>. Read the fields directly; there are no getters for them.</p>
@@ -91,6 +101,7 @@ print(Time.get_scale())      -- 0.3</code></pre>
 <h2>Timers</h2>
 <p>Timers run a function later or repeatedly. Each scheduling call returns an integer timer ID you can cancel. Keep the ID if you may want to stop the timer; pass it back to <code>Timer.cancel</code>, do not read fields off it.</p>
 <pre><code>local Timer = require("demi.timer")
+local Debug = require("demi.debug")
 
 Timer.delay(1.5, function()
     Debug.log("Skyforge: intro beat")

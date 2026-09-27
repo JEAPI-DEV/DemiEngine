@@ -10,8 +10,16 @@ the actual capability matrix rather than implying Unity-scale 3D features.
 - Inspect `git status`, the relevant diff, and recent commits before editing.
   The worktree may contain valuable user changes. Never overwrite, reformat,
   or remove unrelated work.
-- Read the relevant document under `docs/` and the active section of `plan.md`.
+- Read the relevant current website documentation under
+  `tools/package-store/templates/docs/content/`, the internal records indexed
+  in `docs/README.md`, and the active section of `plan.md`.
   Update maintained documentation when a public workflow or contract changes.
+- The website documentation is authoritative for new public feature and
+  authoring guidance. Update its page template, and register new pages in
+  `tools/package-store/src/Docs.php`. Keep `docs/` for internal architecture,
+  decisions, benchmark and qualification evidence, and older guides awaiting
+  verified migration. Do not delete a guide until its unique content has a
+  maintained home and its incoming links have been updated.
 - Treat examples as executable engine probes. A repeated example workaround is
   evidence that a reusable engine, schema, editor, or Lua API is missing.
 - Prefer convention over configuration, but do not hide durable identity,
@@ -184,7 +192,8 @@ not advertise invented defaults. Keep editor initial-value scaffolds separate.
   `Input.value`, and normalized `Input.vector`. Use `Input.raw_vector` only when
   unnormalized action values are intended, and `Input.key_*` for raw key queries.
   Removed `is_*` and `action_*` aliases must not be reintroduced.
-- `Input.axis(negative, positive)` returns positive minus negative.
+- Use a named `axis1d` action and `Input.value` for signed input; do not invent
+  an `Input.axis` API that the runtime does not expose.
 - Use `@demi_component` and assignment-based `@demi_property` annotations for
   editor-visible game-specific behavior. Display name, category, description,
   and most property metadata are optional and inferred. Do not add a second

@@ -65,6 +65,7 @@
 <p>Below is one complete Skyforge player controller using every action type. Read the comments as the contract for each call.</p>
 <pre><code>local Input = require("demi.input")
 local Transform2D = require("demi.transform2d")
+local Player = {}
 
 function Player:on_create()
     self.speed = 220
@@ -73,15 +74,15 @@ end
 function Player:on_update(dt)
     -- button timing: true on one frame each
     if Input.pressed("jump") then
-        self:start_jump()
+        -- start the game's jump action
     end
     if Input.released("fire") then
-        self:cooldown()
+        -- finish the game's fire action
     end
 
     -- button state: true every frame while held
     if Input.down("fire") then
-        self:shoot()
+        -- continue the game's fire action
     end
 
     -- axis1d: one number
@@ -93,11 +94,15 @@ function Player:on_update(dt)
     -- unclamped variant when speed should scale with tilt
     local rx, ry = Input.raw_vector("move")
 
-    local pos = Transform2D.position(self.entity)
-    Transform2D.set_position(self.entity,
-        pos.x + x * self.speed * throttle * dt,
-        pos.y + y * self.speed * throttle * dt)
-end</code></pre>
+    local px, py = Transform2D.get_position(self.id)
+    if px ~= nil then
+        Transform2D.set_position(self.id,
+            px + x * self.speed * throttle * dt,
+            py + y * self.speed * throttle * dt)
+    end
+end
+
+return Player</code></pre>
 <ul>
   <li><code>require("demi.input")</code> imports the input service; nothing is global.</li>
   <li><code>Input.pressed("jump")</code> returns <code>true</code> only on the frame the action went down, else <code>false</code>.</li>

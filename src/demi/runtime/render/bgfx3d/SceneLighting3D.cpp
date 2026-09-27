@@ -36,6 +36,10 @@ SceneLighting3D collectSceneLighting3D(const World &world,
       lighting.reliefImageCacheBytes=environment->reliefImageCacheBytes;
       lighting.shadowDistance=environment->shadowDistance;
       lighting.shadowResolution=environment->shadowResolution;
+      lighting.shadowCascades = environment->shadowCascades;
+      lighting.shadowSplitLambda = environment->shadowSplitLambda;
+      lighting.shadowBlend = environment->shadowBlend;
+      lighting.shadowFilter = environment->shadowFilter;
       lighting.shadowBias=environment->shadowBias;
       lighting.shadowBudget=environment->maxShadowLights;
       lighting.ambient = {

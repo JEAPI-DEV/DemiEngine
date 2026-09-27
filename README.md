@@ -76,8 +76,8 @@ release. See the [compatibility policy](docs/compatibility.md).
 - FFmpeg-backed video and cutscene playback when media support is enabled.
 
 The precise support level of each subsystem is tracked in the
-[capability matrix](docs/capabilities.md). Do not infer production support from
-an example alone.
+[capability matrix](https://demiengine.de/docs/capabilities). Do not infer
+production support from an example alone.
 
 ## Quick Editor Look
 
@@ -188,7 +188,7 @@ Stubs are IDE metadata; the runtime never loads them. See
 
 Use `@demi_component` and assignment-based `@demi_property` annotations for
 editor-visible behavior, defaults, ranges, and references. Scene and prefab
-`LuaScript.properties` contain the overrides. See [script properties](docs/script-properties.md).
+`LuaScript.properties` contain the overrides. See [script properties](https://demiengine.de/docs/script-properties).
 
 Gameplay should depend on services such as `Entity`, `Transform2D`,
 `Transform3D`, `Input`, `Physics2D`, `Physics3D`, `HUD`, `Data`, `Save`,
@@ -498,36 +498,17 @@ See [architecture](docs/architecture.md) for more detail.
 
 ## Documentation
 
-- [Getting started](docs/getting-started.md)
-- [Capability matrix](docs/capabilities.md)
-- [Architecture](docs/architecture.md)
-- [Editor](docs/editor.md)
-- [CLI reference](docs/cli.md)
-- [File formats](docs/file-formats.md)
-- [Explicit Lua modules and modular stubs](docs/lua-modules.md)
-- [Script properties and editor annotations](docs/script-properties.md)
-- [Data assets](docs/data-assets.md)
-- [Networking](docs/networking.md)
-- [HTTP/HTTPS and REST APIs](docs/http.md)
-- [Legacy APIs](docs/legacy-apis.md)
-- [First-party gameplay packages](packages/README.md)
-- [Asset streaming and package content](docs/asset-streaming.md)
-- [Package store and publishing](tools/package-store/README.md)
-- [Rendering, panorama skies, and effects](docs/rendering-and-effects.md)
-- [3D gameplay](docs/3d-gameplay.md)
-- [Collider assets](docs/collider-assets.md)
-- [GPU skinning](docs/3d-gpu-skinning.md)
-- [3D scaling qualification](docs/3d-milestone-2-qualification.md)
-- [Mesh denting](docs/mesh-denting.md)
-- [Fracture authoring](docs/fracture-authoring.md)
-- [Destruction runtime](docs/3d-destruction-runtime.md)
-- [Spatial impacts](docs/3d-spatial-impacts.md)
-- [Streamed masonry and destruction saves](docs/streamed-destruction.md)
-- [Linux/Android shipping](docs/shipping.md)
-- [Capability and compatibility gates](docs/capability-gates.md)
-- [Compatibility policy](docs/compatibility.md)
-- [bgfx migration and renderer status](docs/bgfx-migration.md)
-- [Development roadmap](plan.md)
+The [website documentation](https://demiengine.de/docs) is the maintained
+game-authoring guide. Start with [getting started](https://demiengine.de/docs/getting-started),
+then use the [CLI reference](https://demiengine.de/docs/cli),
+[editor guide](https://demiengine.de/docs/editor), and
+[core concepts](https://demiengine.de/docs/core-concepts).
+
+The [repository docs index](docs/README.md) separates internal architecture,
+decisions, and measured qualification evidence from older guides still being
+audited for website coverage. See also [first-party gameplay packages](packages/README.md),
+[package store development](tools/package-store/README.md), and the
+[development roadmap](plan.md).
 
 ## Repository Rules
 

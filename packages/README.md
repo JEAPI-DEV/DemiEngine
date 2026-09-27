@@ -30,7 +30,7 @@ and streaming policy around the engine's native fracture components.
 Native services such as `demi.input` and `demi.physics.rigidbody3d` already ship
 with the engine and do not need a package install. Package names identify an
 installable unit; `public_modules` in its manifest lists the Lua imports it
-exports. See [engine concepts](../docs/engine-concepts.md) for the distinction.
+exports. See [core concepts](https://demiengine.de/docs/core-concepts) for the distinction.
 
 | Package | Responsibility |
 |---|---|

@@ -20,11 +20,26 @@ bool Environment3DComponent::serializeField(
 
 nlohmann::json Environment3DComponent::defaults() {
   const Environment3DComponent c;
-  return {{"msaa_samples",c.msaaSamples},{"sky_texture",c.skyTexture},{"ambient_color",{c.ambientColor.r,c.ambientColor.g,c.ambientColor.b,c.ambientColor.a}},
-    {"ambient_intensity",c.ambientIntensity},{"fog_color",{c.fogColor.r,c.fogColor.g,c.fogColor.b,c.fogColor.a}},
-    {"fog_start",c.fogStart},{"fog_end",c.fogEnd},{"shadow_distance",c.shadowDistance},
-    {"shadow_resolution",c.shadowResolution},{"shadow_bias",c.shadowBias},{"max_shadow_lights",c.maxShadowLights},
-    {"relief_cache_meshes",c.reliefCacheMeshes},{"relief_image_cache_mb",c.reliefImageCacheBytes/(1024U*1024U)}};
+  return {
+      {"msaa_samples", c.msaaSamples},
+      {"sky_texture", c.skyTexture},
+      {"ambient_color",
+       {c.ambientColor.r, c.ambientColor.g, c.ambientColor.b,
+        c.ambientColor.a}},
+      {"ambient_intensity", c.ambientIntensity},
+      {"fog_color", {c.fogColor.r, c.fogColor.g, c.fogColor.b, c.fogColor.a}},
+      {"fog_start", c.fogStart},
+      {"fog_end", c.fogEnd},
+      {"shadow_distance", c.shadowDistance},
+      {"shadow_resolution", c.shadowResolution},
+      {"shadow_cascades", c.shadowCascades},
+      {"shadow_split_lambda", c.shadowSplitLambda},
+      {"shadow_blend", c.shadowBlend},
+      {"shadow_filter", c.shadowFilter},
+      {"shadow_bias", c.shadowBias},
+      {"max_shadow_lights", c.maxShadowLights},
+      {"relief_cache_meshes", c.reliefCacheMeshes},
+      {"relief_image_cache_mb", c.reliefImageCacheBytes / (1024U * 1024U)}};
 }
 void Environment3DComponent::parse(const nlohmann::json &json,
                                    Entity &entity) {
@@ -52,18 +67,52 @@ void Environment3DComponent::parse(const nlohmann::json &json,
   component.fogEnd =
       std::max(scene_loading::numberField(json, "fog_end").value_or(220.0F),
                component.fogStart + 0.001F);
-  component.shadowDistance = std::max(
-      scene_loading::numberField(json, "shadow_distance").value_or(80.0F),
-      0.0F);
-  const double resolution=json.value("shadow_resolution",1024.0);
-  const double budget=json.value("max_shadow_lights",1.0);
-  component.shadowBias=json.value("shadow_bias",.02F);
-  if(!std::isfinite(resolution) || resolution<1 || resolution>65535 || std::floor(resolution)!=resolution ||
-     !std::isfinite(component.shadowDistance*8.F) || !std::isfinite(component.shadowBias) || component.shadowBias<0 ||
-     !std::isfinite(budget) || budget<0 || budget>INT32_MAX || std::floor(budget)!=budget)
-    throw std::invalid_argument("Invalid shadow resolution, distance, bias or light budget");
-  component.shadowResolution=int(resolution);
-  component.maxShadowLights=int(budget);
+  const double distance = json.value("shadow_distance", 80.0);
+  const double resolution = json.value("shadow_resolution", 1024.0);
+  const double cascades = json.value("shadow_cascades", 4.0);
+  const double splitLambda = json.value("shadow_split_lambda", 0.85);
+  const double blend = json.value("shadow_blend", 0.1);
+  component.shadowFilter = json.value("shadow_filter", std::string{"pcf"});
+  const double bias = json.value("shadow_bias", 0.005);
+  const double budget = json.value("max_shadow_lights", 1.0);
+  if (!std::isfinite(distance) || distance < 0 ||
+      distance > std::numeric_limits<float>::max())
+    throw std::invalid_argument("Environment3D.shadow_distance must be a "
+                                "nonnegative finite distance in metres");
+  if (!std::isfinite(resolution) || resolution < 1 || resolution > 65535 ||
+      std::floor(resolution) != resolution)
+    throw std::invalid_argument(
+        "Environment3D.shadow_resolution must be an integer from 1 to 65535");
+  if (std::ranges::none_of(shadowCascadeOptions, [cascades](int option) {
+        return cascades == option;
+      }))
+    throw std::invalid_argument(
+        "Environment3D.shadow_cascades must be an integer from 1 to 4");
+  if (!std::isfinite(splitLambda) || splitLambda < 0 || splitLambda > 1)
+    throw std::invalid_argument(
+        "Environment3D.shadow_split_lambda must be between 0 and 1");
+  if (!std::isfinite(blend) || blend < 0 || blend > 1)
+    throw std::invalid_argument(
+        "Environment3D.shadow_blend must be between 0 and 1");
+  if (std::ranges::find(shadowFilterOptions, component.shadowFilter) ==
+      shadowFilterOptions.end())
+    throw std::invalid_argument(
+        "Environment3D.shadow_filter must be hard or pcf");
+  if (!std::isfinite(bias) || bias < 0 ||
+      bias > std::numeric_limits<float>::max())
+    throw std::invalid_argument("Environment3D.shadow_bias must be a "
+                                "nonnegative finite distance in metres");
+  if (!std::isfinite(budget) || budget < 0 || budget > INT32_MAX ||
+      std::floor(budget) != budget)
+    throw std::invalid_argument(
+        "Environment3D.max_shadow_lights must be a nonnegative 32-bit integer");
+  component.shadowDistance = static_cast<float>(distance);
+  component.shadowResolution = static_cast<int>(resolution);
+  component.shadowCascades = static_cast<int>(cascades);
+  component.shadowSplitLambda = static_cast<float>(splitLambda);
+  component.shadowBlend = static_cast<float>(blend);
+  component.shadowBias = static_cast<float>(bias);
+  component.maxShadowLights = static_cast<int>(budget);
   entity.setComponent(std::move(component));
 }
 } // namespace demi::runtime

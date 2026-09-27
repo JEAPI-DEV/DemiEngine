@@ -6,6 +6,7 @@
 #include "demi/runtime/scene/model/SceneTypes.h"
 
 #include <imgui.h>
+#include <imgui_internal.h>
 
 #ifdef NDEBUG
 #undef NDEBUG
@@ -49,13 +50,14 @@ int main() {
   // without a desktop window or the editor's document/renderer machinery.
   io.AddKeyEvent(ImGuiKey_LeftShift, false);
   ImVec2 addButton;
+  demi::editor::StructuredValueState structuredState;
   const auto draw = [&](nlohmann::json &value, int width, bool readOnly) {
     ImGui::NewFrame();
     ImGui::SetNextWindowPos({0,0});
     ImGui::SetNextWindowSize({640,480});
     ImGui::Begin("Structured input", nullptr, ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoTitleBar);
     ImGui::SetNextItemOpen(true, ImGuiCond_Always);
-    const auto edit = demi::editor::drawStructuredValue(value,width,readOnly);
+    const auto edit = demi::editor::drawStructuredValue(value,structuredState,width,readOnly);
     const auto a=ImGui::GetItemRectMin(), b=ImGui::GetItemRectMax();
     addButton={(a.x+b.x)/2,(a.y+b.y)/2};
     ImGui::End();
@@ -67,6 +69,12 @@ int main() {
   io.AddMousePosEvent(addButton.x,addButton.y);
   io.AddMouseButtonEvent(0,true); draw(vectors,2,false);
   io.AddMouseButtonEvent(0,false);
+  draw(vectors,2,false);
+  draw(vectors,2,false);
+  assert(!ImGui::GetCurrentContext()->OpenPopupStack.empty());
+  auto *popup = ImGui::GetCurrentContext()->OpenPopupStack.back().Window;
+  assert(popup);
+  ImGui::ActivateItemByID(popup->GetID("Add"));
   assert(draw(vectors,2,false).changed);
   assert(vectors==nlohmann::json::array({{0,0}}));
   io.AddMousePosEvent(addButton.x,addButton.y);
@@ -78,6 +86,15 @@ int main() {
   io.AddMousePosEvent(addButton.x,addButton.y);
   io.AddMouseButtonEvent(0,true); draw(object,0,false);
   io.AddMouseButtonEvent(0,false);
+  draw(object,0,false);
+  draw(object,0,false);
+  assert(!ImGui::GetCurrentContext()->OpenPopupStack.empty());
+  structuredState.type = 6;
+  io.AddInputCharactersUTF8("new_field");
+  draw(object,0,false);
+  popup = ImGui::GetCurrentContext()->OpenPopupStack.back().Window;
+  assert(popup);
+  ImGui::ActivateItemByID(popup->GetID("Add"));
   assert(draw(object,0,false).changed);
   assert(object.contains("new_field") && object["new_field"].is_null());
   {

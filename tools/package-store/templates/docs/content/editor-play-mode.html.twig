@@ -13,12 +13,13 @@
 <h2>Entering and leaving play</h2>
 <p>Play mode is a toggle in the editor workspace (see <a href="{{ path('docs_page', {slug: 'editor-workspace'}) }}">Workspace &amp; panels</a>):</p>
 <ol>
-  <li>Open the scene (or HUD) you want to try.</li>
+  <li>Open the registered scene you want to try.</li>
   <li>Start play. The editor builds an isolated runtime world from the current document and begins executing scripts and simulation.</li>
   <li>Interact in the viewport with keyboard, mouse, gamepad, or virtual controls — the same input actions your shipped game uses.</li>
   <li>Stop play. The runtime world is discarded; the authored document is unchanged.</li>
 </ol>
 <p>Edits made while playing do not write through to the source document. Stop play, make the edit in authoring mode, and start play again to test the new state.</p>
+<p>Click Game View to focus gameplay input. <strong>Ctrl+D</strong> releases mouse capture and detaches game input so you can use the editor again; click Game View to resume. Switching away or losing window focus also releases capture. The runtime Inspector remains read-only while Play is active.</p>
 
 <h2>What runs during play</h2>
 <p>Play mode is the real runtime, not a preview approximation:</p>

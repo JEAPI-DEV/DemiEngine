@@ -17,7 +17,8 @@ public:
   void clearTargets();
   bool prepare(const SceneLighting3D &, const BgfxCameraFrame3D &,
                std::string &error);
-  const std::optional<BgfxCameraFrame3D> &depthFrame() const { return frame_; }
+  std::span<const BgfxCameraFrame3D> depthFrames() const { return frames_; }
+  void cast(std::size_t cascade);
   void receive();
   bool configureView2D(const View2DConfig &v, std::string &e) override {
     return commands_.configureView2D(v, e);
@@ -38,13 +39,15 @@ private:
   struct Target {
     RenderTargetHandles handles;
     int resolution = 0;
+    int cascades = 0;
   };
   std::map<std::string, Target> targets_;
-  TextureHandle fallback_, sampled_;
+  TextureHandle fallback_, sampled_, receiverTexture_;
   SamplerHandle sampler_;
-  std::array<UniformHandle, 4> uniforms_{};
-  std::array<std::array<float, 4>, 4> values_{};
-  std::optional<BgfxCameraFrame3D> frame_;
+  std::array<UniformHandle, 8> uniforms_{};
+  std::array<std::array<float, 16>, 4> cascadeValues_{};
+  std::array<std::array<float, 4>, 4> sharedValues_{};
+  std::vector<BgfxCameraFrame3D> frames_;
   std::vector<DrawUniformValue> drawUniforms_;
   std::vector<DrawTextureBinding> drawTextures_;
 };

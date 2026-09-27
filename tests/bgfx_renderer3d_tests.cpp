@@ -321,6 +321,7 @@ int main() {
 
   Entity sun;sun.id="shadow-sun";
   sun.setComponent(DirectionalLightComponent{.castsShadows=true});
+  sun.setComponent(Environment3DComponent{.shadowCascades = 1});
   world.entities.push_back(std::move(sun));
   capture.views3D.clear();capture.transformsByView.clear();capture.shadowTextures.clear();
   assert(renderer.renderFrame(world,frame,.016F,error));
@@ -361,7 +362,26 @@ int main() {
   world.entities.back().component<Environment3DComponent>()->shadowResolution=512;
   capture.views3D.clear();
   assert(renderer.renderFrame(world,frame,.016F,error));
-  assert(capture.views3D.size()==2 && capture.views3D[0].width==512);
+  assert(capture.views3D.size() == 5 && capture.views3D[0].width == 512);
+  const auto atlas = capture.views3D[0].frameBuffer;
+  for (int cascade = 0; cascade < 4; ++cascade) {
+    assert(capture.views3D[cascade].frameBuffer == atlas);
+    assert(capture.views3D[cascade].id == frame.viewId + cascade);
+    assert(capture.views3D[cascade].x == (cascade % 2) * 512);
+    assert(capture.views3D[cascade].y == (cascade / 2) * 512);
+    assert(capture.views3D[cascade].width == 512 &&
+           capture.views3D[cascade].height == 512);
+  }
+  assert(capture.views3D[4].id == frame.viewId + 4);
+  assert(capture.views3D[0].orthographicSize <
+         capture.views3D[3].orthographicSize);
+  static_cast<void>(graphics.endFrame());
+  world.entities.back().component<Environment3DComponent>()->shadowCascades = 3;
+  capture.views3D.clear();
+  assert(renderer.renderFrame(world, frame, .016F, error));
+  assert(capture.views3D.size() == 4);
+  assert(capture.views3D[2].x == 0 && capture.views3D[2].y == 512);
+  assert(capture.views3D[3].id == frame.viewId + 3);
   static_cast<void>(graphics.endFrame());
   world.entities.pop_back();
   world.entities.pop_back();

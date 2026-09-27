@@ -249,14 +249,23 @@ bool BgfxRenderer3D::renderFrame(const World &world,
   const auto lighting=frame.lightingOverride.value_or(collectSceneLighting3D(world,frame.camera.renderMask));
   if(!shadows_.prepare(lighting,frame,error))return false;
   auto mainFrame=frame;
-  if(shadows_.depthFrame()) {
+  std::size_t shadowBatches = 0;
+  const auto depthFrames = shadows_.depthFrames();
+  for (std::size_t cascade = 0; cascade < depthFrames.size(); ++cascade) {
     ProfileScope scope("Renderer3D.directional_shadow");
-    if(!renderView(world,*shadows_.depthFrame(),0,error,true))return false;
-    RuntimeProfiler::setGauge("Renderer3D.shadow_batches",statistics_.batches);
+    shadows_.cast(cascade);
+    if (!renderView(world, depthFrames[cascade], 0, error, true))
+      return false;
+    shadowBatches += statistics_.batches;
     ++mainFrame.viewId;
-  } else RuntimeProfiler::setGauge("Renderer3D.shadow_batches",0);
+  }
+  RuntimeProfiler::setGauge("Renderer3D.shadow_batches", shadowBatches);
+  RuntimeProfiler::setGauge("Renderer3D.shadow_cascades", depthFrames.size());
   shadows_.receive();
-  return renderView(world,mainFrame,deltaSeconds,error,false);
+  const bool rendered =
+      renderView(world, mainFrame, deltaSeconds, error, false);
+  statistics_.shadowPasses = depthFrames.size();
+  return rendered;
 }
 
 bool BgfxRenderer3D::renderView(const World &world,const BgfxCameraFrame3D &frame,
@@ -351,8 +360,10 @@ bool BgfxRenderer3D::renderView(const World &world,const BgfxCameraFrame3D &fram
       !primitives_.begin(
           View3DConfig{
               .id = frame.viewId,
-              .x = offscreen ? std::uint16_t{0} : frame.viewportX,
-              .y = offscreen ? std::uint16_t{0} : frame.viewportY,
+              .x =
+                  offscreen && !shadowPass ? std::uint16_t{0} : frame.viewportX,
+              .y =
+                  offscreen && !shadowPass ? std::uint16_t{0} : frame.viewportY,
               .width = std::max<std::uint16_t>(renderWidth, 1),
               .height = std::max<std::uint16_t>(renderHeight, 1),
               .clearRgba = packClearColorRgba8(frame.camera.clearColor),

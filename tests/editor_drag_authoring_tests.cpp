@@ -120,6 +120,9 @@ void checkAssetsBackgroundDrop(EditorWorkspace &workspace,
   ImGuiWindow *dialog = ImGui::FindWindowByName("New document");
   require(dialog != nullptr && dialog->Active,
           "Entity drop did not open the prefab naming dialog");
+  // Let the newly opened dialog's name-field focus request settle before
+  // activating another widget through keyboard navigation.
+  renderFrame(drawAssets);
   ImGui::ActivateItemByID(dialog->GetID("Create prefab copy"));
   renderFrame(drawAssets);
 
