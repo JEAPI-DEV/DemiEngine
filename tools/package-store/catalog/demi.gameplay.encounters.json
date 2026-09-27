@@ -1,7 +1,7 @@
 {
   "format_version": 1,
   "title": "Encounter Director",
-  "description": "Build encounters from waves and objectives, with explicit spawn failure handling. Keep encounter state independent from rendering.",
+  "description": "Schedule wave spawn callbacks, track live IDs and report completion or objective failure. Games supply the spawn callback and wave clock.",
   "publisher": "DemiEngine",
   "license": "BSD-3-Clause",
   "kind": "code",

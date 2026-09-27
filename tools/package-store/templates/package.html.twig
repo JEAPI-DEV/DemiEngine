@@ -1,4 +1,5 @@
 {% extends 'base.html.twig' %}
+{% block styles %}<link rel="stylesheet" href="/readme.css?v=1">{% endblock %}
 {% macro files(node) %}
 <ul class="file-tree">
 {% for name, directory in node.directories %}<li><details open><summary><span aria-hidden="true">▱</span> {{ name }}</summary>{{ _self.files(directory) }}</details></li>{% endfor %}
@@ -20,9 +21,11 @@
 </nav>
 <section class="description tab-content">
 {% if tab == 'overview' %}
-<h2>About this package</h2><p>{{ package.description }}</p>
+<h2>About this package</h2>
+{% if readme %}<article class="package-readme" aria-label="Package README">{{ readme|raw }}</article>
+{% else %}<p>{{ package.description }}</p>{% endif %}
 {% if package.tags %}<h3>Tags</h3><div class="tag-links">{% for tag in package.tags %}<a href="{{ path('catalog', {tag:tag}) }}">{{ tag }}</a>{% endfor %}</div>{% endif %}
-<h3>Dependencies</h3>{% for name, constraint in package.manifest.dependencies %}<p><a href="{{ path('package', {name:name}) }}">{{ name }}</a> <code>{{ constraint }}</code></p>{% else %}<p>No additional package dependencies.</p>{% endfor %}
+<h3>Dependencies</h3>{% for name, constraint in dependencies %}<p><a href="{{ path('package', {name:name}) }}">{{ name }}</a> <code>{{ constraint }}</code></p>{% else %}<p>No additional package dependencies.</p>{% endfor %}
 {% if related %}<h3>Related packages</h3><div class="related">{% for item in related %}<a href="{{ path('package', {name:item.manifest.name}) }}"><strong>{{ item.title }}</strong><span>{{ item.category }} · Free ↗</span></a>{% endfor %}</div>{% endif %}
 {% elseif tab == 'content' %}
 <h2>Package Content <span class="file-count">{{ package.manifest.files|length }} files</span></h2>

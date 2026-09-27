@@ -1,7 +1,7 @@
 {
   "format_version": 1,
   "title": "Camera Toolkit",
-  "description": "Follow targets with look-ahead, camera zones and timed screen shake. Stable zone selection keeps overlapping camera regions predictable.",
+  "description": "Compute a 2D follow position with velocity look-ahead, rectangular zones and optional shake. Games apply the returned pose to their camera.",
   "publisher": "DemiEngine",
   "license": "BSD-3-Clause",
   "kind": "code",

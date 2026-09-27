@@ -19,7 +19,7 @@
       "Rigidbody3D": { "body_type": "static" }
     } },
     { "id": "crowd", "components": {
-      "LuaScript": { "module": "script://scripts/crowd.lua", "properties": { "count": 64 } }
+      "LuaScript": { "module": "script://scripts/crowd.lua", "properties": { "count": 1024 } }
     } }
   ]
 }

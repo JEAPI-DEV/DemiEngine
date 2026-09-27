@@ -3,6 +3,7 @@ namespace App\Controller;
 
 use App\Catalog;
 use App\Licenses;
+use App\PackageReadme;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -56,7 +57,7 @@ final class StoreController extends AbstractController
     }
 
     #[Route('/packages/{name}', name: 'package', methods: ['GET'])]
-    public function detail(string $name, Request $request): Response
+    public function detail(string $name, Request $request, PackageReadme $readme): Response
     {
         $package = $this->catalog->find($name);
         if (!$package) { throw $this->createNotFoundException('Package not found.'); }
@@ -83,7 +84,9 @@ final class StoreController extends AbstractController
             count(array_intersect($b['tags'], $package['tags'])) <=> count(array_intersect($a['tags'], $package['tags'])));
         return $this->render('package.html.twig', [
             'package' => $package, 'releases' => $this->catalog->releases($name),
+            'dependencies' => (array) $package['manifest']['dependencies'],
             'tab' => $tab, 'tree' => $tree, 'related' => array_slice($related, 0, 3),
+            'readme' => $tab === 'overview' ? $readme->load($this->catalog->directory($package).'/package.demipkg') : null,
         ]);
     }
 

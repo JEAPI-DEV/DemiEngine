@@ -1,7 +1,7 @@
 {
   "format_version": 1,
   "title": "Projectiles & Weapons",
-  "description": "Weapon timing, hitscan queries and swept projectiles with pooling. A starting point for ranged combat systems.",
+  "description": "2D segment-based shots, pooled projectile state, immediate hitscan queries and a separate cooldown/ammo helper. Games provide the physics query callback.",
   "publisher": "DemiEngine",
   "license": "BSD-3-Clause",
   "kind": "code",

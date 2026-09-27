@@ -1,7 +1,7 @@
 {
   "format_version": 1,
   "title": "Third-Person Foundation",
-  "description": "Camera-relative movement, mouse orbit, stamina, directional rolls and melee attack phases. Includes tested invincibility and once-per-swing damage behavior.",
+  "description": "Third-person Lua helpers for camera-relative movement, stamina and rolls, mouse or lock-on orbit, and melee attack phases with one hit per target per swing.",
   "publisher": "DemiEngine",
   "license": "BSD-3-Clause",
   "kind": "code",

@@ -1,7 +1,7 @@
 {
   "format_version": 1,
   "title": "Inventory & Equipment",
-  "description": "Reusable item stacks and equipment state. Build inventory interactions around a focused gameplay module.",
+  "description": "Store item counts and equipment slots, with capacity limits on distinct items and event notifications for inventory changes.",
   "publisher": "DemiEngine",
   "license": "BSD-3-Clause",
   "kind": "code",

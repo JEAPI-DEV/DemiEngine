@@ -1,7 +1,7 @@
 {
   "format_version": 1,
   "title": "Multiplayer Lobby",
-  "description": "Ready states, teams and map selection for multiplayer lobbies. Works with the engine network session contract.",
+  "description": "Optional deterministic lobby, ready, team and map state above NetworkSession. Games declare message names in their network contract and provide an adapter.",
   "publisher": "DemiEngine",
   "license": "BSD-3-Clause",
   "kind": "code",

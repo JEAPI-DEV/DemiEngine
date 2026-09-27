@@ -1,7 +1,7 @@
 {
   "format_version": 1,
   "title": "Checkpoints",
-  "description": "Checkpoint and respawn state for traversing game worlds. Keep entrances and respawn data separate from level scripts.",
+  "description": "Store a current checkpoint and queue respawn or scene-entrance requests through caller-owned gameplay events. Save and restore checkpoint data separately from level scripts.",
   "publisher": "DemiEngine",
   "license": "BSD-3-Clause",
   "kind": "code",

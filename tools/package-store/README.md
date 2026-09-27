@@ -210,13 +210,40 @@ cache, run checks, and validate nginx -t. Keep prior releases for rollback.
 Back up /var/lib/demi-store/catalog separately; it is not part of the code release.
 Anonymous browsing requires no cookies, account, or checkout.
 
-## Verification
+## Package README previews
+
+After publishing, verify the uploaded content against the staging registry:
+
+```sh
+python3 tools/package-store/bin/verify-published.py /path/to/staging-registry
+```
+
+This checks each staged version's archive hash, catching stale uploads even when
+the website renders successfully. It does not publish or alter any packages.
+
+The Overview tab reads the README from the published version's archive, not
+from the repository checkout. Include it in the package manifest's `files`.
+Root filenames are matched case-insensitively in this order: `README.md`,
+`README.markdown`, `README.txt`, `README`. Markdown uses League CommonMark;
+plain text is escaped. Raw HTML is stripped. Web/mail links and HTTPS images
+are supported; archive-relative links/images keep their labels as text because
+the store does not expose arbitrary package files as public web resources.
+
+Missing, empty, invalid or oversized READMEs fall back to the listing description.
+The web preview limit is 1 MiB; this does not limit installed README files.
+Updating a listing description does not replace an immutable release's README:
+publish a new package version to change its documentation. The Package Content
+tab continues to show filenames only.
+
+## Verification commands
 
 `composer test` covers metadata, archive integrity, immutable publishing, fallback
 images, local/remote gallery entries and HTTP routes. `tests/browser.cjs` uses
 Playwright to check search, filtering, downloads, empty states and mobile overflow.
 Set STORE_URL to test the deployed site; PLAYWRIGHT_MODULE may point to a local
 Playwright installation. The browser tests do not mutate the live catalog.
+`node tests/browser-readme.cjs` checks published README previews, description
+fallbacks, filename-only content tabs, and desktop/tablet/mobile overflow.
 
 Initial deployment: 2026-09-12, server 91.218.66.127, PHP 8.5 FPM and Nginx.
 Let's Encrypt certificate renewal is managed by certbot.timer. The checked-in

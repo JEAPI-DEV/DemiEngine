@@ -1,0 +1,33 @@
+.detail-layout > * { min-width: 0; }
+.package-readme {
+    min-width: 0;
+    font-size: 14px;
+    line-height: 1.8;
+    overflow-wrap: anywhere;
+}
+.package-readme p { white-space: normal; }
+.package-readme h1 { font-size: 26px; }
+.package-readme h2 { font-size: 22px; }
+.package-readme h3 { font-size: 18px; }
+.package-readme h1, .package-readme h2, .package-readme h3 {
+    line-height: 1.3;
+    margin: 1.4em 0 .6em;
+}
+.package-readme pre {
+    padding: 16px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    overflow-x: auto;
+    max-width: 100%;
+    font-size: 12px;
+    line-height: 1.6;
+}
+.package-readme :not(pre) > code { background: var(--paper); padding: 2px 4px; }
+.package-readme .readme-plain { white-space: pre-wrap; }
+.package-readme ul, .package-readme ol { padding-left: 24px; }
+.package-readme blockquote { border-left: 3px solid var(--line); margin: 16px 0; padding-left: 18px; }
+.package-readme img { max-width: 100%; height: auto; }
+.package-readme table { display: block; overflow-x: auto; border-collapse: collapse; }
+.package-readme th, .package-readme td { border: 1px solid var(--line); padding: 8px 12px; text-align: left; }
+.package-readme a { text-decoration: underline; text-underline-offset: 3px; }

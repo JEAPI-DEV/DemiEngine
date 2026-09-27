@@ -7,6 +7,7 @@
     "php": ">=8.2",
     "ext-ctype": "*",
     "ext-iconv": "*",
+    "league/commonmark": "^2.10.3",
     "symfony/framework-bundle": "7.4.*",
     "symfony/console": "7.4.*",
     "symfony/yaml": "7.4.*",
@@ -22,6 +23,6 @@
     "sort-packages": true
   },
   "scripts": {
-    "test": ["php tests/run.php", "php tests/legal-notice.php", "php tests/verify-docs.php", "php tests/docs-examples.php"]
+    "test": ["php tests/run.php", "php tests/legal-notice.php", "php tests/verify-docs.php", "php tests/docs-examples.php", "php tests/archive-readme.php", "php tests/package-readme.php"]
   }
 }

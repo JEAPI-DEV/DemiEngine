@@ -5,13 +5,14 @@
 <pre><code>{
   "format_version": 1,
   "name": "demi.gameplay.health",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "engine": ">=0.1.0",
   "dependencies": { "demi.gameplay.events": "^1.0.0" },
   "public_modules": ["demi.gameplay.health"],
   "files": [
-    "scripts/runtime/demi/gameplay/health.lua",
-    "assets/schemas/health.data.json"
+    "README.md",
+    "scripts/demi/gameplay/health.lua",
+    "tests/health_test.lua"
   ]
 }</code></pre>
 <ul>
@@ -23,7 +24,7 @@
 
 <h2>Install packages</h2>
 <pre><code>cd games/my_game
-demi package add demi.gameplay.health@1.0.0
+demi package add demi.gameplay.health@1.1.0
 demi package add kenney.textures.prototype@1.0.0
 demi package install
 demi package list
@@ -45,8 +46,8 @@ print(health:get("player").current)</code></pre>
 <table>
   <thead><tr><th>Family</th><th>Modules</th></tr></thead>
   <tbody>
-    <tr><td>Gameplay</td><td><code>demi.gameplay.core</code>, <code>health</code>, <code>controllers</code>, <code>projectiles</code>, <code>interactions</code>, <code>inventory</code>, <code>encounters</code>, <code>camera</code>, <code>traversal</code>, <code>third_person</code>, <code>destruction</code></td></tr>
-    <tr><td>UI</td><td><code>demi.ui.language_file</code>, <code>demi.ui.localization</code></td></tr>
+    <tr><td>Gameplay</td><td><code>demi.gameplay.events</code>, <code>health</code>, <code>controllers</code>, <code>projectiles</code>, <code>interactions</code>, <code>inventory</code>, <code>encounters</code>, <code>camera</code>, <code>checkpoints</code>, <code>third_person</code>, <code>destruction</code></td></tr>
+    <tr><td>UI</td><td><code>demi.ui.localization</code></td></tr>
     <tr><td>Networking</td><td><code>demi.network.lobby</code></td></tr>
     <tr><td>Assets</td><td><code>kenney.textures.prototype</code> — 78 CC0 prototype textures</td></tr>
   </tbody>
@@ -60,10 +61,12 @@ demi package test packages/my_package --format json</code></pre>
 
 <h2>Publish a package</h2>
 <ol>
-  <li>Build a <code>.demipkg</code> with audited content roots (<code>assets/</code>, <code>certs/</code>, <code>packages/</code>, <code>scenes/</code>, <code>scripts/</code>, plus project/lock/cook manifests).</li>
-  <li>Publish to a registry: <code>demi package publish --registry https://demiengine.de</code>, or use the <a href="{{ path('publishing') }}">publishing page</a> / <code>bin/publish.py</code> for the public store.</li>
+  <li>List the package's files, including its root <code>README.md</code>, in <code>demi.package.json</code>. Run its tests before publishing.</li>
+  <li>Build a local registry archive: <code>demi package publish path/to/package --registry /path/to/staging-registry</code>. The archive is written below <code>packages/&lt;name&gt;/&lt;version&gt;/package.demipkg</code> in that registry.</li>
+  <li>Upload the archive and listing metadata using the <a href="{{ path('publishing') }}">publishing page</a> or <code>python3 tools/package-store/bin/publish.py package.demipkg metadata.json</code>. Publishing requires the private registry key.</li>
 </ol>
 <p>Releases are immutable. Listing metadata (title, description, tags, images) can be updated later without touching archive bytes.</p>
+<p>The package overview displays the README bundled in the published archive. Deploying the website or editing a repository README does not update a published package. Bump the package version and publish a new archive when its code, manifest, or README changes. Publish dependencies before packages that require them.</p>
 
 <h2>Design rules</h2>
 <ul>

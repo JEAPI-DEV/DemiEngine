@@ -94,6 +94,18 @@ try {
     $request = Request::create('/packages/test.asset');
     $response = $galleryKernel->handle($request);
     check($response->getStatusCode() === 200 && substr_count($response->getContent(),'data-gallery=') === 2, 'gallery rendered');
+    check(str_contains($response->getContent(), 'class="package-readme"') && str_contains($response->getContent(), 'hello'), 'overview displays the published README payload');
+    check(str_contains($response->getContent(), 'No additional package dependencies.'), 'empty dependencies display correctly');
+    $galleryKernel->terminate($request,$response);
+    $recordPath = (new Catalog())->directory($record).'/release.json';
+    $dependencyRecord = json_decode(file_get_contents($recordPath), true);
+    $dependencyRecord['manifest']['dependencies'] = ['demi.gameplay.events' => '^1.0.0'];
+    file_put_contents($recordPath, json_encode($dependencyRecord));
+    $request = Request::create('/packages/test.asset');
+    $response = $galleryKernel->handle($request);
+    check(str_contains($response->getContent(), 'href="/packages/demi.gameplay.events"') &&
+        str_contains($response->getContent(), '^1.0.0') &&
+        !str_contains($response->getContent(), 'No additional package dependencies.'), 'object-shaped dependencies render as links with constraints');
     $galleryKernel->terminate($request,$response);
     $request = Request::create('/packages/test.asset?tab=content');
     $response = $galleryKernel->handle($request);

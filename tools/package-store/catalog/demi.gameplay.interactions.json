@@ -1,7 +1,7 @@
 {
   "format_version": 1,
   "title": "Interactions & Pickups",
-  "description": "Reusable interaction and pickup behavior for game entities. Connect player actions to world objects through public engine APIs.",
+  "description": "Select interactions from game-supplied candidates by priority and distance, and track single-use pickups through caller-owned gameplay events.",
   "publisher": "DemiEngine",
   "license": "BSD-3-Clause",
   "kind": "code",

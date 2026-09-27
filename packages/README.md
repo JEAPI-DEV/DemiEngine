@@ -5,10 +5,9 @@ This page describes the package sources in this checkout. The
 development sources may differ. Publishing requires registry credentials.
 
 Browse the free package catalog at https://demiengine.de/packages/.
-For this checkout's package versions, run
-`demi package add demi.ui.localization@1.0.0 --registry /path/to/DemiEngine/packages`
-inside a project directory. Renamed development packages are not published to the
-hosted catalog automatically.
+For example, run `demi package add demi.ui.localization@1.0.0`
+inside a project directory. To use the checkout's local registry instead, append
+`--registry /path/to/DemiEngine/packages`.
 Package commands find `./demi.project.json` when `--project` is omitted.
 Registry selection is `--registry`, then nonempty `DEMI_PACKAGE_REGISTRY`,
 then the project's `package_registry`, then `https://demiengine.de`.
@@ -16,6 +15,11 @@ Locked installs retain the lockfile's registry unless explicitly overridden.
 The local source registry below remains available for
 engine development. Store application and publishing instructions live in
 `tools/package-store/README.md`.
+
+The store's README belongs to the downloaded release. Website deployments do
+not publish package changes. When changing package files or dependencies, bump
+the manifest version, test and publish dependencies first, then publish the
+dependent packages. Never replace the bytes of an existing release.
 
 Gameplay packages are optional Lua packages, not engine singletons. They depend only on
 public Demi APIs or explicitly declared packages and keep game policy in Lua.

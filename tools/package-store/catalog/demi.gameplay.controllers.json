@@ -1,7 +1,7 @@
 {
   "format_version": 1,
   "title": "Character Controllers",
-  "description": "Movement intent helpers for platformers, top-down games and isometric scenes. Includes a reusable 2D character controller.",
+  "description": "Input-to-intent helpers for platform, top-down, click-to-move and isometric controls, plus a separate 2D character helper that uses engine physics and sprite services.",
   "publisher": "DemiEngine",
   "license": "BSD-3-Clause",
   "kind": "code",

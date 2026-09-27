@@ -1,7 +1,7 @@
 {
   "format_version": 1,
   "title": "Gameplay Events",
-  "description": "Deterministic, instance-owned event queues for decoupling gameplay systems. Subscribe, emit and flush events without global state.",
+  "description": "Caller-owned Lua event queues with named events, ordered listeners and unsubscribe support. Emit queues events; flush dispatches them without a global event bus.",
   "publisher": "DemiEngine",
   "license": "BSD-3-Clause",
   "kind": "code",
