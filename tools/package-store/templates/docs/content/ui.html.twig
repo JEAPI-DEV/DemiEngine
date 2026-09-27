@@ -1,6 +1,10 @@
 <h1>UI &amp; HUD</h1>
 <p>Runtime UI is a retained tree authored in <code>*.hud.json</code> documents. You describe the layout once; scripts mutate text, values, and visibility at runtime. The editor HUD stage edits the same tree the runtime renders.</p>
 
+<figure class="docs-figure">
+  <img src="/images/docs-ui.png" alt="A HUD menu: Play/Settings/Inventory buttons beside a settings panel with a dropdown, slider, and progress bars." width="1920" height="1080" loading="lazy">
+  <figcaption>A HUD tree at runtime: a column of buttons beside a settings panel with a dropdown, a slider, and progress bars — all authored in <code>*.hud.json</code>.</figcaption>
+</figure>
 <h2>Document shape</h2>
 <pre><code>{
   "format_version": 1,

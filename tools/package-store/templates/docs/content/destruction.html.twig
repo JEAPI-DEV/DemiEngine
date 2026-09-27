@@ -5,6 +5,10 @@
 <p>A crate that simply vanishes when shot feels cheap. Real breakage leaves chunks that fall, scatter, and settle. DemiEngine destruction takes an ordinary prefab, describes how it should split, and then breaks it live when impacts accumulate.</p>
 <p>The point is to keep authoring simple: model and place the object as usual, add a few description components, and gameplay code calls <code>impact</code> or <code>damage_part</code>. The system handles fragments, contacts, and debris from there.</p>
 
+<figure class="docs-figure">
+  <img src="/images/docs-destruction.jpg" alt="The destruction weapons lab: brick walls, a steel door, prototype textures, and a hammer." width="1280" height="720" loading="lazy">
+  <figcaption>The destruction weapons lab example: fracture-authored brickwork and a hammer weapon loop.</figcaption>
+</figure>
 <h2>Authoring workflow</h2>
 <p>Three layers build a breakable, in order.</p>
 <ol>

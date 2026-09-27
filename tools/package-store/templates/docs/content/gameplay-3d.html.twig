@@ -1,6 +1,10 @@
 <h1>3D gameplay</h1>
 <p>Lightweight 3D covers glTF models, GPU skinning, Jolt physics, characters, localized destruction, denting, lights, and panorama skies.</p>
 
+<figure class="docs-figure">
+  <img src="/images/docs-3d-intro.png" alt="A minimal 3D scene: character model, sphere, crate, wall, ground grid, and collider debug outlines." width="1920" height="1080" loading="lazy">
+  <figcaption>A minimal 3D project: <code>MeshRenderer</code> models on a ground plane, with the collider and grid debug overlays enabled.</figcaption>
+</figure>
 <h2>Models and meshes</h2>
 <pre><code>{
   "Transform3D": { "position": [0, 0, 0], "rotation_euler": [0, 0, 0] },
@@ -98,6 +102,10 @@ Deform.impact(id, x, y, z, strength)      -- dent helper with falloff
 Deform.reset(id)                          -- restore the original mesh</code></pre>
 <p>Denting is visual only — combine it with destruction or gameplay events for physical consequences.</p>
 
+<figure class="docs-figure">
+  <img src="/images/docs-destruction.jpg" alt="The destruction weapons lab: brick walls, a steel door, prototype textures, and a hammer." width="1920" height="1080" loading="lazy">
+  <figcaption>The destruction weapons lab: fracture-authored brickwork, prototype textures, and the hammer input loop. (Screenshot from the example project.)</figcaption>
+</figure>
 <h2>Destruction</h2>
 <p>Author fracture on ordinary prefabs. Native Blast/Jolt handles impacts and connected fragments.</p>
 <ul>

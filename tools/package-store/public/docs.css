@@ -712,3 +712,116 @@
         transition: none
     }
 }
+
+/* Landing hero media and screenshot gallery. */
+.docs-hero-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 520px);
+    gap: 40px;
+    align-items: center
+}
+
+.docs-hero-media {
+    margin: 0;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 18px 40px #16213b1a;
+    background: #fff
+}
+
+.docs-hero-media img {
+    display: block;
+    width: 100%;
+    height: auto
+}
+
+.docs-hero-media figcaption,
+.docs-gallery figcaption {
+    padding: 10px 14px;
+    font-size: 12px;
+    color: var(--muted);
+    border-top: 1px solid var(--line);
+    background: #fff
+}
+
+.docs-gallery {
+    padding: 8px 7% 8px;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 22px
+}
+
+.docs-gallery figure {
+    margin: 0;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    overflow: hidden;
+    background: #fff;
+    transition: box-shadow .15s, border-color .15s
+}
+
+.docs-gallery figure:hover {
+    border-color: var(--blue);
+    box-shadow: 0 10px 26px #16213b14
+}
+
+.docs-gallery img {
+    display: block;
+    width: 100%;
+    height: auto
+}
+
+/* In-article figures. */
+.docs-article figure.docs-figure,
+.docs-figure {
+    margin: 22px 0;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    overflow: hidden;
+    background: #fff
+}
+
+.docs-figure img {
+    display: block;
+    width: 100%;
+    height: auto
+}
+
+.docs-figure figcaption {
+    padding: 10px 14px;
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: var(--muted);
+    border-top: 1px solid var(--line)
+}
+
+@media(max-width:1000px) {
+    .docs-hero-grid {
+        grid-template-columns: 1fr
+    }
+
+    .docs-gallery {
+        grid-template-columns: repeat(2, minmax(0, 1fr))
+    }
+}
+
+@media(max-width:700px) {
+    .docs-hero-grid {
+        gap: 24px
+    }
+
+    .docs-gallery {
+        grid-template-columns: 1fr;
+        padding: 4px 5% 4px
+    }
+}
+
+.docs-gallery-inline {
+    padding: 0;
+    margin: 22px 0 8px
+}
+
+.docs-gallery-inline figcaption {
+    text-align: center
+}

@@ -13,7 +13,7 @@
     },
     {
       "id": "sun",
-      "components": { "DirectionalLight": { "direction": [-0.4, -1, -0.4], "intensity": 1.2 } }
+      "components": { "DirectionalLight": { "direction": [-0.4, -1, -0.4], "intensity": 1.2, "casts_shadows": true }, "Environment3D": {} }
     },
     {
       "id": "floor",

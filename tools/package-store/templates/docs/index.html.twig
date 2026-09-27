@@ -1,17 +1,52 @@
 {% extends 'base.html.twig' %}
 {% block title %}Documentation — DemiEngine{% endblock %}
 {% block description %}Structured DemiEngine documentation: getting started, Lua scripting, UI, physics, networking, packages, and shipping.{% endblock %}
-{% block styles %}<link rel="stylesheet" href="/docs.css?v=4">{% endblock %}
+{% block styles %}<link rel="stylesheet" href="/docs.css?v=5">{% endblock %}
 {% block scripts %}<script src="/docs.js?v=1" defer></script>{% endblock %}
 {% block body %}
 <section class="docs-hero">
-  <div class="eyebrow muted">DOCUMENTATION / {{ total }} GUIDES</div>
-  <h1>Learn the engine.<br>Ship the game.</h1>
-  <p class="lead">Everything DemiEngine can do, organized by the job you are trying to finish. Start with a runnable project, then go deep on scripting, UI, physics, networking, and release builds.</p>
-  <div class="home-actions">
-    <a class="button" href="{{ path('docs_page', {slug: 'getting-started'}) }}">Start building →</a>
-    <a class="button secondary" href="{{ path('docs_page', {slug: 'examples'}) }}">Browse examples →</a>
+  <div class="docs-hero-grid">
+    <div>
+      <div class="eyebrow muted">DOCUMENTATION / {{ total }} GUIDES</div>
+      <h1>Learn the engine.<br>Ship the game.</h1>
+      <p class="lead">Everything DemiEngine can do, organized by the job you are trying to finish. Start with a runnable project, then go deep on scripting, UI, physics, networking, and release builds.</p>
+      <div class="home-actions">
+        <a class="button" href="{{ path('docs_page', {slug: 'getting-started'}) }}">Start building →</a>
+        <a class="button secondary" href="{{ path('docs_page', {slug: 'examples'}) }}">Browse examples →</a>
+      </div>
+    </div>
+    <figure class="docs-hero-media">
+      <img src="/images/docs-editor.jpg" alt="The DemiEngine editor: hierarchy, stage, inspector, assets, and console panels over the responsive UI showcase project." width="1920" height="1050" fetchpriority="high">
+      <figcaption>The native editor with the responsive UI showcase project loaded.</figcaption>
+    </figure>
   </div>
+</section>
+
+<section class="docs-gallery" aria-label="The engine in action">
+  <figure>
+    <a href="{{ path('docs_page', {slug: 'gameplay-2d'}) }}"><img src="/images/docs-isometric.png" alt="LAST KEEP, an isometric tower-defense game: build menu, gold and wave counters, and a tile grid." loading="lazy" width="1920" height="1080"></a>
+    <figcaption>2D &amp; isometric — <a href="{{ path('docs_page', {slug: 'gameplay-2d'}) }}">sprites, tiles, grids</a></figcaption>
+  </figure>
+  <figure>
+    <a href="{{ path('docs_page', {slug: 'ui'}) }}"><img src="/images/docs-ui.png" alt="A HUD menu with buttons, a windowed-mode dropdown, a slider, and progress bars." loading="lazy" width="1920" height="1080"></a>
+    <figcaption>UI &amp; HUD — <a href="{{ path('docs_page', {slug: 'ui'}) }}">retained trees, themes, focus</a></figcaption>
+  </figure>
+  <figure>
+    <a href="{{ path('docs_page', {slug: 'gameplay-3d'}) }}"><img src="/images/docs-3d-intro.png" alt="A minimal 3D scene with a character model, sphere, crate, and wall over a debug grid." loading="lazy" width="1920" height="1080"></a>
+    <figcaption>3D gameplay — <a href="{{ path('docs_page', {slug: 'gameplay-3d'}) }}">models, characters, cameras</a></figcaption>
+  </figure>
+  <figure>
+    <a href="{{ path('docs_page', {slug: 'physics'}) }}"><img src="/images/docs-physics-3d.png" alt="The Jolt 3D stress lab: a wooden Galton cabinet with pegs and bins." loading="lazy" width="1920" height="1080"></a>
+    <figcaption>Physics — <a href="{{ path('docs_page', {slug: 'physics'}) }}">bodies, colliders, queries</a></figcaption>
+  </figure>
+  <figure>
+    <a href="{{ path('docs_page', {slug: 'destruction'}) }}"><img src="/images/docs-destruction.jpg" alt="The destruction weapons lab: brick walls, a steel door, and a hammer in a prototype-textured room." loading="lazy" width="1920" height="1080"></a>
+    <figcaption>Destruction — <a href="{{ path('docs_page', {slug: 'destruction'}) }}">fracture, masonry, impacts</a></figcaption>
+  </figure>
+  <figure>
+    <a href="{{ path('docs_page', {slug: 'sprites-and-animation'}) }}"><img src="/images/docs-fighting.png" alt="A two-player fighting scene with health bars and control hints." loading="lazy" width="1920" height="1080"></a>
+    <figcaption>Animation — <a href="{{ path('docs_page', {slug: 'sprites-and-animation'}) }}">sprites, clips, state machines</a></figcaption>
+  </figure>
 </section>
 
 <section class="docs-path" aria-label="Learning paths">

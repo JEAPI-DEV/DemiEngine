@@ -1,7 +1,7 @@
 {% extends 'base.html.twig' %}
 {% block title %}DemiEngine — Your game. Your engine.{% endblock %}
 {% block description %}A Linux-first, open-source C++20 engine with Lua gameplay, a native editor, free packages, documented systems, and experimental 3D animation and destruction.{% endblock %}
-{% block styles %}<link rel="stylesheet" href="/home.css?v=2">{% endblock %}
+{% block styles %}<link rel="stylesheet" href="/home.css?v=3">{% endblock %}
 {% block body %}
 {% set source = 'https://github.com/JEAPI-DEV/DemiEngine/tree/main' %}
 {% set repo = 'https://github.com/JEAPI-DEV/DemiEngine' %}
@@ -18,7 +18,7 @@
   </div>
   <figure class="home-preview">
     <div class="preview-title"><span class="preview-dot" aria-hidden="true"></span> DESTRUCTION WEAPON LAB <span>LIVE ENGINE CAPTURE</span></div>
-    <img src="/images/destruction-lab.png" alt="DemiEngine's destruction lab: brick walls and a steel door, a hammer, tiled prototype surfaces and an evening sky." width="1280" height="720" fetchpriority="high">
+    <img src="/images/destruction-lab.png" alt="DemiEngine's destruction lab: brick walls and a steel door, a hammer, tiled prototype surfaces and an evening sky." width="1920" height="1080" fetchpriority="high">
     <figcaption><span>Real gameplay. Editable scenes.</span><a href="{{ repo }}/tree/main/examples/destruction_weapons_3d_lab">Example instructions ↗</a></figcaption>
   </figure>
 </section>
@@ -48,6 +48,17 @@
     <article><span class="feature-index">11</span><h3>Shipping</h3><p>Cooked Linux bundles and Android APK/AAB builds with capability gates, content audits and transactional packaging.</p><a href="{{ path('docs_page', {slug: 'shipping'}) }}">Shipping guide →</a></article>
     <article><span class="feature-index">12</span><h3>Free packages</h3><p>Gameplay modules and assets — health, projectiles, inventory, encounters, third-person, Kenney textures and more.</p><a href="{{ path('catalog') }}">Browse packages →</a></article>
   </div>
+</section>
+
+<section class="engine-screens" aria-labelledby="screens-title">
+  <div class="engine-section-heading"><div class="eyebrow muted">RUNNING TODAY</div><h2 id="screens-title">See the engine run.</h2><p>Every shot below is a checked-in example project running under <code>demi run</code> — the same projects you get with <code>demi new</code>.</p></div>
+  <div class="screens-grid">
+    <a class="screen-card" href="{{ path('docs_page', {slug: 'gameplay-2d'}) }}"><img src="/images/docs-isometric.png" alt="LAST KEEP isometric tower defense" loading="lazy" width="1920" height="1080"><span>Isometric base builder</span></a>
+    <a class="screen-card" href="{{ path('docs_page', {slug: 'ui'}) }}"><img src="/images/docs-ui.png" alt="HUD menu with buttons, slider, and progress bars" loading="lazy" width="1920" height="1080"><span>HUD &amp; menus</span></a>
+    <a class="screen-card" href="{{ path('docs_page', {slug: 'gameplay-3d'}) }}"><img src="/images/docs-3d-intro.png" alt="Minimal 3D scene with models and debug grid" loading="lazy" width="1920" height="1080"><span>Lightweight 3D</span></a>
+    <a class="screen-card" href="{{ path('docs_page', {slug: 'physics'}) }}"><img src="/images/docs-physics-3d.png" alt="Jolt 3D Galton cabinet" loading="lazy" width="1920" height="1080"><span>Jolt physics lab</span></a>
+  </div>
+  <div class="screens-more"><a href="{{ path('docs') }}">Take the documentation tour →</a><a href="{{ path('docs_page', {slug: 'examples'}) }}">Browse all {{ '26' }} examples →</a></div>
 </section>
 
 <section class="engine-proof" aria-labelledby="proof-title">

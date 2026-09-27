@@ -8,7 +8,7 @@
       "Transform3D": { "position": [0, 1.1, 4] },
       "Camera3D": { "target_offset": [0, -0.55, -4], "fov": 38 }
     } },
-    { "id": "sun", "components": { "DirectionalLight": { "direction": [-0.5, -0.7, -1], "intensity": 1.5 } } },
+    { "id": "sun", "components": { "DirectionalLight": { "direction": [-0.5, -0.7, -1], "intensity": 3.0, "casts_shadows": true }, "Environment3D": {"shadow_bias":0.01,"shadow_distance":10.0,"shadow_resolution":2024} } },
     { "id": "floor", "components": {
       "Transform3D": { "position": [0, -0.05, 0] },
       "MeshRenderer": { "shape": "cube", "size": [8, 0.1, 8], "color": [0.12, 0.14, 0.18, 1] },

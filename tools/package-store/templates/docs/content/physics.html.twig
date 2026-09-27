@@ -1,6 +1,10 @@
 <h1>Physics</h1>
 <p>Two deterministic backends: Box2D for 2D and Jolt for 3D. Colliders always match the authored shape — a capsule simulates as a capsule. Simulation runs at the project fixed timestep.</p>
 
+<figure class="docs-figure">
+  <img src="/images/docs-physics-3d.png" alt="The Jolt 3D stress lab: a wooden Galton cabinet with pegs and bins." width="1920" height="1080" loading="lazy">
+  <figcaption>A 3D physics demo scene: hundreds of dynamic bodies falling through a peg field into bins, simulated by Jolt at the project fixed timestep.</figcaption>
+</figure>
 <h2>2D bodies and colliders</h2>
 <pre><code>{
   "Rigidbody2D": {
