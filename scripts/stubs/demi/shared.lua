@@ -29,7 +29,9 @@ function Map:add(key, delta) end
 ---@return table<string, any>|nil values
 ---@return string|nil error
 function Map:snapshot() end
----Calls fn(map) while holding the recursive native lock; returns true followed
+---Acquires the map lock, calls fn(map), then automatically unlocks. No manual
+---lock()/unlock() is needed. Use this to keep several reads/writes together.
+---Returns true followed
 ---by all callback results (including nils). Callback errors are rethrown after
 ---unlocking. Yielding is rejected and also releases the lock. Reentering the
 ---same map is allowed. For multiple maps, always acquire locks in the same
@@ -40,7 +42,9 @@ function Map:snapshot() end
 ---@return boolean success
 ---@return any ... Callback results, or 'busy'/'cancelled' on failure.
 function Map:with_lock(fn) end
----As with_lock, but never waits, even on workers. Contention returns false,'busy'.
+---Tries to acquire the lock without waiting, even on workers. If acquired,
+---calls fn(map) and automatically unlocks afterward, including on callback errors.
+---Contention returns false,'busy' without running fn.
 ---@param fn fun(map: SharedMap): ...
 ---@return boolean success
 ---@return any ...

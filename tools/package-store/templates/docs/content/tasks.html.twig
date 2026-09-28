@@ -51,6 +51,19 @@ end)</code></pre>
 <p>Each map owns native copied values behind a mutex. Keys are strings. <code>get</code>, <code>set</code>, <code>add</code>, and <code>snapshot</code> synchronize individual operations. Returned tables are independent copies; editing one does not update the map. Map values cannot contain other shared handles, preventing native ownership cycles.</p>
 
 <h2>Critical sections</h2>
+<p><code>with_lock</code> acquires the map's lock, calls your function with the map, then unlocks automatically. There is no separate <code>lock()</code> or <code>unlock()</code> call. Use it when several operations must happen together without another thread changing the map between them:</p>
+<pre><code>local Shared = require("demi.shared")
+local shared = assert(Shared.map({ health = 100 }))
+
+local ok, err = shared:with_lock(function(map)
+    local health = map:get("health")
+    map:set("health", health - 10)
+end)
+if not ok then
+    print(err) -- "busy" or "cancelled"; the callback did not run.
+end</code></pre>
+<p>The lock covers both the read and the write. It is released when the callback returns, including when the callback raises an error. Separate <code>get</code> and <code>set</code> calls outside this callback each lock individually, so another worker could change health between them.</p>
+<p>On a worker, <code>with_lock</code> waits for the lock and checks cancellation while waiting. On the game thread it never waits: if the lock is busy, it returns <code>false, "busy"</code> without calling your function. <code>try_lock</code> uses that non-blocking behavior on every thread:</p>
 <pre><code>local ok, previous = counters:try_lock(function(map)
     local value = map:get("completed")
     map:set("completed", value + 1)
@@ -59,8 +72,8 @@ end)
 if not ok then
     -- Another worker owns the lock; retry during a later update.
 end</code></pre>
-<p><code>with_lock(callback)</code> holds the map lock across a read–modify–write sequence. <code>try_lock(callback)</code> never waits. Both return true followed by the callback's return values, or false and <code>"busy"</code>/<code>"cancelled"</code> if acquisition fails. Callback errors are rethrown only after unlocking. Callbacks cannot yield, and the lock is still released if a yield is attempted. This is mutual exclusion, not rollback: writes before an error remain applied.</p>
-<p><strong>Game-thread access never waits for a worker lock.</strong> Individual operations return nil and <code>"busy"</code> on contention; <code>with_lock</code> also behaves as a try-lock there. Worker access can wait and checks cancellation while waiting. Keep critical sections short. Reentering the same map is supported; when locking several maps, all code must follow the same lock order to avoid deadlock.</p>
+<p>Both methods return true followed by the callback's return values, or false and <code>"busy"</code>/<code>"cancelled"</code> if acquisition fails. Callback errors are rethrown after unlocking. Callbacks cannot yield; attempting to yield also releases the lock and raises an error. Writes before an error remain applied.</p>
+<p>Keep locked callbacks short. Reentering the same map is supported; when locking several maps, all code must follow the same lock order to avoid deadlock. Individual map operations also never wait on the game thread, returning nil and <code>"busy"</code> on contention.</p>
 
 <h2>Cancellation and pool size</h2>
 <pre><code>self.work = Task.fork(function()
