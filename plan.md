@@ -1,5 +1,8 @@
 # DemiEngine Roadmap
 
+Deferred feature plan: [neural networks](neural-networks.plan). Python training,
+native inference and later NPC training tooling; resume only on user request.
+
 ## Overall Completion Rule
 
 The roadmap succeeds when developers can create, validate, run, test,
