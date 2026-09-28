@@ -1,6 +1,9 @@
 # DemiEngine Roadmap
 
 Active feature plan: [terrain generation and editing](terrain-plan.md).
+Next: incremental brush updates, followed by seed/preset-driven landscapes,
+biome rules, material/asset palettes, erosion, integrated water and vegetation.
+The expanded visual-quality and performance milestones remain planned.
 
 Deferred feature plan: [neural networks](neural-networks.plan). Python training,
 native inference and later NPC training tooling; resume only on user request.
