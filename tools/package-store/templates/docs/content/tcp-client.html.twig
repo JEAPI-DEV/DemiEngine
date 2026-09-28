@@ -1,0 +1,36 @@
+<h1>Asynchronous TCP client</h1>
+<p><code>demi.network.tcp</code> connects to raw TCP services without blocking gameplay. A shared libuv event loop handles connection setup, DNS and socket readiness. TCP is an <strong>unencrypted byte stream</strong>, not a message protocol. Use HTTPS for REST services and do not send credentials over raw TCP on an untrusted network.</p>
+<pre><code>local Tcp = require("demi.network.tcp")
+local pending, connection, stage
+
+function on_start()
+    local err
+    pending, err = Tcp.connect("127.0.0.1", 9000, {timeout_ms = 5000})
+    assert(pending, err)
+    stage = "connect"
+end
+
+function on_update(dt)
+    if not pending or not pending:done() then return end
+    local response = pending:response()
+    pending = nil
+    if not response.ok then
+        if connection then connection:close() end
+        error(response.error)
+    end
+    if stage == "connect" then
+        connection = response.connection
+        pending = connection:write("hello\n", {timeout_ms = 5000})
+        stage = "write"
+    elseif stage == "write" then
+        pending = connection:read(4096, {timeout_ms = 5000})
+        stage = "read"
+    else
+        print(response.data) -- One available chunk, not necessarily a whole message.
+        connection:close()
+    end
+end</code></pre>
+<p>Connect/read/write return operations with <code>done()</code>, <code>response()</code> and <code>cancel()</code>. Poll them from main-thread callbacks such as <code>on_update</code>. Engine services are unavailable in <code>Task.fork</code> workers; TCP already performs native asynchronous I/O. Responses contain <code>ok</code>, binary-safe <code>data</code>, <code>error_code</code>, <code>error</code>, and a <code>connection</code> for a successful connect. Closing a connection terminates its pending operations; <code>open()</code> reports its current state.</p>
+<p>A read returns the bytes currently available up to the requested count. It does not promise a whole message or exactly that count. Buffer and decode your own framing. Only one read can be pending on a connection. Read cancellation/timeouts preserve unread buffered data. A write timeout closes the connection because some bytes may already have reached the peer.</p>
+<p>Timeouts use milliseconds; zero disables the deadline. Native handles may remain readable after the service shuts down. OS DNS cancellation is best-effort, so shutdown can still wait for a system resolver call.</p>
+<p>Android builds need the Internet permission for network access. Keep credentials and private data off unencrypted connections.</p>

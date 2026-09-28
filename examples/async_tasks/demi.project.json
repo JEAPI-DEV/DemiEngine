@@ -1,0 +1,7 @@
+{
+  "format_version": 1,
+  "name": "Background Tasks",
+  "main_scene": "scene://async_tasks/main",
+  "scenes": [{ "id": "scene://async_tasks/main" }],
+  "input": { "presets": ["wasd_arrows", "confirm"] }
+}

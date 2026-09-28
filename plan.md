@@ -414,6 +414,18 @@ Current audit implementation:
   DNS can delay shutdown cleanup; no hard real-time shutdown guarantee is made.
   See [HTTP client](docs/http.md).
 
+- [x] Replace the experimental single-VM preemption scheduler with Task.fork:
+  pooled OS workers, reusable isolated Lua VMs, copied inputs/results, and
+  explicitly shared native maps with scoped/non-blocking locking. Ordinary
+  callbacks remain synchronous; no instruction hooks or async/await wrapper.
+  Preserve asynchronous HTTP/TCP/database polling and the SQLite driver boundary.
+  Qualify real parallel execution, VM reuse, transfer isolation, cancellation,
+  lock release on error, main-thread responsiveness and measured overhead.
+  Implemented with reusable worker VMs, transfer graphs and Shared.map. Linux
+  focused checks pass; warmed arithmetic measured 28.64 ms direct / 28.83 ms
+  worker, and two jobs took 31.98 ms. See docs/lua-task-qualification.md for
+  scope and remaining platform qualification; no hard-real-time guarantee.
+
 - [x] Replace uppercase-global discovery and inferred native import paths with
   an explicit service catalog; test unrelated globals, import caching, cleanup,
   private userdata factories and unknown-service rejection.

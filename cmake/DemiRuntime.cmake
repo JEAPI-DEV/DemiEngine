@@ -7,6 +7,15 @@ target_compile_features(demi-destruction PUBLIC cxx_std_20)
 target_link_libraries(demi-destruction PRIVATE demi-blast-lowlevel)
 
 set(DEMI_RUNTIME_COMMON_SOURCES
+  src/demi/runtime/network/TcpClient.cpp
+  src/demi/runtime/database/DatabaseService.cpp
+  src/demi/runtime/database/SQLiteDriver.cpp
+  src/demi/runtime/scripting/LuaWorkerTasks.cpp
+  src/demi/runtime/scripting/LuaTransfer.cpp
+  src/demi/runtime/scripting/LuaSharedMap.cpp
+  src/demi/runtime/scripting/LuaTaskBindings.cpp
+  src/demi/runtime/scripting/bindings/LuaTcpBindings.cpp
+  src/demi/runtime/scripting/bindings/LuaDatabaseBindings.cpp
   src/demi/runtime/destruction/ColliderFractureFamily3D.cpp
   src/demi/runtime/physics/JoltLifetime.cpp
   src/demi/runtime/physics/JoltBodyBatch3D.cpp
@@ -154,7 +163,7 @@ function(configure_demi_runtime target with_renderer)
   target_compile_features(${target} PUBLIC cxx_std_20)
   target_link_libraries(${target} PRIVATE box2d Jolt miniaudio
     nlohmann_json::nlohmann_json mbedtls mbedx509 mbedcrypto sol2::sol2
-    CURL::libcurl Threads::Threads)
+    CURL::libcurl Threads::Threads uv_a demi-sqlite)
   target_compile_definitions(${target} PRIVATE
     DEMI_HAS_BOX2D=1
     DEMI_HAS_JOLT=1

@@ -1,3 +1,4 @@
+#include "demi/runtime/concurrency/AsyncCompletion.h"
 #include "demi/runtime/network/HttpClient.h"
 #include "demi/runtime/scripting/LuaScriptHost.h"
 
@@ -728,6 +729,41 @@ void timeoutAndConcurrency() {
       "zero overall timeout was not unlimited");
 }
 
+void completionSignals() {
+  Fixture fixture(wire("ready"), false, 500ms);
+  HttpClient client;
+  auto operation = submit(client, {.url = fixture.url()});
+  fixture.awaitRequest();
+  const auto signal = operation->completion();
+  require(signal && signal == operation->completion(),
+          "HTTP completion identity changed");
+  require(!signal->ready(), "pending HTTP completion was already ready");
+  std::atomic<int> calls = 0;
+  std::atomic<bool> responseVisible = false;
+  auto subscription = signal->subscribe([&] {
+    const auto response = operation->response();
+    responseVisible.store(response && response->body == "ready" &&
+                              operation->done(),
+                          std::memory_order_relaxed);
+    calls.fetch_add(1, std::memory_order_release);
+  });
+  waitFor([&] { return calls.load(std::memory_order_acquire) == 1; },
+          "HTTP completion callback was not delivered");
+  require(responseVisible.load(std::memory_order_relaxed) && signal->ready(),
+          "HTTP completion ran before its response was available");
+  operation->cancel();
+  require(calls.load(std::memory_order_acquire) == 1 &&
+              operation->response()->body == "ready",
+          "cancel changed a completed HTTP response or signalled twice");
+
+  Fixture timed(wire("late"), false, 1000ms);
+  auto failed = submit(client, {.url = timed.url(), .timeoutMs = 50});
+  waitFor([&] { return failed->completion()->ready(); },
+          "HTTP timeout completion was not signalled");
+  require(failed->response() && failed->response()->errorCode == "timeout",
+          "HTTP timeout completion has no terminal response");
+}
+
 void cancellationAndShutdown() {
   Fixture fixture(wire("late"), false, 2000ms);
   std::shared_ptr<HttpOperation> survivor;
@@ -735,6 +771,16 @@ void cancellationAndShutdown() {
     HttpClient client;
     auto cancelled = submit(client, {.url = fixture.url(), .timeoutMs = 0});
     fixture.awaitRequest();
+    const auto cancelledSignal = cancelled->completion();
+    std::atomic<int> cancelCalls = 0;
+    std::atomic<bool> cancelResponseVisible = false;
+    auto cancelSubscription = cancelledSignal->subscribe([&] {
+      const auto response = cancelled->response();
+      cancelResponseVisible.store(response &&
+                                      response->errorCode == "cancelled",
+                                  std::memory_order_relaxed);
+      cancelCalls.fetch_add(1, std::memory_order_release);
+    });
     auto start = Clock::now();
     cancelled->cancel();
     cancelled->cancel();
@@ -742,6 +788,10 @@ void cancellationAndShutdown() {
                 completed(cancelled).errorCode == "cancelled" &&
                 Clock::now() - start < 500ms,
             "HTTP cancel was not prompt and idempotent");
+    require(cancelledSignal->ready() &&
+                cancelCalls.load(std::memory_order_acquire) == 1 &&
+                cancelResponseVisible.load(std::memory_order_relaxed),
+            "HTTP cancellation did not publish its response before signalling");
     std::vector<std::shared_ptr<HttpOperation>> operations;
     // Exercise queued and active cancellation beyond small arbitrary caps.
     for (int i = 0; i < 192; ++i) {
@@ -749,16 +799,19 @@ void cancellationAndShutdown() {
           submit(client, {.url = fixture.url(), .timeoutMs = 0}));
     }
     survivor = operations.back();
+    const auto shutdownSignal = survivor->completion();
     start = Clock::now();
     client.shutdown();
     require(Clock::now() - start < 1000ms,
             "HTTP shutdown waited for server timeout");
     client.shutdown();
     for (const auto &operation : operations) {
-      require(operation->done() &&
+      require(operation->completion()->ready() && operation->done() &&
                   operation->response()->errorCode == "cancelled",
               "HTTP shutdown left a pending handle or wrong terminal state");
     }
+    require(shutdownSignal->ready() && shutdownSignal == survivor->completion(),
+            "HTTP shutdown changed the completion identity");
   }
   survivor->cancel();
   require(survivor->response()->errorCode == "cancelled",
@@ -769,6 +822,8 @@ void cancellationAndShutdown() {
   }
   require(survivor->done() && survivor->response()->errorCode == "cancelled",
           "HTTP destructor did not cancel pending work");
+  require(survivor->completion()->ready(),
+          "HTTP destructor left completion pending");
   HttpClient unused;
   unused.shutdown();
   unused.shutdown();
@@ -893,11 +948,46 @@ void luaResponseContract() {
           "Lua JSON request lost scalar or null values");
 }
 
+void luaPollingWithBusyWorker() {
+  Fixture fixture(wire("{\"ready\":true}"), false, 100ms);
+  demi::runtime::World world;
+  demi::runtime::InputState input;
+  demi::runtime::LuaScriptHost host;
+  std::string error;
+  require(host.initialize(world, input, nullptr, error), error.c_str());
+  const auto start =
+      host.executeConsole("local Task=require('demi.task'); "
+                          "busy=Task.fork(function() local Task=require('demi.task'); "
+                          "while not Task.cancelled() do end end); "
+                          "req=assert(require('demi.network.http').get(" +
+                          nlohmann::json(fixture.url()).dump() +
+                          ")); assert(req.completion==nil)");
+  require(start.succeeded, start.error.c_str());
+  int updates = 0;
+  waitFor(
+      [&] {
+        host.beginFrame(0.016F);
+        host.update(0.016F);
+        ++updates;
+        const auto probe = host.executeConsole("return req:done()");
+        require(probe.succeeded, probe.error.c_str());
+        return !probe.values.empty() && probe.values.front() == "true";
+      },
+      "Main-thread HTTP polling did not complete during busy worker");
+  require(updates > 1, "Delayed HTTP request did not span updates");
+  const auto result = host.executeConsole(
+      "assert(req:response().ok and req:response().json.ready==true); "
+      "assert(not busy:done()); "
+      "busy:cancel()");
+  require(result.succeeded, result.error.c_str());
+}
+
 } // namespace
 
 int main() {
   const std::pair<const char *, void (*)()> tests[] = {
       {"Lua response contract", luaResponseContract},
+      {"Lua polling with busy worker", luaPollingWithBusyWorker},
       {"validation", validation},
       {"binary and headers", binaryAndHeaders},
       {"statuses and redirects", statusesAndRedirects},
@@ -905,6 +995,7 @@ int main() {
       {"content decoding", contentDecoding},
       {"header limits", headerLimits},
       {"timeout and concurrency", timeoutAndConcurrency},
+      {"completion signals", completionSignals},
       {"cancellation and shutdown", cancellationAndShutdown},
       {"TLS verification", tlsVerification},
       {"TLS handshake timeout", tlsHandshakeTimeout},

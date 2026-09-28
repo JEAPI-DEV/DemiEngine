@@ -43,6 +43,7 @@ bool LuaScriptHost::initialize(World &world, InputState &input,
   luaL_openlibs(state);
   installLuaGcTelemetry(state);
   state_ = state;
+  workerTasks_.attach(state);
   initializeE2ETestRunner();
   luaInstallRuntimeLogging(state, runtimeLog_);
 
@@ -240,7 +241,10 @@ void LuaScriptHost::fixedUpdate(const float dt) {
 void LuaScriptHost::destroy() {
   e2eTestRunner_.shutdown();
   unloadScripts();
+  workerTasks_.shutdown();
   httpClient_.shutdown();
+  tcpClient_.shutdown();
+  databaseService_.shutdown();
   if (world_ != nullptr) {
     for (auto &[_, recycler] : world_->uiVirtualRecyclers)
       recycler->clear(world_->ui, world_->uiTweens);

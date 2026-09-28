@@ -9,6 +9,8 @@
 
 namespace demi::runtime {
 
+class AsyncCompletion;
+
 struct HttpRequest {
   std::string url;
   std::string method = "GET";
@@ -45,6 +47,8 @@ public:
   [[nodiscard]] bool done() const;
   // Pending returns nullopt; completed responses are stable, independent copies.
   [[nodiscard]] std::optional<HttpResponse> response() const;
+  // Stable signal for the terminal response, including cancellation and errors.
+  [[nodiscard]] std::shared_ptr<AsyncCompletion> completion() const;
   // Idempotent. Pending work receives a cancelled response immediately; a
   // completed operation is unchanged. Transport cleanup happens on the worker.
   void cancel();

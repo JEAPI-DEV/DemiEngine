@@ -43,6 +43,9 @@ add_library(demi-core STATIC
   src/demi/runtime/physics/ColliderAsset3D.cpp
   src/demi/runtime/render/ParticleSimulation3D.cpp
   src/demi/runtime/concurrency/JobSystem.cpp
+  src/demi/runtime/concurrency/AsyncCompletion.cpp
+  src/demi/runtime/concurrency/AsyncWorkQueue.cpp
+  src/demi/runtime/concurrency/AsyncWorkStrand.cpp
   src/demi/diagnostics/Diagnostic.cpp
   src/demi/filesystem/ProjectDiscovery.cpp
   src/demi/filesystem/AtomicTextFile.cpp

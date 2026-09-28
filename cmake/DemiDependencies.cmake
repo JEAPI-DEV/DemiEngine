@@ -293,6 +293,7 @@ if(NOT ANDROID)
 endif()
 
 option(DEMI_ENABLE_NETWORK "Enable optional ENet networking module" ON)
+include(DemiAsyncDependencies)
 option(DEMI_ENABLE_MEDIA "Enable FFmpeg-backed media module" ON)
 
 if(DEMI_ENABLE_NETWORK)

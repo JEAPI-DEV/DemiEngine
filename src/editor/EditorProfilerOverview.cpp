@@ -73,8 +73,8 @@ void ramCard(const EditorProfilerSnapshot &snapshot) {
 }
 
 void luaHeapCard(const EditorProfilerSnapshot &snapshot) {
-  cardTitle("LUA HEAP", "Lua VM allocation only. Native engine and process "
-                        "memory are not included.");
+  cardTitle("LUA HEAP", "Gameplay Lua VM only. Worker VMs are separate and "
+                        "are included in process RAM, not this gauge.");
   item("Current", memory(snapshot, "Lua.heap_bytes"),
        "Memory currently reported by the Lua VM allocator.");
   item("Sampled peak", memory(snapshot, "Lua.heap_peak_sampled_bytes"),

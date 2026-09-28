@@ -12,6 +12,9 @@
 #include "demi/runtime/navigation/NavigationGrid2D.h"
 #include "demi/runtime/network/NetworkContract.h"
 #include "demi/runtime/network/HttpClient.h"
+#include "demi/runtime/network/TcpClient.h"
+#include "demi/runtime/database/DatabaseService.h"
+#include "demi/runtime/scripting/LuaWorkerTasks.h"
 #include "demi/runtime/network/NetworkSystem.h"
 #include "demi/runtime/physics/Physics2D.h"
 #include "demi/runtime/physics/SpatialQuery3D.h"
@@ -66,6 +69,9 @@ public:
   ~LuaScriptHost();
 
   [[nodiscard]] HttpClient &httpClient() { return httpClient_; }
+  [[nodiscard]] TcpClient &tcpClient() { return tcpClient_; }
+  [[nodiscard]] DatabaseService &databaseService() { return databaseService_; }
+  [[nodiscard]] LuaWorkerTasks &workerTasks() { return workerTasks_; }
 
   LuaScriptHost(const LuaScriptHost &) = delete;
   LuaScriptHost &operator=(const LuaScriptHost &) = delete;
@@ -684,6 +690,9 @@ private:
   InputState *input_ = nullptr;
   input::GameplayInputService gameplayInput_;
   HttpClient httpClient_;
+  TcpClient tcpClient_;
+  DatabaseService databaseService_;
+  LuaWorkerTasks workerTasks_;
   input::TouchGestureRecognizer touchGestureRecognizer_;
   std::vector<input::GestureEvent> gestureEvents_;
   platform::ApplicationServices applicationServices_;

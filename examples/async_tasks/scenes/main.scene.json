@@ -1,0 +1,17 @@
+{
+  "format_version": 1,
+  "id": "scene://async_tasks/main",
+  "name": "Responsive background work",
+  "hud": "main.hud.json",
+  "entities": [
+    { "id": "camera", "components": {
+      "Transform2D": {},
+      "Camera2D": { "clear_color": [0.04, 0.05, 0.08, 1], "orthographic_size": 7 }
+    } },
+    { "id": "marker", "name": "Move with WASD", "components": {
+      "Transform2D": {},
+      "Sprite": { "shape": "circle", "size": [0.8, 0.8], "color": [0.25, 0.9, 0.75, 1] },
+      "LuaScript": { "module": "script://scripts/main.lua" }
+    } }
+  ]
+}

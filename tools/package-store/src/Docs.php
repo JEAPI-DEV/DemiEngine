@@ -50,6 +50,7 @@ final class Docs
                 ['slug' => 'script-lifecycle', 'title' => 'Script lifecycle', 'summary' => 'on_create through on_destroy, with a full worked script.'],
                 ['slug' => 'script-properties', 'title' => 'Script properties', 'summary' => 'Typed Inspector fields, defaults, overrides, and schemas.'],
                 ['slug' => 'events-and-timers', 'title' => 'Events & timers', 'summary' => 'Subscribing, emitting, and scheduling work.'],
+                ['slug' => 'tasks', 'title' => 'Worker tasks', 'summary' => 'Parallel Lua VMs, copied results, shared maps, and cancellation.'],
             ]],
             ['slug' => 'lua-api', 'title' => 'Lua API reference', 'summary' => 'Engine service modules, return shapes, units, and error conventions.', 'children' => [
                 ['slug' => 'api-conventions', 'title' => 'API conventions', 'summary' => 'Return shapes, units, error handling, and require style.'],
@@ -103,11 +104,13 @@ final class Docs
             ]],
             ['slug' => 'game-data', 'title' => 'Game data', 'summary' => 'Schema-backed data assets for items, quests, dialogue, and balance.', 'children' => [
                 ['slug' => 'data-schemas', 'title' => 'Data schemas', 'summary' => 'Constraints, references, and validation errors.'],
+                ['slug' => 'database', 'title' => 'Databases & drivers', 'summary' => 'Async queries, parameter binding, transactions, and SQLite.'],
             ]],
             ['slug' => 'networking', 'title' => 'Networking & HTTP', 'summary' => 'Host-authoritative sessions, contracts, prediction, TLS, and REST calls.', 'children' => [
                 ['slug' => 'sessions-and-contracts', 'title' => 'Sessions & contracts', 'summary' => 'Hosting, joining, authority, and messages.'],
                 ['slug' => 'prediction', 'title' => 'Prediction', 'summary' => 'Client prediction and historical queries.'],
                 ['slug' => 'http-and-tls', 'title' => 'HTTP & TLS', 'summary' => 'REST calls, HTTPS verification, and TLS sockets.'],
+                ['slug' => 'tcp-client', 'title' => 'TCP client', 'summary' => 'Non-blocking connections and binary stream operations.'],
             ]],
         ]],
         ['id' => 'ship', 'title' => 'Ship', 'pages' => [

@@ -1,0 +1,79 @@
+<h1>Worker tasks and shared data</h1>
+<p><code>Task.fork</code> executes a Lua function on a reusable worker thread with its own Lua VM. The gameplay VM keeps processing input, updates and rendering. There is no instruction slicing, main-thread task scheduler, or required <code>async</code>/<code>await</code> wrapper.</p>
+
+<h2>Fork a function and read its result</h2>
+<pre><code>local Task = require("demi.task")
+
+function Game:on_start()
+    self.work = Task.fork(function(input)
+        local sum = 0
+        for i = 1, input.count do sum = sum + i end
+        return sum
+    end, { count = 10000000 })
+end
+
+function Game:on_update(dt)
+    if self.work and self.work:done() then
+        local result, err = self.work:result()
+        if self.work:status() == "completed" then
+            self.total = result -- Main-thread game state.
+        else
+            print(err)
+        end
+        self.work = nil
+    end
+end
+
+function Game:on_destroy()
+    if self.work then self.work:cancel() end
+end</code></pre>
+<p>Inline and named Lua functions are supported. <code>fork(function, ...)</code> copies its arguments before submission; <code>result()</code> copies the return values into the calling VM, preserving multiple returns and nils. <code>done()</code> means execution has ended, not necessarily that it succeeded. Status is <code>queued</code>, <code>running</code>, <code>cancelling</code>, <code>completed</code>, <code>failed</code>, or <code>cancelled</code>. Pending or unsuccessful <code>result()</code> calls return nil and a message; <code>error()</code> exposes the diagnostic.</p>
+
+<h2>What crosses the VM boundary</h2>
+<ul>
+  <li>Arguments/results can contain nil, booleans, integers, numbers, binary-safe strings, and plain Lua tables. Table cycles and aliases are preserved within a transfer. Data array/object/null markers are supported.</li>
+  <li>Captured primitive locals are copied snapshots. Explicit <code>Shared.map</code> handles remain shared native objects.</li>
+  <li>Captured ordinary tables such as <code>self</code>, captured functions, native C functions, threads, unknown userdata and custom metatables are rejected. Pass plain table inputs explicitly instead of silently copying a captured game object.</li>
+  <li>The function's normal global environment is rebound to a fresh worker environment. Worker code has base, math, string, table and UTF-8 facilities, plus <code>require("demi.task")</code> for cancellation and <code>require("demi.shared")</code>. Game-world, rendering and other engine services remain on the main thread.</li>
+</ul>
+<p>Workers reuse their VMs, but jobs do not share global or library-table mutations. Functions with a custom <code>_ENV</code> are rejected. Worker table GC finalizers are not available: deferred Lua callbacks could otherwise write shared state after a job had finished. Use deterministic close handlers for job cleanup. Completion order depends on OS scheduling; do not use it as an authoritative simulation clock.</p>
+
+<h2>Share a native map deliberately</h2>
+<pre><code>local Task = require("demi.task")
+local Shared = require("demi.shared")
+
+local counters = assert(Shared.map({ completed = 0 }))
+local job = Task.fork(function()
+    -- Capturing this native handle is supported; it is not an ordinary table.
+    assert(counters:add("completed", 1))
+    return true
+end)</code></pre>
+<p>Each map owns native copied values behind a mutex. Keys are strings. <code>get</code>, <code>set</code>, <code>add</code>, and <code>snapshot</code> synchronize individual operations. Returned tables are independent copies; editing one does not update the map. Map values cannot contain other shared handles, preventing native ownership cycles.</p>
+
+<h2>Critical sections</h2>
+<pre><code>local ok, previous = counters:try_lock(function(map)
+    local value = map:get("completed")
+    map:set("completed", value + 1)
+    return value
+end)
+if not ok then
+    -- Another worker owns the lock; retry during a later update.
+end</code></pre>
+<p><code>with_lock(callback)</code> holds the map lock across a read–modify–write sequence. <code>try_lock(callback)</code> never waits. Both return true followed by the callback's return values, or false and <code>"busy"</code>/<code>"cancelled"</code> if acquisition fails. Callback errors are rethrown only after unlocking. Callbacks cannot yield, and the lock is still released if a yield is attempted. This is mutual exclusion, not rollback: writes before an error remain applied.</p>
+<p><strong>Game-thread access never waits for a worker lock.</strong> Individual operations return nil and <code>"busy"</code> on contention; <code>with_lock</code> also behaves as a try-lock there. Worker access can wait and checks cancellation while waiting. Keep critical sections short. Reentering the same map is supported; when locking several maps, all code must follow the same lock order to avoid deadlock.</p>
+
+<h2>Cancellation and pool size</h2>
+<pre><code>self.work = Task.fork(function()
+    local Task = require("demi.task")
+    local total = 0
+    while not Task.cancelled() do
+        for i = 1, 100000 do total = total + i end
+    end
+    return total
+end)</code></pre>
+<p><code>cancel()</code> immediately cancels queued work. Running work enters <code>cancelling</code> and must observe <code>Task.cancelled()</code> or call <code>Task.check_cancelled()</code> between useful chunks. Its handle becomes done only after execution and cleanup stop. Dropping a handle does not cancel its job. Scene unload requests cancellation; engine shutdown joins the workers. An infinite loop that ignores cancellation can occupy a worker indefinitely and prevent shutdown—threads are never forcibly killed.</p>
+<p>The default pool has two threads, created lazily. Before the first fork, <code>Task.configure({workers = 4})</code> changes its size. VMs are reused rather than created per job. Batch small calculations when transfer and submission costs outweigh useful computation.</p>
+
+<h2>Database and network operations</h2>
+<p>The <a href="{{ path('docs_page', {slug: 'database'}) }}">database</a>, <a href="{{ path('docs_page', {slug: 'tcp-client'}) }}">TCP</a> and <a href="{{ path('docs_page', {slug: 'http-and-tls'}) }}">HTTP</a> services already perform their work outside the main loop. Start those operations on the main thread and poll their handles during updates. They do not need a fork wrapper, and their native connection handles are not ordinary copied task arguments.</p>
+<p>Run <code>demi run --project examples/async_tasks</code> to move a marker and trigger HUD actions while a worker calculates and publishes progress through a shared map.</p>

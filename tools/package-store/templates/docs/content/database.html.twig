@@ -1,0 +1,52 @@
+<h1>Databases and drivers</h1>
+<p><code>demi.database</code> provides asynchronous connections and parameterized queries. SQLite is the built-in driver. Other databases need a driver implementing the native <code>DBDriver</code>/<code>DBConnection</code> interfaces and registration with <code>DatabaseService</code>; selecting an arbitrary name does not install a driver.</p>
+
+<h2>Connect and query</h2>
+<pre><code>local Database = require("demi.database")
+local pending, callback
+local function when_done(operation, next_step)
+    pending, callback = operation, next_step
+end
+
+function on_start()
+    local db, err = Database.connect({ driver = "sqlite", path = "scores.db" })
+    assert(db, err)
+    local opening = db:connect_operation()
+    when_done(opening, function()
+        when_done(db:execute("CREATE TABLE IF NOT EXISTS scores(name TEXT, points INTEGER)"), function()
+            when_done(db:execute("INSERT INTO scores(name, points) VALUES (?, ?)", {"Ada", 120}), function()
+                when_done(db:query("SELECT name, points FROM scores WHERE points &gt; ?", {100}), function(result)
+                    print(result.rows[1][1], result.rows[1][2])
+                    when_done(db:close(), function() end)
+                end)
+            end)
+        end)
+    end)
+end
+
+function on_update(dt)
+    if not pending or not pending:done() then return end
+    local operation, next_step = pending, callback
+    pending, callback = nil, nil
+    next_step(assert(operation:result(), operation:error()))
+end</code></pre>
+<p>SQLite relative paths are below the application's writable <code>databases/</code> directory, not the project or cooked files. <code>:memory:</code> creates a private in-memory database. Absolute paths and traversal outside the database directory are rejected by the Lua API. Driver options, such as SQLite <code>busy_timeout_ms</code>, go in the connection's <code>options</code> table.</p>
+<p>Operations provide <code>done()</code>, <code>result()</code>, <code>error()</code>, and <code>cancel()</code>. Poll from main-thread callbacks such as <code>on_update</code>; a ready operation can have failed, so check its result/error. Connections serialize operations in submission order over a shared native worker pool. One connection does not allocate its own OS thread, and waiting requests do not occupy workers. Engine services are unavailable in <code>Task.fork</code> workers; submit database operations on the main thread.</p>
+
+<h2>Parameters and result rows</h2>
+<p>Plain Lua strings bind as SQL TEXT. Use <code>Database.blob(bytes)</code> to bind a BLOB, including empty values and embedded NUL bytes. Selected BLOBs return binary-safe Lua strings.</p>
+<p>Use positional <code>?</code> placeholders and a dense parameter array. Never build SQL by concatenating player-provided text. Use <code>Data.null</code> for SQL NULL values rather than holes in a Lua array. Plain Lua strings bind as SQL TEXT; wrap bytes with <code>Database.blob(bytes)</code> to bind SQL BLOB, including an empty BLOB. The same wrapper works in each transaction entry's <code>parameters</code> array.</p>
+<pre><code>local bytes = string.char(0, 255, 65)
+-- With a connected db and the when_done/on_update helper above:
+when_done(db:execute("INSERT INTO files(data) VALUES (?)", { Database.blob(bytes) }), function(result)
+    print(result.changes)
+end)</code></pre>
+<p>Results contain a <code>columns</code> array and a <code>rows</code> array of positional rows, preserving duplicate column names and nulls. SQL NULL becomes <code>Data.null</code>; BLOB values become binary safe Lua strings, preserving embedded NUL and non UTF-8 bytes. TEXT and BLOB results are both Lua strings, so SQL type information is not retained in the returned Lua value. Modification results also report changed rows and the last inserted row ID.</p>
+
+<h2>Transactions and cancellation</h2>
+<p><code>connection:transaction(statements)</code> runs an ordered array of <code>{sql = "...", parameters = {...}}</code> entries as one transaction. A statement failure or observed cancellation rolls it back. Individual query/execute calls accept one statement; use the transaction API for a batch.</p>
+<p>Cancellation settles the operation handle immediately and asks running work to stop. SQLite checks cancellation during query execution. Waiting on a database lock is bounded by its busy timeout. Cancellation cannot undo a write already committed, and third-party drivers must implement their own cancellation and timeout support. Shutdown joins workers rather than abandoning live connections; a non-cooperative driver may delay shutdown.</p>
+
+<h2>Adding another driver</h2>
+<p>Calls for one connection are serialized, but may run on different worker threads. Drivers requiring thread affinity must provide an adapter for that requirement. Factory construction runs on the caller thread and should not perform I/O. Destructors must also tolerate final cleanup after worker shutdown.</p>
+<p>Implement <code>DBDriver::connect</code> and a <code>DBConnection</code> with query, execute, transaction and close behavior. Register a factory under a name with <code>DatabaseService::registerDriver</code> before connecting. Driver calls run on workers and must not access Lua, game entities or renderer state. Keep each connection's mutable driver state inside that connection, observe the cancellation token, and return the common JSON result shape. The Lua call remains <code>Database.connect({driver = "your_driver", path = "your_endpoint", options = {...}})</code>; SQL dialect and driver-specific connection options are not translated automatically.</p>

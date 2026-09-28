@@ -1,0 +1,14 @@
+{
+  "format_version": 1,
+  "canvas_size": [960, 540],
+  "children": [
+    { "id": "title", "type": "label", "text": "Background tasks", "position": [24, 20], "font_size": 26 },
+    { "id": "help", "type": "label", "text": "WASD / arrows move. SPACE or Urgent action responds during the busy loop.", "position": [24, 58], "font_size": 15 },
+    { "id": "busy_status", "type": "label", "text": "Starting...", "position": [24, 94], "font_size": 16 },
+    { "id": "urgent_status", "type": "label", "text": "Urgent actions: 0", "position": [24, 122], "font_size": 16 },
+    { "id": "database_status", "type": "label", "text": "SQLite query: not started", "position": [24, 150], "font_size": 16 },
+    { "id": "toggle_busy", "type": "button", "text": "Start / cancel loop", "action": "toggle_busy", "position": [24, 194], "size": [210, 44] },
+    { "id": "urgent", "type": "button", "text": "Urgent action", "action": "urgent", "position": [248, 194], "size": [180, 44] },
+    { "id": "database", "type": "button", "text": "SQLite query", "action": "database", "position": [442, 194], "size": [180, 44] }
+  ]
+}

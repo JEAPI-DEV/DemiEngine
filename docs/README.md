@@ -7,6 +7,9 @@ are registered in `tools/package-store/src/Docs.php`.
 
 This directory keeps material that has a different job:
 
+- [Lua task qualification](lua-task-qualification.md) records scheduler and
+  asynchronous I/O ownership, overhead measurements, and validation boundaries.
+
 - [Architecture](architecture.md), [renderer migration](bgfx-migration.md),
   [capability gates](capability-gates.md), and the
   [text stack ADR](adr/0007-production-text-stack.md) record internal decisions

@@ -1,5 +1,6 @@
 #include "demi/runtime/scripting/LuaScriptHostInternal.h"
 #include "demi/runtime/scripting/LuaServiceModules.h"
+#include "demi/runtime/scripting/LuaSharedMap.h"
 
 #include "demi/runtime/scripting/bindings/LuaCoreBindings.h"
 #include "demi/runtime/scripting/bindings/LuaEntityBindings.h"
@@ -7,6 +8,8 @@
 #include "demi/runtime/scripting/bindings/mesh/LuaMeshConstructionBindings.h"
 #include "demi/runtime/scripting/bindings/LuaNetworkBindings.h"
 #include "demi/runtime/scripting/bindings/LuaHttpBindings.h"
+#include "demi/runtime/scripting/bindings/LuaTcpBindings.h"
+#include "demi/runtime/scripting/bindings/LuaDatabaseBindings.h"
 #include "demi/runtime/scripting/bindings/LuaNetworkSessionBindings.h"
 #include "demi/runtime/scripting/bindings/LuaRandomBindings.h"
 #include "demi/runtime/scripting/bindings/LuaTlsBindings.h"
@@ -84,6 +87,8 @@ void installBindingModules(LuaScriptHost &host, lua_State *state) {
   const LuaCutsceneBindingModule cutscene;
   const LuaNetworkBindingModule network;
   const LuaHttpBindingModule http;
+  const LuaTcpBindingModule tcp;
+  const LuaDatabaseBindingModule database;
   const LuaNetworkSessionBindingModule networkSession;
   const LuaTlsBindingModule tls;
   const LuaRegexBindingModule regex;
@@ -102,7 +107,7 @@ void installBindingModules(LuaScriptHost &host, lua_State *state) {
       &rigidbody2D, &rigidbody3D, &meshDeformation, &characterController3D,
       &camera3D,    &sprite2D,    &physics2D,       &physics3D,
       &hud,         &save,        &audio,           &video,
-      &cutscene,    &network,     &networkSession,  &tls, &http,
+      &cutscene,    &network,     &networkSession,  &tls, &http, &tcp, &database,
       &regex,       &random,      &isoGrid,         &vectorMath,
       &animation,   &assets,      &navigation2D,    &tilemap2D,
       &data,        &e2eTests, &destruction3D};
@@ -484,6 +489,8 @@ bool luaRegisterBindings(LuaScriptHost &host, lua_State *state,
     return false;
   }
   registerSol2Bindings(host, state);
+  installLuaSharedBindings(state);
+  installLuaTaskBindings(state, host.workerTasks());
   publishLuaServiceModules(state);
   return true;
 }

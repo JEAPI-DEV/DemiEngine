@@ -322,6 +322,7 @@ void LuaScriptHost::reloadChangedScripts() {
 }
 
 void LuaScriptHost::unloadScripts() {
+  workerTasks_.cancelAll();
   auto *state = static_cast<lua_State *>(state_);
   if (state == nullptr) {
     scripts_.clear();
@@ -339,6 +340,7 @@ void LuaScriptHost::unloadScripts() {
   scripts_.clear();
   clearTimersAndEvents();
   clearSaveMigrationHooks();
+  workerTasks_.cancelAll();
 }
 
 bool LuaScriptHost::requestSceneLoad(const std::string &sceneId) {

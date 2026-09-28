@@ -31,8 +31,15 @@ std::size_t JobSystem::defaultWorkerCount() {
 
 JobSystem::JobSystem(const std::size_t workerCount) {
   workers_.reserve(workerCount);
-  for (std::size_t index = 0; index < workerCount; ++index)
-    workers_.emplace_back([this] { workerLoop(); });
+  try {
+    for (std::size_t index = 0; index < workerCount; ++index)
+      workers_.emplace_back([this] { workerLoop(); });
+  } catch (...) {
+    // A partially constructed pool must join the threads already started;
+    // destroying joinable std::threads while unwinding would terminate.
+    shutdown();
+    throw;
+  }
 }
 
 JobSystem::~JobSystem() { shutdown(); }
