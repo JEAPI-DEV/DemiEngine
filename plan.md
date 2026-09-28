@@ -426,6 +426,16 @@ Current audit implementation:
   worker, and two jobs took 31.98 ms. See docs/lua-task-qualification.md for
   scope and remaining platform qualification; no hard-real-time guarantee.
 
+- [x] Expand worker tasks with database/HTTP/TCP service access, notification-
+  driven operation waits and explicit Task.main engine handoffs. Reuse native
+  service pools, keep live world access on the game thread, invalidate queued
+  calls on scene unload, and document sleeping-worker capacity and cancellation.
+  Implemented Database.open, operation:wait and Task.main, with shared native
+  completion notifications and copied callback data. Fourteen focused Linux
+  tests and the visible async_tasks Vulkan E2E pass, covering worker module
+  isolation, cancellation, parameterized SQLite queries and a real HUD callback.
+  Android device qualification remains separate.
+
 - [x] Replace uppercase-global discovery and inferred native import paths with
   an explicit service catalog; test unrelated globals, import caching, cleanup,
   private userdata factories and unknown-service rejection.

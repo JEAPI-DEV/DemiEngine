@@ -1,10 +1,45 @@
 #include "demi/runtime/scripting/LuaScriptHost.h"
+#include "demi/runtime/scripting/LuaWorkerContext.h"
+#include "demi/runtime/scripting/bindings/LuaHttpBindings.h"
+
+#include <sol/sol.hpp>
 
 #include <chrono>
 #include <iostream>
 #include <thread>
 
 int main() {
+  {
+    demi::runtime::HttpClient client;
+    sol::state lua;
+    lua.open_libraries(sol::lib::base, sol::lib::coroutine, sol::lib::math);
+    demi::runtime::installLuaHttpBindings(lua.lua_state(), client);
+    demi::runtime::setLuaWorkerContext(lua.lua_state(), {});
+    const auto result = lua.safe_script(R"lua(
+      local request = assert(Http.get('http://127.0.0.1:1'))
+      for _, timeout in ipairs({-1, 1.5, math.huge, 'bad'}) do
+        local response, err = request:wait(timeout)
+        assert(response == nil and type(err) == 'string')
+      end
+      request:cancel()
+      local co = coroutine.create(function()
+        local response, err = request:wait()
+        assert(response and err == nil)
+        assert(not response.ok and response.error ~= '')
+        assert(response.error_code == request:response().error_code)
+        assert(request:wait(0).error_code == response.error_code)
+      end)
+      local ok, err = coroutine.resume(co)
+      assert(ok, err)
+    )lua",
+                                        sol::script_pass_on_error);
+    if (!result.valid()) {
+      const sol::error failure = result;
+      std::cerr << failure.what() << '\n';
+      return 1;
+    }
+    demi::runtime::clearLuaWorkerContext(lua.lua_state());
+  }
   demi::runtime::World world;
   demi::runtime::InputState input;
   demi::runtime::LuaScriptHost host;
@@ -42,7 +77,11 @@ int main() {
     assert(request ~= nil and error == nil)
     assert(options.method == nil and options.url == nil and options.body == nil)
     assert(type(request.done) == "function" and type(request.response) == "function")
+    local response, wait_error = request:wait(0)
+    assert(response == nil and wait_error:find("workers"))
     request:cancel()
+    response, wait_error = request:wait()
+    assert(response == nil and wait_error:find("workers"))
     http_request_under_test = request
   )lua");
   if (!validation.succeeded) {

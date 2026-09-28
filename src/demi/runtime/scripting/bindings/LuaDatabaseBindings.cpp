@@ -2,11 +2,15 @@
 
 #include "demi/runtime/concurrency/AsyncWorkQueue.h"
 #include "demi/runtime/database/DatabaseService.h"
+#include "demi/runtime/scripting/LuaWorkerContext.h"
 #include "demi/runtime/scripting/bindings/LuaJsonBridge.h"
 
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <tuple>
@@ -166,8 +170,9 @@ Json luaDatabaseResult(Json value) {
   return value;
 }
 
-ConnectResult connect(LuaScriptHost &host, const sol::object &settings,
-                      sol::this_state lua) {
+ConnectResult connect(DatabaseService &service,
+                      const std::filesystem::path &userDataPath,
+                      const sol::object &settings, sol::this_state lua) {
   lua_State *state = lua;
   try {
     if (settings.get_type() != sol::type::table)
@@ -180,10 +185,10 @@ ConnectResult connect(LuaScriptHost &host, const sol::object &settings,
     if (driver == "sqlite") {
       if (!options.is_object())
         throw std::invalid_argument("SQLite options must be an object");
-      path = sqlitePath(host.applicationServices().userDataPath(), path);
+      path = sqlitePath(userDataPath, path);
     }
-    auto connection = host.databaseService().connect(driver, std::move(path),
-                                                     std::move(options));
+    auto connection =
+        service.connect(driver, std::move(path), std::move(options));
     return {sol::make_object(state, std::move(connection)),
             sol::make_object(state, sol::nil)};
   } catch (const std::invalid_argument &error) {
@@ -198,10 +203,37 @@ ConnectResult connect(LuaScriptHost &host, const sol::object &settings,
   }
 }
 
+ConnectResult wait(AsyncWorkOperation &operation,
+                   sol::optional<lua_Integer> timeoutMs, lua_State *state) {
+  const auto failure = [state](const std::string &error) -> ConnectResult {
+    return {sol::make_object(state, sol::nil), sol::make_object(state, error)};
+  };
+  if (!luaWorkerContext(state).isWorker)
+    return failure("Database operation:wait() is only available in workers");
+  if (timeoutMs && *timeoutMs < 0)
+    return failure("timeout_ms must be non-negative");
+  std::optional<std::chrono::milliseconds> timeout;
+  if (timeoutMs)
+    timeout = std::chrono::milliseconds(*timeoutMs);
+  const auto outcome =
+      waitLuaWorkerCompletion(state, operation.completion(), timeout);
+  if (outcome == AsyncWaitResult::Cancelled)
+    return failure("cancelled");
+  if (outcome == AsyncWaitResult::Timeout)
+    return failure("timeout");
+  const auto value = operation.result();
+  if (!value)
+    return failure(operation.error());
+  return {jsonToLuaDataObject(state, luaDatabaseResult(*value)),
+          sol::make_object(state, sol::nil)};
+}
+
 } // namespace
 
-void LuaDatabaseBindingModule::install(LuaScriptHost &host,
-                                       lua_State *state) const {
+namespace {
+void installDatabaseBindings(
+    lua_State *state, DatabaseService &service,
+    std::function<std::filesystem::path()> userDataPath) {
   sol::state_view lua(state);
   lua.new_usertype<AsyncWorkOperation>(
       "DatabaseOperation", sol::no_constructor, "done",
@@ -219,6 +251,9 @@ void LuaDatabaseBindingModule::install(LuaScriptHost &host,
       },
       "error",
       [](const AsyncWorkOperation &operation) { return operation.error(); },
+      "wait",
+      [](AsyncWorkOperation &operation, sol::optional<lua_Integer> timeoutMs,
+         sol::this_state lua) { return wait(operation, timeoutMs, lua); },
       "cancel", [](AsyncWorkOperation &operation) { operation.cancel(); });
   lua["DatabaseOperation"] = sol::nil;
 
@@ -251,9 +286,45 @@ void LuaDatabaseBindingModule::install(LuaScriptHost &host,
   database.set_function(
       "blob", [](std::string bytes) { return DatabaseBlob{std::move(bytes)}; });
   database.set_function(
-      "connect", [&host](const sol::object settings, sol::this_state lua) {
-        return connect(host, settings, lua);
+      "connect", [&service, userDataPath](const sol::object settings,
+                                          sol::this_state lua) {
+        return connect(service, userDataPath(), settings, lua);
       });
+  database.set_function(
+      "open",
+      [&service, userDataPath](const sol::object settings,
+                               sol::this_state lua) -> ConnectResult {
+        lua_State *state = lua;
+        if (!luaWorkerContext(state).isWorker)
+          return {sol::make_object(state, sol::nil),
+                  sol::make_object(
+                      state, "Database.open() is only available in workers")};
+        auto [connectionObject, error] =
+            connect(service, userDataPath(), settings, lua);
+        if (connectionObject == sol::nil)
+          return {connectionObject, error};
+        auto connection =
+            connectionObject.as<std::shared_ptr<DatabaseConnection>>();
+        auto [result, waitError] =
+            wait(*connection->connectOperation(), {}, state);
+        if (result == sol::nil)
+          return {sol::make_object(state, sol::nil), waitError};
+        return {connectionObject, sol::make_object(state, sol::nil)};
+      });
+}
+} // namespace
+
+void LuaDatabaseBindingModule::install(LuaScriptHost &host,
+                                       lua_State *state) const {
+  installDatabaseBindings(state, host.databaseService(), [&host] {
+    return host.applicationServices().userDataPath();
+  });
+}
+
+void installLuaDatabaseBindings(lua_State *state, DatabaseService &service,
+                                std::filesystem::path userDataPath) {
+  installDatabaseBindings(state, service,
+                          [path = std::move(userDataPath)] { return path; });
 }
 
 } // namespace demi::runtime

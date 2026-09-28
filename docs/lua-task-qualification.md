@@ -27,6 +27,52 @@ Public authoring guidance lives in the website's `tasks`, `database`, and
   polled handles. Their internal completion primitive and shared database pool
   remain; the unnecessary Lua completion-token/await surface was removed.
 
+## Worker service access
+
+Worker environments now install thread-safe database, HTTP and TCP bindings,
+plus pure data conversion, vector/scalar math and regex facilities. The host
+snapshots writable storage configuration at project load; installers capture
+native service references, not the live world. Task teardown joins workers
+before the borrowed services shut down.
+
+Operation `wait()` uses `AsyncCompletion` condition-variable notifications and
+a per-task stop token. There is no polling timer. A wait occupies its Lua worker
+slot, but database operations use a separate native pool and networking uses
+its own I/O services. Timeout/cancellation ends a wait, not the operation; callers
+may cancel the operation explicitly. Native driver shutdown remains cooperative.
+
+`Task.main` uses the shared function/argument transfer code to queue a callback
+for the owning gameplay VM. The host dispatches one queue snapshot per update,
+without holding queue locks while Lua runs. Scene unload cancels pending calls;
+an already executing callback is not rolled back. The caller sleeps until the
+result is available or its task is cancelled. Callbacks must be short and must
+not wait for a shared lock held by the worker.
+
+Connections and operation userdata do not cross VMs. Create them within a task
+and return copied data. Supporting additional native handle types requires an
+explicit lifetime/transfer contract, not copying Lua userdata addresses.
+
+### Linux service-access validation, 2026-09-28
+
+Release CLI/runtime/editor rebuilt. Fourteen focused CTest targets passed:
+worker tasks/context, main-thread calls, task-host integration, transfer/shared
+map, async queue, database service/bindings, HTTP/TCP bindings, Lua scripting,
+stub contracts and embedded editor play. Tests include notification wakeup on
+completion/cancellation, oversized timeouts, concurrent database connections,
+shutdown races, fresh module tables, late project-storage configuration and
+SQLite results handed to an actual HUD callback. Data null markers retain their
+meaning across VM transfers.
+
+The visible Vulkan `examples/async_tasks` E2E passed with one ongoing calculation
+and a second worker doing sequential SQLite waits; HUD actions remained usable.
+The example validates without diagnostics; the website Lua-service checker
+checked 817 references. These are focused checks, not a full repository or
+Android qualification. PHP template validation was unavailable in this shell.
+
+An existing worker-test polling helper could treat the second return value
+`"busy"` as a successful predicate. It now evaluates only the first return
+value and preserves stack balance; the regression check is explicit.
+
 The single-VM `LuaTaskScheduler`, priority rotation, instruction budgets, and
 coroutine restrictions were removed. Game callbacks no longer pump any Lua task
 scheduler; their normal coroutine functions are unchanged.

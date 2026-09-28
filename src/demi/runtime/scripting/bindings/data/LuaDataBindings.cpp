@@ -6,6 +6,7 @@
 #include "demi/assets/YamlDataDocument.h"
 
 #include <algorithm>
+#include <string_view>
 
 extern "C" {
 #include <lauxlib.h>
@@ -166,10 +167,12 @@ int kind(lua_State *state) {
 }
 
 int isNull(lua_State *state) {
-  pushLuaService(state, "Data");
-  lua_getfield(state, -1, "null");
-  const bool result = lua_rawequal(state, 1, -1);
-  lua_pop(state, 2);
+  // Transferred values retain their JSON kind, not the source VM's sentinel
+  // identity. Use the same null semantics as the JSON/data conversion bridge.
+  kind(state);
+  const char *value = lua_tostring(state, -1);
+  const bool result = value && std::string_view(value) == "null";
+  lua_pop(state, 1);
   lua_pushboolean(state, result);
   return 1;
 }
@@ -185,13 +188,21 @@ void addFunction(lua_State *state, const char *name, lua_CFunction function,
 
 void LuaDataBindingModule::install(LuaScriptHost &scriptHost,
                                    lua_State *state) const {
-  lua_newtable(state);
+  installLuaDataValueBindings(state);
+  lua_getglobal(state, "Data");
   addFunction(state, "load", load, scriptHost);
-  addFunction(state, "parse_yaml", parseYaml, scriptHost);
   addFunction(state, "query", query, scriptHost);
   addFunction(state, "revision", revision, scriptHost);
-  addFunction(state, "kind", kind, scriptHost);
-  addFunction(state, "is_null", isNull, scriptHost);
+  lua_pop(state, 1);
+}
+
+void installLuaDataValueBindings(lua_State *state) {
+  lua_newtable(state);
+  const luaL_Reg functions[] = {{"parse_yaml", parseYaml},
+                               {"kind", kind},
+                               {"is_null", isNull},
+                               {nullptr, nullptr}};
+  luaL_setfuncs(state, functions, 0);
   lua_newtable(state);
   setLuaJsonTableKind(state, "null");
   lua_setfield(state, -2, "null");

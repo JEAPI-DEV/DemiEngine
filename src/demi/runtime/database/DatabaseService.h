@@ -50,8 +50,9 @@ private:
   bool stopped_ = false;
 };
 
-// Registry access belongs to the main thread. A registered factory is invoked
-// only at connect submission; each connection then owns its driver instance.
+// Registry and connection submission are thread-safe. Factories run on the
+// submitting thread outside service locks and must support concurrent calls;
+// each connection owns its driver instance. Join Lua workers before shutdown.
 class DatabaseService final {
 public:
   using DriverFactory = std::function<std::unique_ptr<DBDriver>()>;
@@ -71,6 +72,8 @@ public:
           nlohmann::json options = nlohmann::json::object());
 
 private:
+  std::mutex mutex_;
+  std::mutex shutdownMutex_;
   std::shared_ptr<AsyncWorkQueue> queue_;
   std::map<std::string, DriverFactory> drivers_;
   std::vector<std::shared_ptr<DatabaseConnection::Record>> connections_;

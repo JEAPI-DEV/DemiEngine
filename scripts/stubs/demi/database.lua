@@ -29,6 +29,12 @@ function Operation:done() end
 ---Returns nil while pending or after failure. Check error() after done().
 ---@return DatabaseQueryResult|DatabaseExecuteResult|table|nil
 function Operation:result() end
+---Worker only. Waits cooperatively and returns the decoded result or nil,error.
+---A timeout stops waiting without cancelling the operation. Omit it to wait until completion or task cancellation.
+---@param timeout_ms? integer Non-negative milliseconds; zero checks immediately.
+---@return DatabaseQueryResult|DatabaseExecuteResult|table|nil result
+---@return string|nil error
+function Operation:wait(timeout_ms) end
 ---Empty while pending or after success.
 ---@return string
 function Operation:error() end
@@ -63,5 +69,11 @@ function Database.blob(bytes) end
 ---@return DatabaseConnection|nil connection
 ---@return string|nil error
 function Database.connect(settings) end
+---Worker only. Connects and waits for setup, returning a ready connection or nil,error.
+---Use db:query(sql, parameters):wait() for sequential worker code.
+---@param settings DatabaseOptions
+---@return DatabaseConnection|nil connection
+---@return string|nil error
+function Database.open(settings) end
 
 return Database

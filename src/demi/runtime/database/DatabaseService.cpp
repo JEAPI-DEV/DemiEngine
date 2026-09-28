@@ -22,6 +22,7 @@ struct DatabaseConnection::Record {
 
   std::shared_ptr<AsyncWorkStrand> strand;
   std::weak_ptr<DatabaseConnection> handle;
+  std::mutex cleanupMutex;
   std::shared_ptr<AsyncWorkOperation> cleanupOperation;
 };
 
@@ -55,6 +56,7 @@ DatabaseConnection::~DatabaseConnection() {
   // The state stays alive in the strand until earlier operations finish.
   // Connection destruction only enqueues cleanup and never joins a worker.
   try {
+    std::scoped_lock cleanupLock(record_->cleanupMutex);
     record_->cleanupOperation =
         record_->strand->submit([state = state_](const auto &) {
           state->connection.reset();
@@ -131,6 +133,7 @@ std::shared_ptr<AsyncWorkOperation> DatabaseConnection::close() {
   });
   // Cancellation can skip a queued close operation. This serial cleanup job
   // still releases the native handle before the connection becomes idle.
+  std::scoped_lock cleanupLock(record_->cleanupMutex);
   record_->cleanupOperation =
       record_->strand->submit([state = state_](const auto &) {
         state->connection.reset();
@@ -159,25 +162,33 @@ DatabaseService::DatabaseService(std::size_t workerCount)
 DatabaseService::~DatabaseService() { shutdown(); }
 
 void DatabaseService::shutdown() {
-  if (stopped_)
-    return;
-  stopped_ = true;
-  for (auto &record : connections_)
+  std::scoped_lock shutdownLock(shutdownMutex_);
+  std::vector<std::shared_ptr<DatabaseConnection::Record>> connections;
+  {
+    std::scoped_lock lock(mutex_);
+    if (stopped_)
+      return;
+    stopped_ = true;
+    connections.swap(connections_);
+  }
+  for (auto &record : connections)
     if (auto connection = record->handle.lock())
       connection->stop();
-  for (auto &record : connections_)
+  for (auto &record : connections)
     record->strand->shutdown();
   queue_->shutdown();
-  for (auto &record : connections_)
+  for (auto &record : connections)
     if (auto connection = record->handle.lock())
       connection->releaseAfterShutdown();
-  connections_.clear();
 }
 
 void DatabaseService::registerDriver(std::string name, DriverFactory factory) {
   if (name.empty() || !factory)
     throw std::invalid_argument(
         "database driver name and factory are required");
+  std::scoped_lock lock(mutex_);
+  if (stopped_)
+    throw std::runtime_error("database service is stopped");
   if (!drivers_.emplace(std::move(name), std::move(factory)).second)
     throw std::invalid_argument("database driver is already registered");
 }
@@ -185,15 +196,30 @@ void DatabaseService::registerDriver(std::string name, DriverFactory factory) {
 std::shared_ptr<DatabaseConnection>
 DatabaseService::connect(const std::string &driverName, std::string path,
                          nlohmann::json options) {
+  DriverFactory factory;
+  {
+    std::scoped_lock lock(mutex_);
+    if (stopped_)
+      throw std::runtime_error("database service is stopped");
+    const auto found = drivers_.find(driverName);
+    if (found == drivers_.end())
+      throw std::invalid_argument("unknown database driver: " + driverName);
+    factory = found->second;
+  }
+  // Factory code may reenter the registry. Recheck shutdown before submitting
+  // work or publishing a connection, so a racing factory cannot escape
+  // teardown.
+  auto driver = factory();
+  if (!driver)
+    throw std::runtime_error("database driver factory returned no driver");
+  std::scoped_lock lock(mutex_);
   if (stopped_)
     throw std::runtime_error("database service is stopped");
-  const auto found = drivers_.find(driverName);
-  if (found == drivers_.end())
-    throw std::invalid_argument("unknown database driver: " + driverName);
   auto connection = std::shared_ptr<DatabaseConnection>(new DatabaseConnection(
-      queue_, found->second(), std::move(path), std::move(options)));
+      queue_, std::move(driver), std::move(path), std::move(options)));
   connection->record_->handle = connection;
   std::erase_if(connections_, [](const auto &record) {
+    std::scoped_lock cleanupLock(record->cleanupMutex);
     return record->handle.expired() && record->cleanupOperation &&
            record->cleanupOperation->completion()->ready();
   });

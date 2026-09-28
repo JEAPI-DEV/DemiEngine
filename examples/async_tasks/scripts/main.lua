@@ -1,6 +1,5 @@
 local Task = require("demi.task")
 local Shared = require("demi.shared")
-local Database = require("demi.database")
 local Hud = require("demi.hud")
 local Input = require("demi.input")
 local Transform = require("demi.transform2d")
@@ -40,15 +39,18 @@ end
 
 -- @HandleAction("database")
 function Demo:on_database()
-    if self.database_operation then return end
-    local connection, err = Database.connect({ driver = "sqlite", path = ":memory:" })
-    if not connection then
-        Hud.set_text("database_status", "SQLite: " .. tostring(err))
-        return
-    end
-    self.connection = connection
-    self.database_operation = connection:connect_operation()
-    self.database_phase = "opening"
+    if self.database_task then return end
+    self.database_task = Task.fork(function()
+        local Database = require("demi.database")
+        local connection, err = Database.open({ driver = "sqlite", path = ":memory:" })
+        assert(connection, err)
+        local result, query_error = connection:query(
+            "SELECT ? AS label, ? AS number", { "completed", 42 }):wait()
+        local closed, close_error = connection:close():wait()
+        assert(result, query_error)
+        assert(closed, close_error)
+        return result.rows[1]
+    end)
     Hud.set_text("database_status", "SQLite query: working")
 end
 
@@ -57,20 +59,14 @@ function Demo:on_update(dt)
     local status = self.busy and not self.busy:done() and "active" or "stopped"
     local iterations = self.progress:get("iterations")
     Hud.set_text("busy_status", "Worker: " .. status .. " | iterations: " .. tostring(iterations or "busy"))
-    local operation = self.database_operation
-    if not operation or not operation:done() then return end
-    local result = operation:result()
-    if not result then
-        Hud.set_text("database_status", "SQLite: " .. operation:error())
-        self.connection:close()
-        self.database_operation = nil
-    elseif self.database_phase == "opening" then
-        self.database_operation = self.connection:query("SELECT ? AS label, ? AS number", { "completed", 42 })
-        self.database_phase = "querying"
+    local task = self.database_task
+    if not task or not task:done() then return end
+    local row, err = task:result()
+    self.database_task = nil
+    if task:status() == "completed" then
+        Hud.set_text("database_status", "SQLite query: " .. row[1] .. " / " .. row[2])
     else
-        Hud.set_text("database_status", "SQLite query: " .. result.rows[1][1] .. " / " .. result.rows[1][2])
-        self.connection:close()
-        self.database_operation = nil
+        Hud.set_text("database_status", "SQLite: " .. tostring(err))
     end
 end
 
@@ -82,7 +78,7 @@ end
 
 function Demo:on_destroy()
     if self.busy then self.busy:cancel() end
-    if self.database_operation then self.database_operation:cancel() end
+    if self.database_task then self.database_task:cancel() end
 end
 
 return Demo

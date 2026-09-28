@@ -93,6 +93,10 @@ int cancelled(lua_State *state) {
 
 int checkCancelled(lua_State *) { return 0; }
 
+int mainCall(lua_State *state) {
+  return luaL_error(state, "Task.main is only available inside Task.fork workers");
+}
+
 int fork(lua_State *state) {
   auto *tasks = owner(state);
   luaL_checktype(state, 1, LUA_TFUNCTION);
@@ -164,6 +168,7 @@ void installLuaTaskBindings(lua_State *state, LuaWorkerTasks &tasks) {
   lua_newtable(state);
   lua_pushvalue(state, -2);
   const luaL_Reg functions[] = {{"fork", fork},
+                                {"main", mainCall},
                                 {"configure", configure},
                                 {"cancelled", cancelled},
                                 {"check_cancelled", checkCancelled},

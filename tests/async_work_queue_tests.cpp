@@ -13,6 +13,7 @@
 #include <vector>
 
 using demi::runtime::AsyncCompletion;
+using demi::runtime::AsyncWaitResult;
 using demi::runtime::AsyncWorkQueue;
 using namespace std::chrono_literals;
 
@@ -70,6 +71,80 @@ void subscribeCompleteRace() {
     finisher.join();
     assert(calls == 1);
     assert(completion.ready());
+  }
+}
+
+void completionWaits() {
+  AsyncCompletion completion;
+  assert(completion.wait({}, 0ms) == AsyncWaitResult::Timeout);
+  assert(completion.wait({}, -1ms) == AsyncWaitResult::Timeout);
+  assert(completion.wait({}, std::chrono::milliseconds::min()) ==
+         AsyncWaitResult::Timeout);
+  assert(completion.wait({}, 10ms) == AsyncWaitResult::Timeout);
+  std::stop_source stopped;
+  stopped.request_stop();
+  assert(completion.wait(stopped.get_token()) == AsyncWaitResult::Cancelled);
+  assert(!completion.ready());
+  completion.complete();
+  assert(completion.wait() == AsyncWaitResult::Ready);
+  assert(completion.wait(stopped.get_token(), 0ms) == AsyncWaitResult::Ready);
+
+  for (int iteration = 0; iteration < 50; ++iteration) {
+    AsyncCompletion pending;
+    std::stop_source stop;
+    auto cancelled = std::async(std::launch::async,
+                                [&] { return pending.wait(stop.get_token()); });
+    auto timedCancelled = std::async(std::launch::async, [&] {
+      return pending.wait(stop.get_token(), 30s);
+    });
+    auto ready = std::async(std::launch::async, [&] { return pending.wait(); });
+    stop.request_stop();
+    finishesSoon(cancelled);
+    finishesSoon(timedCancelled);
+    assert(cancelled.get() == AsyncWaitResult::Cancelled);
+    assert(timedCancelled.get() == AsyncWaitResult::Cancelled);
+    assert(!pending.ready());
+    pending.complete();
+    finishesSoon(ready);
+    assert(ready.get() == AsyncWaitResult::Ready);
+  }
+
+  AsyncCompletion pending;
+  std::vector<std::future<AsyncWaitResult>> waiters;
+  for (int index = 0; index < 8; ++index) {
+    waiters.push_back(
+        std::async(std::launch::async, [&] { return pending.wait({}, 30s); }));
+  }
+  // Completion must wake waiters before running potentially slow subscribers.
+  auto subscription = pending.subscribe([&] {
+    for (auto &waiter : waiters) {
+      finishesSoon(waiter);
+      assert(waiter.get() == AsyncWaitResult::Ready);
+    }
+  });
+  pending.complete();
+}
+
+void hugeCompletionTimeouts() {
+  for (const bool cancel : {false, true}) {
+    AsyncCompletion completion;
+    std::stop_source stop;
+    std::promise<void> started;
+    auto startedFuture = started.get_future();
+    auto waiter = std::async(std::launch::async, [&] {
+      started.set_value();
+      return completion.wait(stop.get_token(), std::chrono::milliseconds::max());
+    });
+    finishesSoon(startedFuture);
+    // Overflow must not turn a huge timeout into an already-expired deadline.
+    assert(waiter.wait_for(20ms) == std::future_status::timeout);
+    if (cancel)
+      stop.request_stop();
+    else
+      completion.complete();
+    finishesSoon(waiter);
+    assert(waiter.get() ==
+           (cancel ? AsyncWaitResult::Cancelled : AsyncWaitResult::Ready));
   }
 }
 
@@ -193,6 +268,8 @@ void shutdownAndHandleLifetime() {
 int main() {
   completionSubscriptions();
   subscribeCompleteRace();
+  completionWaits();
+  hugeCompletionTimeouts();
   resultsAndWorkerReuse();
   cancellationAndExceptions();
   shutdownAndHandleLifetime();

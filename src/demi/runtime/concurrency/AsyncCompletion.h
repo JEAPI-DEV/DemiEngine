@@ -1,10 +1,15 @@
 #pragma once
 
+#include <chrono>
 #include <cstddef>
 #include <functional>
 #include <memory>
+#include <optional>
+#include <stop_token>
 
 namespace demi::runtime {
+
+enum class AsyncWaitResult { Ready, Cancelled, Timeout };
 
 // A one-shot native notification. Callbacks may run on the completing thread;
 // consumers must marshal gameplay or Lua work onto its owning thread.
@@ -33,6 +38,12 @@ public:
 
   AsyncCompletion();
   [[nodiscard]] bool ready() const;
+  // Notification-driven wait. Ready takes precedence over cancellation and
+  // timeout when observed together. Non-positive timeouts never block.
+  // Timeouts beyond the clock's range saturate at its maximum deadline.
+  [[nodiscard]] AsyncWaitResult
+  wait(std::stop_token stopToken = {},
+       std::optional<std::chrono::milliseconds> timeout = std::nullopt) const;
   // If already complete, invokes callback before returning. Destroying the
   // subscription prevents callbacks that have not been taken for dispatch.
   [[nodiscard]] Subscription subscribe(std::function<void()> callback);

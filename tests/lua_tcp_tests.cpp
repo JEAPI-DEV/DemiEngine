@@ -1,4 +1,8 @@
 #include "demi/runtime/scripting/LuaScriptHost.h"
+#include "demi/runtime/scripting/LuaWorkerContext.h"
+#include "demi/runtime/scripting/bindings/LuaTcpBindings.h"
+
+#include <sol/sol.hpp>
 
 #include <arpa/inet.h>
 #include <sys/socket.h>
@@ -124,6 +128,8 @@ void testLuaTcp() {
     local op, error = Tcp.connect("127.0.0.1", TCP_TEST_PORT, {timeout_ms = 1000})
     assert(op ~= nil and error == nil)
     tcp_connect = op
+    local response, wait_error = op:wait(0)
+    assert(response == nil and wait_error:find("workers"))
     local co = coroutine.create(function()
       assert(tcp_connect.completion == nil)
       assert(type(tcp_connect:done()) == "boolean")
@@ -134,6 +140,8 @@ void testLuaTcp() {
   awaitLua(host, "tcp_connect:done()");
   execute(host, R"lua(
     local co = coroutine.create(function()
+      local response, wait_error = tcp_connect:wait()
+      assert(response == nil and wait_error:find("workers"))
       local response = tcp_connect:response()
       assert(response.ok and response.error_code == "" and response.data == "")
       assert(response.connection and response.connection:open())
@@ -174,6 +182,66 @@ void testLuaTcp() {
   require(server.receivedBinary() && server.sentReply(),
           "TCP fixture binary exchange failed");
   host.destroy();
+}
+
+void testWorkerContextWait() {
+  demi::runtime::TcpClient client;
+  LoopbackServer server;
+  sol::state lua;
+  lua.open_libraries(sol::lib::base, sol::lib::coroutine, sol::lib::math);
+  demi::runtime::installLuaTcpBindings(lua.lua_state(), client);
+  std::stop_source stop;
+  demi::runtime::setLuaWorkerContext(lua.lua_state(), stop.get_token());
+  lua.set_function("cancel_wait", [&stop] { stop.request_stop(); });
+  lua.set_function("reset_wait_context", [&lua] {
+    demi::runtime::setLuaWorkerContext(lua.lua_state(), {});
+  });
+  lua["TCP_TEST_PORT"] = server.port();
+  const auto result = lua.safe_script(R"lua(
+    local co = coroutine.create(function()
+      local op = assert(Tcp.connect('127.0.0.1', TCP_TEST_PORT))
+      for _, timeout in ipairs({-1, 1.5, math.huge, 'bad'}) do
+        local response, err = op:wait(timeout)
+        assert(response == nil and type(err) == 'string')
+      end
+      local response, err = op:wait(2000)
+      assert(response and response.ok and err == nil)
+      local connection = response.connection
+      local pending = connection:read(4)
+      local chunk, err = pending:wait(0)
+      assert(chunk == nil and err == 'timeout' and not pending:done())
+      cancel_wait()
+      chunk, err = pending:wait()
+      assert(chunk == nil and err == 'cancelled' and not pending:done())
+      reset_wait_context()
+      local sent, err = connection:write('a\0b\255'):wait()
+      assert(sent and sent.ok and err == nil)
+      chunk, err = pending:wait(2000)
+      assert(chunk and chunk.ok and err == nil)
+      local bytes = chunk.data
+      while #bytes < 4 do
+        local read = connection:read(4 - #bytes)
+        local chunk, err = read:wait(2000)
+        assert(chunk and chunk.ok and err == nil)
+        assert(read:wait(0).data == chunk.data)
+        bytes = bytes .. chunk.data
+      end
+      assert(bytes == 'x\0y\255')
+      local eof, err = connection:read(1):wait(2000)
+      assert(eof and not eof.ok and eof.error_code == 'eof' and err == nil)
+      connection:close()
+    end)
+    local ok, err = coroutine.resume(co)
+    assert(ok, err)
+  )lua",
+                                      sol::script_pass_on_error);
+  if (!result.valid()) {
+    const sol::error error = result;
+    throw std::runtime_error(error.what());
+  }
+  demi::runtime::clearLuaWorkerContext(lua.lua_state());
+  require(server.receivedBinary() && server.sentReply(),
+          "Worker TCP binary exchange failed");
 }
 
 void testPollingWithBusyWorker() {
@@ -244,6 +312,7 @@ void testPollingWithBusyWorker() {
 int main() {
   try {
     testLuaTcp();
+    testWorkerContextWait();
     testPollingWithBusyWorker();
     std::cout << "Lua TCP tests passed\n";
     return 0;

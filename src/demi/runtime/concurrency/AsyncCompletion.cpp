@@ -1,5 +1,7 @@
 #include "demi/runtime/concurrency/AsyncCompletion.h"
 
+#include <algorithm>
+#include <condition_variable>
 #include <cstddef>
 #include <mutex>
 #include <stdexcept>
@@ -10,6 +12,7 @@ namespace demi::runtime {
 
 struct AsyncCompletion::State {
   std::mutex mutex;
+  std::condition_variable_any notification;
   std::unordered_map<std::size_t, std::function<void()>> callbacks;
   std::size_t nextId = 1;
   bool done = false;
@@ -62,6 +65,35 @@ bool AsyncCompletion::ready() const {
   return state_->done;
 }
 
+AsyncWaitResult
+AsyncCompletion::wait(std::stop_token stopToken,
+                      std::optional<std::chrono::milliseconds> timeout) const {
+  const auto state = state_;
+  std::unique_lock lock(state->mutex);
+  const auto ready = [&] { return state->done; };
+  if (timeout && *timeout > std::chrono::milliseconds::zero()) {
+    using Clock = std::chrono::steady_clock;
+    const auto now = Clock::now();
+    const auto remaining =
+        Clock::time_point::max() - std::max(now, Clock::time_point{});
+    // Compare in milliseconds before converting to finer clock ticks. Clamp
+    // both the conversion and addition, including a clock with a negative
+    // epoch.
+    const auto deadline =
+        *timeout >
+                std::chrono::duration_cast<std::chrono::milliseconds>(remaining)
+            ? Clock::time_point::max()
+            : now + std::chrono::duration_cast<Clock::duration>(*timeout);
+    state->notification.wait_until(lock, stopToken, deadline, ready);
+  } else if (!timeout) {
+    state->notification.wait(lock, stopToken, ready);
+  }
+  if (state->done)
+    return AsyncWaitResult::Ready;
+  return stopToken.stop_requested() ? AsyncWaitResult::Cancelled
+                                    : AsyncWaitResult::Timeout;
+}
+
 AsyncCompletion::Subscription
 AsyncCompletion::subscribe(std::function<void()> callback) {
   if (!callback)
@@ -90,6 +122,7 @@ void AsyncCompletion::complete() {
     state_->done = true;
     callbacks.swap(state_->callbacks);
   }
+  state_->notification.notify_all();
   for (const auto &[id, callback] : callbacks) {
     static_cast<void>(id);
     notifySafely(callback);

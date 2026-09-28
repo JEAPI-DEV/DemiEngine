@@ -7,6 +7,10 @@
 namespace demi::runtime {
 
 void LuaRegexBindingModule::install(LuaScriptHost &, lua_State *state) const {
+  installLuaRegexBindings(state);
+}
+
+void installLuaRegexBindings(lua_State *state) {
   const scripting::RegexMatcher matcher;
   sol::table regex = sol::state_view(state).create_named_table("Regex");
   regex.set_function("is_valid", [matcher](const std::string &pattern) {

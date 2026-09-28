@@ -82,7 +82,16 @@ The client respects libcurl's standard proxy environment settings.
 
 `request:done()` checks completion. `request:response()` returns nil while
 pending and the completed result afterward. Reading a response does not consume
-it. Retain the handle until you have collected the result; its garbage
+it. In a task worker, `request:wait(timeout_ms)` waits on a native completion
+notification and returns the same response fields plus a nil error. Omit the
+timeout to wait indefinitely; zero checks without blocking. Explicit timeouts
+must be integers from 0 through 2,147,483,647 milliseconds. Main VM calls are
+rejected, including calls from its coroutines and on completed requests.
+Wait timeout returns `nil, "timeout"`; worker cancellation returns
+`nil, "cancelled"`. Neither cancels the request.
+Completed transport failures still return a response table;
+inspect `ok`, `error` and `error_code`. Handles stay in the VM that created them.
+Retain the handle until you have collected the result; its garbage
 collection requests cancellation. Explicit `cancel()` is preferable when a
 screen closes or its request becomes irrelevant. Stopping Play cancels the
 runtime's requests and joins its HTTP worker.

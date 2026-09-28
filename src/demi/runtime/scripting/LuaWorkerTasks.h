@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <functional>
 #include <memory>
 #include <string>
 
@@ -52,6 +53,12 @@ public:
   // VM is created until the first fork. The default pool has two workers.
   void attach(lua_State *state);
   void configure(std::size_t workerCount);
+  // Installs thread-safe native modules into each fresh worker environment.
+  // Each fork snapshots the installer; captured services must outlive
+  // shutdown().
+  void setModuleInstaller(std::function<void(lua_State *)> installer);
+  // Called by the game loop, never by a worker.
+  void dispatchMainCalls();
   [[nodiscard]] std::shared_ptr<LuaWorkerTask>
   fork(lua_State *state, int functionIndex, int firstArg, int argCount);
   void cancelAll();

@@ -20,6 +20,14 @@ function Operation:done() end
 ---Nil while pending. The result remains available after completion.
 ---@return TcpResponse|nil
 function Operation:response() end
+---Worker-only notification wait; omitted timeout waits indefinitely, 0 never blocks.
+---Wait timeout returns nil,"timeout"; worker cancellation returns nil,"cancelled".
+---Neither cancels the operation.
+---Native failures still return TcpResponse; inspect ok and error.
+---@param timeout_ms? integer Nonnegative milliseconds, at most 2147483647.
+---@return TcpResponse|nil response
+---@return string|nil error
+function Operation:wait(timeout_ms) end
 ---Settles immediately; native cleanup follows on the reactor. An already
 ---submitted write may have reached the peer. Collection also cancels.
 function Operation:cancel() end

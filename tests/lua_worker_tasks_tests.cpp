@@ -13,6 +13,7 @@ extern "C" {
 #include <cstdlib>
 #include <iostream>
 #include <memory>
+#include <source_location>
 #include <string>
 #include <thread>
 
@@ -28,7 +29,9 @@ void run(lua_State *state, const char *script) {
 }
 
 bool evaluate(lua_State *state, const char *expression) {
-  const std::string script = std::string("return ") + expression;
+  // A contended shared operation returns nil,"busy". Test only its first
+  // result, not the truthy error string, and keep the Lua stack balanced.
+  const std::string script = std::string("return (") + expression + ")";
   if (luaL_dostring(state, script.c_str()) != LUA_OK) {
     std::cerr << lua_tostring(state, -1) << '\n';
     std::abort();
@@ -38,19 +41,23 @@ bool evaluate(lua_State *state, const char *expression) {
   return value;
 }
 
-template <class Predicate> void waitFor(Predicate predicate) {
+template <class Predicate>
+void waitFor(Predicate predicate,
+             std::source_location location = std::source_location::current()) {
   const auto deadline = std::chrono::steady_clock::now() + 5s;
   while (!predicate()) {
     if (std::chrono::steady_clock::now() >= deadline) {
-      std::cerr << "Lua worker test timed out\n";
+      std::cerr << "Lua worker test timed out at " << location.file_name()
+                << ':' << location.line() << '\n';
       std::abort();
     }
     std::this_thread::sleep_for(1ms);
   }
 }
 
-void waitFor(lua_State *state, const char *expression) {
-  waitFor([&] { return evaluate(state, expression); });
+void waitFor(lua_State *state, const char *expression,
+             std::source_location location = std::source_location::current()) {
+  waitFor([&] { return evaluate(state, expression); }, location);
 }
 
 struct Fixture {
@@ -60,6 +67,8 @@ struct Fixture {
   Fixture() {
     assert(state);
     luaL_openlibs(state);
+    assert(!evaluate(state, "(function() return nil, 'busy' end)()"));
+    assert(lua_gettop(state) == 0);
     run(state,
         "original_resume=coroutine.resume; original_sethook=debug.sethook");
     tasks.attach(state);

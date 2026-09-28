@@ -27,6 +27,17 @@ local Task = {}
 ---@param ... any Copied data or explicit shared native handles.
 ---@return WorkerTask
 function Task.fork(work, ...) end
+---Worker-only handoff to the game thread. Runs callback during a subsequent
+---game update and sleeps the worker until copied return values are ready.
+---Import live engine services inside callback; pass stable IDs and copied data,
+---not self or engine userdata. Keep callback short: it runs on the game thread.
+---Returns callback results, or nil,error on failure/cancellation. Cancelling
+---skips queued callbacks, but cannot undo a callback that has already started.
+---Do not hold a shared-map lock while waiting for a callback that needs it.
+---@param callback function
+---@param ... any
+---@return any ...
+function Task.main(callback, ...) end
 ---Configure pool size before its first job. Default: two reusable workers.
 ---@param options {workers:integer}
 function Task.configure(options) end

@@ -11,6 +11,10 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/database/DatabaseService.cpp
   src/demi/runtime/database/SQLiteDriver.cpp
   src/demi/runtime/scripting/LuaWorkerTasks.cpp
+  src/demi/runtime/scripting/LuaWorkerContext.cpp
+  src/demi/runtime/scripting/LuaWorkerServices.cpp
+  src/demi/runtime/scripting/LuaTaskFunction.cpp
+  src/demi/runtime/scripting/LuaMainThreadCalls.cpp
   src/demi/runtime/scripting/LuaTransfer.cpp
   src/demi/runtime/scripting/LuaSharedMap.cpp
   src/demi/runtime/scripting/LuaTaskBindings.cpp

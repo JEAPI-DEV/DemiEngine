@@ -85,6 +85,8 @@ end</code></pre>
 </table>
 
 <h2>HTTPS, redirects, and Android</h2>
+<p>In a <code>Task.fork</code> worker, <code>req:wait(timeout_ms)</code> waits on a native completion notification and returns the same response fields as <code>response()</code>, followed by a nil error. Omit the timeout to wait indefinitely; zero checks without blocking. Explicit timeouts must be integers from 0 through 2,147,483,647 milliseconds. A wait timeout returns <code>nil, "timeout"</code>; worker cancellation returns <code>nil, "cancelled"</code>. Neither cancels the request. Transport failures still return a response table: inspect <code>ok</code>, <code>error</code> and <code>error_code</code>. Main VM calls, including its coroutines and completed requests, return <code>nil, error</code>. Create and retain the handle in the worker; HTTP userdata cannot be transferred between VMs.</p>
+
 <ul>
   <li><strong>HTTPS verifies the certificate chain and hostname.</strong> A mismatch fails the request. Omit <code>ca_certificate_pem</code> to use platform trust, or supply the full bundle you intend to trust for this request. A supplied bundle replaces the platform trust sources.</li>
   <li><strong>3xx redirects are not followed.</strong> The response arrives with its status and <code>Location</code> header so your code can decide to retry — the engine will not silently change the destination of a request.</li>

@@ -1,8 +1,12 @@
 #include "demi/runtime/scripting/LuaWorkerTasks.h"
 
 #include "demi/runtime/concurrency/JobSystem.h"
+#include "demi/runtime/scripting/LuaMainThreadCalls.h"
+#include "demi/runtime/scripting/LuaServiceModules.h"
 #include "demi/runtime/scripting/LuaSharedMap.h"
+#include "demi/runtime/scripting/LuaTaskFunction.h"
 #include "demi/runtime/scripting/LuaTransfer.h"
+#include "demi/runtime/scripting/LuaWorkerContext.h"
 
 extern "C" {
 #include <lauxlib.h>
@@ -14,6 +18,7 @@ extern "C" {
 #include <exception>
 #include <mutex>
 #include <stdexcept>
+#include <stop_token>
 #include <string_view>
 #include <unordered_map>
 #include <utility>
@@ -25,98 +30,6 @@ bool terminal(LuaWorkerTaskStatus status) {
   return status == LuaWorkerTaskStatus::Completed ||
          status == LuaWorkerTaskStatus::Failed ||
          status == LuaWorkerTaskStatus::Cancelled;
-}
-
-struct LuaStackScope {
-  lua_State *state;
-  int top;
-  ~LuaStackScope() { lua_settop(state, top); }
-};
-
-struct WorkerFunction {
-  struct Upvalue {
-    int index;
-    bool environment;
-    LuaTransferGraph value;
-  };
-  std::string bytecode;
-  std::vector<Upvalue> upvalues;
-  LuaTransferGraph arguments;
-};
-
-struct DumpBuffer {
-  std::string bytecode;
-  std::exception_ptr error;
-};
-
-int writeBytecode(lua_State *, const void *bytes, std::size_t size,
-                  void *context) {
-  auto &buffer = *static_cast<DumpBuffer *>(context);
-  try {
-    buffer.bytecode.append(static_cast<const char *>(bytes), size);
-    return 0;
-  } catch (...) {
-    buffer.error = std::current_exception();
-    return 1;
-  }
-}
-
-WorkerFunction captureFunction(lua_State *state, int functionIndex,
-                               int firstArg, int argCount) {
-  const LuaStackScope stack{state, lua_gettop(state)};
-  functionIndex = lua_absindex(state, functionIndex);
-  firstArg = lua_absindex(state, firstArg);
-  if (functionIndex < 1 || functionIndex > stack.top ||
-      !lua_isfunction(state, functionIndex) ||
-      lua_iscfunction(state, functionIndex))
-    throw std::invalid_argument(
-        "Task.fork requires a Lua function, not a native function");
-  if (argCount < 0 || (argCount > 0 && (firstArg < 1 || firstArg > stack.top ||
-                                        argCount > stack.top - firstArg + 1)))
-    throw std::invalid_argument("Task.fork argument range is invalid");
-
-  WorkerFunction function;
-  function.arguments = captureLuaValues(state, firstArg, argCount);
-  lua_pushvalue(state, functionIndex);
-  const int copiedFunction = lua_gettop(state);
-  DumpBuffer dump;
-  const int dumpStatus = lua_dump(state, writeBytecode, &dump, 0);
-  if (dump.error)
-    std::rethrow_exception(dump.error);
-  if (dumpStatus != 0)
-    throw std::invalid_argument(
-        "Task.fork could not serialize the Lua function");
-  function.bytecode = std::move(dump.bytecode);
-
-  for (int index = 1;; ++index) {
-    const char *name = lua_getupvalue(state, copiedFunction, index);
-    if (!name)
-      break;
-    if (std::string_view(name) == "_ENV") {
-      lua_pushglobaltable(state);
-      const bool mainEnvironment = lua_rawequal(state, -1, -2);
-      lua_pop(state, 2);
-      if (!mainEnvironment)
-        throw std::invalid_argument(
-            "Task.fork rejects a custom _ENV; workers use a fresh environment");
-      function.upvalues.push_back({index, true, {}});
-      continue;
-    }
-
-    const int type = lua_type(state, -1);
-    const bool primitive = type == LUA_TNIL || type == LUA_TBOOLEAN ||
-                           type == LUA_TNUMBER || type == LUA_TSTRING;
-    if (!primitive && !luaSharedMap(state, -1)) {
-      throw std::invalid_argument(
-          "Task.fork cannot capture upvalue '" + std::string(name) + "' (" +
-          lua_typename(state, type) +
-          "); capture primitive values or SharedMap handles, and pass table "
-          "snapshots as arguments");
-    }
-    function.upvalues.push_back({index, false, captureLuaValues(state, -1, 1)});
-    lua_pop(state, 1);
-  }
-  return function;
 }
 
 char cancellationRegistryKey;
@@ -144,18 +57,27 @@ int checkCancelled(lua_State *state) {
 }
 
 int requireWorkerModule(lua_State *state) {
-  std::size_t length = 0;
-  const char *module = luaL_checklstring(state, 1, &length);
-  if (std::string_view(module, length) == "demi.task")
-    lua_pushvalue(state, lua_upvalueindex(1));
-  else if (std::string_view(module, length) == "demi.shared")
-    lua_pushvalue(state, lua_upvalueindex(2));
-  else
+  const char *module = luaL_checkstring(state, 1);
+  lua_getfield(state, lua_upvalueindex(1), module);
+  if (!lua_isfunction(state, -1))
     return luaL_error(state,
-                      "Worker require cannot load '%s'; only demi.task and "
-                      "demi.shared are available",
+                      "Worker module '%s' is unavailable; use Task.main "
+                      "for live engine services",
                       module);
+  lua_call(state, 0, 1);
   return 1;
+}
+
+struct WorkerExecution {
+  const LuaTaskFunction &function;
+  const std::function<void(lua_State *)> &installModules;
+  LuaMainThreadCalls &mainCalls;
+};
+
+int mainCall(lua_State *state) {
+  auto *calls = static_cast<LuaMainThreadCalls *>(
+      lua_touserdata(state, lua_upvalueindex(1)));
+  return calls->call(state);
 }
 
 // Lua finalizers must not retain a job's environment or write shared data after
@@ -185,7 +107,7 @@ int setWorkerMetatable(lua_State *state) {
   return 1;
 }
 
-void prepareEnvironment(lua_State *state) {
+void prepareEnvironment(lua_State *state, const WorkerExecution &execution) {
   lua_newtable(state);
   lua_rawseti(state, LUA_REGISTRYINDEX, LUA_RIDX_GLOBALS);
   luaopen_base(state);
@@ -206,42 +128,37 @@ void prepareEnvironment(lua_State *state) {
     lua_setglobal(state, name);
   }
   lua_newtable(state);
+  lua_setfield(state, LUA_REGISTRYINDEX, LUA_PRELOAD_TABLE);
+  lua_newtable(state);
   const luaL_Reg functions[] = {{"cancelled", cancelled},
                                 {"check_cancelled", checkCancelled},
                                 {nullptr, nullptr}};
   luaL_setfuncs(state, functions, 0);
+  lua_pushlightuserdata(state, &execution.mainCalls);
+  lua_pushcclosure(state, mainCall, 1);
+  lua_setfield(state, -2, "main");
+  lua_setglobal(state, "Task");
   installLuaSharedBindings(state, true);
   luaL_getsubtable(state, LUA_REGISTRYINDEX, LUA_PRELOAD_TABLE);
   lua_getfield(state, -1, "demi.shared");
   lua_remove(state, -2);
   lua_call(state, 0, 1);
-  lua_pushnil(state);
   lua_setglobal(state, "Shared");
-  lua_pushcclosure(state, requireWorkerModule, 2);
+  if (execution.installModules)
+    execution.installModules(state);
+  publishLuaServiceModules(state);
+  luaL_getsubtable(state, LUA_REGISTRYINDEX, LUA_PRELOAD_TABLE);
+  lua_pushcclosure(state, requireWorkerModule, 1);
   lua_setglobal(state, "require");
 }
 
 int executeWorkerFunction(lua_State *state) {
-  const auto *function = static_cast<const WorkerFunction *>(
+  const auto *execution = static_cast<const WorkerExecution *>(
       lua_touserdata(state, lua_upvalueindex(1)));
   try {
-    prepareEnvironment(state);
-    if (luaL_loadbufferx(state, function->bytecode.data(),
-                         function->bytecode.size(), "Task.fork", "b") != LUA_OK)
-      return lua_error(state);
-    for (const auto &upvalue : function->upvalues) {
-      if (upvalue.environment)
-        lua_pushglobaltable(state);
-      else
-        pushLuaValues(state, upvalue.value);
-      if (!lua_setupvalue(state, 1, upvalue.index))
-        return luaL_error(state, "Worker could not restore a function upvalue");
-    }
-    pushLuaValues(state, function->arguments);
+    prepareEnvironment(state, *execution);
     checkCancelled(state);
-    lua_call(state, static_cast<int>(function->arguments.roots.size()),
-             LUA_MULTRET);
-    return lua_gettop(state);
+    return invokeLuaTaskFunction(state, execution->function);
   } catch (const std::exception &error) {
     lua_pushstring(state, error.what());
   }
@@ -273,14 +190,21 @@ public:
   WorkerVM(const WorkerVM &) = delete;
   WorkerVM &operator=(const WorkerVM &) = delete;
 
-  LuaTransferGraph run(const WorkerFunction &function,
-                       const std::atomic<bool> &cancel) {
+  LuaTransferGraph run(const WorkerExecution &execution,
+                       const std::atomic<bool> &cancel,
+                       std::stop_token stopToken) {
     // This scope ends before the task is settled, including on native errors.
     struct Cleanup {
       lua_State *state;
       ~Cleanup() {
         lua_settop(state, 0);
         setLuaSharedCancellation(state, nullptr);
+        clearLuaWorkerContext(state);
+        // Drop per-job module closures while the owning services are alive.
+        lua_pushnil(state);
+        lua_setfield(state, LUA_REGISTRYINDEX, LUA_PRELOAD_TABLE);
+        lua_pushnil(state);
+        lua_setfield(state, LUA_REGISTRYINDEX, LuaServicesRegistry);
         lua_pushnil(state);
         lua_rawsetp(state, LUA_REGISTRYINDEX, &cancellationRegistryKey);
         lua_rawgetp(state, LUA_REGISTRYINDEX, &idleGlobalsRegistryKey);
@@ -291,10 +215,11 @@ public:
         lua_pop(state, 1);
       }
     } cleanup{state_};
+    setLuaWorkerContext(state_, std::move(stopToken));
     setLuaSharedCancellation(state_, &cancel);
     lua_pushlightuserdata(state_, const_cast<std::atomic<bool> *>(&cancel));
     lua_rawsetp(state_, LUA_REGISTRYINDEX, &cancellationRegistryKey);
-    lua_pushlightuserdata(state_, const_cast<WorkerFunction *>(&function));
+    lua_pushlightuserdata(state_, const_cast<WorkerExecution *>(&execution));
     lua_pushcclosure(state_, executeWorkerFunction, 1);
     if (lua_pcall(state_, 0, LUA_MULTRET, 0) != LUA_OK) {
       const char *message = lua_tostring(state_, -1);
@@ -312,6 +237,7 @@ private:
 struct LuaWorkerTask::State {
   mutable std::mutex mutex;
   std::atomic<bool> cancellation = false;
+  std::stop_source stopSource;
   LuaWorkerTaskStatus status = LuaWorkerTaskStatus::Queued;
   std::string error;
   std::shared_ptr<const LuaTransferGraph> results;
@@ -321,6 +247,7 @@ struct LuaWorkerTask::State {
     if (terminal(status) || status == LuaWorkerTaskStatus::Cancelling)
       return false;
     cancellation.store(true, std::memory_order_release);
+    stopSource.request_stop();
     if (status == LuaWorkerTaskStatus::Queued) {
       status = LuaWorkerTaskStatus::Cancelled;
       error = "cancelled";
@@ -330,7 +257,7 @@ struct LuaWorkerTask::State {
     return true;
   }
 
-  void run(const WorkerFunction &function) {
+  void run(const WorkerExecution &execution) {
     {
       std::scoped_lock lock(mutex);
       if (status != LuaWorkerTaskStatus::Queued)
@@ -342,8 +269,8 @@ struct LuaWorkerTask::State {
     try {
       // JobSystem owns these threads. TLS closes each VM when its worker exits.
       thread_local WorkerVM vm;
-      output =
-          std::make_shared<LuaTransferGraph>(vm.run(function, cancellation));
+      output = std::make_shared<LuaTransferGraph>(
+          vm.run(execution, cancellation, stopSource.get_token()));
     } catch (const std::exception &exception) {
       failure = exception.what();
     } catch (...) {
@@ -436,6 +363,8 @@ struct LuaWorkerTasks::Impl {
   std::size_t workerCount = 2;
   std::unique_ptr<JobSystem> jobs;
   std::shared_ptr<Active> active = std::make_shared<Active>();
+  std::function<void(lua_State *)> installModules;
+  LuaMainThreadCalls mainCalls;
   bool stopping = false;
 };
 
@@ -450,6 +379,7 @@ void LuaWorkerTasks::attach(lua_State *state) {
   shutdown();
   std::scoped_lock lock(impl_->mutex);
   impl_->main = state;
+  impl_->mainCalls.attach(state);
   impl_->stopping = false;
   impl_->active = std::make_shared<Impl::Active>();
   bindingLifetime_ = std::make_shared<int>(0);
@@ -467,6 +397,14 @@ void LuaWorkerTasks::configure(std::size_t workerCount) {
   impl_->workerCount = workerCount;
 }
 
+void LuaWorkerTasks::setModuleInstaller(
+    std::function<void(lua_State *)> installer) {
+  std::scoped_lock lock(impl_->mutex);
+  impl_->installModules = std::move(installer);
+}
+
+void LuaWorkerTasks::dispatchMainCalls() { impl_->mainCalls.dispatch(); }
+
 std::shared_ptr<LuaWorkerTask> LuaWorkerTasks::fork(lua_State *state,
                                                     int functionIndex,
                                                     int firstArg,
@@ -482,7 +420,8 @@ std::shared_ptr<LuaWorkerTask> LuaWorkerTasks::fork(lua_State *state,
   if (!attached)
     throw std::invalid_argument("Task.fork requires the attached Lua VM");
 
-  auto function = captureFunction(state, functionIndex, firstArg, argCount);
+  auto function =
+      captureLuaTaskFunction(state, functionIndex, firstArg, argCount);
   auto taskState = std::make_shared<LuaWorkerTask::State>();
   auto task = std::shared_ptr<LuaWorkerTask>(new LuaWorkerTask(taskState));
   if (!impl_->jobs)
@@ -493,8 +432,9 @@ std::shared_ptr<LuaWorkerTask> LuaWorkerTasks::fork(lua_State *state,
   }
   try {
     static_cast<void>(impl_->jobs->submit(
-        [taskState, function = std::move(function), registry = impl_->active] {
-          taskState->run(function);
+        [taskState, function = std::move(function), registry = impl_->active,
+         installer = impl_->installModules, calls = &impl_->mainCalls] {
+          taskState->run(WorkerExecution{function, installer, *calls});
           std::scoped_lock activeLock(registry->mutex);
           registry->entries.erase(taskState.get());
         }));
@@ -514,6 +454,7 @@ void LuaWorkerTasks::cancelAll() {
   for (const auto &[key, weak] : impl_->active->entries)
     if (const auto state = weak.lock())
       state->cancel();
+  impl_->mainCalls.cancelPending();
 }
 
 void LuaWorkerTasks::shutdown() {
@@ -533,6 +474,7 @@ void LuaWorkerTasks::shutdown() {
       if (const auto state = weak.lock())
         state->cancel();
   }
+  impl_->mainCalls.shutdown();
   if (jobs)
     jobs->shutdown();
 }

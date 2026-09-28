@@ -3,7 +3,7 @@ local Hud = require("demi.hud")
 
 return { tests = {
     {
-        name = "HUD actions and SQLite stay responsive during a worker Lua loop",
+        name = "HUD actions and sequential SQLite worker waits stay responsive",
         func = function()
             Test.expect_scene("scene://async_tasks/main")
             Test.wait(0.05)
@@ -19,7 +19,8 @@ return { tests = {
                     break
                 end
             end
-            Test.expect(completed, "SQLite task failed or did not resume")
+            Test.expect(completed, "SQLite worker failed or did not complete")
+            Test.expect(Hud.get_text("busy_status"):find("active", 1, true), "SQLite worker stopped the ongoing calculation")
             Test.touch("urgent")
             Test.expect(Hud.get_text("urgent_status") == "Urgent actions: 2", "Action stopped responding")
             Test.touch("toggle_busy")

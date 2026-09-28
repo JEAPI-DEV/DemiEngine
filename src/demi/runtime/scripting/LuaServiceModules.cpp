@@ -1,6 +1,8 @@
 #include "demi/runtime/scripting/LuaServiceModules.h"
 extern "C" {
+#include <lauxlib.h>
 #include <lua.h>
+#include <lualib.h>
 }
 #include <stdexcept>
 
@@ -63,9 +65,7 @@ constexpr LuaServiceModule serviceModules[] = {
 };
 } // namespace
 
-std::span<const LuaServiceModule> luaServiceModules() {
-  return serviceModules;
-}
+std::span<const LuaServiceModule> luaServiceModules() { return serviceModules; }
 
 std::string luaServiceModuleName(std::string_view service) {
   for (const auto &entry : serviceModules) {
@@ -73,14 +73,13 @@ std::string luaServiceModuleName(std::string_view service) {
       return std::string(entry.module);
     }
   }
-  throw std::invalid_argument("Unknown native Lua service: " + std::string(service));
+  throw std::invalid_argument("Unknown native Lua service: " +
+                              std::string(service));
 }
 void publishLuaServiceModules(lua_State *state) {
   lua_newtable(state);
   const int services = lua_gettop(state);
-  lua_getglobal(state, "package");
-  lua_getfield(state, -1, "preload");
-  lua_remove(state, -2);
+  luaL_getsubtable(state, LUA_REGISTRYINDEX, LUA_PRELOAD_TABLE);
   const int preload = lua_gettop(state);
   lua_pushglobaltable(state);
   const int globals = lua_gettop(state);

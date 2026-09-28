@@ -184,6 +184,10 @@ void LuaScriptHost::update(const float dt) {
     reloadChangedScripts();
   }
   {
+    ProfileScope scope("Lua.worker_main_calls");
+    workerTasks_.dispatchMainCalls();
+  }
+  {
     ProfileScope scope("Lua.dispatch_animation_events");
     dispatchAnimationEvents();
   }

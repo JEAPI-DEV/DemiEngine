@@ -1,6 +1,7 @@
 #include "demi/runtime/scripting/bindings/LuaHttpBindings.h"
 
 #include "demi/runtime/network/HttpClient.h"
+#include "demi/runtime/scripting/LuaWorkerContext.h"
 #include "demi/runtime/scripting/bindings/LuaJsonBridge.h"
 
 #include <algorithm>
@@ -174,14 +175,42 @@ sol::object responseObject(lua_State *state, const HttpRequestHandle &handle) {
   return sol::make_object(state, result);
 }
 
-RequestResult startRequest(LuaScriptHost &host, lua_State *state,
+RequestResult waitResponse(const HttpRequestHandle &handle,
+                           sol::optional<sol::object> timeoutMs,
+                           lua_State *state) {
+  try {
+    if (!luaWorkerContext(state).isWorker)
+      throw std::invalid_argument(
+          "HTTP operation:wait() is only available in workers");
+    std::optional<std::chrono::milliseconds> timeout;
+    if (timeoutMs && timeoutMs->valid() && *timeoutMs != sol::nil) {
+      sol::state_view lua(state);
+      sol::table options = lua.create_table();
+      options["timeout_ms"] = *timeoutMs;
+      timeout = std::chrono::milliseconds(integerOption(
+          options, "timeout_ms", 0, std::numeric_limits<int>::max()));
+    }
+    const auto result =
+        waitLuaWorkerCompletion(state, handle.operation->completion(), timeout);
+    if (result != AsyncWaitResult::Ready)
+      return {sol::make_object(state, sol::nil),
+              sol::make_object(state, result == AsyncWaitResult::Cancelled
+                                          ? "cancelled"
+                                          : "timeout")};
+    return {responseObject(state, handle), sol::make_object(state, sol::nil)};
+  } catch (const std::invalid_argument &error) {
+    return {sol::make_object(state, sol::nil),
+            sol::make_object(state, error.what())};
+  }
+}
+
+RequestResult startRequest(HttpClient &client, lua_State *state,
                            const sol::table &options,
                            const std::string &url = {},
                            const std::string &method = {}) {
   try {
     std::string error;
-    auto operation =
-        host.httpClient().request(readRequest(options, url, method), error);
+    auto operation = client.request(readRequest(options, url, method), error);
     if (!operation)
       return {sol::make_object(state, sol::nil),
               sol::make_object(state, error)};
@@ -202,31 +231,43 @@ RequestResult startRequest(LuaScriptHost &host, lua_State *state,
 
 void LuaHttpBindingModule::install(LuaScriptHost &host,
                                    lua_State *state) const {
+  installLuaHttpBindings(state, host.httpClient());
+}
+
+void installLuaHttpBindings(lua_State *state, HttpClient &client) {
   sol::state_view lua(state);
   lua.new_usertype<HttpRequestHandle>(
       "HttpRequestHandle", sol::no_constructor, "done",
       [](const HttpRequestHandle &handle) { return handle.operation->done(); },
       "cancel", [](HttpRequestHandle &handle) { handle.operation->cancel(); },
       "response",
-      [state](const HttpRequestHandle &handle) {
-        return responseObject(state, handle);
+      [](const HttpRequestHandle &handle, sol::this_state current) {
+        return responseObject(current, handle);
+      },
+      "wait",
+      [](const HttpRequestHandle &handle, sol::optional<sol::object> timeoutMs,
+         sol::this_state current) {
+        return waitResponse(handle, timeoutMs, current);
       });
   lua["HttpRequestHandle"] = sol::nil;
   sol::table http = lua.create_named_table("Http");
-  http.set_function("request", [&host, state](const sol::table options) {
-    return startRequest(host, state, options);
+  http.set_function(
+      "request", [&client](const sol::table options, sol::this_state current) {
+        return startRequest(client, current, options);
+      });
+  http.set_function("get", [&client](const std::string &url,
+                                     sol::optional<sol::table> options,
+                                     sol::this_state current) {
+    sol::state_view lua(current);
+    return startRequest(client, current, options.value_or(lua.create_table()),
+                        url, "GET");
   });
-  http.set_function("get", [&host, state](const std::string &url,
-                                          sol::optional<sol::table> options) {
-    sol::state_view lua(state);
-    return startRequest(host, state, options.value_or(lua.create_table()), url,
-                        "GET");
-  });
-  http.set_function("post", [&host, state](const std::string &url,
-                                           sol::optional<sol::table> options) {
-    sol::state_view lua(state);
-    return startRequest(host, state, options.value_or(lua.create_table()), url,
-                        "POST");
+  http.set_function("post", [&client](const std::string &url,
+                                      sol::optional<sol::table> options,
+                                      sol::this_state current) {
+    sol::state_view lua(current);
+    return startRequest(client, current, options.value_or(lua.create_table()),
+                        url, "POST");
   });
 }
 

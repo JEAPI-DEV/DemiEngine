@@ -1,6 +1,7 @@
 #include "demi/runtime/scripting/LuaScriptHostInternal.h"
 #include "demi/runtime/scripting/LuaServiceModules.h"
 #include "demi/runtime/scripting/LuaSharedMap.h"
+#include "demi/runtime/scripting/LuaWorkerServices.h"
 
 #include "demi/runtime/scripting/bindings/LuaCoreBindings.h"
 #include "demi/runtime/scripting/bindings/LuaEntityBindings.h"
@@ -491,6 +492,7 @@ bool luaRegisterBindings(LuaScriptHost &host, lua_State *state,
   registerSol2Bindings(host, state);
   installLuaSharedBindings(state);
   installLuaTaskBindings(state, host.workerTasks());
+  configureLuaWorkerServices(host);
   publishLuaServiceModules(state);
   return true;
 }

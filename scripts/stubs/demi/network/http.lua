@@ -32,6 +32,14 @@ function Request:cancel() end
 ---Returns nil while pending. Completed results remain readable while the handle lives.
 ---@return HttpResponse|nil
 function Request:response() end
+---Worker-only notification wait; omitted timeout waits indefinitely, 0 never blocks.
+---Wait timeout returns nil,"timeout"; worker cancellation returns nil,"cancelled".
+---Neither cancels the request.
+---Transport/HTTP failures still return HttpResponse; inspect ok and error.
+---@param timeout_ms? integer Nonnegative milliseconds, at most 2147483647.
+---@return HttpResponse|nil response
+---@return string|nil error
+function Request:wait(timeout_ms) end
 
 ---@class HttpService
 local Http = {}

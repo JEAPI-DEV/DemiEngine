@@ -1,7 +1,23 @@
 <h1>Databases and drivers</h1>
 <p><code>demi.database</code> provides asynchronous connections and parameterized queries. SQLite is the built-in driver. Other databases need a driver implementing the native <code>DBDriver</code>/<code>DBConnection</code> interfaces and registration with <code>DatabaseService</code>; selecting an arbitrary name does not install a driver.</p>
 
-<h2>Connect and query</h2>
+<h2>Sequential worker queries</h2>
+<pre><code>local Task = require("demi.task")
+local job = Task.fork(function()
+    local Database = require("demi.database")
+    local db, err = Database.open({path = "scores.db"})
+    assert(db, err)
+    assert(db:execute("CREATE TABLE IF NOT EXISTS scores(name TEXT, points INTEGER)"):wait())
+    assert(db:execute("INSERT INTO scores VALUES (?, ?)", {"Ada", 120}):wait())
+    local result, query_error = db:query("SELECT name, points FROM scores WHERE points &gt; ?", {100}):wait()
+    assert(result, query_error)
+    assert(db:close():wait())
+    return result.rows
+end)</code></pre>
+<p>Inside a <code>Task.fork</code> worker, <code>Database.open(settings)</code> connects and waits for setup, returning a ready connection or <code>nil, error</code>. Chain <code>db:query(...):wait()</code> to receive decoded rows directly. Query, execute, transaction, close and connect operations all support <code>wait(timeout_ms)</code>, returning their existing result or <code>nil, error</code>. A successful connect wait returns <code>{connected = true}</code>.</p>
+<p>Omit the timeout to wait until completion or task cancellation; zero checks immediately and negative values are rejected. Timeout returns <code>nil, "timeout"</code> and task cancellation returns <code>nil, "cancelled"</code>. Both stop waiting without cancelling the database operation; a write may still commit. <code>open</code> and <code>wait</code> are worker-only and return <code>nil, error</code> on the main thread. Import the database module inside the worker and return plain result data through the task; native connection and operation handles are not copied task arguments or results.</p>
+
+<h2>Polling on the main thread</h2>
 <pre><code>local Database = require("demi.database")
 local pending, callback
 local function when_done(operation, next_step)
@@ -31,7 +47,7 @@ function on_update(dt)
     next_step(assert(operation:result(), operation:error()))
 end</code></pre>
 <p>SQLite relative paths are below the application's writable <code>databases/</code> directory, not the project or cooked files. <code>:memory:</code> creates a private in-memory database. Absolute paths and traversal outside the database directory are rejected by the Lua API. Driver options, such as SQLite <code>busy_timeout_ms</code>, go in the connection's <code>options</code> table.</p>
-<p>Operations provide <code>done()</code>, <code>result()</code>, <code>error()</code>, and <code>cancel()</code>. Poll from main-thread callbacks such as <code>on_update</code>; a ready operation can have failed, so check its result/error. Connections serialize operations in submission order over a shared native worker pool. One connection does not allocate its own OS thread, and waiting requests do not occupy workers. Engine services are unavailable in <code>Task.fork</code> workers; submit database operations on the main thread.</p>
+<p>Operations retain asynchronous <code>done()</code>, <code>result()</code>, <code>error()</code>, and <code>cancel()</code> methods. Poll from main-thread callbacks such as <code>on_update</code>; a ready operation can have failed, so check its result/error. Connections serialize operations in submission order over a shared native database pool. One connection does not allocate its own OS thread, and queued database requests do not occupy database workers. A Lua worker calling <code>wait</code> waits cooperatively on its own thread while the main loop continues.</p>
 
 <h2>Parameters and result rows</h2>
 <p>Plain Lua strings bind as SQL TEXT. Use <code>Database.blob(bytes)</code> to bind a BLOB, including empty values and embedded NUL bytes. Selected BLOBs return binary-safe Lua strings.</p>
@@ -48,5 +64,6 @@ end)</code></pre>
 <p>Cancellation settles the operation handle immediately and asks running work to stop. SQLite checks cancellation during query execution. Waiting on a database lock is bounded by its busy timeout. Cancellation cannot undo a write already committed, and third-party drivers must implement their own cancellation and timeout support. Shutdown joins workers rather than abandoning live connections; a non-cooperative driver may delay shutdown.</p>
 
 <h2>Adding another driver</h2>
+<p>Registry access and connect submission are synchronized. Driver factories run outside service locks on the submitting thread and must support concurrent calls. Service shutdown rejects new submissions and joins the database pool; owners must join Lua workers before shutting down their externally owned database service.</p>
 <p>Calls for one connection are serialized, but may run on different worker threads. Drivers requiring thread affinity must provide an adapter for that requirement. Factory construction runs on the caller thread and should not perform I/O. Destructors must also tolerate final cleanup after worker shutdown.</p>
 <p>Implement <code>DBDriver::connect</code> and a <code>DBConnection</code> with query, execute, transaction and close behavior. Register a factory under a name with <code>DatabaseService::registerDriver</code> before connecting. Driver calls run on workers and must not access Lua, game entities or renderer state. Keep each connection's mutable driver state inside that connection, observe the cancellation token, and return the common JSON result shape. The Lua call remains <code>Database.connect({driver = "your_driver", path = "your_endpoint", options = {...}})</code>; SQL dialect and driver-specific connection options are not translated automatically.</p>

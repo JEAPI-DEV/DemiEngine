@@ -36,6 +36,10 @@ sol::table table(lua_State *state, const Vec3 value) {
 
 void LuaVectorMathBindingModule::install(LuaScriptHost &,
                                          lua_State *state) const {
+  installLuaVectorMathBindings(state);
+}
+
+void installLuaVectorMathBindings(lua_State *state) {
   sol::state_view lua(state);
   sol::table vector2 = lua.create_named_table("Vector2");
   vector2.set_function(

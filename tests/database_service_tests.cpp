@@ -3,10 +3,12 @@
 #include "demi/runtime/database/DatabaseService.h"
 
 #include <atomic>
+#include <barrier>
 #include <cassert>
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
+#include <future>
 #include <limits>
 #include <mutex>
 #include <set>
@@ -209,6 +211,75 @@ void driverRegistry() {
   assert(value(db->query("hello"))["rows"][0][0] == "hello");
 }
 
+void concurrentConnectsAndRegistry() {
+  DatabaseService service;
+  std::barrier start(8);
+  std::vector<std::future<void>> callers;
+  for (int index = 0; index < 8; ++index) {
+    callers.push_back(std::async(std::launch::async, [&, index] {
+      start.arrive_and_wait();
+      service.registerDriver("fake" + std::to_string(index),
+                             [] { return std::make_unique<FakeDriver>(); });
+      for (int iteration = 0; iteration < 16; ++iteration) {
+        auto db = service.connect("sqlite", ":memory:");
+        assert(value(db->connectOperation())["connected"] == true);
+        assert(value(db->query("SELECT ?",
+                               Json::array({index})))["rows"][0][0] == index);
+        // Dropping handles exercises cleanup-record pruning concurrently.
+      }
+    }));
+  }
+  for (auto &caller : callers)
+    caller.get();
+}
+
+void factoryRacingShutdown() {
+  DatabaseService service;
+  std::promise<void> entered;
+  std::promise<void> release;
+  auto released = release.get_future().share();
+  service.registerDriver("delayed_factory", [&] {
+    // Reentrant registration proves factories do not run under the registry
+    // lock.
+    service.registerDriver("from_factory",
+                           [] { return std::make_unique<FakeDriver>(); });
+    entered.set_value();
+    released.wait();
+    return std::make_unique<FakeDriver>();
+  });
+  auto caller = std::async(std::launch::async, [&] {
+    try {
+      (void)service.connect("delayed_factory", "unused");
+      return false;
+    } catch (const std::runtime_error &error) {
+      return std::string(error.what()) == "database service is stopped";
+    }
+  });
+  const auto ready = entered.get_future().wait_for(std::chrono::seconds(2));
+  if (ready != std::future_status::ready) {
+    release.set_value();
+    throw std::runtime_error("database factory did not start");
+  }
+  auto firstShutdown =
+      std::async(std::launch::async, [&] { service.shutdown(); });
+  auto secondShutdown =
+      std::async(std::launch::async, [&] { service.shutdown(); });
+  const auto stopped = firstShutdown.wait_for(std::chrono::seconds(2));
+  release.set_value();
+  firstShutdown.get();
+  secondShutdown.get();
+  assert(stopped == std::future_status::ready);
+  assert(caller.get());
+  bool rejected = false;
+  try {
+    service.registerDriver("after_shutdown",
+                           [] { return std::make_unique<FakeDriver>(); });
+  } catch (const std::runtime_error &) {
+    rejected = true;
+  }
+  assert(rejected);
+}
+
 void sharedPoolAndShutdown() {
   struct Threads {
     std::mutex mutex;
@@ -355,6 +426,8 @@ int main() {
   cancellationAndLifetime();
   fileReopen();
   driverRegistry();
+  concurrentConnectsAndRegistry();
+  factoryRacingShutdown();
   sharedPoolAndShutdown();
   droppedHandleClosesOnWorker();
   failedConnectPropagates();

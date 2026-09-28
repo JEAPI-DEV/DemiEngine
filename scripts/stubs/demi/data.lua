@@ -1,4 +1,6 @@
 ---@meta
+-- Worker VMs support null, kind, is_null and parse_yaml. Use Task.main for
+-- load/query/revision, which access the live asset store.
 -- Native module: require("demi.data"). Annotations only.
 ---@class ScriptPropertyDefinition
 ---@field type 'boolean'|'number'|'integer'|'string'|'asset'|'entity'|'enum'|'array'|'object'|'vec2'|'vec3'|'color'

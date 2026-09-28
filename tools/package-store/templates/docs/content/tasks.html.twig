@@ -34,7 +34,7 @@ end</code></pre>
   <li>Arguments/results can contain nil, booleans, integers, numbers, binary-safe strings, and plain Lua tables. Table cycles and aliases are preserved within a transfer. Data array/object/null markers are supported.</li>
   <li>Captured primitive locals are copied snapshots. Explicit <code>Shared.map</code> handles remain shared native objects.</li>
   <li>Captured ordinary tables such as <code>self</code>, captured functions, native C functions, threads, unknown userdata and custom metatables are rejected. Pass plain table inputs explicitly instead of silently copying a captured game object.</li>
-  <li>The function's normal global environment is rebound to a fresh worker environment. Worker code has base, math, string, table and UTF-8 facilities, plus <code>require("demi.task")</code> for cancellation and <code>require("demi.shared")</code>. Game-world, rendering and other engine services remain on the main thread.</li>
+  <li>The function's normal global environment is rebound to a fresh worker environment. Workers can import <code>demi.database</code>, <code>demi.network.http</code>, <code>demi.network.tcp</code>, <code>demi.shared</code>, <code>demi.task</code>, vector/scalar math and <code>demi.regex</code>. The standard base, math, string, table and UTF-8 facilities are also available. <code>demi.data</code> supports value helpers and YAML parsing; live asset-store queries belong on the game thread.</li>
 </ul>
 <p>Workers reuse their VMs, but jobs do not share global or library-table mutations. Functions with a custom <code>_ENV</code> are rejected. Worker table GC finalizers are not available: deferred Lua callbacks could otherwise write shared state after a job had finished. Use deterministic close handlers for job cleanup. Completion order depends on OS scheduling; do not use it as an authoritative simulation clock.</p>
 
@@ -88,5 +88,31 @@ end)</code></pre>
 <p>The default pool has two threads, created lazily. Before the first fork, <code>Task.configure({workers = 4})</code> changes its size. VMs are reused rather than created per job. Batch small calculations when transfer and submission costs outweigh useful computation.</p>
 
 <h2>Database and network operations</h2>
-<p>The <a href="{{ path('docs_page', {slug: 'database'}) }}">database</a>, <a href="{{ path('docs_page', {slug: 'tcp-client'}) }}">TCP</a> and <a href="{{ path('docs_page', {slug: 'http-and-tls'}) }}">HTTP</a> services already perform their work outside the main loop. Start those operations on the main thread and poll their handles during updates. They do not need a fork wrapper, and their native connection handles are not ordinary copied task arguments.</p>
+<p>The <a href="{{ path('docs_page', {slug: 'database'}) }}">database</a>, <a href="{{ path('docs_page', {slug: 'tcp-client'}) }}">TCP</a> and <a href="{{ path('docs_page', {slug: 'http-and-tls'}) }}">HTTP</a> services work directly inside tasks. Their operation handles provide <code>wait(timeout_ms)</code>: the worker sleeps until completion, cancellation or an optional timeout. No busy-polling loop is needed. On the game thread, keep using the non-blocking submission and polling APIs; waiting there is rejected.</p>
+<pre><code>local work = Task.fork(function()
+    local Database = require("demi.database")
+    local db = assert(Database.open({ driver = "sqlite", path = "scores.db" }))
+    assert(db:execute("CREATE TABLE IF NOT EXISTS scores(points INTEGER)"):wait())
+    local result = assert(db:query("SELECT COUNT(*) FROM scores"):wait())
+    assert(db:close():wait())
+    return result.rows[1][1]
+end)</code></pre>
+<p>Create connections inside the task; connection and operation userdata cannot be passed between Lua VMs. Database requests execute on a separate native pool, and network requests use their own I/O services, so sleeping Lua workers do not prevent those requests from completing. A sleeping task still occupies one Lua worker slot. Use the asynchronous main-thread APIs when you need many independent requests without occupying those slots.</p>
+<p>A timed-out or cancelled wait returns nil and <code>"timeout"</code> or <code>"cancelled"</code>. It does not cancel the underlying operation; keep its handle and call <code>cancel()</code> explicitly if required. Already committed database writes cannot be undone by cancellation.</p>
+
+<h2>Work with the live engine</h2>
+<p>Use <code>Task.main(callback, ...)</code> to read or modify entities, HUDs, assets or other live engine state. It queues the callback for the game thread and sleeps the worker until the callback returns. Arguments and results are copied using the same rules as <code>fork</code>.</p>
+<pre><code>local work = Task.fork(function(entity_id)
+    local Task = require("demi.task")
+    local position = assert(Task.main(function(id)
+        local Transform3D = require("demi.transform3d")
+        local x, y, z = Transform3D.get_position(id)
+        assert(x, "Entity has no Transform3D")
+        return { x, y, z }
+    end, entity_id))
+
+    -- Perform expensive calculations here, on the worker.
+    return position
+end, "player")</code></pre>
+<p>Import engine services inside the callback rather than capturing a service table or <code>self</code>. Keep these callbacks short: their work runs during a game update, not in parallel with the world. Cancellation skips callbacks that have not started, but cannot roll back an executing callback. Errors return nil and an error message to the worker. Do not hold shared locks while waiting for main-thread code that needs those locks. Scene unload invalidates queued calls.</p>
 <p>Run <code>demi run --project examples/async_tasks</code> to move a marker and trigger HUD actions while a worker calculates and publishes progress through a shared map.</p>

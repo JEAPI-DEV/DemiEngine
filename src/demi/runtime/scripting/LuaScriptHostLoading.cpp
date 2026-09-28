@@ -3,6 +3,7 @@
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
 #include "demi/runtime/scripting/LuaScriptHost.h"
+#include "demi/runtime/scripting/LuaWorkerServices.h"
 
 #include "demi/runtime/scripting/LuaScriptHostInternal.h"
 #include "demi/runtime/scripting/ScriptComponentMetadata.h"
@@ -93,6 +94,7 @@ bool LuaScriptHost::loadWorldScripts(const ProjectData &project, World &world,
     networkContract_ = std::move(*loadedContract.contract);
   }
   applicationServices_.configureStorage(project.name, project.projectDirectory);
+  configureLuaWorkerServices(*this);
   applicationServices_.configurePermissions(project.build.android.permissions);
   if (project_ != &project) {
     prefabService_.configure(project.projectDirectory);
