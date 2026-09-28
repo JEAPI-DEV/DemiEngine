@@ -7,6 +7,7 @@
 #include "editor/EditorPrefabPlacement.h"
 #include "editor/EditorViewportOverlay2D.h"
 #include "editor/EditorViewportProjection.h"
+#include "editor/EditorTerrainPicking.h"
 #include "editor/EditorWorkspace.h"
 
 #include <bgfx/bgfx.h>
@@ -60,6 +61,9 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
                         EditorViewportArea &viewportArea,
                         EditorHudViewportState &hudState, const bool hudOnly,
                         std::string &notice, const bool embedded) {
+  std::string terrainError;
+  if (!workspace.pollTerrainAuthoring(terrainError))
+    notice = std::move(terrainError);
   if (!embedded && !beginEditorPanel("Stage", position, size, nullptr,
                                      ImGuiWindowFlags_NoScrollbar |
                                          ImGuiWindowFlags_NoScrollWithMouse |
@@ -294,10 +298,24 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
     if (!toolUpdated)
       notice = std::move(interactionError);
 
+    const bool hideTransformGizmo =
+        hudOnly || (!is2D && workspace.terrainAuthoring().brushActive());
     const EditorGizmoPresentation gizmo =
-        hudOnly ? EditorGizmoPresentation{}
-        : is2D  ? workspace.gizmoPresentation2D({canvasWidth, canvasHeight})
-                : workspace.gizmoPresentation({canvasWidth, canvasHeight});
+        hideTransformGizmo ? EditorGizmoPresentation{}
+        : is2D ? workspace.gizmoPresentation2D({canvasWidth, canvasHeight})
+               : workspace.gizmoPresentation({canvasWidth, canvasHeight});
+    if (!hudOnly && !is2D) {
+      const auto ring = projectEditorTerrainBrush(
+          workspace.project().world, workspace.terrainAuthoring(),
+          workspace.sceneView().camera(), {canvasWidth, canvasHeight});
+      for (std::size_t index = 1; index < ring.size(); ++index) {
+        if (ring[index - 1] && ring[index])
+          draw->AddLine(
+              {canvasMin.x + ring[index - 1]->x, canvasMin.y + ring[index - 1]->y},
+              {canvasMin.x + ring[index]->x, canvasMin.y + ring[index]->y},
+              IM_COL32(245, 199, 91, 255), 2.0F);
+      }
+    }
     const EditorGizmoOperation drawnOperation =
         is2D ? workspace.viewportTool2D().operation()
              : workspace.viewportTool().operation();
@@ -370,8 +388,10 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
       workspace.sceneView2D().update({});
     else
       workspace.sceneView().update({});
-    const bool dragging = is2D ? workspace.viewportTool2D().isDragging()
-                               : workspace.viewportTool().isDragging();
+    const bool dragging =
+        is2D ? workspace.viewportTool2D().isDragging()
+             : workspace.viewportTool().isDragging() ||
+                   workspace.terrainAuthoring().stroking();
     if (dragging) {
       std::string interactionError;
       const bool cancelled = is2D ? workspace.updateViewportTool2D(

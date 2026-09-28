@@ -1,0 +1,41 @@
+<h1>Terrain generation and editing</h1>
+<p><code>Terrain3D</code> generates a finite heightfield from a seed and biome settings. The editor lets you regenerate the base, paint biome regions and apply sculpt edits without writing JSON. This is an experimental 3D workflow; it does not yet provide large-world streaming, vegetation scattering or volumetric caves.</p>
+
+<h2>Generate a terrain</h2>
+<ol>
+  <li>Open a 3D scene, add an entity with <strong>Transform 3D</strong>, then add <strong>Terrain 3D</strong> in the Inspector.</li>
+  <li>Choose the X/Z size in world units, resolution in cells, seed and chunk size. Resolution determines surface detail; chunk size controls how the surface is split into meshes.</li>
+  <li>Adjust the biome settings and press <strong>Generate</strong> or <strong>Regenerate</strong>. Settings remain an unapplied draft until you do this.</li>
+  <li>Inspect the result in the viewport. Generation runs in the background with progress and cancellation. The last completed surface remains visible while it runs.</li>
+  <li>Save the scene normally. Undo/Redo restores the authored recipe and its generated preview.</li>
+</ol>
+<p>Adding a Terrain component previews its default recipe. Terrain-local X/Z coordinates run from zero to the configured size; use the entity transform to position it in the scene. The same generated triangles provide rendering and static collision. The terrain surface is not a dynamic rigid body.</p>
+<p>Select the terrain owner and press <strong>F</strong> over the viewport to frame its full surface. Generated chunks are hidden from the authored hierarchy. Generation controls sit above the recipe settings; expanding biomes exposes their individual controls.</p>
+
+<h2>Biomes and region painting</h2>
+<p>Add biomes in the Terrain Inspector and choose a default biome. Each biome controls base height, height variation, feature size, roughness, octave count and tint. Larger feature sizes produce broader terrain features. The seed makes repeated generation of the same recipe reproducible within the same generator implementation.</p>
+<p>Select <strong>Paint biome</strong>, choose a biome, then drag on the surface. Radius sets the brush footprint; strength and falloff control its influence. Overlapping strokes blend height contributions, with later strokes painting over earlier ones. Surface tint currently uses the dominant biome per terrain cell; smooth material/texture blending is separate follow-up work.</p>
+<p>Biomes are currently stored in the terrain recipe. Reusable biome asset files, material rules and vegetation density controls are not implemented yet. A biome referenced by the default setting or painted regions cannot be removed until those references are removed.</p>
+
+<h2>Manual adjustments</h2>
+<ul>
+  <li><strong>Raise / Lower:</strong> adds or subtracts height, weighted by the brush. Use a low strength for small adjustments.</li>
+  <li><strong>Flatten:</strong> captures the height where the stroke starts and moves affected samples toward that elevation.</li>
+  <li><strong>Smooth:</strong> averages neighbouring samples using the pre-edit surface for each stroke stamp.</li>
+  <li><strong>Protect:</strong> records absolute sample heights and keeps them through later regeneration and sculpting. Protection snapshots use the original grid.</li>
+</ul>
+<p>The brush outline follows the actual surface. Release a drag to generate and apply the stroke as an undoable edit; Esc cancels the active stroke. Generate or discard pending settings before painting. Regeneration changes the procedural base and replays the stored edits; it does not discard them.</p>
+<p>Buildings and other scene objects remain independent and are never deleted or moved by regeneration. Terrain changes may leave objects above or below the ground; repositioning them is an explicit editing action.</p>
+
+<h2>Changing terrain dimensions</h2>
+<p>If size or resolution changes while edits exist, the editor asks how to proceed. Radial edits can keep their terrain-local positions. Protection snapshots require the original grid: keep that grid or explicitly clear the edits before generating a resized terrain. Clearing is undoable. Cancelling generation or a failed generation leaves the previously committed terrain intact.</p>
+
+<h2>Saved source and generated geometry</h2>
+<p>The scene or prefab stores a versioned recipe, region strokes and manual edits. It does not store generated triangle lists or one authored entity per chunk. Generated child meshes and colliders exist in the loaded world; editor and runtime use the same generator. An immutable, weak-reference cache lets the editor hand completed heightfields to scene loading without retaining unused worlds indefinitely.</p>
+<p>Heightfields and chunk geometry are currently regenerated when loading uncached recipes. Background work covers heightfield generation; scene publication, mesh construction and GPU/physics updates can still take time on large terrains. Chunking does not imply LOD or streaming, and brush edits currently regenerate the full finite heightfield. Cooked terrain caches and dirty-region generation remain planned.</p>
+
+<h2>Try the example</h2>
+<pre><code>demi editor --project examples/terrain_3d
+demi run --project examples/terrain_3d</code></pre>
+<p>Select <strong>Paint and sculpt this terrain</strong> in the hierarchy. The example has meadow, mountain and sand biomes, plus a flattened building site. Change the seed and regenerate: the flatten edit remains and the building stays in the scene.</p>
+<p>Noise generation uses <a href="https://github.com/Auburn/FastNoiseLite">FastNoiseLite</a> under its MIT license. The dependency is pinned in the engine build configuration.</p>

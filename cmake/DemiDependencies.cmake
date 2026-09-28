@@ -12,6 +12,19 @@ if(POLICY CMP0135)
   cmake_policy(SET CMP0135 NEW)
 endif()
 
+# Header-only deterministic noise generator, FastNoiseLite 1.1.1 (MIT).
+FetchContent_Declare(fastnoise_lite
+  GIT_REPOSITORY https://github.com/Auburn/FastNoiseLite.git
+  GIT_TAG 7ccfbc16eb1c932568f177d63a9ba51d89bbe516
+)
+FetchContent_GetProperties(fastnoise_lite)
+if(NOT fastnoise_lite_POPULATED)
+  FetchContent_Populate(fastnoise_lite)
+endif()
+add_library(demi-fastnoise INTERFACE)
+target_include_directories(demi-fastnoise SYSTEM INTERFACE
+  ${fastnoise_lite_SOURCE_DIR}/Cpp)
+
 if(ANDROID)
   set(DEMI_ENABLE_MEDIA OFF CACHE BOOL "Disable FFmpeg media on Android v1" FORCE)
   if(NOT DEFINED ANDROID_NDK AND DEFINED CMAKE_ANDROID_NDK)

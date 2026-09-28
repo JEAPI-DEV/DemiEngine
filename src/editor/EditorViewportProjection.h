@@ -11,6 +11,15 @@ struct World;
 
 namespace demi::editor {
 
+struct EditorViewportRay {
+  runtime::Vec3 origin;
+  runtime::Vec3 direction;
+};
+
+[[nodiscard]] EditorViewportRay
+sceneViewportRay(const EditorSceneViewCamera &camera,
+                 runtime::Vec2 viewportPosition, runtime::Vec2 viewportSize);
+
 [[nodiscard]] std::optional<runtime::Vec2>
 projectScenePoint3D(const EditorSceneViewCamera &camera,
                     runtime::Vec3 worldPoint, runtime::Vec2 viewportSize);

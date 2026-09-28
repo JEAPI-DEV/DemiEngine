@@ -27,6 +27,7 @@
 #include "demi/runtime/physics/Physics3D.h"
 #include "demi/runtime/platform/ProjectFileWatcher.h"
 #include "demi/runtime/profiling/PlatformFrameProfiling.h"
+#include "demi/runtime/terrain/TerrainWorld.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/scene/SceneLoader.h"
 #include "demi/runtime/scene/WorldQueries.h"
@@ -97,6 +98,7 @@ void stepSimulation(LoadedProject &loaded, LuaScriptHost &luaHost,
       ProfileScope scope("Lua.fixed_update");
       luaHost.fixedUpdate(static_cast<float>(fixedStep));
     }
+    synchronizeTerrainVisibility(loaded.world);
     if (luaHost.physicsEnabled()) {
       {
         ProfileScope scope("Physics2D.step");
@@ -144,6 +146,7 @@ void stepSimulation(LoadedProject &loaded, LuaScriptHost &luaHost,
   {
     ProfileScope scope("Lua.update");
     luaHost.update(scaledDt);
+    synchronizeTerrainVisibility(loaded.world);
     if (loaded.world.uiTweens.activeCount() > 0) {
       loaded.world.uiTweens.update(loaded.world.ui, scaledDt);
       ui::UiLayoutEngine{}.layout(loaded.world.ui, loaded.world.ui.canvasSize);

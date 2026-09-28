@@ -19,11 +19,12 @@ namespace demi::editor {
 [[nodiscard]] nlohmann::json
 editorPreviewEntityJson(const runtime::Entity &entity);
 
-// Redirect transient placement/masonry meshes to their authored owner for picking.
+// Redirect transient placement/masonry/terrain meshes to their authored owner.
 [[nodiscard]] std::string
 editorPlacementOwner(const runtime::World &world, std::string_view entityId);
 // Keep the renderer's inline-mesh cache in sync after field edits and undo.
 void updateEditorMeshRevision(runtime::Entity &entity);
+void restoreEditorDerivedState(runtime::Entity &entity);
 void updateEditorPlacementVisibility(runtime::World &world);
 
 // Applies one already-validated authored value to a single preview entity.

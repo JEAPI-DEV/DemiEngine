@@ -2,6 +2,7 @@
 
 #include "editor/EditorInspectorModel.h"
 #include "editor/EditorIsoGridInspector.h"
+#include "editor/EditorTerrainInspector.h"
 #include "editor/EditorLuaComponentMetadata.h"
 #include "editor/EditorPanelStyle.h"
 #include "editor/EditorScenePreview.h"
@@ -1190,7 +1191,9 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
         continue;
       }
       drawInlineIssue(workspace, {.entityId = selectedId, .component = name});
-      if (luaMetadata != nullptr)
+      if (name == "Terrain3D")
+        drawEditorTerrainInspector(workspace, notice);
+      else if (luaMetadata != nullptr)
         drawScriptProperties(workspace, selectedId, component, *luaMetadata,
                              notice, prefabEntity, propertyQuery, state.structuredValues);
       else if (descriptor == nullptr || descriptor->fields.empty())

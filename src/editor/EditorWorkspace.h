@@ -12,6 +12,7 @@
 #include "editor/EditorSelection.h"
 #include "editor/EditorViewportTool.h"
 #include "editor/EditorViewportTool2D.h"
+#include "editor/EditorTerrainAuthoring.h"
 
 #include "demi/assets/AssetImporter.h"
 #include "demi/assets/ColliderAssetGenerator.h"
@@ -21,6 +22,7 @@
 
 #include <filesystem>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <set>
 #include <string>
@@ -199,6 +201,14 @@ public:
     return viewportTool2D_;
   }
   void endContinuousEdit() { sceneDocument_.endContinuousEdit(); }
+  [[nodiscard]] EditorTerrainAuthoring &terrainAuthoring() {
+    return *terrainAuthoring_;
+  }
+  [[nodiscard]] const EditorTerrainAuthoring &terrainAuthoring() const {
+    return *terrainAuthoring_;
+  }
+  void syncTerrainAuthoring();
+  [[nodiscard]] bool pollTerrainAuthoring(std::string &error);
   void refreshDiagnostics();
   void refreshAssetMetadata();
 
@@ -340,6 +350,8 @@ private:
   EditorSceneView2DState sceneView2D_;
   EditorViewportTool viewportTool_;
   EditorViewportTool2D viewportTool2D_;
+  std::unique_ptr<EditorTerrainAuthoring> terrainAuthoring_ =
+      std::make_unique<EditorTerrainAuthoring>();
   EditorSceneDomain sceneDomain_ = EditorSceneDomain::Empty;
   EditorSceneViewDimension viewDimension_ =
       EditorSceneViewDimension::ThreeDimensional;

@@ -83,6 +83,7 @@ final class Docs
             ]],
             ['slug' => 'gameplay-3d', 'title' => '3D gameplay', 'summary' => 'Models, characters, lights, destruction, denting, and cameras.', 'children' => [
                 ['slug' => 'models-and-meshes', 'title' => 'Models & meshes', 'summary' => 'glTF models, LOD, instancing, and procedural meshes.'],
+                ['slug' => 'terrain', 'title' => 'Terrain generation & editing', 'summary' => 'Generate heightfields, paint biomes, sculpt adjustments and preserve edits across regeneration.'],
                 ['slug' => 'characters-3d', 'title' => 'Characters', 'summary' => 'CharacterController3D movement, slopes, and jumps.'],
                 ['slug' => 'lights-and-camera-3d', 'title' => 'Lights & camera', 'summary' => 'Lighting, environment, and screen/world conversion.'],
                 ['slug' => 'destruction', 'title' => 'Destruction', 'summary' => 'Fracture authoring, impacts, and debris.'],

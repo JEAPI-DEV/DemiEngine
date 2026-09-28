@@ -1,5 +1,7 @@
 # DemiEngine Roadmap
 
+Active feature plan: [terrain generation and editing](terrain-plan.md).
+
 Deferred feature plan: [neural networks](neural-networks.plan). Python training,
 native inference and later NPC training tooling; resume only on user request.
 

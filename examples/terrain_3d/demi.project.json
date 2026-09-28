@@ -1,0 +1,6 @@
+{
+  "format_version": 1,
+  "name": "Terrain Authoring",
+  "main_scene": "scene://terrain_3d/main",
+  "scenes": [{"id": "scene://terrain_3d/main"}]
+}

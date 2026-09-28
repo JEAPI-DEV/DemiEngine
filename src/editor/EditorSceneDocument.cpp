@@ -22,6 +22,28 @@
 namespace demi::editor {
 namespace {
 
+nlohmann::json normalizeFieldValue(const SceneValueTarget &target,
+                                  nlohmann::json value,
+                                  const nlohmann::json *previous) {
+  const auto *descriptor =
+      runtime::scene_loading::findComponentDescriptor(target.component);
+  if (descriptor) {
+    for (const auto &field : descriptor->fields) {
+      if (field.name != target.field)
+        continue;
+      using Type = runtime::ComponentFieldType;
+      // Data payloads and geometry buffers are authored precision, not numeric
+      // widget noise. Rounding them can move protected samples off their grid
+      // or change unrelated gameplay data merely by editing another property.
+      if (field.type == Type::Object || field.type == Type::Vec2Array ||
+          field.type == Type::Vec3Array)
+        return value;
+      break;
+    }
+  }
+  return normalizeEditorAuthoredValue(std::move(value), previous);
+}
+
 std::string validationMessage(
     const std::vector<runtime::scene_loading::ComponentValidationError>
         &errors) {
@@ -240,7 +262,7 @@ bool EditorSceneDocument::setValue(SceneValueTarget target,
        target.component == "IsoTransform") && replacement.is_string())
     return reparent(target.entityId, replacement.get<std::string>(), error);
   const nlohmann::json *current = value(target);
-  replacement = normalizeEditorAuthoredValue(std::move(replacement), current);
+  replacement = normalizeFieldValue(target, std::move(replacement), current);
   if (current != nullptr && *current == replacement) {
     clearIssue();
     return true;
@@ -332,7 +354,7 @@ bool EditorSceneDocument::setValues(std::vector<SceneValueTarget> targets,
       return false;
     }
     nlohmann::json normalized =
-        normalizeEditorAuthoredValue(replacement, current);
+        normalizeFieldValue(target, replacement, current);
     if (!validate(target, normalized, error)) {
       reject(target, error);
       return false;

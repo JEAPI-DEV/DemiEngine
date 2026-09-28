@@ -1,5 +1,9 @@
 # Engine data, asset, scene, UI, input, physics, and navigation foundations.
 add_library(demi-core STATIC
+  src/demi/runtime/terrain/TerrainRecipe.cpp
+  src/demi/runtime/terrain/TerrainGenerator.cpp
+  src/demi/runtime/terrain/TerrainGenerationCache.cpp
+  src/demi/runtime/terrain/TerrainSurface.cpp
   # Shared instrumentation must be usable without linking the application loop.
   src/demi/runtime/profiling/RuntimeProfiler.cpp
   src/demi/runtime/profiling/ProcessResourceSampler.cpp
@@ -113,6 +117,7 @@ target_include_directories(demi-core PRIVATE
   "${bgfx_SOURCE_DIR}/bgfx/3rdparty/stb")
 
 target_compile_features(demi-core PUBLIC cxx_std_20)
+target_link_libraries(demi-core PRIVATE demi-fastnoise)
 target_link_libraries(demi-core PUBLIC nlohmann_json::nlohmann_json box2d
   utf8proc harfbuzz freetype SheenBidi::SheenBidi mbedcrypto bimg_decode bimg
   yaml-cpp::yaml-cpp)

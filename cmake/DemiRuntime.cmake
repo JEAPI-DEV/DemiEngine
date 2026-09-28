@@ -7,6 +7,7 @@ target_compile_features(demi-destruction PUBLIC cxx_std_20)
 target_link_libraries(demi-destruction PRIVATE demi-blast-lowlevel)
 
 set(DEMI_RUNTIME_COMMON_SOURCES
+  src/demi/runtime/terrain/TerrainWorld.cpp
   src/demi/runtime/network/TcpClient.cpp
   src/demi/runtime/database/DatabaseService.cpp
   src/demi/runtime/database/SQLiteDriver.cpp

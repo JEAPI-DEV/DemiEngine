@@ -7,6 +7,9 @@ are registered in `tools/package-store/src/Docs.php`.
 
 This directory keeps material that has a different job:
 
+- [Terrain qualification](terrain-qualification.md) records finite-heightfield
+  authoring ownership, tests, surface-query measurements and remaining scope.
+
 - [Lua task qualification](lua-task-qualification.md) records scheduler and
   asynchronous I/O ownership, overhead measurements, and validation boundaries.
 

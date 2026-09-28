@@ -82,6 +82,7 @@
 <p>A component's fields belong to that component alone: one entity can carry a transform, a sprite, and a script, and each object is edited independently.</p>
 
 <h2>Children hierarchy</h2>
+<p><code>Terrain3D</code> stores its authored <code>recipe</code>, including biome regions and sculpt edits. Scene loading, editor scene previews, and prefab previews generate the same terrain surface from that recipe. Generated surface entities use IDs below <code>&lt;owner&gt;/__terrain/</code> and inherit the terrain transform and ancestor visibility. They remain transient: saving a scene or prefab keeps the recipe, without writing generated meshes into the document or asset folders. Each chunk groups triangles by biome tint while sharing the generator's blended heights and normals; static triangle collision uses the same geometry. Smooth material-surface blending and biome texture references are follow-up capabilities.</p>
 <p>Entities can contain other entities in a <code>children</code> array. Children inherit the movement of their parent: when the parent moves, rotates, or scales, the children follow. This is how you build a character out of parts — a body with a weapon and a shadow attached.</p>
 <pre><code>{
   "id": "player",

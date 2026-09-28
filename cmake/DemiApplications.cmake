@@ -66,6 +66,9 @@ else()
   target_link_libraries(demi-runtime PRIVATE demi-core demi-runtime-lib)
 
   add_library(demi-editor-model STATIC
+    src/editor/EditorTerrainAuthoring.cpp
+    src/editor/EditorTerrainRuntime.cpp
+    src/editor/EditorTerrainPicking.cpp
     src/editor/EditorAssetGroupDocument.cpp
     src/editor/EditorAssetDrop.cpp
     src/editor/EditorAssetIndex.cpp
@@ -132,6 +135,7 @@ else()
     CONTENT "#include \"${imgui_docking_SOURCE_DIR}/imgui_internal.h\"\n")
 
   add_library(demi-editor-ui STATIC
+    src/editor/EditorTerrainInspector.cpp
     src/editor/EditorFontLoader.cpp
     src/editor/EditorInputOwnership.cpp
     src/editor/EditorAboutPanel.cpp

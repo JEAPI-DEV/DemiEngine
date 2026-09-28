@@ -6,6 +6,9 @@
 #include "demi/runtime/scene/PrefabPlacements3D.h"
 #include "demi/runtime/scene/components/3dcomponents/PrefabPlacement3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
+#include "demi/runtime/terrain/TerrainGenerationCache.h"
+#include "demi/runtime/terrain/TerrainWorld.h"
 #include <functional>
 #include <unordered_set>
 
@@ -20,19 +23,31 @@ void updateEditorMeshRevision(runtime::Entity &entity) {
     mesh->revision = std::hash<std::string>{}(source->second);
 }
 
+void restoreEditorDerivedState(runtime::Entity &replacement) {
+  updateEditorMeshRevision(replacement);
+  // Re-parsing a transform/name must not discard the retained terrain field.
+  // Recipe changes take the full rebuild path; this lookup only shares a
+  // still-live immutable result and never generates work on a gizmo drag.
+  if (auto *terrain = replacement.component<runtime::Terrain3DComponent>();
+      terrain && !terrain->generated)
+    terrain->generated = runtime::findTerrain(terrain->recipe);
+}
+
 std::string editorPlacementOwner(const runtime::World &world, std::string_view entityId) {
   const auto *entity = runtime::findEntity(world, std::string(entityId));
-  std::string masonryOwner;
+  std::string generatedOwner;
   std::unordered_set<std::string> visited;
   while (entity && visited.insert(entity->id).second) {
     if (entity->hasComponent<runtime::PrefabPlacement3DComponent>()) return entity->id;
+    if (const auto terrainOwner = runtime::terrainSurfaceOwner(*entity))
+      generatedOwner = *terrainOwner;
     const auto *transform = entity->component<runtime::Transform3DComponent>();
     if (transform && entity->id.starts_with(transform->parent + "/__masonry_preview/"))
-      masonryOwner = transform->parent;
+      generatedOwner = transform->parent;
     entity = transform && !transform->parent.empty()
         ? runtime::findEntity(world, transform->parent) : nullptr;
   }
-  return masonryOwner;
+  return generatedOwner;
 }
 
 void updateEditorPlacementVisibility(runtime::World &world) {
@@ -88,7 +103,7 @@ bool applyEditorPreviewValue(runtime::World &world,
 
   runtime::Entity replacement =
       runtime::scene_loading::parseSceneEntity(effective);
-  updateEditorMeshRevision(replacement);
+  restoreEditorDerivedState(replacement);
   replacement.sceneOwner = current->sceneOwner;
   replacement.prefabInstance = current->prefabInstance;
   replacement.prefabLocalId = current->prefabLocalId;

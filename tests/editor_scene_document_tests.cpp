@@ -115,6 +115,14 @@ int main() {
   assert(document.canUndo() == couldUndoBeforeRequiredRemoval);
   assert(document.issueFor(requiredValues) != nullptr);
 
+  // Structured payloads are not rounded like transform widgets. Recipes and
+  // gameplay values can carry meaningful precision in nested numeric data.
+  const nlohmann::json preciseData = {{"height", 1.234567890123},
+                                      {"samples", {0.0000123456789, 9.87654321}}};
+  assert(document.setValue(requiredValues, preciseData, false, error));
+  assert(document.component("ent_player", "GameplayData")->at("values") == preciseData);
+  assert(document.undo(error));
+
   const std::string beforeRejectedEdit = document.json().dump();
   const bool couldUndoBeforeRejectedEdit = document.canUndo();
   assert(!document.setValue(position, "not-a-vector", false, error));

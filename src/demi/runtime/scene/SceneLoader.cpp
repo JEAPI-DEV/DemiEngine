@@ -11,6 +11,7 @@
 #include "demi/runtime/scene/Transform3DHierarchy.h"
 #include "demi/runtime/scene/components/3dcomponents/ModelCollider3DComponent.h"
 #include "demi/runtime/scene/composition/PrefabResolver.h"
+#include "demi/runtime/terrain/TerrainWorld.h"
 #include "demi/schema/Validation.h"
 
 #include <algorithm>
@@ -68,6 +69,8 @@ buildSceneWorld(const ProjectData &project, const std::string &sceneId,
       entity.prefabLocalId = origin->localEntityId;
     }
   }
+  if (!materializeTerrains(world, error))
+    return std::nullopt;
   if (const auto issues = validateTransform3DHierarchy(world);
       !issues.empty()) {
     const auto &issue = issues.front();

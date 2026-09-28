@@ -4,6 +4,8 @@
 #include "editor/EditorIsoGridCell.h"
 #include "editor/EditorIsoGridCellDocument.h"
 #include "editor/EditorScenePreview.h"
+#include "editor/EditorTerrainPicking.h"
+#include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
 
 #include "demi/assets/AssetRegistry.h"
 #include "demi/runtime/scene/SceneEntityParser.h"
@@ -14,6 +16,7 @@
 #include "demi/schema/Validation.h"
 
 #include <algorithm>
+#include <exception>
 #include <iterator>
 
 namespace demi::editor {
@@ -438,6 +441,7 @@ bool EditorWorkspace::editValue(SceneValueTarget target, nlohmann::json value,
                                 const bool continuous, std::string &error) {
   target = resolveSceneTarget(std::move(target));
   if (target.component == "PrefabPlacement3D" || target.component == "Masonry3D" ||
+      target.component == "Terrain3D" ||
       (target.component.empty() && target.field == "enabled"))
     return mutateAndRebuild([&](EditorSceneDocument &document, std::string &issue) {
       return document.setValue(target, value, continuous, issue);
@@ -795,10 +799,63 @@ bool EditorWorkspace::saveHud(std::string &error) {
 
 bool EditorWorkspace::updateViewportTool(const EditorViewportToolInput &input,
                                          std::string &error) {
+  syncTerrainAuthoring();
+  if (terrainAuthoring_->brushActive()) {
+    const auto hit = pickEditorTerrain(project_->world, selectedEntityId(),
+                                      terrainAuthoring_->surface(),
+                                      sceneView_.camera(), input);
+    return terrainAuthoring_->update(input, hit, error);
+  }
   return applyViewportAction(
       viewportTool_.update(project_->world, selectedEntityId(), sceneView_,
                            input),
       [this] { viewportTool_.cancelDrag(); }, error);
+}
+
+void EditorWorkspace::syncTerrainAuthoring() {
+  const runtime::Entity *entity = selectedEntity();
+  const auto *terrain =
+      entity ? entity->component<runtime::Terrain3DComponent>() : nullptr;
+  if (activeDocument_ != EditorWorkspaceDocument::Scene ||
+      viewDimension_ != EditorSceneViewDimension::ThreeDimensional || !terrain) {
+    terrainAuthoring_->unbind();
+    return;
+  }
+  terrainAuthoring_->bind(sceneDocument_.path().string(), entity->id,
+                        terrain->recipe,
+                        currentEditorTerrain(project_->world, entity->id));
+}
+
+bool EditorWorkspace::pollTerrainAuthoring(std::string &error) {
+  syncTerrainAuthoring();
+  auto commit = terrainAuthoring_->poll(error);
+  if (!commit)
+    return error.empty();
+  const runtime::Entity *entity = selectedEntity();
+  const auto *terrain =
+      entity ? entity->component<runtime::Terrain3DComponent>() : nullptr;
+  if (commit->document != sceneDocument_.path().string() || !terrain ||
+      commit->entityId != entity->id || commit->before != terrain->recipe) {
+    error = "Terrain changed while generating; the generated result was discarded.";
+    return false;
+  }
+  try {
+    publishEditorTerrain(commit->recipe, commit->surface);
+  } catch (const std::exception &exception) {
+    error = exception.what();
+    return false;
+  }
+  sceneDocument_.endContinuousEdit();
+  const SceneValueTarget target = resolveSceneTarget(
+      {.entityId = commit->entityId, .component = "Terrain3D", .field = "recipe"});
+  const bool committed = mutateAndRebuild(
+      [&](EditorSceneDocument &document, std::string &issue) {
+        return document.setValue(target, commit->recipe, false, issue);
+      },
+      error);
+  if (committed)
+    syncTerrainAuthoring();
+  return committed;
 }
 
 bool EditorWorkspace::updateViewportTool2D(const EditorViewportToolInput &input,
@@ -889,7 +946,7 @@ void EditorWorkspace::syncChangedEntity() {
     return;
   runtime::Entity reparsed =
       runtime::scene_loading::parseSceneEntity(*authored);
-  updateEditorMeshRevision(reparsed);
+  restoreEditorDerivedState(reparsed);
   reparsed.sceneOwner = existing->sceneOwner;
   reparsed.prefabInstance = existing->prefabInstance;
   reparsed.prefabLocalId = existing->prefabLocalId;

@@ -18,6 +18,7 @@
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/scene/SceneLoader.h"
 #include "demi/runtime/scripting/LuaScriptHost.h"
+#include "demi/runtime/terrain/TerrainWorld.h"
 #include "demi/runtime/tilemap/TilemapCollisionGenerator.h"
 #include "demi/runtime/ui/UiAccessibilityBridge.h"
 #include "demi/runtime/ui/UiLayoutEngine.h"
@@ -198,6 +199,7 @@ bool EmbeddedRuntimeSession::advance(State &state, InputState input,
   const auto fixedUpdate = [&] {
     ProfileScope fixedScope("Frame.fixed_update");
     state.lua.fixedUpdate(fixedStep);
+    synchronizeTerrainVisibility(state.loaded.world);
     if (state.lua.physicsEnabled()) {
       {
         ProfileScope physicsScope("Physics2D.step");
@@ -232,6 +234,7 @@ bool EmbeddedRuntimeSession::advance(State &state, InputState input,
     AnimationCollision2DSystem{}.update(state.loaded.world);
   }
   state.lua.update(scaledDelta);
+  synchronizeTerrainVisibility(state.loaded.world);
   if (state.loaded.world.uiTweens.activeCount() > 0) {
     state.loaded.world.uiTweens.update(state.loaded.world.ui, scaledDelta);
     ui::UiLayoutEngine{}.layout(state.loaded.world.ui,

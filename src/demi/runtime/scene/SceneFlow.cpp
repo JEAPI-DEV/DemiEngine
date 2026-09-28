@@ -2,6 +2,7 @@
 
 #include "demi/runtime/scene/SceneLoader.h"
 #include "demi/runtime/scene/WorldQueries.h"
+#include "demi/runtime/terrain/TerrainWorld.h"
 
 #include <algorithm>
 #include <chrono>
@@ -172,6 +173,7 @@ SceneFlow::activate(World &world, ResourceLifetimeRegistry &resources) {
     resources.capture("persistent", world.entities);
   }
 
+  rebuildTerrainOwnership(world);
   prepared_.reset();
   state_ = ScenePreparationState::Idle;
   return transition;
@@ -202,6 +204,7 @@ SceneFlow::unload(World &world, const std::string_view sceneId,
     return true;
   });
   world.loadedSceneIds.erase(std::string(sceneId));
+  rebuildTerrainOwnership(world);
   resources.release(sceneId);
   if (world.activeSceneId == sceneId) {
     world.activeSceneId =

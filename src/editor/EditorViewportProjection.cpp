@@ -3,6 +3,7 @@
 #include "editor/EditorEntityBounds3D.h"
 
 #include "demi/runtime/scene/model/World.h"
+#include "demi/runtime/terrain/TerrainWorld.h"
 
 #include <algorithm>
 #include <cmath>
@@ -11,10 +12,7 @@
 namespace demi::editor {
 namespace {
 
-struct Ray {
-  runtime::Vec3 origin;
-  runtime::Vec3 direction;
-};
+using Ray = EditorViewportRay;
 
 float dot(const runtime::Vec3 left, const runtime::Vec3 right) {
   return left.x * right.x + left.y * right.y + left.z * right.z;
@@ -120,6 +118,12 @@ std::optional<float> rayBox(const Ray &ray, const runtime::Vec3 minimum,
 
 } // namespace
 
+EditorViewportRay sceneViewportRay(const EditorSceneViewCamera &camera,
+                                   const runtime::Vec2 viewportPosition,
+                                   const runtime::Vec2 viewportSize) {
+  return cameraRay(camera, viewportPosition, viewportSize);
+}
+
 std::optional<runtime::Vec2>
 projectScenePoint3D(const EditorSceneViewCamera &camera,
                     const runtime::Vec3 worldPoint,
@@ -167,7 +171,7 @@ intersectSceneGroundPlane3D(const EditorSceneViewCamera &camera,
                             const runtime::Vec2 viewportSize) {
   if (viewportSize.x <= 0.0F || viewportSize.y <= 0.0F)
     return std::nullopt;
-  const Ray ray = cameraRay(camera, viewportPosition, viewportSize);
+  const Ray ray = sceneViewportRay(camera, viewportPosition, viewportSize);
   if (std::abs(ray.direction.y) <= 0.000001F)
     return std::nullopt;
   const float distance = -ray.origin.y / ray.direction.y;
@@ -179,7 +183,7 @@ intersectSceneGroundPlane3D(const EditorSceneViewCamera &camera,
 std::optional<std::string> pickSceneEntity3D(
     const runtime::World &world, const EditorSceneViewCamera &camera,
     const runtime::Vec2 viewportPosition, const runtime::Vec2 viewportSize) {
-  const Ray ray = cameraRay(camera, viewportPosition, viewportSize);
+  const Ray ray = sceneViewportRay(camera, viewportPosition, viewportSize);
   float nearestDistance = std::max(camera.projection.farClip, 0.0F);
   std::optional<std::string> nearest;
 
@@ -198,7 +202,8 @@ std::optional<std::string> pickSceneEntity3D(
       if (distance && *distance > camera.projection.nearClip &&
           *distance < nearestDistance) {
         nearestDistance = *distance;
-        nearest = entity.id;
+        const auto terrainOwner = runtime::terrainSurfaceOwner(entity);
+        nearest = terrainOwner ? std::string(*terrainOwner) : entity.id;
       }
     };
 

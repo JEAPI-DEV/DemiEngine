@@ -5,6 +5,7 @@
 #include "demi/runtime/scene/Transform3DHierarchy.h"
 #include "demi/runtime/scene/components/3dcomponents/Transform3DComponent.h"
 #include "demi/runtime/scene/model/World.h"
+#include "demi/runtime/terrain/TerrainWorld.h"
 
 #include <algorithm>
 #include <cmath>
@@ -161,6 +162,33 @@ bool EditorSceneViewState::frameEntity(const runtime::World &world,
   if (found == world.entities.end())
     return false;
   const auto entityBounds = editorEntityBounds3D(world, *found);
+  // Terrain's authored owner has no mesh. Frame its generated surfaces, not
+  // the small transform-only placeholder at the terrain corner.
+  std::optional<EditorBounds3D> terrainBounds;
+  for (const auto &entity : world.entities) {
+    if (runtime::terrainSurfaceOwner(entity) != entityId)
+      continue;
+    const auto local = editorEntityBounds3D(world, entity);
+    const auto bounds = local ? editorWorldBounds3D(*local) : std::nullopt;
+    if (!bounds)
+      continue;
+    if (!terrainBounds) {
+      terrainBounds = bounds;
+    } else {
+      auto &minimum = terrainBounds->minimum;
+      auto &maximum = terrainBounds->maximum;
+      minimum = {std::min(minimum.x, bounds->minimum.x),
+                 std::min(minimum.y, bounds->minimum.y),
+                 std::min(minimum.z, bounds->minimum.z)};
+      maximum = {std::max(maximum.x, bounds->maximum.x),
+                 std::max(maximum.y, bounds->maximum.y),
+                 std::max(maximum.z, bounds->maximum.z)};
+    }
+  }
+  if (terrainBounds) {
+    frameBounds(*terrainBounds);
+    return true;
+  }
   if (!entityBounds)
     return false;
   const auto worldBounds = editorWorldBounds3D(*entityBounds);

@@ -5,6 +5,7 @@
 #include "demi/runtime/physics/ColliderAsset3D.h"
 #include "demi/runtime/physics/Physics3DTypes.h"
 #include "demi/runtime/scene/model/Entity.h"
+#include "demi/runtime/scene/EntityLookup.h"
 #include "demi/runtime/ui/UiModel.h"
 #include "demi/runtime/ui/UiTweenSystem.h"
 #include "demi/runtime/ui/UiVirtualCollection.h"
@@ -63,6 +64,12 @@ struct GridPlacementPreview {
   Vec2 footprint = {1.0F, 1.0F};
 };
 
+// Transient terrain ownership; never enters authored or packaged documents.
+struct TerrainRuntimeOwner {
+  std::string id;
+  std::vector<std::string> surfaces;
+};
+
 struct World {
   std::filesystem::path scenePath;
   std::string id;
@@ -75,6 +82,8 @@ struct World {
   std::unordered_map<std::string, std::unique_ptr<ui::UiVirtualRecycler>>
       uiVirtualRecyclers;
   std::vector<Entity> entities;
+  std::vector<TerrainRuntimeOwner> terrainOwners;
+  EntityLookup terrainEntityLookup;
   std::vector<DebugLine> debugLines;
   std::vector<PhysicsContact2D> physicsContacts;
   std::vector<PhysicsContact2D> previousPhysicsContacts;
