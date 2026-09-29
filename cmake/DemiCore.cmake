@@ -2,6 +2,9 @@
 add_library(demi-core STATIC
   src/demi/runtime/terrain/TerrainRecipe.cpp
   src/demi/runtime/terrain/TerrainGenerator.cpp
+  src/demi/runtime/terrain/TerrainEvaluation.cpp
+  src/demi/runtime/terrain/TerrainUpdate.cpp
+  src/demi/runtime/terrain/TerrainPatch.cpp
   src/demi/runtime/terrain/TerrainGenerationCache.cpp
   src/demi/runtime/terrain/TerrainSurface.cpp
   # Shared instrumentation must be usable without linking the application loop.

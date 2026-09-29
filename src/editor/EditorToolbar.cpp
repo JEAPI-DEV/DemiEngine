@@ -85,7 +85,9 @@ void drawPlayGroup(EditorWorkspace &workspace, EditorPlaySession &playSession,
                        playSession.state() == EditorPlayState::Running,
                        canStart)) {
     std::string error;
-    if (workspace.hudDirty() && !workspace.saveHud(error)) {
+    if (!workspace.terrainReady(error)) {
+      notice = error;
+    } else if (workspace.hudDirty() && !workspace.saveHud(error)) {
       notice = error;
     } else if (workspace.sceneDocument().isDirty() && !workspace.save(error)) {
       notice = error;
@@ -125,7 +127,9 @@ void drawPlayGroup(EditorWorkspace &workspace, EditorPlaySession &playSession,
     ImGui::BeginDisabled(playSession.isRunning());
     if (ImGui::MenuItem("Play in external window")) {
       std::string error;
-      if (workspace.hudDirty() && !workspace.saveHud(error))
+      if (!workspace.terrainReady(error))
+        notice = error;
+      else if (workspace.hudDirty() && !workspace.saveHud(error))
         notice = error;
       else if (workspace.sceneDocument().isDirty() && !workspace.save(error))
         notice = error;

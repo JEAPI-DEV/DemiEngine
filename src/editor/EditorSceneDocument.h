@@ -45,6 +45,12 @@ public:
 
   [[nodiscard]] bool setValue(SceneValueTarget target, nlohmann::json value,
                               bool continuous, std::string &error);
+  // Continuous updates to one target share a command until endContinuousEdit.
+  // A null sample patch keeps source history and requires preview regeneration.
+  [[nodiscard]] bool
+  setTerrainRecipe(SceneValueTarget target, nlohmann::json replacement,
+                   std::shared_ptr<const runtime::TerrainPatch> patch,
+                   bool continuous, std::string &error);
   [[nodiscard]] bool setValues(std::vector<SceneValueTarget> targets,
                                nlohmann::json value, std::string &error);
   [[nodiscard]] bool removeValue(SceneValueTarget target, std::string &error);
@@ -96,6 +102,9 @@ public:
 
   [[nodiscard]] bool undo(std::string &error);
   [[nodiscard]] bool redo(std::string &error);
+  // Inspect only the next command; pointers expire on history mutation.
+  [[nodiscard]] const TerrainRecipeCommand *nextTerrainUndo() const;
+  [[nodiscard]] const TerrainRecipeCommand *nextTerrainRedo() const;
 
   [[nodiscard]] bool isDirty() const;
   [[nodiscard]] bool canUndo() const { return !undo_.empty(); }

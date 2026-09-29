@@ -4,12 +4,31 @@
 
 #include <nlohmann/json.hpp>
 
+#include <memory>
 #include <optional>
 #include <string>
 #include <variant>
 #include <vector>
 
+namespace demi::runtime {
+struct TerrainPatch;
+}
+
 namespace demi::editor {
+
+struct TerrainRecipeCommand {
+  SceneValueTarget target;
+  // JSON Patch paths are relative to the recipe, never the scene document.
+  nlohmann::json forwardPatch;
+  nlohmann::json inversePatch;
+  std::shared_ptr<const runtime::TerrainPatch> samplePatch;
+  bool hadRecipe = true;
+  // Only override-container shape changes are retained, with recipe values
+  // replaced by null. No instance or terrain sample-field snapshot is stored.
+  nlohmann::json prefabSourceInversePatch = nlohmann::json::array();
+  // Preserve a nested recipe shadowed by an exact dotted override, if present.
+  std::optional<nlohmann::json> prefabNestedRecipePatch;
+};
 
 struct SetValueCommand {
   SceneValueTarget target;
@@ -97,8 +116,8 @@ struct RemoveComponentCommand {
 // against their owning document revision and never depend on live pointers or
 // selection.
 using SceneCommand =
-    std::variant<SetValueCommand, SetValuesCommand, SetSceneHudCommand,
-                 InsertEntityCommand, RemoveEntitiesCommand,
+    std::variant<SetValueCommand, TerrainRecipeCommand, SetValuesCommand,
+                 SetSceneHudCommand, InsertEntityCommand, RemoveEntitiesCommand,
                  DuplicateEntityCommand, ReparentCommand,
                  EntityHierarchyCommand, AddComponentCommand,
                  RemoveComponentCommand, SetPrefabOverridesCommand>;
@@ -107,6 +126,12 @@ using SceneCommand =
 // false. Purely structural: no validation is performed here.
 void applySceneCommand(nlohmann::json &document, const SceneCommand &command,
                        bool forward);
+
+// Builds sparse recipe and source-shape deltas from a validated replacement.
+TerrainRecipeCommand makeTerrainRecipeCommand(
+    const nlohmann::json &before, const nlohmann::json &after,
+    SceneValueTarget target,
+    std::shared_ptr<const runtime::TerrainPatch> samplePatch);
 
 // Returns the primary entity id the command affects, used to keep selection
 // and preview synchronization pointed at the right authored entity.

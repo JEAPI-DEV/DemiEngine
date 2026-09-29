@@ -1,15 +1,18 @@
-#include "editor/EditorTerrainPicking.h"
 #include "editor/EditorScenePreview.h"
+#include "editor/EditorTerrainPicking.h"
+#include "editor/EditorViewportProjection.h"
 #include "editor/EditorWorkspace.h"
 
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
 #include "demi/runtime/terrain/TerrainGenerationCache.h"
 #include "demi/runtime/terrain/TerrainGenerator.h"
+#include "demi/runtime/terrain/TerrainUpdate.h"
 #include "demi/runtime/terrain/TerrainWorld.h"
 
 #include <chrono>
 #include <cmath>
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -149,7 +152,8 @@ terrain(const editor::EditorWorkspace &workspace,
   }
   for (const auto &candidate : workspace.project().world.entities) {
     if (runtime::terrainSurfaceOwner(candidate) == "terrain")
-      check(editor::editorPlacementOwner(workspace.project().world, candidate.id) == "terrain",
+      check(editor::editorPlacementOwner(workspace.project().world,
+                                         candidate.id) == "terrain",
             "Generated terrain surface must redirect to its authored owner");
   }
   return *component;
@@ -430,6 +434,323 @@ void testCancellationAndStaleSelection(const std::filesystem::path &root) {
   check(terrain(workspace).recipe["seed"] == 104,
         "Workspace did not recover after cancelled/stale generation");
 }
+
+void testLivePreviewSparseHistoryAndReadiness(
+    const std::filesystem::path &root) {
+  editor::EditorWorkspace workspace;
+  std::string error;
+  check(workspace.open(root, error), "Live fixture open failed: " + error);
+  selectTerrain(workspace);
+  check(workspace.sceneView().alignToFirstCamera(workspace.project().world),
+        "Live fixture camera could not align");
+  auto &authoring = workspace.terrainAuthoring();
+  authoring.brush.mode = editor::EditorTerrainBrush::Raise;
+  authoring.brush.radius = .8F;
+  authoring.brush.falloff = 0;
+  const Json originalDocument = workspace.sceneDocument().json();
+  const auto originalField = terrain(workspace).generated;
+  const auto buildingRevision =
+      runtime::findEntity(workspace.project().world, "building")
+          ->component<runtime::MeshRendererComponent>()
+          ->revision;
+  std::string untouchedId;
+  std::shared_ptr<const runtime::ColliderAsset3D> untouchedCollider;
+  std::uint64_t untouchedRevision = 0;
+  for (const auto &entity : workspace.project().world.entities) {
+    if (runtime::terrainSurfaceOwner(entity) == "terrain" &&
+        entity.id.find("/__terrain/4_4/") != std::string::npos) {
+      untouchedId = entity.id;
+      untouchedCollider =
+          entity.component<runtime::ModelCollider3DComponent>()->inlineGeometry;
+      untouchedRevision =
+          entity.component<runtime::MeshRendererComponent>()->revision;
+      break;
+    }
+  }
+  check(!untouchedId.empty(), "Live fixture has no distant terrain chunk");
+  const auto checkResources = [&] {
+    const auto *untouched =
+        runtime::findEntity(workspace.project().world, untouchedId);
+    check(
+        untouched &&
+            untouched->component<runtime::ModelCollider3DComponent>()
+                    ->inlineGeometry == untouchedCollider &&
+            untouched->component<runtime::MeshRendererComponent>()->revision ==
+                untouchedRevision,
+        "Live publication/history rebuilt an untouched terrain resource");
+    check(runtime::findEntity(workspace.project().world, "building")
+                  ->component<runtime::MeshRendererComponent>()
+                  ->revision == buildingRevision,
+          "Live publication/history rebuilt an unrelated entity resource");
+  };
+  const auto pointer = [&](float x, float z, bool pressed) {
+    const auto height = authoring.surface()->height({x, z});
+    check(height.has_value(), "Live pointer missed local terrain");
+    const auto position = editor::projectScenePoint3D(
+        workspace.sceneView().camera(), {x, *height, z}, {800, 600});
+    check(position.has_value(), "Live pointer could not project terrain");
+    return editor::EditorViewportToolInput{.mousePosition = *position,
+                                           .viewportSize = {800, 600},
+                                           .hovered = true,
+                                           .focused = true,
+                                           .leftPressed = pressed,
+                                           .leftDown = true};
+  };
+  // Interior points avoid shared-vertex rounding in camera/ray round trips.
+  const auto firstPress = pointer(1.25F, 1.25F, true);
+  check(editor::pickEditorTerrain(workspace.project().world, "terrain",
+                                  authoring.surface(),
+                                  workspace.sceneView().camera(), firstPress)
+            .has_value(),
+        "Projected live pointer did not hit the terrain surface");
+  check(workspace.updateViewportTool(firstPress, error),
+        "Live press failed: " + error);
+  check(authoring.stroking(),
+        "Projected live pointer did not start the selected brush");
+  check(!workspace.terrainReady(error),
+        "Play readiness allowed an active brush job");
+  error.clear();
+  check(!workspace.save(error), "Save allowed an uncommitted brush job");
+  error.clear();
+  check(!workspace.saveAll(error), "Save all allowed an uncommitted brush job");
+  error.clear();
+  check(readJson(root / "scenes/main.scene.json") == originalDocument,
+        "Blocked Save changed the source document");
+  pollCompletion(workspace);
+  const auto firstPreview = terrain(workspace).generated;
+  check(authoring.stroking() && firstPreview != originalField &&
+            firstPreview->heights != originalField->heights,
+        "First batch was not visible during the drag");
+  check(workspace.sceneDocument().json() == originalDocument &&
+            !workspace.sceneDocument().canUndo(),
+        "Live preview created an authored command before release");
+  checkResources();
+  check(workspace.updateViewportTool(pointer(2.25F, 1.25F, false), error),
+        "Live drag failed: " + error);
+  pollCompletion(workspace);
+  const auto secondPreview = terrain(workspace).generated;
+  check(secondPreview != firstPreview &&
+            secondPreview->heights != firstPreview->heights &&
+            authoring.stroking() &&
+            workspace.sceneDocument().json() == originalDocument,
+        "Second batch did not publish during the same drag");
+  check(!workspace.terrainReady(error),
+        "Play readiness allowed preview-only terrain");
+  error.clear();
+  checkResources();
+  // Release with a third batch pending after two live publications. The native
+  // publication patch must start at the displayed field, while sparse history
+  // still starts at the original stroke field.
+  check(workspace.updateViewportTool(pointer(3.25F, 1.25F, false), error),
+        "Third live batch failed: " + error);
+  check(workspace.updateViewportTool({.focused = true, .leftReleased = true},
+                                     error),
+        "Live release failed: " + error);
+  pollCompletion(workspace);
+  const auto finalRecipe = terrain(workspace).recipe;
+  const auto finalField = terrain(workspace).generated;
+  check(workspace.terrainReady(error) && finalField != secondPreview &&
+            finalField->heights != secondPreview->heights,
+        "Release did not install the third pending batch or left readiness "
+        "blocked");
+  const auto *command = workspace.sceneDocument().nextTerrainUndo();
+  check(command && command->samplePatch &&
+            !command->samplePatch->samples.empty() &&
+            !command->samplePatch->fullBefore &&
+            !command->samplePatch->fullAfter,
+        "Brush history did not retain a sparse native patch");
+  check(workspace.undo(error), "Live stroke Undo failed: " + error);
+  check(workspace.sceneDocument().json() == originalDocument &&
+            terrain(workspace).generated->heights == originalField->heights &&
+            !workspace.sceneDocument().canUndo(),
+        "Multiple live batches did not coalesce to exactly one Undo command");
+  checkResources();
+  check(workspace.redo(error), "Live stroke Redo failed: " + error);
+  check(terrain(workspace).recipe == finalRecipe &&
+            terrain(workspace).generated->heights == finalField->heights,
+        "Live stroke Redo did not restore the exact field/recipe");
+  checkResources();
+  const auto beforeCancel = terrain(workspace).generated;
+  const auto beforeCancelDocument = workspace.sceneDocument().json();
+  check(workspace.updateViewportTool(pointer(1.25F, 1.25F, true), error),
+        "Cancellation press failed: " + error);
+  pollCompletion(workspace);
+  check(terrain(workspace).generated != beforeCancel,
+        "Cancel fixture did not publish live terrain");
+  check(workspace.updateViewportTool({.focused = true, .cancelPressed = true},
+                                     error),
+        "Live Escape failed: " + error);
+  pollCompletion(workspace);
+  check(workspace.terrainReady(error) &&
+            terrain(workspace).generated == beforeCancel &&
+            workspace.sceneDocument().json() == beforeCancelDocument,
+        "Escape did not restore the exact live preview baseline");
+  checkResources();
+  check(workspace.undo(error) && !workspace.sceneDocument().canUndo(),
+        "Cancelled live stroke left an additional Undo command");
+  check(workspace.redo(error), "Redo before save failed: " + error);
+  check(workspace.save(error), "Live recipe Save failed: " + error);
+  check(readJson(root / "scenes/main.scene.json") ==
+            workspace.sceneDocument().json(),
+        "Live recipe Save did not persist the exact authored commit");
+}
+
+void testAbsentDefaultRecipeHistory() {
+  TemporaryProject project;
+  createProject(project.root);
+  const auto path = project.root / "scenes/main.scene.json";
+  auto source = readJson(path);
+  source["entities"][0]["components"]["Terrain3D"].erase("recipe");
+  writeJson(path, source);
+  editor::EditorWorkspace workspace;
+  std::string error;
+  check(workspace.open(project.root, error),
+        "Absent recipe open failed: " + error);
+  selectTerrain(workspace);
+  const auto before = terrain(workspace).generated;
+  auto replacement = terrain(workspace).recipe;
+  replacement["edits"].push_back(
+      {{"type", "raise"}, {"center", {3, 3}}, {"radius", 1}});
+  check(
+      workspace.editValue(
+          {.entityId = "terrain", .component = "Terrain3D", .field = "recipe"},
+          replacement, false, error),
+      "Absent recipe edit failed: " + error);
+  const auto after = terrain(workspace).generated;
+  check(workspace.undo(error), "Absent recipe Undo failed: " + error);
+  check(
+      workspace.sceneDocument().json() == source &&
+          terrain(workspace).recipe == editor::defaultEditorTerrainRecipe() &&
+          terrain(workspace).generated->heights == before->heights,
+      "Absent recipe Undo did not restore default terrain and compact source");
+  check(workspace.redo(error), "Absent recipe Redo failed: " + error);
+  check(terrain(workspace).recipe == replacement &&
+            terrain(workspace).generated->heights == after->heights,
+        "Absent recipe Redo did not restore the exact brush result");
+}
+
+void testLiveSelectionAndSourceConflict() {
+  TemporaryProject project;
+  createProject(project.root);
+  editor::EditorWorkspace workspace;
+  std::string error;
+  check(workspace.open(project.root, error),
+        "Selection fixture open failed: " + error);
+  selectTerrain(workspace);
+  const auto baseline = workspace.sceneDocument().json();
+  const auto baselineField = terrain(workspace).generated;
+  auto &authoring = workspace.terrainAuthoring();
+  const auto startStroke = [&] {
+    authoring.brush.mode = editor::EditorTerrainBrush::Raise;
+    authoring.brush.radius = 1;
+    check(authoring.update({.hovered = true,
+                            .focused = true,
+                            .leftPressed = true,
+                            .leftDown = true},
+                           runtime::Vec3{1.1F, 0, 1.1F}, error),
+          "Selection fixture stroke failed: " + error);
+    pollCompletion(workspace);
+    check(authoring.stroking() && terrain(workspace).generated != baselineField,
+          "Selection fixture never published its transient field");
+  };
+  startStroke();
+  workspace.selectEntity("building");
+  pollCompletion(workspace);
+  check(terrain(workspace).generated == baselineField &&
+            workspace.sceneDocument().json() == baseline &&
+            !workspace.sceneDocument().canUndo() &&
+            workspace.terrainReady(error),
+        "Selection change did not restore the transient field without history");
+  selectTerrain(workspace);
+  authoring.draft()["seed"] = 444;
+  workspace.selectEntity("building");
+  workspace.syncTerrainAuthoring();
+  selectTerrain(workspace);
+  check(authoring.draft()["seed"] == 444,
+        "Selection cancellation lost a separate generation settings draft");
+  authoring.discardDraft();
+  startStroke();
+  auto replacement =
+      baseline["entities"][0]["components"]["Terrain3D"]["recipe"];
+  replacement["seed"] = 145;
+  check(
+      workspace.editValue(
+          {.entityId = "terrain", .component = "Terrain3D", .field = "recipe"},
+          replacement, false, error),
+      "Source replacement during preview failed: " + error);
+  const auto replacementField = terrain(workspace).generated;
+  pollCompletion(workspace);
+  check(terrain(workspace).recipe == replacement &&
+            terrain(workspace).generated == replacementField &&
+            !authoring.stroking(),
+        "Stale live preview overwrote a newer authored recipe");
+  check(workspace.undo(error), "Source replacement Undo failed: " + error);
+  check(workspace.sceneDocument().json() == baseline &&
+            terrain(workspace).generated->heights == baselineField->heights &&
+            !workspace.sceneDocument().canUndo(),
+        "Cancelled preview leaked into authored source or history");
+}
+
+void testInheritedPrefabRecipeHistory() {
+  TemporaryProject project;
+  createProject(project.root);
+  const auto path = project.root / "scenes/main.scene.json";
+  auto source = readJson(path);
+  const auto terrainEntity = source["entities"][0];
+  std::filesystem::create_directory(project.root / "prefabs");
+  writeJson(project.root / "prefabs/ground.prefab.json",
+            {{"format_version", 1},
+             {"id", "prefab://ground"},
+             {"entities", Json::array({terrainEntity})}});
+  source["entities"].erase(source["entities"].begin());
+  source["instances"] =
+      Json::array({{{"id", "ground"}, {"prefab", "prefab://ground"}}});
+  writeJson(path, source);
+  editor::EditorWorkspace workspace;
+  std::string error;
+  check(workspace.open(project.root, error),
+        "Inherited recipe open failed: " + error);
+  workspace.setViewDimension(
+      editor::EditorSceneViewDimension::ThreeDimensional);
+  workspace.selectEntity("ground/terrain");
+  workspace.syncTerrainAuthoring();
+  const auto lookup = [&]() -> const runtime::Terrain3DComponent & {
+    const auto *owner =
+        runtime::findEntity(workspace.project().world, "ground/terrain");
+    check(owner && owner->hasComponent<runtime::Terrain3DComponent>(),
+          "Inherited terrain owner disappeared");
+    return *owner->component<runtime::Terrain3DComponent>();
+  };
+  const auto beforeRecipe = lookup().recipe;
+  const auto before = lookup().generated;
+  const auto buildingRevision =
+      runtime::findEntity(workspace.project().world, "building")
+          ->component<runtime::MeshRendererComponent>()
+          ->revision;
+  auto replacement = beforeRecipe;
+  replacement["edits"].push_back(
+      {{"type", "raise"}, {"center", {2.2F, 1.1F}}, {"radius", 1}});
+  check(workspace.editValue({.entityId = "ground/terrain",
+                             .component = "Terrain3D",
+                             .field = "recipe"},
+                            replacement, false, error),
+        "Inherited recipe edit failed: " + error);
+  const auto after = lookup().generated;
+  check(workspace.undo(error), "Inherited recipe Undo failed: " + error);
+  check(workspace.sceneDocument().json() == source &&
+            lookup().recipe == beforeRecipe &&
+            lookup().generated->heights == before->heights,
+        "Inherited recipe Undo did not resolve the source after removing the "
+        "override");
+  check(workspace.redo(error), "Inherited recipe Redo failed: " + error);
+  check(lookup().recipe == replacement &&
+            lookup().generated->heights == after->heights,
+        "Inherited recipe Redo did not restore the exact override and surface");
+  check(runtime::findEntity(workspace.project().world, "building")
+                ->component<runtime::MeshRendererComponent>()
+                ->revision == buildingRevision,
+        "Inherited terrain history rebuilt unrelated scene resources");
+}
 } // namespace
 
 int main() {
@@ -438,6 +759,12 @@ int main() {
     createProject(project.root);
     testGenerateRegenerateHistoryAndSave(project.root);
     testCancellationAndStaleSelection(project.root);
+    TemporaryProject liveProject;
+    createProject(liveProject.root);
+    testLivePreviewSparseHistoryAndReadiness(liveProject.root);
+    testAbsentDefaultRecipeHistory();
+    testInheritedPrefabRecipeHistory();
+    testLiveSelectionAndSourceConflict();
     std::cout << "Editor terrain workspace tests passed.\n";
   } catch (const std::exception &exception) {
     std::cerr << "Editor terrain workspace tests failed: " << exception.what()

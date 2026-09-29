@@ -9,4 +9,11 @@ pickEditorTerrain(const runtime::World &world, std::string_view entityId,
 std::vector<std::optional<runtime::Vec2>> projectEditorTerrainBrush(
     const runtime::World &world, const EditorTerrainAuthoring &authoring,
     const EditorSceneViewCamera &camera, runtime::Vec2 viewportSize);
+struct EditorTerrainProjectedMaskSample {
+  runtime::Vec2 position;
+  float weight = 0;
+};
+std::vector<EditorTerrainProjectedMaskSample> projectEditorTerrainExclusions(
+    const runtime::World &world, const EditorTerrainAuthoring &authoring,
+    const EditorSceneViewCamera &camera, runtime::Vec2 viewportSize);
 } // namespace demi::editor

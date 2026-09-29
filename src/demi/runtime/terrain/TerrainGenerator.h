@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/terrain/TerrainRecipe.h"
+#include "demi/runtime/terrain/TerrainSamples.h"
 #include <functional>
 #include <optional>
 #include <stop_token>
@@ -18,10 +19,11 @@ struct HeightField {
   Vec2 size{};
   int cellsX = 0;
   int cellsZ = 0;
-  std::vector<float> baseHeights;
-  std::vector<float> heights;
-  std::vector<Vec3> normals;
-  std::vector<std::size_t> biomeIndices;
+  TerrainSamples<float> baseHeights;
+  TerrainSamples<float> heights;
+  TerrainSamples<Vec3> normals;
+  TerrainSamples<std::size_t> biomeIndices;
+  TerrainSamples<float> exclusions;
   std::vector<std::string> biomeIds;
   std::vector<Color> biomeColors;
   std::vector<TerrainChunk> chunks;

@@ -36,7 +36,7 @@ void validateField(const TerrainRecipe &recipe, const HeightField &field) {
   if (field.baseHeights.size() != sampleCount ||
       field.heights.size() != sampleCount ||
       field.normals.size() != sampleCount ||
-      field.biomeIndices.size() != sampleCount)
+      field.biomeIndices.size() != sampleCount || field.exclusions.size() != sampleCount)
     throw std::invalid_argument(
         "Terrain result arrays do not match its sample count");
 
@@ -60,7 +60,9 @@ void validateField(const TerrainRecipe &recipe, const HeightField &field) {
 
   for (std::size_t sample = 0; sample < sampleCount; ++sample) {
     if (!std::isfinite(field.baseHeights[sample]) ||
-        !std::isfinite(field.heights[sample]))
+        !std::isfinite(field.heights[sample]) ||
+        !std::isfinite(field.exclusions[sample]) || field.exclusions[sample] < 0 ||
+        field.exclusions[sample] > 1)
       throw std::invalid_argument("Terrain result contains a nonfinite height");
     const auto normal = field.normals[sample];
     if (!std::isfinite(normal.x) || !std::isfinite(normal.y) ||

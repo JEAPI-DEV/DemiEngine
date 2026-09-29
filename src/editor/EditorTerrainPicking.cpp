@@ -1,6 +1,7 @@
 #include "editor/EditorTerrainPicking.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "editor/EditorViewportProjection.h"
+#include <algorithm>
 #include <cmath>
 
 namespace demi::editor {
@@ -41,6 +42,31 @@ std::vector<std::optional<runtime::Vec2>> projectEditorTerrainBrush(
                                   runtime::transformPoint3D(*transform, point),
                                   viewportSize)
             : std::nullopt);
+  return result;
+}
+
+std::vector<EditorTerrainProjectedMaskSample> projectEditorTerrainExclusions(
+    const runtime::World &world, const EditorTerrainAuthoring &authoring,
+    const EditorSceneViewCamera &camera, runtime::Vec2 viewportSize) {
+  std::vector<EditorTerrainProjectedMaskSample> result;
+  if (!authoring.previewExclusions || viewportSize.x <= 0 ||
+      viewportSize.y <= 0)
+    return result;
+  const auto *entity = runtime::findEntity(world, authoring.entityId());
+  const auto transform =
+      entity ? runtime::resolveWorldTransform3D(world, *entity) : std::nullopt;
+  if (!transform)
+    return result;
+  const auto budget = static_cast<std::size_t>(
+      std::max(1.0F, viewportSize.x * viewportSize.y / 64));
+  for (const auto &sample : authoring.exclusionPreview(budget)) {
+    const auto projected = projectScenePoint3D(
+        camera, runtime::transformPoint3D(*transform, sample.position),
+        viewportSize);
+    if (projected && projected->x >= 0 && projected->x <= viewportSize.x &&
+        projected->y >= 0 && projected->y <= viewportSize.y)
+      result.push_back({*projected, sample.weight});
+  }
   return result;
 }
 } // namespace demi::editor

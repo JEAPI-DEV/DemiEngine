@@ -145,7 +145,7 @@ void testSceneAndBiomeGroups() {
   // Publish a known worker result to probe grouping/cache consumption directly.
   for (int z = 0; z <= generated->cellsZ; ++z)
     for (int x = 0; x <= generated->cellsX; ++x)
-      generated->biomeIndices[generated->index(x, z)] = x < 2 ? 0 : 1;
+      generated->biomeIndices.set(generated->index(x, z), x < 2 ? 0 : 1);
   auto field = std::make_shared<const HeightField>(std::move(*generated));
   const auto recipeJson = recipe.toJson();
   publishTerrain(recipeJson, field);

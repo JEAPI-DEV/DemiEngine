@@ -74,34 +74,40 @@ void publicationValidation() {
     rejectMutation([&](HeightField &field) { (field.*member).pop_back(); });
     rejectMutation([&](HeightField &field) { (field.*member).push_back(0); });
     rejectMutation([&](HeightField &field) {
-      (field.*member)[0] = std::numeric_limits<float>::quiet_NaN();
+      (field.*member).set(0, std::numeric_limits<float>::quiet_NaN());
     });
     rejectMutation([&](HeightField &field) {
-      (field.*member)[0] = std::numeric_limits<float>::infinity();
+      (field.*member).set(0, std::numeric_limits<float>::infinity());
     });
   }
   rejectMutation([](HeightField &field) { field.normals.pop_back(); });
   rejectMutation(
       [](HeightField &field) { field.normals.push_back({0, 1, 0}); });
   rejectMutation([](HeightField &field) {
-    field.normals[0].x = std::numeric_limits<float>::quiet_NaN();
+    auto normal = field.normals[0];
+    normal.x = std::numeric_limits<float>::quiet_NaN();
+    field.normals.set(0, normal);
   });
   rejectMutation([](HeightField &field) {
-    field.normals[0].y = std::numeric_limits<float>::infinity();
+    auto normal = field.normals[0];
+    normal.y = std::numeric_limits<float>::infinity();
+    field.normals.set(0, normal);
   });
   rejectMutation([](HeightField &field) {
-    field.normals[0].z = -std::numeric_limits<float>::infinity();
+    auto normal = field.normals[0];
+    normal.z = -std::numeric_limits<float>::infinity();
+    field.normals.set(0, normal);
   });
-  rejectMutation([](HeightField &field) { field.normals[0] = {0, 0, 0}; });
-  rejectMutation([](HeightField &field) { field.normals[0] = {0, -1, 0}; });
-  rejectMutation([](HeightField &field) { field.normals[0] = {0, 2, 0}; });
+  rejectMutation([](HeightField &field) { field.normals.set(0, {0, 0, 0}); });
+  rejectMutation([](HeightField &field) { field.normals.set(0, {0, -1, 0}); });
+  rejectMutation([](HeightField &field) { field.normals.set(0, {0, 2, 0}); });
   rejectMutation([](HeightField &field) { field.biomeIndices.pop_back(); });
   rejectMutation([](HeightField &field) { field.biomeIndices.push_back(0); });
   rejectMutation([](HeightField &field) {
-    field.biomeIndices[0] = field.biomeIds.size();
+    field.biomeIndices.set(0, field.biomeIds.size());
   });
   rejectMutation([](HeightField &field) {
-    field.biomeIndices[0] = std::numeric_limits<std::size_t>::max();
+    field.biomeIndices.set(0, std::numeric_limits<std::size_t>::max());
   });
   rejectMutation([](HeightField &field) { field.biomeIds.pop_back(); });
   rejectMutation([](HeightField &field) { field.biomeIds.push_back("extra"); });

@@ -316,6 +316,9 @@ bool EditorShell::openDocument(const std::filesystem::path &path,
 void EditorShell::draw(const int width, const int height,
                        const std::string_view rendererName) {
   playSession_.poll();
+  std::string terrainError;
+  if (!workspace_.pollTerrainAuthoring(terrainError))
+    notice_ = std::move(terrainError);
   if (!workspace_.hasHudDocument()) showHudView_=false;
   if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_D,false)) {
     gameInputDetached_=true;
@@ -409,6 +412,7 @@ void EditorShell::draw(const int width, const int height,
     playSession_.setDebugFocus(selectedRuntimeEntityId_);
   const ImVec2 stagePosition{leftWidth, contentTop};
   const ImVec2 stageSize{centerWidth, upperHeight};
+  bool terrainStageVisible = false;
   if (panels.stage) {
     const bool stageContent = beginEditorPanel(
         "Stage", stagePosition, stageSize, &panels.stage,
@@ -426,6 +430,7 @@ void EditorShell::draw(const int width, const int height,
               {float(gameArea_.x+gameArea_.width),float(gameArea_.y+gameArea_.height)}))
           gameInputDetached_=false;
       } else {
+        terrainStageVisible = !showHudView_;
         gameArea_ = {};
         gameViewFocused_ = false;
         drawEditorViewport(workspace_, {}, {}, viewportTextureIndex_,
@@ -440,6 +445,11 @@ void EditorShell::draw(const int width, const int height,
     viewportArea_ = {};
     gameArea_ = {};
     gameViewFocused_ = false;
+  }
+  if (!terrainStageVisible && workspace_.terrainAuthoring().stroking()) {
+    std::string error;
+    if (!workspace_.cancelTerrainEditing(error))
+      notice_ = std::move(error);
   }
   if (panels.inspector && runtimePanels)
     drawRuntimeInspector(*runtimeWorld, {screenWidth - rightWidth, contentTop},

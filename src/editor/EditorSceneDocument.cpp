@@ -10,10 +10,13 @@
 #include "demi/diagnostics/Diagnostic.h"
 #include "demi/runtime/scene/ComponentRegistry.h"
 #include "demi/runtime/scene/EntityPresets.h"
+#include "demi/runtime/terrain/TerrainRecipe.h"
+#include "demi/runtime/terrain/TerrainUpdate.h"
 #include "demi/schema/Validation.h"
 
 #include <algorithm>
 #include <array>
+#include <exception>
 #include <string>
 #include <tuple>
 #include <unordered_map>
@@ -78,6 +81,8 @@ bool stagedHasErrors(const std::filesystem::path &path,
 }
 
 SceneValueTarget issueTarget(const SceneCommand &command) {
+  if (const auto *terrain = std::get_if<TerrainRecipeCommand>(&command))
+    return terrain->target;
   if (const auto *setValue = std::get_if<SetValueCommand>(&command))
     return setValue->target;
   if (const auto *setValues = std::get_if<SetValuesCommand>(&command);
@@ -324,6 +329,95 @@ bool EditorSceneDocument::setValue(SceneValueTarget target,
   return true;
 }
 
+bool EditorSceneDocument::setTerrainRecipe(
+    SceneValueTarget target, nlohmann::json replacement,
+    std::shared_ptr<const runtime::TerrainPatch> patch, const bool continuous,
+    std::string &error) {
+  if (target.component != "Terrain3D" || target.field != "recipe") {
+    error = "Terrain history requires a Terrain3D recipe target.";
+    reject(target, error);
+    return false;
+  }
+  const auto *current = value(target);
+  if (current && *current == replacement) {
+    if (!continuous)
+      endContinuousEdit();
+    clearIssue();
+    return true;
+  }
+
+  nlohmann::json staged;
+  TerrainRecipeCommand next;
+  const bool extendsContinuous =
+      continuous && continuousTarget_ == target && !undo_.empty() &&
+      std::holds_alternative<TerrainRecipeCommand>(undo_.back());
+  try {
+    // Keep authored precision, including protected sample positions/heights.
+    (void)runtime::TerrainRecipe::parse(replacement);
+    if (!validate(target, replacement, error)) {
+      reject(target, error);
+      return false;
+    }
+    staged = document_;
+    if (!assignValueInDocument(staged, target, replacement)) {
+      error = "The selected entity or component no longer exists.";
+      reject(target, error);
+      return false;
+    }
+    if (stagedHasErrors(path_, staged, error)) {
+      reject(target, error);
+      return false;
+    }
+
+    if (extendsContinuous) {
+      next = std::get<TerrainRecipeCommand>(undo_.back());
+      // Reconstruct just the pre-stroke recipe; history retains only deltas.
+      const auto baseline =
+          (current ? *current : nlohmann::json()).patch(next.inversePatch);
+      next.forwardPatch = nlohmann::json::diff(baseline, replacement);
+      next.inversePatch = nlohmann::json::diff(replacement, baseline);
+      if (next.samplePatch && patch) {
+        next.samplePatch =
+            runtime::mergeTerrainPatches(*next.samplePatch, *patch);
+        if (!next.samplePatch) {
+          error = "The terrain updates could not be merged into one stroke.";
+          reject(target, error);
+          return false;
+        }
+      } else {
+        // A regeneration anywhere in the stroke requires full preview replay.
+        next.samplePatch.reset();
+      }
+    } else {
+      next =
+          makeTerrainRecipeCommand(document_, staged, target, std::move(patch));
+    }
+  } catch (const std::exception &exception) {
+    error =
+        "Could not edit the terrain recipe: " + std::string(exception.what());
+    reject(target, error);
+    return false;
+  }
+
+  if (extendsContinuous) {
+    undo_.back() = std::move(next);
+  } else {
+    if (continuous)
+      continuousRedoBackup_ = redo_;
+    else
+      continuousRedoBackup_.clear();
+    undo_.push_back(std::move(next));
+  }
+  document_ = std::move(staged);
+  redo_.clear();
+  lastChangedEntityId_ = target.entityId;
+  continuousTarget_ = continuous ? std::optional(target) : std::nullopt;
+  if (!continuous)
+    continuousRedoBackup_.clear();
+  clearIssue();
+  return true;
+}
+
 bool EditorSceneDocument::setValues(std::vector<SceneValueTarget> targets,
                                     nlohmann::json replacement,
                                     std::string &error) {
@@ -379,8 +473,15 @@ void EditorSceneDocument::endContinuousEdit() {
 bool EditorSceneDocument::cancelContinuousEdit(std::string &error) {
   if (!continuousTarget_)
     return true;
-  if (undo_.empty() || !std::holds_alternative<SetValueCommand>(undo_.back()) ||
-      std::get<SetValueCommand>(undo_.back()).target != *continuousTarget_) {
+  const SceneValueTarget *target = nullptr;
+  if (!undo_.empty()) {
+    if (const auto *value = std::get_if<SetValueCommand>(&undo_.back()))
+      target = &value->target;
+    else if (const auto *terrain =
+                 std::get_if<TerrainRecipeCommand>(&undo_.back()))
+      target = &terrain->target;
+  }
+  if (target == nullptr || *target != *continuousTarget_) {
     error = "The active continuous edit no longer matches command history.";
     endContinuousEdit();
     return false;
@@ -825,6 +926,16 @@ bool EditorSceneDocument::redo(std::string &error) {
   endContinuousEdit();
   clearIssue();
   return true;
+}
+
+const TerrainRecipeCommand *EditorSceneDocument::nextTerrainUndo() const {
+  return undo_.empty() ? nullptr
+                       : std::get_if<TerrainRecipeCommand>(&undo_.back());
+}
+
+const TerrainRecipeCommand *EditorSceneDocument::nextTerrainRedo() const {
+  return redo_.empty() ? nullptr
+                       : std::get_if<TerrainRecipeCommand>(&redo_.back());
 }
 
 bool EditorSceneDocument::isDirty() const {

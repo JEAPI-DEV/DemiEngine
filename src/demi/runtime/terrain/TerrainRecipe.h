@@ -15,12 +15,28 @@ struct TerrainBiome {
   Color color{.35F, .55F, .25F, 1};
 };
 
+enum class TerrainLayerKind {
+  Generation,
+  Biome,
+  Sculpt,
+  Protection,
+  Exclusion
+};
+
+struct TerrainLayer {
+  std::string id;
+  std::string name;
+  TerrainLayerKind kind = TerrainLayerKind::Sculpt;
+  bool enabled = true;
+};
+
 struct TerrainRegion {
   std::string biome = "default";
   Vec2 center{}; // Local XZ, encoded as [x,z].
   float radius = 8;
   float strength = 1;
   float falloff = 1;
+  std::string layer = "biomes";
 };
 
 enum class TerrainEditKind { Raise, Lower, Flatten, Smooth, Protect };
@@ -46,6 +62,17 @@ struct TerrainEdit {
   int snapshotCellsX = 0;
   int snapshotCellsZ = 0;
   std::vector<TerrainProtectionSample> samples;
+  // Empty selects "protection" for Protect, otherwise "sculpt".
+  std::string layer;
+};
+
+struct TerrainExclusion {
+  Vec2 center{};
+  float radius = 8;
+  float strength = 1;
+  float falloff = 1;
+  float value = 1;
+  std::string layer = "exclusions";
 };
 
 struct TerrainRecipe {
@@ -57,8 +84,15 @@ struct TerrainRecipe {
   int chunkCells = 32;
   std::string defaultBiome = "default";
   std::map<std::string, TerrainBiome> biomes{{"default", TerrainBiome{}}};
+  std::vector<TerrainLayer> layers{
+      {"generation", "Generation", TerrainLayerKind::Generation, true},
+      {"biomes", "Biomes", TerrainLayerKind::Biome, true},
+      {"sculpt", "Sculpt", TerrainLayerKind::Sculpt, true},
+      {"protection", "Protection", TerrainLayerKind::Protection, true},
+      {"exclusions", "Exclusions", TerrainLayerKind::Exclusion, true}};
   std::vector<TerrainRegion> regions;
   std::vector<TerrainEdit> edits;
+  std::vector<TerrainExclusion> exclusions;
 
   static TerrainRecipe parse(const nlohmann::json &json);
   static nlohmann::json defaults();

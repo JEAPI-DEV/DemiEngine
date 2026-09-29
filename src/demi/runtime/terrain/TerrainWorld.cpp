@@ -8,29 +8,25 @@
 #include "demi/runtime/scene/model/World.h"
 #include "demi/runtime/terrain/TerrainGenerationCache.h"
 #include "demi/runtime/terrain/TerrainGenerator.h"
+#include "demi/runtime/terrain/TerrainMeshBuilder.h"
+#include "demi/runtime/terrain/TerrainUpdate.h"
 
 #include <algorithm>
-#include <array>
 #include <cmath>
 #include <map>
 #include <memory>
 #include <stdexcept>
+#include <type_traits>
+#include <unordered_map>
 #include <unordered_set>
 
 namespace demi::runtime {
 
 namespace {
-// Native ownership marker prevents regeneration from replacing authored
-// entities even when their IDs happen to occupy the generated namespace.
-struct TerrainGeneratedSurface {
-  std::string owner;
-};
-
-struct SurfaceTriangles {
-  std::vector<Vec3> vertices;
-  std::vector<Vec3> normals;
-  std::vector<Vec2> uvs;
-};
+using terrain_detail::buildChunkTriangles;
+using terrain_detail::buildMeshEntity;
+using terrain_detail::surfaceId;
+using terrain_detail::TerrainGeneratedSurface;
 
 bool terrainHierarchyEnabled(const World &world, const Entity &owner) {
   const Entity *ancestor = &owner;
@@ -51,88 +47,649 @@ bool terrainHierarchyEnabled(const World &world, const Entity &owner) {
   return false;
 }
 
-std::string biomeIdSegment(const std::string &id) {
-  constexpr char hex[] = "0123456789abcdef";
-  std::string result;
-  for (unsigned char value : id) {
-    if ((value >= 'a' && value <= 'z') || (value >= 'A' && value <= 'Z') ||
-        (value >= '0' && value <= '9') || value == '_' || value == '-') {
-      result += static_cast<char>(value);
-    } else {
-      result += '%';
-      result += hex[value >> 4];
-      result += hex[value & 15];
-    }
+bool samePoint(Vec3 a, Vec3 b) {
+  return a.x == b.x && a.y == b.y && a.z == b.z;
+}
+
+bool sameUv(Vec2 a, Vec2 b) { return a.x == b.x && a.y == b.y; }
+
+bool sameColor(Color a, Color b) {
+  return a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a;
+}
+
+bool sameTriangles(const ColliderAsset3D &collider,
+                   std::span<const Vec3> vertices) {
+  if (collider.triangles.size() != vertices.size() / 3)
+    return false;
+  for (std::size_t triangle = 0; triangle < collider.triangles.size();
+       ++triangle) {
+    const auto &points = collider.triangles[triangle];
+    if (!samePoint(points.a, vertices[triangle * 3]) ||
+        !samePoint(points.b, vertices[triangle * 3 + 1]) ||
+        !samePoint(points.c, vertices[triangle * 3 + 2]))
+      return false;
   }
-  return result;
+  return true;
+}
+
+} // namespace
+
+struct PreparedTerrainWorldUpdate::State {
+  struct SurfaceChange {
+    std::size_t index;
+    std::string id;
+    std::uint64_t revision;
+    std::shared_ptr<const ColliderAsset3D> collider;
+    Color beforeColor;
+    std::optional<Entity> replacement;
+    std::optional<Color> tint;
+    bool remove = false;
+  };
+
+  std::string ownerId;
+  std::size_t ownerIndex = 0;
+  std::size_t entityCount = 0;
+  std::shared_ptr<const HeightField> beforeField;
+  std::shared_ptr<const HeightField> field;
+  nlohmann::json beforeRecipe;
+  nlohmann::json recipe;
+  std::string serializedTerrainKey = "Terrain3D";
+  std::optional<std::string> beforeSerializedTerrain;
+  std::string serializedTerrain;
+  std::unordered_map<std::string, std::string>::node_type
+      serializedTerrainInsertion;
+  std::string layer, sceneOwner, prefabInstance;
+  bool persistent = false;
+  std::vector<SurfaceChange> changes;
+  std::vector<Entity> additions;
+  std::unordered_set<std::string> additionIds;
+  std::vector<std::size_t> removals;
+  std::optional<std::size_t> ownershipIndex;
+  std::vector<std::string> beforeSurfaces;
+  TerrainRuntimeOwner ownership;
+  bool ownershipChanged = false;
+};
+
+PreparedTerrainWorldUpdate::PreparedTerrainWorldUpdate(
+    std::unique_ptr<State> state)
+    : state_(std::move(state)) {}
+PreparedTerrainWorldUpdate::PreparedTerrainWorldUpdate(
+    PreparedTerrainWorldUpdate &&) noexcept = default;
+PreparedTerrainWorldUpdate &PreparedTerrainWorldUpdate::operator=(
+    PreparedTerrainWorldUpdate &&) noexcept = default;
+PreparedTerrainWorldUpdate::~PreparedTerrainWorldUpdate() = default;
+
+namespace {
+TerrainRect chunkSamples(const TerrainChunk &chunk) {
+  return {chunk.firstCellX, chunk.firstCellZ, chunk.firstCellX + chunk.cellsX,
+          chunk.firstCellZ + chunk.cellsZ};
+}
+
+bool sameSample(const HeightField &field, std::size_t index,
+                const TerrainSampleValue &value) {
+  return field.baseHeights.at(index) == value.base &&
+         field.heights.at(index) == value.height &&
+         field.exclusions.at(index) == value.exclusion &&
+         samePoint(field.normals.at(index), value.normal) &&
+         field.biomeIndices.at(index) == value.biome;
+}
+
+bool samePalette(const HeightField &field, const TerrainPalette &palette) {
+  return field.biomeIds == palette.ids &&
+         std::ranges::equal(field.biomeColors, palette.colors, sameColor);
+}
+
+void validateUpdatePatch(const HeightField *before, const TerrainUpdate &update,
+                         std::stop_token stop) {
+  if (!update.patch)
+    return;
+  const auto &patch = *update.patch;
+  if (patch.fullBefore || patch.fullAfter) {
+    if (!update.invalidation.fullGeneration &&
+        !update.invalidation.layoutChanged)
+      throw std::invalid_argument(
+          "Global terrain patch requires full/layout invalidation");
+    const auto matches =
+        [](const HeightField *current,
+           const std::shared_ptr<const HeightField> &snapshot) {
+          return current == snapshot.get() ||
+                 (current && snapshot &&
+                  terrainFieldsEqual(*current, *snapshot));
+        };
+    // Local history reconstructs an equivalent COW field rather than the
+    // original snapshot pointer. Global history must accept that exact value.
+    if (!((matches(before, patch.fullBefore) &&
+           matches(update.field.get(), patch.fullAfter)) ||
+          (matches(before, patch.fullAfter) &&
+           matches(update.field.get(), patch.fullBefore))))
+      throw std::invalid_argument(
+          "Terrain patch is stale: global source/result changed");
+    return;
+  }
+  const auto &field = *update.field;
+  if (!before || !sameUv(patch.size, field.size) ||
+      patch.cellsX != field.cellsX || patch.cellsZ != field.cellsZ ||
+      !sameUv(before->size, field.size) || before->cellsX != field.cellsX ||
+      before->cellsZ != field.cellsZ)
+    throw std::invalid_argument(
+        "Terrain patch does not match the retained grid");
+  if (patch.beforePalette.has_value() != patch.afterPalette.has_value())
+    throw std::invalid_argument("Terrain patch requires both palette states");
+  bool forward = true, backward = true;
+  if (patch.beforePalette) {
+    forward = samePalette(*before, *patch.beforePalette) &&
+              samePalette(field, *patch.afterPalette);
+    backward = samePalette(*before, *patch.afterPalette) &&
+               samePalette(field, *patch.beforePalette);
+  }
+  for (const auto &change : patch.samples) {
+    if (stop.stop_requested())
+      throw std::runtime_error("Terrain publication cancelled");
+    forward = forward && sameSample(*before, change.index, change.before) &&
+              sameSample(field, change.index, change.after);
+    backward = backward && sameSample(*before, change.index, change.after) &&
+               sameSample(field, change.index, change.before);
+    if (!forward && !backward)
+      throw std::invalid_argument(
+          "Terrain patch is stale: source/result samples changed");
+    const auto index = change.index;
+    const auto normal = field.normals.at(index);
+    if (!std::isfinite(field.baseHeights.at(index)) ||
+        !std::isfinite(field.heights.at(index)) ||
+        !std::isfinite(field.exclusions.at(index)) ||
+        field.exclusions.at(index) < 0 || field.exclusions.at(index) > 1 ||
+        !std::isfinite(normal.x) || !std::isfinite(normal.y) ||
+        !std::isfinite(normal.z) || normal.y < 0 ||
+        std::abs(
+            std::hypot(double(normal.x), double(normal.y), double(normal.z)) -
+            1) > 1e-4 ||
+        field.biomeIndices.at(index) >= field.biomeIds.size())
+      throw std::invalid_argument(
+          "Terrain patch contains invalid sample values");
+  }
+  if (!forward && !backward)
+    throw std::invalid_argument(
+        "Terrain patch is stale: source/result palette changed");
+}
+
+void validateUpdateLayout(const TerrainRecipe &recipe, const HeightField &field,
+                          const HeightField *before,
+                          const TerrainInvalidation &invalidation) {
+  if (field.cellsX != recipe.cellsX || field.cellsZ != recipe.cellsZ ||
+      !sameUv(field.size, recipe.size))
+    throw std::invalid_argument(
+        "Terrain result dimensions do not match its recipe");
+  const auto count = recipe.sampleCount();
+  if (field.baseHeights.size() != count || field.heights.size() != count ||
+      field.normals.size() != count || field.biomeIndices.size() != count ||
+      field.exclusions.size() != count)
+    throw std::invalid_argument(
+        "Terrain result arrays do not match its sample count");
+  if (field.biomeIds.size() != recipe.biomes.size() ||
+      field.biomeColors.size() != recipe.biomes.size())
+    throw std::invalid_argument(
+        "Terrain result palette does not match its recipe");
+  std::size_t biome = 0;
+  for (const auto &[id, settings] : recipe.biomes) {
+    if (field.biomeIds[biome] != id ||
+        !sameColor(field.biomeColors[biome], settings.color))
+      throw std::invalid_argument(
+          "Terrain result biome IDs/colors do not match its recipe");
+    ++biome;
+  }
+
+  const auto chunksX = (std::size_t(recipe.cellsX) - 1) / recipe.chunkCells + 1;
+  const auto chunksZ = (std::size_t(recipe.cellsZ) - 1) / recipe.chunkCells + 1;
+  if (field.chunks.size() != chunksX * chunksZ)
+    throw std::invalid_argument(
+        "Terrain result chunk count does not match its recipe");
+  std::size_t index = 0;
+  bool sameLayout = before && before->cellsX == field.cellsX &&
+                    before->cellsZ == field.cellsZ &&
+                    sameUv(before->size, field.size) &&
+                    before->chunks.size() == field.chunks.size();
+  for (int z = 0; z < recipe.cellsZ;) {
+    const int depth = std::min(recipe.chunkCells, recipe.cellsZ - z);
+    for (int x = 0; x < recipe.cellsX;) {
+      const int width = std::min(recipe.chunkCells, recipe.cellsX - x);
+      const auto &chunk = field.chunks[index];
+      if (chunk.firstCellX != x || chunk.firstCellZ != z ||
+          chunk.cellsX != width || chunk.cellsZ != depth)
+        throw std::invalid_argument(
+            "Terrain result chunk layout does not match its recipe");
+      if (sameLayout) {
+        const auto &old = before->chunks[index];
+        sameLayout = old.firstCellX == x && old.firstCellZ == z &&
+                     old.cellsX == width && old.cellsZ == depth;
+      }
+      ++index;
+      x += width;
+    }
+    z += depth;
+  }
+  if (!sameLayout && !invalidation.fullGeneration &&
+      !invalidation.layoutChanged)
+    throw std::invalid_argument(
+        "Terrain layout changes require explicit full/layout invalidation");
+  // Global history rectangles may describe the opposite-sized grid on Undo.
+  // Global/layout publication replaces the entire owner, so no rect is used.
+  if (invalidation.fullGeneration || invalidation.layoutChanged)
+    return;
+  const TerrainRect bounds{0, 0, field.cellsX, field.cellsZ};
+  for (const auto &rect :
+       {invalidation.baseSamples, invalidation.heightSamples,
+        invalidation.normalSamples, invalidation.biomeSamples,
+        invalidation.exclusionSamples})
+    if (!rect.empty() && (!bounds.contains(rect.minX, rect.minZ) ||
+                          !bounds.contains(rect.maxX, rect.maxZ)))
+      throw std::invalid_argument(
+          "Terrain dirty samples extend outside its grid");
 }
 } // namespace
+
+std::optional<PreparedTerrainWorldUpdate> prepareTerrainWorldUpdate(
+    const World &world, std::string_view ownerId, const nlohmann::json &recipe,
+    const TerrainUpdate &update, std::string &error, std::stop_token stop) {
+  error.clear();
+  try {
+    if (stop.stop_requested()) {
+      error = "Terrain publication cancelled";
+      return std::nullopt;
+    }
+    const auto ownerIt =
+        std::ranges::find(world.entities, ownerId, &Entity::id);
+    if (ownerIt == world.entities.end())
+      throw std::invalid_argument("Terrain owner does not exist");
+    const Entity &owner = *ownerIt;
+    const auto *terrain = owner.component<Terrain3DComponent>();
+    if (!terrain || !owner.hasComponent<Transform3DComponent>())
+      throw std::invalid_argument(
+          "Terrain owner requires Terrain3D and Transform3D");
+    if (!update.field)
+      throw std::invalid_argument("Terrain update has no heightfield");
+    const auto parsed = TerrainRecipe::parse(recipe);
+    const auto &field = *update.field;
+    validateUpdateLayout(parsed, field, terrain->generated.get(),
+                         update.invalidation);
+    validateUpdatePatch(terrain->generated.get(), update, stop);
+
+    auto state = std::make_unique<PreparedTerrainWorldUpdate::State>();
+    state->ownerId = owner.id;
+    state->ownerIndex = std::size_t(ownerIt - world.entities.begin());
+    state->entityCount = world.entities.size();
+    state->beforeField = terrain->generated;
+    state->field = update.field;
+    state->beforeRecipe = terrain->recipe;
+    state->recipe = recipe;
+    auto serialized = nlohmann::json::object();
+    const auto source =
+        owner.serializedComponents.find(state->serializedTerrainKey);
+    if (source != owner.serializedComponents.end()) {
+      state->beforeSerializedTerrain = source->second;
+      serialized = nlohmann::json::parse(source->second);
+      if (!serialized.is_object())
+        throw std::invalid_argument("Serialized Terrain3D must be an object");
+    }
+    serialized["recipe"] = recipe;
+    state->serializedTerrain = serialized.dump();
+    if (!state->beforeSerializedTerrain) {
+      // A prepared node permits first publication on native-created owners
+      // without allocating an entry after the commit point.
+      std::unordered_map<std::string, std::string> insertion;
+      insertion.emplace(state->serializedTerrainKey,
+                        std::move(state->serializedTerrain));
+      state->serializedTerrainInsertion = insertion.extract(insertion.begin());
+    }
+    state->layer = owner.layer;
+    state->sceneOwner = owner.sceneOwner;
+    state->prefabInstance = owner.prefabInstance;
+    state->persistent = owner.persistent;
+    const bool full =
+        update.invalidation.fullGeneration || update.invalidation.layoutChanged;
+    const auto dirty = update.invalidation.geometrySamples();
+
+    // Exclusions and recipe-only changes do not even inspect native surfaces.
+    if (!full && dirty.empty() && !update.invalidation.materialsChanged) {
+      if (stop.stop_requested()) {
+        error = "Terrain publication cancelled";
+        return std::nullopt;
+      }
+      return PreparedTerrainWorldUpdate(std::move(state));
+    }
+
+    // One read-only index pass. Only this owner's affected native surfaces are
+    // staged; authored entities and other owners are never copied/rebuilt.
+    std::unordered_map<std::string, std::size_t> ids;
+    std::map<std::pair<int, int>, std::vector<std::size_t>> previousChunks;
+    std::vector<std::size_t> ownerSurfaces;
+    for (std::size_t index = 0; index < world.entities.size(); ++index) {
+      const auto &entity = world.entities[index];
+      if (!ids.emplace(entity.id, index).second)
+        throw std::invalid_argument("Duplicate entity ID: " + entity.id);
+      const auto *surface = entity.component<TerrainGeneratedSurface>();
+      if (surface && surface->owner == owner.id) {
+        ownerSurfaces.push_back(index);
+        previousChunks[{surface->firstCellX, surface->firstCellZ}].push_back(
+            index);
+      }
+    }
+    for (std::size_t index = 0; index < world.terrainOwners.size(); ++index)
+      if (world.terrainOwners[index].id == owner.id) {
+        state->ownershipIndex = index;
+        break;
+      }
+
+    std::unordered_map<std::size_t, std::size_t> staged;
+    const auto stage = [&](std::size_t index) -> auto & {
+      if (const auto found = staged.find(index); found != staged.end())
+        return state->changes[found->second];
+      const auto &entity = world.entities[index];
+      const auto *mesh = entity.component<MeshRendererComponent>();
+      const auto *collider = entity.component<ModelCollider3DComponent>();
+      if (!mesh || !collider || !collider->inlineGeometry)
+        throw std::invalid_argument(
+            "Terrain surface is missing mesh/collision: " + entity.id);
+      staged.emplace(index, state->changes.size());
+      state->changes.push_back({.index = index,
+                                .id = entity.id,
+                                .revision = mesh->revision,
+                                .collider = collider->inlineGeometry,
+                                .beforeColor = mesh->color});
+      return state->changes.back();
+    };
+    if (full)
+      for (const auto index : ownerSurfaces)
+        stage(index).remove = true;
+
+    const bool enabled = terrainHierarchyEnabled(world, owner);
+    for (const auto &chunk : field.chunks) {
+      if (!full && !dirty.intersects(chunkSamples(chunk)))
+        continue;
+      if (stop.stop_requested()) {
+        error = "Terrain publication cancelled";
+        return std::nullopt;
+      }
+      const auto previous =
+          previousChunks.find({chunk.firstCellX, chunk.firstCellZ});
+      if (previous != previousChunks.end())
+        for (const auto index : previous->second)
+          stage(index).remove = true;
+
+      const auto surfaces = buildChunkTriangles(field, chunk, stop);
+      if (stop.stop_requested()) {
+        error = "Terrain publication cancelled";
+        return std::nullopt;
+      }
+      for (const auto &[biome, triangles] : surfaces) {
+        const auto &biomeId = field.biomeIds.at(biome);
+        const auto color = field.biomeColors.at(biome);
+        auto id = surfaceId(owner.id, chunk, biomeId);
+        const auto existing = ids.find(id);
+        const Entity *old =
+            existing == ids.end() ? nullptr : &world.entities[existing->second];
+        if (old && terrainSurfaceOwner(*old) != owner.id)
+          throw std::invalid_argument(
+              "Generated terrain entity ID conflicts with existing entity: " +
+              id);
+
+        std::shared_ptr<const ColliderAsset3D> retainedCollider;
+        if (old) {
+          auto &change = stage(existing->second);
+          change.remove = false;
+          const auto *mesh = old->component<MeshRendererComponent>();
+          const bool sameGeometry =
+              std::ranges::equal(mesh->vertices, triangles.vertices,
+                                 samePoint) &&
+              std::ranges::equal(mesh->normals, triangles.normals, samePoint) &&
+              std::ranges::equal(mesh->uvs, triangles.uvs, sameUv);
+          if (sameGeometry) {
+            if (!sameColor(mesh->color, color))
+              change.tint = color;
+            continue;
+          }
+          if (sameTriangles(*change.collider, triangles.vertices))
+            retainedCollider = change.collider;
+        }
+        // Renaming/reindexing a biome can retain its physical surface even
+        // when the stable generated group ID changes.
+        if (!retainedCollider && previous != previousChunks.end())
+          for (const auto index : previous->second) {
+            const auto *collider =
+                world.entities[index].component<ModelCollider3DComponent>();
+            if (sameTriangles(*collider->inlineGeometry, triangles.vertices)) {
+              retainedCollider = collider->inlineGeometry;
+              break;
+            }
+          }
+        auto entity = buildMeshEntity(owner, std::move(id), triangles.vertices,
+                                      triangles.normals, triangles.uvs, color,
+                                      {}, error, std::move(retainedCollider));
+        if (!entity)
+          return std::nullopt;
+        entity->enabled = enabled;
+        entity->setComponent(TerrainGeneratedSurface{
+            owner.id, chunk.firstCellX, chunk.firstCellZ, biomeId});
+        if (old)
+          stage(existing->second).replacement = std::move(*entity);
+        else {
+          if (!state->additionIds.insert(entity->id).second)
+            throw std::invalid_argument(
+                "Duplicate generated terrain entity ID: " + entity->id);
+          state->additions.push_back(std::move(*entity));
+        }
+      }
+    }
+
+    if (update.invalidation.materialsChanged) {
+      for (const auto index : ownerSurfaces) {
+        if (stop.stop_requested()) {
+          error = "Terrain publication cancelled";
+          return std::nullopt;
+        }
+        const auto found = staged.find(index);
+        if (found != staged.end() &&
+            (state->changes[found->second].remove ||
+             state->changes[found->second].replacement))
+          continue;
+        const auto *surface =
+            world.entities[index].component<TerrainGeneratedSurface>();
+        const auto biome = std::ranges::find(field.biomeIds, surface->biome);
+        if (biome == field.biomeIds.end())
+          throw std::invalid_argument(
+              "Removed biome still owns unchanged terrain triangles: " +
+              surface->biome);
+        const auto color =
+            field.biomeColors.at(std::size_t(biome - field.biomeIds.begin()));
+        const auto *mesh =
+            world.entities[index].component<MeshRendererComponent>();
+        if (!mesh)
+          throw std::invalid_argument("Terrain surface is missing mesh: " +
+                                      world.entities[index].id);
+        if (!sameColor(mesh->color, color))
+          stage(index).tint = color;
+      }
+    }
+    for (const auto &change : state->changes)
+      if (change.remove)
+        state->removals.push_back(change.index);
+    std::ranges::sort(state->removals);
+    state->ownershipChanged =
+        !state->removals.empty() || !state->additions.empty();
+    if (state->ownershipChanged) {
+      if (state->ownershipIndex)
+        state->beforeSurfaces =
+            world.terrainOwners[*state->ownershipIndex].surfaces;
+      state->ownership.id = owner.id;
+      state->ownership.surfaces.reserve(ownerSurfaces.size() +
+                                        state->additions.size());
+      for (const auto index : ownerSurfaces)
+        if (!std::ranges::binary_search(state->removals, index))
+          state->ownership.surfaces.push_back(world.entities[index].id);
+      for (const auto &entity : state->additions)
+        state->ownership.surfaces.push_back(entity.id);
+    }
+    if (stop.stop_requested()) {
+      error = "Terrain publication cancelled";
+      return std::nullopt;
+    }
+    return PreparedTerrainWorldUpdate(std::move(state));
+  } catch (const std::exception &exception) {
+    error = "Terrain3D on " + std::string(ownerId) + ": " + exception.what();
+    return std::nullopt;
+  }
+}
+
+bool publishTerrainWorldUpdate(World &world,
+                               PreparedTerrainWorldUpdate &&prepared,
+                               std::string &error, std::stop_token stop) {
+  error.clear();
+  try {
+    if (!prepared.state_)
+      throw std::invalid_argument(
+          "Terrain preparation has already been consumed");
+    auto &state = *prepared.state_;
+    if (stop.stop_requested()) {
+      error = "Terrain publication cancelled";
+      return false;
+    }
+    if (world.entities.size() != state.entityCount ||
+        state.ownerIndex >= world.entities.size() ||
+        world.entities[state.ownerIndex].id != state.ownerId)
+      throw std::invalid_argument(
+          "Terrain preparation is stale: entity collection changed");
+    const auto &owner = world.entities[state.ownerIndex];
+    const auto *terrain = owner.component<Terrain3DComponent>();
+    if (!terrain || !owner.hasComponent<Transform3DComponent>() ||
+        terrain->generated != state.beforeField ||
+        terrain->recipe != state.beforeRecipe || owner.layer != state.layer ||
+        owner.sceneOwner != state.sceneOwner ||
+        owner.prefabInstance != state.prefabInstance ||
+        owner.persistent != state.persistent)
+      throw std::invalid_argument(
+          "Terrain preparation is stale: owner changed");
+    const auto serialized =
+        owner.serializedComponents.find(state.serializedTerrainKey);
+    if (state.beforeSerializedTerrain
+            ? serialized == owner.serializedComponents.end() ||
+                  serialized->second != *state.beforeSerializedTerrain
+            : serialized != owner.serializedComponents.end())
+      throw std::invalid_argument(
+          "Terrain preparation is stale: serialized Terrain3D changed");
+    for (const auto &change : state.changes) {
+      const auto &entity = world.entities[change.index];
+      const auto *mesh = entity.component<MeshRendererComponent>();
+      const auto *collider = entity.component<ModelCollider3DComponent>();
+      if (entity.id != change.id ||
+          terrainSurfaceOwner(entity) != state.ownerId || !mesh || !collider ||
+          mesh->revision != change.revision ||
+          !sameColor(mesh->color, change.beforeColor) ||
+          collider->inlineGeometry != change.collider)
+        throw std::invalid_argument(
+            "Terrain preparation is stale: surface changed");
+    }
+    if (state.ownershipChanged && state.ownershipIndex &&
+        (*state.ownershipIndex >= world.terrainOwners.size() ||
+         world.terrainOwners[*state.ownershipIndex].id != state.ownerId ||
+         world.terrainOwners[*state.ownershipIndex].surfaces !=
+             state.beforeSurfaces))
+      throw std::invalid_argument(
+          "Terrain preparation is stale: ownership changed");
+    // Collection size alone cannot detect a same-size authored rename into a
+    // newly generated ID while background preparation was in flight.
+    if (!state.additionIds.empty())
+      for (const auto &entity : world.entities)
+        if (state.additionIds.contains(entity.id))
+          throw std::invalid_argument(
+              "Generated terrain entity ID conflicts with existing entity: " +
+              entity.id);
+    if (state.ownershipChanged && !state.ownershipIndex &&
+        std::ranges::find(world.terrainOwners, state.ownerId,
+                          &TerrainRuntimeOwner::id) !=
+            world.terrainOwners.end())
+      throw std::invalid_argument(
+          "Terrain preparation is stale: ownership changed");
+    if (state.additions.size() >
+        world.entities.max_size() - world.entities.size())
+      throw std::length_error(
+          "Generated terrain exceeds entity storage capacity");
+    // Capacity is the last fallible work. Nothing below allocates, so render,
+    // collision, recipe and the retained field become visible in one commit.
+    if (state.ownershipChanged && !state.ownershipIndex)
+      world.terrainOwners.reserve(world.terrainOwners.size() + 1);
+    const bool enabled = terrainHierarchyEnabled(world, owner);
+    if (!state.beforeSerializedTerrain) {
+      auto &components = world.entities[state.ownerIndex].serializedComponents;
+      if (components.size() == components.max_size())
+        throw std::length_error(
+            "Serialized components exceed storage capacity");
+      components.reserve(components.size() + 1);
+    }
+    if (!state.additions.empty())
+      world.entities.reserve(world.entities.size() + state.additions.size());
+    if (stop.stop_requested()) {
+      error = "Terrain publication cancelled";
+      return false;
+    }
+    static_assert(std::is_nothrow_move_assignable_v<Entity>);
+    static_assert(std::is_nothrow_move_constructible_v<Entity>);
+    for (auto &change : state.changes) {
+      if (change.replacement) {
+        change.replacement->enabled = enabled;
+        world.entities[change.index] = std::move(*change.replacement);
+      } else if (change.tint) {
+        // Color is a draw uniform; geometry and physics caches stay resident.
+        world.entities[change.index].component<MeshRendererComponent>()->color =
+            *change.tint;
+      }
+    }
+    auto &installedOwner = world.entities[state.ownerIndex];
+    auto *installed = installedOwner.component<Terrain3DComponent>();
+    installed->recipe.swap(state.recipe);
+    installed->generated.swap(state.field);
+    if (state.beforeSerializedTerrain)
+      installedOwner.serializedComponents.find(state.serializedTerrainKey)
+          ->second.swap(state.serializedTerrain);
+    else
+      installedOwner.serializedComponents.insert(
+          std::move(state.serializedTerrainInsertion));
+    if (!state.removals.empty()) {
+      std::size_t index = 0;
+      std::erase_if(world.entities, [&](const Entity &) {
+        return std::ranges::binary_search(state.removals, index++);
+      });
+    }
+    for (auto &entity : state.additions) {
+      entity.enabled = enabled;
+      world.entities.push_back(std::move(entity));
+    }
+    if (state.ownershipChanged) {
+      if (state.ownershipIndex)
+        world.terrainOwners[*state.ownershipIndex] = std::move(state.ownership);
+      else
+        world.terrainOwners.push_back(std::move(state.ownership));
+      world.terrainEntityLookup.clear();
+    }
+    prepared.state_.reset();
+    return true;
+  } catch (const std::exception &exception) {
+    error = exception.what();
+    return false;
+  }
+}
+
+bool updateTerrainWorld(World &world, std::string_view ownerId,
+                        const nlohmann::json &recipe,
+                        const TerrainUpdate &update, std::string &error) {
+  auto prepared =
+      prepareTerrainWorldUpdate(world, ownerId, recipe, update, error);
+  return prepared &&
+         publishTerrainWorldUpdate(world, std::move(*prepared), error);
+}
 
 std::optional<std::string_view> terrainSurfaceOwner(const Entity &entity) {
   const auto *surface = entity.component<TerrainGeneratedSurface>();
   return surface ? std::optional<std::string_view>{surface->owner}
                  : std::nullopt;
-}
-
-std::optional<Entity>
-buildTerrainMeshEntity(const Entity &owner, std::string id,
-                       std::span<const Vec3> vertices,
-                       std::span<const Vec3> normals, std::span<const Vec2> uvs,
-                       Color color, std::string material, std::string &error) {
-  if (vertices.empty() || vertices.size() % 3 != 0 ||
-      normals.size() != vertices.size() || uvs.size() != vertices.size()) {
-    error = "Terrain geometry on " + owner.id +
-            " requires complete triangles and one normal/UV per vertex";
-    return std::nullopt;
-  }
-  const auto finite = [](Vec3 value) {
-    return std::isfinite(value.x) && std::isfinite(value.y) &&
-           std::isfinite(value.z);
-  };
-  for (std::size_t index = 0; index < vertices.size(); ++index) {
-    if (!finite(vertices[index]) || !finite(normals[index]) ||
-        !std::isfinite(uvs[index].x) || !std::isfinite(uvs[index].y)) {
-      error = "Terrain geometry on " + owner.id + " contains non-finite values";
-      return std::nullopt;
-    }
-  }
-
-  Entity entity;
-  entity.id = std::move(id);
-  entity.name = "Terrain surface";
-  entity.enabled = owner.enabled;
-  entity.layer = owner.layer;
-  entity.sceneOwner = owner.sceneOwner;
-  entity.prefabInstance = owner.prefabInstance;
-  entity.persistent = owner.persistent;
-  entity.setComponent(Transform3DComponent{.parent = owner.id});
-
-  MeshRendererComponent mesh;
-  mesh.vertices.assign(vertices.begin(), vertices.end());
-  mesh.normals.assign(normals.begin(), normals.end());
-  mesh.uvs.assign(uvs.begin(), uvs.end());
-  mesh.color = color;
-  mesh.material = std::move(material);
-  mesh.markGeometryChanged();
-
-  auto geometry = std::make_shared<ColliderAsset3D>();
-  geometry->revision = mesh.revision;
-  geometry->size = {mesh.boundsMax.x - mesh.boundsMin.x,
-                    mesh.boundsMax.y - mesh.boundsMin.y,
-                    mesh.boundsMax.z - mesh.boundsMin.z};
-  geometry->offset = {(mesh.boundsMax.x + mesh.boundsMin.x) * .5F,
-                      (mesh.boundsMax.y + mesh.boundsMin.y) * .5F,
-                      (mesh.boundsMax.z + mesh.boundsMin.z) * .5F};
-  geometry->triangles.reserve(vertices.size() / 3);
-  for (std::size_t index = 0; index < vertices.size(); index += 3)
-    geometry->triangles.push_back(
-        {vertices[index], vertices[index + 1], vertices[index + 2]});
-  entity.setComponent(std::move(mesh));
-  entity.setComponent(ModelCollider3DComponent{
-      .layer = owner.layer, .inlineGeometry = std::move(geometry)});
-  entity.setComponent(TerrainGeneratedSurface{owner.id});
-  // No rigidbody means static collision, irrespective of the owner's body.
-  return entity;
 }
 
 bool materializeTerrains(World &world, std::string &error) {
@@ -167,49 +724,10 @@ bool materializeTerrains(World &world, std::string &error) {
       owners.push_back({.id = owner.id});
       const bool enabled = terrainHierarchyEnabled(world, owner);
       for (const TerrainChunk &chunk : field->chunks) {
-        std::map<std::size_t, SurfaceTriangles> surfaces;
-        const auto append = [&](std::array<std::size_t, 3> samples,
-                                std::array<Vec2, 3> positions) {
-          // Majority label keeps grouping local to triangles. Heights and
-          // normals already include the generator's smooth biome blends.
-          const auto a = field->biomeIndices.at(samples[0]);
-          const auto b = field->biomeIndices.at(samples[1]);
-          const auto c = field->biomeIndices.at(samples[2]);
-          const auto biome = b == c ? b : a;
-          auto &surface = surfaces[biome];
-          for (std::size_t vertex = 0; vertex < 3; ++vertex) {
-            const auto sample = samples[vertex];
-            const Vec2 position = positions[vertex];
-            surface.vertices.push_back(
-                {position.x, field->heights.at(sample), position.y});
-            surface.normals.push_back(field->normals.at(sample));
-            surface.uvs.push_back(
-                {position.x / field->size.x, position.y / field->size.y});
-          }
-        };
-        for (int z = chunk.firstCellZ; z < chunk.firstCellZ + chunk.cellsZ;
-             ++z) {
-          for (int x = chunk.firstCellX; x < chunk.firstCellX + chunk.cellsX;
-               ++x) {
-            const auto a = field->index(x, z);
-            const auto b = field->index(x + 1, z);
-            const auto c = field->index(x, z + 1);
-            const auto d = field->index(x + 1, z + 1);
-            const auto pa = field->position(x, z);
-            const auto pb = field->position(x + 1, z);
-            const auto pc = field->position(x, z + 1);
-            const auto pd = field->position(x + 1, z + 1);
-            append({a, c, b}, {pa, pc, pb});
-            append({b, c, d}, {pb, pc, pd});
-          }
-        }
+        const auto surfaces = buildChunkTriangles(*field, chunk);
         for (const auto &[biome, surface] : surfaces) {
-          // Encode IDs reversibly so biome names containing '/' cannot create
-          // aliases, and insertion of another biome never renames this group.
-          std::string id = owner.id + "/__terrain/" +
-                           std::to_string(chunk.firstCellX) + "_" +
-                           std::to_string(chunk.firstCellZ) + "/" +
-                           biomeIdSegment(field->biomeIds.at(biome));
+          std::string id =
+              surfaceId(owner.id, chunk, field->biomeIds.at(biome));
           if (!ids.insert(id).second) {
             error =
                 "Generated terrain entity ID conflicts with existing entity: " +
@@ -221,6 +739,9 @@ bool materializeTerrains(World &world, std::string &error) {
               surface.uvs, field->biomeColors.at(biome), {}, error);
           if (!entity)
             return false;
+          entity->setComponent(TerrainGeneratedSurface{
+              owner.id, chunk.firstCellX, chunk.firstCellZ,
+              field->biomeIds.at(biome)});
           entity->enabled = enabled;
           owners.back().surfaces.push_back(entity->id);
           generated.push_back(std::move(*entity));

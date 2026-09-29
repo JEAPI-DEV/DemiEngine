@@ -35,6 +35,9 @@ bool samePath(const std::filesystem::path &left,
 
 bool EditorWorkspace::open(std::filesystem::path projectPath,
                            std::string &error) {
+  if (!restoreTerrainPreview(error))
+    return false;
+  terrainAuthoring_->unbind();
   if (std::filesystem::is_directory(projectPath))
     projectPath /= "demi.project.json";
   projectPath = std::filesystem::absolute(projectPath).lexically_normal();
@@ -96,6 +99,9 @@ bool EditorWorkspace::openEntityDocument(const std::filesystem::path &path,
     activateSceneDocument();
     return true;
   }
+  if (!restoreTerrainPreview(error))
+    return false;
+  terrainAuthoring_->unbind();
   if (sceneDocument_.isDirty() || (hudDocument_ && hudDocument_->isDirty())) {
     error =
         "Save or undo the active scene and its HUD before switching scenes.";
@@ -205,6 +211,9 @@ void EditorWorkspace::loadPreviewTilemaps() {
 }
 
 bool EditorWorkspace::refresh(std::string &error) {
+  if (!restoreTerrainPreview(error))
+    return false;
+  terrainAuthoring_->unbind();
   if (sceneDocument_.isDirty() || projectDocument_.isDirty() ||
       (hudDocument_ && hudDocument_->isDirty()) ||
       (openedHudDocument_ && openedHudDocument_->isDirty())) {
@@ -250,6 +259,8 @@ bool EditorWorkspace::refresh(std::string &error) {
 }
 
 bool EditorWorkspace::save(std::string &error) {
+  if (!terrainReady(error))
+    return false;
   if (activeDocument_ == EditorWorkspaceDocument::Hud && hudDirty())
     return saveHud(error);
   if (!sceneDocument_.save(error)) {
@@ -261,6 +272,8 @@ bool EditorWorkspace::save(std::string &error) {
 }
 
 bool EditorWorkspace::saveAll(std::string &error) {
+  if (!terrainReady(error))
+    return false;
   if (hudDocument_ && hudDocument_->isDirty() && !hudDocument_->save(error))
     return false;
   if (openedHudDocument_ && openedHudDocument_->isDirty() &&
@@ -365,6 +378,9 @@ bool EditorWorkspace::applyRecovery(const EditorRecoverySnapshot &snapshot,
 bool EditorWorkspace::resolveExternalChange(
     const ExternalChangeDecision decision,
     const std::filesystem::path &copyPath, std::string &error) {
+  if (!restoreTerrainPreview(error))
+    return false;
+  terrainAuthoring_->unbind();
   EditorSceneDocument before = sceneDocument_;
   if (!sceneDocument_.resolveExternalChange(decision, copyPath, error))
     return false;
@@ -396,6 +412,8 @@ bool EditorWorkspace::resolveExternalChange(
 }
 
 bool EditorWorkspace::undo(std::string &error) {
+  if (!terrainReady(error))
+    return false;
   EditorHudDocument *hud = activeHudDocument();
   if (activeDocument_ == EditorWorkspaceDocument::Hud && hud &&
       hud->canUndo()) {
@@ -404,6 +422,8 @@ bool EditorWorkspace::undo(std::string &error) {
     syncHudPreview();
     return true;
   }
+  if (sceneDocument_.nextTerrainUndo())
+    return terrainHistory(false, error);
   if (!mutateAndRebuild(
           [](EditorSceneDocument &document, std::string &mutationError) {
             return document.undo(mutationError);
@@ -417,6 +437,8 @@ bool EditorWorkspace::undo(std::string &error) {
 }
 
 bool EditorWorkspace::redo(std::string &error) {
+  if (!terrainReady(error))
+    return false;
   EditorHudDocument *hud = activeHudDocument();
   if (activeDocument_ == EditorWorkspaceDocument::Hud && hud &&
       hud->canRedo()) {
@@ -425,6 +447,8 @@ bool EditorWorkspace::redo(std::string &error) {
     syncHudPreview();
     return true;
   }
+  if (sceneDocument_.nextTerrainRedo())
+    return terrainHistory(true, error);
   if (!mutateAndRebuild(
           [](EditorSceneDocument &document, std::string &mutationError) {
             return document.redo(mutationError);
@@ -440,6 +464,40 @@ bool EditorWorkspace::redo(std::string &error) {
 bool EditorWorkspace::editValue(SceneValueTarget target, nlohmann::json value,
                                 const bool continuous, std::string &error) {
   target = resolveSceneTarget(std::move(target));
+  if (target.component == "Terrain3D" && target.field == "recipe") {
+    if (!restoreTerrainPreview(error))
+      return false;
+    const auto *owner = runtime::findEntity(project_->world, target.entityId);
+    const auto *terrain =
+        owner ? owner->component<runtime::Terrain3DComponent>() : nullptr;
+    if (!terrain) {
+      error = "The terrain owner no longer exists.";
+      return false;
+    }
+    try {
+      auto update = updateEditorTerrain(
+          terrain->recipe, value,
+          currentEditorTerrain(project_->world, target.entityId), {}, {},
+          error);
+      if (!update)
+        return false;
+      EditorSceneDocument before = sceneDocument_;
+      if (!sceneDocument_.setTerrainRecipe(target, value, update->patch,
+                                           continuous, error))
+        return false;
+      if (!installEditorTerrain(project_->world, target.entityId, value,
+                                *update, error)) {
+        sceneDocument_ = std::move(before);
+        return false;
+      }
+      syncTerrainAuthoring();
+      syncEditorDiagnostic();
+      return true;
+    } catch (const std::exception &exception) {
+      error = exception.what();
+      return false;
+    }
+  }
   if (target.component == "PrefabPlacement3D" || target.component == "Masonry3D" ||
       target.component == "Terrain3D" ||
       (target.component.empty() && target.field == "enabled"))
@@ -802,9 +860,13 @@ bool EditorWorkspace::updateViewportTool(const EditorViewportToolInput &input,
   syncTerrainAuthoring();
   if (terrainAuthoring_->brushActive()) {
     const auto hit = pickEditorTerrain(project_->world, selectedEntityId(),
-                                      terrainAuthoring_->surface(),
-                                      sceneView_.camera(), input);
-    return terrainAuthoring_->update(input, hit, error);
+                                       terrainAuthoring_->surface(),
+                                       sceneView_.camera(), input);
+    if (!terrainAuthoring_->update(input, hit, error))
+      return false;
+    if (terrainAuthoring_->takeRollback())
+      return restoreTerrainPreview(error);
+    return true;
   }
   return applyViewportAction(
       viewportTool_.update(project_->world, selectedEntityId(), sceneView_,
@@ -813,49 +875,278 @@ bool EditorWorkspace::updateViewportTool(const EditorViewportToolInput &input,
 }
 
 void EditorWorkspace::syncTerrainAuthoring() {
+  if (!project_)
+    return;
   const runtime::Entity *entity = selectedEntity();
   const auto *terrain =
       entity ? entity->component<runtime::Terrain3DComponent>() : nullptr;
   if (activeDocument_ != EditorWorkspaceDocument::Scene ||
-      viewDimension_ != EditorSceneViewDimension::ThreeDimensional || !terrain) {
+      viewDimension_ != EditorSceneViewDimension::ThreeDimensional ||
+      !terrain) {
+    std::string error;
+    if (!restoreTerrainPreview(error)) {
+      workspaceOperationError_ = std::move(error);
+      return;
+    }
     terrainAuthoring_->unbind();
     return;
   }
-  terrainAuthoring_->bind(sceneDocument_.path().string(), entity->id,
-                        terrain->recipe,
-                        currentEditorTerrain(project_->world, entity->id));
+  if (terrainAuthoring_->entityId() != entity->id) {
+    std::string error;
+    if (!restoreTerrainPreview(error)) {
+      workspaceOperationError_ = std::move(error);
+      return;
+    }
+    // Restoring chunks can invalidate entity addresses.
+    entity = selectedEntity();
+    terrain =
+        entity ? entity->component<runtime::Terrain3DComponent>() : nullptr;
+    if (!terrain)
+      return;
+  }
+  const auto target = resolveSceneTarget(
+      {.entityId = entity->id, .component = "Terrain3D", .field = "recipe"});
+  const auto *sourceRecipe = valueInDocument(sceneDocument_.json(), target);
+  const auto &baseline =
+      sourceRecipe && !target.isPrefabOverride()
+          ? *sourceRecipe
+          : (terrainPreview_ && terrainPreview_->entityId == entity->id &&
+                     terrainPreview_->recipe == terrain->recipe
+                 ? terrainPreview_->before
+                 : terrain->recipe);
+  terrainAuthoring_->bind(sceneDocument_.path().string(), entity->id, baseline,
+                          currentEditorTerrain(project_->world, entity->id));
 }
 
 bool EditorWorkspace::pollTerrainAuthoring(std::string &error) {
   syncTerrainAuthoring();
   auto commit = terrainAuthoring_->poll(error);
-  if (!commit)
+  if (!commit) {
+    if (!error.empty()) {
+      std::string ignored;
+      (void)restoreTerrainPreview(ignored);
+    }
     return error.empty();
+  }
   const runtime::Entity *entity = selectedEntity();
   const auto *terrain =
       entity ? entity->component<runtime::Terrain3DComponent>() : nullptr;
-  if (commit->document != sceneDocument_.path().string() || !terrain ||
-      commit->entityId != entity->id || commit->before != terrain->recipe) {
-    error = "Terrain changed while generating; the generated result was discarded.";
+  if (commit->restore) {
+    return restoreTerrainPreview(error);
+  }
+  const auto target = resolveSceneTarget({.entityId = commit->entityId,
+                                          .component = "Terrain3D",
+                                          .field = "recipe"});
+  const auto baseline = effectiveTerrainRecipe(target, error);
+  if (!baseline)
     return false;
+  if (commit->document != sceneDocument_.path().string() || !terrain ||
+      commit->entityId != entity->id || commit->before != *baseline) {
+    error =
+        "Terrain changed while generating; the generated result was discarded.";
+    std::string ignored;
+    (void)restoreTerrainPreview(ignored);
+    return false;
+  }
+  if (!commit->final) {
+    const auto original =
+        terrainPreview_
+            ? terrainPreviewSurface_
+            : currentEditorTerrain(project_->world, commit->entityId);
+    auto historyPatch = commit->patch;
+    try {
+      if (terrainPreview_)
+        historyPatch =
+            mergeEditorTerrainPatches(terrainPreview_->patch, commit->patch);
+    } catch (const std::exception &exception) {
+      error = exception.what();
+      std::string ignored;
+      (void)restoreTerrainPreview(ignored);
+      return false;
+    }
+    if (!installEditorTerrain(project_->world, commit->entityId, commit->recipe,
+                              {commit->surface, commit->patch}, error)) {
+      std::string rollbackError;
+      (void)restoreTerrainPreview(rollbackError);
+      return false;
+    }
+    commit->patch = std::move(historyPatch);
+    terrainPreview_ = std::move(commit);
+    terrainPreviewSurface_ = original;
+    return true;
   }
   try {
     publishEditorTerrain(commit->recipe, commit->surface);
   } catch (const std::exception &exception) {
     error = exception.what();
+    std::string ignored;
+    (void)restoreTerrainPreview(ignored);
     return false;
   }
   sceneDocument_.endContinuousEdit();
-  const SceneValueTarget target = resolveSceneTarget(
-      {.entityId = commit->entityId, .component = "Terrain3D", .field = "recipe"});
-  const bool committed = mutateAndRebuild(
-      [&](EditorSceneDocument &document, std::string &issue) {
-        return document.setValue(target, commit->recipe, false, issue);
-      },
-      error);
-  if (committed)
-    syncTerrainAuthoring();
-  return committed;
+  EditorSceneDocument before = sceneDocument_;
+  if (!sceneDocument_.setTerrainRecipe(target, commit->recipe, commit->patch,
+                                       false, error)) {
+    std::string ignored;
+    (void)restoreTerrainPreview(ignored);
+    return false;
+  }
+  const bool alreadyPublished = terrain->generated == commit->surface->heightField() &&
+                                terrain->recipe == commit->recipe;
+  if (!alreadyPublished &&
+      !installEditorTerrain(project_->world, commit->entityId, commit->recipe,
+                            {commit->surface, commit->publicationPatch
+                                                  ? commit->publicationPatch
+                                                  : commit->patch},
+                            error)) {
+    sceneDocument_ = std::move(before);
+    std::string ignored;
+    (void)restoreTerrainPreview(ignored);
+    return false;
+  }
+  terrainPreview_.reset();
+  terrainPreviewSurface_.reset();
+  syncTerrainAuthoring();
+  syncEditorDiagnostic();
+  return true;
+}
+
+bool EditorWorkspace::terrainReady(std::string &error) const {
+  if (terrainAuthoring_->pendingEdits() || terrainPreview_) {
+    error = "Finish or cancel the terrain stroke and wait for terrain "
+            "collision before Save or Play.";
+    return false;
+  }
+  return true;
+}
+
+bool EditorWorkspace::restoreTerrainPreview(std::string &error) {
+  terrainAuthoring_->cancel();
+  (void)terrainAuthoring_->takeRollback();
+  if (!terrainPreview_)
+    return true;
+  if (project_ && terrainPreview_->document == sceneDocument_.path().string()) {
+    const auto *owner =
+        runtime::findEntity(project_->world, terrainPreview_->entityId);
+    const auto *terrain =
+        owner ? owner->component<runtime::Terrain3DComponent>() : nullptr;
+    // A source reload/rebuild has already replaced the preview. Never overwrite
+    // it.
+    if (terrain &&
+        terrain->generated == terrainPreview_->surface->heightField()) {
+      const auto target =
+          resolveSceneTarget({.entityId = terrainPreview_->entityId,
+                              .component = "Terrain3D",
+                              .field = "recipe"});
+      const auto source = effectiveTerrainRecipe(target, error);
+      if (!source)
+        return false;
+      if (*source == terrainPreview_->before) {
+        if (!installEditorTerrain(
+                project_->world, terrainPreview_->entityId, *source,
+                {terrainPreviewSurface_, terrainPreview_->patch}, error))
+          return false;
+      } else {
+        // An authored change invalidated the transient recipe while it was
+        // visible. Restore the new source, rather than publishing the old one.
+        try {
+          const auto update = updateEditorTerrain(
+              terrain->recipe, *source,
+              currentEditorTerrain(project_->world, terrainPreview_->entityId),
+              {}, {}, error);
+          if (!update ||
+              !installEditorTerrain(project_->world, terrainPreview_->entityId,
+                                    *source, *update, error))
+            return false;
+        } catch (const std::exception &exception) {
+          error = exception.what();
+          return false;
+        }
+      }
+    }
+  }
+  terrainPreview_.reset();
+  terrainPreviewSurface_.reset();
+  return true;
+}
+
+bool EditorWorkspace::terrainHistory(bool forward, std::string &error) {
+  const auto *command = forward ? sceneDocument_.nextTerrainRedo()
+                                : sceneDocument_.nextTerrainUndo();
+  const auto target = command->target;
+  const auto patch = command->samplePatch;
+  if (!patch) {
+    error = "Terrain history is missing its native sample patch.";
+    return false;
+  }
+  const auto current = currentEditorTerrain(project_->world, target.entityId);
+  const auto surface = applyEditorTerrainPatch(current, *patch, forward, error);
+  if (!surface)
+    return false;
+  EditorSceneDocument before = sceneDocument_;
+  if (!(forward ? sceneDocument_.redo(error) : sceneDocument_.undo(error)))
+    return false;
+  const auto recipe = effectiveTerrainRecipe(target, error);
+  try {
+    if (recipe)
+      publishEditorTerrain(*recipe, surface);
+  } catch (const std::exception &exception) {
+    sceneDocument_ = std::move(before);
+    error = exception.what();
+    return false;
+  }
+  if (!recipe || !installEditorTerrain(project_->world, target.entityId,
+                                       *recipe, {surface, patch}, error)) {
+    sceneDocument_ = std::move(before);
+    return false;
+  }
+  syncTerrainAuthoring();
+  syncEditorDiagnostic();
+  return true;
+}
+
+std::optional<nlohmann::json>
+EditorWorkspace::effectiveTerrainRecipe(const SceneValueTarget &target,
+                                        std::string &error) const {
+  if (!target.isPrefabOverride()) {
+    if (const auto *recipe = valueInDocument(sceneDocument_.json(), target))
+      return *recipe;
+    const auto *component =
+        sceneDocument_.component(target.entityId, "Terrain3D");
+    if (component)
+      return defaultEditorTerrainRecipe();
+    error = "The authored terrain owner no longer exists.";
+    return std::nullopt;
+  }
+  // Resolve just the owning instance's source and overrides, without loading
+  // a world or disturbing unrelated runtime/render/physics resources.
+  const auto *instance =
+      findPrefabInstance(sceneDocument_.json(), target.prefabInstanceId);
+  if (!instance) {
+    error = "The terrain prefab instance no longer exists.";
+    return std::nullopt;
+  }
+  try {
+    const auto expanded = runtime::composition::expandPrefabInstance(
+        sceneDocument_.path(), *instance);
+    if (!expanded.document) {
+      error = expanded.diagnostics.empty()
+                  ? "Could not resolve the inherited terrain recipe."
+                  : expanded.diagnostics.front().message;
+      return std::nullopt;
+    }
+    const auto *source = runtime::composition::findAuthoredEntity(
+        *expanded.document, target.entityId);
+    if (source) {
+      const auto entity = runtime::scene_loading::parseSceneEntity(*source);
+      if (const auto *terrain = entity.component<runtime::Terrain3DComponent>())
+        return terrain->recipe;
+    }
+    error = "The inherited terrain component no longer exists.";
+  } catch (const std::exception &exception) {
+    error = exception.what();
+  }
+  return std::nullopt;
 }
 
 bool EditorWorkspace::updateViewportTool2D(const EditorViewportToolInput &input,
@@ -918,6 +1209,8 @@ EditorWorkspace::gizmoPresentation2D(const runtime::Vec2 viewportSize) const {
 bool EditorWorkspace::mutateAndRebuild(
     const std::function<bool(EditorSceneDocument &, std::string &)> &mutation,
     std::string &error) {
+  if (!restoreTerrainPreview(error))
+    return false;
   EditorSceneDocument before = sceneDocument_;
   if (!mutation(sceneDocument_, error)) {
     syncEditorDiagnostic();

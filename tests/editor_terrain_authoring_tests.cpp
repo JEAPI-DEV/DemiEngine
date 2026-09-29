@@ -1,5 +1,6 @@
 #include "demi/runtime/scene/model/World.h"
 #include "demi/runtime/terrain/TerrainRecipe.h"
+#include "demi/runtime/terrain/TerrainUpdate.h"
 #include "editor/EditorTerrainAuthoring.h"
 #include "editor/EditorTerrainPicking.h"
 
@@ -39,7 +40,7 @@ public:
 };
 
 std::optional<editor::EditorTerrainCommit>
-finish(editor::EditorTerrainAuthoring &authoring, std::string &error) {
+nextBatch(editor::EditorTerrainAuthoring &authoring, std::string &error) {
   const auto deadline =
       std::chrono::steady_clock::now() + std::chrono::seconds(3);
   while (authoring.busy() && std::chrono::steady_clock::now() < deadline) {
@@ -49,6 +50,15 @@ finish(editor::EditorTerrainAuthoring &authoring, std::string &error) {
     std::this_thread::yield();
   }
   assert(!authoring.busy());
+  return std::nullopt;
+}
+
+std::optional<editor::EditorTerrainCommit>
+finish(editor::EditorTerrainAuthoring &authoring, std::string &error) {
+  while (auto batch = nextBatch(authoring, error)) {
+    if (batch->final)
+      return batch;
+  }
   return std::nullopt;
 }
 } // namespace
@@ -62,6 +72,10 @@ int main() {
                 const std::function<void(float)> &progress, std::string &) {
         progress(1);
         return surface;
+      },
+      [surface](const auto &, const auto &, auto, std::stop_token,
+                const std::function<void(float)> &, std::string &) {
+        return std::optional<editor::EditorTerrainUpdate>{{surface, {}}};
       });
   std::string error;
   editor::EditorTerrainAuthoring drafts;
@@ -140,6 +154,7 @@ int main() {
       {.hovered = true, .focused = true, .leftPressed = true, .leftDown = true},
       runtime::Vec3{8, 12, 8}, error));
   assert(authoring.update({.focused = true, .cancelPressed = true}, {}, error));
+  assert(!finish(authoring, error)); // Drain the cancelled incremental worker.
   assert(!authoring.stroking() && !authoring.busy());
   assert(authoring.draft() == beforeCancel);
 
@@ -258,4 +273,148 @@ int main() {
   assert(protectionRecipe.edits.back().strength == 1);
   assert(protectionRecipe.edits.back().falloff == 0);
   assert(!protectionRecipe.edits.back().samples.empty());
+
+  // Incremental brushes consume the retained native field, publish while the
+  // pointer is down, and retain sparse history across multiple live batches.
+  runtime::TerrainRecipe liveRecipe;
+  liveRecipe.size = {32, 24};
+  liveRecipe.cellsX = 32;
+  liveRecipe.cellsZ = 24;
+  liveRecipe.chunkCells = 4;
+  liveRecipe.biomes.at("default").heightVariation = 0;
+  const auto liveJson = liveRecipe.toJson();
+  const auto liveSurface =
+      editor::generateEditorTerrain(liveJson, {}, {}, error);
+  int fullGenerations = 0;
+  std::atomic<int> batches{0};
+  std::promise<void> firstStarted, resumeFirst;
+  const auto resume = resumeFirst.get_future().share();
+  editor::EditorTerrainAuthoring live(
+      [&](const auto &, std::stop_token, const auto &,
+          std::string &) -> editor::EditorTerrainSurfacePtr {
+        ++fullGenerations;
+        throw std::runtime_error("Brush called the full generator");
+      },
+      [&](const auto &before, const auto &after, auto previous,
+          std::stop_token stop, const auto &progress, std::string &issue) {
+        if (++batches == 1) {
+          firstStarted.set_value();
+          resume.wait();
+        }
+        return editor::updateEditorTerrain(before, after, previous, stop,
+                                           progress, issue);
+      });
+  live.bind("live", "terrain", liveJson, liveSurface);
+  live.brush.mode = editor::EditorTerrainBrush::Raise;
+  live.brush.radius = 1;
+  live.brush.falloff = 0;
+  const editor::EditorViewportToolInput down{
+      .hovered = true, .focused = true, .leftDown = true};
+  assert(live.update(
+      {.hovered = true, .focused = true, .leftPressed = true, .leftDown = true},
+      runtime::Vec3{2, 0, 2}, error));
+  assert(firstStarted.get_future().wait_for(std::chrono::seconds(3)) ==
+         std::future_status::ready);
+  assert(live.update(down, runtime::Vec3{3, 0, 2}, error));
+  assert(live.update(down, runtime::Vec3{4, 0, 2}, error));
+  assert(batches == 1); // Latest stamps wait behind one in-flight batch.
+  resumeFirst.set_value();
+  const auto firstPreview = nextBatch(live, error);
+  assert(firstPreview && !firstPreview->final && live.stroking());
+  assert(firstPreview->surface->height({2, 2}) > liveSurface->height({2, 2}));
+  // Ordinary selection polling must keep the live surface, rather than bind
+  // the authored surface over the completed first batch.
+  live.bind("live", "terrain", liveJson, liveSurface);
+  assert(live.surface() == firstPreview->surface);
+  const auto secondPreview = nextBatch(live, error);
+  assert(secondPreview && !secondPreview->final && batches == 2);
+  assert(live.update({.focused = true, .leftReleased = true}, {}, error));
+  const auto finalStroke = finish(live, error);
+  assert(finalStroke && finalStroke->final && !live.stroking());
+  assert(batches == 2 && fullGenerations == 0); // Release needs no extra job.
+  assert(finalStroke->patch && !finalStroke->patch->samples.empty());
+  assert(!finalStroke->patch->fullBefore && !finalStroke->patch->fullAfter);
+  assert(!finalStroke->patch->invalidation.fullGeneration);
+  assert(finalStroke->surface->heightField()->baseHeights ==
+         liveSurface->heightField()->baseHeights);
+  const auto undoSurface = editor::applyEditorTerrainPatch(
+      finalStroke->surface, *finalStroke->patch, false, error);
+  assert(undoSurface && undoSurface->heightField()->heights ==
+                            liveSurface->heightField()->heights);
+  const auto replay = runtime::TerrainGenerator::generate(
+      runtime::TerrainRecipe::parse(finalStroke->recipe));
+  assert(replay &&
+         replay->heights == finalStroke->surface->heightField()->heights);
+
+  // Cancel after live publication restores the exact original field and emits
+  // a restoration event instead of an authored completion.
+  live.bind("live", "terrain", finalStroke->recipe, finalStroke->surface);
+  const auto beforeLiveCancel = live.surface();
+  assert(live.update(
+      {.hovered = true, .focused = true, .leftPressed = true, .leftDown = true},
+      runtime::Vec3{10, 0, 10}, error));
+  const auto cancelledPreview = nextBatch(live, error);
+  assert(cancelledPreview && !cancelledPreview->final);
+  assert(live.update({.focused = true, .cancelPressed = true}, {}, error));
+  const auto restoration = live.takeRollback();
+  assert(restoration && restoration->restore && !restoration->final);
+  assert(restoration->surface == beforeLiveCancel);
+  assert(!live.pendingEdits() && live.draft() == finalStroke->recipe);
+
+  // Only enabled layers of the correct kind can receive stamps. IDs and
+  // names remain distinct, and toggling keeps previously authored strokes.
+  auto layered = liveJson;
+  layered["layers"].push_back({{"id", "fine_sculpt"},
+                               {"name", "Fine sculpt"},
+                               {"kind", "sculpt"},
+                               {"enabled", true}});
+  auto layeredSurface = editor::generateEditorTerrain(layered, {}, {}, error);
+  live.bind("layers", "terrain", layered, layeredSurface);
+  live.brush.mode = editor::EditorTerrainBrush::Raise;
+  live.brush.layer = "fine_sculpt";
+  assert(live.update(
+      {.hovered = true, .focused = true, .leftPressed = true, .leftDown = true},
+      runtime::Vec3{5, 0, 5}, error));
+  assert(live.update({.focused = true, .leftReleased = true}, {}, error));
+  const auto layerStroke = finish(live, error);
+  assert(layerStroke &&
+         layerStroke->recipe["edits"].back()["layer"] == "fine_sculpt");
+  layered = layerStroke->recipe;
+  layered["layers"].back()["enabled"] = false;
+  layeredSurface = editor::generateEditorTerrain(layered, {}, {}, error);
+  live.bind("layers", "terrain", layered, layeredSurface);
+  assert(!live.update(
+      {.hovered = true, .focused = true, .leftPressed = true, .leftDown = true},
+      runtime::Vec3{5, 0, 5}, error));
+  assert(!live.stroking() && !error.empty());
+  error.clear();
+  live.brush.mode = editor::EditorTerrainBrush::Exclusion;
+  live.brush.layer = "exclusions";
+  live.brush.radius = 2;
+  live.previewExclusions = true;
+  assert(live.update(
+      {.hovered = true, .focused = true, .leftPressed = true, .leftDown = true},
+      runtime::Vec3{8, 0, 8}, error));
+  assert(live.update({.focused = true, .leftReleased = true}, {}, error));
+  const auto maskStroke = finish(live, error);
+  assert(maskStroke && maskStroke->recipe["exclusions"].size() == 1);
+  assert(maskStroke->surface->heightField()->heights ==
+         layeredSurface->heightField()->heights);
+  assert(maskStroke->surface->heightField()->exclusions !=
+         layeredSurface->heightField()->exclusions);
+  live.bind("layers", "terrain", maskStroke->recipe, maskStroke->surface);
+  assert(!live.exclusionPreview().empty());
+  live.brush.exclusionValue = 0;
+  live.brush.radius = .5F;
+  assert(live.update(
+      {.hovered = true, .focused = true, .leftPressed = true, .leftDown = true},
+      runtime::Vec3{8, 0, 8}, error));
+  assert(live.update({.focused = true, .leftReleased = true}, {}, error));
+  const auto erased = finish(live, error);
+  assert(erased && erased->recipe["exclusions"].back()["value"] == 0);
+  const auto mask = erased->surface->heightField();
+  assert(mask->exclusions[mask->index(8, 8)] == 0);
+  assert(mask->exclusions[mask->index(9, 8)] > 0);
+  assert(mask->heights == maskStroke->surface->heightField()->heights);
+  assert(erased->patch->invalidation.geometrySamples().empty());
 }

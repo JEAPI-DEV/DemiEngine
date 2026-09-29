@@ -61,9 +61,6 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
                         EditorViewportArea &viewportArea,
                         EditorHudViewportState &hudState, const bool hudOnly,
                         std::string &notice, const bool embedded) {
-  std::string terrainError;
-  if (!workspace.pollTerrainAuthoring(terrainError))
-    notice = std::move(terrainError);
   if (!embedded && !beginEditorPanel("Stage", position, size, nullptr,
                                      ImGuiWindowFlags_NoScrollbar |
                                          ImGuiWindowFlags_NoScrollWithMouse |
@@ -305,6 +302,14 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
         : is2D ? workspace.gizmoPresentation2D({canvasWidth, canvasHeight})
                : workspace.gizmoPresentation({canvasWidth, canvasHeight});
     if (!hudOnly && !is2D) {
+      const auto mask = projectEditorTerrainExclusions(
+          workspace.project().world, workspace.terrainAuthoring(),
+          workspace.sceneView().camera(), {canvasWidth, canvasHeight});
+      for (const auto &sample : mask) {
+        const int alpha = static_cast<int>(40 + 160 * std::clamp(sample.weight, 0.0F, 1.0F));
+        draw->AddCircleFilled({canvasMin.x + sample.position.x, canvasMin.y + sample.position.y},
+                              3.0F, IM_COL32(230, 100, 90, alpha));
+      }
       const auto ring = projectEditorTerrainBrush(
           workspace.project().world, workspace.terrainAuthoring(),
           workspace.sceneView().camera(), {canvasWidth, canvasHeight});

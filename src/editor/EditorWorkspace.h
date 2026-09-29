@@ -209,6 +209,10 @@ public:
   }
   void syncTerrainAuthoring();
   [[nodiscard]] bool pollTerrainAuthoring(std::string &error);
+  [[nodiscard]] bool terrainReady(std::string &error) const;
+  [[nodiscard]] bool cancelTerrainEditing(std::string &error) {
+    return restoreTerrainPreview(error);
+  }
   void refreshDiagnostics();
   void refreshAssetMetadata();
 
@@ -330,6 +334,10 @@ private:
       const std::function<bool(EditorSceneDocument &, std::string &)> &mutation,
       std::string &error);
   [[nodiscard]] bool rebuildWorld(std::string &error);
+  [[nodiscard]] bool restoreTerrainPreview(std::string &error);
+  [[nodiscard]] bool terrainHistory(bool forward, std::string &error);
+  [[nodiscard]] std::optional<nlohmann::json>
+  effectiveTerrainRecipe(const SceneValueTarget &target, std::string &error) const;
   [[nodiscard]] bool applyViewportAction(EditorViewportToolAction action,
                                          const std::function<void()> &cancel,
                                          std::string &error);
@@ -352,6 +360,8 @@ private:
   EditorViewportTool2D viewportTool2D_;
   std::unique_ptr<EditorTerrainAuthoring> terrainAuthoring_ =
       std::make_unique<EditorTerrainAuthoring>();
+  std::optional<EditorTerrainCommit> terrainPreview_;
+  EditorTerrainSurfacePtr terrainPreviewSurface_;
   EditorSceneDomain sceneDomain_ = EditorSceneDomain::Empty;
   EditorSceneViewDimension viewDimension_ =
       EditorSceneViewDimension::ThreeDimensional;
