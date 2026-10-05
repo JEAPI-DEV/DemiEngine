@@ -154,6 +154,11 @@ validateComponent(const ComponentDescriptor &descriptor,
           {.field = std::string(field.name), .message = "is required"});
     }
   }
+  if (errors.empty() && descriptor.validateAuthored) {
+    std::string error;
+    if (!descriptor.validateAuthored(json, error))
+      errors.push_back({.field = {}, .message = std::move(error)});
+  }
   return errors;
 }
 
@@ -208,6 +213,8 @@ nlohmann::json componentSchema(const ComponentDescriptor &descriptor) {
   nlohmann::json schema = {{"type", "object"},
                            {"additionalProperties", false},
                            {"properties", nlohmann::json::object()}};
+  if (descriptor.schemaConstraints)
+    schema.update(descriptor.schemaConstraints());
   if (!descriptor.editor.help.empty()) {
     schema["description"] = descriptor.editor.help;
   }

@@ -60,6 +60,8 @@ importerFor(const std::filesystem::path &source, const std::string &type) {
     const std::string extension = source.extension().string();
     if (source.filename().string().ends_with(".collider.json"))
       defaultImporter = "collider-shape";
+    else if (source.filename().string().ends_with(".terrain.json"))
+      defaultImporter = "terrain_heightfield";
     else if (extension == ".json")
       defaultImporter = "json_data";
     else if (extension == ".gltf" || extension == ".glb")
@@ -100,6 +102,19 @@ AssetImportResult importAsset(const AssetImportRequest &request) {
              "Use PNG/JPEG/SVG/GIF, WAV/OGG/MP3/FLAC, TTF/OTF, "
              "glTF/GLB/OBJ/IQM/M3D, MP4/WebM/MOV, or add an importer."});
     return result;
+  }
+  std::vector<std::string> terrainDependencies;
+  if (descriptor->name == "terrain_heightfield") {
+    const auto importer = builtinImporterRegistry().create(descriptor->name);
+    const ImportExecutionResult execution = importer->import({
+        .source = request.source,
+        .assetId = request.id,
+        .assetType = "Terrain"});
+    if (hasErrors(execution.diagnostics)) {
+      result.diagnostics = execution.diagnostics;
+      return result;
+    }
+    terrainDependencies = execution.dependencies;
   }
 
   const AssetRegistry registry = loadAssetRegistry(request.projectDirectory);
@@ -164,7 +179,7 @@ AssetImportResult importAsset(const AssetImportRequest &request) {
       {"importer", descriptor->name},
       {"importer_version", descriptor->version},
       {"source_hash", *hashFiles(collectReferencedSourceFiles(sourceTarget))},
-      {"dependencies", nlohmann::json::array()},
+      {"dependencies", terrainDependencies},
       {"settings", nlohmann::json::object()},
   };
   if (descriptor->copyToGeneratedOnImport) {
@@ -359,6 +374,17 @@ Diagnostics reimportAsset(const std::filesystem::path &manifestPath) {
     return diagnostics;
   }
   try {
+    std::vector<std::string> terrainDependencies;
+    if (descriptor->name == "terrain_heightfield") {
+      const auto importer = builtinImporterRegistry().create(descriptor->name);
+      const ImportExecutionResult execution = importer->import({
+          .source = manifest->sourcePath,
+          .assetId = manifest->id,
+          .assetType = "Terrain"});
+      if (hasErrors(execution.diagnostics))
+        return execution.diagnostics;
+      terrainDependencies = execution.dependencies;
+    }
     if (descriptor->name == "collider-shape") {
       std::string error;
       if (!loadColliderShapeAsset(manifest->sourcePath, error)) {
@@ -372,11 +398,14 @@ Diagnostics reimportAsset(const std::filesystem::path &manifestPath) {
     document["importer"] = descriptor->name;
     document["importer_version"] = descriptor->version;
     document["source_hash"] = *hash;
+    if (descriptor->name == "terrain_heightfield")
+      document["dependencies"] = terrainDependencies;
     if (!document.contains("dependencies"))
       document["dependencies"] = nlohmann::json::array();
     if (!document.contains("settings"))
       document["settings"] = nlohmann::json::object();
-    if (descriptor->name == "collider-shape") {
+    if (descriptor->name == "collider-shape" ||
+        descriptor->name == "terrain_heightfield") {
       // Migrate older mirror-only manifests; the source and stable ID stay put.
       // Leave the old cache file alone rather than deleting authoring data.
       document.erase("generated_output");
@@ -395,7 +424,7 @@ Diagnostics reimportAsset(const std::filesystem::path &manifestPath) {
                              .code = "ASSET_IMPORT_WRITE_FAILED",
                              .message = "Could not update asset manifest.",
                              .path = manifestPath.string()});
-  } catch (const nlohmann::json::exception &error) {
+  } catch (const std::exception &error) {
     diagnostics.push_back({.severity = Severity::Error,
                            .code = "ASSET_MANIFEST_INVALID",
                            .message = error.what(),

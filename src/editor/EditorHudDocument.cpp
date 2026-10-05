@@ -1,6 +1,7 @@
 #include "editor/EditorHudDocument.h"
+#include "editor/EditorAuthoringClipboard.h"
 
-#include "editor/EditorAuthoredJson.h"
+#include "demi/filesystem/AuthoredJsonPatch.h"
 #include "editor/EditorSpecializedDocument.h"
 
 #include "demi/filesystem/ProjectPaths.h"
@@ -16,6 +17,10 @@
 #include <vector>
 
 namespace demi::editor {
+// Authored-source patching is shared infrastructure, not editor state.
+using demi::filesystem::normalizeAuthoredValue;
+using demi::filesystem::patchAuthoredJsonSource;
+
 namespace {
 
 using Json = nlohmann::json;
@@ -175,25 +180,39 @@ void collectSubtreeIds(const Json &node, std::vector<std::string> &ids) {
         collectSubtreeIds(child, ids);
 }
 
-void remapCopiedSubtree(
-    Json &node,
-    const std::unordered_map<std::string, std::string> &idRemapping) {
-  if (!node.is_object())
-    return;
-  for (const char *field : {"id", "parent"}) {
-    auto value = node.find(field);
-    if (value == node.end() || !value->is_string())
-      continue;
-    if (const auto replacement =
-            idRemapping.find(value->get<std::string>());
-        replacement != idRemapping.end())
-      *value = replacement->second;
+std::optional<Json> copiedHudNodes(const Json &payload,
+                                  const runtime::ui::UiDocument &preview,
+                                  const Json &document, std::string &error) {
+  std::vector<std::string> ids;
+  if (!collectClipboardTreeIds(payload, ids, error))
+    return std::nullopt;
+  std::set<std::string> reserved;
+  collectIds(document, reserved);
+  for (const auto &node : preview.nodes)
+    reserved.insert(node.id);
+  auto copies = payload;
+  remapClipboardHudNodes(copies, allocateClipboardIds(ids, std::move(reserved)));
+  return copies;
+}
+
+Json *pasteHudParent(Json &document, const runtime::ui::UiDocument &preview,
+                     std::string_view selectedId) {
+  const auto container = [](const std::string &type) {
+    return type == "container" || type == "panel" || type == "scroll" ||
+           type == "list" || type == "modal";
+  };
+  std::set<std::string> visited;
+  while (!selectedId.empty() && visited.insert(std::string(selectedId)).second) {
+    const auto node = std::ranges::find(preview.nodes, selectedId,
+                                      &runtime::ui::UiNode::id);
+    if (node == preview.nodes.end())
+      break;
+    Json *authored = findAuthoredHudNode(document, selectedId);
+    if (authored && !authored->contains("prefab") && container(node->type))
+      return authored;
+    selectedId = node->parent;
   }
-  for (const char *key : {"children", "elements"})
-    if (auto children = node.find(key);
-        children != node.end() && children->is_array())
-      for (Json &child : *children)
-        remapCopiedSubtree(child, idRemapping);
+  return authoredRoot(document);
 }
 
 Json defaultNode(const std::string_view type, const std::string &id) {
@@ -339,7 +358,12 @@ bool EditorHudDocument::open(std::filesystem::path path, std::string &error) {
 
 bool EditorHudDocument::createNode(const std::string_view type,
                                    const std::string_view parentId,
-                                   std::string &createdId, std::string &error) {
+                                   std::string &createdId, std::string &error,
+                                   const std::optional<runtime::Vec2> position) {
+  if (position && (!std::isfinite(position->x) || !std::isfinite(position->y))) {
+    error = "HUD placement must have finite coordinates.";
+    return false;
+  }
   Json replacement = document_.json();
   Json *root =
       replacement.contains("root") ? &replacement["root"] : &replacement;
@@ -362,13 +386,22 @@ bool EditorHudDocument::createNode(const std::string_view type,
                        : "children";
   if (!parent->contains(key) || !(*parent)[key].is_array())
     (*parent)[key] = Json::array();
-  (*parent)[key].push_back(defaultNode(type, createdId));
+  Json node = defaultNode(type, createdId);
+  if (position)
+    node["position"] = normalizeAuthoredValue(
+        Json::array({position->x, position->y}), nullptr, 1);
+  (*parent)[key].push_back(std::move(node));
   return replaceAndRebuild(std::move(replacement), error);
 }
 
 bool EditorHudDocument::createPrefabInstance(
     const std::string_view prefabReference, const std::string_view parentId,
-    std::string &createdId, std::string &error) {
+    std::string &createdId, std::string &error,
+    const std::optional<runtime::Vec2> position) {
+  if (position && (!std::isfinite(position->x) || !std::isfinite(position->y))) {
+    error = "HUD placement must have finite coordinates.";
+    return false;
+  }
   Json replacement = document_.json();
   Json *root =
       replacement.contains("root") ? &replacement["root"] : &replacement;
@@ -393,6 +426,9 @@ bool EditorHudDocument::createPrefabInstance(
   Json instance{{"id", createdId}, {"prefab", prefabReference}};
   if (!arguments->empty())
     instance["arguments"] = *arguments;
+  if (position)
+    instance["overrides"] = {{"position", normalizeAuthoredValue(
+        Json::array({position->x, position->y}), nullptr, 1)}};
   const auto key = parent == &replacement && parent->contains("elements")
                        ? "elements"
                        : "children";
@@ -458,62 +494,125 @@ bool EditorHudDocument::reparentNode(const std::string_view id,
 bool EditorHudDocument::duplicateNode(const std::string_view id,
                                       std::string &createdId,
                                       std::string &error) {
-  Json replacement = document_.json();
-  if (id.empty() || id == authoredRootId(replacement)) {
-    error = "The HUD root cannot be duplicated.";
+  const std::vector ids{std::string(id)};
+  std::vector<std::string> created;
+  if (!duplicateNodes(ids, created, error))
     return false;
-  }
-  const std::optional<NodeLocation> source =
-      findNodeLocation(*authoredRoot(replacement), id);
-  if (!source) {
-    error = "This node is generated by a UI prefab or no longer exists.";
-    return false;
-  }
-
-  std::set<std::string> reservedIds;
-  collectIds(*authoredRoot(replacement), reservedIds);
-  for (const runtime::ui::UiNode &node : preview_.nodes)
-    reservedIds.insert(node.id);
-  std::vector<std::string> subtreeIds;
-  collectSubtreeIds((*source->siblings)[source->index], subtreeIds);
-  std::unordered_map<std::string, std::string> idRemapping;
-  for (const std::string &sourceId : subtreeIds) {
-    std::string duplicateId = uniqueId(reservedIds, sourceId + "_copy");
-    reservedIds.insert(duplicateId);
-    idRemapping.emplace(sourceId, std::move(duplicateId));
-  }
-  const auto rootReplacement = idRemapping.find(std::string(id));
-  if (rootReplacement == idRemapping.end()) {
-    error = "The authored HUD subtree has no stable root ID.";
-    return false;
-  }
-
-  Json copy = (*source->siblings)[source->index];
-  remapCopiedSubtree(copy, idRemapping);
-  const std::string duplicateRootId = rootReplacement->second;
-  source->siblings->insert(
-      source->siblings->begin() +
-          static_cast<Json::difference_type>(source->index + 1),
-      std::move(copy));
-  if (!replaceAndRebuild(std::move(replacement), error))
-    return false;
-  createdId = duplicateRootId;
+  createdId = created.front();
   return true;
 }
 
 bool EditorHudDocument::deleteNode(const std::string_view id,
                                    std::string &error) {
+  const std::vector ids{std::string(id)};
+  return deleteNodes(ids, error);
+}
+
+std::optional<Json> EditorHudDocument::exportNodes(
+    const std::span<const std::string> ids, std::string &error) const {
+  if (ids.empty()) {
+    error = "Select authored HUD elements to copy.";
+    return std::nullopt;
+  }
+  std::set<std::string> selected(ids.begin(), ids.end());
+  std::set<std::string> descendants;
+  for (const auto &id : selected) {
+    const auto *source = authoredNode(id);
+    if (!source || id == authoredRootId(document_.json())) {
+      error = "Select authored non-root controls; generated prefab children cannot be copied.";
+      return std::nullopt;
+    }
+    std::vector<std::string> members;
+    collectSubtreeIds(*source, members);
+    for (const auto &member : members)
+      if (member != id)
+        descendants.insert(member);
+  }
+  Json result = Json::array();
+  // Preview order is authored pre-order and gives stable sibling ordering.
+  for (const auto &node : preview_.nodes)
+    if (selected.contains(node.id) && !descendants.contains(node.id)) {
+      Json copy = *authoredNode(node.id);
+      if (!node.parent.empty())
+        copy["parent"] = node.parent;
+      result.push_back(std::move(copy));
+    }
+  return result;
+}
+
+bool EditorHudDocument::pasteNodes(const Json &payload,
+                                  const std::string_view parentId,
+                                  std::vector<std::string> &createdIds,
+                                  std::string &error) {
+  try {
+    auto copies = copiedHudNodes(payload, preview_, document_.json(), error);
+    if (!copies)
+      return false;
+    Json replacement = document_.json();
+    Json *parent = pasteHudParent(replacement, preview_, parentId);
+    std::vector<std::string> created;
+    for (auto &copy : *copies) {
+      created.push_back(copy.at("id").get<std::string>());
+      copy.erase("parent");
+      authoredChildren(*parent).push_back(std::move(copy));
+    }
+    if (!replaceAndRebuild(std::move(replacement), error))
+      return false;
+    createdIds = std::move(created);
+    return true;
+  } catch (const std::exception &exception) {
+    error = "Could not paste HUD elements: " + std::string(exception.what());
+    return false;
+  }
+}
+
+bool EditorHudDocument::duplicateNodes(const std::span<const std::string> ids,
+                                      std::vector<std::string> &createdIds,
+                                      std::string &error) {
+  const auto payload = exportNodes(ids, error);
+  if (!payload)
+    return false;
+  try {
+    auto copies = copiedHudNodes(*payload, preview_, document_.json(), error);
+    if (!copies)
+      return false;
+    Json replacement = document_.json();
+    std::vector<std::string> created;
+    for (std::size_t index = 0; index < copies->size(); ++index) {
+      const auto sourceId = (*payload)[index].at("id").get<std::string>();
+      const auto location = findNodeLocation(*authoredRoot(replacement), sourceId);
+      if (!location) {
+        error = "The authored HUD source no longer exists.";
+        return false;
+      }
+      auto copy = std::move((*copies)[index]);
+      created.push_back(copy.at("id").get<std::string>());
+      copy.erase("parent");
+      location->siblings->insert(location->siblings->begin() +
+                                    static_cast<Json::difference_type>(location->index + 1),
+                                std::move(copy));
+    }
+    if (!replaceAndRebuild(std::move(replacement), error))
+      return false;
+    createdIds = std::move(created);
+    return true;
+  } catch (const std::exception &exception) {
+    error = "Could not duplicate HUD elements: " + std::string(exception.what());
+    return false;
+  }
+}
+
+bool EditorHudDocument::deleteNodes(const std::span<const std::string> ids,
+                                   std::string &error) {
+  const auto roots = exportNodes(ids, error);
+  if (!roots)
+    return false;
   Json replacement = document_.json();
-  Json *root =
-      replacement.contains("root") ? &replacement["root"] : &replacement;
-  if (root->value("id", "ui_root") == id) {
-    error = "The HUD root cannot be deleted.";
-    return false;
-  }
-  if (!eraseNode(*root, id)) {
-    error = "This node is generated by a UI prefab or no longer exists.";
-    return false;
-  }
+  for (const auto &root : *roots)
+    if (!eraseNode(*authoredRoot(replacement), root.at("id").get<std::string>())) {
+      error = "The authored HUD element no longer exists.";
+      return false;
+    }
   return replaceAndRebuild(std::move(replacement), error);
 }
 
@@ -530,7 +629,7 @@ bool EditorHudDocument::setCanvasSize(const runtime::Vec2 size,
   }
   Json replacement = document_.json();
   const auto previous = replacement.find("canvas_size");
-  Json normalized = normalizeEditorAuthoredValue(
+  Json normalized = normalizeAuthoredValue(
       Json::array({size.x, size.y}),
       previous == replacement.end() ? nullptr : &*previous, 1);
   replacement["canvas_size"] = std::move(normalized);
@@ -563,9 +662,9 @@ bool EditorHudDocument::setNodeField(const std::string_view id,
   const runtime::ui::UiNode *parsed = previewNode(preview_, id);
   if (field == "dock" && value.is_null() && node->contains("dock") && parsed) {
     node->erase("dock");
-    (*node)["anchor_min"] = normalizeEditorAuthoredValue(
+    (*node)["anchor_min"] = normalizeAuthoredValue(
         vec2Json(parsed->layout.anchorMin), nullptr, 2);
-    (*node)["anchor_max"] = normalizeEditorAuthoredValue(
+    (*node)["anchor_max"] = normalizeAuthoredValue(
         vec2Json(parsed->layout.anchorMax), nullptr, 2);
   } else {
     if (field == "dock" && !value.is_null()) {
@@ -578,7 +677,7 @@ bool EditorHudDocument::setNodeField(const std::string_view id,
                                            ? parsed->layout.anchorMax
                                            : parsed->layout.anchorMin;
       (*node)[other] =
-          normalizeEditorAuthoredValue(vec2Json(otherValue), nullptr, 2);
+          normalizeAuthoredValue(vec2Json(otherValue), nullptr, 2);
       node->erase("dock");
     }
     if (field == "pad" && !value.is_null())
@@ -599,7 +698,7 @@ bool EditorHudDocument::setNodeField(const std::string_view id,
       node->erase(std::string(field));
     else {
       const auto previous = node->find(field);
-      value = normalizeEditorAuthoredValue(
+      value = normalizeAuthoredValue(
           std::move(value), previous == node->end() ? nullptr : &*previous,
           authoredDecimalPlaces(field));
       (*node)[std::string(field)] = std::move(value);
@@ -627,9 +726,9 @@ bool EditorHudDocument::setNodeAnchors(const std::string_view id,
   }
   node->erase("dock");
   (*node)["anchor_min"] =
-      normalizeEditorAuthoredValue(vec2Json(anchorMin), nullptr, 2);
+      normalizeAuthoredValue(vec2Json(anchorMin), nullptr, 2);
   (*node)["anchor_max"] =
-      normalizeEditorAuthoredValue(vec2Json(anchorMax), nullptr, 2);
+      normalizeAuthoredValue(vec2Json(anchorMax), nullptr, 2);
   return replaceAndRebuild(std::move(replacement), error);
 }
 

@@ -1,0 +1,185 @@
+# Editor commands, clipboard and docking qualification
+
+## Ownership
+
+`EditorCommands` defines action identities, default bindings and contexts.
+`EditorKeyBindings` parses and validates per-user overrides, including conflict
+checks and the required Game View cursor-release binding. `EditorShortcutInput`
+adapts ImGui key events; `EditorShellCommands` routes them to the focused view.
+Text input, active gestures, dialogs and key recording do not execute authoring
+shortcuts. Game input has a separate context.
+
+Menus, tooltips and toolbar actions use the same registry and execution paths.
+Preferences persist below the platform user-data directory, outside projects and
+packages. The settings panel supports replacement, alternatives, clearing
+optional bindings and reset. Recorded bindings are validated before publication.
+
+`EditorClipboard` owns the versioned typed system-clipboard envelope.
+`EditorAuthoringClipboard` remaps durable IDs and typed references without
+rewriting gameplay strings or resource URIs. Scene/HUD documents own atomic
+paste, duplicate and multi-delete commands. Their workspace adapters preserve
+selection and preview rollback. Scene and HUD selection support multiple objects
+and omit selected descendants already covered by a copied parent. Prefab sources
+are editable; copied instances retain their URI and overrides.
+
+Graph commands copy selected nodes and their internal links, allocate fresh IDs
+on paste and preserve parameters and logical positions. Clipboard changes and
+multi-node movement use one draft-history entry. History restoration invalidates
+the display-position cache so Redo cannot reuse freed ImNodes coordinates. Cut
+checks system clipboard publication before deleting authored content.
+
+The action icon set extends the existing native vector glyph renderer; it does
+not require an icon font or generated raster assets. Property labels and action
+tooltips remain available.
+
+## Verification (2026-10-05)
+
+- Release editor and affected test targets built successfully.
+- Seven selected CTest checks passed in 2.79 seconds: authoring clipboard,
+  recovery/preferences, graph UI, graph document, workspace, drag authoring and
+  game authoring. This is a scoped gate, not a full repository test run.
+- Coverage includes scene/prefab and HUD/UI-prefab transfers, fresh-ID collisions,
+  typed internal references, multi-selection, atomic Undo/Redo, malformed payload
+  rejection, failed clipboard writes, graph zoom preservation, scoped Ctrl+D,
+  custom key capture and persisted key mappings.
+- `git diff --check` is clean. UI checks use synthetic ImGui input; physical
+  desktop interaction and Android qualification were not run for this change.
+- PHP is unavailable locally, so website template rendering was not tested.
+
+Clipboard commands operate on authored selections, not arbitrary file/folder
+operations in the Assets browser. Unannotated gameplay strings remain opaque;
+they are not guessed to be entity references.
+
+## Independent docking and contextual palettes (2026-10-05)
+
+`EditorPanelDefinition` is the shared UI-free inventory of window identities,
+visibility keys, default dock groups and palette availability. The visibility
+store, View menu and default dock builder consume this inventory. The 15 windows
+are Viewport, Prefab, HUD, Terrain Graph, Terrain Asset, Game View, Inspector,
+UI Palette, Terrain Nodes, Console, Lua Console, Profiler, Debug, Hierarchy and
+Assets. Authoring views, property tools and diagnostic tools start as ordinary
+ImGui dock tabs; each window can move or close without changing its siblings.
+
+Inspector no longer embeds a tab bar or palette. `drawEditorPalettePanel` receives
+an explicit module kind, rather than inferring the palette from the current
+document. HUD contexts include controls and UI prefabs; terrain contexts include
+only terrain nodes. Shell owns contextual availability: UI Palette is submitted
+only during HUD/UI-prefab editing, and Terrain Nodes during graph editing.
+Suppressing an unavailable panel leaves its per-user visibility preference and
+dock placement intact.
+
+Code inspection of the integration confirms distinct Scene, Prefab, TerrainAsset
+and Hud sessions. The HUD attached to a scene is opened into the independent Hud
+session when editing begins; explicit HUD/UI-prefab sources use the same path.
+Each session owns its source state, selection and history. Focus selects which
+session Inspector and Hierarchy present without replacing another view's source.
+Save-all preflights duplicate dirty source ownership before writing, and recovery
+records preserve session identity.
+
+Palette View-menu availability uses retained authoring flags, rather than the
+currently focused command context. Inspector/palette focus therefore keeps the
+active palette available. Terrain Nodes dispatches graph commands; runtime
+Inspector/Hierarchy dispatch no authoring commands. These rules are independent
+of each panel's saved visibility preference.
+
+Opening Terrain Graph calls `pinTerrainAuthoring` with its stable owner ID and
+source document. Authoring synchronization uses that target instead of Inspector
+selection. The graph no longer forces selection back to its terrain or stops
+drawing when selection changes. Brushes still require the bound terrain to be
+selected. Retargeting rejects an unapplied draft or pending terrain work; hiding
+the window does not implicitly release its target.
+
+The independent layout uses `workspace/docking-layout-v2.ini` and
+`workspace/panels-v2.json` with visibility format version 2. Previous v1 layout
+and visibility files are preserved but are not read as aliases. Corrupt v2 layout
+recovery still quarantines the invalid file rather than deleting it. Reset
+restores the v2 default groups and visibility preferences.
+
+Added coverage:
+
+- Docking state: all 15 preferences round-trip independently, keys/window names
+  are unique, invalid state restores defaults without partial application, and
+  v1 files remain unchanged.
+- Synthetic docking UI: distinct window IDs and default group DockIds, moving
+  Terrain Graph and UI Palette without their siblings, independent closing,
+  workspace reset, explicit palette kind filtering and contextual hiding.
+
+Verification of the integrated change:
+
+- Release editor, CLI and affected test targets built successfully.
+- Seventeen selected CTest checks passed in 4.12 seconds: docking state/UI,
+  console docking, render-view ranges, document sessions, Shell docking,
+  authoring clipboard, graph UI/document, drag authoring, workspace,
+  recovery/preferences, prefab components, game authoring and terrain
+  asset/history/workspace. This is a scoped gate, not a full repository run.
+- Session checks cover independent worlds and histories, conflict-aware Save
+  All, transactional recovery, linked HUD cache refresh and creating registered
+  scenes while editing HUDs or prefabs without replacing their previews.
+- Shell checks cover simultaneous Scene/HUD render requests, retained HUD
+  identity and selection, hiding/reopening dock tabs, contextual palette focus,
+  the idle Game View and Delete from read-only runtime Inspector/Hierarchy.
+- Terrain checks cover pinned graph ownership, generation commits after
+  selection changes, brush routing and preserving unapplied drafts when
+  retargeting or switching documents.
+- `minimal_3d` and `terrain_graph_3d` validate without diagnostics. Native
+  SDL3/Vulkan startup smoke checks use isolated per-user directories and twelve
+  frames for the main scene, prefab source and HUD source.
+- `git diff --check` is clean. Interactive desktop dragging and Android
+  qualification were not run; docking gestures are covered by synthetic ImGui
+  input. Website templates were not rendered or deployed.
+
+## Palette cards and terrain drop delivery (2026-10-05)
+
+Docked UI/Terrain palettes and the optional local terrain palette share one
+card renderer: a full-card interaction target with an icon, wrapped title and
+description. Terrain drop acceptance runs inside the imnodes canvas child and
+uses its explicit bounds; it no longer depends on the parent group's last item.
+Delivery adds one node after the existing canvas interaction pass, preserving
+selection and the single insertion Undo step.
+
+The Release editor rebuilt successfully. Three focused checks passed in 0.23
+seconds: graph UI, drag authoring and Shell docking. The new graph check uses
+mouse press/movement/release from a card's description to the canvas, rejects
+mutation during hover, verifies one inserted node and verifies Undo. Existing
+HUD drop coverage remains green. Native visual inspection was not performed for
+this follow-up; website guidance was updated locally, not deployed.
+
+## Terrain controls, captures and display-sized startup (2026-10-05)
+
+Input source dropdowns use `EditorTerrainGraphDocument::setInputSource` for
+transactional rewire/disconnect, typed-port validation, cycle rejection and one
+Undo step. Nodes distinguish Inputs, Parameters and Outputs; Terrain Output
+exposes active-output selection. Node-context sheets reuse the same landscape
+settings as the root sheet, including Hex RGBA and normalized float precision.
+Viewing settings does not materialize defaults or quantize authored colors.
+
+Explicit view-focus requests now finish after panel submission, so newly
+appearing dock siblings cannot override a requested graph tab. The CLI supports
+`--terrain-graph` and `--terrain-settings-node <id>` without modifying source.
+Unprepared lazy viewport targets are skipped until ready rather than reporting
+a false startup rendering failure.
+
+The shared SDL window configuration supports optional maximized startup; its
+default remains false for runtime callers. The editor requests maximization and
+remains windowed/resizable. `scripts/capture_editor_window.py` defaults to the
+display-sized editor, captures only its PID/title-verified window, isolates XDG
+state and records provenance. Fixed capture dimensions remain optional.
+
+Verification:
+
+- Release editor and relevant tests rebuilt; six selected CTest checks passed
+  in 0.63 seconds: graph UI/document/settings, Shell docking, drag authoring and
+  SDL platform host. This is not a full repository gate.
+- Settings tests exercise real Hex RGBA and precision inputs, collapsible
+  sections, shared-draft rules, landform references and palette selection.
+- A fresh-layout regression opens the graph before the first frame and verifies
+  visible tab selection without simulated clicks or forced layout changes.
+- Native SDL3/Vulkan captures confirmed maximized editor work-area dimensions
+  of 5120 x 2806 on the available display. SDL's dummy-driver test checks option
+  defaults and lifecycle safety, not window-manager maximization behavior.
+- Real captures are published as `public/images/docs-terrain-connections.png`
+  and `public/images/docs-terrain-colors.png` in the package-store source. They
+  were visually inspected and linked from terrain guidance with full-size links.
+- `terrain_graph_3d` validates without diagnostics; `git diff --check` is clean.
+  Website templates were not rendered or deployed, and Android qualification
+  was not performed for this desktop editor change.

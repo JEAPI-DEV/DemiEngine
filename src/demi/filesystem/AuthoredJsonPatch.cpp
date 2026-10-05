@@ -1,4 +1,4 @@
-#include "editor/EditorAuthoredJson.h"
+#include "demi/filesystem/AuthoredJsonPatch.h"
 
 #include <algorithm>
 #include <cctype>
@@ -8,7 +8,7 @@
 #include <ranges>
 #include <vector>
 
-namespace demi::editor {
+namespace demi::filesystem {
 namespace {
 
 struct SourceNode {
@@ -404,14 +404,14 @@ void normalize(nlohmann::json &value, const nlohmann::json *previous,
 
 } // namespace
 
-nlohmann::json normalizeEditorAuthoredValue(nlohmann::json value,
+nlohmann::json normalizeAuthoredValue(nlohmann::json value,
                                             const nlohmann::json *previous,
                                             const int decimalPlaces) {
   normalize(value, previous, std::pow(10.0, std::max(decimalPlaces, 0)));
   return value;
 }
 
-std::optional<std::string> patchEditorJsonSource(const std::string &source,
+std::optional<std::string> patchAuthoredJsonSource(const std::string &source,
                                                  const nlohmann::json &before,
                                                  const nlohmann::json &after) {
   const nlohmann::json changes = nlohmann::json::diff(before, after);
@@ -449,4 +449,4 @@ std::optional<std::string> patchEditorJsonSource(const std::string &source,
                           : std::nullopt;
 }
 
-} // namespace demi::editor
+} // namespace demi::filesystem

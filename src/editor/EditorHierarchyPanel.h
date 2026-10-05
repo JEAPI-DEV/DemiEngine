@@ -19,11 +19,13 @@ class EditorHierarchyPanel {
 public:
   void draw(EditorWorkspace &workspace, ImVec2 position, ImVec2 size,
             bool hudOnly, std::string &notice, bool *open = nullptr);
+  void requestRename(std::string id) { pendingRename_ = std::move(id); }
 
 private:
   std::array<char, 128> filter_{};
   std::array<char, 128> rename_{};
   std::optional<std::string> renamingEntityId_;
+  std::optional<std::string> pendingRename_;
 };
 
 } // namespace demi::editor

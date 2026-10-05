@@ -28,6 +28,33 @@ bool waitUntilPrepared(SceneFlow &flow) {
 int main() {
   const std::filesystem::path root = std::filesystem::path(DEMI_SOURCE_DIR);
 
+  {
+    RuntimePrefabService pruneService;
+    pruneService.configure(root / "examples/minimal_3d");
+    World pruneWorld;
+    WorldCommandBuffer pruneCommands;
+    const auto kept = pruneService.instantiate(
+        pruneWorld, pruneCommands, "prefab://player", {.id = "kept", .pooled = true});
+    const auto removed = pruneService.instantiate(
+        pruneWorld, pruneCommands, "prefab://player", {.id = "removed", .pooled = true});
+    if (!kept || !removed)
+      return 1;
+    (void)pruneCommands.flush(pruneWorld);
+    if (!pruneService.release(pruneWorld, pruneCommands, "kept") ||
+        !pruneCommands.destroy(pruneWorld, "removed/body"))
+      return 1;
+    (void)pruneCommands.flush(pruneWorld);
+    pruneService.prune(pruneWorld);
+    // Disabled pooled entities still exist and remain reusable. Fully removed
+    // instances must no longer reserve their stable instance ID.
+    if (pruneService.pooledCount("prefab://player") != 1 ||
+        !pruneService.instantiate(pruneWorld, pruneCommands, "prefab://player",
+                                 {.id = "removed"})) {
+      std::cerr << "Prefab pruning lost a live pool entry or retained a removed ID.\n";
+      return 1;
+    }
+  }
+
   std::string error;
   auto minimal3D =
       loadProject(root / "examples/minimal_3d/demi.project.json", error);

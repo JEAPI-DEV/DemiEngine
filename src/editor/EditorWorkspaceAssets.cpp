@@ -1,13 +1,17 @@
 #include "editor/EditorWorkspace.h"
+#include "demi/runtime/terrain/TerrainGenerationCache.h"
 
 #include "editor/EditorDocumentStore.h"
 #include "editor/EditorProjectFolders.h"
 
 #include "demi/assets/AssetImporter.h"
+#include "demi/assets/TerrainAsset.h"
 #include "demi/assets/ColliderAssetGenerator.h"
+#include "demi/runtime/scene/ProjectParser.h"
 
 #include <algorithm>
 #include <cctype>
+#include <memory>
 #include <nlohmann/json.hpp>
 
 namespace demi::editor {
@@ -38,6 +42,9 @@ void EditorWorkspace::discoverSources() {
       sources_.push_back(iterator->path());
   }
   std::ranges::sort(sources_);
+  // A rescan also acknowledges external edits to existing source files whose
+  // paths did not change, so source-derived editor catalogs can rebuild once.
+  ++sourceIndexRevision_;
 }
 
 bool EditorWorkspace::createFolder(const std::filesystem::path &relativeParent,
@@ -55,21 +62,68 @@ bool EditorWorkspace::createFolder(const std::filesystem::path &relativeParent,
 
 void EditorWorkspace::refreshAssetIndex() {
   assetIndex_.refresh(project_->project.projectDirectory, sources_);
+  configureTerrainInputResolver();
+}
+
+void EditorWorkspace::configureTerrainInputResolver() {
+  auto registry =
+      std::make_shared<const AssetRegistry>(assetIndex_.registry());
+  if (terrainAssetBinding_) {
+    terrainAuthoring_->setInputResolver(
+        [registry](const runtime::TerrainRecipe &recipe) {
+          return assets::resolveTerrainAssetGenerationInputs(*registry, recipe);
+        });
+  } else {
+    terrainAuthoring_->setInputResolver(
+        [registry](const runtime::TerrainRecipe &recipe) {
+          return runtime::resolveTerrainGenerationInputs(recipe, *registry);
+        });
+  }
+  terrainAuthoring_->setResolvedUpdater(updateEditorTerrainWithInputs);
 }
 
 bool EditorWorkspace::saveProject(std::string &error) {
+  auto metadata = runtime::scene_loading::parseProjectData(
+      projectPath_, projectDocument_.json(), error);
+  if (!metadata)
+    return false;
   if (!projectDocument_.save(error))
     return false;
-  auto loaded = runtime::loadProject(projectPath_, error);
-  if (!loaded)
-    return false;
-  project_ = std::move(loaded);
-  if (!rebuildWorld(error))
-    return false;
+  project_->project = std::move(*metadata);
   discoverSources();
   refreshAssetIndex();
-  loadPreviewTilemaps();
   refreshDiagnostics();
+  return true;
+}
+
+bool EditorWorkspace::refreshCleanProjectDocument(
+    const std::filesystem::path &path, std::string &error) {
+  if (!project_ || path.empty() ||
+      std::filesystem::absolute(path).lexically_normal() != projectPath_) {
+    error = "Project metadata refresh must target this workspace's project.";
+    return false;
+  }
+  if (projectDocument_.isDirty()) {
+    error = "Save or undo project-setting edits before adopting another "
+            "session's saved project metadata.";
+    return false;
+  }
+  EditorProjectDocument candidate;
+  if (!candidate.open(projectPath_, error))
+    return false;
+  auto metadata = runtime::scene_loading::parseProjectData(
+      projectPath_, candidate.json(), error);
+  if (!metadata)
+    return false;
+  const bool changed = candidate.json() != projectDocument_.json();
+  if (changed)
+    projectDocument_ = std::move(candidate);
+  project_->project = std::move(*metadata);
+  if (changed) {
+    discoverSources();
+    refreshAssetIndex();
+    refreshDiagnostics();
+  }
   return true;
 }
 

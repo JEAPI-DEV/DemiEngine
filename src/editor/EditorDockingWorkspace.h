@@ -14,7 +14,11 @@ public:
   explicit EditorDockingWorkspace(std::filesystem::path editorDataRoot);
 
   void drawDockspace(ImVec2 position, ImVec2 size);
-  void drawViewMenu();
+  void drawViewMenu(bool uiPaletteAvailable = false,
+                    bool terrainNodesAvailable = false);
+  // Submit after all panels: first-appearing siblings must not steal an
+  // explicit document-open request. Returns true when its tab is visible.
+  [[nodiscard]] bool focusPanel(std::string_view windowName);
   void requestReset();
   void persistVisibilityIfChanged();
 

@@ -17,6 +17,7 @@ enum class SourceFileKind {
   Hud,
   Save,
   Asset,
+  TerrainAsset,
   Prefab,
   UiPrefab,
   InputReplay,

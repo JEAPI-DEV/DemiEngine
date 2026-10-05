@@ -9,17 +9,19 @@ namespace demi::runtime {
 
 bool WorldCommandBuffer::create(const World &world, Entity entity,
                                 const bool replace) {
+  if (entity.id.empty())
+    return false;
   const bool exists = findEntity(world, entity.id) != nullptr;
-  if (entity.id.empty() || (replace ? !exists : exists))
+  if ((replace ? !exists : exists) || pendingCreates_.contains(entity.id))
     return false;
-  const bool duplicatePending =
-      std::ranges::any_of(commands_, [&](const Command &command) {
-        const auto *pending = std::get_if<Create>(&command);
-        return pending != nullptr && pending->entity.id == entity.id;
-      });
-  if (duplicatePending)
-    return false;
+  const std::string id = entity.id;
   commands_.push_back(Create{.entity = std::move(entity), .replace = replace});
+  try {
+    pendingCreates_.emplace(id, commands_.size() - 1);
+  } catch (...) {
+    commands_.pop_back();
+    throw;
+  }
   return true;
 }
 
@@ -91,45 +93,70 @@ bool WorldCommandBuffer::setEnabled(const World &world, std::string entityId,
 
 std::vector<WorldMutation> WorldCommandBuffer::flush(World &world) {
   std::vector<WorldMutation> mutations;
+  if (commands_.empty()) {
+    pendingCreates_.clear();
+    return mutations;
+  }
+  mutations.reserve(commands_.size());
+  EntityIndex worldIndex;
+  worldIndex.reserve(world.entities.size() + commands_.size());
+  const auto rebuildIndex = [&] {
+    worldIndex.clear();
+    for (std::size_t index = 0; index < world.entities.size(); ++index)
+      worldIndex.try_emplace(world.entities[index].id, index);
+  };
+  rebuildIndex();
   for (Command &command : commands_) {
     if (auto *create = std::get_if<Create>(&command)) {
       const std::string id = create->entity.id;
-      const bool replacing = findEntity(world, id) != nullptr;
-      if (RuntimeObjectModel::addEntity(world, std::move(create->entity),
-                                        create->replace)) {
-        mutations.push_back(
-            {.kind = replacing ? WorldMutationKind::Replaced
-                               : WorldMutationKind::Created,
-             .entityId = id,
-             .component = {}});
-      }
+      const auto existing = worldIndex.find(id);
+      const bool replacing = existing != worldIndex.end();
+      Entity *existingEntity =
+          replacing ? &world.entities[existing->second] : nullptr;
+      if (!RuntimeObjectModel::insertEntity(
+              world, std::move(create->entity), create->replace,
+              existingEntity))
+        continue;
+      if (!replacing)
+        worldIndex.emplace(id, world.entities.size() - 1);
+      mutations.push_back({.kind = replacing ? WorldMutationKind::Replaced
+                                             : WorldMutationKind::Created,
+                           .entityId = id,
+                           .component = {}});
     } else if (auto *destroy = std::get_if<Destroy>(&command)) {
-      const auto before = world.entities.size();
-      std::erase_if(world.entities,
-                    [&](const Entity &entity) { return entity.id == destroy->id; });
-      if (world.entities.size() != before)
-        mutations.push_back({.kind = WorldMutationKind::Destroyed,
-                             .entityId = destroy->id,
-                             .component = {}});
+      if (!worldIndex.contains(destroy->id))
+        continue;
+      std::erase_if(world.entities, [&](const Entity &entity) {
+        return entity.id == destroy->id;
+      });
+      // Erase compacts the vector. Rebuild only on this path, preserving the
+      // first matching ID if malformed input contained duplicate world IDs.
+      // Repeated destroys still scan/compact the world; this index targets the
+      // bulk-create path, not bulk deletion.
+      rebuildIndex();
+      mutations.push_back({.kind = WorldMutationKind::Destroyed,
+                           .entityId = destroy->id,
+                           .component = {}});
     } else if (auto *add = std::get_if<AddComponent>(&command)) {
-      Entity *entity = findEntity(world, add->id);
-      if (entity != nullptr &&
-          RuntimeObjectModel::addComponent(*entity, add->component,
-                                           add->values))
+      const auto found = worldIndex.find(add->id);
+      if (found != worldIndex.end() &&
+          RuntimeObjectModel::addComponent(world.entities[found->second],
+                                           add->component, add->values))
         mutations.push_back({.kind = WorldMutationKind::ComponentAdded,
                              .entityId = add->id,
                              .component = add->component});
     } else if (auto *remove = std::get_if<RemoveComponent>(&command)) {
-      Entity *entity = findEntity(world, remove->id);
-      if (entity != nullptr &&
-          RuntimeObjectModel::removeComponent(*entity, remove->component))
+      const auto found = worldIndex.find(remove->id);
+      if (found != worldIndex.end() &&
+          RuntimeObjectModel::removeComponent(world.entities[found->second],
+                                              remove->component))
         mutations.push_back({.kind = WorldMutationKind::ComponentRemoved,
                              .entityId = remove->id,
                              .component = remove->component});
     } else if (auto *enabled = std::get_if<SetEnabled>(&command)) {
-      Entity *entity = findEntity(world, enabled->id);
-      if (entity != nullptr) {
-        entity->enabled = enabled->enabled;
+      const auto found = worldIndex.find(enabled->id);
+      if (found != worldIndex.end()) {
+        world.entities[found->second].enabled = enabled->enabled;
         mutations.push_back({.kind = WorldMutationKind::EnabledChanged,
                              .entityId = enabled->id,
                              .component = {}});
@@ -137,29 +164,43 @@ std::vector<WorldMutation> WorldCommandBuffer::flush(World &world) {
     }
   }
   commands_.clear();
+  pendingCreates_.clear();
   return mutations;
 }
 
 Entity *WorldCommandBuffer::pendingEntity(const std::string_view id) {
-  for (Command &command : commands_) {
-    if (auto *create = std::get_if<Create>(&command);
-        create != nullptr && create->entity.id == id)
-      return &create->entity;
-  }
-  return nullptr;
+  const auto found = pendingCreates_.find(id);
+  if (found == pendingCreates_.end())
+    return nullptr;
+  return &std::get<Create>(commands_[found->second]).entity;
 }
 
 const Entity *
 WorldCommandBuffer::pendingEntity(const std::string_view id) const {
-  for (const Command &command : commands_) {
-    if (const auto *create = std::get_if<Create>(&command);
-        create != nullptr && create->entity.id == id)
-      return &create->entity;
-  }
-  return nullptr;
+  const auto found = pendingCreates_.find(id);
+  if (found == pendingCreates_.end())
+    return nullptr;
+  return &std::get<Create>(commands_[found->second]).entity;
 }
 
-void WorldCommandBuffer::clear() { commands_.clear(); }
+void WorldCommandBuffer::clear() {
+  commands_.clear();
+  pendingCreates_.clear();
+}
+std::vector<std::string> WorldCommandBuffer::affectedEntityIds() const {
+  std::vector<std::string> ids;
+  ids.reserve(commands_.size());
+  for (const auto &command : commands_)
+    std::visit([&](const auto &value) {
+      if constexpr (std::is_same_v<std::decay_t<decltype(value)>, Create>)
+        ids.push_back(value.entity.id);
+      else
+        ids.push_back(value.id);
+    }, command);
+  std::ranges::sort(ids);
+  ids.erase(std::unique(ids.begin(), ids.end()), ids.end());
+  return ids;
+}
 bool WorldCommandBuffer::empty() const { return commands_.empty(); }
 
 } // namespace demi::runtime

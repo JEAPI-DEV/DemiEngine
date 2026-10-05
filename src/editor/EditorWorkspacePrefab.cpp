@@ -183,7 +183,8 @@ bool EditorWorkspace::duplicatePrefabInstance(
 std::optional<runtime::World>
 EditorWorkspace::loadEntityPreview(const EditorSceneDocument &document,
                                    const bool prefab,
-                                   std::string &error) const {
+                                   std::string &error,
+                                   runtime::RuntimePrefabService *prefabs) const {
   if (!prefab) {
     const auto entry = std::ranges::find_if(
         project_->project.scenes, [&](const runtime::SceneEntry &candidate) {
@@ -196,7 +197,7 @@ EditorWorkspace::loadEntityPreview(const EditorSceneDocument &document,
       return std::nullopt;
     }
     return runtime::loadSceneDocument(project_->project, entry->id,
-                                      document.json(), error, false);
+                                      document.json(), error, false, prefabs);
   }
 
   // A transient scene entry supplies source-relative resolution to the normal
@@ -206,7 +207,7 @@ EditorWorkspace::loadEntityPreview(const EditorSceneDocument &document,
   previewProject.scenes = {{.id = previewId, .path = document.path()}};
   auto preview = document.json();
   return runtime::loadSceneDocument(previewProject, previewId, preview, error,
-                                    false);
+                                    false, prefabs);
 }
 
 } // namespace demi::editor

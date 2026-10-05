@@ -22,6 +22,10 @@ Dependency flow is intentionally one-way:
 1. CLI/runtime entry points coordinate application services.
 2. Runtime systems consume the scene world and narrow subsystem APIs.
 3. Scene components own authored data, defaults, metadata, and JSON parsing.
+   Optional `validateAuthored` and `schemaConstraints` hooks keep cross-field
+   rules at that owner while exposing them to shared validation and schema
+   export. Terrain uses them to make asset references and procedural recipes
+   mutually exclusive.
 4. Lua binding adapters depend on runtime services; scene components do not
    depend on sol2 or Lua.
 5. Platform and third-party integrations stay behind their runtime subsystem.

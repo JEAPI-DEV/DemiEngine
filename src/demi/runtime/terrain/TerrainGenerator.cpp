@@ -1,4 +1,7 @@
 #include "demi/runtime/terrain/TerrainGenerator.h"
+#include "demi/runtime/terrain/TerrainGraphExecutor.h"
+#include "demi/runtime/terrain/TerrainBiomeRules.h"
+#include "demi/runtime/terrain/TerrainScatter.h"
 #include "demi/runtime/terrain/TerrainEvaluation.h"
 #include <algorithm>
 #include <cmath>
@@ -22,8 +25,8 @@ float HeightField::height(int x, int z) const {
 Vec3 HeightField::normal(int x, int z) const { return normals.at(index(x, z)); }
 
 std::optional<HeightField>
-TerrainGenerator::generate(const TerrainRecipe &recipe, std::stop_token stop,
-                           const Progress &progress) {
+TerrainGenerator::generateBase(const TerrainRecipe &recipe, std::stop_token stop,
+                               const Progress &progress) {
   if (stop.stop_requested())
     return std::nullopt;
   const TerrainEvaluation evaluation(recipe);
@@ -35,7 +38,7 @@ TerrainGenerator::generate(const TerrainRecipe &recipe, std::stop_token stop,
   field.cellsZ = recipe.cellsZ;
   const auto count = recipe.sampleCount();
   const std::size_t rows = std::size_t(recipe.cellsZ) + 1;
-  const double total = double(rows) * (2.0 + evaluation.edits().size()) + 1;
+  const double total = double(rows) + 1;
   double completed = 0;
   auto report = [&] {
     if (progress)
@@ -46,10 +49,7 @@ TerrainGenerator::generate(const TerrainRecipe &recipe, std::stop_token stop,
     return std::nullopt;
   field.baseHeights.resize(count);
   field.heights.resize(count);
-  field.normals.resize(count);
   field.biomeIndices.resize(count);
-  field.exclusions.resize(count);
-  std::vector<unsigned char> protectedSamples(count, 0);
   for (const auto &[id, biome] : recipe.biomes) {
     field.biomeIds.push_back(id);
     field.biomeColors.push_back(biome.color);
@@ -66,7 +66,6 @@ TerrainGenerator::generate(const TerrainRecipe &recipe, std::stop_token stop,
       field.baseHeights.set(index, sample.height);
       field.heights.set(index, sample.height);
       field.biomeIndices.set(index, sample.biome);
-      field.exclusions.set(index, evaluation.exclusion(position));
       if (x == recipe.cellsX)
         break;
     }
@@ -75,14 +74,100 @@ TerrainGenerator::generate(const TerrainRecipe &recipe, std::stop_token stop,
     if (z == recipe.cellsZ)
       break;
   }
+  // Biome rules read the finished base surface, so they run as a field pass
+  // between generation and sculpting. Without rules the field keeps the base
+  // pass's per-point assignment, which is the pre-milestone-2 behaviour.
+  if (!recipe.rules.empty()) {
+    std::vector<float> baseHeights(count);
+    for (int z = 0; z <= recipe.cellsZ; ++z) {
+      if (stop.stop_requested())
+        return std::nullopt;
+      for (int x = 0; x <= recipe.cellsX; ++x)
+        baseHeights[std::size_t(z) * (recipe.cellsX + 1) + x] =
+            field.baseHeights[field.index(x, z)];
+    }
+    if (stop.stop_requested())
+      return std::nullopt;
+    TerrainRuleContextBuilder contexts(recipe);
+    contexts.build(recipe, baseHeights, recipe.cellsX, recipe.cellsZ,
+                   field.size);
+    if (stop.stop_requested())
+      return std::nullopt;
+    const auto decisions = assignTerrainBiomes(
+        recipe, contexts.contexts(), recipe.cellsX, recipe.cellsZ, field.size);
+    if (stop.stop_requested())
+      return std::nullopt;
+    for (int z = 0; z <= recipe.cellsZ; ++z)
+      for (int x = 0; x <= recipe.cellsX; ++x) {
+        if (stop.stop_requested())
+          return std::nullopt;
+        field.biomeIndices.set(field.index(x, z),
+                               decisions[std::size_t(z) * (recipe.cellsX + 1) +
+                                         x]
+                                   .biome);
+      }
+  }
+  for (int z = 0; z < field.cellsZ;) {
+    if (stop.stop_requested())
+      return std::nullopt;
+    const int depth = std::min(recipe.chunkCells, field.cellsZ - z);
+    for (int x = 0; x < field.cellsX;) {
+      if (stop.stop_requested())
+        return std::nullopt;
+      const int width = std::min(recipe.chunkCells, field.cellsX - x);
+      field.chunks.push_back({x, z, width, depth});
+      x += width;
+    }
+    z += depth;
+  }
+  ++completed;
+  report();
+  if (stop.stop_requested())
+    return std::nullopt;
+  return field;
+}
+
+bool TerrainGenerator::applyTerrainSurfaceLayers(
+    HeightField &field, const TerrainRecipe &recipe, std::stop_token stop,
+    const Progress &progress) {
+  if (stop.stop_requested())
+    return false;
+  if (field.cellsX != recipe.cellsX || field.cellsZ != recipe.cellsZ ||
+      field.size.x != recipe.size.x || field.size.y != recipe.size.y ||
+      field.heights.size() != recipe.sampleCount())
+    throw std::invalid_argument("Terrain surface layers do not match the recipe");
+  const TerrainEvaluation evaluation(recipe);
+  const auto count = field.heights.size();
+  const auto rows = std::size_t(field.cellsZ) + 1;
+  const double total = double(rows) * (2.0 + evaluation.edits().size());
+  double completed = 0;
+  const auto report = [&] {
+    if (progress)
+      progress(float(completed / total));
+  };
+  report();
+  field.exclusions.resize(count);
+  std::vector<unsigned char> protectedSamples(count, 0);
+  for (int z = 0; z <= field.cellsZ; ++z) {
+    if (stop.stop_requested())
+      return false;
+    for (int x = 0; x <= field.cellsX; ++x) {
+      if ((x & 255) == 0 && stop.stop_requested())
+        return false;
+      const auto index = field.index(x, z);
+      field.exclusions.set(index, evaluation.exclusion(field.position(x, z)));
+    }
+    ++completed;
+    report();
+  }
   for (const auto *activeEdit : evaluation.edits()) {
     const auto &edit = *activeEdit;
     if (stop.stop_requested())
-      return std::nullopt;
+      return false;
     if (edit.kind == TerrainEditKind::Protect) {
       for (const auto &sample : edit.samples) {
         if (stop.stop_requested())
-          return std::nullopt;
+          return false;
         const int x = int(std::llround(double(sample.position.x) /
                                        field.size.x * field.cellsX));
         const int z = int(std::llround(double(sample.position.y) /
@@ -105,10 +190,10 @@ TerrainGenerator::generate(const TerrainRecipe &recipe, std::stop_token stop,
     };
     for (int z = 0;; ++z) {
       if (stop.stop_requested())
-        return std::nullopt;
+        return false;
       for (int x = 0;; ++x) {
         if ((x & 255) == 0 && stop.stop_requested())
-          return std::nullopt;
+          return false;
         const auto sampleIndex = field.index(x, z);
         if (!protectedSamples[sampleIndex]) {
           const float previous = std::as_const(field.heights)[sampleIndex];
@@ -127,12 +212,26 @@ TerrainGenerator::generate(const TerrainRecipe &recipe, std::stop_token stop,
         break;
     }
   }
+  if (!recomputeTerrainNormals(field, stop))
+    return false;
+  completed += rows;
+  report();
+  return !stop.stop_requested();
+}
+
+bool TerrainGenerator::recomputeTerrainNormals(HeightField &field,
+                                               std::stop_token stop) {
+  if (field.cellsX <= 0 || field.cellsZ <= 0 ||
+      field.heights.size() != (std::size_t(field.cellsX) + 1) *
+                                  (std::size_t(field.cellsZ) + 1))
+    throw std::invalid_argument("Terrain normals require a valid heightfield");
+  field.normals.resize(field.heights.size());
   for (int z = 0;; ++z) {
     if (stop.stop_requested())
-      return std::nullopt;
+      return false;
     for (int x = 0;; ++x) {
       if ((x & 255) == 0 && stop.stop_requested())
-        return std::nullopt;
+        return false;
       const int left = x > 0 ? x - 1 : x;
       const int right = x < field.cellsX ? x + 1 : x;
       const int down = z > 0 ? z - 1 : z;
@@ -149,26 +248,59 @@ TerrainGenerator::generate(const TerrainRecipe &recipe, std::stop_token stop,
       if (x == field.cellsX)
         break;
     }
-    ++completed;
-    report();
     if (z == field.cellsZ)
       break;
   }
-  for (int z = 0; z < field.cellsZ;) {
-    if (stop.stop_requested())
-      return std::nullopt;
-    const int depth = std::min(recipe.chunkCells, field.cellsZ - z);
-    for (int x = 0; x < field.cellsX;) {
-      if (stop.stop_requested())
-        return std::nullopt;
-      const int width = std::min(recipe.chunkCells, field.cellsX - x);
-      field.chunks.push_back({x, z, width, depth});
-      x += width;
-    }
-    z += depth;
-  }
-  ++completed;
-  report();
+  return !stop.stop_requested();
+}
+
+std::optional<HeightField>
+TerrainGenerator::generate(const TerrainRecipe &recipe, std::stop_token stop,
+                           const Progress &progress) {
+  if (!recipe.graph.is_null()) return executeTerrainGraph(recipe, {}, stop, progress);
+  const auto baseProgress = [&](float value) {
+    if (progress)
+      progress(value * 0.5F);
+  };
+  auto field = generateBase(recipe, stop, baseProgress);
+  if (!field)
+    return std::nullopt;
+  const auto surfaceProgress = [&](float value) {
+    if (progress)
+      progress(0.5F + value * 0.5F);
+  };
+  if (!applyTerrainSurfaceLayers(*field, recipe, stop, surfaceProgress))
+    return std::nullopt;
+  return field;
+}
+
+std::optional<HeightField>
+TerrainGenerator::generate(const TerrainRecipe &recipe,
+                           const TerrainPalette *palette, std::stop_token stop,
+                           const Progress &progress,
+                           std::string_view inputFingerprint) {
+  if (!recipe.graph.is_null())
+    return executeTerrainGraph(recipe, {palette, std::string(inputFingerprint), {}}, stop, progress);
+  auto field = generate(recipe, stop, progress);
+  if (!field)
+    return field;
+  field->inputFingerprint = inputFingerprint;
+  if (palette == nullptr)
+    return field;
+  // Scattering reads the finished surface and biome assignment, so it runs
+  // after generation and sculpting rather than beside them. A recipe that names
+  // a palette but was handed none still generates; the missing asset is the
+  // caller's to report, not a generation failure.
+  if (recipe.paletteId.empty())
+    return field;
+  if (stop.stop_requested())
+    return std::nullopt;
+  field->paletteId = palette->id;
+  field->resolvedPalette = std::make_shared<const TerrainPalette>(*palette);
+  field->inputFingerprint = inputFingerprint;
+  auto scattered = scatterTerrain(*field, recipe, *palette);
+  field->scatterPlacements = std::move(scattered.placements);
+  field->scatterTruncated = scattered.truncated;
   if (stop.stop_requested())
     return std::nullopt;
   return field;
@@ -189,9 +321,11 @@ TerrainEdit createProtectionEdit(const HeightField &field, Vec2 center,
   validation.size = field.size;
   validation.cellsX = field.cellsX;
   validation.cellsZ = field.cellsZ;
-  validation.biomes.at("default").heightVariation = 0;
-  validation.biomes.at("default").octaves = 1;
-  validation.biomes.at("default").featureSize =
+  // A flat probe surface, so the snapshot records the base level rather than the
+  // shape it happens to sit on.
+  validation.landforms.at("default").heightVariation = 0;
+  validation.landforms.at("default").octaves = 1;
+  validation.landforms.at("default").featureSize =
       std::max(field.size.x, field.size.y);
   validation.edits.push_back(edit);
   validation.validate();

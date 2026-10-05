@@ -1,0 +1,233 @@
+{
+  "format_version": 1,
+  "id": "asset://terrain/landscape",
+  "name": "Terrain generation and manual edits",
+  "recipe": {
+    "format_version": 1,
+    "size": [
+      1024,
+      512
+    ],
+    "resolution": [
+      512,
+      512
+    ],
+    "seed": 51803,
+    "chunk_cells": 64,
+    "default_biome": "floodplain",
+    "default_landform": "floodplain",
+    "landforms": {
+      "meadow": {
+        "base_height": 20,
+        "height_variation": 8,
+        "feature_size": 70,
+        "roughness": 0.41999998688697815,
+        "octaves": 4
+      },
+      "channel": {
+        "base_height": 8,
+        "height_variation": 4,
+        "feature_size": 40,
+        "roughness": 0.3499999940395355,
+        "octaves": 3
+      },
+      "floodplain": {
+        "base_height": 14,
+        "height_variation": 30,
+        "feature_size": 120,
+        "roughness": 0.550000011920929,
+        "octaves": 5
+      },
+      "gravel_bar": {
+        "base_height": 12,
+        "height_variation": 4,
+        "feature_size": 26,
+        "roughness": 0.30000001192092896,
+        "octaves": 3
+      },
+      "rock": {
+        "base_height": 34,
+        "height_variation": 8,
+        "feature_size": 60,
+        "roughness": 0.5799999833106995,
+        "octaves": 4
+      },
+      "shoulder": {
+        "base_height": 30,
+        "height_variation": 10,
+        "feature_size": 96,
+        "roughness": 0.47999998927116394,
+        "octaves": 4
+      }
+    },
+    "biomes": {
+      "meadow": {
+        "landform": "meadow",
+        "color": [
+          0.4399999976158142,
+          0.5600000023841858,
+          0.27000001072883606,
+          1
+        ]
+      },
+      "channel": {
+        "landform": "channel",
+        "color": [
+          0.1899999976158142,
+          0.33000001311302185,
+          0.3799999952316284,
+          1
+        ]
+      },
+      "floodplain": {
+        "landform": "floodplain",
+        "color": [
+          0.27000001072883606,
+          0.4399999976158142,
+          0.23999999463558197,
+          1
+        ]
+      },
+      "gravel_bar": {
+        "landform": "gravel_bar",
+        "color": [
+          0.7200000286102295,
+          0.6899999976158142,
+          0.5799999833106995,
+          1
+        ]
+      },
+      "rock": {
+        "landform": "rock",
+        "color": [
+          0.44999998807907104,
+          0.4300000071525574,
+          0.4000000059604645,
+          1
+        ]
+      },
+      "shoulder": {
+        "landform": "shoulder",
+        "color": [
+          0.5199999809265137,
+          0.5,
+          0.30000001192092896,
+          1
+        ]
+      }
+    },
+    "regions": [],
+    "edits": [],
+    "rules": [
+      {
+        "id": "river_channel",
+        "biome": "channel",
+        "priority": 85,
+        "blend": 3,
+        "elevation": [
+          -40,
+          14
+        ],
+        "substrate": [
+          "wet"
+        ]
+      },
+      {
+        "id": "valley_cliff_rock",
+        "biome": "rock",
+        "priority": 80,
+        "blend": 3,
+        "elevation": [
+          0,
+          90
+        ],
+        "slope": [
+          34,
+          90
+        ]
+      },
+      {
+        "id": "gravel_bars",
+        "biome": "gravel_bar",
+        "priority": 70,
+        "blend": 3,
+        "elevation": [
+          10,
+          22
+        ],
+        "substrate": [
+          "sand"
+        ],
+        "water_distance": [
+          0,
+          6
+        ]
+      },
+      {
+        "id": "riparian_floodplain",
+        "biome": "floodplain",
+        "priority": 60,
+        "blend": 6,
+        "elevation": [
+          11,
+          20
+        ],
+        "water_distance": [
+          5,
+          20
+        ]
+      },
+      {
+        "id": "valley_meadow",
+        "biome": "meadow",
+        "priority": 45,
+        "blend": 6,
+        "elevation": [
+          18,
+          26
+        ]
+      },
+      {
+        "id": "raised_shoulder",
+        "biome": "shoulder",
+        "priority": 55,
+        "blend": 8,
+        "elevation": [
+          24,
+          90
+        ]
+      }
+    ],
+    "exclusions": [],
+    "layers": [
+      {
+        "id": "generation",
+        "kind": "generation",
+        "name": "Generation"
+      },
+      {
+        "id": "biomes",
+        "kind": "biome",
+        "name": "Biomes"
+      },
+      {
+        "id": "sculpt",
+        "kind": "sculpt",
+        "name": "Sculpt"
+      },
+      {
+        "id": "protection",
+        "kind": "protection",
+        "name": "Protection"
+      },
+      {
+        "id": "exclusions",
+        "kind": "exclusion",
+        "name": "Exclusions"
+      }
+    ],
+    "preset_id": "asset://terrain/presets/river_valley",
+    "preset_version": 1,
+    "palette": "asset://terrain/palettes/meadow"
+  }
+}

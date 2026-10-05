@@ -1,0 +1,490 @@
+{
+  "format_version": 1,
+  "id": "asset://terrain/landscape",
+  "name": "Mountain foothills and river basin",
+  "recipe": {
+    "format_version": 1,
+    "size": [
+      2000.0,
+      2000.0
+    ],
+    "resolution": [
+      500,
+      500
+    ],
+    "seed": 1704,
+    "default_biome": "grass",
+    "biomes": {
+      "grass": {
+        "color": [
+          0.28,
+          0.43,
+          0.17,
+          1
+        ]
+      },
+      "rock": {
+        "color": [
+          0.38,
+          0.4,
+          0.42,
+          1
+        ]
+      },
+      "scree": {
+        "color": [
+          0.5,
+          0.46,
+          0.39,
+          1
+        ]
+      },
+      "shore": {
+        "color": [
+          0.6,
+          0.54,
+          0.36,
+          1
+        ]
+      },
+      "snow": {
+        "color": [
+          0.88,
+          0.91,
+          0.94,
+          1
+        ]
+      }
+    },
+    "rules": [
+      {
+        "id": "high_snow",
+        "biome": "snow",
+        "priority": 90,
+        "blend": 3,
+        "elevation": [
+          30,
+          100
+        ],
+        "slope": [
+          0,
+          45
+        ]
+      },
+      {
+        "id": "exposed_rock",
+        "biome": "rock",
+        "priority": 80,
+        "slope": [
+          32,
+          90
+        ]
+      },
+      {
+        "id": "mountain_scree",
+        "biome": "scree",
+        "priority": 60,
+        "blend": 3,
+        "elevation": [
+          20,
+          100
+        ],
+        "slope": [
+          16,
+          45
+        ]
+      },
+      {
+        "id": "lowland_sediment",
+        "biome": "shore",
+        "priority": 50,
+        "blend": 1,
+        "elevation": [
+          -100,
+          12
+        ],
+        "slope": [
+          0,
+          25
+        ]
+      }
+    ],
+    "graph": {
+      "format_version": 1,
+      "output": "output",
+      "nodes": [
+        {
+          "id": "mountains",
+          "type": "noise",
+          "position": [
+            20,
+            20
+          ],
+          "parameters": {
+            "base_height": 24.450000762939453,
+            "height_variation": 130.0,
+            "feature_size": 90.94999694824219,
+            "roughness": 0.33000001311302185,
+            "octaves": 9
+          }
+        },
+        {
+          "id": "foothills",
+          "type": "noise",
+          "position": [
+            20,
+            390
+          ],
+          "parameters": {
+            "base_height": 14,
+            "height_variation": 27.549999237060547,
+            "feature_size": 24,
+            "roughness": 0.42,
+            "seed_offset": 29
+          }
+        },
+        {
+          "id": "lowlands",
+          "type": "noise",
+          "position": [
+            20,
+            760
+          ],
+          "parameters": {
+            "base_height": 4.650000095367432,
+            "height_variation": 3,
+            "feature_size": 32,
+            "roughness": 0.3,
+            "seed_offset": 13
+          }
+        },
+        {
+          "id": "mountain_transition",
+          "type": "elevation_mask",
+          "position": [
+            290.0332946777344,
+            27.16663932800293
+          ],
+          "parameters": {
+            "minimum": -100,
+            "maximum": 22,
+            "falloff": 8
+          }
+        },
+        {
+          "id": "foothill_blend",
+          "type": "height_blend",
+          "position": [
+            540,
+            165.84625244140625
+          ],
+          "parameters": {
+            "amount": 0.9
+          }
+        },
+        {
+          "id": "lowland_transition",
+          "type": "elevation_mask",
+          "position": [
+            800,
+            20
+          ],
+          "parameters": {
+            "minimum": -100,
+            "maximum": 14,
+            "falloff": 6
+          }
+        },
+        {
+          "id": "lowland_blend",
+          "type": "height_blend",
+          "position": [
+            1060,
+            190
+          ],
+          "parameters": {
+            "amount": 0.9
+          }
+        },
+        {
+          "id": "drainage",
+          "type": "drainage",
+          "position": [
+            1320,
+            20
+          ],
+          "parameters": {
+            "sea_level": 10
+          }
+        },
+        {
+          "id": "erosion",
+          "type": "erosion",
+          "position": [
+            1580,
+            190
+          ],
+          "parameters": {
+            "iterations": 24,
+            "thermal_strength": 0.3
+          }
+        },
+        {
+          "id": "basin_lake",
+          "type": "water",
+          "position": [
+            1831.0,
+            190
+          ],
+          "parameters": {
+            "kind": "lake",
+            "level": 10,
+            "center_x": 70,
+            "center_z": 64,
+            "radius": 18
+          }
+        },
+        {
+          "id": "outlet_river",
+          "type": "water",
+          "position": [
+            2120,
+            190
+          ],
+          "parameters": {
+            "kind": "river",
+            "level": 10,
+            "river_width": 6,
+            "river_path": [
+              [
+                70,
+                7,
+                64
+              ],
+              [
+                58,
+                7,
+                82
+              ],
+              [
+                38,
+                7,
+                103
+              ],
+              [
+                22,
+                7,
+                128
+              ]
+            ]
+          }
+        },
+        {
+          "id": "biome_rules",
+          "type": "biomes",
+          "position": [
+            2400,
+            190
+          ]
+        },
+        {
+          "id": "output",
+          "type": "output",
+          "position": [
+            2660,
+            190
+          ]
+        }
+      ],
+      "links": [
+        {
+          "id": "mountain_mask",
+          "from": {
+            "node": "mountains",
+            "port": "field"
+          },
+          "to": {
+            "node": "mountain_transition",
+            "port": "field"
+          }
+        },
+        {
+          "id": "mountain_blend",
+          "from": {
+            "node": "mountains",
+            "port": "field"
+          },
+          "to": {
+            "node": "foothill_blend",
+            "port": "a"
+          }
+        },
+        {
+          "id": "foothill_blend",
+          "from": {
+            "node": "foothills",
+            "port": "field"
+          },
+          "to": {
+            "node": "foothill_blend",
+            "port": "b"
+          }
+        },
+        {
+          "id": "mountain_transition_blend",
+          "from": {
+            "node": "mountain_transition",
+            "port": "mask"
+          },
+          "to": {
+            "node": "foothill_blend",
+            "port": "mask"
+          }
+        },
+        {
+          "id": "lowland_mask",
+          "from": {
+            "node": "foothill_blend",
+            "port": "field"
+          },
+          "to": {
+            "node": "lowland_transition",
+            "port": "field"
+          }
+        },
+        {
+          "id": "foothill_lowland_blend",
+          "from": {
+            "node": "foothill_blend",
+            "port": "field"
+          },
+          "to": {
+            "node": "lowland_blend",
+            "port": "a"
+          }
+        },
+        {
+          "id": "lowland_blend",
+          "from": {
+            "node": "lowlands",
+            "port": "field"
+          },
+          "to": {
+            "node": "lowland_blend",
+            "port": "b"
+          }
+        },
+        {
+          "id": "lowland_transition_blend",
+          "from": {
+            "node": "lowland_transition",
+            "port": "mask"
+          },
+          "to": {
+            "node": "lowland_blend",
+            "port": "mask"
+          }
+        },
+        {
+          "id": "surface_drainage",
+          "from": {
+            "node": "lowland_blend",
+            "port": "field"
+          },
+          "to": {
+            "node": "drainage",
+            "port": "field"
+          }
+        },
+        {
+          "id": "surface_erosion",
+          "from": {
+            "node": "lowland_blend",
+            "port": "field"
+          },
+          "to": {
+            "node": "erosion",
+            "port": "field"
+          }
+        },
+        {
+          "id": "drainage_erosion",
+          "from": {
+            "node": "drainage",
+            "port": "drainage"
+          },
+          "to": {
+            "node": "erosion",
+            "port": "drainage"
+          }
+        },
+        {
+          "id": "erosion_lake",
+          "from": {
+            "node": "erosion",
+            "port": "field"
+          },
+          "to": {
+            "node": "basin_lake",
+            "port": "field"
+          }
+        },
+        {
+          "id": "lake_river_field",
+          "from": {
+            "node": "basin_lake",
+            "port": "field"
+          },
+          "to": {
+            "node": "outlet_river",
+            "port": "field"
+          }
+        },
+        {
+          "id": "lake_river_water",
+          "from": {
+            "node": "basin_lake",
+            "port": "water"
+          },
+          "to": {
+            "node": "outlet_river",
+            "port": "water"
+          }
+        },
+        {
+          "id": "river_biomes",
+          "from": {
+            "node": "outlet_river",
+            "port": "field"
+          },
+          "to": {
+            "node": "biome_rules",
+            "port": "field"
+          }
+        },
+        {
+          "id": "biomes_output",
+          "from": {
+            "node": "biome_rules",
+            "port": "field"
+          },
+          "to": {
+            "node": "output",
+            "port": "field"
+          }
+        },
+        {
+          "id": "water_output",
+          "from": {
+            "node": "outlet_river",
+            "port": "water"
+          },
+          "to": {
+            "node": "output",
+            "port": "water"
+          }
+        }
+      ]
+    }
+  }
+}

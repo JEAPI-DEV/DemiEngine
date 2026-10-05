@@ -1,12 +1,39 @@
 # Engine data, asset, scene, UI, input, physics, and navigation foundations.
 add_library(demi-core STATIC
+  src/demi/runtime/terrain/TerrainGraph.cpp
+  src/demi/runtime/terrain/TerrainGraphRegistry.cpp
+  src/demi/runtime/terrain/TerrainGraphExecutor.cpp
+  src/demi/runtime/terrain/TerrainGraphNodeEvaluation.cpp
   src/demi/runtime/terrain/TerrainRecipe.cpp
+  src/demi/runtime/terrain/TerrainSeed.cpp
+  src/demi/runtime/terrain/TerrainBiomeRules.cpp
   src/demi/runtime/terrain/TerrainGenerator.cpp
   src/demi/runtime/terrain/TerrainEvaluation.cpp
   src/demi/runtime/terrain/TerrainUpdate.cpp
   src/demi/runtime/terrain/TerrainPatch.cpp
   src/demi/runtime/terrain/TerrainGenerationCache.cpp
   src/demi/runtime/terrain/TerrainSurface.cpp
+  src/demi/runtime/terrain/TerrainPalette.cpp
+  src/demi/runtime/terrain/TerrainPreset.cpp
+  src/demi/runtime/terrain/TerrainGeneration.cpp
+  src/demi/runtime/terrain/TerrainPipeline.cpp
+  src/demi/runtime/terrain/TerrainDrainage.cpp
+  src/demi/runtime/terrain/TerrainErosion.cpp
+  src/demi/runtime/terrain/TerrainWater.cpp
+  src/demi/runtime/terrain/TerrainWaterQueries.cpp
+  src/demi/runtime/terrain/TerrainScatterConstraints.cpp
+  src/demi/runtime/terrain/TerrainMaterialLayers.cpp
+  src/demi/runtime/terrain/TerrainMaterialBlend.cpp
+  src/demi/runtime/terrain/TerrainTextureResidency.cpp
+  src/demi/runtime/terrain/TerrainScatterLayout.cpp
+  src/demi/runtime/terrain/TerrainCook.cpp
+  src/demi/runtime/terrain/TerrainCookFormat.cpp
+  src/demi/runtime/terrain/TerrainCookNode.cpp
+  src/demi/runtime/terrain/TerrainScatter.cpp
+  src/demi/runtime/terrain/TerrainLod.cpp
+  src/demi/runtime/terrain/TerrainStreaming.cpp
+  src/demi/runtime/terrain/TerrainLodBiomes.cpp
+  src/demi/runtime/simulation/DeterministicRandom.cpp
   # Shared instrumentation must be usable without linking the application loop.
   src/demi/runtime/profiling/RuntimeProfiler.cpp
   src/demi/runtime/profiling/ProcessResourceSampler.cpp
@@ -38,6 +65,16 @@ add_library(demi-core STATIC
   src/demi/assets/GltfGeometry.cpp
   src/demi/assets/GltfSkinnedModel.cpp
   src/demi/assets/AssetSourceFiles.cpp
+  src/demi/assets/DataValueRead.cpp
+  src/demi/assets/MaterialAsset.cpp
+  src/demi/assets/MaterialSet.cpp
+  src/demi/assets/TerrainAssetValidation.cpp
+  src/demi/assets/TerrainAssetCook.cpp
+  src/demi/assets/TerrainAsset.cpp
+  src/demi/assets/TerrainAssetSource.cpp
+  src/demi/assets/TerrainAssetStorage.cpp
+  src/demi/assets/TerrainAssetPayload.cpp
+  src/demi/assets/TerrainAssetPayloadData.cpp
   src/demi/assets/AssetImporter.cpp
   src/demi/assets/AssetImporterRegistry.cpp
   src/demi/assets/AssetCookGraph.cpp
@@ -57,6 +94,7 @@ add_library(demi-core STATIC
   src/demi/filesystem/ProjectDiscovery.cpp
   src/demi/filesystem/AtomicTextFile.cpp
   src/demi/filesystem/ProjectPaths.cpp
+  src/demi/filesystem/AuthoredJsonPatch.cpp
   src/demi/packages/SemanticVersion.cpp
   src/demi/runtime/scene/ProjectBuildSettings.cpp
   src/demi/runtime/scene/EntityPresets.cpp

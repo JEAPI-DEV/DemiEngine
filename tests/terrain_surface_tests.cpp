@@ -96,7 +96,7 @@ int main() {
   assert(field);
   const auto json = recipe.toJson();
   auto shared = std::make_shared<const HeightField>(*field);
-  publishTerrain(json, shared);
+  publishTerrain(json, "", shared);
   assert(acquireTerrain(json) == shared);
   shared.reset();
   assert(!findTerrain(json));

@@ -91,7 +91,8 @@ void dependenciesAndLayers() {
   TerrainRecipe recipe;
   recipe.size = {32, 32};
   recipe.cellsX = recipe.cellsZ = 32;
-  recipe.biomes.emplace("hill", TerrainBiome{.baseHeight = 8});
+  recipe.landforms.emplace("hill", TerrainLandform{.baseHeight = 8});
+  recipe.biomes.emplace("hill", TerrainBiome{.landform = "hill"});
   recipe.layers.push_back({"detail", "Detail", TerrainLayerKind::Sculpt, true});
   auto field = generate(recipe);
   std::mt19937 random(19);

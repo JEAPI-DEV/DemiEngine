@@ -10,6 +10,7 @@
 #include <vector>
 
 namespace demi::runtime {
+class WorldCommandBuffer;
 
 struct ObjectModelResult {
   bool ok = false;
@@ -66,6 +67,13 @@ public:
   localPosition(const World &world, std::string_view entityId);
   [[nodiscard]] static std::optional<nlohmann::json>
   worldPosition(const World &world, std::string_view entityId);
+
+private:
+  friend class WorldCommandBuffer;
+  [[nodiscard]] static ObjectModelResult insertEntity(World &world,
+                                                      Entity entity,
+                                                      bool replace,
+                                                      Entity *existing);
 };
 
 } // namespace demi::runtime

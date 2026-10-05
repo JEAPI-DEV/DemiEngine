@@ -11,8 +11,10 @@
 #include <iterator>
 #include <map>
 #include <nlohmann/json.hpp>
+#include <optional>
 #include <set>
 #include <span>
+#include <stdexcept>
 
 namespace demi::assets {
 namespace {
@@ -60,6 +62,129 @@ packageContentHash(const std::filesystem::path &root,
                 canonical.size()));
 }
 
+struct CookedPackageMetadata {
+  std::map<std::string, std::string> fileHashes;
+  std::map<std::string, std::pair<std::string, std::string>> assetOrigins;
+};
+
+std::optional<CookedPackageMetadata> loadCookedPackageMetadata(
+    const std::filesystem::path &projectDirectory, Diagnostics &diagnostics) {
+  const auto path = projectDirectory / "cook.manifest.json";
+  try {
+    std::ifstream input(path);
+    if (!input)
+      throw std::runtime_error("Cook manifest cannot be read.");
+    const auto document = nlohmann::json::parse(input);
+    if (!document.contains("files") || !document.at("files").is_array() ||
+        !document.contains("assets") || !document.at("assets").is_array())
+      throw std::runtime_error("Cook manifest omits files or asset provenance.");
+    CookedPackageMetadata metadata;
+    for (const auto &entry : document.at("files")) {
+      const std::string relative = entry.at("path").get<std::string>();
+      const std::string hash = entry.at("hash").get<std::string>();
+      if (!packages::safePackageRelativePath(relative) || hash.empty() ||
+          !metadata.fileHashes.emplace(relative, hash).second)
+        throw std::runtime_error("Cook manifest has an invalid file entry.");
+    }
+    for (const auto &entry : document.at("assets")) {
+      const std::string id = entry.at("asset").get<std::string>();
+      const std::string package = entry.value("source_package", "");
+      const std::string hash = entry.value("package_content_hash", "");
+      if (id.empty() || !metadata.assetOrigins.emplace(id, std::pair{package, hash}).second)
+        throw std::runtime_error("Cook manifest has an invalid asset entry.");
+    }
+    return metadata;
+  } catch (const std::exception &exception) {
+    error(diagnostics, "COOK_MANIFEST_INVALID", exception.what(), path);
+    return std::nullopt;
+  }
+}
+
+bool matchesCookManifest(const CookedPackageMetadata &metadata,
+                         const std::filesystem::path &projectDirectory,
+                         const std::filesystem::path &file,
+                         Diagnostics &diagnostics) {
+  if (!pathIsInside(projectDirectory, file)) {
+    error(diagnostics, "PACKAGE_COOKED_FILE_UNSAFE",
+          "Cooked package file escapes the project.", file);
+    return false;
+  }
+  const auto relative =
+      std::filesystem::relative(file, projectDirectory).generic_string();
+  const auto expected = metadata.fileHashes.find(relative);
+  const auto actual = hashFile(file);
+  if (expected == metadata.fileHashes.end() || !actual ||
+      *actual != expected->second) {
+    error(diagnostics, "PACKAGE_COOKED_FILE_MISMATCH",
+          "Cooked package file is missing or differs from the cook manifest.",
+          file);
+    return false;
+  }
+  return true;
+}
+
+std::map<std::string, std::string> cookedTerrainSubstitutions(
+    const std::filesystem::path &projectDirectory,
+    const std::filesystem::path &packageRoot,
+    const std::string &packageName,
+    const packages::PackageRelease &release,
+    const CookedPackageMetadata &metadata, Diagnostics &diagnostics) {
+  std::map<std::string, std::string> substitutions;
+  std::string sourceContentHash;
+  for (const std::string &relativeManifest : release.manifest.assetManifests) {
+    const auto manifestPath = packageRoot / relativeManifest;
+    Diagnostic diagnostic;
+    const auto asset = loadAssetManifest(manifestPath, &diagnostic);
+    if (!asset) {
+      diagnostics.push_back(std::move(diagnostic));
+      continue;
+    }
+    if (asset->type != "Terrain")
+      continue;
+    if (asset->importer != "terrain_heightfield" ||
+        !asset->sourcePath.filename().string().ends_with(".terrain.bin") ||
+        !pathIsInside(packageRoot, asset->sourcePath)) {
+      error(diagnostics, "PACKAGE_COOKED_TERRAIN_INVALID",
+            "Cooked Terrain asset must reference a binary in its package.",
+            manifestPath);
+      continue;
+    }
+    const auto binary =
+        std::filesystem::relative(asset->sourcePath, packageRoot);
+    auto authored = binary;
+    authored.replace_extension(".json");
+    const std::string authoredPath = authored.generic_string();
+    const std::string binaryPath = binary.generic_string();
+    const auto origin = metadata.assetOrigins.find(asset->id);
+    if (!packages::safePackageRelativePath(binaryPath) ||
+        std::ranges::find(release.manifest.files, authoredPath) ==
+            release.manifest.files.end() ||
+        std::ranges::find(release.manifest.files, binaryPath) !=
+            release.manifest.files.end() ||
+        origin == metadata.assetOrigins.end() ||
+        origin->second.first != packageName ||
+        origin->second.second.empty() ||
+        (!sourceContentHash.empty() &&
+         sourceContentHash != origin->second.second) ||
+        !matchesCookManifest(metadata, projectDirectory,
+                             asset->sourcePath, diagnostics) ||
+        !matchesCookManifest(metadata, projectDirectory,
+                             manifestPath, diagnostics) ||
+        hashFiles(asset->sourcePaths) !=
+            std::optional<std::string>(asset->sourceHash)) {
+      error(diagnostics, "PACKAGE_COOKED_TERRAIN_INVALID",
+            "Cooked Terrain does not match its locked source and cook provenance.",
+            manifestPath);
+      continue;
+    }
+    sourceContentHash = origin->second.second;
+    if (!substitutions.emplace(authoredPath, binaryPath).second)
+      error(diagnostics, "PACKAGE_COOKED_TERRAIN_DUPLICATE",
+            "Two Terrain assets replace the same locked source.", manifestPath);
+  }
+  return substitutions;
+}
+
 } // namespace
 
 LockedPackageContent
@@ -79,6 +204,11 @@ loadLockedPackageContent(const std::filesystem::path &projectDirectory,
   // installer state and author-only files (README, tests, docs).
   const bool cooked =
       std::filesystem::is_regular_file(projectDirectory / "cook.manifest.json");
+  const auto cookedMetadata = cooked
+      ? loadCookedPackageMetadata(projectDirectory, result.diagnostics)
+      : std::optional<CookedPackageMetadata>{};
+  if (cooked && !cookedMetadata)
+    return result;
 
   std::map<std::string, std::string> owners;
   if (projectAssets != nullptr)
@@ -112,11 +242,18 @@ loadLockedPackageContent(const std::filesystem::path &projectDirectory,
         continue;
       }
     }
+    const auto substitutions = cooked
+        ? cookedTerrainSubstitutions(projectDirectory, root, packageName,
+                                     release, *cookedMetadata,
+                                     result.diagnostics)
+        : std::map<std::string, std::string>{};
     std::vector<std::filesystem::path> packageFiles;
     for (const std::string &relative : release.manifest.files) {
       if (cooked && !isRuntimePackageFile(relative))
         continue;
-      const auto file = root / relative;
+      const auto replacement = substitutions.find(relative);
+      const auto file = root /
+          (replacement == substitutions.end() ? relative : replacement->second);
       if (!std::filesystem::is_regular_file(file)) {
         error(result.diagnostics, "PACKAGE_CONTENT_FILE_MISSING",
               "A locked package content file is missing.", file);

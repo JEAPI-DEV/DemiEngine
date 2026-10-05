@@ -1,0 +1,202 @@
+{
+  "format_version": 1,
+  "name": "River Valley",
+  "label": "River Valley",
+  "description": "A broad floodplain valley carrying a connected river system. The channel runs wet along the trough floors, gravel bars fringe every shoreline, floodplain grass follows the banks, open meadow climbs the valley sides and dry grass takes the raised shoulders.",
+  "size": [
+    512.0,
+    512.0
+  ],
+  "cells_x": 256,
+  "cells_z": 256,
+  "chunk_cells": 32,
+  "seed": 51803,
+  "default_biome": "floodplain",
+  "default_landform": "floodplain",
+  "landforms": {
+    "floodplain": {
+      "base_height": 14.0,
+      "height_variation": 30.0,
+      "feature_size": 120.0,
+      "roughness": 0.55,
+      "octaves": 5
+    },
+    "channel": {
+      "base_height": 8.0,
+      "height_variation": 4.0,
+      "feature_size": 40.0,
+      "roughness": 0.35,
+      "octaves": 3
+    },
+    "gravel_bar": {
+      "base_height": 12.0,
+      "height_variation": 4.0,
+      "feature_size": 26.0,
+      "roughness": 0.3,
+      "octaves": 3
+    },
+    "meadow": {
+      "base_height": 20.0,
+      "height_variation": 8.0,
+      "feature_size": 70.0,
+      "roughness": 0.42,
+      "octaves": 4
+    },
+    "shoulder": {
+      "base_height": 30.0,
+      "height_variation": 10.0,
+      "feature_size": 96.0,
+      "roughness": 0.48,
+      "octaves": 4
+    },
+    "rock": {
+      "base_height": 34.0,
+      "height_variation": 8.0,
+      "feature_size": 60.0,
+      "roughness": 0.58,
+      "octaves": 4
+    }
+  },
+  "biomes": {
+    "floodplain": {
+      "landform": "floodplain",
+      "color": [
+        0.27,
+        0.44,
+        0.24,
+        1.0
+      ]
+    },
+    "channel": {
+      "landform": "channel",
+      "color": [
+        0.19,
+        0.33,
+        0.38,
+        1.0
+      ]
+    },
+    "gravel_bar": {
+      "landform": "gravel_bar",
+      "color": [
+        0.72,
+        0.69,
+        0.58,
+        1.0
+      ]
+    },
+    "meadow": {
+      "landform": "meadow",
+      "color": [
+        0.44,
+        0.56,
+        0.27,
+        1.0
+      ]
+    },
+    "shoulder": {
+      "landform": "shoulder",
+      "color": [
+        0.52,
+        0.5,
+        0.3,
+        1.0
+      ]
+    },
+    "rock": {
+      "landform": "rock",
+      "color": [
+        0.45,
+        0.43,
+        0.4,
+        1.0
+      ]
+    }
+  },
+  "rules": [
+    {
+      "id": "river_channel",
+      "layer": "biomes",
+      "biome": "channel",
+      "priority": 85,
+      "blend": 3,
+      "elevation": [
+        -40,
+        14
+      ],
+      "substrate": [
+        "wet"
+      ]
+    },
+    {
+      "id": "valley_cliff_rock",
+      "layer": "biomes",
+      "biome": "rock",
+      "priority": 80,
+      "blend": 3,
+      "elevation": [
+        0,
+        90
+      ],
+      "slope": [
+        34,
+        90
+      ]
+    },
+    {
+      "id": "gravel_bars",
+      "layer": "biomes",
+      "biome": "gravel_bar",
+      "priority": 70,
+      "blend": 3,
+      "elevation": [
+        10,
+        22
+      ],
+      "water_distance": [
+        0,
+        6
+      ],
+      "substrate": [
+        "sand"
+      ]
+    },
+    {
+      "id": "riparian_floodplain",
+      "layer": "biomes",
+      "biome": "floodplain",
+      "priority": 60,
+      "blend": 6,
+      "elevation": [
+        11,
+        20
+      ],
+      "water_distance": [
+        5,
+        20
+      ]
+    },
+    {
+      "id": "valley_meadow",
+      "layer": "biomes",
+      "biome": "meadow",
+      "priority": 45,
+      "blend": 6,
+      "elevation": [
+        18,
+        26
+      ]
+    },
+    {
+      "id": "raised_shoulder",
+      "layer": "biomes",
+      "biome": "shoulder",
+      "priority": 55,
+      "blend": 8,
+      "elevation": [
+        24,
+        90
+      ]
+    }
+  ]
+}

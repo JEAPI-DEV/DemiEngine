@@ -11,6 +11,7 @@
 #include "demi/assets/ModelImportProfile.h"
 #include "demi/assets/PackageContent.h"
 #include "demi/assets/RenderAsset.h"
+#include "demi/assets/TerrainAsset.h"
 #include "demi/runtime/network/NetworkContract.h"
 
 #include <nlohmann/json.hpp>
@@ -19,6 +20,7 @@
 #include <fstream>
 #include <set>
 #include <sstream>
+#include <stdexcept>
 #include <unordered_map>
 
 namespace demi {
@@ -414,6 +416,35 @@ Diagnostics validateAssetRegistry(const AssetRegistry &registry) {
       static_cast<void>(assets::parseModelImportProfile(
           settings.is_object() ? settings : nlohmann::json::object(),
           &diagnostics, asset.manifestPath.string()));
+    }
+    if (asset.type == "Terrain") {
+      try {
+        if (asset.importer != "terrain_heightfield")
+          throw std::invalid_argument(
+              "Terrain assets require the terrain_heightfield importer.");
+        if (asset.sourcePath.filename().string().ends_with(".terrain.json")) {
+          const assets::TerrainAssetSource source =
+              assets::loadTerrainAssetSource(asset);
+          const auto expected = assets::terrainAssetDependencies(source);
+          if (expected != asset.dependencies)
+            diagnostics.push_back({.severity = Severity::Error,
+                                   .code = "TERRAIN_ASSET_DEPENDENCIES_STALE",
+                                   .message = "Terrain dependencies changed since import.",
+                                   .path = asset.manifestPath.string(),
+                                   .suggestion = "Run demi asset reimport on this manifest."});
+        } else if (asset.sourcePath.filename().string().ends_with(
+                       ".terrain.bin")) {
+          (void)assets::loadTerrainAsset(registry, asset.id);
+        } else {
+          throw std::invalid_argument(
+              "Terrain source must be .terrain.json or .terrain.bin.");
+        }
+      } catch (const std::exception &error) {
+        diagnostics.push_back({.severity = Severity::Error,
+                               .code = "TERRAIN_ASSET_SOURCE_INVALID",
+                               .message = error.what(),
+                               .path = asset.sourcePath.string()});
+      }
     }
     if (asset.type == "Collider3D") {
       if (asset.importer == "collider-shape") {

@@ -7,6 +7,10 @@ are registered in `tools/package-store/src/Docs.php`.
 
 This directory keeps material that has a different job:
 
+- [Editor commands, clipboard and docking](editor-shortcut-qualification.md)
+  records shortcut ownership, clipboard identity/remapping, independent panel
+  identities, contextual palettes and scoped verification.
+
 - [Terrain qualification](terrain-qualification.md) records finite-heightfield
   authoring ownership, tests, surface-query measurements and remaining scope.
 

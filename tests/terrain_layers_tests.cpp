@@ -26,8 +26,8 @@ TerrainRecipe flatRecipe() {
   recipe.size = {8, 8};
   recipe.cellsX = 8;
   recipe.cellsZ = 8;
-  recipe.biomes.at("default").baseHeight = 2;
-  recipe.biomes.at("default").heightVariation = 0;
+  recipe.landforms.at("default").baseHeight = 2;
+  recipe.landforms.at("default").heightVariation = 0;
   return recipe;
 }
 
@@ -185,12 +185,15 @@ void validateLayerContracts() {
 
 void baseStagesAndBiomeOrder() {
   auto recipe = flatRecipe();
-  auto hill = recipe.biomes.at("default");
+  // Each biome names a landform; the shape itself carries the elevation.
+  auto hill = recipe.landforms.at("default");
   hill.baseHeight = 10;
-  recipe.biomes.emplace("hill", hill);
+  recipe.landforms.emplace("hill", hill);
+  recipe.biomes.emplace("hill", TerrainBiome{.landform = "hill"});
   auto sand = hill;
   sand.baseHeight = 20;
-  recipe.biomes.emplace("sand", sand);
+  recipe.landforms.emplace("sand", sand);
+  recipe.biomes.emplace("sand", TerrainBiome{.landform = "sand"});
   recipe.layers.push_back(
       {"overrides", "Overrides", TerrainLayerKind::Biome, true});
   recipe.regions.push_back({"hill", {4, 4}, 2, 1, 0, "overrides"});
@@ -312,7 +315,7 @@ void exclusionPainting() {
 
 void sharedEvaluationAndSmoothing() {
   auto recipe = flatRecipe();
-  recipe.biomes.at("default").heightVariation = 4;
+  recipe.landforms.at("default").heightVariation = 4;
   for (int index = 0; index < 20; ++index)
     recipe.biomes.emplace("biome_" + std::to_string(index), TerrainBiome{});
   recipe.regions.push_back({"biome_9", {4, 4}, 4, .5F, 1});

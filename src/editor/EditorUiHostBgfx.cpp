@@ -1,11 +1,11 @@
+#include "demi/runtime/render/backend/DefaultFont.h"
 #include "editor/EditorDockingState.h"
+#include "editor/EditorFontLoader.h"
 #include "editor/EditorGameRenderer.h"
 #include "editor/EditorImGuiInput.h"
+#include "editor/EditorInputOwnership.h"
 #include "editor/EditorRecoveryStore.h"
 #include "editor/EditorUiHost.h"
-#include "editor/EditorInputOwnership.h"
-#include "editor/EditorFontLoader.h"
-#include "demi/runtime/render/backend/DefaultFont.h"
 #include "editor/EditorViewportRenderer.h"
 #include "editor/EditorWorkspaceLayout.h"
 
@@ -20,9 +20,11 @@
 #include <imgui/imgui.h>
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <fstream>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -64,7 +66,8 @@ public:
     if (!platform_->initialize({.title = std::move(title),
                                 .width = 1680,
                                 .height = 945,
-                                .resizable = true},
+                                .resizable = true,
+                                .maximized = true},
                                error))
       return false;
 
@@ -89,8 +92,8 @@ public:
     fontConfig.FontDataOwnedByAtlas = false;
     fontConfig.FontLoader = fontLoader_.loader();
     io.FontDefault = io.Fonts->AddFontFromMemoryTTF(
-        const_cast<std::byte *>(fontData.data()), static_cast<int>(fontData.size()),
-        fontSize, &fontConfig);
+        const_cast<std::byte *>(fontData.data()),
+        static_cast<int>(fontData.size()), fontSize, &fontConfig);
     if (!io.FontDefault) {
       error = "Could not initialize the bundled Inter editor font.";
       shutdownGraphics();
@@ -117,8 +120,6 @@ public:
       shutdownGraphics();
       return false;
     }
-    viewportRenderer_ =
-        std::make_unique<EditorViewportRenderer>(*resources_, *commands_);
     gameRenderer_ =
         std::make_unique<EditorGameRenderer>(*resources_, *commands_);
     initialized_ = true;
@@ -164,8 +165,10 @@ public:
       return;
     releaseGameRenderer();
     gameRenderer_.reset();
-    viewportRenderer_->release();
-    viewportRenderer_.reset();
+    for (auto &viewport : viewports_) {
+      viewport.renderer.reset();
+      viewport.projectDirectory.reset();
+    }
     commands_.reset();
     resources_->clear();
     brandingTexture_ = {};
@@ -193,12 +196,13 @@ public:
       return false;
 
     graphics_.beginFrame(0x111318ff);
-    auto routed=inputOwnership_.route(input_,exclusiveGame_ && frame.focused);
-    if(routed.changed) {
+    auto routed =
+        inputOwnership_.route(input_, exclusiveGame_ && frame.focused);
+    if (routed.changed) {
       ImGui::GetIO().ClearInputKeys();
       ImGui::GetIO().ClearInputMouse();
     }
-    const auto &editorInput=routed.input;
+    const auto &editorInput = routed.input;
     std::uint8_t buttons = 0;
     if (editorInput.mouseButtonsDown.contains("left"))
       buttons |= IMGUI_MBUT_LEFT;
@@ -213,9 +217,13 @@ public:
     ImGui::GetIO().AddFocusEvent(frame.focused);
     ImGui::GetIO().DisplayFramebufferScale = {uiScale_, uiScale_};
     imguiBeginFrame(
-        routed.exclusive ? INT32_MIN : static_cast<std::int32_t>(editorInput.mousePosition.x / uiScale_),
-        routed.exclusive ? INT32_MIN : static_cast<std::int32_t>(editorInput.mousePosition.y / uiScale_), buttons,
-        0, static_cast<std::uint16_t>(std::clamp(width(), 1, 65535)),
+        routed.exclusive
+            ? INT32_MIN
+            : static_cast<std::int32_t>(editorInput.mousePosition.x / uiScale_),
+        routed.exclusive
+            ? INT32_MIN
+            : static_cast<std::int32_t>(editorInput.mousePosition.y / uiScale_),
+        buttons, 0, static_cast<std::uint16_t>(std::clamp(width(), 1, 65535)),
         static_cast<std::uint16_t>(std::clamp(height(), 1, 65535)), -1,
         ImGuiViewId);
     return true;
@@ -229,21 +237,56 @@ public:
     return std::exchange(workspaceDiagnostic_, {});
   }
 
-  bool configureViewport(const std::filesystem::path &projectDirectory,
+  bool configureViewport(const EditorAuthoringView view,
+                         const std::filesystem::path &projectDirectory,
                          std::string &error) override {
-    return viewportRenderer_->configure(projectDirectory, error);
+    if (!initialized_) {
+      error = "The editor graphics host is not initialized.";
+      return false;
+    }
+    auto &viewport = viewports_.at(static_cast<std::size_t>(view));
+    viewport.renderer.reset();
+    viewport.projectDirectory = projectDirectory;
+    return true;
   }
 
-  bool prepareViewportTarget(const EditorViewportArea area,
+  bool prepareViewportTarget(const EditorAuthoringView view,
+                             const EditorViewportArea area,
                              std::string &error) override {
-    return viewportRenderer_->prepareTarget(framebufferArea(area), error);
+    if (!initialized_) {
+      error = "The editor graphics host is not initialized.";
+      return false;
+    }
+    if (area.width == 0 || area.height == 0 ||
+        platform_->frameState().minimized)
+      return true;
+    auto &viewport = viewports_.at(static_cast<std::size_t>(view));
+    if (!viewport.renderer) {
+      if (!viewport.projectDirectory) {
+        error = "The authored view has no configured project.";
+        return false;
+      }
+      auto renderer = std::make_unique<EditorViewportRenderer>(
+          editorAuthoringFirstView(view), *resources_, *commands_);
+      if (!renderer->configure(*viewport.projectDirectory, error))
+        return false;
+      viewport.renderer = std::move(renderer);
+    }
+    return viewport.renderer->prepareTarget(framebufferArea(area), error);
   }
 
-  std::uint16_t viewportTextureIndex() const override {
-    return viewportRenderer_->textureIndex();
+  std::uint16_t
+  viewportTextureIndex(const EditorAuthoringView view) const override {
+    const auto &viewport = viewports_.at(static_cast<std::size_t>(view));
+    return viewport.renderer ? viewport.renderer->textureIndex() : UINT16_MAX;
   }
 
-  bool renderViewport(const runtime::World &world,
+  void releaseViewport(const EditorAuthoringView view) override {
+    viewports_.at(static_cast<std::size_t>(view)).renderer.reset();
+  }
+
+  bool renderViewport(const EditorAuthoringView view,
+                      const runtime::World &world,
                       const EditorViewportArea area,
                       const EditorSceneViewCamera &camera,
                       std::string &error) override {
@@ -251,12 +294,15 @@ public:
     if (platformFrame.minimized || platformFrame.width <= 0 ||
         platformFrame.height <= 0 || area.width == 0 || area.height == 0)
       return true;
-    return viewportRenderer_->render3D(world, framebufferArea(area), camera,
-                                       platform_->frameState().deltaSeconds,
-                                       error);
+    auto *renderer = preparedViewport(view, error);
+    if (renderer == nullptr)
+      return false;
+    return renderer->render3D(world, framebufferArea(area), camera,
+                              platform_->frameState().deltaSeconds, error);
   }
 
-  bool renderViewport2D(const runtime::World &world,
+  bool renderViewport2D(const EditorAuthoringView view,
+                        const runtime::World &world,
                         const EditorViewportArea area,
                         const EditorSceneView2DCamera &camera,
                         const bool showColliders, std::string &error) override {
@@ -264,19 +310,25 @@ public:
     if (frame.minimized || frame.width <= 0 || frame.height <= 0 ||
         area.width == 0 || area.height == 0)
       return true;
-    return viewportRenderer_->render2D(world, framebufferArea(area), camera,
-                                       showColliders, frame.deltaSeconds,
-                                       error);
+    auto *renderer = preparedViewport(view, error);
+    if (renderer == nullptr)
+      return false;
+    return renderer->render2D(world, framebufferArea(area), camera,
+                              showColliders, frame.deltaSeconds, error);
   }
 
-  bool renderHud(const runtime::ui::UiDocument &document,
+  bool renderHud(const EditorAuthoringView view,
+                 const runtime::ui::UiDocument &document,
                  const EditorViewportArea area, std::string &error) override {
     const auto &frame = platform_->frameState();
     if (frame.minimized || frame.width <= 0 || frame.height <= 0 ||
         area.width == 0 || area.height == 0)
       return true;
-    return viewportRenderer_->renderHud(document, framebufferArea(area),
-                                        frame.deltaSeconds, error);
+    auto *renderer = preparedViewport(view, error);
+    if (renderer == nullptr)
+      return false;
+    return renderer->renderHud(document, framebufferArea(area),
+                               frame.deltaSeconds, error);
   }
 
   bool configureGameRenderer(const std::filesystem::path &projectDirectory,
@@ -299,12 +351,14 @@ public:
 
   runtime::InputState gameInput(const EditorViewportArea area,
                                 const bool focused) const override {
-    if (!focused || !platform_->frameState().focused || (exclusiveGame_ && !mouseCaptured_))
+    if (!focused || !platform_->frameState().focused ||
+        (exclusiveGame_ && !mouseCaptured_))
       return {};
     runtime::InputState result = input_;
     result.mousePosition.x = result.mousePosition.x / uiScale_ - area.x;
     result.mousePosition.y = result.mousePosition.y / uiScale_ - area.y;
-    if(exclusiveGame_ && mouseCaptured_) result.mousePosition={area.width*.5F,area.height*.5F};
+    if (exclusiveGame_ && mouseCaptured_)
+      result.mousePosition = {area.width * .5F, area.height * .5F};
     result.mouseDelta.x /= uiScale_;
     result.mouseDelta.y /= uiScale_;
     return result;
@@ -314,29 +368,36 @@ public:
     return gameRenderer_->textureIndex();
   }
   bool gamePointerInside(EditorViewportArea area) const override {
-    if(!platform_->frameState().focused || !area.width || !area.height) return false;
-    if(exclusiveGame_ && mouseCaptured_) return true;
-    const auto x=input_.mousePosition.x/uiScale_-area.x;
-    const auto y=input_.mousePosition.y/uiScale_-area.y;
-    return x>=0 && y>=0 && x<area.width && y<area.height;
+    if (!platform_->frameState().focused || !area.width || !area.height)
+      return false;
+    if (exclusiveGame_ && mouseCaptured_)
+      return true;
+    const auto x = input_.mousePosition.x / uiScale_ - area.x;
+    const auto y = input_.mousePosition.y / uiScale_ - area.y;
+    return x >= 0 && y >= 0 && x < area.width && y < area.height;
   }
 
   float deltaSeconds() const override {
     return platform_ == nullptr ? 0.0F : platform_->frameState().deltaSeconds;
   }
 
-  bool setViewportInputCaptured(const bool captured,
-                                std::string &error,bool exclusiveGame,
+  bool setViewportInputCaptured(const bool captured, std::string &error,
+                                bool exclusiveGame,
                                 bool cursorVisible) override {
-    const bool effective=captured && platform_->frameState().focused;
-    if (effective != mouseCaptured_ && !platform_->setMouseCaptured(effective, error)) {
-      // Keep GUI input quarantined if native capture failed; Ctrl+D can recover.
-      if(effective && exclusiveGame) exclusiveGame_=true;
+    const bool effective = captured && platform_->frameState().focused;
+    if (effective != mouseCaptured_ &&
+        !platform_->setMouseCaptured(effective, error)) {
+      // Keep GUI input quarantined if native capture failed; Ctrl+D can
+      // recover.
+      if (effective && exclusiveGame)
+        exclusiveGame_ = true;
       return false;
     }
     mouseCaptured_ = effective;
     exclusiveGame_ = exclusiveGame && effective;
-    return platform_->setMouseVisible(!effective && (!platform_->frameState().focused || cursorVisible),error);
+    return platform_->setMouseVisible(
+        !effective && (!platform_->frameState().focused || cursorVisible),
+        error);
   }
 
   void endFrame() override {
@@ -386,6 +447,20 @@ public:
   }
 
 private:
+  struct AuthoredViewport {
+    std::optional<std::filesystem::path> projectDirectory;
+    std::unique_ptr<EditorViewportRenderer> renderer;
+  };
+
+  EditorViewportRenderer *preparedViewport(const EditorAuthoringView view,
+                                           std::string &error) {
+    auto *renderer =
+        viewports_.at(static_cast<std::size_t>(view)).renderer.get();
+    if (renderer == nullptr)
+      error = "Prepare the authored view target before rendering its image.";
+    return renderer;
+  }
+
   static constexpr bgfx::ViewId ImGuiViewId = 255;
   EditorViewportArea framebufferArea(const EditorViewportArea area) const {
     const auto scaled = [this](std::uint16_t value) {
@@ -400,7 +475,10 @@ private:
   float uiScale_ = 1.0F;
   EditorFontLoader fontLoader_{runtime::render::defaultFontVariations()};
   void shutdownGraphics() {
-    viewportRenderer_.reset();
+    for (auto &viewport : viewports_) {
+      viewport.renderer.reset();
+      viewport.projectDirectory.reset();
+    }
     commands_.reset();
     if (resources_ != nullptr)
       resources_->clear();
@@ -416,7 +494,7 @@ private:
   BgfxGraphicsDevice graphics_;
   std::unique_ptr<demi::runtime::render::GpuResources> resources_;
   std::unique_ptr<demi::runtime::render::RenderCommands> commands_;
-  std::unique_ptr<EditorViewportRenderer> viewportRenderer_;
+  std::array<AuthoredViewport, EditorAuthoringViews.size()> viewports_;
   std::unique_ptr<EditorGameRenderer> gameRenderer_;
   runtime::render::TextureHandle brandingTexture_;
   EditorGpuTimingSample gpuTimingSample_;

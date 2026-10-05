@@ -6,6 +6,7 @@
 #include "demi/assets/AssetRegistry.h"
 #include "demi/assets/ColliderShapeAsset.h"
 #include "demi/assets/SceneBudget3D.h"
+#include "demi/assets/TerrainAsset.h"
 #include "demi/filesystem/ProjectPaths.h"
 #include "demi/packages/PackageManifest.h"
 #include "demi/runtime/scene/ComponentRegistry.h"
@@ -617,6 +618,8 @@ Diagnostics validateSceneDocument(const std::filesystem::path &scenePath,
 }
 
 SourceFileKind classifySourceFile(const std::filesystem::path &path) {
+  if (isTerrainSourceFile(path))
+    return SourceFileKind::TerrainAsset;
   if (isColliderShapeFile(path))
     return SourceFileKind::ColliderShape;
   if (isAssetGroupFile(path)) {
@@ -763,6 +766,17 @@ Diagnostics validateTextFile(const std::filesystem::path &path,
                "Add an integer format_version field at the top level.");
 
   switch (kind) {
+  case SourceFileKind::TerrainAsset:
+    try {
+      (void)assets::parseTerrainAssetSource(nlohmann::json::parse(text));
+      validateReferences(diagnostics, path, text);
+    } catch (const std::exception &error) {
+      diagnostics.push_back({.severity = Severity::Error,
+                             .code = "TERRAIN_ASSET_SOURCE_INVALID",
+                             .message = error.what(),
+                             .path = path.string()});
+    }
+    break;
   case SourceFileKind::ColliderShape: {
     std::string error;
     if (!assets::loadColliderShapeAsset(path, error))

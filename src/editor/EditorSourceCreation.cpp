@@ -4,6 +4,7 @@
 #include "editor/EditorDocumentStore.h"
 #include "editor/EditorPrefabAuthoring.h"
 #include "editor/EditorWorkspace.h"
+#include "editor/EditorTerrainRuntime.h"
 #include <algorithm>
 #include <nlohmann/json.hpp>
 
@@ -28,14 +29,19 @@ bool createEditorSource(EditorWorkspace &workspace, EditorSourceKind kind,
     }
     const bool scene =
         kind == EditorSourceKind::Scene2D || kind == EditorSourceKind::Scene3D;
-    const bool asset =
-        kind == EditorSourceKind::Material || kind == EditorSourceKind::Data;
+    const bool terrain = kind == EditorSourceKind::Terrain ||
+                         kind == EditorSourceKind::TerrainFromSelection;
+    const bool asset = kind == EditorSourceKind::Material ||
+                       kind == EditorSourceKind::Data ||
+                       terrain;
     if (scene && workspace.hasUnsavedChanges()) {
       error = "Save or undo changes before creating a registered scene.";
       return false;
     }
     const std::string folder = kind == EditorSourceKind::Material
                                    ? "assets/materials"
+                               : terrain
+                                   ? "assets/terrains"
                                : kind == EditorSourceKind::Data ? "assets/data"
                                : scene                          ? "scenes"
                                : kind == EditorSourceKind::Hud  ? "hud"
@@ -44,6 +50,7 @@ bool createEditorSource(EditorWorkspace &workspace, EditorSourceKind kind,
                                                                     : "prefabs";
     const std::string suffix =
         kind == EditorSourceKind::Material   ? ".material.json"
+        : terrain                            ? ".terrain.json"
         : kind == EditorSourceKind::Data     ? ".json"
         : scene                              ? ".scene.json"
         : kind == EditorSourceKind::Hud      ? ".hud.json"
@@ -93,7 +100,8 @@ bool createEditorSource(EditorWorkspace &workspace, EditorSourceKind kind,
     nlohmann::json document{{"format_version", 1}};
     const std::string assetId =
         std::string("asset://") +
-        (kind == EditorSourceKind::Material ? "materials/" : "data/") +
+        (kind == EditorSourceKind::Material ? "materials/"
+         : terrain ? "terrains/" : "data/") +
         qualifiedName.generic_string();
     if (asset) {
       const auto registry = loadAssetRegistry(root);
@@ -115,6 +123,20 @@ bool createEditorSource(EditorWorkspace &workspace, EditorSourceKind kind,
     } else if (kind == EditorSourceKind::Material) {
       document["shader"] = "builtin://lit";
       document["parameters"] = {{"base_color", {1, 1, 1, 1}}};
+    } else if (terrain) {
+      document["id"] = assetId;
+      document["name"] = std::filesystem::path(name).filename().string();
+      if (kind == EditorSourceKind::TerrainFromSelection) {
+        const auto *component =
+            workspace.sceneDocument().component(selectedEntity, "Terrain3D");
+        if (!component || !component->contains("recipe")) {
+          error = "Choose an authored terrain with an inline procedural recipe.";
+          return false;
+        }
+        document["recipe"] = component->at("recipe");
+      } else {
+        document["recipe"] = defaultEditorTerrainRecipe();
+      }
     } else if (kind == EditorSourceKind::Data) {
       // A versioned empty data document is editable without a custom schema.
     } else if (kind == EditorSourceKind::Lua)
@@ -173,8 +195,8 @@ bool createEditorSource(EditorWorkspace &workspace, EditorSourceKind kind,
           {.projectDirectory = root,
            .source = target,
            .id = assetId,
-           .type =
-               kind == EditorSourceKind::Material ? "Material" : "DataAsset"});
+           .type = kind == EditorSourceKind::Material ? "Material"
+                   : terrain ? "Terrain" : "DataAsset"});
       if (hasErrors(imported.diagnostics)) {
         error = "Created " + target.string() + "; asset registration failed: " +
                 imported.diagnostics.front().message;
@@ -182,6 +204,14 @@ bool createEditorSource(EditorWorkspace &workspace, EditorSourceKind kind,
         return false;
       }
       created = imported.manifestPath;
+      if (kind == EditorSourceKind::TerrainFromSelection) {
+        workspace.refreshAssetMetadata();
+        if (!workspace.assignTerrainAsset(selectedEntity, assetId, error)) {
+          error = "Created " + target.string() +
+                  ", but the scene reference was not changed: " + error;
+          return false;
+        }
+      }
     }
     if (scene &&
         (!workspace.addProjectScene(

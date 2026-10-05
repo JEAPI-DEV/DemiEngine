@@ -2,7 +2,9 @@
 #include "demi/runtime/scene/model/Entity.h"
 #include "demi/runtime/terrain/TerrainGenerator.h"
 #include <cassert>
+#include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <limits>
 #include <stdexcept>
 
@@ -24,7 +26,7 @@ TerrainRecipe flatRecipe() {
   recipe.cellsX = 8;
   recipe.cellsZ = 8;
   recipe.chunkCells = 3;
-  recipe.biomes.at("default").heightVariation = 0;
+  recipe.landforms.at("default").heightVariation = 0;
   return recipe;
 }
 TerrainEdit hardBrush(TerrainEditKind kind, Vec2 center, float radius) {
@@ -37,7 +39,7 @@ TerrainEdit hardBrush(TerrainEditKind kind, Vec2 center, float radius) {
 }
 void deterministicSampling() {
   auto recipe = flatRecipe();
-  recipe.biomes.at("default").heightVariation = 6;
+  recipe.landforms.at("default").heightVariation = 6;
   auto first = TerrainGenerator::generate(recipe);
   auto second =
       TerrainGenerator::generate(TerrainRecipe::parse(recipe.toJson()));
@@ -63,14 +65,22 @@ void deterministicSampling() {
     assert(chunk.firstCellZ + chunk.cellsZ <= first->cellsZ);
   }
   recipe = flatRecipe();
-  recipe.biomes.emplace("hill", TerrainBiome{});
-  recipe.biomes.at("hill").heightVariation = 0;
-  recipe.biomes.at("hill").baseHeight = 10;
+  // A painted region reshapes the ground by pointing at a landform, which is
+  // the whole point of separating shape from appearance: the "hill" biome keeps
+  // its own look while sharing the default landform, and a second landform
+  // supplies the raised ground.
+  recipe.landforms.at("default").heightVariation = 0;
+  recipe.landforms.at("default").baseHeight = 0;
+  recipe.landforms.emplace("raised", TerrainLandform{.baseHeight = 10, .heightVariation = 0});
+  recipe.biomes.emplace("hill", TerrainBiome{.landform = "raised"});
   recipe.regions.push_back({"hill", {4, 4}, 4, 1, 1});
   auto blended = TerrainGenerator::generate(recipe);
   assert(blended && near(blended->height(4, 4), 10));
-  assert(near(blended->height(6, 4), 5));
   assert(near(blended->height(8, 4), 0));
+  // The blend falls off with the brush, and two biomes sharing the default
+  // landform must not be counted twice.
+  assert(blended->height(2, 4) < blended->height(4, 4));
+  assert(blended->height(6, 4) < blended->height(4, 4));
   assert(blended->biomeIds[blended->biomeIndices[blended->index(4, 4)]] ==
          "hill");
 }
@@ -111,7 +121,7 @@ void persistentProtection() {
   lower.amount = 3;
   recipe.edits.push_back(lower);
   recipe.seed = -12;
-  recipe.biomes.at("default").baseHeight = 20;
+  recipe.landforms.at("default").baseHeight = 20;
   auto preserved =
       TerrainGenerator::generate(TerrainRecipe::parse(recipe.toJson()));
   assert(preserved && near(preserved->height(4, 4), 7));
@@ -140,10 +150,16 @@ void validationAndComponent() {
   assert(component.recipe == authored);
   component.generated = std::make_shared<const HeightField>();
   Terrain3DComponent replacement;
-  Terrain3DComponent::runtimeFields[0].copy(component, replacement);
+  replacement.recipe = {{"format_version", 1}};
+  const auto binding = std::find_if(Terrain3DComponent::runtimeFields.begin(),
+      Terrain3DComponent::runtimeFields.end(), [](const auto &field) {
+        return field.name == "recipe";
+      });
+  assert(binding != Terrain3DComponent::runtimeFields.end());
+  binding->copy(component, replacement);
   assert(!component.generated);
   nlohmann::json serialized;
-  assert(Terrain3DComponent::runtimeFields[0].read(component, serialized));
+  assert(binding->read(component, serialized));
   assert(serialized == replacement.recipe);
   const auto good = flatRecipe().toJson();
   for (const auto &resolution :
@@ -196,7 +212,7 @@ void validationAndComponent() {
   typed.cellsZ = std::numeric_limits<int>::max();
   expectInvalid([&] { typed.validate(); });
   typed = flatRecipe();
-  typed.biomes.at("default").baseHeight = std::numeric_limits<float>::max();
+  typed.landforms.at("default").baseHeight = std::numeric_limits<float>::max();
   auto overflow = hardBrush(TerrainEditKind::Raise, {4, 4}, 20);
   overflow.amount = std::numeric_limits<float>::max();
   typed.edits.push_back(overflow);

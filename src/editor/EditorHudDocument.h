@@ -5,8 +5,11 @@
 #include "demi/runtime/ui/UiModel.h"
 
 #include <filesystem>
+#include <optional>
+#include <span>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace demi::editor {
 
@@ -17,11 +20,13 @@ public:
   [[nodiscard]] bool open(std::filesystem::path path, std::string &error);
   [[nodiscard]] bool createNode(std::string_view type,
                                 std::string_view parentId,
-                                std::string &createdId, std::string &error);
+                                std::string &createdId, std::string &error,
+                                std::optional<runtime::Vec2> position = std::nullopt);
   [[nodiscard]] bool createPrefabInstance(std::string_view prefabReference,
                                           std::string_view parentId,
                                           std::string &createdId,
-                                          std::string &error);
+                                          std::string &error,
+                                          std::optional<runtime::Vec2> position = std::nullopt);
   [[nodiscard]] bool reparentNode(std::string_view id,
                                   std::string_view parentId,
                                   std::string &error);
@@ -29,6 +34,19 @@ public:
                                    std::string &createdId,
                                    std::string &error);
   [[nodiscard]] bool deleteNode(std::string_view id, std::string &error);
+  // Copy only authored topmost controls, never the document root or generated
+  // UI-prefab children. Each multi-element mutation is one undoable command.
+  [[nodiscard]] std::optional<nlohmann::json>
+  exportNodes(std::span<const std::string> ids, std::string &error) const;
+  [[nodiscard]] bool pasteNodes(const nlohmann::json &payload,
+                                std::string_view parentId,
+                                std::vector<std::string> &createdIds,
+                                std::string &error);
+  [[nodiscard]] bool duplicateNodes(std::span<const std::string> ids,
+                                    std::vector<std::string> &createdIds,
+                                    std::string &error);
+  [[nodiscard]] bool deleteNodes(std::span<const std::string> ids,
+                                 std::string &error);
   [[nodiscard]] bool setCanvasSize(runtime::Vec2 size, std::string &error);
   [[nodiscard]] bool setNodeField(std::string_view id, std::string_view field,
                                   nlohmann::json value, std::string &error);

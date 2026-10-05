@@ -12,11 +12,6 @@ namespace demi::editor {
 namespace {
 
 constexpr const char *DockspaceHost = "Demi Workbench###DemiDockspaceHost";
-constexpr const char *HierarchyWindow = "Hierarchy";
-constexpr const char *StageWindow = "Stage";
-constexpr const char *InspectorWindow = "Inspector";
-constexpr const char *ConsoleWindow = "Console";
-constexpr const char *AssetsWindow = "Assets";
 constexpr const char *SpecializedWindow = "Specialized Document";
 constexpr const char *AnimationWindow = "Animation State Machine";
 
@@ -60,18 +55,45 @@ void EditorDockingWorkspace::drawDockspace(const ImVec2 position,
   ImGui::End();
 }
 
-void EditorDockingWorkspace::drawViewMenu() {
+void EditorDockingWorkspace::drawViewMenu(const bool uiPaletteAvailable,
+                                          const bool terrainNodesAvailable) {
   bool changed = false;
-  changed |= ImGui::MenuItem("Hierarchy", nullptr, &visibility_.hierarchy);
-  changed |= ImGui::MenuItem("Stage", nullptr, &visibility_.stage);
-  changed |= ImGui::MenuItem("Inspector", nullptr, &visibility_.inspector);
-  changed |= ImGui::MenuItem("Console", nullptr, &visibility_.console);
-  changed |= ImGui::MenuItem("Assets", nullptr, &visibility_.assets);
+  EditorPanelDockGroup previousGroup = EditorPanelDockGroup::Hierarchy;
+  for (const EditorPanelDefinition &panel : editorPanelDefinitions()) {
+    if (panel.dockGroup != previousGroup)
+      ImGui::Separator();
+    previousGroup = panel.dockGroup;
+    const bool available =
+        panel.availability == EditorPanelAvailability::Always ||
+        (panel.availability == EditorPanelAvailability::Hud &&
+         uiPaletteAvailable) ||
+        (panel.availability == EditorPanelAvailability::TerrainGraph &&
+         terrainNodesAvailable);
+    changed |= ImGui::MenuItem(panel.windowName.data(), nullptr,
+                               &(visibility_.*panel.visible), available);
+    if (!available &&
+        ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+      ImGui::SetTooltip("Available while editing %s.",
+                        panel.availability == EditorPanelAvailability::Hud
+                            ? "a HUD or UI prefab"
+                            : "a terrain graph");
+    }
+  }
   ImGui::Separator();
   if (ImGui::MenuItem("Reset Workspace"))
     requestReset();
   if (changed)
     persistVisibilityIfChanged();
+}
+
+bool EditorDockingWorkspace::focusPanel(std::string_view windowName) {
+  const std::string name(windowName);
+  auto *window = ImGui::FindWindowByName(name.c_str());
+  if (!window || !window->Active)
+    return false;
+  ImGui::FocusWindow(window, ImGuiFocusRequestFlags_UnlessBelowModal);
+  return ImGui::GetCurrentContext()->NavWindow == window && !window->Hidden &&
+         !window->SkipItems && (!window->DockNode || window->DockTabIsVisible);
 }
 
 void EditorDockingWorkspace::requestReset() {
@@ -111,26 +133,43 @@ void EditorDockingWorkspace::buildDefaultLayout(const unsigned int dockspaceId,
   ImGuiID right = 0;
   ImGuiID bottom = 0;
   const float inspectorFraction = EditorDefaultLayout::InspectorRatio *
-                                   (1.0F - EditorDefaultLayout::HierarchyRatio);
-  right = ImGui::DockBuilderSplitNode(center, ImGuiDir_Right,
-                                      inspectorFraction,
+                                  (1.0F - EditorDefaultLayout::HierarchyRatio);
+  right = ImGui::DockBuilderSplitNode(center, ImGuiDir_Right, inspectorFraction,
                                       nullptr, &center);
   bottom = ImGui::DockBuilderSplitNode(center, ImGuiDir_Down,
                                        EditorDefaultLayout::BottomRatio,
                                        nullptr, &center);
   left = ImGui::DockBuilderSplitNode(center, ImGuiDir_Left,
-      EditorDefaultLayout::HierarchyRatio / (1.0F - inspectorFraction), nullptr, &center);
+                                     EditorDefaultLayout::HierarchyRatio /
+                                         (1.0F - inspectorFraction),
+                                     nullptr, &center);
   ImGuiID bottomLeft = 0;
   ImGuiID bottomRight = bottom;
   bottomLeft = ImGui::DockBuilderSplitNode(bottomRight, ImGuiDir_Left,
                                            EditorDefaultLayout::ConsoleRatio,
                                            nullptr, &bottomRight);
 
-  ImGui::DockBuilderDockWindow(HierarchyWindow, left);
-  ImGui::DockBuilderDockWindow(StageWindow, center);
-  ImGui::DockBuilderDockWindow(InspectorWindow, right);
-  ImGui::DockBuilderDockWindow(ConsoleWindow, bottomLeft);
-  ImGui::DockBuilderDockWindow(AssetsWindow, bottomRight);
+  for (const EditorPanelDefinition &panel : editorPanelDefinitions()) {
+    ImGuiID destination = center;
+    switch (panel.dockGroup) {
+    case EditorPanelDockGroup::Hierarchy:
+      destination = left;
+      break;
+    case EditorPanelDockGroup::Authoring:
+      destination = center;
+      break;
+    case EditorPanelDockGroup::Properties:
+      destination = right;
+      break;
+    case EditorPanelDockGroup::Diagnostics:
+      destination = bottomLeft;
+      break;
+    case EditorPanelDockGroup::Assets:
+      destination = bottomRight;
+      break;
+    }
+    ImGui::DockBuilderDockWindow(panel.windowName.data(), destination);
+  }
   ImGui::DockBuilderDockWindow(SpecializedWindow, center);
   ImGui::DockBuilderDockWindow(AnimationWindow, center);
   ImGui::DockBuilderFinish(dockspaceId);

@@ -1,8 +1,34 @@
 # DemiEngine Roadmap
 
 Active feature plan: [terrain generation and editing](terrain-plan.md).
-Next: incremental brush updates, followed by seed/preset-driven landscapes,
-biome rules, material/asset palettes, erosion, integrated water and vegetation.
+Terrain graph controls now expose typed input rewiring/disconnect, active output,
+node-context landscape settings and Hex RGBA/precise color editing. The editor
+starts maximized in the display work area. Real screenshots illustrate these
+workflows in the maintained terrain guide; six scoped UI/platform checks and
+native captures qualify the changes without claiming terrain PBR/water rendering.
+Delivered editor usability: shared icon actions, versioned authoring clipboard and
+per-user key mappings across scenes, prefabs, HUD/UI prefabs and terrain graphs.
+Clipboard edits must preserve nesting and references, allocate fresh IDs and
+form one reversible command. Text editing and captured Game View keep separate
+input ownership; cursor release must remain available.
+Independent dock windows replace the internal Stage, Inspector/Modules and
+Console tab groups. Viewport, Prefab, HUD, Terrain Graph, Terrain Asset, Game
+View, Inspector, UI Palette, Terrain Nodes, Console, Lua Console, Profiler,
+Debug, Hierarchy and Assets have separate visibility preferences. Default
+groups remain ordinary detachable dock tabs. UI Palette is available only during
+HUD/UI-prefab editing; Terrain Nodes is contextual to graph editing. Scene,
+prefab, terrain asset and HUD sessions retain separate source/selection/history,
+including a scene's attached HUD. Graphs pin their terrain owner independently
+of Inspector selection. Palette/tool focus retains its editing context; runtime
+Inspector and Hierarchy do not dispatch authored mutations. The layout change
+passes seventeen scoped editor checks and native Vulkan startup smoke tests;
+[qualification evidence](docs/editor-shortcut-qualification.md) distinguishes
+automated docking input from interactive desktop and Android qualification.
+Editable terrain assets, persistent generated previews and cooked-only terrain
+loading are implemented. Generation configuration is in the Terrain Graph;
+shared terrain assets can be edited from scene placements, with viewport brush
+tools on the Terrain component. Next: material/asset palettes, rendered water,
+vegetation and landscape quality qualification.
 The expanded visual-quality and performance milestones remain planned.
 
 Deferred feature plan: [neural networks](neural-networks.plan). Python training,

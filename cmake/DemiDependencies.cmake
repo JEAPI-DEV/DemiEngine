@@ -1,6 +1,16 @@
 # Third-party dependency configuration and platform-specific dependency options.
 include(FetchContent)
 
+if(NOT ANDROID)
+  FetchContent_Declare(imnodes
+    GIT_REPOSITORY https://github.com/Nelarius/imnodes.git
+    GIT_TAG eb36902c892548ef94f88f51ad7e7c9c7058a71c
+    GIT_SUBMODULES ""
+    # Compile with the editor's pinned ImGui sources, not a system ImGui package.
+    SOURCE_SUBDIR demi-source-only)
+  FetchContent_MakeAvailable(imnodes)
+endif()
+
 set(DEMI_RENDER_GENERATED_INCLUDE_DIR
   "${CMAKE_BINARY_DIR}/generated/render/include")
 file(MAKE_DIRECTORY "${DEMI_RENDER_GENERATED_INCLUDE_DIR}")

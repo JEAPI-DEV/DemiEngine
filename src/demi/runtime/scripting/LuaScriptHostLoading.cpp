@@ -97,7 +97,8 @@ bool LuaScriptHost::loadWorldScripts(const ProjectData &project, World &world,
   configureLuaWorkerServices(*this);
   applicationServices_.configurePermissions(project.build.android.permissions);
   if (project_ != &project) {
-    prefabService_.configure(project.projectDirectory);
+    // The composition root configures the shared prefab service before loading
+    // the world. Reconfiguring here would discard initial scatter instances.
     sceneFlow_.configure(project);
     resourceLifetimes_.capture(world.activeSceneId, world.entities);
   }
@@ -524,7 +525,8 @@ bool LuaScriptHost::applyPendingSceneLoad(std::string &error) {
     worldCommands_.clear();
     const auto transition =
         sceneFlow_.unload(*world_, *pendingSceneUnload_, resourceLifetimes_);
-    prefabService_.prune(*world_);
+    if (prefabs_ != nullptr)
+      prefabs_->prune(*world_);
     pendingSceneUnload_.reset();
     if (!transition) {
       error = "Scene unload failed.";
@@ -572,7 +574,8 @@ bool LuaScriptHost::applyPendingSceneLoad(std::string &error) {
     worldCommands_.clear();
   }
   const auto transition = sceneFlow_.activate(*world_, resourceLifetimes_);
-  prefabService_.prune(*world_);
+  if (prefabs_ != nullptr)
+    prefabs_->prune(*world_);
   if (!transition) {
     if (activatedAssets && runtimeAssets_ != nullptr) {
       Diagnostics diagnostics;

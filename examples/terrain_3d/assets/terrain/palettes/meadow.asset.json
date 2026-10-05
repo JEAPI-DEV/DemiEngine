@@ -1,0 +1,31 @@
+{
+  "dependencies": [
+    "asset://schemas/terrain_palette",
+    "asset://terrain/surfaces/exposed_rock",
+    "asset://terrain/surfaces/soil",
+    "asset://terrain/surfaces/sand",
+    "asset://terrain/surfaces/snow",
+    "asset://terrain/surfaces/wet_ground",
+    "asset://terrain/surfaces/tree",
+    "asset://terrain/surfaces/bush",
+    "asset://terrain/surfaces/grass",
+    "asset://terrain/surfaces/reed",
+    "asset://terrain/surfaces/cliff_piece",
+    "asset://terrain/surfaces/debris"
+  ],
+  "format_version": 1,
+  "id": "asset://terrain/palettes/meadow",
+  "importer": "json_data",
+  "importer_version": 1,
+  "settings": {
+    "content_type": "terrain_palette",
+    "schema": "asset://schemas/terrain_palette",
+    "tags": [
+      "biome:meadow",
+      "terrain:surface"
+    ]
+  },
+  "source": "meadow.json",
+  "source_hash": "fnv1a64:f64981f042f706c6",
+  "type": "DataAsset"
+}

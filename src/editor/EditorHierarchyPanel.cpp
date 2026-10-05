@@ -5,8 +5,8 @@
 #include "editor/EditorHudHierarchy.h"
 #include "editor/EditorIsoGridCell.h"
 #include "editor/EditorPanelStyle.h"
-#include "editor/EditorWorkspace.h"
 #include "editor/EditorScenePreview.h"
+#include "editor/EditorWorkspace.h"
 
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/2dcomponents/IsoGridComponent.h"
@@ -52,13 +52,16 @@ std::string_view entityParent(const runtime::Entity &entity) {
   return {};
 }
 
-bool placementPreview(const EditorWorkspace &workspace, const runtime::Entity &entity) {
-  if (workspace.sceneDocument().entity(entity.id)) return false;
-  const auto owner=editorPlacementOwner(workspace.project().world,entity.id);
-  return !owner.empty() && owner!=entity.id;
+bool placementPreview(const EditorWorkspace &workspace,
+                      const runtime::Entity &entity) {
+  if (workspace.sceneDocument().entity(entity.id))
+    return false;
+  const auto owner = editorPlacementOwner(workspace.project().world, entity.id);
+  return !owner.empty() && owner != entity.id;
 }
 
-bool hasChildren(const EditorWorkspace &workspace, const runtime::World &world, const std::string_view parent) {
+bool hasChildren(const EditorWorkspace &workspace, const runtime::World &world,
+                 const std::string_view parent) {
   const runtime::Entity *entity =
       runtime::findEntity(world, std::string(parent));
   const auto *grid = entity == nullptr
@@ -66,7 +69,8 @@ bool hasChildren(const EditorWorkspace &workspace, const runtime::World &world, 
                          : entity->component<runtime::IsoGridComponent>();
   return (grid != nullptr && !grid->cellTextures.empty()) ||
          std::ranges::any_of(world.entities, [&](const auto &candidate) {
-           return entityParent(candidate) == parent && !placementPreview(workspace,candidate);
+           return entityParent(candidate) == parent &&
+                  !placementPreview(workspace, candidate);
          });
 }
 
@@ -100,9 +104,11 @@ void acceptEntityDrop(std::optional<HierarchyAction> &pending,
     if (const auto *payload =
             ImGui::AcceptDragDropPayload(EditorPrefabSourcePayload);
         payload && payload->Data && payload->DataSize > 1) {
-      pending = HierarchyAction{.kind = HierarchyAction::Kind::PlacePrefab,
-          .prefabSource = std::string(static_cast<const char *>(payload->Data),
-                                     static_cast<std::size_t>(payload->DataSize - 1))};
+      pending =
+          HierarchyAction{.kind = HierarchyAction::Kind::PlacePrefab,
+                          .prefabSource = std::string(
+                              static_cast<const char *>(payload->Data),
+                              static_cast<std::size_t>(payload->DataSize - 1))};
     }
   }
   if (const ImGuiPayload *payload =
@@ -133,9 +139,12 @@ bool applyHierarchyAction(EditorWorkspace &workspace,
     notice = succeeded ? "Entity created" : error;
     break;
   case HierarchyAction::Kind::ToggleVisibility: {
-    const auto *entity=runtime::findEntity(workspace.project().world,action.entityId);
-    succeeded=entity && workspace.editValue({.entityId=action.entityId,.field="enabled"},!entity->enabled,false,error);
-    notice=succeeded?"Entity visibility changed":error;
+    const auto *entity =
+        runtime::findEntity(workspace.project().world, action.entityId);
+    succeeded = entity && workspace.editValue(
+                              {.entityId = action.entityId, .field = "enabled"},
+                              !entity->enabled, false, error);
+    notice = succeeded ? "Entity visibility changed" : error;
     break;
   }
   case HierarchyAction::Kind::Duplicate:
@@ -155,8 +164,8 @@ bool applyHierarchyAction(EditorWorkspace &workspace,
     notice = succeeded ? "HUD subtree duplicated" : error;
     break;
   case HierarchyAction::Kind::ReparentHudNode:
-    succeeded = workspace.reparentHudNode(
-        action.entityId, action.parentId.value_or(""), error);
+    succeeded = workspace.reparentHudNode(action.entityId,
+                                          action.parentId.value_or(""), error);
     notice = succeeded ? "HUD element moved" : error;
     break;
   case HierarchyAction::Kind::Reparent:
@@ -238,8 +247,7 @@ void drawHudNode(const std::vector<EditorHudHierarchyNode> &nodes,
                  const EditorHudHierarchyNode &node,
                  const std::string_view filter, EditorWorkspace &workspace,
                  const std::string_view rootId,
-                 std::optional<HierarchyAction> &pending,
-                 std::string &notice) {
+                 std::optional<HierarchyAction> &pending, std::string &notice) {
   if (!hudNodeMatches(nodes, node, filter))
     return;
   const bool hasChildren =
@@ -250,7 +258,7 @@ void drawHudNode(const std::vector<EditorHudHierarchyNode> &nodes,
       ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_OpenOnArrow;
   if (!hasChildren)
     flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
-  if (workspace.selectedHudNodeId() == node.id)
+  if (workspace.isHudNodeSelected(node.id))
     flags |= ImGuiTreeNodeFlags_Selected;
   if (!node.visible)
     ImGui::PushStyleColor(ImGuiCol_Text,
@@ -268,15 +276,18 @@ void drawHudNode(const std::vector<EditorHudHierarchyNode> &nodes,
                                : IM_COL32(87, 83, 101, 255),
                   0.64F);
   if (ImGui::IsItemClicked()) {
-    workspace.selectHudNode(node.id);
+    if (ImGui::GetIO().KeyCtrl)
+      workspace.toggleHudNodeSelection(node.id);
+    else
+      workspace.selectHudNode(node.id);
   }
   if (ImGui::IsItemHovered()) {
     ImGui::SetTooltip("HUD %s · %s\nSelect to edit in the viewport",
                       node.type.c_str(), node.visible ? "visible" : "hidden");
   }
   const EditorHudDocument *document = workspace.hudDocument();
-  const bool authored = document != nullptr &&
-                        document->authoredNode(node.id) != nullptr;
+  const bool authored =
+      document != nullptr && document->authoredNode(node.id) != nullptr;
   const bool movable = authored && node.id != rootId;
   if (movable && ImGui::BeginDragDropSource()) {
     ImGui::SetDragDropPayload(HudNodePayload, node.id.c_str(),
@@ -291,27 +302,25 @@ void drawHudNode(const std::vector<EditorHudHierarchyNode> &nodes,
         payload != nullptr && payload->Data != nullptr &&
         payload->DataSize > 1) {
       const auto *data = static_cast<const char *>(payload->Data);
-      std::string draggedId(
-          data, static_cast<std::size_t>(payload->DataSize - 1));
+      std::string draggedId(data,
+                            static_cast<std::size_t>(payload->DataSize - 1));
       if (draggedId != node.id)
-        pending = HierarchyAction{.kind =
-                                      HierarchyAction::Kind::ReparentHudNode,
-                                  .entityId = std::move(draggedId),
-                                  .parentId = node.id};
+        pending =
+            HierarchyAction{.kind = HierarchyAction::Kind::ReparentHudNode,
+                            .entityId = std::move(draggedId),
+                            .parentId = node.id};
     }
     ImGui::EndDragDropTarget();
   }
   if (ImGui::BeginPopupContextItem(widgetId.c_str())) {
     if (ImGui::MenuItem("Duplicate UI subtree", nullptr, false, movable))
-      pending = HierarchyAction{
-          .kind = HierarchyAction::Kind::DuplicateHudNode,
-          .entityId = node.id};
+      pending = HierarchyAction{.kind = HierarchyAction::Kind::DuplicateHudNode,
+                                .entityId = node.id};
     if (ImGui::MenuItem("Move to HUD root", nullptr, false,
                         movable && node.parent != rootId))
-      pending = HierarchyAction{
-          .kind = HierarchyAction::Kind::ReparentHudNode,
-          .entityId = node.id,
-          .parentId = std::string(rootId)};
+      pending = HierarchyAction{.kind = HierarchyAction::Kind::ReparentHudNode,
+                                .entityId = node.id,
+                                .parentId = std::string(rootId)};
     ImGui::Separator();
     if (ImGui::MenuItem("Delete UI element")) {
       workspace.selectHudNode(node.id);
@@ -354,10 +363,9 @@ void drawHudHierarchy(EditorWorkspace &workspace, const std::string_view filter,
                   {rowMin.x + 28.0F, (rowMin.y + rowMax.y) * 0.5F},
                   IM_COL32(171, 151, 230, 255), 0.7F);
   if (open) {
-    const auto root =
-        std::ranges::find(nodes, std::string{}, &EditorHudHierarchyNode::parent);
-    const std::string rootId =
-        root == nodes.end() ? std::string{} : root->id;
+    const auto root = std::ranges::find(nodes, std::string{},
+                                        &EditorHudHierarchyNode::parent);
+    const std::string rootId = root == nodes.end() ? std::string{} : root->id;
     for (const EditorHudHierarchyNode &node : nodes)
       if (node.parent.empty())
         drawHudNode(nodes, node, filter, workspace, rootId, pending, notice);
@@ -371,7 +379,8 @@ void drawEntityNode(EditorWorkspace &workspace, const runtime::Entity &entity,
                     const runtime::World &world, const std::string_view filter,
                     std::optional<HierarchyAction> &pending,
                     std::string &notice) {
-  if (placementPreview(workspace,entity)) return;
+  if (placementPreview(workspace, entity))
+    return;
   const bool childMatch =
       std::ranges::any_of(world.entities, [&](const auto &candidate) {
         return entityParent(candidate) == entity.id &&
@@ -396,15 +405,15 @@ void drawEntityNode(EditorWorkspace &workspace, const runtime::Entity &entity,
   const bool selected = workspace.isEntitySelected(entity.id);
   if (selected)
     flags |= ImGuiTreeNodeFlags_Selected;
-  const bool prefabRow = !entity.prefabInstance.empty() ||
-                         entity.hasComponent<
-                             runtime::PrefabPlacement3DComponent>();
+  const bool prefabRow =
+      !entity.prefabInstance.empty() ||
+      entity.hasComponent<runtime::PrefabPlacement3DComponent>();
   if (prefabRow && !selected) {
     const ImVec2 rowMin = ImGui::GetCursorScreenPos();
     const ImVec2 rowMax{rowMin.x + ImGui::GetContentRegionAvail().x,
                         rowMin.y + ImGui::GetFrameHeight()};
-    ImGui::GetWindowDrawList()->AddRectFilled(
-        rowMin, rowMax, IM_COL32(35, 67, 99, 105), 2.0F);
+    ImGui::GetWindowDrawList()->AddRectFilled(rowMin, rowMax,
+                                              IM_COL32(35, 67, 99, 105), 2.0F);
   }
   if (!entity.enabled)
     ImGui::PushStyleColor(ImGuiCol_Text,
@@ -427,7 +436,8 @@ void drawEntityNode(EditorWorkspace &workspace, const runtime::Entity &entity,
   if (overVisibility)
     ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
   if (overVisibility && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-    pending=HierarchyAction{.kind=HierarchyAction::Kind::ToggleVisibility,.entityId=entity.id};
+    pending = HierarchyAction{.kind = HierarchyAction::Kind::ToggleVisibility,
+                              .entityId = entity.id};
   } else if (ImGui::IsItemClicked()) {
     if (ImGui::GetIO().KeyCtrl)
       workspace.toggleEntitySelection(entity.id);
@@ -448,17 +458,23 @@ void drawEntityNode(EditorWorkspace &workspace, const runtime::Entity &entity,
 
   if (!pending.has_value() && ImGui::BeginPopupContextItem(entity.id.c_str())) {
     const bool prefabInstance = !entity.prefabInstance.empty();
-    if (ImGui::MenuItem(prefabInstance ? "Duplicate prefab instance" : "Duplicate subtree"))
-      pending = HierarchyAction{.kind = prefabInstance ? HierarchyAction::Kind::DuplicatePrefab
-                                                      : HierarchyAction::Kind::Duplicate,
-                                .entityId = entity.id};
-    if (!prefabInstance && !entityParent(entity).empty() && ImGui::MenuItem("Move to scene root"))
+    if (ImGui::MenuItem(prefabInstance ? "Duplicate prefab instance"
+                                       : "Duplicate subtree"))
+      pending = HierarchyAction{
+          .kind = prefabInstance ? HierarchyAction::Kind::DuplicatePrefab
+                                 : HierarchyAction::Kind::Duplicate,
+          .entityId = entity.id};
+    if (!prefabInstance && !entityParent(entity).empty() &&
+        ImGui::MenuItem("Move to scene root"))
       pending = HierarchyAction{.kind = HierarchyAction::Kind::Reparent,
                                 .entityId = entity.id};
-    if (ImGui::MenuItem(prefabInstance ? "Remove prefab instance" : entityHasChildren ? "Delete subtree" : "Delete"))
-      pending = HierarchyAction{.kind = prefabInstance ? HierarchyAction::Kind::RemovePrefab
-                                                      : HierarchyAction::Kind::Delete,
-                                .entityId = entity.id};
+    if (ImGui::MenuItem(prefabInstance      ? "Remove prefab instance"
+                        : entityHasChildren ? "Delete subtree"
+                                            : "Delete"))
+      pending = HierarchyAction{
+          .kind = prefabInstance ? HierarchyAction::Kind::RemovePrefab
+                                 : HierarchyAction::Kind::Delete,
+          .entityId = entity.id};
     ImGui::EndPopup();
   }
 
@@ -481,6 +497,17 @@ void EditorHierarchyPanel::draw(EditorWorkspace &workspace,
     ImGui::End();
     return;
   }
+  if (workspace.activeDocument() == EditorWorkspaceDocument::TerrainAsset) {
+    const auto *asset = workspace.terrainAssetDocument();
+    editorSectionTitle("Terrain asset",
+                       asset ? asset->path().filename().string().c_str() : "");
+    ImGui::TextWrapped("This is an isolated preview of the shared terrain. "
+                       "Place the asset in a scene from Assets when ready.");
+    if (ImGui::Selectable("Terrain surface", true))
+      workspace.selectEntity("terrain");
+    ImGui::End();
+    return;
+  }
   const std::string documentName =
       hudOnly && workspace.hudDocument()
           ? workspace.hudDocument()->path().filename().string()
@@ -492,10 +519,11 @@ void EditorHierarchyPanel::draw(EditorWorkspace &workspace,
                            filter_.data(), filter_.size());
   ImGui::Spacing();
   if (!hudOnly) {
-    if (ImGui::SmallButton("+ Add Entity"))
+    if (editorIconButton("add-entity", EditorIcon::Add, "Add entity"))
       pending = HierarchyAction{.kind = HierarchyAction::Kind::Create};
     ImGui::SameLine();
-    if (ImGui::SmallButton("+ Preset Entity"))
+    if (editorIconButton("add-preset", EditorIcon::Prefab,
+                         "Create from entity preset"))
       ImGui::OpenPopup("add-preset-entity");
     if (ImGui::BeginPopup("add-preset-entity")) {
       ImGui::TextDisabled("Entity preset");
@@ -520,19 +548,25 @@ void EditorHierarchyPanel::draw(EditorWorkspace &workspace,
   if (workspace.hudDocument()) {
     if (!hudOnly)
       ImGui::SameLine();
-    if (ImGui::SmallButton("+ UI Element"))
+    if (editorIconButton("add-ui-element", EditorIcon::Hud, "Add UI element"))
       ImGui::OpenPopup("add-hud-element");
     if (ImGui::BeginPopup("add-hud-element")) {
       ImGui::TextDisabled("Add under selected HUD node");
       ImGui::Separator();
       ImGui::TextDisabled("Element");
       constexpr std::pair<const char *, const char *> elementTypes[]{
-          {"Container", "container"}, {"Panel", "panel"},
-          {"Text", "label"},           {"Image", "image"},
-          {"Button", "button"},       {"Toggle", "toggle"},
-          {"Slider", "slider"},       {"Text Input", "text_input"},
-          {"Scroll Area", "scroll"},  {"List", "list"},
-          {"Progress Bar", "progress"}, {"Modal", "modal"},
+          {"Container", "container"},
+          {"Panel", "panel"},
+          {"Text", "label"},
+          {"Image", "image"},
+          {"Button", "button"},
+          {"Toggle", "toggle"},
+          {"Slider", "slider"},
+          {"Text Input", "text_input"},
+          {"Scroll Area", "scroll"},
+          {"List", "list"},
+          {"Progress Bar", "progress"},
+          {"Modal", "modal"},
       };
       for (const auto &[label, type] : elementTypes) {
         if (!ImGui::MenuItem(label))
@@ -585,58 +619,17 @@ void EditorHierarchyPanel::draw(EditorWorkspace &workspace,
     }
   }
 
-  const bool handlesKeyboard = !hudOnly && ImGui::IsWindowFocused() &&
-                               !ImGui::GetIO().WantTextInput &&
-                               !workspace.selectedEntityId().empty();
-  if (handlesKeyboard) {
-    const std::string selected(workspace.selectedEntityId());
-    if (ImGui::IsKeyPressed(ImGuiKey_F2, false)) {
-      const nlohmann::json *entity = workspace.sceneDocument().entity(selected);
-      const std::string name =
-          entity == nullptr ? selected : entity->value("name", selected);
-      rename_.fill('\0');
-      std::copy_n(name.data(), std::min(name.size(), rename_.size() - 1),
-                  rename_.data());
-      renamingEntityId_ = selected;
-      ImGui::OpenPopup("Rename Entity");
-    } else if (ImGui::IsKeyPressed(ImGuiKey_Delete, false)) {
-      if (workspace.selectedIsoGridCell())
-        pending = HierarchyAction{.kind = HierarchyAction::Kind::DeleteGridCell,
-                                  .gridCell = workspace.selectedIsoGridCell()};
-      else
-        pending =
-            HierarchyAction{.kind = HierarchyAction::Kind::DeleteSelection,
-                            .entityId = selected};
-    } else if (ImGui::GetIO().KeyCtrl &&
-               ImGui::IsKeyPressed(ImGuiKey_D, false)) {
-      pending = HierarchyAction{.kind = HierarchyAction::Kind::Duplicate,
-                                .entityId = selected};
-    } else if (ImGui::GetIO().KeyCtrl && ImGui::GetIO().KeyShift &&
-               ImGui::IsKeyPressed(ImGuiKey_N, false)) {
-      pending = HierarchyAction{.kind = HierarchyAction::Kind::Create,
-                                .parentId = selected};
-    } else if (ImGui::IsKeyPressed(ImGuiKey_F, false)) {
-      if (workspace.viewDimension() ==
-          EditorSceneViewDimension::TwoDimensional) {
-        if (workspace.selectedIsoGridCell())
-          (void)workspace.sceneView2D().frameGridCell(
-              workspace.project().world, *workspace.selectedIsoGridCell());
-        else
-          (void)workspace.sceneView2D().frameEntity(workspace.project().world,
-                                                    selected);
-      } else {
-        (void)workspace.sceneView().frameEntity(workspace.project().world,
-                                                selected);
-      }
-      notice = "Framed selected entity";
-    }
-  }
-  if (ImGui::IsWindowFocused() && !ImGui::GetIO().WantTextInput &&
-      !workspace.selectedHudNodeId().empty() &&
-      ImGui::IsKeyPressed(ImGuiKey_Delete, false)) {
-    std::string error;
-    notice =
-        workspace.deleteSelectedHudNode(error) ? "HUD element deleted" : error;
+  if (pendingRename_ && !hudOnly) {
+    const std::string selected = std::move(*pendingRename_);
+    pendingRename_.reset();
+    const nlohmann::json *entity = workspace.sceneDocument().entity(selected);
+    const std::string name =
+        entity == nullptr ? selected : entity->value("name", selected);
+    rename_.fill('\0');
+    std::copy_n(name.data(), std::min(name.size(), rename_.size() - 1),
+                rename_.data());
+    renamingEntityId_ = selected;
+    ImGui::OpenPopup("Rename Entity");
   }
 
   if (ImGui::BeginPopupModal("Rename Entity", nullptr,

@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://demiengine.local/schemas/terrain-palette.schema.json",
+  "title": "DemiEngine Terrain Palette",
+  "description": "Reusable map from semantic terrain roles to existing material, mesh and prefab assets. Authored as a DataAsset document with settings.content_type terrain_palette. Role vocabulary, scale ordering, collision policies and cross-asset resolution are additionally enforced by the C++ loader, because the engine's DataSchema validator ignores additionalProperties, minItems, maxItems, maxLength, pattern and uniqueItems.",
+  "type": "object",
+  "required": ["format_version", "name", "roles"],
+  "additionalProperties": false,
+  "properties": {
+    "format_version": {"const": 1},
+    "name": {"type": "string", "minLength": 1},
+    "roles": {
+      "type": "object",
+      "minProperties": 1,
+      "description": "Keyed by role name rather than a list, so a duplicate role is structurally impossible and iteration order is deterministic.",
+      "propertyNames": {"$ref": "#/$defs/role"},
+      "additionalProperties": {"$ref": "#/$defs/entry"}
+    },
+    "required_roles": {
+      "type": "array",
+      "uniqueItems": true,
+      "description": "Roles a consumer must find. Every listed role must also exist in roles.",
+      "items": {"$ref": "#/$defs/role"}
+    }
+  },
+  "$defs": {
+    "role": {
+      "type": "string",
+      "enum": ["exposed_rock", "soil", "sand", "snow", "wet_ground", "tree", "bush", "grass", "reed", "cliff_piece", "debris"]
+    },
+    "entry": {
+      "type": "object",
+      "required": ["asset"],
+      "additionalProperties": false,
+      "properties": {
+        "asset": {"type": "string", "pattern": "^asset://.+", "description": "Material, mesh or texture asset used for this role. Must resolve and be declared in the manifest dependencies."},
+        "prefab": {"type": "string", "pattern": "^prefab://.+", "description": "Optional prefab spawned instead of the bare asset."},
+        "weight": {"type": "number", "minimum": 0, "default": 1, "description": "Relative selection weight. At least one role must have a weight above 0."},
+        "scale": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number", "exclusiveMinimum": 0}, "default": [1, 1], "description": "Physical scale range as [scale_min, scale_max] with scale_min <= scale_max."},
+        "spacing": {"type": "number", "minimum": 0, "default": 1, "description": "World units between instances; 0 leaves placement unconstrained."},
+        "collision": {"enum": ["none", "static", "trigger"], "default": "static"},
+        "lod": {"type": "integer", "minimum": 0, "default": 0}
+      }
+    }
+  }
+}

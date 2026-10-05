@@ -3,6 +3,7 @@
 #include "editor/EditorViewportProjection.h"
 #include "editor/EditorWorkspace.h"
 
+#include "demi/assets/AssetHash.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
 #include "demi/runtime/terrain/TerrainGenerationCache.h"
@@ -69,16 +70,101 @@ struct TemporaryProject {
   TemporaryProject &operator=(const TemporaryProject &) = delete;
 };
 
+// A preset is an ordinary DataAsset: the manifest declares its stable id and
+// its terrain_preset content type, and the source is the preset document. The
+// manifest carries the real source hash because the project validator refuses
+// to load a project whose assets are stale.
+void writePresetAsset(const std::filesystem::path &root, const std::string &name,
+                      const Json &document) {
+  const auto directory = root / "assets/terrain/presets";
+  std::filesystem::create_directories(directory);
+  const auto source = directory / (name + ".json");
+  writeJson(source, document);
+  const Json manifest = {
+      {"format_version", 1},
+      {"id", "asset://terrain/presets/" + name},
+      {"type", "DataAsset"},
+      {"importer", "json_data"},
+      {"importer_version", 1},
+      {"source_hash", *assets::hashFiles({source})},
+      {"dependencies", Json::array()},
+      {"source", name + ".json"},
+      {"settings", {{"content_type", "terrain_preset"}}}};
+  writeJson(directory / (name + ".asset.json"), manifest);
+}
+
+// The fixture terrain paints a "hill" region, so a preset that can be applied
+// to it has to keep that biome available. A preset is free to add its own. The
+// document declares the canonical layer set because the loader validates the
+// assembled preset against the same recipe rules as an authored document, and
+// the recipe owns the only accepted layer kind names.
+// Written with named locals rather than one nested literal: the landform and
+// biome maps are separate objects now, and a single dense initializer is
+// unreadable and easy to misbalance.
+Json alpinePreset(const std::string &name, int seed, int cells = 8,
+                  bool keepHill = true) {
+  const float extent = cells == 8 ? 8.8F : 17.6F;
+  const auto shape = [](float base, float variation, float feature) {
+    return Json{{"base_height", base},
+                {"height_variation", variation},
+                {"feature_size", feature},
+                {"roughness", 0.45},
+                {"octaves", 3}};
+  };
+  const auto surface = [](const char *landform, double r, double g, double b) {
+    return Json{{"landform", landform}, {"color", {r, g, b, 1.0}}};
+  };
+
+  Json landforms{{"default", shape(0, 4, 16)},
+                 {"rock", shape(9, 6, 18)},
+                 {"scree", shape(3, 2, 10)}};
+  Json biomes{{"default", surface("default", 0.2, 0.5, 0.2)},
+              {"rock", surface("rock", 0.5, 0.5, 0.5)},
+              {"scree", surface("scree", 0.6, 0.6, 0.55)}};
+  if (keepHill) {
+    landforms["hill"] = shape(4, 3, 12);
+    biomes["hill"] = surface("hill", 0.3, 0.5, 0.2);
+  }
+
+  Json recipe{{"format_version", 1},
+              {"name", "Alpine ridge"},
+              {"label", "Alpine"},
+              {"description", name},
+              {"size", {extent, extent}},
+              {"cells_x", cells},
+              {"cells_z", cells},
+              {"chunk_cells", 4},
+              {"seed", seed},
+              {"default_biome", "rock"},
+              {"default_landform", "default"},
+              {"landforms", std::move(landforms)},
+              {"biomes", std::move(biomes)},
+              {"layers",
+               Json::array({{{"id", "generation"}, {"name", "Generation"},
+                             {"kind", "generation"}, {"enabled", true}},
+                            {{"id", "biomes"}, {"name", "Biomes"},
+                             {"kind", "biome"}, {"enabled", true}},
+                            {{"id", "sculpt"}, {"name", "Sculpt"},
+                             {"kind", "sculpt"}, {"enabled", true}},
+                            {{"id", "protection"}, {"name", "Protection"},
+                             {"kind", "protection"}, {"enabled", true}},
+                            {{"id", "exclusions"}, {"name", "Exclusions"},
+                             {"kind", "exclusion"}, {"enabled", true}}})}};
+  return recipe;
+}
+
 void createProject(const std::filesystem::path &root) {
   runtime::TerrainRecipe recipe;
   recipe.size = {8.8F, 8.8F};
   recipe.cellsX = recipe.cellsZ = 8;
   recipe.chunkCells = 4;
-  recipe.biomes.at("default").featureSize = 3;
-  recipe.biomes.at("default").heightVariation = 1;
-  recipe.biomes.emplace("hill", runtime::TerrainBiome{.baseHeight = 4,
-                                                      .heightVariation = 1,
-                                                      .featureSize = 3});
+  // A biome names a shape; the shape itself is what has elevation.
+  recipe.landforms.at("default").featureSize = 3;
+  recipe.landforms.at("default").heightVariation = 1;
+  recipe.landforms.emplace("hill", runtime::TerrainLandform{.baseHeight = 4,
+                                                            .heightVariation = 1,
+                                                            .featureSize = 3});
+  recipe.biomes.emplace("hill", runtime::TerrainBiome{.landform = "hill"});
   recipe.regions.push_back({.biome = "hill", .center = {7, 7}, .radius = 2});
   recipe.edits.push_back({.kind = runtime::TerrainEditKind::Raise,
                           .center = {1, 1},
@@ -139,7 +225,7 @@ terrain(const editor::EditorWorkspace &workspace,
             << ", selected=" << workspace.selectedEntityId()
             << ", prefab=" << workspace.isPrefabDocument()
             << ", document=" << workspace.sceneDocument().path();
-    if (component)
+    if (component && component->recipe.is_object())
       message << ", seed=" << component->recipe.value("seed", 1337);
     std::size_t surfaces = 0;
     for (const auto &candidate : workspace.project().world.entities) {
@@ -595,12 +681,13 @@ void testLivePreviewSparseHistoryAndReadiness(
         "Live recipe Save did not persist the exact authored commit");
 }
 
-void testAbsentDefaultRecipeHistory() {
+void testEmptyProceduralRecipeHistory() {
   TemporaryProject project;
   createProject(project.root);
   const auto path = project.root / "scenes/main.scene.json";
   auto source = readJson(path);
-  source["entities"][0]["components"]["Terrain3D"].erase("recipe");
+  const Json compactRecipe{{"format_version", 1}};
+  source["entities"][0]["components"]["Terrain3D"]["recipe"] = compactRecipe;
   writeJson(path, source);
   editor::EditorWorkspace workspace;
   std::string error;
@@ -620,13 +707,187 @@ void testAbsentDefaultRecipeHistory() {
   check(workspace.undo(error), "Absent recipe Undo failed: " + error);
   check(
       workspace.sceneDocument().json() == source &&
-          terrain(workspace).recipe == editor::defaultEditorTerrainRecipe() &&
+          terrain(workspace).recipe == compactRecipe &&
           terrain(workspace).generated->heights == before->heights,
       "Absent recipe Undo did not restore default terrain and compact source");
   check(workspace.redo(error), "Absent recipe Redo failed: " + error);
   check(terrain(workspace).recipe == replacement &&
             terrain(workspace).generated->heights == after->heights,
         "Absent recipe Redo did not restore the exact brush result");
+}
+
+// A landscape preset is an ordinary DataAsset, so the picker, the loader and
+// the undoable commit all run through the real project pipeline.
+void testTerrainPresetApplyHistoryAndGridDecision() {
+  TemporaryProject project;
+  createProject(project.root);
+  writePresetAsset(project.root, "alpine", alpinePreset("alpine", 4242));
+  writePresetAsset(project.root, "rolling",
+                   alpinePreset("rolling", 77, 8, false));
+  writePresetAsset(project.root, "valley", alpinePreset("valley", 11, 16));
+  {
+    // Exists as a terrain_preset asset but the preset itself is invalid, so the
+    // picker must report it instead of silently dropping it.
+    auto broken = alpinePreset("broken", 5);
+    broken.erase("name");
+    writePresetAsset(project.root, "broken", broken);
+  }
+  editor::EditorWorkspace workspace;
+  std::string error;
+  const bool opened = workspace.open(project.root, error);
+  check(opened, "Preset fixture open failed: " + error);
+  selectTerrain(workspace);
+  const Json initialDocument = workspace.sceneDocument().json();
+  const Json initialRecipe = terrain(workspace).recipe;
+  const auto initialField = terrain(workspace).generated;
+  const Json building = *workspace.sceneDocument().entity("building");
+
+  // Discovery comes from the asset registry, so the manifest's own id is what
+  // the picker lists and what the loader resolves.
+  const auto &presets = workspace.terrainAuthoring().presets();
+  check(presets.size() == 3,
+        "Preset discovery did not list the three loadable presets");
+  check(presets.front().id == "asset://terrain/presets/alpine" &&
+            presets.back().id == "asset://terrain/presets/valley",
+        "Preset discovery did not use the manifest asset ids");
+  check(workspace.terrainAuthoring().preset("asset://terrain/presets/rolling") !=
+            nullptr,
+        "Preset cache lost a listed preset");
+  check(workspace.terrainPresetErrors().size() == 1 &&
+            workspace.terrainPresetErrors().front().find("name") !=
+                std::string::npos,
+        "The invalid preset was not reported with the loader message");
+
+  // Applying replaces generation keys only, and commits as one undoable recipe
+  // edit, exactly like Generate.
+  const bool applied =
+      workspace.applyTerrainPreset("asset://terrain/presets/alpine", error);
+  check(applied, "Preset apply failed: " + error);
+  pollCompletion(workspace);
+  const Json appliedRecipe = terrain(workspace).recipe;
+  const auto appliedField = terrain(workspace).generated;
+  check(appliedRecipe["seed"] == 4242 &&
+            appliedRecipe["default_biome"] == "rock" &&
+            appliedRecipe["resolution"] == Json::array({8, 8}),
+        "Preset generation keys did not reach the recipe");
+  check(appliedRecipe["preset_id"] == "asset://terrain/presets/alpine" &&
+            appliedRecipe["preset_version"] == 1,
+        "Preset apply did not record provenance");
+  check(appliedRecipe["regions"] == initialRecipe["regions"] &&
+            appliedRecipe["edits"] == initialRecipe["edits"],
+        "Preset apply discarded authored regions or edits");
+  check(appliedField != initialField &&
+            appliedField->heights != initialField->heights,
+        "Preset apply did not replace the visible native surface");
+  checkIndependentObject(workspace, building);
+
+  // Undo restores the exact previous document, draft and surface.
+  const bool undone = workspace.undo(error);
+  check(undone, "Preset apply Undo failed: " + error);
+  check(workspace.sceneDocument().json() == initialDocument &&
+            workspace.terrainAuthoring().draft() == initialRecipe &&
+            terrain(workspace).generated->heights == initialField->heights,
+        "Preset apply Undo did not restore the previous recipe and surface");
+  const bool redone = workspace.redo(error);
+  check(redone, "Preset apply Redo failed: " + error);
+  check(terrain(workspace).recipe == appliedRecipe &&
+            terrain(workspace).generated->heights == appliedField->heights,
+        "Preset apply Redo did not restore the exact preset and surface");
+
+  // Applying the same preset again is idempotent: no diff and no extra Undo
+  // entry, so re-pressing Apply is not an edit an author has to undo.
+  const bool reapplied =
+      workspace.applyTerrainPreset("asset://terrain/presets/alpine", error);
+  check(reapplied, "Repeated preset apply failed: " + error);
+  check(terrain(workspace).recipe == appliedRecipe,
+        "Repeated preset apply changed the committed recipe");
+  const bool undoneAgain = workspace.undo(error);
+  check(undoneAgain, "Repeated preset apply Undo failed: " + error);
+  check(workspace.sceneDocument().json() == initialDocument &&
+            !workspace.sceneDocument().canUndo(),
+        "Repeated preset apply added a spurious Undo entry");
+  const bool redoneAgain = workspace.redo(error);
+  check(redoneAgain, "Could not restore the applied preset: " + error);
+  check(terrain(workspace).recipe == appliedRecipe,
+        "Redo did not restore the applied preset");
+
+  // Clearing removes both provenance keys together and keeps the strokes.
+  const bool cleared = workspace.clearTerrainPreset(error);
+  check(cleared, "Preset clear failed: " + error);
+  pollCompletion(workspace);
+  check(!terrain(workspace).recipe.contains("preset_id") &&
+            !terrain(workspace).recipe.contains("preset_version") &&
+            terrain(workspace).recipe["regions"] == initialRecipe["regions"] &&
+            terrain(workspace).recipe["edits"] == initialRecipe["edits"],
+        "Preset clear left partial provenance or lost authored strokes");
+  check(runtime::TerrainRecipe::parse(terrain(workspace).recipe).presetId.empty(),
+        "A recipe without provenance did not parse");
+  const bool clearUndone = workspace.undo(error);
+  check(clearUndone, "Preset clear Undo failed: " + error);
+  check(terrain(workspace).recipe == appliedRecipe,
+        "Preset clear Undo did not restore the stamped recipe");
+  const bool clearRedone = workspace.redo(error);
+  check(clearRedone, "Preset clear Redo failed: " + error);
+  check(!terrain(workspace).recipe.contains("preset_id"),
+        "Preset clear Redo did not restore the cleared recipe");
+
+  // A preset that cannot resolve the draft's own strokes is refused, and the
+  // engine's own message reaches the author instead of being swallowed.
+  const Json beforeRefusal = workspace.sceneDocument().json();
+  const bool refused =
+      workspace.applyTerrainPreset("asset://terrain/presets/rolling", error);
+  check(!refused, "Merging a preset that drops a painted biome was accepted");
+  check(error.find("unknown biome") != std::string::npos,
+        "Preset refusal did not surface the merge message: " + error);
+  check(workspace.sceneDocument().json() == beforeRefusal &&
+            workspace.terrainAuthoring().draft() == terrain(workspace).recipe,
+        "A refused preset apply mutated the document or its draft");
+  error.clear();
+  const bool missing =
+      workspace.applyTerrainPreset("asset://terrain/presets/missing", error);
+  check(!missing && error.find("not available") != std::string::npos,
+        "An unknown preset id did not explain itself: " + error);
+  error.clear();
+
+  // A preset that moves the grid stops at the same decision a hand-edited size
+  // does, so strokes are only resampled on an explicit choice.
+  const Json documentBeforeResize = workspace.sceneDocument().json();
+  const bool resizing =
+      workspace.applyTerrainPreset("asset://terrain/presets/valley", error);
+  check(!resizing, "A grid-changing preset should have stopped for a decision");
+  check(error == "Choose how to preserve terrain edits after resizing.",
+        "A grid-changing preset did not stop for the resize decision: " + error);
+  check(workspace.terrainAuthoring().needsResizeDecision(),
+        "A grid-changing preset did not open the resize decision");
+  check(workspace.terrainAuthoring().draft()["edits"] == initialRecipe["edits"] &&
+            workspace.terrainAuthoring().draft()["resolution"] ==
+                Json::array({16, 16}),
+        "The staged grid change did not keep strokes on the new grid");
+  check(workspace.sceneDocument().json() == documentBeforeResize,
+        "The decision was skipped and the document was written anyway");
+  error.clear();
+  const bool kept = workspace.terrainAuthoring().generate(
+      editor::EditorTerrainResize::Keep, error);
+  check(kept, "Keeping strokes across the preset grid failed: " + error);
+  pollCompletion(workspace);
+  check(terrain(workspace).recipe["edits"] == initialRecipe["edits"] &&
+            terrain(workspace).recipe["preset_id"] ==
+                "asset://terrain/presets/valley",
+        "The grid-changing preset lost strokes or provenance");
+  const bool resizeUndone = workspace.undo(error);
+  check(resizeUndone, "The grid-changing preset Undo failed: " + error);
+  check(workspace.sceneDocument().json() == documentBeforeResize,
+        "The grid-changing preset Undo did not restore the previous document");
+  workspace.terrainAuthoring().discardDraft();
+  check(workspace.terrainAuthoring().draft() == terrain(workspace).recipe,
+        "Discarding the draft did not restore the committed recipe");
+
+  const bool saved = workspace.save(error);
+  check(saved, "Preset workflow Save failed: " + error);
+  checkIndependentObject(workspace, building);
+  check(readJson(project.root / "scenes/main.scene.json") ==
+            workspace.sceneDocument().json(),
+        "Save did not persist the authored document");
 }
 
 void testLiveSelectionAndSourceConflict() {
@@ -689,6 +950,161 @@ void testLiveSelectionAndSourceConflict() {
             terrain(workspace).generated->heights == baselineField->heights &&
             !workspace.sceneDocument().canUndo(),
         "Cancelled preview leaked into authored source or history");
+}
+
+void testSceneSwitchPreservesTerrainDraft() {
+  TemporaryProject project;
+  createProject(project.root);
+  const auto firstPath = project.root / "scenes/main.scene.json";
+  const auto secondPath = project.root / "scenes/other.scene.json";
+  auto secondSource = readJson(firstPath);
+  secondSource["id"] = "scene://terrain_workspace/other";
+  writeJson(secondPath, secondSource);
+  auto projectSource = readJson(project.root / "demi.project.json");
+  projectSource["scenes"].push_back({{"id", "scene://terrain_workspace/other"},
+                                     {"path", "scenes/other.scene.json"}});
+  writeJson(project.root / "demi.project.json", projectSource);
+
+  editor::EditorWorkspace workspace;
+  std::string error;
+  check(workspace.open(project.root, error), error);
+  selectTerrain(workspace);
+  check(workspace.pinTerrainAuthoring("terrain", error), error);
+  auto &authoring = workspace.terrainAuthoring();
+  authoring.draft()["seed"] = 987;
+  workspace.selectEntity("building");
+  const auto draft = authoring.draft();
+  const auto source = workspace.sceneDocument().json();
+  const auto field = terrain(workspace).generated;
+  check(!workspace.sceneDocument().isDirty(),
+        "Terrain graph draft unexpectedly dirtied scene source");
+  check(!workspace.openSceneDocument(secondPath, error) && !error.empty(),
+        "Scene switch accepted an unapplied inline terrain graph draft");
+  check(workspace.sceneDocument().path() == firstPath &&
+            workspace.sceneDocument().json() == source &&
+            authoring.draft() == draft && authoring.entityId() == "terrain" &&
+            workspace.terrainAuthoringPinned() &&
+            workspace.selectedEntityId() == "building" &&
+            terrain(workspace).generated == field,
+        "Refused scene switch changed graph ownership, selection or terrain "
+        "data");
+
+  error.clear();
+  check(workspace.openSceneDocument(firstPath, error), error);
+  check(authoring.draft() == draft && workspace.terrainAuthoringPinned(),
+        "Re-focusing the current scene discarded its terrain draft");
+  authoring.discardDraft();
+  error.clear();
+  check(workspace.openSceneDocument(secondPath, error), error);
+  check(workspace.sceneDocument().path() == secondPath &&
+            workspace.sceneDocument().json() == secondSource &&
+            !workspace.terrainAuthoringPinned(),
+        "Discarded draft still blocked scene switching or leaked its old pin");
+}
+
+void testPinnedTerrainTarget() {
+  TemporaryProject project;
+  createProject(project.root);
+  // A second configured terrain proves retargeting cannot consume the first
+  // graph's unapplied draft. It has independent authored and native identity.
+  auto source = readJson(project.root / "scenes/main.scene.json");
+  auto second = source["entities"][0];
+  second["id"] = "other_terrain";
+  second["components"]["Transform3D"]["position"] = {30, 0, 0};
+  source["entities"].push_back(std::move(second));
+  writeJson(project.root / "scenes/main.scene.json", source);
+  editor::EditorWorkspace workspace;
+  std::string error;
+  check(workspace.open(project.root, error), error);
+  selectTerrain(workspace);
+  check(workspace.pinTerrainAuthoring("terrain", error), error);
+  auto &authoring = workspace.terrainAuthoring();
+  authoring.brush.mode = editor::EditorTerrainBrush::Raise;
+  check(authoring.brushActive(), "Selected pinned terrain disabled its brush");
+  authoring.draft()["seed"] = 744;
+  const auto draft = authoring.draft();
+  workspace.selectEntity("building");
+  check(
+      workspace.terrainAuthoringPinned() && authoring.entityId() == "terrain" &&
+          authoring.draft() == draft && !authoring.brushActive() &&
+          workspace.selectedEntityId() == "building",
+      "Inspector selection changed the pinned target, draft or brush routing");
+  error.clear();
+  check(!workspace.pinTerrainAuthoring("other_terrain", error) &&
+            !error.empty() && authoring.entityId() == "terrain" &&
+            authoring.draft() == draft,
+        "Retargeting discarded an unapplied inline terrain draft");
+  error.clear();
+  check(!workspace.unpinTerrainAuthoring(error) && !error.empty() &&
+            workspace.terrainAuthoringPinned() && authoring.draft() == draft,
+        "Closing the graph discarded an unapplied inline terrain draft");
+  error.clear();
+  check(authoring.generate(std::nullopt, error), error);
+  error.clear();
+  check(!workspace.unpinTerrainAuthoring(error),
+        "Closing released a graph with pending generation");
+  error.clear();
+  check(!workspace.pinTerrainAuthoring("other_terrain", error),
+        "Retargeting released a graph with pending generation");
+  pollCompletion(workspace);
+  check(workspace.selectedEntityId() == "building" &&
+            authoring.entityId() == "terrain" &&
+            terrain(workspace).recipe.at("seed") == 744 &&
+            !authoring.hasDraftChanges() && !authoring.brushActive(),
+        "Graph generation did not commit to its owner independently of "
+        "selection");
+  check(workspace.sceneDocument().entity("building") != nullptr &&
+            *workspace.sceneDocument().entity("building") ==
+                source["entities"][1],
+        "Pinned generation changed the inspected object's source");
+  check(workspace.sceneDocument().entity("other_terrain") != nullptr &&
+            *workspace.sceneDocument().entity("other_terrain") ==
+                source["entities"].back(),
+        "Pinned generation changed another terrain's source");
+  check(workspace.undo(error), error);
+  check(workspace.selectedEntityId() == "building" &&
+            workspace.sceneDocument().json() == source,
+        "Pinned generation Undo changed selection or missed its source owner");
+  check(workspace.redo(error), error);
+  check(terrain(workspace).recipe.at("seed") == 744,
+        "Pinned generation Redo missed its source owner");
+  selectTerrain(workspace);
+  check(authoring.brushActive(),
+        "Re-selecting the pinned terrain lost its brush mode");
+  const auto appliedField = terrain(workspace).generated;
+  authoring.brush.radius = 1;
+  check(authoring.update({.hovered = true,
+                          .focused = true,
+                          .leftPressed = true,
+                          .leftDown = true},
+                         runtime::Vec3{1.1F, 0, 1.1F}, error),
+        error);
+  pollCompletion(workspace);
+  check(authoring.stroking() && terrain(workspace).generated != appliedField,
+        "Pinned stroke did not publish a transient preview");
+  workspace.selectEntity("building");
+  pollCompletion(workspace);
+  check(
+      workspace.terrainAuthoringPinned() && authoring.entityId() == "terrain" &&
+          !authoring.stroking() && !authoring.brushActive() &&
+          terrain(workspace).generated == appliedField,
+      "Leaving pinned terrain did not cancel only its transient brush stroke");
+  selectTerrain(workspace);
+  workspace.selectEntity("other_terrain");
+  check(authoring.entityId() == "terrain" && !authoring.brushActive(),
+        "Another selected terrain redirected the pinned graph's brush");
+  error.clear();
+  check(workspace.unpinTerrainAuthoring(error), error);
+  check(!workspace.terrainAuthoringPinned() &&
+            authoring.entityId() == "other_terrain",
+        "Unpin did not return authoring to the selected terrain");
+  authoring.draft()["seed"] = 745;
+  workspace.selectEntity("building");
+  check(authoring.entityId().empty() && !authoring.brushActive(),
+        "Unpinned non-terrain selection left brush authoring active");
+  workspace.selectEntity("other_terrain");
+  check(authoring.draft().at("seed") == 745,
+        "Unpinned selection lost its retained settings draft");
 }
 
 void testInheritedPrefabRecipeHistory() {
@@ -762,9 +1178,12 @@ int main() {
     TemporaryProject liveProject;
     createProject(liveProject.root);
     testLivePreviewSparseHistoryAndReadiness(liveProject.root);
-    testAbsentDefaultRecipeHistory();
+    testEmptyProceduralRecipeHistory();
+    testTerrainPresetApplyHistoryAndGridDecision();
     testInheritedPrefabRecipeHistory();
     testLiveSelectionAndSourceConflict();
+    testPinnedTerrainTarget();
+    testSceneSwitchPreservesTerrainDraft();
     std::cout << "Editor terrain workspace tests passed.\n";
   } catch (const std::exception &exception) {
     std::cerr << "Editor terrain workspace tests failed: " << exception.what()

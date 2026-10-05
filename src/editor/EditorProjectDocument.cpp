@@ -1,6 +1,6 @@
 #include "editor/EditorProjectDocument.h"
 
-#include "editor/EditorAuthoredJson.h"
+#include "demi/filesystem/AuthoredJsonPatch.h"
 
 #include "demi/runtime/input/InputActionParser.h"
 #include "demi/runtime/scene/ProjectParser.h"
@@ -9,6 +9,10 @@
 #include <set>
 
 namespace demi::editor {
+// Authored-source patching is shared infrastructure, not editor state.
+using demi::filesystem::normalizeAuthoredValue;
+using demi::filesystem::patchAuthoredJsonSource;
+
 namespace {
 
 bool validAssetUri(const std::string_view value) {
@@ -50,7 +54,7 @@ bool EditorProjectDocument::reload(std::string &error) {
 
 bool EditorProjectDocument::save(std::string &error) {
   const std::string text =
-      patchEditorJsonSource(originalText_, savedDocument_, document_)
+      patchAuthoredJsonSource(originalText_, savedDocument_, document_)
           .value_or(document_.dump(2) + '\n');
   FileRevision replacement;
   const DocumentWriteStatus status =

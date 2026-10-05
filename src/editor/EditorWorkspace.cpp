@@ -1,19 +1,24 @@
 #include "editor/EditorWorkspace.h"
 #include "demi/filesystem/ProjectPaths.h"
 
+#include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
 #include "editor/EditorIsoGridCell.h"
 #include "editor/EditorIsoGridCellDocument.h"
 #include "editor/EditorScenePreview.h"
 #include "editor/EditorTerrainPicking.h"
-#include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
 
 #include "demi/assets/AssetRegistry.h"
+#include "demi/assets/DataAsset.h"
+#include "demi/assets/TerrainAsset.h"
 #include "demi/runtime/scene/SceneEntityParser.h"
+#include "demi/runtime/scene/ProjectParser.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/2dcomponents/IsoGridComponent.h"
-#include "demi/runtime/scene/composition/PrefabResolver.h"
 #include "demi/runtime/scene/composition/EntityHierarchy.h"
+#include "demi/runtime/scene/composition/PrefabResolver.h"
 #include "demi/schema/Validation.h"
+#include "editor/EditorHudHierarchy.h"
+#include "editor/EditorModuleCatalog.h"
 
 #include <algorithm>
 #include <exception>
@@ -28,19 +33,77 @@ std::filesystem::path normalized(const std::filesystem::path &path) {
 
 bool samePath(const std::filesystem::path &left,
               const std::filesystem::path &right) {
+  if (left.empty() || right.empty())
+    return left.empty() && right.empty();
   return normalized(left) == normalized(right);
 }
 
 } // namespace
 
+bool EditorWorkspace::openProjectContext(const EditorWorkspace &source,
+                                       std::string &error) {
+  if (project_) {
+    error = "Project-only context initialization requires a new workspace.";
+    return false;
+  }
+  if (!source.project_) {
+    error = "Open a project before creating a document session.";
+    return false;
+  }
+  EditorProjectDocument document;
+  if (!document.open(source.projectPath_, error))
+    return false;
+  auto metadata = runtime::scene_loading::parseProjectData(
+      source.projectPath_, document.json(), error);
+  if (!metadata)
+    return false;
+  projectPath_ = source.projectPath_;
+  project_.emplace(runtime::LoadedProject{.project = std::move(*metadata)});
+  projectDocument_ = std::move(document);
+  terrainPreviewPrefabs_.configure(project_->project.projectDirectory);
+  sources_ = source.sources_;
+  sourceDirectories_ = source.sourceDirectories_;
+  sourceIndexRevision_ = source.sourceIndexRevision_;
+  assetIndex_ = source.assetIndex_;
+  tilemaps2D_ = source.tilemaps2D_;
+  configureTerrainInputResolver();
+  refreshTerrainPresets();
+  return true;
+}
+
 bool EditorWorkspace::open(std::filesystem::path projectPath,
                            std::string &error) {
+  if (project_ &&
+      (hasUnsavedChanges() || terrainAuthoring_->hasDraftChanges() ||
+       terrainAssetDraft_)) {
+    error = "Save or undo documents and generate or discard terrain drafts "
+            "before opening a project.";
+    return false;
+  }
   if (!restoreTerrainPreview(error))
     return false;
   terrainAuthoring_->unbind();
+  terrainAuthoringTarget_.reset();
+  terrainAssetDocument_.reset();
+  terrainAssetSurface_.reset();
+  terrainAssetDraft_.reset();
+  terrainAssetBinding_ = false;
+  lastEditTerrainAsset_ = false;
+  terrainAssetCachePending_ = false;
+  parkedSceneWorld_.reset();
+  parkedTerrainPrefabs_.reset();
+  parkedSceneSelection_.clear();
+  lastTerrainAssetPath_.clear();
   if (std::filesystem::is_directory(projectPath))
     projectPath /= "demi.project.json";
   projectPath = std::filesystem::absolute(projectPath).lexically_normal();
+
+  try {
+    assets::prepareTerrainAssets(loadAssetRegistry(projectPath.parent_path()));
+  } catch (const std::exception &failure) {
+    error = failure.what();
+    return false;
+  }
 
   auto loaded = runtime::loadProject(projectPath, error);
   if (!loaded)
@@ -48,6 +111,7 @@ bool EditorWorkspace::open(std::filesystem::path projectPath,
 
   projectPath_ = std::move(projectPath);
   project_ = std::move(loaded);
+  terrainPreviewPrefabs_.configure(project_->project.projectDirectory);
   openedHudDocument_.reset();
   editingPrefab_ = false;
   lastPrefabPath_.clear();
@@ -77,6 +141,7 @@ bool EditorWorkspace::open(std::filesystem::path projectPath,
   updateSceneDomain(true);
   discoverSources();
   refreshAssetIndex();
+  refreshTerrainPresets();
   loadPreviewTilemaps();
   if (!project_->world.entities.empty())
     selectEntity(project_->world.entities.front().id);
@@ -96,17 +161,28 @@ bool EditorWorkspace::openEntityDocument(const std::filesystem::path &path,
     return false;
   }
   if (samePath(path, sceneDocument_.path())) {
-    activateSceneDocument();
-    return true;
+    return activateSceneDocument(error);
   }
-  if (!restoreTerrainPreview(error))
+  if (terrainAuthoring_->hasDraftChanges()) {
+    error = "Generate or discard the terrain graph draft before switching "
+            "entity documents.";
     return false;
-  terrainAuthoring_->unbind();
+  }
   if (sceneDocument_.isDirty() || (hudDocument_ && hudDocument_->isDirty())) {
     error =
         "Save or undo the active scene and its HUD before switching scenes.";
     return false;
   }
+  if (!restoreTerrainPreview(error))
+    return false;
+  if (terrainAssetDocument_) {
+    if (terrainAssetDocument_->isDirty() || terrainAssetCachePending_) {
+      error = "Save or undo the Terrain asset before switching scenes.";
+      return false;
+    }
+    leaveTerrainAssetDocument();
+  }
+  terrainAuthoring_->unbind();
 
   const auto entry = std::ranges::find_if(
       project_->project.scenes, [&](const runtime::SceneEntry &candidate) {
@@ -124,7 +200,9 @@ bool EditorWorkspace::openEntityDocument(const std::filesystem::path &path,
   EditorSceneDocument scene;
   if (!scene.open(scenePath, error))
     return false;
-  auto world = loadEntityPreview(scene, prefab, error);
+  runtime::RuntimePrefabService previewPrefabs;
+  previewPrefabs.configure(project_->project.projectDirectory);
+  auto world = loadEntityPreview(scene, prefab, error, &previewPrefabs);
   if (!world)
     return false;
 
@@ -148,9 +226,10 @@ bool EditorWorkspace::openEntityDocument(const std::filesystem::path &path,
     lastScenePath_ = sceneDocument_.path();
   hudDocument_ = std::move(hud);
   project_->world = std::move(*world);
+  terrainPreviewPrefabs_ = std::move(previewPrefabs);
   activeDocument_ = EditorWorkspaceDocument::Scene;
   usesOpenedHudDocument_ = false;
-  selectedHudNodeId_.clear();
+  clearHudSelection();
   selectedEntityIds_.clear();
   selectedIsoGridCell_.reset();
   viewportTool_.cancelDrag();
@@ -170,6 +249,13 @@ bool EditorWorkspace::openEntityDocument(const std::filesystem::path &path,
 
 bool EditorWorkspace::openHudDocument(const std::filesystem::path &path,
                                       std::string &error) {
+  if (terrainAssetDocument_) {
+    if (terrainAssetDocument_->isDirty() || terrainAssetCachePending_) {
+      error = "Save or undo the Terrain asset before switching documents.";
+      return false;
+    }
+    leaveTerrainAssetDocument();
+  }
   if (hudDocument_ && samePath(path, hudDocument_->path())) {
     if (openedHudDocument_ && openedHudDocument_->isDirty()) {
       error = "Save or undo the open HUD before switching HUD documents.";
@@ -211,8 +297,21 @@ void EditorWorkspace::loadPreviewTilemaps() {
 }
 
 bool EditorWorkspace::refresh(std::string &error) {
+  if (terrainAssetDocument_ &&
+      (terrainAssetDocument_->isDirty() || terrainAssetCachePending_ ||
+       terrainAssetDraft_ ||
+       (terrainAssetBinding_ && terrainAuthoring_->hasDraftChanges()))) {
+    error = "Save or undo the Terrain asset and generate or discard its draft "
+            "before refreshing the project.";
+    return false;
+  }
   if (!restoreTerrainPreview(error))
     return false;
+  if (terrainAssetDocument_)
+    leaveTerrainAssetDocument();
+  terrainAssetDocument_.reset();
+  terrainAssetSurface_.reset();
+  terrainAssetDraft_.reset();
   terrainAuthoring_->unbind();
   if (sceneDocument_.isDirty() || projectDocument_.isDirty() ||
       (hudDocument_ && hudDocument_->isDirty()) ||
@@ -220,6 +319,13 @@ bool EditorWorkspace::refresh(std::string &error) {
     error =
         "The scene or project has unsaved changes. Save or undo them before "
         "refreshing.";
+    return false;
+  }
+  try {
+    assets::prepareTerrainAssets(
+        loadAssetRegistry(project_->project.projectDirectory));
+  } catch (const std::exception &failure) {
+    error = failure.what();
     return false;
   }
   auto loaded = runtime::loadProject(projectPath_, error);
@@ -248,6 +354,7 @@ bool EditorWorkspace::refresh(std::string &error) {
   updateSceneDomain(false);
   discoverSources();
   refreshAssetIndex();
+  refreshTerrainPresets();
   loadPreviewTilemaps();
   std::erase_if(selectedEntityIds_, [this](const std::string &id) {
     return std::ranges::find(project_->world.entities, id,
@@ -261,6 +368,12 @@ bool EditorWorkspace::refresh(std::string &error) {
 bool EditorWorkspace::save(std::string &error) {
   if (!terrainReady(error))
     return false;
+  if (terrainEditingAsset()) {
+    if (!saveTerrainAsset(error))
+      return false;
+    return activeDocument_ != EditorWorkspaceDocument::Scene ||
+           !sceneDocument_.isDirty() || sceneDocument_.save(error);
+  }
   if (activeDocument_ == EditorWorkspaceDocument::Hud && hudDirty())
     return saveHud(error);
   if (!sceneDocument_.save(error)) {
@@ -274,12 +387,23 @@ bool EditorWorkspace::save(std::string &error) {
 bool EditorWorkspace::saveAll(std::string &error) {
   if (!terrainReady(error))
     return false;
-  if (hudDocument_ && hudDocument_->isDirty() && !hudDocument_->save(error))
+  if (terrainAssetDocument_ &&
+      (terrainAssetDocument_->isDirty() || terrainAssetCachePending_) &&
+      !saveTerrainAsset(error))
     return false;
-  if (openedHudDocument_ && openedHudDocument_->isDirty() &&
-      !openedHudDocument_->save(error))
-    return false;
-  if (sceneDocument_.isDirty() && !save(error))
+  if (hudDocument_ && hudDocument_->isDirty()) {
+    if (!hudDocument_->save(error))
+      return false;
+    if (isUiPrefabFile(hudDocument_->path()))
+      refreshAssetMetadata();
+  }
+  if (openedHudDocument_ && openedHudDocument_->isDirty()) {
+    if (!openedHudDocument_->save(error))
+      return false;
+    if (isUiPrefabFile(openedHudDocument_->path()))
+      refreshAssetMetadata();
+  }
+  if (sceneDocument_.isDirty() && !sceneDocument_.save(error))
     return false;
   if (projectDocument_.isDirty() && !saveProject(error))
     return false;
@@ -304,11 +428,17 @@ std::vector<EditorRecoveryDocument> EditorWorkspace::dirtyDocuments() const {
     documents.push_back({.path = openedHudDocument_->path(),
                          .kind = "hud",
                          .content = openedHudDocument_->json()});
+  if (terrainAssetDocument_ && terrainAssetDocument_->isDirty())
+    documents.push_back({.path = terrainAssetDocument_->path(),
+                         .kind = "terrain-asset",
+                         .content = terrainAssetDocument_->json()});
   return documents;
 }
 
 bool EditorWorkspace::applyRecovery(const EditorRecoverySnapshot &snapshot,
                                     std::string &error) {
+  const auto terrain = std::ranges::find(snapshot.documents, "terrain-asset",
+                                         &EditorRecoveryDocument::kind);
   const auto prefab = std::ranges::find(snapshot.documents, "prefab",
                                         &EditorRecoveryDocument::kind);
   if (prefab != snapshot.documents.end()) {
@@ -320,6 +450,9 @@ bool EditorWorkspace::applyRecovery(const EditorRecoverySnapshot &snapshot,
     if (!recovered.open(projectPath_, error) ||
         !recovered.openPrefabDocument(prefab->path, error))
       return false;
+    if (terrain != snapshot.documents.end() &&
+        !recovered.openTerrainAssetDocument(terrain->path, error))
+      return false;
     auto staged = snapshot;
     for (auto &document : staged.documents)
       if (document.kind == "prefab")
@@ -329,10 +462,27 @@ bool EditorWorkspace::applyRecovery(const EditorRecoverySnapshot &snapshot,
     *this = std::move(recovered);
     return true;
   }
+  if (terrain != snapshot.documents.end() &&
+      (!terrainAssetDocument_ ||
+       !samePath(terrain->path, terrainAssetDocument_->path()))) {
+    if (hasUnsavedChanges()) {
+      error = "Save or undo current changes before restoring a Terrain asset.";
+      return false;
+    }
+    EditorWorkspace recovered;
+    if (!recovered.open(projectPath_, error) ||
+        !recovered.openTerrainAssetDocument(terrain->path, error) ||
+        !recovered.applyRecovery(snapshot, error))
+      return false;
+    *this = std::move(recovered);
+    return true;
+  }
   EditorSceneDocument sceneBefore = sceneDocument_;
   EditorProjectDocument projectBefore = projectDocument_;
   std::optional<EditorHudDocument> hudBefore = hudDocument_;
   std::optional<EditorHudDocument> openedHudBefore = openedHudDocument_;
+  std::optional<EditorTerrainAssetDocument> terrainBefore =
+      terrainAssetDocument_;
   for (const EditorRecoveryDocument &document : snapshot.documents) {
     bool restored = false;
     if (document.kind == "scene" &&
@@ -354,6 +504,9 @@ bool EditorWorkspace::applyRecovery(const EditorRecoverySnapshot &snapshot,
         openedHudDocument_ = std::move(recovered);
         restored = true;
       }
+    } else if (document.kind == "terrain-asset" && terrainAssetDocument_ &&
+               samePath(document.path, terrainAssetDocument_->path())) {
+      restored = terrainAssetDocument_->restore(document.content, error);
     } else
       continue;
     if (!restored) {
@@ -361,14 +514,23 @@ bool EditorWorkspace::applyRecovery(const EditorRecoverySnapshot &snapshot,
       projectDocument_ = std::move(projectBefore);
       hudDocument_ = std::move(hudBefore);
       openedHudDocument_ = std::move(openedHudBefore);
+      terrainAssetDocument_ = std::move(terrainBefore);
       return false;
     }
   }
-  if (!rebuildWorld(error)) {
+  bool previewRestored = true;
+  if (terrainAssetDocument_)
+    previewRestored =
+        refreshTerrainAssetPreview(terrainAssetDocument_->recipe(), error) &&
+        rebuildParkedSceneWorld(error);
+  else if (!sceneDocument_.path().empty())
+    previewRestored = rebuildWorld(error);
+  if (!previewRestored) {
     sceneDocument_ = std::move(sceneBefore);
     projectDocument_ = std::move(projectBefore);
     hudDocument_ = std::move(hudBefore);
     openedHudDocument_ = std::move(openedHudBefore);
+    terrainAssetDocument_ = std::move(terrainBefore);
     return false;
   }
   syncHudPreview();
@@ -414,6 +576,10 @@ bool EditorWorkspace::resolveExternalChange(
 bool EditorWorkspace::undo(std::string &error) {
   if (!terrainReady(error))
     return false;
+  if (terrainEditingAsset() &&
+      (activeDocument_ == EditorWorkspaceDocument::TerrainAsset ||
+       lastEditTerrainAsset_))
+    return terrainAssetHistory(false, error);
   EditorHudDocument *hud = activeHudDocument();
   if (activeDocument_ == EditorWorkspaceDocument::Hud && hud &&
       hud->canUndo()) {
@@ -439,6 +605,10 @@ bool EditorWorkspace::undo(std::string &error) {
 bool EditorWorkspace::redo(std::string &error) {
   if (!terrainReady(error))
     return false;
+  if (terrainEditingAsset() &&
+      (activeDocument_ == EditorWorkspaceDocument::TerrainAsset ||
+       lastEditTerrainAsset_))
+    return terrainAssetHistory(true, error);
   EditorHudDocument *hud = activeHudDocument();
   if (activeDocument_ == EditorWorkspaceDocument::Hud && hud &&
       hud->canRedo()) {
@@ -465,6 +635,20 @@ bool EditorWorkspace::editValue(SceneValueTarget target, nlohmann::json value,
                                 const bool continuous, std::string &error) {
   target = resolveSceneTarget(std::move(target));
   if (target.component == "Terrain3D" && target.field == "recipe") {
+    const auto *existing =
+        runtime::findEntity(project_->world, target.entityId);
+    const auto *native =
+        existing ? existing->component<runtime::Terrain3DComponent>() : nullptr;
+    if (native && !native->asset.empty()) {
+      error = "Edit this terrain in its asset source.";
+      return false;
+    }
+    if (native && native->recipe.is_null())
+      return mutateAndRebuild(
+          [&](EditorSceneDocument &document, std::string &issue) {
+            return document.setValue(target, value, continuous, issue);
+          },
+          error);
     if (!restoreTerrainPreview(error))
       return false;
     const auto *owner = runtime::findEntity(project_->world, target.entityId);
@@ -491,6 +675,7 @@ bool EditorWorkspace::editValue(SceneValueTarget target, nlohmann::json value,
         return false;
       }
       syncTerrainAuthoring();
+      lastEditTerrainAsset_ = false;
       syncEditorDiagnostic();
       return true;
     } catch (const std::exception &exception) {
@@ -498,12 +683,14 @@ bool EditorWorkspace::editValue(SceneValueTarget target, nlohmann::json value,
       return false;
     }
   }
-  if (target.component == "PrefabPlacement3D" || target.component == "Masonry3D" ||
-      target.component == "Terrain3D" ||
+  if (target.component == "PrefabPlacement3D" ||
+      target.component == "Masonry3D" || target.component == "Terrain3D" ||
       (target.component.empty() && target.field == "enabled"))
-    return mutateAndRebuild([&](EditorSceneDocument &document, std::string &issue) {
-      return document.setValue(target, value, continuous, issue);
-    }, error);
+    return mutateAndRebuild(
+        [&](EditorSceneDocument &document, std::string &issue) {
+          return document.setValue(target, value, continuous, issue);
+        },
+        error);
   if (target.isPrefabOverride()) {
     EditorSceneDocument before = sceneDocument_;
     if (!sceneDocument_.setValue(target, std::move(value), continuous, error)) {
@@ -521,6 +708,7 @@ bool EditorWorkspace::editValue(SceneValueTarget target, nlohmann::json value,
       return false;
     }
     workspaceOperationError_.clear();
+    lastEditTerrainAsset_ = false;
     syncEditorDiagnostic();
     return true;
   }
@@ -530,6 +718,7 @@ bool EditorWorkspace::editValue(SceneValueTarget target, nlohmann::json value,
     return false;
   }
   workspaceOperationError_.clear();
+  lastEditTerrainAsset_ = false;
   syncChangedEntity();
   syncEditorDiagnostic();
   return true;
@@ -599,10 +788,13 @@ bool EditorWorkspace::deleteEntity(const std::string_view id,
   return deleteEntities({std::string(id)}, error);
 }
 
-bool EditorWorkspace::unpackPreset(const std::string_view id, std::string &error) {
-  return mutateAndRebuild([&](EditorSceneDocument &document, std::string &failure) {
-    return document.unpackPreset(id, failure);
-  }, error);
+bool EditorWorkspace::unpackPreset(const std::string_view id,
+                                   std::string &error) {
+  return mutateAndRebuild(
+      [&](EditorSceneDocument &document, std::string &failure) {
+        return document.unpackPreset(id, failure);
+      },
+      error);
 }
 
 bool EditorWorkspace::deleteEntities(std::vector<std::string> ids,
@@ -752,7 +944,7 @@ bool EditorWorkspace::deleteSelectedHudNode(std::string &error) {
   }
   if (!hud->deleteNode(selectedHudNodeId_, error))
     return false;
-  selectedHudNodeId_.clear();
+  clearHudSelection();
   syncHudPreview();
   return true;
 }
@@ -775,10 +967,56 @@ bool EditorWorkspace::createHudPrefabInstance(const std::string_view reference,
   return true;
 }
 
+bool EditorWorkspace::placeHudModule(const EditorModule &module,
+                                     const runtime::Vec2 authoredPoint,
+                                     const std::string_view targetId,
+                                     std::string &error) {
+  auto *hud = activeHudDocument();
+  if (!hud || activeDocument_ != EditorWorkspaceDocument::Hud) {
+    error = "Open a HUD before placing a module.";
+    return false;
+  }
+  if (module.kind == EditorModuleKind::TerrainNode) {
+    error = "Terrain nodes belong on the terrain graph canvas.";
+    return false;
+  }
+  const runtime::ui::UiDocument &preview = hud->preview();
+  const runtime::ui::UiNode *parent = nullptr;
+  if (!targetId.empty()) {
+    parent = findEditorHudNode(preview, targetId);
+    while (parent && (!hud->authoredNode(parent->id) ||
+                      hud->authoredNode(parent->id)->contains("prefab") ||
+                      (parent->type != "container" && parent->type != "panel" &&
+                       parent->type != "scroll" && parent->type != "list" &&
+                       parent->type != "modal")))
+      parent = findEditorHudNode(preview, parent->parent);
+  }
+  if (!parent && !preview.nodes.empty())
+    parent = &preview.nodes.front();
+  if (!parent) {
+    error = "The HUD has no root for the new module.";
+    return false;
+  }
+  const runtime::Vec2 position{
+      authoredPoint.x - parent->resolved.x - parent->layout.padding.left,
+      authoredPoint.y - parent->resolved.y - parent->layout.padding.top};
+  std::string created;
+  const bool placed =
+      module.kind == EditorModuleKind::HudElement
+          ? hud->createNode(module.value, parent->id, created, error, position)
+          : hud->createPrefabInstance(module.value, parent->id, created, error,
+                                      position);
+  if (!placed)
+    return false;
+  syncHudPreview();
+  selectHudNode(std::move(created));
+  return true;
+}
+
 bool EditorWorkspace::setHudNodeAnchors(const std::string_view id,
-                                       const runtime::Vec2 minimum,
-                                       const runtime::Vec2 maximum,
-                                       std::string &error) {
+                                        const runtime::Vec2 minimum,
+                                        const runtime::Vec2 maximum,
+                                        std::string &error) {
   auto *hud = activeHudDocument();
   if (!hud) {
     error = "Open a HUD before changing its layout.";
@@ -790,7 +1028,8 @@ bool EditorWorkspace::setHudNodeAnchors(const std::string_view id,
   return true;
 }
 
-bool EditorWorkspace::setHudCanvasSize(const runtime::Vec2 size, std::string &error) {
+bool EditorWorkspace::setHudCanvasSize(const runtime::Vec2 size,
+                                       std::string &error) {
   auto *hud = activeHudDocument();
   if (!hud) {
     error = "Open a HUD before changing its canvas.";
@@ -803,7 +1042,8 @@ bool EditorWorkspace::setHudCanvasSize(const runtime::Vec2 size, std::string &er
 }
 
 bool EditorWorkspace::reparentHudNode(const std::string_view id,
-                                     const std::string_view parent, std::string &error) {
+                                      const std::string_view parent,
+                                      std::string &error) {
   auto *hud = activeHudDocument();
   if (!hud) {
     error = "Open a HUD before moving UI elements.";
@@ -816,7 +1056,8 @@ bool EditorWorkspace::reparentHudNode(const std::string_view id,
   return true;
 }
 
-bool EditorWorkspace::duplicateHudNode(const std::string_view id, std::string &error) {
+bool EditorWorkspace::duplicateHudNode(const std::string_view id,
+                                       std::string &error) {
   auto *hud = activeHudDocument();
   if (!hud) {
     error = "Open a HUD before duplicating UI elements.";
@@ -851,7 +1092,57 @@ bool EditorWorkspace::saveHud(std::string &error) {
     return true;
   if (!hud->save(error))
     return false;
-  refreshDiagnostics();
+  if (isUiPrefabFile(hud->path()))
+    refreshAssetMetadata();
+  else
+    refreshDiagnostics();
+  return true;
+}
+
+bool EditorWorkspace::refreshCleanHudDocument(
+    const std::filesystem::path &path, std::string &error) {
+  if (!project_) {
+    error = "Open a project before refreshing linked HUD data.";
+    return false;
+  }
+  std::optional<EditorHudDocument> nextLinked;
+  std::optional<EditorHudDocument> nextOpened;
+  const auto prepare = [&](const std::optional<EditorHudDocument> &current,
+                           std::optional<EditorHudDocument> &next) {
+    if (!current || !samePath(current->path(), path))
+      return true;
+    if (current->isDirty()) {
+      error = "HUD source was saved in another session while this workspace "
+              "has unsaved HUD edits: " + path.string();
+      return false;
+    }
+    EditorHudDocument candidate;
+    if (!candidate.open(current->path(), error))
+      return false;
+    if (candidate.json() != current->json())
+      next = std::move(candidate);
+    return true;
+  };
+  if (!prepare(hudDocument_, nextLinked) ||
+      !prepare(openedHudDocument_, nextOpened))
+    return false;
+  if (!nextLinked && !nextOpened)
+    return true;
+  if (nextLinked) {
+    hudDocument_ = std::move(nextLinked);
+    project_->world.ui = hudDocument_->preview();
+    project_->world.hudCanvasSize = project_->world.ui.canvasSize;
+  }
+  if (nextOpened)
+    openedHudDocument_ = std::move(nextOpened);
+  const auto &nodes = displayedHud().nodes;
+  std::erase_if(selectedHudNodeIds_, [&](const std::string &id) {
+    return std::ranges::find(nodes, id, &runtime::ui::UiNode::id) == nodes.end();
+  });
+  if (!selectedHudNodeId_.empty() && selectedHudNode() == nullptr)
+    selectedHudNodeId_ = selectedHudNodeIds_.empty()
+                             ? std::string{}
+                             : selectedHudNodeIds_.back();
   return true;
 }
 
@@ -874,21 +1165,126 @@ bool EditorWorkspace::updateViewportTool(const EditorViewportToolInput &input,
       [this] { viewportTool_.cancelDrag(); }, error);
 }
 
+bool EditorWorkspace::pinTerrainAuthoring(const std::string_view entityId,
+                                          std::string &error) {
+  if (!project_) {
+    error = "Open a project before pinning a terrain graph.";
+    return false;
+  }
+  const auto *owner =
+      runtime::findEntity(project_->world, std::string(entityId));
+  const auto *terrain =
+      owner ? owner->component<runtime::Terrain3DComponent>() : nullptr;
+  if (!terrain || (terrain->asset.empty() && terrain->recipe.is_null())) {
+    error = "Choose a configured Terrain3D owner for the graph.";
+    return false;
+  }
+  const auto ownerDocument =
+      activeDocument_ == EditorWorkspaceDocument::TerrainAsset &&
+              terrainAssetDocument_
+          ? terrainAssetDocument_->path()
+          : sceneDocument_.path();
+  const bool changingPinnedTarget =
+      terrainAuthoringTarget_ &&
+      (terrainAuthoringTarget_->document != ownerDocument ||
+       terrainAuthoringTarget_->entityId != entityId);
+  if (changingPinnedTarget && terrainAuthoring_->hasDraftChanges()) {
+    error = "Generate or discard the current terrain graph draft before "
+            "opening another terrain graph.";
+    return false;
+  }
+  if (changingPinnedTarget && !terrainReady(error))
+    return false;
+  if (terrainAuthoring_->entityId() != entityId && !terrainReady(error))
+    return false;
+  const auto previous = terrainAuthoringTarget_;
+  terrainAuthoringTarget_ =
+      EditorTerrainAuthoringTarget{ownerDocument, std::string(entityId)};
+  syncTerrainAuthoring();
+  if (terrainAuthoring_->entityId() == entityId)
+    return true;
+  error = workspaceOperationError_.empty()
+              ? "Could not bind the terrain graph target."
+              : workspaceOperationError_;
+  terrainAuthoringTarget_ = previous;
+  syncTerrainAuthoring();
+  return false;
+}
+
+bool EditorWorkspace::unpinTerrainAuthoring(std::string &error) {
+  if (!terrainAuthoringTarget_)
+    return true;
+  if (terrainAuthoring_->hasDraftChanges()) {
+    error = "Generate or discard the terrain graph draft before closing it.";
+    return false;
+  }
+  if (!terrainReady(error))
+    return false;
+  if (terrainAuthoring_->entityId() != selectedEntityId() &&
+      !restoreTerrainPreview(error))
+    return false;
+  terrainAuthoringTarget_.reset();
+  syncTerrainAuthoring();
+  return true;
+}
+
 void EditorWorkspace::syncTerrainAuthoring() {
   if (!project_)
     return;
-  const runtime::Entity *entity = selectedEntity();
-  const auto *terrain =
-      entity ? entity->component<runtime::Terrain3DComponent>() : nullptr;
-  if (activeDocument_ != EditorWorkspaceDocument::Scene ||
-      viewDimension_ != EditorSceneViewDimension::ThreeDimensional ||
-      !terrain) {
+  const auto ownerDocument =
+      activeDocument_ == EditorWorkspaceDocument::TerrainAsset &&
+              terrainAssetDocument_
+          ? terrainAssetDocument_->path()
+          : sceneDocument_.path();
+  if (terrainAuthoringTarget_ &&
+      terrainAuthoringTarget_->document != ownerDocument)
+    terrainAuthoringTarget_.reset();
+  const std::string ownerId = terrainAuthoringTarget_
+                                  ? terrainAuthoringTarget_->entityId
+                                  : std::string(selectedEntityId());
+  const bool brushTargetSelected =
+      (activeDocument_ == EditorWorkspaceDocument::Scene ||
+       activeDocument_ == EditorWorkspaceDocument::TerrainAsset) &&
+      viewDimension_ == EditorSceneViewDimension::ThreeDimensional &&
+      ownerId == selectedEntityId();
+  terrainAuthoring_->setBrushTargetSelected(brushTargetSelected);
+  if (!brushTargetSelected && terrainAuthoring_->stroking()) {
     std::string error;
     if (!restoreTerrainPreview(error)) {
       workspaceOperationError_ = std::move(error);
       return;
     }
+  }
+  const runtime::Entity *entity = runtime::findEntity(project_->world, ownerId);
+  const auto *terrain =
+      entity ? entity->component<runtime::Terrain3DComponent>() : nullptr;
+  const bool changingSelection =
+      !entity || terrainAuthoring_->entityId() != entity->id;
+  const auto retainAssetDraft = [&] {
+    if (!terrainAssetBinding_)
+      return;
+    if (terrainAuthoring_->hasDraftChanges())
+      terrainAssetDraft_ = terrainAuthoring_->draft();
+    else
+      terrainAssetDraft_.reset();
+  };
+  if ((!terrainAuthoringTarget_ &&
+       (activeDocument_ != EditorWorkspaceDocument::Scene &&
+        activeDocument_ != EditorWorkspaceDocument::TerrainAsset)) ||
+      (!terrainAuthoringTarget_ &&
+       viewDimension_ != EditorSceneViewDimension::ThreeDimensional) ||
+      !terrain || (terrain->asset.empty() && terrain->recipe.is_null())) {
+    std::string error;
+    if (!restoreTerrainPreview(error)) {
+      workspaceOperationError_ = std::move(error);
+      return;
+    }
+    retainAssetDraft();
     terrainAuthoring_->unbind();
+    if (terrainAssetBinding_) {
+      terrainAssetBinding_ = false;
+      configureTerrainInputResolver();
+    }
     return;
   }
   if (terrainAuthoring_->entityId() != entity->id) {
@@ -898,11 +1294,40 @@ void EditorWorkspace::syncTerrainAuthoring() {
       return;
     }
     // Restoring chunks can invalidate entity addresses.
-    entity = selectedEntity();
+    entity = runtime::findEntity(project_->world, ownerId);
     terrain =
         entity ? entity->component<runtime::Terrain3DComponent>() : nullptr;
     if (!terrain)
       return;
+  }
+  retainAssetDraft();
+  if (!terrain->asset.empty()) {
+    std::string error;
+    if (!bindTerrainAsset(terrain->asset, error)) {
+      terrainAuthoring_->unbind();
+      terrainAssetBinding_ = false;
+      configureTerrainInputResolver();
+      workspaceOperationError_ = std::move(error);
+      syncEditorDiagnostic();
+      return;
+    }
+    if (!terrainAssetBinding_) {
+      terrainAssetBinding_ = true;
+      configureTerrainInputResolver();
+    }
+    terrainAuthoring_->bind(terrainAssetDocument_->path().string(), entity->id,
+                            terrainAssetDocument_->recipe(),
+                            currentEditorTerrain(project_->world, entity->id),
+                            terrainAssetDocument_->id());
+    if (changingSelection && terrainAssetDraft_)
+      terrainAuthoring_->draft() = *terrainAssetDraft_;
+    if (!terrainAssetSurface_)
+      terrainAssetSurface_ = currentEditorTerrain(project_->world, entity->id);
+    return;
+  }
+  if (terrainAssetBinding_) {
+    terrainAssetBinding_ = false;
+    configureTerrainInputResolver();
   }
   const auto target = resolveSceneTarget(
       {.entityId = entity->id, .component = "Terrain3D", .field = "recipe"});
@@ -928,12 +1353,15 @@ bool EditorWorkspace::pollTerrainAuthoring(std::string &error) {
     }
     return error.empty();
   }
-  const runtime::Entity *entity = selectedEntity();
+  const runtime::Entity *entity =
+      runtime::findEntity(project_->world, commit->entityId);
   const auto *terrain =
       entity ? entity->component<runtime::Terrain3DComponent>() : nullptr;
   if (commit->restore) {
     return restoreTerrainPreview(error);
   }
+  if (terrainEditingAsset())
+    return pollTerrainAssetAuthoring(std::move(*commit), error);
   const auto target = resolveSceneTarget({.entityId = commit->entityId,
                                           .component = "Terrain3D",
                                           .field = "recipe"});
@@ -991,8 +1419,9 @@ bool EditorWorkspace::pollTerrainAuthoring(std::string &error) {
     (void)restoreTerrainPreview(ignored);
     return false;
   }
-  const bool alreadyPublished = terrain->generated == commit->surface->heightField() &&
-                                terrain->recipe == commit->recipe;
+  const bool alreadyPublished =
+      terrain->generated == commit->surface->heightField() &&
+      terrain->recipe == commit->recipe;
   if (!alreadyPublished &&
       !installEditorTerrain(project_->world, commit->entityId, commit->recipe,
                             {commit->surface, commit->publicationPatch
@@ -1025,6 +1454,15 @@ bool EditorWorkspace::restoreTerrainPreview(std::string &error) {
   (void)terrainAuthoring_->takeRollback();
   if (!terrainPreview_)
     return true;
+  if (terrainAssetDocument_ &&
+      terrainPreview_->document == terrainAssetDocument_->path().string()) {
+    const auto before = terrainAssetDocument_->recipe();
+    if (!refreshTerrainAssetPreview(before, error))
+      return false;
+    terrainPreview_.reset();
+    terrainPreviewSurface_.reset();
+    return true;
+  }
   if (project_ && terrainPreview_->document == sceneDocument_.path().string()) {
     const auto *owner =
         runtime::findEntity(project_->world, terrainPreview_->entityId);
@@ -1103,6 +1541,74 @@ bool EditorWorkspace::terrainHistory(bool forward, std::string &error) {
   syncTerrainAuthoring();
   syncEditorDiagnostic();
   return true;
+}
+
+void EditorWorkspace::refreshTerrainPresets() {
+  // Discovery uses the asset registry the editor already holds rather than
+  // re-deriving asset ids from source paths: the manifest's own id is the
+  // identity loadTerrainPreset resolves, so a preset can never be listed under
+  // an id the engine would then refuse to load.
+  std::vector<runtime::TerrainPreset> presets;
+  std::vector<std::string> failures;
+  if (project_) {
+    const AssetRegistry &registry = assetIndex_.registry();
+    for (const auto &record : assetIndex_.assets()) {
+      if (record.manifest.type != "DataAsset")
+        continue;
+      const auto metadata = assets::dataAssetMetadata(record.manifest);
+      if (!metadata || metadata->contentType != "terrain_preset")
+        continue;
+      try {
+        if (auto preset =
+                runtime::loadTerrainPreset(registry, record.manifest.id))
+          presets.push_back(std::move(*preset));
+      } catch (const std::exception &exception) {
+        // A preset that will not load is left out of the picker, and its
+        // reason is kept so the author is told instead of silently losing it.
+        failures.emplace_back(exception.what());
+      }
+    }
+  }
+  std::ranges::sort(presets, {}, &runtime::TerrainPreset::id);
+  terrainAuthoring_->setPresets(std::move(presets));
+  terrainPresetErrors_ = std::move(failures);
+}
+
+bool EditorWorkspace::applyTerrainPreset(std::string_view presetId,
+                                         std::string &error) {
+  if (!terrainReady(error))
+    return false;
+  const auto *candidate = terrainAuthoring_->preset(presetId);
+  if (candidate == nullptr) {
+    error = "Landscape preset is not available: " + std::string(presetId);
+    return false;
+  }
+  const auto before = terrainAuthoring_->draft();
+  if (!terrainAuthoring_->applyPreset(*candidate, error))
+    return false;
+  // Applying the same preset twice must not become an undoable edit for no
+  // reason, so an unchanged draft never reaches the commit path.
+  if (terrainAuthoring_->draft() == before)
+    return true;
+  // The draft now carries the preset's grid, so the existing resize decision
+  // answers for it exactly as it would for a hand-edited size. Protection
+  // snapshots still require the original grid, and "Keep radial edits" refuses
+  // rather than silently invalidating them.
+  return terrainAuthoring_->generate(std::nullopt, error);
+}
+
+bool EditorWorkspace::clearTerrainPreset(std::string &error) {
+  if (!terrainReady(error))
+    return false;
+  const auto before = terrainAuthoring_->draft();
+  if (!terrainAuthoring_->clearPreset(error))
+    return false;
+  if (terrainAuthoring_->draft() == before)
+    return true;
+  // Provenance is a generation input, so removing it rebuilds the field and
+  // goes through the same undoable recipe command as any other generation
+  // change.
+  return terrainAuthoring_->generate(std::nullopt, error);
 }
 
 std::optional<nlohmann::json>
@@ -1223,14 +1729,17 @@ bool EditorWorkspace::mutateAndRebuild(
     return false;
   }
   workspaceOperationError_.clear();
+  lastEditTerrainAsset_ = false;
   syncEditorDiagnostic();
   return true;
 }
 
 void EditorWorkspace::syncChangedEntity() {
   const std::string_view changed = sceneDocument_.lastChangedEntityId();
-  const auto flat = runtime::composition::flattenEntityHierarchy(sceneDocument_.json()["entities"]);
-  const nlohmann::json *authored = runtime::composition::findAuthoredEntity(flat, changed);
+  const auto flat = runtime::composition::flattenEntityHierarchy(
+      sceneDocument_.json()["entities"]);
+  const nlohmann::json *authored =
+      runtime::composition::findAuthoredEntity(flat, changed);
   if (authored == nullptr)
     return;
   auto existing = std::ranges::find(project_->world.entities, changed,
@@ -1239,6 +1748,14 @@ void EditorWorkspace::syncChangedEntity() {
     return;
   runtime::Entity reparsed =
       runtime::scene_loading::parseSceneEntity(*authored);
+  if (auto *terrain = reparsed.component<runtime::Terrain3DComponent>();
+      terrain && !terrain->asset.empty()) {
+    const auto *previous = existing->component<runtime::Terrain3DComponent>();
+    if (previous && previous->asset == terrain->asset) {
+      terrain->recipe = previous->recipe;
+      terrain->generated = previous->generated;
+    }
+  }
   restoreEditorDerivedState(reparsed);
   reparsed.sceneOwner = existing->sceneOwner;
   reparsed.prefabInstance = existing->prefabInstance;
@@ -1261,20 +1778,41 @@ void EditorWorkspace::reconcileIsoGridCellSelection() {
 
 bool EditorWorkspace::rebuildWorld(std::string &error) {
   error.clear();
-  auto world = loadEntityPreview(sceneDocument_, editingPrefab_, error);
+  runtime::RuntimePrefabService previewPrefabs;
+  previewPrefabs.configure(project_->project.projectDirectory);
+  auto world =
+      loadEntityPreview(sceneDocument_, editingPrefab_, error, &previewPrefabs);
   if (!world)
     return false;
-  for (auto &entity : world->entities) updateEditorMeshRevision(entity);
+  if (!applyTerrainAssetPreview(*world, error, &previewPrefabs))
+    return false;
+  for (auto &entity : world->entities)
+    updateEditorMeshRevision(entity);
   updateEditorPlacementVisibility(*world);
-  const auto expected=authoredHudPath();
-  const bool replaceHud=(!expected && hudDocument_) || (expected && (!hudDocument_ || !samePath(*expected,hudDocument_->path())));
+  const auto expected = authoredHudPath();
+  const bool replaceHud =
+      (!expected && hudDocument_) ||
+      (expected &&
+       (!hudDocument_ || !samePath(*expected, hudDocument_->path())));
   std::optional<EditorHudDocument> nextHud;
   if (replaceHud) {
-    if (hudDocument_ && hudDocument_->isDirty()) {error="Save or undo HUD edits before switching the scene HUD.";return false;}
-    if (expected) { EditorHudDocument candidate; if(!candidate.open(*expected,error)) return false;nextHud=std::move(candidate); }
+    if (hudDocument_ && hudDocument_->isDirty()) {
+      error = "Save or undo HUD edits before switching the scene HUD.";
+      return false;
+    }
+    if (expected) {
+      EditorHudDocument candidate;
+      if (!candidate.open(*expected, error))
+        return false;
+      nextHud = std::move(candidate);
+    }
   }
   project_->world = std::move(*world);
-  if(replaceHud) {hudDocument_=std::move(nextHud);selectedHudNodeId_.clear();}
+  terrainPreviewPrefabs_ = std::move(previewPrefabs);
+  if (replaceHud) {
+    hudDocument_ = std::move(nextHud);
+    clearHudSelection();
+  }
   syncHudPreview();
   updateSceneDomain(false);
   return true;
@@ -1375,24 +1913,42 @@ const EditorHudDocument *EditorWorkspace::hudDocument() const {
   return hudDocument_ ? &*hudDocument_ : nullptr;
 }
 
-bool EditorWorkspace::setSceneHud(const std::filesystem::path &path,std::string &error) {
-  if (editingPrefab_) {error="Open a scene before assigning its HUD.";return false;}
-  if ((hudDocument_ && hudDocument_->isDirty()) || (openedHudDocument_ && openedHudDocument_->isDirty())) {
-    error="Save or undo HUD changes before changing the scene HUD.";return false;
+bool EditorWorkspace::setSceneHud(const std::filesystem::path &path,
+                                  std::string &error) {
+  if (editingPrefab_) {
+    error = "Open a scene before assigning its HUD.";
+    return false;
   }
-  auto candidate=sceneDocument_.json();
-  if (path.empty()) candidate.erase("hud");
+  if ((hudDocument_ && hudDocument_->isDirty()) ||
+      (openedHudDocument_ && openedHudDocument_->isDirty())) {
+    error = "Save or undo HUD changes before changing the scene HUD.";
+    return false;
+  }
+  auto candidate = sceneDocument_.json();
+  if (path.empty())
+    candidate.erase("hud");
   else {
-    const auto absolute=std::filesystem::weakly_canonical(path);
-    const auto relative=absolute.lexically_relative(project_->project.projectDirectory);
-    if (relative.empty() || relative.is_absolute() || *relative.begin()==".." || !isHudFile(path)) {
-      error="Choose a HUD source inside this project.";return false;
+    const auto absolute = std::filesystem::weakly_canonical(path);
+    const auto relative =
+        absolute.lexically_relative(project_->project.projectDirectory);
+    if (relative.empty() || relative.is_absolute() ||
+        *relative.begin() == ".." || !isHudFile(path)) {
+      error = "Choose a HUD source inside this project.";
+      return false;
     }
-    candidate["hud"]=std::filesystem::relative(absolute,sceneDocument_.path().parent_path()).generic_string();
+    candidate["hud"] =
+        std::filesystem::relative(absolute, sceneDocument_.path().parent_path())
+            .generic_string();
   }
-  return mutateAndRebuild([&](EditorSceneDocument &document,std::string &issue){
-    return document.setHud(candidate.contains("hud") ? std::optional<nlohmann::json>(candidate["hud"]) : std::nullopt,issue);
-  },error);
+  return mutateAndRebuild(
+      [&](EditorSceneDocument &document, std::string &issue) {
+        return document.setHud(
+            candidate.contains("hud")
+                ? std::optional<nlohmann::json>(candidate["hud"])
+                : std::nullopt,
+            issue);
+      },
+      error);
 }
 
 EditorHudDocument *EditorWorkspace::activeHudDocument() {
@@ -1408,12 +1964,23 @@ const runtime::ui::UiDocument &EditorWorkspace::displayedHud() const {
   return project_->world.ui;
 }
 
-void EditorWorkspace::activateSceneDocument() {
+bool EditorWorkspace::activateSceneDocument(std::string &error) {
+  if (activeDocument_ == EditorWorkspaceDocument::TerrainAsset) {
+    if (!terrainReady(error))
+      return false;
+    if (parkedSceneWorld_ &&
+        !applyTerrainAssetPreview(*parkedSceneWorld_, error,
+                                  &*parkedTerrainPrefabs_))
+      return false;
+    leaveTerrainAssetDocument();
+  }
   activeDocument_ = EditorWorkspaceDocument::Scene;
   usesOpenedHudDocument_ = false;
-  selectedHudNodeId_.clear();
+  clearHudSelection();
   if (selectedEntityIds_.empty() && !project_->world.entities.empty())
     selectEntity(project_->world.entities.front().id);
+  syncTerrainAuthoring();
+  return true;
 }
 
 void EditorWorkspace::activateHudDocument() {
@@ -1426,9 +1993,9 @@ void EditorWorkspace::activateHudDocument() {
   const EditorHudDocument *hud = hudDocument();
   if (hud != nullptr &&
       (selectedHudNodeId_.empty() || selectedHudNode() == nullptr))
-    selectedHudNodeId_ = hud->preview().nodes.empty()
-                             ? std::string{}
-                             : hud->preview().nodes.front().id;
+    selectHudNode(hud->preview().nodes.empty()
+                      ? std::string{}
+                      : hud->preview().nodes.front().id);
 }
 
 std::optional<std::filesystem::path> EditorWorkspace::authoredHudPath() const {
@@ -1442,7 +2009,7 @@ std::optional<std::filesystem::path> EditorWorkspace::authoredHudPath() const {
 
 bool EditorWorkspace::loadHudDocument(std::string &error) {
   hudDocument_.reset();
-  selectedHudNodeId_.clear();
+  clearHudSelection();
   const auto path = authoredHudPath();
   if (!path)
     return true;
@@ -1455,34 +2022,61 @@ bool EditorWorkspace::loadHudDocument(std::string &error) {
 }
 
 void EditorWorkspace::syncHudPreview() {
-  if (!project_ || !hudDocument_)
+  if (!project_)
     return;
   EditorHudDocument *active = activeHudDocument();
-  if (active != &*hudDocument_)
+  if (!active)
     return;
-  project_->world.ui = active->preview();
-  project_->world.hudCanvasSize = project_->world.ui.canvasSize;
+  if (hudDocument_ && active == &*hudDocument_) {
+    project_->world.ui = active->preview();
+    project_->world.hudCanvasSize = project_->world.ui.canvasSize;
+  }
   if (!selectedHudNodeId_.empty() && selectedHudNode() == nullptr)
-    selectedHudNodeId_.clear();
+    clearHudSelection();
 }
 
 void EditorWorkspace::selectEntity(std::string id) {
   if (project_ && !sceneDocument_.entity(id))
     if (auto owner = editorPlacementOwner(project_->world, id); !owner.empty())
       id = std::move(owner);
-  activeDocument_ = EditorWorkspaceDocument::Scene;
+  if (activeDocument_ != EditorWorkspaceDocument::TerrainAsset)
+    activeDocument_ = EditorWorkspaceDocument::Scene;
   selectedIsoGridCell_.reset();
-  selectedHudNodeId_.clear();
+  clearHudSelection();
   selectedEntityIds_.clear();
   if (!id.empty())
     selectedEntityIds_.push_back(std::move(id));
+  syncTerrainAuthoring();
 }
 
 void EditorWorkspace::selectHudNode(std::string id) {
   activeDocument_ = EditorWorkspaceDocument::Hud;
   selectedIsoGridCell_.reset();
   selectedEntityIds_.clear();
+  selectedHudNodeIds_.clear();
   selectedHudNodeId_ = std::move(id);
+  if (!selectedHudNodeId_.empty())
+    selectedHudNodeIds_.push_back(selectedHudNodeId_);
+  syncTerrainAuthoring();
+}
+
+void EditorWorkspace::toggleHudNodeSelection(std::string id) {
+  activeDocument_ = EditorWorkspaceDocument::Hud;
+  selectedIsoGridCell_.reset();
+  selectedEntityIds_.clear();
+  const auto found = std::ranges::find(selectedHudNodeIds_, id);
+  if (found == selectedHudNodeIds_.end())
+    selectedHudNodeIds_.push_back(std::move(id));
+  else
+    selectedHudNodeIds_.erase(found);
+  selectedHudNodeId_ =
+      selectedHudNodeIds_.empty() ? std::string{} : selectedHudNodeIds_.back();
+  syncTerrainAuthoring();
+}
+
+bool EditorWorkspace::isHudNodeSelected(std::string_view id) const {
+  return std::ranges::find(selectedHudNodeIds_, id) !=
+         selectedHudNodeIds_.end();
 }
 
 void EditorWorkspace::selectIsoGridCell(EditorIsoGridCell cell) {
@@ -1500,6 +2094,7 @@ void EditorWorkspace::toggleEntitySelection(std::string id) {
     selectedEntityIds_.push_back(std::move(id));
   else
     selectedEntityIds_.erase(found);
+  syncTerrainAuthoring();
 }
 
 bool EditorWorkspace::isEntitySelected(const std::string_view id) const {

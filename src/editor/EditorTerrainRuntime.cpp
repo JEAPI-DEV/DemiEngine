@@ -40,6 +40,15 @@ public:
     return recipe.toJson()["edits"].back();
   }
 };
+
+std::optional<EditorTerrainUpdate>
+wrapTerrainUpdate(std::optional<runtime::TerrainUpdate> result) {
+  if (!result)
+    return std::nullopt;
+  return EditorTerrainUpdate{
+      std::make_shared<HeightFieldSurface>(std::move(result->field)),
+      std::move(result->patch)};
+}
 } // namespace
 
 std::optional<EditorTerrainUpdate>
@@ -51,14 +60,26 @@ updateEditorTerrain(const nlohmann::json &before, const nlohmann::json &after,
     error = "Terrain brush requires the current native surface.";
     return std::nullopt;
   }
-  auto result = runtime::updateTerrain(runtime::TerrainRecipe::parse(before),
-                                       runtime::TerrainRecipe::parse(after),
-                                       previous->heightField(), stop, progress);
-  if (!result)
+  return wrapTerrainUpdate(runtime::updateTerrain(
+      runtime::TerrainRecipe::parse(before),
+      runtime::TerrainRecipe::parse(after), previous->heightField(), stop,
+      progress));
+}
+
+std::optional<EditorTerrainUpdate>
+updateEditorTerrainWithInputs(
+    const nlohmann::json &before, const nlohmann::json &after,
+    EditorTerrainSurfacePtr previous,
+    const runtime::TerrainGenerationInputs &inputs, std::stop_token stop,
+    const std::function<void(float)> &progress, std::string &error) {
+  if (!previous || !previous->heightField()) {
+    error = "Terrain update requires the current native surface.";
     return std::nullopt;
-  return EditorTerrainUpdate{
-      std::make_shared<HeightFieldSurface>(std::move(result->field)),
-      std::move(result->patch)};
+  }
+  return wrapTerrainUpdate(runtime::updateTerrainWithInputs(
+      runtime::TerrainRecipe::parse(before),
+      runtime::TerrainRecipe::parse(after), previous->heightField(), inputs,
+      stop, progress));
 }
 
 std::shared_ptr<const runtime::TerrainPatch>
@@ -116,8 +137,30 @@ EditorTerrainSurfacePtr
 generateEditorTerrain(const nlohmann::json &recipe, std::stop_token stop,
                       const std::function<void(float)> &progress,
                       std::string &error) {
+  return generateEditorTerrainWithInputs(
+      recipe, runtime::TerrainGenerationInputs{}, stop, progress, error);
+}
+
+EditorTerrainSurfacePtr
+generateEditorTerrainWithInputs(
+    const nlohmann::json &recipe,
+    const runtime::TerrainGenerationInputs &inputs, std::stop_token stop,
+    const std::function<void(float)> &progress, std::string &error) {
+  error.clear();
+  const auto parsed = runtime::TerrainRecipe::parse(recipe);
+  if (parsed.paletteId.empty() && inputs.palette) {
+    error = "Editor generation received a palette absent from the recipe.";
+    return {};
+  }
+  if (!parsed.paletteId.empty() &&
+      (!inputs.palette || inputs.palette->id != parsed.paletteId ||
+       inputs.fingerprint.empty())) {
+    error = "Terrain palette must be resolved before editor generation: " +
+            parsed.paletteId;
+    return {};
+  }
   auto field = runtime::TerrainGenerator::generate(
-      runtime::TerrainRecipe::parse(recipe), stop, progress);
+      parsed, inputs.palette.get(), stop, progress, inputs.fingerprint);
   if (!field) {
     error = "Terrain generation cancelled.";
     return {};
@@ -134,7 +177,7 @@ EditorTerrainSurfacePtr currentEditorTerrain(const runtime::World &world,
   if (!terrain)
     return {};
   auto field = terrain->generated;
-  if (!field)
+  if (!field && !terrain->recipe.is_null())
     field = runtime::findTerrain(terrain->recipe);
   return field ? std::make_shared<HeightFieldSurface>(std::move(field))
                : nullptr;
@@ -146,6 +189,9 @@ void publishEditorTerrain(const nlohmann::json &recipe,
       std::dynamic_pointer_cast<const HeightFieldSurface>(surface);
   if (!generated)
     throw std::invalid_argument("Cannot publish an unknown terrain surface.");
-  runtime::publishTerrain(recipe, generated->field);
+  // Key on the palette content, not just its id, so an edited palette
+  // cannot leave a stale field reachable in the editor.
+  runtime::publishTerrain(recipe, generated->field->inputFingerprint,
+                       generated->field);
 }
 } // namespace demi::editor

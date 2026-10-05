@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://terrain/surfaces/cliff_piece",
+  "importer": "material",
+  "importer_version": 1,
+  "settings": {},
+  "source": "cliff_piece.material.json",
+  "source_hash": "fnv1a64:0c4c0736cef80798",
+  "type": "Material"
+}

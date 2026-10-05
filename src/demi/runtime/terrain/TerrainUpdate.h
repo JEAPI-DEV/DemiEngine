@@ -4,6 +4,7 @@
 #include <memory>
 
 namespace demi::runtime {
+struct TerrainGenerationInputs;
 
 // Inclusive sample coordinates. Empty is represented by maximum < minimum.
 struct TerrainRect {
@@ -40,18 +41,25 @@ struct TerrainSampleChange {
   TerrainSampleValue before, after;
 };
 
-struct TerrainPalette {
+struct TerrainBiomePalette {
   std::vector<std::string> ids;
   std::vector<Color> colors;
+};
+
+struct TerrainDerivedState {
+  std::vector<TerrainScatterPlacement> placements;
+  bool scatterTruncated = false;
+  std::shared_ptr<const TerrainGraphArtifacts> graphArtifacts;
 };
 
 struct TerrainPatch {
   Vec2 size{};
   int cellsX = 0, cellsZ = 0;
   std::vector<TerrainSampleChange> samples;
-  std::optional<TerrainPalette> beforePalette, afterPalette;
+  std::optional<TerrainBiomePalette> beforePalette, afterPalette;
+  std::optional<TerrainDerivedState> beforeDerived, afterDerived;
   // Only global generation/layout changes need whole-field history snapshots.
-  // Local brush commands retain only changed sample values and palette deltas.
+  // Local commands retain sample, palette and derived placement/water deltas.
   std::shared_ptr<const HeightField> fullBefore, fullAfter;
   TerrainInvalidation invalidation;
   std::size_t retainedBytes() const;
@@ -78,6 +86,14 @@ updateTerrain(const TerrainRecipe &before, const TerrainRecipe &after,
               std::shared_ptr<const HeightField> previous,
               std::stop_token stop = {},
               const TerrainGenerator::Progress &progress = {});
+// The supplied snapshot belongs to the after-recipe. Changing its fingerprint
+// forces a global rebuild; unchanged graph nodes reuse the previous node cache.
+std::optional<TerrainUpdate>
+updateTerrainWithInputs(const TerrainRecipe &before, const TerrainRecipe &after,
+                        std::shared_ptr<const HeightField> previous,
+                        const TerrainGenerationInputs &inputs,
+                        std::stop_token stop = {},
+                        const TerrainGenerator::Progress &progress = {});
 
 TerrainUpdate applyTerrainPatch(std::shared_ptr<const HeightField> current,
                                const TerrainPatch &patch, bool forward);
@@ -92,4 +108,11 @@ regenerateTerrain(const TerrainRecipe &recipe,
                   std::shared_ptr<const HeightField> previous,
                   std::string reason, std::stop_token stop = {},
                   const TerrainGenerator::Progress &progress = {});
+std::optional<TerrainUpdate>
+regenerateTerrainWithInputs(const TerrainRecipe &recipe,
+                            std::shared_ptr<const HeightField> previous,
+                            std::string reason,
+                            const TerrainGenerationInputs &inputs,
+                            std::stop_token stop = {},
+                            const TerrainGenerator::Progress &progress = {});
 } // namespace demi::runtime

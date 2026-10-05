@@ -1,4 +1,4 @@
-#include "editor/EditorAuthoredJson.h"
+#include "demi/filesystem/AuthoredJsonPatch.h"
 #include "editor/EditorSceneDocument.h"
 
 #include <cassert>
@@ -17,6 +17,7 @@ std::string read(const std::filesystem::path &path) {
 } // namespace
 
 int main() {
+  using namespace demi::filesystem;
   using namespace demi::editor;
   const std::string source = R"({
   "format_version": 1,
@@ -38,13 +39,13 @@ int main() {
 )";
   const nlohmann::json before = nlohmann::json::parse(source);
   nlohmann::json raw = nlohmann::json::array({0.8154292106628418, 9.0});
-  const nlohmann::json normalized = normalizeEditorAuthoredValue(
+  const nlohmann::json normalized = normalizeAuthoredValue(
       std::move(raw),
       &before["entities"][0]["components"]["IsoTransform"]["tile"]);
   assert(normalized == nlohmann::json::array({0.815, 9}));
   nlohmann::json after = before;
   after["entities"][0]["components"]["IsoTransform"]["tile"] = normalized;
-  const auto patched = patchEditorJsonSource(source, before, after);
+  const auto patched = patchAuthoredJsonSource(source, before, after);
   assert(patched);
   std::string expected = source;
   expected.replace(expected.find("[1, 9]"), 6, "[0.815, 9]");
@@ -53,7 +54,7 @@ int main() {
   structural["entities"].push_back({{"components", nlohmann::json::object()},
                                     {"id", "new"},
                                     {"name", "New Entity"}});
-  const auto added = patchEditorJsonSource(expected, after, structural);
+  const auto added = patchAuthoredJsonSource(expected, after, structural);
   assert(added && nlohmann::json::parse(*added) == structural);
   const std::size_t entityBegin =
       expected.find("    {\n      \"id\": \"spawn\"");
@@ -73,7 +74,7 @@ int main() {
       {"height", 0.0},
       {"footprint", nlohmann::json::array({0.0, 0.0})}};
   const auto componentAdded =
-      patchEditorJsonSource(*added, structural, withComponent);
+      patchAuthoredJsonSource(*added, structural, withComponent);
   assert(componentAdded && nlohmann::json::parse(*componentAdded) ==
                                withComponent);
   assert(componentAdded->find(
@@ -84,7 +85,7 @@ int main() {
              "          \"footprint\": [0.0, 0.0]\n"
              "        }\n"
              "      }") != std::string::npos);
-  const auto removed = patchEditorJsonSource(*added, structural, after);
+  const auto removed = patchAuthoredJsonSource(*added, structural, after);
   assert(removed && nlohmann::json::parse(*removed) == after);
 
   namespace fs = std::filesystem;

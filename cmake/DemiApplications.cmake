@@ -35,6 +35,7 @@ else()
     src/cli/RuntimeCommands.cpp
     src/cli/SceneCompositionCommands.cpp
     src/cli/TestCommands.cpp
+    src/cli/TerrainCommands.cpp
     src/cli/main.cpp
   )
   target_link_libraries(demi PRIVATE demi-core demi-cli-support demi-runtime-lib)
@@ -52,6 +53,7 @@ else()
     src/cli/RuntimeCommands.cpp
     src/cli/SceneCompositionCommands.cpp
     src/cli/TestCommands.cpp
+    src/cli/TerrainCommands.cpp
     src/cli/main.cpp
   )
   target_link_libraries(demi-server PRIVATE demi-core demi-cli-support demi-server-runtime-lib)
@@ -67,18 +69,20 @@ else()
 
   add_library(demi-editor-model STATIC
     src/editor/EditorTerrainAuthoring.cpp
+    src/editor/EditorTerrainAssetDocument.cpp
+    src/editor/EditorTerrainGraphDocument.cpp
     src/editor/EditorTerrainRuntime.cpp
     src/editor/EditorTerrainPicking.cpp
     src/editor/EditorAssetGroupDocument.cpp
     src/editor/EditorAssetDrop.cpp
     src/editor/EditorAssetIndex.cpp
     src/editor/EditorProjectFolders.cpp
-    src/editor/EditorAuthoredJson.cpp
     src/editor/EditorDocumentStore.cpp
     src/editor/EditorDiagnosticsModel.cpp
     src/editor/EditorDockingState.cpp
     src/editor/EditorGpuTiming.cpp
     src/editor/EditorInspectorModel.cpp
+    src/editor/EditorModuleCatalog.cpp
     src/editor/EditorHudHierarchy.cpp
     src/editor/EditorHudDocument.cpp
     src/editor/EditorHudCanvas.cpp
@@ -92,6 +96,12 @@ else()
     src/editor/EditorProjectDocument.cpp
     src/editor/EditorProjectOperations.cpp
     src/editor/EditorPreferencesStore.cpp
+    src/editor/EditorCommands.cpp
+    src/editor/EditorKeyBindings.cpp
+    src/editor/EditorClipboard.cpp
+    src/editor/EditorAuthoringClipboard.cpp
+    src/editor/EditorWorkspaceClipboard.cpp
+    src/editor/EditorDocumentSessions.cpp
     src/editor/EditorRecoveryStore.cpp
     src/editor/EditorSceneCommand.cpp
     src/editor/EditorSceneDocument.cpp
@@ -118,7 +128,8 @@ else()
     src/editor/EditorWorkspaceComponents.cpp
     src/editor/EditorWorkspacePrefab.cpp
     src/editor/EditorWorkspaceLayout.cpp
-    src/editor/EditorWorkspaceAssets.cpp)
+    src/editor/EditorWorkspaceAssets.cpp
+    src/editor/EditorWorkspaceTerrainAsset.cpp)
   target_include_directories(demi-editor-model PUBLIC src)
   target_compile_features(demi-editor-model PUBLIC cxx_std_20)
   target_link_libraries(demi-editor-model PUBLIC demi-core PRIVATE
@@ -135,7 +146,17 @@ else()
     CONTENT "#include \"${imgui_docking_SOURCE_DIR}/imgui_internal.h\"\n")
 
   add_library(demi-editor-ui STATIC
+    "${imnodes_SOURCE_DIR}/imnodes.cpp"
     src/editor/EditorTerrainInspector.cpp
+    src/editor/EditorTerrainGraphSettings.cpp
+    src/editor/EditorTerrainGraphPanel.cpp
+    src/editor/EditorTerrainGraphPorts.cpp
+    src/editor/EditorGraphCanvasView.cpp
+    src/editor/EditorGraphCanvasScale.cpp
+    src/editor/EditorShortcutInput.cpp
+    src/editor/EditorShortcutSettings.cpp
+    src/editor/EditorShellCommands.cpp
+    src/editor/EditorShellViews.cpp
     src/editor/EditorFontLoader.cpp
     src/editor/EditorInputOwnership.cpp
     src/editor/EditorAboutPanel.cpp
@@ -155,6 +176,7 @@ else()
     src/editor/EditorHudNodeInspector.cpp
     src/editor/EditorImGuiInput.cpp
     src/editor/EditorInspectorPanel.cpp
+    src/editor/EditorModulesPanel.cpp
     src/editor/EditorStructuredValue.cpp
     src/editor/EditorIsoGridInspector.cpp
     src/editor/EditorJsonInspector.cpp
@@ -176,6 +198,7 @@ else()
     "${imgui_docking_SOURCE_DIR}/misc/cpp/imgui_stdlib.cpp"
     "${bgfx_SOURCE_DIR}/bgfx/examples/common/imgui/imgui.cpp")
   target_include_directories(demi-editor-ui PUBLIC src PRIVATE
+    "${imnodes_SOURCE_DIR}"
     "${DEMI_IMGUI_DOCKING_OVERLAY}"
     "${imgui_docking_SOURCE_DIR}"
     "${bgfx_SOURCE_DIR}/bgfx/examples/common/imgui"

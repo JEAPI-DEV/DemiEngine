@@ -81,6 +81,11 @@ public:
 
 private:
   void frameBounds(const EditorBounds3D &bounds);
+  // Raises the far plane so the authored content is inside the depth range,
+  // without moving the camera. An authored Camera3D's far_clip is a gameplay
+  // decision about how far the player can see; the editor viewport has to frame
+  // the content instead, so it must not inherit a value that crops it.
+  void ensureDepthRangeCovers(const EditorBounds3D &bounds);
   void updateOrientation();
 
   runtime::Camera3DComponent cameraSettings_;

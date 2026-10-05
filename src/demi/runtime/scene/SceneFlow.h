@@ -25,6 +25,11 @@ struct SceneTransition {
 class SceneFlow {
 public:
   void configure(ProjectData project);
+  // Borrowed shared prefab service, used on the main thread once a background
+  // load completes. Never touched by the loading worker.
+  void setPrefabService(class RuntimePrefabService *prefabs) {
+    prefabs_ = prefabs;
+  }
   [[nodiscard]] bool prepare(std::string sceneId, bool additive);
   [[nodiscard]] bool cancel();
   void poll();
@@ -50,6 +55,7 @@ private:
   };
 
   ProjectData project_;
+  RuntimePrefabService *prefabs_ = nullptr;
   ScenePreparationState state_ = ScenePreparationState::Idle;
   std::future<Prepared> future_;
   std::optional<Prepared> prepared_;

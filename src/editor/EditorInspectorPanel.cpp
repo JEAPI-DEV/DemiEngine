@@ -1,6 +1,7 @@
 #include "editor/EditorInspectorPanel.h"
 
 #include "editor/EditorInspectorModel.h"
+#include "editor/EditorHudNodeInspector.h"
 #include "editor/EditorIsoGridInspector.h"
 #include "editor/EditorTerrainInspector.h"
 #include "editor/EditorLuaComponentMetadata.h"
@@ -969,13 +970,9 @@ void drawEntityHeader(EditorWorkspace &workspace, const nlohmann::json &entity,
 
 } // namespace
 
-void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
-                        const ImVec2 size, EditorInspectorPanelState &state,
-                        std::string &notice, bool *open) {
-  if (!beginEditorPanel("Inspector", position, size, open)) {
-    ImGui::End();
-    return;
-  }
+static void drawInspectorContents(EditorWorkspace &workspace,
+                                  EditorInspectorPanelState &state,
+                                  std::string &notice) {
   const float panelWidth = ImGui::GetContentRegionAvail().x;
   if (workspace.sceneDocument().isDirty()) {
     ImGui::SetCursorPosX(std::max(panelWidth - 68.0F, 0.0F));
@@ -983,13 +980,11 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
   }
   ImGui::Separator();
   if (drawIsoGridCellInspector(workspace, notice)) {
-    ImGui::End();
     return;
   }
   const runtime::Entity *selected = workspace.selectedEntity();
   if (selected == nullptr) {
     ImGui::TextDisabled("Select an entity to inspect its authored data.");
-    ImGui::End();
     return;
   }
   ImGui::SetNextItemWidth(-1.0F);
@@ -1000,7 +995,6 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
   ImGui::Separator();
   if (workspace.selectedEntityIds().size() > 1) {
     drawMultiSelection(workspace, notice, propertyQuery, state.structuredValues);
-    ImGui::End();
     return;
   }
 
@@ -1028,14 +1022,12 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
         state.openRequest = *path;
       else
         notice = "Could not resolve the source prefab for this instance.";
-      ImGui::End();
       return;
     }
     ImGui::Separator();
   }
   if (entity == nullptr) {
     ImGui::TextDisabled("The selected entity has no authored source.");
-    ImGui::End();
     return;
   }
   // A commit can replace scene-document storage and rebuild the preview world.
@@ -1056,7 +1048,6 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
     if (ImGui::Button("Unpack preset")) {
       std::string error;
       notice = workspace.unpackPreset(selectedId, error) ? "Preset converted to independent components" : error;
-      ImGui::End();
       return;
     }
     if (ImGui::IsItemHovered())
@@ -1077,7 +1068,6 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
         state.openRequest = *path;
       else
         notice = "Could not resolve placement prefab";
-      ImGui::End();
       return;
     }
   }
@@ -1171,7 +1161,6 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
         notice =
             reverted ? "Component reverted to the shared prefab source" : error;
         ImGui::PopID();
-        ImGui::End();
         return;
       }
       if (removeRequested) {
@@ -1183,7 +1172,6 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
                                      : "Component removed")
                      : error;
         ImGui::PopID();
-        ImGui::End();
         return;
       }
       if (!componentOpen) {
@@ -1244,7 +1232,6 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
             selectedId, restoreComponent, error);
         notice = restored ? "Component restored from the shared prefab source"
                           : error;
-        ImGui::End();
         return;
       }
     }
@@ -1297,7 +1284,6 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
         if (!choice.compatible)
           ImGui::EndDisabled();
         ImGui::EndCombo();
-        ImGui::End();
         return;
       }
       if (!choice.compatible &&
@@ -1336,7 +1322,6 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
           if (hasLuaScript)
             ImGui::EndDisabled();
           ImGui::EndCombo();
-          ImGui::End();
           return;
         }
         if (hasLuaScript &&
@@ -1405,7 +1390,6 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
               state.pendingReferenceField.clear();
             }
             ImGui::EndCombo();
-            ImGui::End();
             return;
           }
           ImGui::EndCombo();
@@ -1419,6 +1403,40 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
         }
       }
     }
+  }
+}
+
+void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
+                        const ImVec2 size, EditorInspectorPanelState &state,
+                        std::string &notice, bool *open) {
+  if (beginEditorPanel("Inspector", position, size, open))
+    drawInspectorContents(workspace, state, notice);
+  ImGui::End();
+}
+
+void drawEditorInspector(EditorWorkspace &workspace, const ImVec2 position,
+                         const ImVec2 size, EditorInspectorPanelState &state,
+                         EditorHudInspectorState &hudState, std::string &notice,
+                         bool *open) {
+  if (!beginEditorPanel("Inspector", position, size, open)) {
+    ImGui::End();
+    return;
+  }
+  if (workspace.activeDocument() == EditorWorkspaceDocument::Hud) {
+    drawEditorHudNodeInspectorContents(workspace, hudState, notice);
+  } else if (workspace.activeDocument() ==
+             EditorWorkspaceDocument::TerrainAsset) {
+    const auto *asset = workspace.terrainAssetDocument();
+    if (asset) {
+      ImGui::TextDisabled("TERRAIN ASSET");
+      ImGui::TextWrapped("%s", asset->id().c_str());
+      ImGui::TextDisabled("Saved as %s",
+                          asset->path().filename().string().c_str());
+      ImGui::Separator();
+      drawEditorTerrainInspector(workspace, notice);
+    }
+  } else {
+    drawInspectorContents(workspace, state, notice);
   }
   ImGui::End();
 }

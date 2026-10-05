@@ -1,10 +1,14 @@
 #include "editor/EditorJsonDocument.h"
 
-#include "editor/EditorAuthoredJson.h"
+#include "demi/filesystem/AuthoredJsonPatch.h"
 
 #include <utility>
 
 namespace demi::editor {
+// Authored-source patching is shared infrastructure, not editor state.
+using demi::filesystem::normalizeAuthoredValue;
+using demi::filesystem::patchAuthoredJsonSource;
+
 namespace {
 
 std::string decodePointerToken(std::string token) {
@@ -128,7 +132,7 @@ bool EditorJsonDocument::redo(std::string &error) {
 
 bool EditorJsonDocument::save(std::string &error) {
   const std::string serialized =
-      patchEditorJsonSource(originalText_, savedDocument_, document_)
+      patchAuthoredJsonSource(originalText_, savedDocument_, document_)
           .value_or(document_.dump(2) + '\n');
   FileRevision replacement;
   if (store_.writeIfUnchanged(path_, serialized, revision_, replacement,

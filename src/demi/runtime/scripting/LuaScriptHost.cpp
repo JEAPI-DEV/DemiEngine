@@ -15,6 +15,13 @@ namespace demi::runtime {
 
 LuaScriptHost::LuaScriptHost() = default;
 
+void LuaScriptHost::setPrefabService(RuntimePrefabService *prefabs) {
+  prefabs_ = prefabs;
+  // The host owns the scene flow, so one injection configures both consumers of
+  // the shared pool rather than leaving a second wiring point to forget.
+  sceneFlow_.setPrefabService(prefabs);
+}
+
 LuaScriptHost::~LuaScriptHost() {
   destroy();
   if (state_ != nullptr) {

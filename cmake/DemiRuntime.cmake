@@ -8,6 +8,8 @@ target_link_libraries(demi-destruction PRIVATE demi-blast-lowlevel)
 
 set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/terrain/TerrainWorld.cpp
+  src/demi/runtime/terrain/TerrainWorldBatch.cpp
+  src/demi/runtime/terrain/TerrainScatterRuntime.cpp
   src/demi/runtime/terrain/TerrainMeshBuilder.cpp
   src/demi/runtime/network/TcpClient.cpp
   src/demi/runtime/database/DatabaseService.cpp
@@ -81,7 +83,6 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/profiling/ProfilerHudLayout.cpp
   src/demi/runtime/platform/ProjectFileWatcher.cpp
   src/demi/runtime/platform/RuntimeCapabilities.cpp
-  src/demi/runtime/simulation/DeterministicRandom.cpp
   src/demi/runtime/scene/HudParser.cpp
   src/demi/runtime/scene/ProjectParser.cpp
   src/demi/runtime/scene/SceneEntityParser.cpp
@@ -92,6 +93,7 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/assets/RuntimeAssetBootstrap.cpp
   src/demi/runtime/assets/RuntimeAssetReload.cpp
   src/demi/runtime/assets/RuntimeAssetService.cpp
+  src/demi/runtime/assets/TerrainAssetResourceLoader.cpp
   src/demi/runtime/scripting/LuaScriptHostBindings.cpp
   src/demi/runtime/scripting/LuaServiceModules.cpp
   src/demi/runtime/scripting/LuaScriptHost.cpp

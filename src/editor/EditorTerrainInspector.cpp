@@ -1,404 +1,234 @@
 #include "editor/EditorTerrainInspector.h"
+
+#include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
+#include "demi/runtime/scene/model/Entity.h"
 #include "demi/runtime/terrain/TerrainRecipe.h"
 #include "editor/EditorWorkspace.h"
+
 #include <algorithm>
 #include <array>
 #include <imgui.h>
-#include <optional>
-#include <vector>
+#include <string_view>
+#include <utility>
 
 namespace demi::editor {
 namespace {
-std::string terrainField(const char *label) {
-  ImGui::TextWrapped("%s", label);
+
+std::string brushField(const char *label) {
+  ImGui::TextUnformatted(label);
   ImGui::SetNextItemWidth(-1.0F);
   return std::string("##") + label;
 }
 
-void floatField(nlohmann::json &object, const char *key, const char *label,
-                float fallback, float speed, float minimum, float maximum) {
-  float value = object.value(key, fallback);
-  if (ImGui::DragFloat(terrainField(label).c_str(), &value, speed, minimum,
-                       maximum, "%.3f", ImGuiSliderFlags_AlwaysClamp))
-    object[key] = value;
-}
-bool biomeCombo(const char *label, const nlohmann::json &biomes,
-                std::string &selected) {
+bool chooseBiome(const nlohmann::json &biomes, std::string &selected) {
+  if (!ImGui::BeginCombo(brushField("Paint biome").c_str(),
+                         selected.empty() ? "Choose biome" : selected.c_str()))
+    return false;
   bool changed = false;
-  if (ImGui::BeginCombo(terrainField(label).c_str(),
-                        selected.empty() ? "Choose biome" : selected.c_str())) {
-    for (const auto &[id, value] : biomes.items()) {
-      (void)value;
-      if (ImGui::Selectable(id.c_str(), id == selected)) {
-        selected = id;
-        changed = true;
-      }
+  for (const auto &[id, value] : biomes.items()) {
+    (void)value;
+    if (ImGui::Selectable(id.c_str(), selected == id)) {
+      selected = id;
+      changed = true;
     }
-    ImGui::EndCombo();
   }
+  ImGui::EndCombo();
   return changed;
 }
 
-void drawClearTerrainDialog(const char *title, nlohmann::json &draft,
-                            bool protectionOnly) {
-  if (!ImGui::BeginPopupModal(title, nullptr,
-                              ImGuiWindowFlags_AlwaysAutoResize))
-    return;
-  ImGui::TextWrapped(protectionOnly
-                         ? "Remove every protection snapshot from the draft? "
-                           "Sculpt edits and painted regions remain."
-                         : "Remove all sculpt edits, protection snapshots and "
-                           "painted regions from the draft?");
-  ImGui::TextWrapped("Regenerate applies the removal as an undoable recipe "
-                     "edit. The current preview stays visible until then.");
-  if (ImGui::Button("Remove from draft")) {
-    if (protectionOnly && draft.contains("edits")) {
-      auto &edits = draft["edits"];
-      for (auto edit = edits.begin(); edit != edits.end();) {
-        if (edit->value("type", std::string{}) == "protect")
-          edit = edits.erase(edit);
-        else
-          ++edit;
-      }
-    } else if (!protectionOnly) {
-      draft["edits"] = nlohmann::json::array();
-      draft["regions"] = nlohmann::json::array();
-      draft["exclusions"] = nlohmann::json::array();
-    }
-    ImGui::CloseCurrentPopup();
-  }
-  ImGui::SameLine();
-  if (ImGui::Button("Cancel"))
-    ImGui::CloseCurrentPopup();
-  ImGui::EndPopup();
-}
-
-void drawLayers(EditorTerrainAuthoring &authoring) {
-  auto &draft = authoring.draft();
-  auto layers =
-      draft.value("layers", defaultEditorTerrainRecipe().at("layers"));
-  const auto before = layers;
-  ImGui::SeparatorText("Layers");
-  constexpr std::array kinds{"generation", "biome", "sculpt", "protection",
-                             "exclusion"};
-  constexpr std::array labels{"Generation", "Biome overrides", "Sculpt",
-                              "Protection", "Exclusions"};
-  for (std::size_t group = 0; group < kinds.size(); ++group) {
-    ImGui::PushID(kinds[group]);
-    if (ImGui::TreeNodeEx(labels[group], ImGuiTreeNodeFlags_DefaultOpen)) {
-      for (auto &layer : layers) {
-        if (layer.value("kind", std::string{}) != kinds[group])
-          continue;
-        const auto id = layer.at("id").get<std::string>();
-        ImGui::PushID(id.c_str());
-        bool enabled = layer.value("enabled", true);
-        if (ImGui::Checkbox("##Enabled", &enabled))
-          layer["enabled"] = enabled;
-        if (ImGui::IsItemHovered())
-          ImGui::SetTooltip("Enable this layer when the draft is applied");
-        ImGui::SameLine();
-        const auto name = layer.value("name", id);
-        std::vector<char> buffer(name.size() + 256, '\0');
-        std::copy(name.begin(), name.end(), buffer.begin());
-        ImGui::SetNextItemWidth(-1);
-        if (ImGui::InputText("##Name", buffer.data(), buffer.size(),
-                             ImGuiInputTextFlags_EnterReturnsTrue) &&
-            buffer.front())
-          layer["name"] = buffer.data();
-        if (ImGui::IsItemHovered())
-          ImGui::SetTooltip("Layer ID: %s\nEnter to rename", id.c_str());
-        if (authoring.brush.layer == id)
-          ImGui::TextDisabled("Active brush target");
-        ImGui::PopID();
-      }
-      if (group != 0 && ImGui::SmallButton("Add layer")) {
-        int suffix = 1;
-        std::string id;
-        do {
-          id = std::string(kinds[group]) + "_" + std::to_string(suffix++);
-        } while (std::ranges::any_of(layers, [&](const auto &entry) {
-          return entry.value("id", std::string{}) == id;
-        }));
-        layers.push_back({{"id", id},
-                          {"name", labels[group]},
-                          {"kind", kinds[group]},
-                          {"enabled", true}});
-      }
-      ImGui::TreePop();
-    }
-    ImGui::PopID();
-  }
-  if (layers != before)
-    draft["layers"] = std::move(layers);
-  ImGui::TextWrapped("Names and layer toggles are draft settings. Regenerate "
-                     "applies them; disabled layers keep their strokes.");
-}
-
-void drawBrushLayer(EditorTerrainAuthoring &authoring) {
+void chooseBrushLayer(EditorTerrainAuthoring &authoring) {
   const auto layers = authoring.draft().value(
       "layers", defaultEditorTerrainRecipe().at("layers"));
   const auto kind = authoring.brushLayerKind();
-  std::string selected;
+  std::string preview;
   for (const auto &layer : layers)
     if (layer.value("id", std::string{}) == authoring.brush.layer)
-      selected = layer.value("name", authoring.brush.layer);
-  if (ImGui::BeginCombo(terrainField("Target layer").c_str(),
-                        selected.empty() ? "Choose layer" : selected.c_str())) {
-    for (const auto &layer : layers) {
-      if (layer.value("kind", std::string{}) != kind)
-        continue;
-      const auto id = layer.at("id").get<std::string>();
-      const bool enabled = layer.value("enabled", true);
-      ImGui::PushID(id.c_str());
-      ImGui::BeginDisabled(!enabled);
-      if (ImGui::Selectable(layer.value("name", id).c_str(),
-                            id == authoring.brush.layer))
-        authoring.brush.layer = id;
-      ImGui::EndDisabled();
-      ImGui::PopID();
-    }
-    ImGui::EndCombo();
-  }
-}
-} // namespace
-
-void drawEditorTerrainInspector(EditorWorkspace &workspace,
-                                std::string &notice) {
-  workspace.syncTerrainAuthoring();
-  auto &authoring = workspace.terrainAuthoring();
-  if (auto draftNotice = authoring.takeNotice(); !draftNotice.empty())
-    notice = std::move(draftNotice);
-  if (authoring.entityId().empty()) {
-    ImGui::TextWrapped("Terrain tools require the 3D scene stage.");
+      preview = layer.value("name", authoring.brush.layer);
+  if (!ImGui::BeginCombo(brushField("Target layer").c_str(),
+                         preview.empty() ? "Choose layer" : preview.c_str()))
     return;
-  }
-  auto &draft = authoring.draft();
-  static const nlohmann::json emptyArray = nlohmann::json::array();
-  const auto defaults = defaultEditorTerrainRecipe();
-  ImGui::TextWrapped("Generation settings are a draft. Generate applies them "
-                     "as one undoable recipe edit.");
-  bool dirty = authoring.hasDraftChanges();
-  if (dirty)
-    ImGui::TextColored({1.0F, 0.75F, 0.35F, 1.0F}, "Unapplied draft settings");
-  ImGui::BeginDisabled(authoring.busy() || authoring.stroking());
-  const char *generateLabel = authoring.surface() ? "Regenerate" : "Generate";
-  if (ImGui::Button(generateLabel)) {
-    if (authoring.needsResizeDecision())
-      ImGui::OpenPopup("Terrain grid changed");
-    else {
-      std::string error;
-      if (!authoring.generate(std::nullopt, error))
-        notice = std::move(error);
-    }
-  }
-  ImGui::SameLine();
-  ImGui::BeginDisabled(!dirty);
-  if (ImGui::Button("Discard draft"))
-    authoring.discardDraft();
-  ImGui::EndDisabled();
-  ImGui::EndDisabled();
-  if (authoring.busy()) {
-    ImGui::ProgressBar(authoring.progress(), {-1, 0},
-                       authoring.stroking() ? "Updating brush batch"
-                                            : "Updating terrain");
-    if (ImGui::Button("Cancel terrain operation"))
-      authoring.cancel();
-    ImGui::TextWrapped(
-        "Save and Play wait for the final terrain and collision update.");
-  }
-  ImGui::Spacing();
-  ImGui::BeginDisabled(authoring.busy() || authoring.stroking());
-  drawLayers(authoring);
-  auto size = draft.value("size", defaults.at("size"));
-  float dimensions[]{size.at(0).get<float>(), size.at(1).get<float>()};
-  if (ImGui::DragFloat2(terrainField("Size (X/Z)").c_str(), dimensions, 1.0F,
-                        0.01F, 1e7F, "%.2f", ImGuiSliderFlags_AlwaysClamp))
-    draft["size"] = {dimensions[0], dimensions[1]};
-  auto resolution = draft.value("resolution", defaults.at("resolution"));
-  int cells[]{resolution.at(0).get<int>(), resolution.at(1).get<int>()};
-  if (ImGui::InputInt2(terrainField("Resolution (cells)").c_str(), cells))
-    draft["resolution"] = {cells[0], cells[1]};
-  int seed = draft.value("seed", 1337);
-  if (ImGui::InputInt(terrainField("Seed").c_str(), &seed))
-    draft["seed"] = seed;
-  int chunk = draft.value("chunk_cells", 32);
-  if (ImGui::InputInt(terrainField("Chunk cells").c_str(), &chunk))
-    draft["chunk_cells"] = chunk;
-  auto biomes = draft.value("biomes", defaults.at("biomes"));
-  const auto previousBiomes = biomes;
-  std::string defaultBiome =
-      draft.value("default_biome", std::string("default"));
-  if (biomeCombo("Default biome", biomes, defaultBiome))
-    draft["default_biome"] = defaultBiome;
-  ImGui::SeparatorText("Biomes");
-  std::optional<std::string> removeBiome;
-  std::optional<std::pair<std::string, std::string>> renameBiome;
-  for (auto &[id, biome] : biomes.items()) {
+  for (const auto &layer : layers) {
+    if (layer.value("kind", std::string{}) != kind)
+      continue;
+    const auto id = layer.at("id").get<std::string>();
     ImGui::PushID(id.c_str());
-    if (ImGui::TreeNode(id.c_str())) {
-      std::vector<char> idBuffer(id.size() + 256, '\0');
-      std::copy(id.begin(), id.end(), idBuffer.begin());
-      if (ImGui::InputText(terrainField("Biome ID (Enter)").c_str(),
-                           idBuffer.data(), idBuffer.size(),
-                           ImGuiInputTextFlags_EnterReturnsTrue)) {
-        const std::string replacement(idBuffer.data());
-        if (replacement.empty() ||
-            (replacement != id && biomes.contains(replacement)))
-          notice = "Biome IDs must be nonempty and unique.";
-        else if (replacement != id)
-          renameBiome = std::pair{id, replacement};
-      }
-      floatField(biome, "base_height", "Base height", 0, 0.1F, -1e7F, 1e7F);
-      floatField(biome, "height_variation", "Height variation", 8, 0.1F, 0,
-                 1e7F);
-      floatField(biome, "feature_size", "Feature size", 32, 0.1F, 0.01F, 1e7F);
-      floatField(biome, "roughness", "Roughness", 0.5F, 0.01F, 0, 1);
-      int octaves = biome.value("octaves", 4);
-      if (ImGui::InputInt(terrainField("Octaves").c_str(), &octaves))
-        biome["octaves"] = octaves;
-      auto color = biome.value("color", defaults["biomes"]["default"]["color"]);
-      float rgba[]{color.at(0).get<float>(), color.at(1).get<float>(),
-                   color.at(2).get<float>(), color.at(3).get<float>()};
-      if (ImGui::ColorEdit4(terrainField("Tint").c_str(), rgba))
-        biome["color"] = {rgba[0], rgba[1], rgba[2], rgba[3]};
-      bool referenced = defaultBiome == id;
-      const auto &paintedRegions =
-          draft.contains("regions") ? draft.at("regions") : emptyArray;
-      for (const auto &region : paintedRegions)
-        referenced |= region.value("biome", std::string{}) == id;
-      ImGui::BeginDisabled(referenced);
-      if (ImGui::SmallButton("Remove biome"))
-        removeBiome = id;
-      ImGui::EndDisabled();
-      if (referenced)
-        ImGui::TextWrapped("Used by the default or painted regions.");
-      ImGui::TreePop();
-    }
+    ImGui::BeginDisabled(!layer.value("enabled", true));
+    if (ImGui::Selectable(layer.value("name", id).c_str(),
+                          id == authoring.brush.layer))
+      authoring.brush.layer = id;
+    ImGui::EndDisabled();
     ImGui::PopID();
   }
-  if (removeBiome)
-    biomes.erase(*removeBiome);
-  if (renameBiome) {
-    const auto &[previousId, replacementId] = *renameBiome;
-    biomes[replacementId] = biomes.at(previousId);
-    biomes.erase(previousId);
-    if (defaultBiome == previousId) {
-      defaultBiome = replacementId;
-      draft["default_biome"] = replacementId;
-    }
-    if (draft.contains("regions")) {
-      for (auto &region : draft["regions"])
-        if (region.value("biome", std::string{}) == previousId)
-          region["biome"] = replacementId;
-    }
-    if (authoring.brush.biome == previousId)
-      authoring.brush.biome = replacementId;
+  ImGui::EndCombo();
+}
+
+void chooseTerrainAsset(EditorWorkspace &workspace, std::string_view entityId,
+                        const char *label) {
+  if (!ImGui::BeginCombo(label, "Choose Terrain asset"))
+    return;
+  for (const auto &record : workspace.assetIndex().assets()) {
+    if (record.manifest.type != "Terrain")
+      continue;
+    if (ImGui::Selectable(record.manifest.id.c_str()))
+      workspace.requestTerrainAssetAssign(std::string(entityId),
+                                          record.manifest.id);
   }
-  if (ImGui::Button("Add biome")) {
-    int suffix = 1;
-    std::string id;
-    do {
-      id = "biome_" + std::to_string(suffix++);
-    } while (biomes.contains(id));
-    biomes[id] = defaults["biomes"]["default"];
-    authoring.brush.biome = id;
+  ImGui::EndCombo();
+}
+
+void drawSceneAssetActions(EditorWorkspace &workspace,
+                           const runtime::Entity &entity,
+                           const runtime::Terrain3DComponent &terrain,
+                           std::string &notice) {
+  if (!terrain.asset.empty()) {
+    ImGui::TextDisabled("SHARED TERRAIN ASSET");
+    ImGui::TextWrapped("%s", terrain.asset.c_str());
+    ImGui::TextWrapped("Graph and brush changes edit this asset for every "
+                       "scene placement.");
+    chooseTerrainAsset(workspace, entity.id, "Replace terrain asset");
+    return;
   }
-  if (biomes != previousBiomes)
-    draft["biomes"] = biomes;
-  ImGui::SeparatorText("Edits and protection");
-  const auto &edits = draft.contains("edits") ? draft.at("edits") : emptyArray;
-  const auto &regions =
-      draft.contains("regions") ? draft.at("regions") : emptyArray;
-  const bool hasProtection = std::ranges::any_of(edits, [](const auto &edit) {
-    return edit.value("type", std::string{}) == "protect";
-  });
-  ImGui::Text("Draft: %zu edits, %zu painted regions", edits.size(),
-              regions.size());
-  ImGui::BeginDisabled(!hasProtection);
-  if (ImGui::Button("Clear protection"))
-    ImGui::OpenPopup("Clear terrain protection?");
-  ImGui::EndDisabled();
-  ImGui::SameLine();
-  ImGui::BeginDisabled(edits.empty() && regions.empty());
-  if (ImGui::Button("Clear all edits"))
-    ImGui::OpenPopup("Clear all terrain edits?");
-  ImGui::EndDisabled();
-  ImGui::EndDisabled();
-  drawClearTerrainDialog("Clear terrain protection?", draft, true);
-  drawClearTerrainDialog("Clear all terrain edits?", draft, false);
-  if (ImGui::BeginPopupModal("Terrain grid changed", nullptr,
-                             ImGuiWindowFlags_AlwaysAutoResize)) {
-    ImGui::TextWrapped(
-        "Size or resolution changed. Existing radial edits can keep their "
-        "local positions. Protection snapshots require the original grid.");
-    ImGui::TextWrapped(
-        "Clear removes all painted regions, sculpt edits and protection "
-        "snapshots. Undo restores the previous recipe.");
-    if (ImGui::Button("Keep radial edits")) {
+  if (terrain.recipe.is_null()) {
+    ImGui::TextWrapped("Choose a Terrain asset for this entity.");
+    chooseTerrainAsset(workspace, entity.id, "Terrain asset");
+    if (ImGui::Button("Create Terrain asset..."))
+      workspace.requestTerrainAssetCreate();
+    if (ImGui::SmallButton("Use an inline procedural recipe")) {
       std::string error;
-      if (authoring.generate(EditorTerrainResize::Keep, error))
-        ImGui::CloseCurrentPopup();
-      else
-        notice = std::move(error);
+      notice = workspace.editValue({.entityId = entity.id,
+                                    .component = "Terrain3D",
+                                    .field = "recipe"},
+                                   defaultEditorTerrainRecipe(), false, error)
+                   ? "Procedural terrain recipe added"
+                   : error;
     }
-    ImGui::SameLine();
-    if (ImGui::Button("Clear edits and generate")) {
-      std::string error;
-      if (authoring.generate(EditorTerrainResize::Clear, error))
-        ImGui::CloseCurrentPopup();
-      else
-        notice = std::move(error);
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Cancel"))
-      ImGui::CloseCurrentPopup();
-    ImGui::EndPopup();
+    return;
   }
-  dirty = authoring.hasDraftChanges();
+  ImGui::TextDisabled("INLINE PROCEDURAL TERRAIN");
+  const bool authored =
+      workspace.sceneDocument().component(entity.id, "Terrain3D") != nullptr;
+  ImGui::BeginDisabled(!authored);
+  if (ImGui::Button("Extract to Terrain asset..."))
+    workspace.requestTerrainAssetCreate(entity.id);
+  ImGui::EndDisabled();
+  if (!authored)
+    ImGui::TextWrapped("Open the source prefab to extract its recipe.");
+  chooseTerrainAsset(workspace, entity.id, "Replace with Terrain asset");
+}
+
+void drawBrush(EditorTerrainAuthoring &authoring) {
+  const bool draftChanged = authoring.hasDraftChanges();
+  const bool canPaint = !authoring.busy() && !authoring.stroking() &&
+                        !draftChanged && authoring.surface();
+  const auto biomes = authoring.draft().value(
+      "biomes", defaultEditorTerrainRecipe().at("biomes"));
+
   ImGui::SeparatorText("Viewport brush");
-  ImGui::BeginDisabled(authoring.busy() || authoring.stroking() || dirty ||
-                       !authoring.surface());
-  constexpr std::array names{"Select",  "Raise",          "Lower",
+  if (draftChanged)
+    ImGui::TextWrapped("Generate the graph draft before painting on this "
+                       "surface.");
+  ImGui::BeginDisabled(!canPaint);
+  constexpr std::array tools{"Select",  "Raise",          "Lower",
                              "Flatten", "Smooth",         "Paint biome",
                              "Protect", "Paint exclusion"};
   int mode = static_cast<int>(authoring.brush.mode);
-  if (ImGui::Combo(terrainField("Tool").c_str(), &mode, names.data(),
-                   static_cast<int>(names.size())))
+  if (ImGui::Combo(brushField("Tool").c_str(), &mode, tools.data(),
+                   static_cast<int>(tools.size())))
     authoring.brush.mode = static_cast<EditorTerrainBrush>(mode);
   if (authoring.brush.mode != EditorTerrainBrush::Select)
-    drawBrushLayer(authoring);
-  ImGui::DragFloat(terrainField("Radius").c_str(), &authoring.brush.radius,
-                   0.1F, 0.01F, 1e7F, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+    chooseBrushLayer(authoring);
+  ImGui::DragFloat(brushField("Radius").c_str(), &authoring.brush.radius, 0.1F,
+                   0.01F, 1e7F, "%.2f", ImGuiSliderFlags_AlwaysClamp);
   if (authoring.brush.mode != EditorTerrainBrush::Protect) {
-    ImGui::SliderFloat(terrainField("Strength").c_str(),
-                       &authoring.brush.strength, 0, 1, "%.3f",
+    ImGui::SliderFloat(brushField("Strength").c_str(),
+                       &authoring.brush.strength, 0.0F, 1.0F, "%.3f",
                        ImGuiSliderFlags_AlwaysClamp);
-    ImGui::SliderFloat(terrainField("Falloff").c_str(),
-                       &authoring.brush.falloff, 0, 4, "%.3f",
-                       ImGuiSliderFlags_AlwaysClamp);
+    ImGui::SliderFloat(brushField("Falloff").c_str(), &authoring.brush.falloff,
+                       0.0F, 4.0F, "%.3f", ImGuiSliderFlags_AlwaysClamp);
   }
   if (authoring.brush.mode == EditorTerrainBrush::Biome)
-    biomeCombo("Paint biome", biomes, authoring.brush.biome);
+    chooseBiome(biomes, authoring.brush.biome);
   if (authoring.brush.mode == EditorTerrainBrush::Exclusion) {
     constexpr std::array operations{"Exclude", "Erase"};
-    int operation = authoring.brush.exclusionValue == 0 ? 1 : 0;
-    if (ImGui::Combo(terrainField("Mask operation").c_str(), &operation,
+    int operation = authoring.brush.exclusionValue == 0.0F ? 1 : 0;
+    if (ImGui::Combo(brushField("Mask operation").c_str(), &operation,
                      operations.data(), static_cast<int>(operations.size())))
       authoring.brush.exclusionValue = operation == 0 ? 1.0F : 0.0F;
     ImGui::TextWrapped("Exclude paints mask weight; Erase restores a "
                        "subsection. Strength and falloff blend each stamp.");
   }
   ImGui::EndDisabled();
+
   ImGui::Checkbox("Preview exclusions", &authoring.previewExclusions);
-  ImGui::TextWrapped("Drag to preview live terrain and collision batches. "
-                     "Release records one undoable stroke. Esc "
-                     "cancels the stroke. Alt+drag navigates.");
+  static constexpr std::array maskNames{"None", "Biome", "Elevation", "Slope"};
+  int mask = static_cast<int>(authoring.maskPreview);
+  if (ImGui::Combo(brushField("Rule mask overlay").c_str(), &mask,
+                   maskNames.data(), static_cast<int>(maskNames.size())))
+    authoring.maskPreview = static_cast<EditorTerrainMaskPreview>(mask);
+  if (authoring.maskPreview != EditorTerrainMaskPreview::None)
+    ImGui::TextWrapped("The overlay samples generated terrain. Graph draft "
+                       "changes appear after Generate.");
+  ImGui::TextWrapped("Drag to preview the brush. Release records one undoable "
+                     "stroke. Esc cancels; Alt+drag navigates.");
   if (authoring.brush.mode == EditorTerrainBrush::Flatten)
     ImGui::TextWrapped("Flatten captures height where the stroke begins.");
   if (authoring.brush.mode == EditorTerrainBrush::Protect)
-    ImGui::TextWrapped("Protect captures the current surface so it survives "
-                       "later seed and biome changes. Every sample inside the "
-                       "radius is captured fully. Clear protection removes "
-                       "older snapshots from the draft.");
+    ImGui::TextWrapped(
+        "Protect preserves the current surface through later "
+        "generation changes. Clear snapshots in Graph settings.");
 }
+
+} // namespace
+
+void drawEditorTerrainInspector(EditorWorkspace &workspace,
+                                std::string &notice) {
+  if (workspace.activeDocument() == EditorWorkspaceDocument::Scene) {
+    const auto *entity = workspace.selectedEntity();
+    const auto *terrain =
+        entity ? entity->component<runtime::Terrain3DComponent>() : nullptr;
+    if (entity && terrain)
+      drawSceneAssetActions(workspace, *entity, *terrain, notice);
+    if (terrain && terrain->asset.empty() && terrain->recipe.is_null())
+      return;
+  }
+
+  workspace.syncTerrainAuthoring();
+  auto &authoring = workspace.terrainAuthoring();
+  if (auto draftNotice = authoring.takeNotice(); !draftNotice.empty())
+    notice = std::move(draftNotice);
+  if (authoring.entityId().empty()) {
+    ImGui::TextWrapped("Select a Terrain3D entity in the 3D scene.");
+    return;
+  }
+
+  if (ImGui::Button("Open Terrain Graph"))
+    workspace.requestTerrainGraphOpen();
+  if (authoring.entityId() != workspace.selectedEntityId()) {
+    ImGui::TextWrapped(
+        "The open graph is editing terrain '%s'. Open this terrain's graph "
+        "to change the editing target.",
+        authoring.entityId().c_str());
+    return;
+  }
+  if (workspace.terrainEditingAsset()) {
+    ImGui::SameLine();
+    ImGui::BeginDisabled(authoring.busy() || authoring.stroking());
+    if (ImGui::Button("Apply changes to asset")) {
+      std::string error;
+      if (!workspace.applyTerrainAssetChanges(error))
+        notice = std::move(error);
+    }
+    ImGui::EndDisabled();
+  }
+  if (authoring.busy()) {
+    ImGui::ProgressBar(authoring.progress(), {-1.0F, 0.0F},
+                       authoring.stroking() ? "Updating brush stroke"
+                                            : "Updating terrain");
+    if (ImGui::Button("Cancel terrain operation"))
+      authoring.cancel();
+    ImGui::TextWrapped("Save and Play wait for terrain and collision updates.");
+  }
+  drawBrush(authoring);
+}
+
 } // namespace demi::editor

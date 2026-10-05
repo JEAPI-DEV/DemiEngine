@@ -6,6 +6,15 @@ add_test(NAME demi-editor-prefab-authoring-tests COMMAND demi-editor-prefab-auth
 add_test(NAME demi-editor-prefab-components-tests COMMAND demi-editor-prefab-components-tests)
 add_test(NAME demi-editor-structured-value-tests COMMAND demi-editor-structured-value-tests)
 add_test(NAME demi-editor-drag-authoring-tests COMMAND demi-editor-drag-authoring-tests)
+add_test(NAME demi-editor-terrain-graph-ui-tests COMMAND demi-editor-terrain-graph-ui-tests)
+add_test(NAME demi-editor-terrain-graph-settings-tests COMMAND demi-editor-terrain-graph-settings-tests)
+add_test(NAME demi-editor-render-view-tests COMMAND demi-editor-render-view-tests)
+add_test(NAME demi-editor-document-sessions-tests COMMAND demi-editor-document-sessions-tests)
+add_test(NAME demi-editor-docking-ui-tests COMMAND demi-editor-docking-ui-tests)
+add_test(NAME demi-editor-console-docking-tests COMMAND demi-editor-console-docking-tests)
+add_test(NAME demi-editor-shell-docking-tests COMMAND demi-editor-shell-docking-tests)
+add_test(NAME demi-editor-authoring-clipboard-tests COMMAND demi-editor-authoring-clipboard-tests)
+add_test(NAME demi-editor-terrain-asset-tests COMMAND demi-editor-terrain-asset-tests)
 add_test(NAME demi-editor-entity-bounds3d-tests COMMAND demi-editor-entity-bounds3d-tests)
 add_test(NAME demi-editor-dialog-layout-tests COMMAND demi-editor-dialog-layout-tests)
 add_test(NAME demi-editor-settings-layout-tests COMMAND demi-editor-settings-layout-tests)
@@ -82,8 +91,8 @@ add_test(NAME demi-editor-docking-workspace-tests
   COMMAND demi-editor-docking-workspace-tests)
 add_test(NAME demi-editor-lua-component-metadata-tests
   COMMAND demi-editor-lua-component-metadata-tests)
-add_test(NAME demi-editor-authored-json-tests
-  COMMAND demi-editor-authored-json-tests)
+add_test(NAME demi-authored-json-patch-tests
+  COMMAND demi-authored-json-patch-tests)
 add_test(NAME demi-editor-release-workflow-tests
   COMMAND demi-editor-release-workflow-tests)
 add_test(NAME demi-editor-android-packaging-tests
@@ -272,6 +281,7 @@ add_test(NAME demi-animation-phase7-tests COMMAND demi-animation-phase7-tests)
 add_test(NAME demi-visual-animation-budget3d-tests COMMAND demi-visual-animation-budget3d-tests)
 add_test(NAME demi-audio-phase7-tests COMMAND demi-audio-phase7-tests)
 add_test(NAME demi-asset-pipeline-tests COMMAND demi-asset-pipeline-tests)
+add_test(NAME demi-terrain-asset-pipeline-tests COMMAND demi-terrain-asset-pipeline-tests)
 add_test(NAME demi-asset-streaming-tests COMMAND demi-asset-streaming-tests)
 add_test(NAME demi-prototype-texture-package-tests
   COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/scripts/test_prototype_texture_package.py"
@@ -291,7 +301,7 @@ add_test(NAME demi-simulation-tests COMMAND demi-simulation-tests)
   add_test(NAME demi-runtime-profiler-tests COMMAND demi-runtime-profiler-tests)
   add_test(NAME demi-process-resource-sampler-tests COMMAND demi-process-resource-sampler-tests)
   add_test(NAME demi-lua-gc-telemetry-tests COMMAND demi-lua-gc-telemetry-tests)
-  foreach(async_test IN ITEMS terrain-patch terrain-update terrain-layers terrain-world-update editor-terrain-history editor-terrain-workspace editor-terrain-authoring terrain-cache terrain-generator terrain-surface terrain-world lua-worker-tasks lua-worker-context lua-main-thread-calls lua-transfer lua-shared-map lua-task-host async-work-queue async-work-strand tcp-client database-service lua-tcp lua-database)
+  foreach(async_test IN ITEMS terrain-patch terrain-locality terrain-seed terrain-rule terrain-preset terrain-palette terrain-scatter terrain-scatter-runtime terrain-lod terrain-lod-biomes terrain-streaming terrain-scatter-constraints terrain-material-layers terrain-material-blend terrain-texture-residency terrain-scatter-layout terrain-drainage terrain-erosion terrain-water terrain-water-queries terrain-cook terrain-cook-node terrain-pipeline terrain-graph material-asset material-set terrain-asset-validation terrain-cli terrain-update terrain-layers terrain-world-update editor-terrain-history editor-terrain-graph-document editor-terrain-workspace editor-terrain-authoring terrain-cache terrain-generator terrain-surface terrain-world lua-worker-tasks lua-worker-context lua-main-thread-calls lua-transfer lua-shared-map lua-task-host async-work-queue async-work-strand tcp-client database-service lua-tcp lua-database)
     add_test(NAME demi-${async_test}-tests COMMAND demi-${async_test}-tests)
     set_tests_properties(demi-${async_test}-tests PROPERTIES TIMEOUT 30)
   endforeach()
@@ -329,3 +339,6 @@ if(DEMI_ENABLE_NETWORK)
       localhost
   )
 endif()
+add_test(NAME demi-terrain-asset-world-tests COMMAND demi-terrain-asset-world-tests)
+add_test(NAME demi-terrain-asset-runtime-service-tests COMMAND demi-terrain-asset-runtime-service-tests)
+add_test(NAME demi-terrain-asset-tests COMMAND demi-terrain-asset-tests)

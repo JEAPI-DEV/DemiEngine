@@ -180,7 +180,7 @@ int main() {
   assert(androidWorkspace.displayedHud().nodes.size() == openedHudNodes + 1);
   assert(androidWorkspace.project().world.ui.nodes.size() == sceneHudNodes);
   assert(androidWorkspace.undo(error));
-  androidWorkspace.activateSceneDocument();
+  assert(androidWorkspace.activateSceneDocument(error));
   assert(androidWorkspace.activeDocument() ==
          demi::editor::EditorWorkspaceDocument::Scene);
   assert(androidWorkspace.hudDocument()->path().filename() == "game.hud.json");

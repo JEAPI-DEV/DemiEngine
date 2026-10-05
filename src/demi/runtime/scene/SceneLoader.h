@@ -16,9 +16,12 @@ struct LoadedProject {
 
 [[nodiscard]] std::optional<LoadedProject>
 loadProject(const std::filesystem::path &projectPath, std::string &error);
-[[nodiscard]] std::optional<World> loadScene(const ProjectData &project,
-                                             const std::string &sceneId,
-                                             std::string &error);
+// The prefab service is owned by the composition root and shared with terrain
+// scatter, so a prefab placed by a scene and one placed by a palette use one
+// pool. Null is valid: no prefab-backed role is placed.
+[[nodiscard]] std::optional<World>
+loadScene(const ProjectData &project, const std::string &sceneId,
+          std::string &error, class RuntimePrefabService *prefabs = nullptr);
 // Builds a scene world from an already-parsed authored document without
 // touching disk for the scene file itself. Prefab references and the optional
 // HUD are still resolved relative to the scene's registered path. Used by the
@@ -28,6 +31,7 @@ loadProject(const std::filesystem::path &projectPath, std::string &error);
 [[nodiscard]] std::optional<World>
 loadSceneDocument(const ProjectData &project, const std::string &sceneId,
                   const nlohmann::json &document, std::string &error,
-                  bool compileFractures = true);
+                  bool compileFractures = true,
+                  class RuntimePrefabService *prefabs = nullptr);
 
 } // namespace demi::runtime

@@ -110,11 +110,33 @@ void lifecycleAndEventTranslationWorkWithoutAGpu() {
   host->shutdown();
 }
 
+void maximizedConfigurationKeepsHeadlessLifecycleValid() {
+  assert(!PlatformHostConfig{}.maximized);
+  assert(setenv("SDL_VIDEODRIVER", "dummy", 1) == 0);
+  auto host = createSdlPlatformHost();
+  std::string error;
+  assert(host->initialize({.title = "Maximized platform startup",
+                           .width = 800,
+                           .height = 600,
+                           .resizable = true,
+                           .maximized = true},
+                          error));
+  int count = 0;
+  SDL_Window **windows = SDL_GetWindows(&count);
+  assert(windows && count == 1);
+  // SDL's dummy driver has no window manager and cannot maximize. Verify the
+  // request remains lifecycle-safe here; native desktop captures qualify size.
+  assert(host->frameState().width > 0 && host->frameState().height > 0);
+  SDL_free(windows);
+  host->shutdown();
+}
+
 } // namespace
 
 int main() {
   framePacingPolicyHandlesHighRefreshDisplays();
   invalidConfigurationIsRejected();
   lifecycleAndEventTranslationWorkWithoutAGpu();
+  maximizedConfigurationKeepsHeadlessLifecycleValid();
   return 0;
 }

@@ -110,6 +110,10 @@ public:
                     const PrefabInstantiateOptions &options);
   [[nodiscard]] bool releasePrefab(const std::string &instanceId);
   [[nodiscard]] std::size_t pooledPrefabCount(const std::string &prefab) const;
+  // Injected by the composition root before the project is loaded. Must be done
+  // before any prefab operation; the service must outlive this host.
+  void setPrefabService(RuntimePrefabService *prefabs);
+  [[nodiscard]] RuntimePrefabService *prefabService() const { return prefabs_; }
   void setPrefabTemplateCacheCapacity(std::size_t entries);
   [[nodiscard]] input::GameplayInputService &gameplayInput();
   [[nodiscard]] const InputState *inputState() const;
@@ -749,7 +753,11 @@ private:
   std::vector<EventSubscription> eventSubscriptions_;
   std::vector<SaveMigrationHook> saveMigrationHooks_;
   WorldCommandBuffer worldCommands_;
-  RuntimePrefabService prefabService_;
+  // Borrowed, not owned. The composition root creates one service and shares it
+  // with terrain scatter, so a prefab spawned from Lua and one spawned from the
+  // terrain share a single pool. Null when no owner injected one, in which case
+  // prefab operations report that rather than guessing.
+  RuntimePrefabService *prefabs_ = nullptr;
   SceneFlow sceneFlow_;
   ResourceLifetimeRegistry resourceLifetimes_;
   std::string lastSaveError_;

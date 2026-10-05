@@ -1,0 +1,14 @@
+{
+  "dependencies": [
+    "asset://terrain/palettes/meadow",
+    "asset://terrain/presets/river_valley"
+  ],
+  "format_version": 1,
+  "id": "asset://terrain/landscape",
+  "importer": "terrain_heightfield",
+  "importer_version": 1,
+  "settings": {},
+  "source": "landscape.terrain.json",
+  "source_hash": "fnv1a64:4338c95588df8f59",
+  "type": "Terrain"
+}

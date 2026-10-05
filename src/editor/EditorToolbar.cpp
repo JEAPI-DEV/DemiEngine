@@ -1,4 +1,5 @@
 #include "editor/EditorToolbar.h"
+#include "editor/EditorKeyBindings.h"
 
 #include "editor/EditorChrome.h"
 #include "editor/EditorPanelStyle.h"
@@ -30,19 +31,6 @@ void setOperation(EditorWorkspace &workspace,
     workspace.viewportTool().setOperation(value);
 }
 
-void frameSelection(EditorWorkspace &workspace) {
-  if (is2D(workspace) && workspace.selectedIsoGridCell()) {
-    (void)workspace.sceneView2D().frameGridCell(
-        workspace.project().world, *workspace.selectedIsoGridCell());
-  } else if (is2D(workspace)) {
-    (void)workspace.sceneView2D().frameEntity(workspace.project().world,
-                                              workspace.selectedEntityId());
-  } else {
-    (void)workspace.sceneView().frameEntity(workspace.project().world,
-                                            workspace.selectedEntityId());
-  }
-}
-
 void alignToCamera(EditorWorkspace &workspace) {
   if (is2D(workspace))
     (void)workspace.sceneView2D().alignToFirstCamera(workspace.project().world);
@@ -50,30 +38,34 @@ void alignToCamera(EditorWorkspace &workspace) {
     (void)workspace.sceneView().alignToFirstCamera(workspace.project().world);
 }
 
-void drawDocumentGroup(EditorWorkspace &workspace, std::string &notice) {
+void drawDocumentGroup(EditorWorkspace &workspace,
+                       const EditorKeyBindings &bindings,
+                       EditorCommandContext context,
+                       const std::function<void(EditorCommand)> &execute) {
+  const auto tooltip = [&](EditorCommand command) {
+    const auto shortcut = bindings.label(command);
+    return std::string(editorCommandDefinition(command).label) +
+           (shortcut.empty() ? " (unbound)" : " (" + shortcut + ")");
+  };
   if (editorIconButton("refresh-project", EditorIcon::Refresh,
-                       "Refresh project (F5)")) {
-    std::string error;
-    notice = workspace.refresh(error) ? "Project refreshed" : error;
-  }
+                       tooltip(EditorCommand::Refresh).c_str()))
+    execute(EditorCommand::Refresh);
   sameLine();
-  if (editorIconButton("save-scene", EditorIcon::Save, "Save scene (Ctrl+S)",
-                       false, workspace.activeDocumentDirty())) {
-    std::string error;
-    notice = workspace.save(error) ? "Document saved" : error;
-  }
+  if (editorIconButton("save-scene", EditorIcon::Save,
+                       tooltip(EditorCommand::SaveAll).c_str()))
+    execute(EditorCommand::SaveAll);
   editorToolbarSeparator();
-  if (editorIconButton("undo-scene", EditorIcon::Undo, "Undo (Ctrl+Z)", false,
-                       workspace.activeDocumentCanUndo())) {
-    std::string error;
-    notice = workspace.undo(error) ? "Undid scene edit" : error;
-  }
+  if (editorIconButton("undo-scene", EditorIcon::Undo,
+                       tooltip(EditorCommand::Undo).c_str(), false,
+                       context == EditorCommandContext::TerrainGraph ||
+                           workspace.activeDocumentCanUndo()))
+    execute(EditorCommand::Undo);
   sameLine();
-  if (editorIconButton("redo-scene", EditorIcon::Redo, "Redo (Ctrl+Y)", false,
-                       workspace.activeDocumentCanRedo())) {
-    std::string error;
-    notice = workspace.redo(error) ? "Redid scene edit" : error;
-  }
+  if (editorIconButton("redo-scene", EditorIcon::Redo,
+                       tooltip(EditorCommand::Redo).c_str(), false,
+                       context == EditorCommandContext::TerrainGraph ||
+                           workspace.activeDocumentCanRedo()))
+    execute(EditorCommand::Redo);
 }
 
 void drawPlayGroup(EditorWorkspace &workspace, EditorPlaySession &playSession,
@@ -91,8 +83,12 @@ void drawPlayGroup(EditorWorkspace &workspace, EditorPlaySession &playSession,
       notice = error;
     } else if (workspace.sceneDocument().isDirty() && !workspace.save(error)) {
       notice = error;
-    } else if (playSession.startEmbedded(workspace.projectPath(), error,
-                 workspace.isPrefabDocument()?std::string{}:workspace.sceneDocument().json().value("id",std::string{}))) {
+    } else if (playSession.startEmbedded(
+                   workspace.projectPath(), error,
+                   workspace.isPrefabDocument()
+                       ? std::string{}
+                       : workspace.sceneDocument().json().value(
+                             "id", std::string{}))) {
       notice = "Embedded play session started";
       showGameView = true;
     } else {
@@ -143,7 +139,9 @@ void drawPlayGroup(EditorWorkspace &workspace, EditorPlaySession &playSession,
   }
 }
 
-void drawTransformGroup(EditorWorkspace &workspace) {
+void drawTransformGroup(EditorWorkspace &workspace,
+                        const EditorKeyBindings &bindings,
+                        const std::function<void(EditorCommand)> &execute) {
   if (workspace.sceneDomain() == EditorSceneDomain::Mixed) {
     if (ImGui::Button(is2D(workspace) ? "2D" : "3D", {38.0F, 30.0F}))
       workspace.setViewDimension(
@@ -190,9 +188,11 @@ void drawTransformGroup(EditorWorkspace &workspace) {
       workspace.sceneView().setTransformSpace(replacement);
   }
   sameLine();
+  const auto frameTooltip =
+      "Frame selected (" + bindings.label(EditorCommand::FrameSelection) + ")";
   if (editorIconButton("frame-selected", EditorIcon::Frame,
-                       "Frame selected (F)"))
-    frameSelection(workspace);
+                       frameTooltip.c_str()))
+    execute(EditorCommand::FrameSelection);
   sameLine();
   if (editorIconButton("align-camera", EditorIcon::Camera,
                        "Align view to the first authored camera"))
@@ -272,18 +272,23 @@ void drawSnapAndVisibility(EditorWorkspace &workspace, const float available) {
 
 void drawEditorToolbar(const ImVec2 position, const ImVec2 size,
                        EditorWorkspace &workspace,
+                       EditorWorkspace &playWorkspace,
                        EditorPlaySession &playSession, bool &showGameView,
-                       bool &stepRequested, std::string &notice) {
+                       bool &stepRequested, std::string &notice,
+                       const EditorKeyBindings &bindings,
+                       EditorCommandContext context,
+                       const std::function<void(EditorCommand)> &execute) {
   beginEditorShellPanel("Toolbar", position, size,
                         ImGuiWindowFlags_NoScrollbar);
   ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {4.0F, 4.0F});
-  drawDocumentGroup(workspace, notice);
+  drawDocumentGroup(workspace, bindings, context, execute);
 
   const float playStart = std::max(340.0F, size.x * 0.225F);
   ImGui::SameLine(playStart);
-  drawPlayGroup(workspace, playSession, showGameView, stepRequested, notice);
+  drawPlayGroup(playWorkspace, playSession, showGameView, stepRequested,
+                notice);
   editorToolbarSeparator();
-  drawTransformGroup(workspace);
+  drawTransformGroup(workspace, bindings, execute);
   editorToolbarSeparator();
 
   const float remaining = size.x - ImGui::GetCursorPosX();

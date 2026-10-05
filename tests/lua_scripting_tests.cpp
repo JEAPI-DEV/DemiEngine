@@ -1,5 +1,6 @@
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
+#include "demi/runtime/scene/RuntimePrefabService.h"
 #include "demi/runtime/scripting/LuaScriptHost.h"
 
 #include <cmath>
@@ -632,7 +633,13 @@ return PropProbe
   runtime::InputState input;
   input.mousePosition = runtime::Vec2{.x = 25.0F, .y = 50.0F};
 
+  // The composition root owns the prefab service and injects it; the host no
+  // longer constructs one, so a test that exercises prefab instantiation has to
+  // supply the same shared service the application would.
+  runtime::RuntimePrefabService prefabService;
+  prefabService.configure(project.projectDirectory);
   runtime::LuaScriptHost host;
+  host.setPrefabService(&prefabService);
   std::string luaError;
   if (!host.initialize(world, input, nullptr, luaError)) {
     std::cerr << "Lua host failed to initialize: " << luaError << '\n';

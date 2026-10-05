@@ -2,6 +2,7 @@
 
 #include "editor/EditorDebugPanel.h"
 #include "editor/EditorDiagnosticsModel.h"
+#include "editor/EditorDockingState.h"
 #include "editor/EditorProfilerModel.h"
 #include "editor/EditorProjectOperations.h"
 
@@ -23,10 +24,17 @@ public:
   void draw(EditorWorkspace &workspace, EditorPlaySession &playSession,
             ImVec2 position, ImVec2 size,
             const EditorProjectOperationSnapshot &operation,
-            std::string &notice, bool *open = nullptr);
+            std::string &notice, EditorPanelVisibility &visibility);
   [[nodiscard]] std::optional<std::filesystem::path> takeOpenRequest();
 
 private:
+  void drawDiagnostics(EditorWorkspace &workspace,
+                       EditorPlaySession &playSession,
+                       const EditorProjectOperationSnapshot &operation,
+                       std::string &notice);
+  void drawLuaConsole(EditorPlaySession &playSession, std::string &notice);
+  void drawProfiler(EditorPlaySession &playSession);
+
   std::array<char, 128> diagnosticFilter_{};
   std::array<char, 128> profilerFilter_{};
   std::array<char, 512> luaCommand_{};

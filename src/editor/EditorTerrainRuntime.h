@@ -13,6 +13,7 @@ namespace demi::runtime {
 struct World;
 struct HeightField;
 struct TerrainPatch;
+struct TerrainGenerationInputs;
 } // namespace demi::runtime
 namespace demi::editor {
 
@@ -42,6 +43,12 @@ updateEditorTerrain(const nlohmann::json &before, const nlohmann::json &after,
                     EditorTerrainSurfacePtr previous, std::stop_token stop,
                     const std::function<void(float)> &progress,
                     std::string &error);
+std::optional<EditorTerrainUpdate>
+updateEditorTerrainWithInputs(
+    const nlohmann::json &before, const nlohmann::json &after,
+    EditorTerrainSurfacePtr previous,
+    const runtime::TerrainGenerationInputs &inputs, std::stop_token stop,
+    const std::function<void(float)> &progress, std::string &error);
 std::shared_ptr<const runtime::TerrainPatch>
 mergeEditorTerrainPatches(std::shared_ptr<const runtime::TerrainPatch> first,
                           std::shared_ptr<const runtime::TerrainPatch> next);
@@ -59,6 +66,11 @@ EditorTerrainSurfacePtr
 generateEditorTerrain(const nlohmann::json &recipe, std::stop_token stop,
                       const std::function<void(float)> &progress,
                       std::string &error);
+EditorTerrainSurfacePtr
+generateEditorTerrainWithInputs(
+    const nlohmann::json &recipe,
+    const runtime::TerrainGenerationInputs &inputs, std::stop_token stop,
+    const std::function<void(float)> &progress, std::string &error);
 EditorTerrainSurfacePtr currentEditorTerrain(const runtime::World &world,
                                              std::string_view entityId);
 // Retain the surface through the subsequent workspace rebuild (weak cache).

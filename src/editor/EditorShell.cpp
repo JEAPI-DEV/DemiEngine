@@ -1,6 +1,6 @@
 #include "editor/EditorShell.h"
-#include "editor/EditorCodeEditor.h"
 #include "demi/runtime/platform/ExternalProcess.h"
+#include "editor/EditorCodeEditor.h"
 #include "editor/EditorSettingsPanel.h"
 
 #include "editor/EditorChrome.h"
@@ -19,59 +19,23 @@
 #include <imgui.h>
 
 #include <algorithm>
+#include <functional>
 #include <string>
 #include <string_view>
 
 namespace demi::editor {
 namespace {
 
-void drawStageTabs(EditorWorkspace &workspace, bool &showHudView,
-                   bool &showGameView, std::string &notice) {
-  if (editorStageTab("Viewport", !showHudView && !showGameView &&
-                                     !workspace.isPrefabDocument())) {
-    if (workspace.isPrefabDocument() &&
-        !workspace.openSceneDocument(workspace.lastScenePath(), notice))
-      return;
-    showHudView = false;
-    showGameView = false;
-    workspace.activateSceneDocument();
-  }
-  if (!workspace.lastPrefabPath().empty()) {
-    ImGui::SameLine(0.0F, 2.0F);
-    const std::string label =
-        "Prefab: " + workspace.lastPrefabPath().filename().string();
-    if (editorStageTab(label.c_str(),
-                       workspace.isPrefabDocument() && !showHudView &&
-                           !showGameView,
-                       {ImGui::CalcTextSize(label.c_str()).x + 20.0F, 27.0F})) {
-      if (!workspace.openPrefabDocument(workspace.lastPrefabPath(), notice))
-        return;
-      showHudView = false;
-      showGameView = false;
-    }
-  }
-  if (workspace.hasHudDocument() && workspace.activeDocument()==EditorWorkspaceDocument::Hud) {
-    ImGui::SameLine(0.0F, 2.0F);
-    if (editorStageTab("HUD", showHudView)) {
-      showHudView = true;
-      showGameView = false;
-      workspace.activateHudDocument();
-    }
-  }
-  ImGui::SameLine(0.0F, 2.0F);
-  if (editorStageTab("Game View", showGameView)) {
-    showHudView = false;
-    showGameView = true;
-  }
-}
-
-void drawMenu(EditorWorkspace &workspace, const ImVec2 size,
-              bool &exitRequested, EditorProjectPanel &projectPanel,
-              EditorAssetsPanel &assetsPanel,
+void drawMenu(EditorWorkspace &workspace, EditorDocumentSessions &documents,
+              const ImVec2 size, bool &exitRequested,
+              EditorProjectPanel &projectPanel, EditorAssetsPanel &assetsPanel,
               EditorAnimationMachinePanel &animationPanel,
               EditorBuildPanel &buildPanel, EditorAboutPanel &aboutPanel,
               EditorDockingWorkspace &dockingWorkspace, bool &showSettings,
-              std::string &notice) {
+              std::string &notice, const EditorKeyBindings &bindings,
+              EditorCommandContext context, bool uiPaletteAvailable,
+              bool terrainNodesAvailable,
+              const std::function<void(EditorCommand)> &execute) {
   beginEditorShellPanel("MainMenu", {0.0F, 0.0F}, size,
                         ImGuiWindowFlags_MenuBar |
                             ImGuiWindowFlags_NoScrollbar);
@@ -80,14 +44,15 @@ void drawMenu(EditorWorkspace &workspace, const ImVec2 size,
       if (ImGui::MenuItem("New project..."))
         projectPanel.openCreateProject();
       if (ImGui::BeginMenu("New document")) {
-        for (const auto &[label, kind] : {
-                 std::pair{"2D scene...", EditorSourceKind::Scene2D},
-                 std::pair{"3D scene...", EditorSourceKind::Scene3D},
-                 std::pair{"HUD...", EditorSourceKind::Hud},
-                 std::pair{"2D entity prefab...", EditorSourceKind::Prefab2D},
-                 std::pair{"3D entity prefab...", EditorSourceKind::Prefab},
-                 std::pair{"UI prefab...", EditorSourceKind::UiPrefab},
-                 std::pair{"Lua behaviour...", EditorSourceKind::Lua}}) {
+        for (const auto &[label, kind] :
+             {std::pair{"2D scene...", EditorSourceKind::Scene2D},
+              std::pair{"3D scene...", EditorSourceKind::Scene3D},
+              std::pair{"HUD...", EditorSourceKind::Hud},
+              std::pair{"2D entity prefab...", EditorSourceKind::Prefab2D},
+              std::pair{"3D entity prefab...", EditorSourceKind::Prefab},
+              std::pair{"UI prefab...", EditorSourceKind::UiPrefab},
+              std::pair{"Terrain asset...", EditorSourceKind::Terrain},
+              std::pair{"Lua behaviour...", EditorSourceKind::Lua}}) {
           if (ImGui::MenuItem(label)) {
             dockingWorkspace.visibility().assets = true;
             assetsPanel.openCreate(kind);
@@ -98,24 +63,31 @@ void drawMenu(EditorWorkspace &workspace, const ImVec2 size,
       if (ImGui::MenuItem("Project settings..."))
         projectPanel.openSettings();
       ImGui::Separator();
-      if (ImGui::MenuItem("Save all", "Ctrl+S", false, workspace.hasUnsavedChanges())) {
-        std::string error;
-        notice = workspace.saveAll(error) ? "Authored documents saved" : error;
-      }
+      const auto saveShortcut = bindings.label(EditorCommand::SaveAll);
+      if (ImGui::MenuItem("Save all", saveShortcut.c_str()))
+        execute(EditorCommand::SaveAll);
       if (ImGui::MenuItem("Save active document", nullptr, false,
                           workspace.activeDocumentDirty())) {
         std::string error;
-        notice = workspace.save(error) ? "Document saved" : error;
+        bool saved = workspace.save(error);
+        if (saved &&
+            workspace.activeDocument() == EditorWorkspaceDocument::Hud &&
+            workspace.hudDocument())
+          saved = documents.refreshHudReferences(
+              workspace.hudDocument()->path(), error);
+        notice = saved ? "Document saved" : error;
       }
       if (ImGui::MenuItem("Save project", nullptr, false,
-                          workspace.projectDocument().isDirty())) {
+                          documents.scene().projectDocument().isDirty())) {
         std::string error;
-        notice = workspace.saveProject(error) ? "Project saved" : error;
+        notice = documents.scene().saveProject(error) &&
+                         documents.refreshProjectReferences(error)
+                     ? "Project saved"
+                     : error;
       }
-      if (ImGui::MenuItem("Refresh project", "F5")) {
-        std::string error;
-        notice = workspace.refresh(error) ? "Project refreshed" : error;
-      }
+      const auto refreshShortcut = bindings.label(EditorCommand::Refresh);
+      if (ImGui::MenuItem("Refresh project", refreshShortcut.c_str()))
+        execute(EditorCommand::Refresh);
       ImGui::Separator();
       if (ImGui::MenuItem("Exit"))
         exitRequested = true;
@@ -125,34 +97,46 @@ void drawMenu(EditorWorkspace &workspace, const ImVec2 size,
       if (ImGui::MenuItem("Editor Settings..."))
         showSettings = true;
       ImGui::Separator();
-      if (ImGui::MenuItem("Undo", "Ctrl+Z", false,
-                          workspace.activeDocumentCanUndo())) {
-        std::string error;
-        notice = workspace.undo(error) ? "Undid scene edit" : error;
-      }
-      if (ImGui::MenuItem("Redo", "Ctrl+Y", false,
-                          workspace.activeDocumentCanRedo())) {
-        std::string error;
-        notice = workspace.redo(error) ? "Redid scene edit" : error;
+      const bool graph = context == EditorCommandContext::TerrainGraph;
+      for (const auto command :
+           {EditorCommand::Undo, EditorCommand::Redo, EditorCommand::Copy,
+            EditorCommand::Cut, EditorCommand::Paste, EditorCommand::Duplicate,
+            EditorCommand::Delete, EditorCommand::SelectAll}) {
+        const auto &definition = editorCommandDefinition(command);
+        const auto shortcut = bindings.label(command);
+        bool enabled = editorCommandAvailable(command, context);
+        if (!graph && command == EditorCommand::Undo)
+          enabled = enabled && workspace.activeDocumentCanUndo();
+        if (!graph && command == EditorCommand::Redo)
+          enabled = enabled && workspace.activeDocumentCanRedo();
+        if (ImGui::MenuItem(definition.label.data(), shortcut.c_str(), false,
+                            enabled))
+          execute(command);
       }
       ImGui::EndMenu();
     }
     if (ImGui::BeginMenu("View")) {
-      dockingWorkspace.drawViewMenu();
+      dockingWorkspace.drawViewMenu(uiPaletteAvailable, terrainNodesAvailable);
       ImGui::EndMenu();
     }
-    if (ImGui::BeginMenu("Scene")) {
+    if (ImGui::BeginMenu("Scene", workspace.activeDocument() ==
+                                      EditorWorkspaceDocument::Scene)) {
       if (ImGui::BeginMenu("Add prefab instance")) {
         bool found = false;
         for (const auto &source : workspace.sources()) {
           if (!isPrefabFile(source))
             continue;
           found = true;
-          const std::string label = source.lexically_relative(
-              workspace.project().project.projectDirectory / "prefabs").generic_string();
+          const std::string label =
+              source
+                  .lexically_relative(
+                      workspace.project().project.projectDirectory / "prefabs")
+                  .generic_string();
           if (ImGui::MenuItem(label.c_str())) {
             std::string error;
-            notice = workspace.instantiatePrefab(source, error) ? "Prefab instance added" : error;
+            notice = workspace.instantiatePrefab(source, error)
+                         ? "Prefab instance added"
+                         : error;
           }
         }
         if (!found)
@@ -161,16 +145,21 @@ void drawMenu(EditorWorkspace &workspace, const ImVec2 size,
       }
       const auto selected = workspace.selectedEntityId();
       if (ImGui::MenuItem("Create prefab from selection...", nullptr, false,
-                          !selected.empty() && workspace.sceneDocument().entity(selected))) {
+                          !selected.empty() &&
+                              workspace.sceneDocument().entity(selected))) {
         dockingWorkspace.visibility().assets = true;
-        assetsPanel.openCreate(EditorSourceKind::PrefabFromSelection, std::string(selected));
+        assetsPanel.openCreate(EditorSourceKind::PrefabFromSelection,
+                               std::string(selected));
       }
-      if (ImGui::BeginMenu("HUD",!workspace.isPrefabDocument())) {
+      if (ImGui::BeginMenu("HUD", !workspace.isPrefabDocument())) {
         std::string error;
-        if (ImGui::MenuItem("None")) notice=workspace.setSceneHud({},error)?"HUD detached":error;
-        for (const auto &source:workspace.sources())
-          if (isHudFile(source) && ImGui::MenuItem(source.filename().string().c_str())) {
-            notice=workspace.setSceneHud(source,error)?"Scene HUD assigned":error;
+        if (ImGui::MenuItem("None"))
+          notice = workspace.setSceneHud({}, error) ? "HUD detached" : error;
+        for (const auto &source : workspace.sources())
+          if (isHudFile(source) &&
+              ImGui::MenuItem(source.filename().string().c_str())) {
+            notice = workspace.setSceneHud(source, error) ? "Scene HUD assigned"
+                                                          : error;
             break;
           }
         ImGui::EndMenu();
@@ -246,12 +235,13 @@ void drawStatus(EditorWorkspace &workspace, const ImVec2 position,
 
 } // namespace
 
-EditorShell::EditorShell(EditorWorkspace &workspace)
-    : workspace_(workspace), dockingWorkspace_(defaultEditorDataDirectory()),
+EditorShell::EditorShell(EditorWorkspace &sceneWorkspace)
+    : documents_(sceneWorkspace),
+      dockingWorkspace_(defaultEditorDataDirectory()),
       recoveryStore_(defaultEditorCacheDirectory()),
       preferencesStore_(defaultEditorDataDirectory()) {
   std::string error;
-  pendingRecovery_ = recoveryStore_.load(workspace_.projectPath(), error);
+  pendingRecovery_ = recoveryStore_.load(workspace().projectPath(), error);
   if (!error.empty()) {
     notice_ = "Recovery cache: " + error;
     recoverySyncBlocked_ = true;
@@ -262,21 +252,14 @@ EditorShell::EditorShell(EditorWorkspace &workspace)
     preferenceSyncBlocked_ = true;
   }
   uiScale_ = preferences_.uiScale;
-  workspace_.sceneView().translationSnap = preferences_.translationSnap;
-  workspace_.sceneView().rotationSnapDegrees = preferences_.rotationSnapDegrees;
-  workspace_.sceneView().scaleSnap = preferences_.scaleSnap;
-  workspace_.sceneView().showBounds = preferences_.showBounds3D;
-  workspace_.sceneView().showColliders = preferences_.showColliders3D;
-  workspace_.sceneView().showLights = preferences_.showLights3D;
-  workspace_.sceneView().showCameras = preferences_.showCameras3D;
-  workspace_.sceneView2D().translationSnap = preferences_.translationSnap;
-  workspace_.sceneView2D().rotationSnapDegrees =
-      preferences_.rotationSnapDegrees;
-  workspace_.sceneView2D().scaleSnap = preferences_.scaleSnap;
-  workspace_.sceneView2D().showGrid = preferences_.showGrid2D;
-  workspace_.sceneView2D().showBounds = preferences_.showBounds2D;
-  workspace_.sceneView2D().showColliders = preferences_.showColliders2D;
-  workspace_.sceneView2D().showCameras = preferences_.showCameras2D;
+  persistedPreferences_ = preferences_;
+  applyViewportPreferences(documents_.scene());
+  if (const auto *hud = documents_.scene().hudDocument()) {
+    const auto path = hud->path();
+    if (!documents_.openHud(path, error))
+      notice_ = error;
+    (void)documents_.focus(EditorDocumentSession::Scene, error);
+  }
   if (std::string diagnostic = dockingWorkspace_.takeDiagnostic();
       !diagnostic.empty())
     notice_ = std::move(diagnostic);
@@ -284,51 +267,115 @@ EditorShell::EditorShell(EditorWorkspace &workspace)
 
 bool EditorShell::openDocument(const std::filesystem::path &path,
                                std::string &error) {
-  if (path.extension()==".lua") {
-    const auto project=workspace_.project().project.projectDirectory;
-    if (!prepareCodeEditorWorkspace(project,std::filesystem::path(DEMI_SOURCE_DIR)/"scripts/stubs",error)) return false;
-    return runtime::platform::launchExternalProcess(codeEditorCommand(preferences_,project,path),error);
-  }
-  if (isPrefabFile(path)) {
-    if (!workspace_.openPrefabDocument(path, error))
+  if (path.extension() == ".lua") {
+    const auto project = workspace().project().project.projectDirectory;
+    if (!prepareCodeEditorWorkspace(
+            project, std::filesystem::path(DEMI_SOURCE_DIR) / "scripts/stubs",
+            error))
       return false;
-    showHudView_ = false;
-    showGameView_ = false;
+    return runtime::platform::launchExternalProcess(
+        codeEditorCommand(preferences_, project, path), error);
+  }
+  auto &panels = dockingWorkspace_.visibility();
+  if (isPrefabFile(path)) {
+    auto *previous = documents_.workspace(EditorDocumentSession::Prefab);
+    if (!documents_.openPrefab(path, error))
+      return false;
+    if (graphWorkspace_ == previous &&
+        previous != documents_.workspace(EditorDocumentSession::Prefab)) {
+      graphWorkspace_ = nullptr;
+      terrainGraphPanel_.close();
+    }
+    applyViewportPreferences(workspace());
+    panels.prefab = true;
+    focusWindow_ = "Prefab";
+    showHudView_ = showGameView_ = showTerrainGraphView_ = false;
     return true;
   }
   if (isSceneFile(path)) {
-    if (!workspace_.openSceneDocument(path, error))
+    const auto normalized = std::filesystem::absolute(path).lexically_normal();
+    const auto &project = documents_.scene().project().project;
+    const bool registered =
+        std::ranges::any_of(project.scenes, [&](const auto &entry) {
+          return std::filesystem::absolute(project.projectDirectory /
+                                           entry.path)
+                     .lexically_normal() == normalized;
+        });
+    if (!registered && !documents_.refreshProjectReferences(error))
       return false;
-    showHudView_ = false;
-    showGameView_ = false;
+    if (!documents_.scene().openSceneDocument(path, error))
+      return false;
+    if (graphWorkspace_ == &documents_.scene()) {
+      graphWorkspace_ = nullptr;
+      terrainGraphPanel_.close();
+    }
+    focusAuthoring(EditorDocumentSession::Scene, false);
+    panels.viewport = true;
+    focusWindow_ = "Viewport";
     return true;
   }
   if (isHudFile(path) || isUiPrefabFile(path)) {
-    if (!workspace_.openHudDocument(path, error))
+    if (!documents_.openHud(path, error))
       return false;
-    showHudView_ = true;
-    showGameView_ = false;
+    focusAuthoring(EditorDocumentSession::Hud, true);
+    panels.hud = true;
+    focusWindow_ = "HUD";
     return true;
   }
-  return specializedPanel_.open(path, workspace_.assetIndex(), error);
+  const auto *terrainRecord = workspace().assetIndex().findBySource(path);
+  if (!terrainRecord)
+    terrainRecord = workspace().assetIndex().findByManifest(path);
+  if (terrainRecord && terrainRecord->manifest.type == "Terrain") {
+    auto *previous = documents_.workspace(EditorDocumentSession::TerrainAsset);
+    if (!documents_.openTerrainAsset(path, error))
+      return false;
+    if (graphWorkspace_ == previous &&
+        previous != documents_.workspace(EditorDocumentSession::TerrainAsset)) {
+      graphWorkspace_ = nullptr;
+      terrainGraphPanel_.close();
+    }
+    applyViewportPreferences(workspace());
+    panels.terrainAsset = true;
+    focusWindow_ = "Terrain Asset";
+    showHudView_ = showGameView_ = showTerrainGraphView_ = false;
+    return true;
+  }
+  return specializedPanel_.open(path, workspace().assetIndex(), error);
+}
+
+bool EditorShell::openTerrainGraph(std::string &error) {
+  workspace().syncTerrainAuthoring();
+  if (!workspace().pinTerrainAuthoring(workspace().selectedEntityId(), error))
+    return false;
+  graphWorkspace_ = &workspace();
+  terrainGraphPanel_.open(workspace());
+  showTerrainGraphView_ = true;
+  showHudView_ = showGameView_ = false;
+  dockingWorkspace_.visibility().terrainGraph = true;
+  focusWindow_ = "Terrain Graph";
+  return true;
+}
+
+bool EditorShell::openTerrainNodeSettings(std::string_view nodeId,
+                                          std::string &error) {
+  if (!openTerrainGraph(error))
+    return false;
+  return terrainGraphPanel_.openNodeSettings(workspace(), nodeId, error);
 }
 
 void EditorShell::draw(const int width, const int height,
                        const std::string_view rendererName) {
   playSession_.poll();
   std::string terrainError;
-  if (!workspace_.pollTerrainAuthoring(terrainError))
+  if (!documents_.pollTerrain(terrainError))
     notice_ = std::move(terrainError);
-  if (!workspace_.hasHudDocument()) showHudView_=false;
-  if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_D,false)) {
-    gameInputDetached_=true;
-    notice_="Game input released. Click Game View to resume.";
-  }
+  if (!workspace().hasHudDocument())
+    showHudView_ = false;
   bool openClosePrompt = false;
   bool openRecoveryPrompt = false;
   if (exitRequested_) {
     exitRequested_ = false;
-    if (workspace_.hasUnsavedChanges() || specializedPanel_.isDirty()) {
+    if (documents_.hasUnsavedChanges() || specializedPanel_.isDirty()) {
       openClosePrompt = true;
     } else {
       wantsExit_ = true;
@@ -337,26 +384,6 @@ void EditorShell::draw(const int width, const int height,
   if (pendingRecovery_ && !recoveryPromptOpened_) {
     recoveryPromptOpened_ = true;
     openRecoveryPrompt = true;
-  }
-  ImGuiIO &input = ImGui::GetIO();
-  if (!input.WantTextInput && input.KeyCtrl &&
-      ImGui::IsKeyPressed(ImGuiKey_S, false)) {
-    std::string error;
-    notice_ = workspace_.saveAll(error) ? "Authored documents saved" : error;
-  }
-  if (!input.WantTextInput && input.KeyCtrl &&
-      ImGui::IsKeyPressed(ImGuiKey_Z, false)) {
-    std::string error;
-    notice_ = workspace_.undo(error) ? "Undid scene edit" : error;
-  }
-  if (!input.WantTextInput && input.KeyCtrl &&
-      ImGui::IsKeyPressed(ImGuiKey_Y, false)) {
-    std::string error;
-    notice_ = workspace_.redo(error) ? "Redid scene edit" : error;
-  }
-  if (ImGui::IsKeyPressed(ImGuiKey_F5, false)) {
-    std::string error;
-    notice_ = workspace_.refresh(error) ? "Project refreshed" : error;
   }
 
   const float screenWidth = static_cast<float>(width);
@@ -381,23 +408,45 @@ void EditorShell::draw(const int width, const int height,
 
   const EditorProjectOperationSnapshot projectOperation =
       buildPanel_.operation();
-  drawMenu(workspace_, {screenWidth, menuHeight}, exitRequested_, projectPanel_,
-           assetsPanel_,
-           animationMachinePanel_, buildPanel_, aboutPanel_, dockingWorkspace_,
-           showSettings_, notice_);
-  const auto previousEditor=preferences_.codeEditor;
-  const auto previousEditorArguments=preferences_.codeEditorArguments;
-  drawEditorSettingsPanel(showSettings_, uiScale_, preferences_);
-  if (!preferenceSyncBlocked_ && (preferences_.codeEditor!=previousEditor || preferences_.codeEditorArguments!=previousEditorArguments)) {
-    std::string error;
-    if (!preferencesStore_.save(preferences_,error)) notice_=error;
-  }
+  const auto focusedContext = commandContext();
+  if (focusedContext != EditorCommandContext::None &&
+      focusedContext != EditorCommandContext::Game)
+    lastAuthoringContext_ = focusedContext;
+  if (lastAuthoringContext_ == EditorCommandContext::TerrainGraph &&
+      !showTerrainGraphView_)
+    lastAuthoringContext_ =
+        workspace().activeDocument() == EditorWorkspaceDocument::Hud
+            ? EditorCommandContext::Hud
+            : EditorCommandContext::Scene;
+  const auto menuContext =
+      showGameView_ ? EditorCommandContext::Game : lastAuthoringContext_;
+  drawMenu(workspace(), documents_, {screenWidth, menuHeight}, exitRequested_,
+           projectPanel_, assetsPanel_, animationMachinePanel_, buildPanel_,
+           aboutPanel_, dockingWorkspace_, showSettings_, notice_,
+           preferences_.keyBindings, menuContext,
+           showHudView_ && !showGameView_,
+           showTerrainGraphView_ && !showGameView_,
+           [this, menuContext](EditorCommand command) {
+             executeCommand(command, menuContext);
+           });
+  drawEditorSettingsPanel(showSettings_, uiScale_, preferences_,
+                          shortcutSettings_);
+  const auto previousPlayState = playSession_.state();
   drawEditorToolbar({0.0F, menuHeight}, {screenWidth, toolbarHeight},
-                    workspace_, playSession_, showGameView_, stepRequested_,
-                    notice_);
+                    workspace(), documents_.scene(), playSession_,
+                    showGameView_, stepRequested_, notice_,
+                    preferences_.keyBindings, menuContext,
+                    [this, menuContext](EditorCommand command) {
+                      executeCommand(command, menuContext);
+                    });
+  if (previousPlayState != playSession_.state() && playSession_.isEmbedded())
+    focusWindow_ = "Game View";
+  auto &panels = dockingWorkspace_.visibility();
+  if (previousPlayState != playSession_.state() && playSession_.isEmbedded())
+    panels.game = true;
   dockingWorkspace_.drawDockspace({0.0F, contentTop},
                                   {screenWidth, contentBottom - contentTop});
-  EditorPanelVisibility &panels = dockingWorkspace_.visibility();
+  drawDocumentViews({leftWidth, contentTop}, {centerWidth, upperHeight});
   const runtime::World *runtimeWorld = playSession_.runtimeWorld();
   const bool runtimePanels = showGameView_ && runtimeWorld != nullptr;
   if (panels.hierarchy && runtimePanels)
@@ -405,102 +454,110 @@ void EditorShell::draw(const int width, const int height,
                          {leftWidth, upperHeight}, selectedRuntimeEntityId_,
                          &panels.hierarchy);
   else if (panels.hierarchy)
-    hierarchyPanel_.draw(workspace_, {0.0F, contentTop},
+    hierarchyPanel_.draw(workspace(), {0.0F, contentTop},
                          {leftWidth, upperHeight}, showHudView_, notice_,
                          &panels.hierarchy);
+  if (!runtimePanels &&
+      workspace().activeDocument() == EditorWorkspaceDocument::Hud &&
+      &workspace() != documents_.workspace(EditorDocumentSession::Hud)) {
+    const auto *hud = workspace().hudDocument();
+    const auto selected = std::string(workspace().selectedHudNodeId());
+    if (hud) {
+      const auto path = hud->path();
+      std::string error;
+      if (documents_.openHud(path, error)) {
+        workspace().selectHudNode(selected);
+        showHudView_ = true;
+        panels.hud = true;
+        focusWindow_ = "HUD";
+      } else
+        notice_ = error;
+    }
+  }
   if (runtimePanels)
     playSession_.setDebugFocus(selectedRuntimeEntityId_);
-  const ImVec2 stagePosition{leftWidth, contentTop};
-  const ImVec2 stageSize{centerWidth, upperHeight};
-  bool terrainStageVisible = false;
-  if (panels.stage) {
-    const bool stageContent = beginEditorPanel(
-        "Stage", stagePosition, stageSize, &panels.stage,
-        ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
-            ImGuiWindowFlags_NoBackground);
-    if (stageContent) {
-      drawStageTabs(workspace_, showHudView_, showGameView_, notice_);
-      ImGui::Separator();
-      if (showGameView_) {
-        viewportArea_ = {};
-        drawEditorGameView(playSession_, {}, {}, gameTextureIndex_, gameArea_,
-                           gameViewFocused_, true);
-        if (gameViewFocused_ && ImGui::IsMouseClicked(ImGuiMouseButton_Left) &&
-            ImGui::IsMouseHoveringRect({float(gameArea_.x),float(gameArea_.y)},
-              {float(gameArea_.x+gameArea_.width),float(gameArea_.y+gameArea_.height)}))
-          gameInputDetached_=false;
-      } else {
-        terrainStageVisible = !showHudView_;
-        gameArea_ = {};
-        gameViewFocused_ = false;
-        drawEditorViewport(workspace_, {}, {}, viewportTextureIndex_,
-                           viewportArea_, hudViewportState_, showHudView_,
-                           notice_, true);
-      }
-    } else {
-      gameViewFocused_ = false;
-    }
-    ImGui::End();
-  } else {
-    viewportArea_ = {};
-    gameArea_ = {};
-    gameViewFocused_ = false;
-  }
-  if (!terrainStageVisible && workspace_.terrainAuthoring().stroking()) {
-    std::string error;
-    if (!workspace_.cancelTerrainEditing(error))
-      notice_ = std::move(error);
-  }
   if (panels.inspector && runtimePanels)
     drawRuntimeInspector(*runtimeWorld, {screenWidth - rightWidth, contentTop},
                          {rightWidth, contentBottom - contentTop},
                          selectedRuntimeEntityId_, &panels.inspector);
-  else if (panels.inspector && !workspace_.selectedHudNodeId().empty())
-    drawEditorHudNodeInspector(workspace_,
-                               {screenWidth - rightWidth, contentTop},
-                               {rightWidth, contentBottom - contentTop},
-                               hudInspectorState_, notice_, &panels.inspector);
   else if (panels.inspector)
-    drawInspectorPanel(workspace_, {screenWidth - rightWidth, contentTop},
-                       {rightWidth, contentBottom - contentTop},
-                       inspectorState_, notice_, &panels.inspector);
-  if (panels.console)
-    consolePanel_.draw(workspace_, playSession_,
-                       {0.0F, contentTop + upperHeight},
-                       {consoleWidth, bottomHeight}, projectOperation, notice_,
-                       &panels.console);
+    drawEditorInspector(workspace(), {screenWidth - rightWidth, contentTop},
+                        {rightWidth, contentBottom - contentTop},
+                        inspectorState_, hudInspectorState_, notice_,
+                        &panels.inspector);
+  if (!showGameView_ && showHudView_ && panels.uiPalette)
+    drawEditorPalettePanel(workspace(), modulesState_,
+                           EditorModuleKind::HudElement, &panels.uiPalette);
+  if (!showGameView_ && showTerrainGraphView_ && graphWorkspace_ &&
+      panels.terrainNodes)
+    drawEditorPalettePanel(*graphWorkspace_, modulesState_,
+                           EditorModuleKind::TerrainNode, &panels.terrainNodes);
+  if (workspace().takeTerrainGraphOpenRequest()) {
+    std::string error;
+    if (!openTerrainGraph(error))
+      notice_ = error;
+  }
+  if (auto selected = workspace().takeTerrainAssetCreateRequest()) {
+    panels.assets = true;
+    assetsPanel_.openCreate(selected->empty()
+                                ? EditorSourceKind::Terrain
+                                : EditorSourceKind::TerrainFromSelection,
+                            *selected);
+  }
+  if (auto assignment = workspace().takeTerrainAssetAssignRequest()) {
+    std::string error;
+    notice_ = workspace().assignTerrainAsset(assignment->first,
+                                             assignment->second, error)
+                  ? "Terrain asset assigned"
+                  : error;
+  }
+  if (auto source = workspace().takeTerrainAssetOpenRequest()) {
+    std::string error;
+    if (!openDocument(*source, error))
+      documentOpenError_ = error;
+  }
+  consolePanel_.draw(
+      workspace(), playSession_, {0.0F, contentTop + upperHeight},
+      {consoleWidth, bottomHeight}, projectOperation, notice_, panels);
   if (auto source = consolePanel_.takeOpenRequest()) {
     std::string error;
     if (!openDocument(*source, error))
       notice_ = "Diagnostic source: " + source->string();
   }
   if (inspectorState_.openRequest) {
-    const auto source=std::exchange(inspectorState_.openRequest,std::nullopt);
+    const auto source =
+        std::exchange(inspectorState_.openRequest, std::nullopt);
     std::string error;
-    if (!openDocument(*source,error)) documentOpenError_=error;
+    if (!openDocument(*source, error))
+      documentOpenError_ = error;
   }
   if (panels.assets)
-    assetsPanel_.draw(workspace_, {consoleWidth, contentTop + upperHeight},
+    assetsPanel_.draw(workspace(), {consoleWidth, contentTop + upperHeight},
                       {assetsWidth, bottomHeight}, notice_, &panels.assets);
   if (auto source = assetsPanel_.takeOpenRequest()) {
     std::string error;
     if (!openDocument(*source, error))
       documentOpenError_ = error;
   }
-  if (!documentOpenError_.empty()) ImGui::OpenPopup("Cannot open document");
-  if (ImGui::BeginPopupModal("Cannot open document",nullptr,ImGuiWindowFlags_AlwaysAutoResize)) {
-    ImGui::TextWrapped("%s",documentOpenError_.c_str());
-    if (ImGui::Button("OK")) { documentOpenError_.clear(); ImGui::CloseCurrentPopup(); }
+  if (!documentOpenError_.empty())
+    ImGui::OpenPopup("Cannot open document");
+  if (ImGui::BeginPopupModal("Cannot open document", nullptr,
+                             ImGuiWindowFlags_AlwaysAutoResize)) {
+    ImGui::TextWrapped("%s", documentOpenError_.c_str());
+    if (ImGui::Button("OK")) {
+      documentOpenError_.clear();
+      ImGui::CloseCurrentPopup();
+    }
     ImGui::EndPopup();
   }
-  buildPanel_.draw(workspace_, notice_);
-  drawStatus(workspace_, {0.0F, contentBottom}, {screenWidth, statusHeight},
+  buildPanel_.draw(workspace(), notice_);
+  drawStatus(workspace(), {0.0F, contentBottom}, {screenWidth, statusHeight},
              rendererName, notice_, buildPanel_.linuxTarget(),
              buildPanel_.androidTarget());
-  conflictPanel_.draw(workspace_, notice_);
-  projectPanel_.draw(workspace_, notice_);
-  specializedPanel_.draw(workspace_, notice_);
-  animationMachinePanel_.draw(workspace_, notice_);
+  conflictPanel_.draw(workspace(), notice_);
+  projectPanel_.draw(documents_.scene(), notice_);
+  specializedPanel_.draw(workspace(), notice_);
+  animationMachinePanel_.draw(workspace(), notice_);
   aboutPanel_.draw(brandingTextureIndex_, notice_);
   dockingWorkspace_.persistVisibilityIfChanged();
   if (std::string diagnostic = dockingWorkspace_.takeDiagnostic();
@@ -530,12 +587,12 @@ void EditorShell::draw(const int width, const int height,
       std::erase_if(workspaceRecovery.documents, [](const auto &document) {
         return document.kind == "specialized";
       });
-      bool restored = workspace_.applyRecovery(workspaceRecovery, error);
+      bool restored = documents_.applyRecovery(workspaceRecovery, error);
       if (restored)
         for (const EditorRecoveryDocument &document :
              pendingRecovery_->documents)
           if (document.kind == "specialized" &&
-              !specializedPanel_.restore(document, workspace_, error)) {
+              !specializedPanel_.restore(document, workspace(), error)) {
             restored = false;
             break;
           }
@@ -551,7 +608,7 @@ void EditorShell::draw(const int width, const int height,
     ImGui::SameLine();
     if (ImGui::Button("Discard recovery")) {
       std::string error;
-      if (!recoveryStore_.discard(workspace_.projectPath(), error))
+      if (!recoveryStore_.discard(workspace().projectPath(), error))
         notice_ = error;
       else {
         pendingRecovery_.reset();
@@ -567,7 +624,7 @@ void EditorShell::draw(const int width, const int height,
   if (ImGui::BeginPopupModal("Unsaved changes", nullptr,
                              ImGuiWindowFlags_AlwaysAutoResize)) {
     ImGui::TextUnformatted("Save changes before closing the editor?");
-    for (const EditorRecoveryDocument &document : workspace_.dirtyDocuments())
+    for (const EditorRecoveryDocument &document : documents_.dirtyDocuments())
       ImGui::BulletText("%s · %s", document.kind.c_str(),
                         document.path.filename().string().c_str());
     if (const auto specialized = specializedPanel_.recoveryDocument())
@@ -575,9 +632,9 @@ void EditorShell::draw(const int width, const int height,
                         specialized->path.filename().string().c_str());
     if (ImGui::Button("Save all and exit")) {
       std::string error;
-      if (workspace_.saveAll(error) &&
-          specializedPanel_.saveActive(workspace_, error)) {
-        (void)recoveryStore_.discard(workspace_.projectPath(), error);
+      if (documents_.saveAll(error) &&
+          specializedPanel_.saveActive(workspace(), error)) {
+        (void)recoveryStore_.discard(workspace().projectPath(), error);
         wantsExit_ = true;
         ImGui::CloseCurrentPopup();
       } else {
@@ -587,7 +644,7 @@ void EditorShell::draw(const int width, const int height,
     ImGui::SameLine();
     if (ImGui::Button("Discard and exit")) {
       std::string error;
-      (void)recoveryStore_.discard(workspace_.projectPath(), error);
+      (void)recoveryStore_.discard(workspace().projectPath(), error);
       specializedPanel_.discardActive();
       wantsExit_ = true;
       ImGui::CloseCurrentPopup();
@@ -601,7 +658,7 @@ void EditorShell::draw(const int width, const int height,
   ImGui::End();
 
   if (!pendingRecovery_ && !recoverySyncBlocked_ && !wantsExit_) {
-    std::vector<EditorRecoveryDocument> recovery = workspace_.dirtyDocuments();
+    std::vector<EditorRecoveryDocument> recovery = documents_.dirtyDocuments();
     if (auto specialized = specializedPanel_.recoveryDocument())
       recovery.push_back(std::move(*specialized));
     nlohmann::json fingerprint = nlohmann::json::array();
@@ -610,41 +667,47 @@ void EditorShell::draw(const int width, const int height,
     const std::string canonical = fingerprint.dump();
     if (canonical != recoveryFingerprint_) {
       std::string error;
-      if (!recoveryStore_.update(workspace_.projectPath(), recovery, error))
+      if (!recoveryStore_.update(workspace().projectPath(), recovery, error))
         notice_ = "Recovery cache: " + error;
       else
         recoveryFingerprint_ = canonical;
     }
   }
+  if (!focusWindow_.empty() && dockingWorkspace_.focusPanel(focusWindow_))
+    focusWindow_.clear();
+  dispatchShortcuts();
   const EditorPreferences currentPreferences{
       .uiScale = uiScale_,
-      .translationSnap =
-          workspace_.viewDimension() == EditorSceneViewDimension::TwoDimensional
-              ? workspace_.sceneView2D().translationSnap
-              : workspace_.sceneView().translationSnap,
-      .rotationSnapDegrees =
-          workspace_.viewDimension() == EditorSceneViewDimension::TwoDimensional
-              ? workspace_.sceneView2D().rotationSnapDegrees
-              : workspace_.sceneView().rotationSnapDegrees,
-      .scaleSnap =
-          workspace_.viewDimension() == EditorSceneViewDimension::TwoDimensional
-              ? workspace_.sceneView2D().scaleSnap
-              : workspace_.sceneView().scaleSnap,
-      .showBounds3D = workspace_.sceneView().showBounds,
-      .showColliders3D = workspace_.sceneView().showColliders,
-      .showLights3D = workspace_.sceneView().showLights,
-      .showCameras3D = workspace_.sceneView().showCameras,
-      .showGrid2D = workspace_.sceneView2D().showGrid,
-      .showBounds2D = workspace_.sceneView2D().showBounds,
-      .showColliders2D = workspace_.sceneView2D().showColliders,
-      .showCameras2D = workspace_.sceneView2D().showCameras,
-      .codeEditor=preferences_.codeEditor,
-      .codeEditorArguments=preferences_.codeEditorArguments};
-  if (!preferenceSyncBlocked_ && preferences_ != currentPreferences) {
+      .translationSnap = workspace().viewDimension() ==
+                                 EditorSceneViewDimension::TwoDimensional
+                             ? workspace().sceneView2D().translationSnap
+                             : workspace().sceneView().translationSnap,
+      .rotationSnapDegrees = workspace().viewDimension() ==
+                                     EditorSceneViewDimension::TwoDimensional
+                                 ? workspace().sceneView2D().rotationSnapDegrees
+                                 : workspace().sceneView().rotationSnapDegrees,
+      .scaleSnap = workspace().viewDimension() ==
+                           EditorSceneViewDimension::TwoDimensional
+                       ? workspace().sceneView2D().scaleSnap
+                       : workspace().sceneView().scaleSnap,
+      .showBounds3D = workspace().sceneView().showBounds,
+      .showColliders3D = workspace().sceneView().showColliders,
+      .showLights3D = workspace().sceneView().showLights,
+      .showCameras3D = workspace().sceneView().showCameras,
+      .showGrid2D = workspace().sceneView2D().showGrid,
+      .showBounds2D = workspace().sceneView2D().showBounds,
+      .showColliders2D = workspace().sceneView2D().showColliders,
+      .showCameras2D = workspace().sceneView2D().showCameras,
+      .codeEditor = preferences_.codeEditor,
+      .codeEditorArguments = preferences_.codeEditorArguments,
+      .keyBindings = preferences_.keyBindings};
+  if (!preferenceSyncBlocked_ && persistedPreferences_ != currentPreferences) {
     preferences_ = currentPreferences;
     std::string error;
     if (!preferencesStore_.save(preferences_, error))
       notice_ = "Editor preferences: " + error;
+    else
+      persistedPreferences_ = preferences_;
   }
 }
 

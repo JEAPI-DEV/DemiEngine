@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://schemas/terrain_material_set",
+  "importer": "json_schema",
+  "importer_version": 1,
+  "settings": {},
+  "source": "terrain_material_set.schema.json",
+  "source_hash": "fnv1a64:b6b23e0a6d62fe28",
+  "type": "DataSchema"
+}

@@ -14,6 +14,8 @@ enum class EditorSourceKind {
   UiPrefab,
   Lua,
   Material,
+  Terrain,
+  TerrainFromSelection,
   Data
 };
 bool createEditorSource(EditorWorkspace &workspace, EditorSourceKind kind,

@@ -85,6 +85,10 @@ void EditorAssetDialogs::draw(EditorWorkspace &workspace, std::string &notice) {
         ImGui::TextWrapped("Copy hierarchy '%s' into a reusable prefab. The "
                            "original stays unchanged.",
                            sourceSelection_.c_str());
+      if (sourceKind_ == EditorSourceKind::TerrainFromSelection)
+        ImGui::TextWrapped("Move the selected terrain's editable recipe into "
+                           "a Terrain asset. The scene keeps a reference; "
+                           "Undo restores the inline recipe.");
       if (!sourceDirectory_.empty())
         ImGui::TextDisabled("Create in: %s",
                             sourceDirectory_.generic_string().c_str());

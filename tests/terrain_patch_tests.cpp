@@ -60,8 +60,8 @@ TerrainRecipe recipe(float height = 2) {
   result.size = {8, 8};
   result.cellsX = result.cellsZ = 8;
   result.chunkCells = 4;
-  result.biomes.at("default").baseHeight = height;
-  result.biomes.at("default").heightVariation = 0;
+  result.landforms.at("default").baseHeight = height;
+  result.landforms.at("default").heightVariation = 0;
   return result;
 }
 

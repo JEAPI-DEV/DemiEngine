@@ -1,0 +1,30 @@
+{
+  "format_version": 1,
+  "type": "object",
+  "required": ["format_version", "name", "roles"],
+  "description": "A reusable map from terrain surface roles to material assets, used when generated terrain assigns surfaces from slope, deposition, biome and water distance. Roles are keyed by name, so a duplicate role is structurally impossible and iteration order is deterministic. The role vocabulary, the material-asset type rule, required_roles coverage and every range rule are enforced by src/demi/assets/MaterialSet.cpp, because this validator ignores additionalProperties, minItems, maxItems, maxLength, pattern and uniqueItems.",
+  "properties": {
+    "format_version": { "type": "integer", "enum": [1] },
+    "name": { "type": "string" },
+    "description": { "type": "string" },
+    "roles": {
+      "type": "object",
+      "properties": {
+        "rock": { "type": "string", "reference": "asset", "description": "Steep or high exposed ground." },
+        "cliff": { "type": "string", "reference": "asset", "description": "Near-vertical faces, which need a triplanar material." },
+        "sediment": { "type": "string", "reference": "asset", "description": "Low-slope deposition areas." },
+        "ground": { "type": "string", "reference": "asset", "description": "Vegetated soil cover." },
+        "grass": { "type": "string", "reference": "asset", "description": "Dense grass layer." },
+        "sand": { "type": "string", "reference": "asset", "description": "Dry beach and shallow shore." },
+        "snow": { "type": "string", "reference": "asset", "description": "Where the biome permits snow." },
+        "wet_ground": { "type": "string", "reference": "asset", "description": "Shoreline inside the wet band." },
+        "underwater": { "type": "string", "reference": "asset", "description": "Submerged bed." }
+      }
+    },
+    "required_roles": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Roles a consumer must find to treat the set as usable."
+    }
+  }
+}

@@ -1,8 +1,9 @@
 #include "editor/EditorSceneDocument.h"
 
 #include "demi/filesystem/ProjectPaths.h"
-#include "editor/EditorAuthoredJson.h"
+#include "demi/filesystem/AuthoredJsonPatch.h"
 #include "editor/EditorEntityHierarchy.h"
+#include "editor/EditorAuthoringClipboard.h"
 #include "demi/runtime/scene/composition/EntityHierarchy.h"
 #include "demi/runtime/scene/composition/PrefabResolver.h"
 #include "editor/EditorSpecializedDocument.h"
@@ -17,12 +18,17 @@
 #include <algorithm>
 #include <array>
 #include <exception>
+#include <set>
 #include <string>
 #include <tuple>
 #include <unordered_map>
 #include <unordered_set>
 
 namespace demi::editor {
+// Authored-source patching is shared infrastructure, not editor state.
+using demi::filesystem::normalizeAuthoredValue;
+using demi::filesystem::patchAuthoredJsonSource;
+
 namespace {
 
 nlohmann::json normalizeFieldValue(const SceneValueTarget &target,
@@ -44,7 +50,7 @@ nlohmann::json normalizeFieldValue(const SceneValueTarget &target,
       break;
     }
   }
-  return normalizeEditorAuthoredValue(std::move(value), previous);
+  return normalizeAuthoredValue(std::move(value), previous);
 }
 
 std::string validationMessage(
@@ -89,6 +95,35 @@ SceneValueTarget issueTarget(const SceneCommand &command) {
       setValues != nullptr && !setValues->values.empty())
     return setValues->values.front().target;
   return {.entityId = sceneCommandEntityId(command)};
+}
+
+void appendClipboardEntities(const nlohmann::json &entities,
+                             const std::unordered_set<std::string> &included,
+                             nlohmann::json &output,
+                             const std::string &parent = {},
+                             const char *parentTransform = nullptr) {
+  for (const auto &entity : entities) {
+    if (included.contains(entity.at("id").get<std::string>())) {
+      auto copy = entity;
+      // Selecting a nested child independently must retain its source parent
+      // for same-document duplication. The destination drops missing parents.
+      if (!parent.empty()) {
+        const auto *transform = transformComponentName(entity);
+        if (!transform)
+          transform = parentTransform;
+        if (transform)
+          copy["components"][transform]["parent"] = parent;
+      }
+      output.push_back(std::move(copy));
+    } else if (const auto children = entity.find("children");
+               children != entity.end()) {
+      appendClipboardEntities(*children, included, output,
+                              entity.at("id").get<std::string>(),
+                              transformComponentName(entity)
+                                  ? transformComponentName(entity)
+                                  : parentTransform);
+    }
+  }
 }
 
 } // namespace
@@ -171,7 +206,7 @@ bool EditorSceneDocument::save(std::string &error) {
 
 std::string EditorSceneDocument::serializedText() const {
   if (const auto patched =
-          patchEditorJsonSource(originalText_, savedDocument_, document_))
+          patchAuthoredJsonSource(originalText_, savedDocument_, document_))
     return *patched;
   return document_.dump(2) + '\n';
 }
@@ -567,6 +602,51 @@ bool EditorSceneDocument::createEntity(std::string &error,
                         error);
 }
 
+bool EditorSceneDocument::createTerrainAssetEntity(
+    const std::string_view assetId, std::optional<runtime::Vec3> position,
+    std::string &error) {
+  nlohmann::json *entities = entitiesArray(document_);
+  if (entities == nullptr || !assetId.starts_with("asset://")) {
+    error = "A scene and a Terrain asset reference are required.";
+    reject({}, error);
+    return false;
+  }
+  const std::string id = uniqueEntityId(document_, "terrain");
+  nlohmann::json transform = nlohmann::json::object();
+  if (position)
+    transform["position"] = {position->x, position->y, position->z};
+  nlohmann::json entity{
+      {"id", id},
+      {"name", "Terrain"},
+      {"components", {{"Transform3D", std::move(transform)},
+                      {"Terrain3D", {{"asset", assetId}}}}}};
+  return stageAndCommit(InsertEntityCommand{.index = entities->size(),
+                                            .entity = std::move(entity)},
+                        error);
+}
+
+bool EditorSceneDocument::setTerrainAsset(const std::string_view entityId,
+                                          const std::string_view assetId,
+                                          std::string &error) {
+  if (!assetId.starts_with("asset://")) {
+    error = "Terrain assets require an asset:// reference.";
+    return false;
+  }
+  nlohmann::json staged = document_["entities"];
+  auto *entity = runtime::composition::findAuthoredEntity(staged, entityId);
+  if (!entity || !entity->contains("components") ||
+      !(*entity)["components"].contains("Terrain3D")) {
+    error = "Edit the authored terrain owner or its source prefab.";
+    return false;
+  }
+  (*entity)["components"]["Terrain3D"] = {{"asset", assetId}};
+  return stageAndCommit(
+      EntityHierarchyCommand{.entityId = std::string(entityId),
+                             .before = document_["entities"],
+                             .after = std::move(staged)},
+      error);
+}
+
 bool EditorSceneDocument::instantiatePrefab(const std::string_view reference,
                                             std::string &error) {
   return instantiatePrefab(reference, nlohmann::json::object(), error);
@@ -732,61 +812,98 @@ bool EditorSceneDocument::reparent(const std::string_view id,
 
 bool EditorSceneDocument::duplicateEntity(const std::string_view id,
                                           std::string &error) {
-  const nlohmann::json *source = entity(id);
-  if (source == nullptr) {
-    const auto instances = document_.find("instances");
-    if (instances != document_.end() && instances->is_array()) {
-      const auto instance = std::ranges::find_if(*instances, [&](const auto &item) {
-        return item.value("id", std::string{}) == id;
-      });
-      if (instance != instances->end()) {
-        auto after = *instances;
-        auto copy = *instance;
-        const auto copyId = uniqueEntityId(document_, std::string(id) + "_copy");
-        copy["id"] = copyId;
-        after.push_back(std::move(copy));
-        return stageAndCommit(EntityHierarchyCommand{
-            .entityId = copyId, .before = document_["entities"], .after = document_["entities"],
-            .instancesBefore = *instances, .instancesAfter = std::move(after)}, error);
+  const std::array ids{std::string(id)};
+  std::vector<std::string> created;
+  return duplicateEntities(ids, created, error);
+}
+
+std::optional<nlohmann::json> EditorSceneDocument::exportEntities(
+    const std::span<const std::string> ids, std::string &error) const {
+  if (ids.empty()) {
+    error = "Select authored entities to copy.";
+    return std::nullopt;
+  }
+  try {
+    std::unordered_set<std::string> included;
+    for (const auto &id : ids) {
+      if (!entity(id) && !findPrefabInstance(document_, id)) {
+        error = "The selected entity is generated or no longer exists: " + id;
+        return std::nullopt;
       }
+      for (const auto &member : collectSubtreeIds(document_, id))
+        included.insert(member);
     }
-    error = "The entity no longer exists.";
-    reject({.entityId = std::string(id)}, error);
+    auto result = nlohmann::json::array();
+    appendClipboardEntities(document_.at("entities"), included, result);
+    if (const auto instances = document_.find("instances");
+        instances != document_.end())
+      for (const auto &instance : *instances)
+        if (included.contains(instance.at("id").get<std::string>()))
+          result.push_back(instance);
+    return result;
+  } catch (const std::exception &exception) {
+    error = "Could not copy authored entities: " + std::string(exception.what());
+    return std::nullopt;
+  }
+}
+
+bool EditorSceneDocument::pasteEntities(const nlohmann::json &payload,
+                                       std::vector<std::string> &createdIds,
+                                       std::string &error) {
+  try {
+    std::vector<std::string> copiedIds;
+    if (!collectClipboardTreeIds(payload, copiedIds, error))
+      return false;
+    std::set<std::string> reserved;
+    const auto flat = runtime::composition::flattenEntityHierarchy(document_["entities"]);
+    for (const auto &entity : flat)
+      reserved.insert(entity.at("id").get<std::string>());
+    if (const auto instances = document_.find("instances");
+        instances != document_.end())
+      for (const auto &instance : *instances)
+        reserved.insert(instance.at("id").get<std::string>());
+    const auto remapping = allocateClipboardIds(copiedIds, std::move(reserved));
+    auto copies = payload;
+    remapClipboardEntities(copies, remapping);
+    std::set<std::string> copiedRoots;
+    for (const auto &copy : copies)
+      copiedRoots.insert(copy.at("id").get<std::string>());
+    auto staged = document_;
+    std::vector<std::string> roots;
+    // Insert unchanged source subtrees, retaining flat external-parent links
+    // where their destinations still exist. Nested arrays are never flattened.
+    for (auto &copy : copies) {
+      roots.push_back(copy.at("id").get<std::string>());
+      std::string parent = transformParentId(copy);
+      if (!parent.empty() && !findEntity(staged, parent) &&
+          !copiedRoots.contains(parent)) {
+        if (const auto *transform = transformComponentName(copy))
+          copy["components"][transform].erase("parent");
+      }
+      if (!parent.empty() && findEntity(staged, parent) &&
+          !copiedRoots.contains(parent))
+        insertEntityUnder(staged, std::move(copy), parent);
+      else
+        staged["entities"].push_back(std::move(copy));
+    }
+    if (!stageAndCommit(EntityHierarchyCommand{.entityId = roots.front(),
+                                              .before = document_["entities"],
+                                              .after = std::move(staged["entities"])},
+                        error))
+      return false;
+    createdIds = std::move(roots);
+    return true;
+  } catch (const std::exception &exception) {
+    error = "Could not paste authored entities: " + std::string(exception.what());
     return false;
   }
-  const std::vector<std::string> subtree = collectSubtreeIds(document_, id);
-  std::unordered_map<std::string, std::string> remap;
-  std::unordered_set<std::string> reserved;
-  for (const std::string &member : subtree) {
-    remap[member] = uniqueEntityId(document_, member + "_copy", reserved);
-    reserved.insert(remap[member]);
-  }
+}
 
-  std::vector<nlohmann::json> copies;
-  copies.reserve(subtree.size());
-  const auto flat = runtime::composition::flattenEntityHierarchy(document_["entities"]);
-  for (const std::string &member : subtree) {
-    const nlohmann::json *original = runtime::composition::findAuthoredEntity(flat, member);
-    if (original == nullptr)
-      continue;
-    nlohmann::json copy = *original;
-    copy["id"] = remap[member];
-    remapParentReferences(copy, remap);
-    copies.push_back(std::move(copy));
-  }
-  if (copies.empty()) {
-    error = "The entity could not be duplicated.";
-    reject({.entityId = std::string(id)}, error);
-    return false;
-  }
-
-  auto staged = document_;
-  for (auto &copy : copies) {
-    const auto parent = transformParentId(copy);
-    insertEntityUnder(staged, std::move(copy), parent);
-  }
-  return stageAndCommit(EntityHierarchyCommand{.entityId = remap.at(std::string(id)),
-      .before = document_["entities"], .after = std::move(staged["entities"])}, error);
+bool EditorSceneDocument::duplicateEntities(
+    const std::span<const std::string> ids, std::vector<std::string> &createdIds,
+    std::string &error) {
+  const auto payload = exportEntities(ids, error);
+  return payload && pasteEntities(*payload, createdIds, error);
 }
 
 bool EditorSceneDocument::addComponent(const std::string_view id,

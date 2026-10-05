@@ -15,8 +15,9 @@ namespace demi::editor {
 void drawEditorGameView(const EditorPlaySession &session, const ImVec2 position,
                         const ImVec2 size, const std::uint16_t textureIndex,
                         EditorViewportArea &area, bool &focused,
-                        const bool embedded) {
-  if (!embedded && !beginEditorPanel("Stage", position, size, nullptr,
+                        const bool embedded,
+                        const std::string_view releaseShortcut) {
+  if (!embedded && !beginEditorPanel("Game View", position, size, nullptr,
                                      ImGuiWindowFlags_NoScrollbar |
                                          ImGuiWindowFlags_NoScrollWithMouse |
                                          ImGuiWindowFlags_NoBackground)) {
@@ -74,9 +75,13 @@ void drawEditorGameView(const EditorPlaySession &session, const ImVec2 position,
       draw->AddText({canvasMin.x + 18.0F, canvasMin.y + 52.0F},
                     IM_COL32(145, 149, 162, 255),
                     "Start embedded Play to render the game here.");
+    } else {
+      const std::string hint = "Click to focus | " +
+                               std::string(releaseShortcut) +
+                               " releases the cursor";
+      draw->AddText({canvasMin.x + 18.0F, canvasMin.y + 38.0F},
+                    IM_COL32(210, 214, 222, 255), hint.c_str());
     }
-    else draw->AddText({canvasMin.x+18.0F,canvasMin.y+38.0F},IM_COL32(210,214,222,255),
-                       "Click to focus | Ctrl+D releases the cursor");
   }
   if (!embedded)
     ImGui::End();
@@ -110,7 +115,8 @@ void drawRuntimeInspector(const runtime::World &world, const ImVec2 position,
     return;
   }
   editorSectionTitle("RUNTIME INSPECTOR", "read-only");
-  ImGui::TextWrapped("Stop Play and use Viewport or Prefab to edit authored components.");
+  ImGui::TextWrapped(
+      "Stop Play and use Viewport or Prefab to edit authored components.");
   const runtime::Entity *entity = runtime::findEntity(world, selectedEntityId);
   if (entity == nullptr) {
     ImGui::TextDisabled("Select a runtime entity.");

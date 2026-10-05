@@ -4515,39 +4515,28 @@
     },
     "Terrain3D": {
       "additionalProperties": false,
+      "not": {
+        "properties": {
+          "asset": {
+            "minLength": 1
+          }
+        },
+        "required": [
+          "asset",
+          "recipe"
+        ]
+      },
       "properties": {
+        "asset": {
+          "default": "",
+          "type": "string",
+          "x-demi-editor-label": "Asset",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true,
+          "x-demi-reference": "asset"
+        },
         "recipe": {
-          "default": {
-            "biomes": {
-              "default": {
-                "base_height": 0.0,
-                "color": [
-                  0.3499999940395355,
-                  0.550000011920929,
-                  0.25,
-                  1.0
-                ],
-                "feature_size": 32.0,
-                "height_variation": 8.0,
-                "octaves": 4,
-                "roughness": 0.5
-              }
-            },
-            "chunk_cells": 32,
-            "default_biome": "default",
-            "edits": [],
-            "format_version": 1,
-            "regions": [],
-            "resolution": [
-              128,
-              128
-            ],
-            "seed": 1337,
-            "size": [
-              128.0,
-              128.0
-            ]
-          },
           "type": "object",
           "x-demi-editor-label": "Recipe",
           "x-demi-editor-read-only": true,

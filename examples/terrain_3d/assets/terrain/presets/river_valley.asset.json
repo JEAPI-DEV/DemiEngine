@@ -1,0 +1,20 @@
+{
+  "dependencies": [
+    "asset://schemas/terrain_preset"
+  ],
+  "format_version": 1,
+  "id": "asset://terrain/presets/river_valley",
+  "importer": "json_data",
+  "importer_version": 1,
+  "settings": {
+    "content_type": "terrain_preset",
+    "schema": "asset://schemas/terrain_preset",
+    "tags": [
+      "preset:terrain",
+      "terrain:valley"
+    ]
+  },
+  "source": "river_valley.json",
+  "source_hash": "fnv1a64:8d0c8839eb9840b3",
+  "type": "DataAsset"
+}

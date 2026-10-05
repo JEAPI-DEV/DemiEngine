@@ -1,5 +1,4 @@
 #include "editor/EditorViewportRenderer.h"
-#include "editor/EditorRenderViews.h"
 
 #include "demi/assets/AssetRegistry.h"
 #include "demi/runtime/render/BgfxRenderer2D.h"
@@ -15,9 +14,9 @@
 namespace demi::editor {
 
 EditorViewportRenderer::EditorViewportRenderer(
-    runtime::render::GpuResources &resources,
+    const std::uint16_t firstView, runtime::render::GpuResources &resources,
     runtime::render::RenderCommands &commands)
-    : resources_(resources), commands_(commands),
+    : resources_(resources), commands_(commands), firstView_(firstView),
       target_(std::make_unique<runtime::render::RenderTargetHandles>()) {}
 
 EditorViewportRenderer::~EditorViewportRenderer() { release(); }
@@ -86,7 +85,7 @@ bool EditorViewportRenderer::render3D(const runtime::World &world,
   frame.debugGeometry = camera.debugGeometry;
   frame.viewportWidth = area.width;
   frame.viewportHeight = area.height;
-  frame.viewId = EditorSceneFirstView;
+  frame.viewId = firstView_;
   frame.frameBuffer = target_->frameBuffer;
   if (camera.studioLighting) {
     runtime::render::SceneLighting3D lighting;
@@ -105,9 +104,9 @@ bool EditorViewportRenderer::render2D(const runtime::World &world,
                                       std::string &error) {
   if (!targetReady(area, error))
     return error.empty();
-  if (!renderer2D_->beginFrameRegion(camera.projection, camera.position, 1, 0,
-                                     0, area.width, area.height, deltaSeconds,
-                                     error, 1.0F, target_->frameBuffer))
+  if (!renderer2D_->beginFrameRegion(
+          camera.projection, camera.position, firstView_, 0, 0, area.width,
+          area.height, deltaSeconds, error, 1.0F, target_->frameBuffer))
     return false;
   const bool rendered = renderer2D_->drawWorld(world, showColliders);
   const bool flushed = renderer2D_->endFrame(error);
@@ -122,13 +121,18 @@ bool EditorViewportRenderer::renderHud(const runtime::ui::UiDocument &document,
                                        std::string &error) {
   if (!targetReady(area, error))
     return error.empty();
-  if (!renderer2D_->beginOverlayRegion(1, 0, 0, area.width, area.height,
-                                       deltaSeconds, error,
+  if (!renderer2D_->beginOverlayRegion(firstView_, 0, 0, area.width,
+                                       area.height, deltaSeconds, error,
                                        target_->frameBuffer))
     return false;
-  if (!commands_.configureView2D({.id=1,.width=area.width,.height=area.height,
-                                 .clearRgba=0x20232bffU,.clear=true,
-                                 .frameBuffer=target_->frameBuffer},error)) return false;
+  if (!commands_.configureView2D({.id = firstView_,
+                                  .width = area.width,
+                                  .height = area.height,
+                                  .clearRgba = 0x20232bffU,
+                                  .clear = true,
+                                  .frameBuffer = target_->frameBuffer},
+                                 error))
+    return false;
   const bool rendered = renderer2D_->drawUi(document);
   const bool flushed = renderer2D_->endFrame(error);
   if (!rendered && error.empty())

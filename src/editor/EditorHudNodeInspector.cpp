@@ -813,18 +813,12 @@ void syncInspectorState(EditorHudInspectorState &state,
 
 } // namespace
 
-void drawEditorHudNodeInspector(EditorWorkspace &workspace,
-                                const ImVec2 position, const ImVec2 size,
-                                EditorHudInspectorState &state,
-                                std::string &notice, bool *open) {
-  if (!beginEditorPanel("Inspector", position, size, open)) {
-    ImGui::End();
-    return;
-  }
+void drawEditorHudNodeInspectorContents(EditorWorkspace &workspace,
+                                        EditorHudInspectorState &state,
+                                        std::string &notice) {
   const runtime::ui::UiNode *selectedNode = workspace.selectedHudNode();
   if (selectedNode == nullptr) {
     ImGui::TextDisabled("Select a HUD element to edit its properties.");
-    ImGui::End();
     return;
   }
   const runtime::ui::UiNode node = *selectedNode;
@@ -898,6 +892,14 @@ void drawEditorHudNodeInspector(EditorWorkspace &workspace,
     notice = workspace.saveHud(error) ? "HUD saved" : error;
   }
   ImGui::EndDisabled();
+}
+
+void drawEditorHudNodeInspector(EditorWorkspace &workspace,
+                                const ImVec2 position, const ImVec2 size,
+                                EditorHudInspectorState &state,
+                                std::string &notice, bool *open) {
+  if (beginEditorPanel("Inspector", position, size, open))
+    drawEditorHudNodeInspectorContents(workspace, state, notice);
   ImGui::End();
 }
 

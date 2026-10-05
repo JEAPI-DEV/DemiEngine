@@ -29,7 +29,7 @@ void restoreEditorDerivedState(runtime::Entity &replacement) {
   // Recipe changes take the full rebuild path; this lookup only shares a
   // still-live immutable result and never generates work on a gizmo drag.
   if (auto *terrain = replacement.component<runtime::Terrain3DComponent>();
-      terrain && !terrain->generated)
+      terrain && !terrain->generated && !terrain->recipe.is_null())
     terrain->generated = runtime::findTerrain(terrain->recipe);
 }
 
@@ -103,6 +103,14 @@ bool applyEditorPreviewValue(runtime::World &world,
 
   runtime::Entity replacement =
       runtime::scene_loading::parseSceneEntity(effective);
+  if (auto *terrain = replacement.component<runtime::Terrain3DComponent>();
+      terrain && !terrain->asset.empty()) {
+    const auto *previous = current->component<runtime::Terrain3DComponent>();
+    if (previous && previous->asset == terrain->asset) {
+      terrain->recipe = previous->recipe;
+      terrain->generated = previous->generated;
+    }
+  }
   restoreEditorDerivedState(replacement);
   replacement.sceneOwner = current->sceneOwner;
   replacement.prefabInstance = current->prefabInstance;

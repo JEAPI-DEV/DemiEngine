@@ -43,5 +43,9 @@ struct EditorHudInspectorState {
 void drawEditorHudNodeInspector(EditorWorkspace &workspace, ImVec2 position,
                                 ImVec2 size, EditorHudInspectorState &state,
                                 std::string &notice, bool *open = nullptr);
+// Draws in the current Inspector window. The caller owns Begin/End.
+void drawEditorHudNodeInspectorContents(EditorWorkspace &workspace,
+                                        EditorHudInspectorState &state,
+                                        std::string &notice);
 
 } // namespace demi::editor

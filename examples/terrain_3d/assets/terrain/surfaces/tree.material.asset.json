@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://terrain/surfaces/tree",
+  "importer": "material",
+  "importer_version": 1,
+  "settings": {},
+  "source": "tree.material.json",
+  "source_hash": "fnv1a64:6e6bfa1b7d01cf47",
+  "type": "Material"
+}

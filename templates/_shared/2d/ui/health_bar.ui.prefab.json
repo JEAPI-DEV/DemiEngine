@@ -1,0 +1,20 @@
+{
+  "format_version": 1,
+  "id": "ui-prefab://health_bar",
+  "parameters": {
+    "title": {"type": "string", "default": "Health"},
+    "value": {"type": "number", "default": 1}
+  },
+  "root": {
+    "id": "health_bar",
+    "type": "panel",
+    "size": [260, 64],
+    "stack": "column",
+    "pad": 8,
+    "gap": 4,
+    "children": [
+      {"id": "title", "type": "label", "text": "${title}", "size": [240, 20]},
+      {"id": "fill", "type": "progress", "value": "${value}", "size": [240, 16]}
+    ]
+  }
+}

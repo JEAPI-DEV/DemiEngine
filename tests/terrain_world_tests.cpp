@@ -25,8 +25,8 @@ TerrainRecipe smallRecipe() {
   recipe.size = {4, 4};
   recipe.cellsX = recipe.cellsZ = 4;
   recipe.chunkCells = 2;
-  recipe.biomes.at("default").heightVariation = 0;
-  recipe.biomes.at("default").baseHeight = 1;
+  recipe.landforms.at("default").heightVariation = 0;
+  recipe.landforms.at("default").baseHeight = 1;
   return recipe;
 }
 
@@ -148,7 +148,7 @@ void testSceneAndBiomeGroups() {
       generated->biomeIndices.set(generated->index(x, z), x < 2 ? 0 : 1);
   auto field = std::make_shared<const HeightField>(std::move(*generated));
   const auto recipeJson = recipe.toJson();
-  publishTerrain(recipeJson, field);
+  publishTerrain(recipeJson, "", field);
   ProjectData project;
   project.projectDirectory = DEMI_SOURCE_DIR;
   project.scenes = {{.id = "scene://terrain", .path = "terrain.scene.json"}};
@@ -222,6 +222,26 @@ void testMeshHelper() {
   check(!buildTerrainMeshEntity(owner, "bad", vertices, {}, uvs, {}, {}, error),
         "Mesh helper accepted mismatched arrays");
 }
+
+void testMissingPaletteInputsLeaveWorldIntact() {
+  World world;
+  Entity owner;
+  owner.id = "palette_owner";
+  owner.setComponent(Transform3DComponent{});
+  Terrain3DComponent terrain;
+  auto recipe = smallRecipe();
+  recipe.paletteId = "asset://terrain/palettes/missing";
+  terrain.recipe = recipe.toJson();
+  owner.setComponent(std::move(terrain));
+  world.entities.push_back(std::move(owner));
+  std::string error;
+  check(!materializeTerrains(world, error),
+        "Unresolved palette generated a field without scatter inputs");
+  check(error.find("must be resolved") != std::string::npos &&
+            world.entities.size() == 1 &&
+            !world.entities.front().component<Terrain3DComponent>()->generated,
+        "Failed palette resolution changed the world");
+}
 } // namespace
 
 int main() {
@@ -229,6 +249,7 @@ int main() {
     testWorld();
     testSceneAndBiomeGroups();
     testMeshHelper();
+    testMissingPaletteInputsLeaveWorldIntact();
   } catch (const std::exception &exception) {
     std::cerr << exception.what() << '\n';
     return 1;

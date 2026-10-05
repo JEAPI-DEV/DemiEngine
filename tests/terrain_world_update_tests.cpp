@@ -5,8 +5,10 @@
 #include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/Transform3DComponent.h"
 #include "demi/runtime/scene/model/World.h"
+#include "demi/runtime/terrain/TerrainScatterRuntime.h"
 #include "demi/runtime/terrain/TerrainUpdate.h"
 #include "demi/runtime/terrain/TerrainWorld.h"
+#include "demi/runtime/terrain/TerrainWorldBatch.h"
 
 #include <algorithm>
 #include <cmath>
@@ -51,8 +53,8 @@ TerrainRecipe flatRecipe() {
   recipe.size = {12, 12};
   recipe.cellsX = recipe.cellsZ = 12;
   recipe.chunkCells = 4;
-  recipe.biomes.at("default").baseHeight = 1;
-  recipe.biomes.at("default").heightVariation = 0;
+  recipe.landforms.at("default").baseHeight = 1;
+  recipe.landforms.at("default").heightVariation = 0;
   return recipe;
 }
 
@@ -753,7 +755,7 @@ void testGlobalHistoryAfterLocalUndo() {
   const auto original = resources(world);
   const auto other = field(world, "other");
   auto regeneratedRecipe = before;
-  regeneratedRecipe.biomes.at("default").baseHeight = 5;
+  regeneratedRecipe.landforms.at("default").baseHeight = 5;
   const auto regenerated =
       updateTerrain(before, regeneratedRecipe, field(world));
   check(regenerated && regenerated->invalidation.fullGeneration,
@@ -824,6 +826,145 @@ void testGlobalHistoryAfterLocalUndo() {
                     .at("recipe") == brushRecipe.toJson(),
         "Rejected global source changed native/serialized terrain");
 }
+void testSharedAssetPublicationAndRollback() {
+  const auto before = flatRecipe();
+  auto world = makeWorld(before);
+  for (const auto &id : {"land", "other"})
+    entity(world, id).component<Terrain3DComponent>()->asset = "asset://shared";
+  const auto original = resources(world);
+  const auto originalField = field(world);
+  // Cooked assets retain their field and chunk layout without a source recipe.
+  for (const auto &id : {"land", "other"})
+    entity(world, id).component<Terrain3DComponent>()->recipe = nullptr;
+  auto after = before;
+  after.edits.push_back({.kind = TerrainEditKind::Raise,
+                         .center = {1, 1},
+                         .radius = 1,
+                         .amount = 2});
+  auto update = updateTerrain(before, after, originalField);
+  check(update.has_value(), "Shared terrain stroke failed to generate");
+  std::string error;
+  check(!updateTerrainAssetWorld(world, "", after.toJson(), *update, error),
+        "Empty asset ID was accepted by shared publication");
+  checkAllResources(world, original);
+  error.clear();
+  check(updateTerrainAssetWorld(world, "asset://shared", after.toJson(),
+                                *update, error),
+        error.c_str());
+  check(field(world) == update->field && field(world, "other") == update->field,
+        "Shared placements did not receive one immutable updated field");
+  for (const auto &id : {"land", "other"}) {
+    const auto source = scene_loading::serializeComponent<Terrain3DComponent>(
+        entity(world, id));
+    check(source.at("asset") == "asset://shared" && !source.contains("recipe"),
+          "Shared terrain publication embedded a recipe in scene data");
+    checkResource(world, std::string(id) + "/__terrain/8_8/default",
+                  original.at(std::string(id) + "/__terrain/8_8/default"));
+    check(entity(world, id).component<Transform3DComponent>()->position.x == 10,
+          "Shared terrain publication changed a placement transform");
+  }
+  checkResource(world, "building", original.at("building"));
+
+  const auto undo = applyTerrainPatch(field(world), *update->patch, false);
+  check(updateTerrainAssetWorld(world, "asset://shared", before.toJson(), undo,
+                                error),
+        error.c_str());
+  const auto redo = applyTerrainPatch(field(world), *update->patch, true);
+  check(updateTerrainAssetWorld(world, "asset://shared", after.toJson(), redo,
+                                error),
+        error.c_str());
+
+  // A stale second placement must reject the batch before the first changes.
+  auto stale = std::make_shared<HeightField>(*field(world, "other"));
+  const auto sample = stale->index(1, 1);
+  stale->heights.set(sample, stale->heights.at(sample) + 10);
+  entity(world, "other").component<Terrain3DComponent>()->generated = stale;
+  const auto committed = resources(world);
+  const auto firstField = field(world);
+  error.clear();
+  check(!updateTerrainAssetWorld(world, "asset://shared", before.toJson(), undo,
+                                 error) &&
+            !error.empty(),
+        "Shared batch accepted a stale second placement");
+  check(field(world) == firstField && field(world, "other") == stale,
+        "Failed shared publication partially changed terrain owners");
+  checkAllResources(world, committed);
+}
+
+void testSharedAssetScatterReconciliation() {
+  const auto recipe = flatRecipe();
+  auto world = makeWorld(recipe);
+  for (const auto &id : {"land", "other"})
+    entity(world, id).component<Terrain3DComponent>()->asset = "asset://shared";
+
+  const auto publish = [&](std::shared_ptr<const HeightField> next) {
+    auto patch = std::make_shared<TerrainPatch>();
+    patch->fullBefore = field(world);
+    patch->fullAfter = next;
+    patch->invalidation.fullGeneration = true;
+    TerrainUpdate update{.field = std::move(next),
+                         .patch = patch,
+                         .invalidation = patch->invalidation};
+    std::string error;
+    check(updateTerrainAssetWorld(world, "asset://shared", recipe.toJson(),
+                                  update, error),
+          error.c_str());
+  };
+  auto scattered = std::make_shared<HeightField>(*field(world));
+  scattered->paletteId = "asset://palette";
+  scattered->scatterPlacements.push_back({.role = TerrainPaletteRole::Tree,
+                                          .asset = "asset://tree",
+                                          .cell = 1,
+                                          .position = {1, 1, 1}});
+  publish(scattered);
+  const auto scatterId = [](std::string_view owner) {
+    return terrainScatterInstanceId(owner, "asset://palette",
+                                    TerrainPaletteRole::Tree, 1);
+  };
+  for (const auto &owner : {"land", "other"}) {
+    auto &instance = entity(world, scatterId(owner));
+    check(instance.component<Transform3DComponent>()->parent == owner,
+          "Scattered instance lost its terrain placement parent");
+    instance.name = "Keep live instance state";
+  }
+
+  auto moved = std::make_shared<HeightField>(*field(world));
+  moved->scatterPlacements.front().position.y = 4;
+  publish(moved);
+  for (const auto &owner : {"land", "other"}) {
+    const auto &instance = entity(world, scatterId(owner));
+    check(instance.component<Transform3DComponent>()->position.y == 4 &&
+              instance.name == "Keep live instance state",
+          "Shared publication did not move scenery while retaining state");
+  }
+
+  // A missing prefab driver must not delete the existing direct instances.
+  auto unresolved = std::make_shared<HeightField>(*field(world));
+  unresolved->paletteId = "asset://different-palette";
+  unresolved->scatterPlacements.front().prefab = "prefab://tree";
+  auto rejectedPatch = std::make_shared<TerrainPatch>();
+  rejectedPatch->fullBefore = field(world);
+  rejectedPatch->fullAfter = unresolved;
+  rejectedPatch->invalidation.fullGeneration = true;
+  TerrainUpdate rejected{.field = unresolved,
+                         .patch = rejectedPatch,
+                         .invalidation = rejectedPatch->invalidation};
+  const auto retained = field(world);
+  std::string error;
+  check(!updateTerrainAssetWorld(world, "asset://shared", recipe.toJson(),
+                                 rejected, error),
+        "Unresolved scatter prefab was silently accepted");
+  check(field(world) == retained &&
+            entity(world, scatterId("land")).name == "Keep live instance state",
+        "Failed scatter publication mutated terrain or live instances");
+
+  auto excluded = std::make_shared<HeightField>(*field(world));
+  excluded->scatterPlacements.clear();
+  publish(excluded);
+  for (const auto &instance : world.entities)
+    check(instance.id != scatterId("land") && instance.id != scatterId("other"),
+          "Excluded scenery survived a shared terrain update");
+}
 } // namespace
 
 int main() {
@@ -842,6 +983,8 @@ int main() {
     testSerializedTerrainPublication();
     testSerializedTerrainStalenessAndCancellation();
     testGlobalHistoryAfterLocalUndo();
+    testSharedAssetPublicationAndRollback();
+    testSharedAssetScatterReconciliation();
   } catch (const std::exception &exception) {
     std::cerr << exception.what() << '\n';
     return 1;

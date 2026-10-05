@@ -116,25 +116,19 @@
           202.0,
           284.0
         ],
-        "type": "panel"
+        "type": "panel",
+        "children": [
+        ]
       },
       {
-        "color": [
-          0.45,
-          0.94,
-          0.78,
-          1.0
-        ],
-        "font_size": 25.6,
-        "id": "build_title",
+        "font_size": 17.6,
+        "id": "build_arrow",
         "position": [
-          768.0,
-          112.0
+          759.4663696289063,
+          154.0
         ],
-        "text": "BUILD",
-        "type": "label"
-      },
-      {
+        "text": "[1] ARROW 50",
+        "type": "button",
         "action": "build_arrow",
         "background_color": [
           0.16,
@@ -142,24 +136,16 @@
           0.32,
           1.0
         ],
-        "font_size": 17.6,
         "hover_color": [
           0.24,
           0.45,
           0.45,
           1.0
         ],
-        "id": "build_arrow",
-        "position": [
-          759.4663696289063,
-          154.0
-        ],
         "size": [
           166.0,
           48.0
-        ],
-        "text": "[1] ARROW 50",
-        "type": "button"
+        ]
       },
       {
         "action": "build_wizard",
@@ -216,12 +202,6 @@
         "type": "button"
       },
       {
-        "color": [
-          0.72,
-          0.8,
-          0.88,
-          1.0
-        ],
         "font_size": 13.6,
         "id": "selection_value",
         "position": [
@@ -229,27 +209,39 @@
           350.0
         ],
         "text": "SELECTED: NONE",
-        "type": "label"
+        "type": "label",
+        "color": [
+          0.72,
+          0.8,
+          0.88,
+          1.0
+        ]
       },
       {
+        "id": "status_panel",
+        "position": [
+          16.0,
+          454.0
+        ],
+        "type": "panel",
         "background_color": [
           0.04,
           0.06,
           0.1,
           0.92
         ],
-        "id": "status_panel",
-        "position": [
-          16.0,
-          454.0
-        ],
         "size": [
           928.0,
           70.0
-        ],
-        "type": "panel"
+        ]
       },
       {
+        "id": "status_value",
+        "position": [
+          34.0,
+          470.0
+        ],
+        "type": "label",
         "color": [
           0.88,
           0.92,
@@ -257,13 +249,7 @@
           1.0
         ],
         "font_size": 18.4,
-        "id": "status_value",
-        "position": [
-          34.0,
-          470.0
-        ],
-        "text": "Choose a tower, then click a free tile.",
-        "type": "label"
+        "text": "Choose a tower, then click a free tile."
       },
       {
         "color": [
@@ -282,6 +268,8 @@
         "type": "label"
       },
       {
+        "id": "tower_menu",
+        "type": "container",
         "anchor_max": [
           1,
           1
@@ -327,19 +315,27 @@
           },
           {
             "id": "upgrade_icon",
-            "layer": 3,
             "position": [
               370.0,
               293.0
             ],
+            "type": "image",
+            "layer": 3,
             "size": [
               28.0,
               28.0
             ],
-            "texture": "asset://ui/upgrade",
-            "type": "image"
+            "texture": "asset://ui/upgrade"
           },
           {
+            "font_size": 14.4,
+            "id": "tower_upgrade",
+            "position": [
+              368.0,
+              288.0
+            ],
+            "text": "UPGRADE",
+            "type": "button",
             "action": "tower_upgrade",
             "background_color": [
               0.14,
@@ -347,40 +343,40 @@
               0.28,
               1.0
             ],
-            "font_size": 14.4,
             "hover_color": [
               0.2,
               0.52,
               0.4,
               1.0
             ],
-            "id": "tower_upgrade",
-            "position": [
-              368.0,
-              288.0
-            ],
             "size": [
               168.0,
               38.0
-            ],
-            "text": "UPGRADE",
-            "type": "button"
+            ]
           },
           {
             "id": "destroy_icon",
-            "layer": 3,
             "position": [
               370.0,
               337.0
             ],
+            "type": "image",
+            "layer": 3,
             "size": [
               28.0,
               28.0
             ],
-            "texture": "asset://ui/destroy",
-            "type": "image"
+            "texture": "asset://ui/destroy"
           },
           {
+            "font_size": 14.4,
+            "id": "tower_destroy",
+            "position": [
+              368.0,
+              332.0
+            ],
+            "text": "DESTROY",
+            "type": "button",
             "action": "tower_destroy",
             "background_color": [
               0.38,
@@ -388,38 +384,22 @@
               0.18,
               1.0
             ],
-            "font_size": 14.4,
             "hover_color": [
               0.6,
               0.22,
               0.24,
               1.0
             ],
-            "id": "tower_destroy",
-            "position": [
-              368.0,
-              332.0
-            ],
             "size": [
               168.0,
               38.0
-            ],
-            "text": "DESTROY",
-            "type": "button"
+            ]
           },
           {
-            "action": "tower_target_random",
             "background_color": [
               0.1,
               0.22,
               0.3,
-              1.0
-            ],
-            "font_size": 8,
-            "hover_color": [
-              0.22,
-              0.5,
-              0.42,
               1.0
             ],
             "id": "tower_target_random",
@@ -431,10 +411,26 @@
               80.0,
               52.0
             ],
-            "text": "RANDOM",
-            "type": "button"
+            "type": "button",
+            "action": "tower_target_random",
+            "font_size": 8,
+            "hover_color": [
+              0.22,
+              0.5,
+              0.42,
+              1.0
+            ],
+            "text": "RANDOM"
           },
           {
+            "font_size": 6.56,
+            "id": "tower_target_strongest",
+            "position": [
+              456.0,
+              378.0
+            ],
+            "text": "STRONGEST",
+            "type": "button",
             "action": "tower_target_strongest",
             "background_color": [
               0.22,
@@ -442,24 +438,16 @@
               0.3,
               1.0
             ],
-            "font_size": 6.56,
             "hover_color": [
               0.42,
               0.28,
               0.62,
               1.0
             ],
-            "id": "tower_target_strongest",
-            "position": [
-              456.0,
-              378.0
-            ],
             "size": [
               80.0,
               52.0
-            ],
-            "text": "STRONGEST",
-            "type": "button"
+            ]
           },
           {
             "action": "tower_target_weakest",
@@ -516,8 +504,6 @@
             "type": "button"
           }
         ],
-        "id": "tower_menu",
-        "type": "container",
         "visible": false
       },
       {
@@ -565,6 +551,16 @@
             "type": "label"
           },
           {
+            "id": "upgrade_range",
+            "position": [
+              178.0,
+              292.0
+            ],
+            "size": [
+              164.0,
+              36.0
+            ],
+            "type": "button",
             "action": "upgrade_range",
             "background_color": [
               0.16,
@@ -579,17 +575,7 @@
               0.6,
               1.0
             ],
-            "id": "upgrade_range",
-            "position": [
-              178.0,
-              292.0
-            ],
-            "size": [
-              164.0,
-              36.0
-            ],
-            "text": "RANGE",
-            "type": "button"
+            "text": "RANGE"
           },
           {
             "action": "upgrade_power",
@@ -622,6 +608,22 @@
         "id": "upgrade_choice_menu",
         "type": "container",
         "visible": false
+      },
+      {
+        "id": "build_title",
+        "type": "label",
+        "position": [
+          768.0,
+          112.0
+        ],
+        "color": [
+          0.45,
+          0.94,
+          0.78,
+          1.0
+        ],
+        "font_size": 25.6,
+        "text": "BUILD"
       }
     ],
     "id": "ui_root",

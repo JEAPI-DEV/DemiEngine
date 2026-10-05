@@ -1,9 +1,12 @@
 #include "demi/runtime/terrain/TerrainGenerationCache.h"
+#include "demi/runtime/terrain/TerrainGraph.h"
+#include "demi/assets/AssetRegistry.h"
 
 #include <algorithm>
 #include <array>
 #include <barrier>
 #include <exception>
+#include <filesystem>
 #include <limits>
 #include <stdexcept>
 #include <thread>
@@ -47,20 +50,19 @@ void publicationValidation() {
   const auto recipe = smallRecipe();
   const auto json = recipe.toJson();
   const auto original = generateField(recipe);
-  publishTerrain(json, original);
+  publishTerrain(json, "", original);
 
   const auto rejectMutation = [&](auto mutate) {
     HeightField malformed = *original;
     mutate(malformed);
     expectInvalid([&] {
-      publishTerrain(json,
-                     std::make_shared<const HeightField>(std::move(malformed)));
+      publishTerrain(json, "", std::make_shared<const HeightField>(std::move(malformed)));
     });
     check(findTerrain(json) == original,
           "Rejected publication replaced the prior terrain");
   };
 
-  expectInvalid([&] { publishTerrain(json, nullptr); });
+  expectInvalid([&] { publishTerrain(json, "", nullptr); });
   check(findTerrain(json) == original,
         "Null publication replaced the prior terrain");
   rejectMutation([](HeightField &field) { field.cellsX = 0; });
@@ -155,12 +157,12 @@ void publicationValidation() {
   auto invalidRecipe = json;
   invalidRecipe["resolution"] = {std::numeric_limits<int>::max(),
                                  std::numeric_limits<int>::max()};
-  expectInvalid([&] { publishTerrain(invalidRecipe, original); });
+  expectInvalid([&] { publishTerrain(invalidRecipe, "", original); });
   check(findTerrain(json) == original,
         "Invalid recipe affected the prior cache entry");
 
   const auto replacement = generateField(recipe);
-  publishTerrain(json, replacement);
+  publishTerrain(json, "", replacement);
   check(findTerrain(json) == replacement,
         "Valid publication did not replace the entry");
   check(acquireTerrain(json) == replacement,
@@ -178,7 +180,7 @@ void canonicalKeysAndWeakOwnership() {
   std::weak_ptr<const HeightField> weak;
   {
     auto field = generateField(recipe);
-    publishTerrain(sparse, field);
+    publishTerrain(sparse, "", field);
     check(findTerrain(full) == field,
           "Equivalent recipe spellings produced different keys");
     check(acquireTerrain(full) == field,
@@ -255,6 +257,68 @@ void representableSampleSpacing() {
   ++recipe.cellsX;
   expectInvalid([&] { recipe.validate(); });
 }
+
+void graphLayoutIsNotAContentInput() {
+  auto recipe = smallRecipe().toJson();
+  recipe["graph"] = defaultTerrainGraph();
+  auto moved = recipe;
+  moved["graph"]["nodes"][0]["position"] = {999, -200};
+  check(terrainGenerationCacheKey(recipe) == terrainGenerationCacheKey(moved),
+        "Moving graph nodes changed the generation cache key");
+  moved["graph"]["nodes"][0]["type"] = "constant";
+  moved["graph"]["nodes"][0]["parameters"] = {{"height", 5}};
+  check(terrainGenerationCacheKey(recipe) != terrainGenerationCacheKey(moved),
+        "Changing a graph module did not move the generation cache key");
+}
+
+void paletteInputsAreResolvedBeforeGeneration() {
+  auto project = std::filesystem::path(__FILE__).parent_path().parent_path() /
+                 "examples/terrain_3d";
+  if (!std::filesystem::exists(project / "demi.project.json")) {
+    auto directory = std::filesystem::current_path();
+    while (directory != directory.root_path()) {
+      const auto candidate = directory / "examples/terrain_3d";
+      if (std::filesystem::exists(candidate / "demi.project.json")) {
+        project = candidate;
+        break;
+      }
+      directory = directory.parent_path();
+    }
+  }
+  check(std::filesystem::exists(project / "demi.project.json"),
+        "Terrain palette fixture project was not found");
+  const auto registry = demi::loadAssetRegistry(project);
+  auto recipe = smallRecipe();
+  recipe.size = {32, 32};
+  recipe.cellsX = recipe.cellsZ = 32;
+  recipe.paletteId = "asset://terrain/palettes/meadow";
+  const auto inputs = resolveTerrainGenerationInputs(recipe, registry);
+  check(inputs.palette && inputs.palette->id == recipe.paletteId &&
+            !inputs.fingerprint.empty(),
+        "Palette resolution did not produce a self-contained input snapshot");
+  expectInvalid([&] { (void)acquireTerrain(recipe.toJson()); });
+  const auto field = acquireTerrain(recipe.toJson(), inputs);
+  check(field && field->resolvedPalette &&
+            field->paletteId == recipe.paletteId &&
+            field->inputFingerprint == inputs.fingerprint &&
+            !field->scatterPlacements.empty(),
+        "Cache generation lost the resolved palette");
+  expectInvalid([&] { publishTerrain(recipe.toJson(), "", field); });
+  check(acquireTerrain(recipe.toJson(), inputs) == field,
+        "Identical palette inputs missed the generation cache");
+  auto changedRegistry = registry;
+  const auto asset = std::ranges::find(changedRegistry.assets,
+                                       "asset://terrain/surfaces/grass",
+                                       &demi::AssetManifest::id);
+  check(asset != changedRegistry.assets.end(),
+        "Test palette dependency is missing");
+  asset->sourceHash = "changed-content-hash";
+  const auto changed = resolveTerrainGenerationInputs(recipe, changedRegistry);
+  check(changed.fingerprint != inputs.fingerprint,
+        "Dependency content did not change the palette input fingerprint");
+  check(!findTerrain(recipe.toJson(), changed.fingerprint),
+        "Cache served a field from stale palette inputs");
+}
 } // namespace
 
 int main() {
@@ -262,4 +326,6 @@ int main() {
   canonicalKeysAndWeakOwnership();
   concurrentAcquisition();
   representableSampleSpacing();
+  graphLayoutIsNotAContentInput();
+  paletteInputsAreResolvedBeforeGeneration();
 }

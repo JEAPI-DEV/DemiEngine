@@ -9,6 +9,7 @@
 #include <cmath>
 #include <iostream>
 #include <limits>
+#include <vector>
 
 using demi::runtime::RuntimeObjectModel;
 using demi::runtime::World;
@@ -506,9 +507,119 @@ bool testStateMachineFieldMutation() {
   return true;
 }
 
+bool testIndexedCommandLifecycle() {
+  using namespace demi::runtime;
+  World world;
+  for (const char *id : {"alpha", "victim", "gamma", "delta"}) {
+    Entity entity;
+    entity.id = id;
+    world.entities.push_back(std::move(entity));
+  }
+  if (!RuntimeObjectModel::addComponent(world.entities[2], "Transform3D", nlohmann::json::object()))
+    return false;
+
+  WorldCommandBuffer commands;
+  Entity replacement;
+  replacement.id = "alpha";
+  replacement.name = "replacement";
+  Entity queued;
+  queued.id = "epsilon";
+  if (!commands.create(world, std::move(replacement), true) ||
+      !commands.setEnabled(world, "alpha", false) ||
+      !commands.addComponent(world, "alpha", "Transform3D", nlohmann::json::object()) ||
+      !commands.destroy(world, "victim") ||
+      !commands.removeComponent(world, "gamma", "Transform3D") ||
+      !commands.addComponent(world, "delta", "Transform3D", nlohmann::json::object()) ||
+      !commands.setEnabled(world, "delta", false) ||
+      !commands.create(world, std::move(queued)) ||
+      !commands.setEnabled(world, "epsilon", false))
+    return false;
+  Entity duplicate;
+  duplicate.id = "epsilon";
+  if (commands.create(world, std::move(duplicate)) ||
+      commands.pendingEntity("epsilon") == nullptr)
+    return false;
+
+  const auto mutations = commands.flush(world);
+  const std::vector<WorldMutationKind> kinds{
+      WorldMutationKind::Replaced, WorldMutationKind::Destroyed,
+      WorldMutationKind::ComponentRemoved, WorldMutationKind::ComponentAdded,
+      WorldMutationKind::EnabledChanged, WorldMutationKind::Created};
+  if (mutations.size() != kinds.size() || world.entities.size() != 4 ||
+      commands.pendingEntity("epsilon") != nullptr)
+    return false;
+  for (std::size_t index = 0; index < kinds.size(); ++index)
+    if (mutations[index].kind != kinds[index])
+      return false;
+  if (world.entities[0].id != "alpha" || world.entities[1].id != "gamma" ||
+      world.entities[2].id != "delta" || world.entities[3].id != "epsilon" ||
+      world.entities[0].enabled || world.entities[2].enabled ||
+      world.entities[3].enabled ||
+      !world.entities[0].hasComponent<Transform3DComponent>() ||
+      world.entities[1].hasComponent<Transform3DComponent>() ||
+      !world.entities[2].hasComponent<Transform3DComponent>())
+    return false;
+
+  // A destroy changes vector offsets. Later commands must resolve the current
+  // ID, and the pending-create index must survive clear and subsequent flushes.
+  if (!commands.destroy(world, "gamma") ||
+      !commands.setEnabled(world, "gamma", false) ||
+      !commands.setEnabled(world, "delta", true))
+    return false;
+  const auto afterDestroy = commands.flush(world);
+  if (afterDestroy.size() != 2 ||
+      afterDestroy[0].kind != WorldMutationKind::Destroyed ||
+      afterDestroy[1].kind != WorldMutationKind::EnabledChanged ||
+      world.entities.size() != 3 || world.entities[1].id != "delta" ||
+      !world.entities[1].enabled)
+    return false;
+
+  Entity discarded;
+  discarded.id = "zeta";
+  if (!commands.create(world, std::move(discarded)))
+    return false;
+  commands.clear();
+  Entity reused;
+  reused.id = "zeta";
+  if (commands.pendingEntity("zeta") != nullptr ||
+      !commands.create(world, std::move(reused)) ||
+      commands.flush(world).size() != 1 || world.entities.back().id != "zeta")
+    return false;
+
+  Entity copiedEntity;
+  copiedEntity.id = "copied";
+  if (!commands.create(world, std::move(copiedEntity)))
+    return false;
+  WorldCommandBuffer copy = commands;
+  commands.clear();
+  if (commands.pendingEntity("copied") != nullptr ||
+      copy.pendingEntity("copied") == nullptr ||
+      copy.flush(world).size() != 1 || world.entities.back().id != "copied" ||
+      copy.pendingEntity("copied") != nullptr)
+    return false;
+
+  Entity reborn;
+  reborn.id = "alpha";
+  reborn.name = "after-destroy";
+  if (!commands.destroy(world, "alpha") ||
+      !commands.create(world, std::move(reborn), true))
+    return false;
+  const auto rebirth = commands.flush(world);
+  if (rebirth.size() != 2 ||
+      rebirth[0].kind != WorldMutationKind::Destroyed ||
+      rebirth[1].kind != WorldMutationKind::Created ||
+      world.entities.back().id != "alpha" ||
+      world.entities.back().name != "after-destroy")
+    return false;
+  return true;
+}
 } // namespace
 
 int main() {
+  if (!testIndexedCommandLifecycle()) {
+    std::cerr << "Indexed world command lifecycle changed behavior.\n";
+    return 1;
+  }
   using namespace demi::runtime::scene_loading;
   if (!testDerivedFieldMutation() || !testEnvironmentShadowContract() ||
       !testSpriteAnimatorFieldMutation() || !testStateMachineFieldMutation())

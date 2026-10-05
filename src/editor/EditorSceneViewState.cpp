@@ -86,6 +86,11 @@ bool EditorSceneViewState::alignToFirstCamera(const runtime::World &world) {
   projection_ = cameraSettings_.perspective ? EditorProjection::Perspective
                                             : EditorProjection::Orthographic;
   updateOrientation();
+  // The authored camera's clip planes are gameplay values. The viewport still
+  // has to show the scene, so widen the depth range after adopting them rather
+  // than cropping content the author can plainly see in the hierarchy.
+  if (const auto bounds = editorSceneBounds3D(world))
+    ensureDepthRangeCovers(*bounds);
   return true;
 }
 
@@ -203,6 +208,7 @@ bool EditorSceneViewState::frameScene(const runtime::World &world) {
   if (!bounds)
     return false;
   frameBounds(*bounds);
+  ensureDepthRangeCovers(*bounds);
   return true;
 }
 
@@ -224,6 +230,27 @@ EditorSceneViewCamera EditorSceneViewState::camera() const {
 
 void EditorSceneViewState::setProjection(const EditorProjection projection) {
   projection_ = projection;
+}
+
+void EditorSceneViewState::ensureDepthRangeCovers(const EditorBounds3D &bounds) {
+  const runtime::Vec3 centre{(bounds.minimum.x + bounds.maximum.x) * 0.5F,
+                              (bounds.minimum.y + bounds.maximum.y) * 0.5F,
+                              (bounds.minimum.z + bounds.maximum.z) * 0.5F};
+  const runtime::Vec3 extent{bounds.maximum.x - centre.x,
+                             bounds.maximum.y - centre.y,
+                             bounds.maximum.z - centre.z};
+  const float radius = std::max(length(extent), 0.5F);
+  // The furthest authored point from the eye, plus the bounds radius for a
+  // sphere that reaches the corners, plus a margin.
+  const runtime::Vec3 offset{position_.x - centre.x, position_.y - centre.y,
+                             position_.z - centre.z};
+  const float required = std::max(length(offset), 0.0F) + radius * 2.0F;
+  cameraSettings_.farClip = std::max(cameraSettings_.farClip, required);
+  // A near plane pinned near zero gives a near:far ratio in the tens of
+  // thousands once the camera orbits out, and distant geometry starts to
+  // quantise. It tracks the orbit distance so the ratio stays bounded.
+  cameraSettings_.nearClip =
+      std::max(cameraSettings_.nearClip, std::min(distance_ * 0.01F, 1.0F));
 }
 
 void EditorSceneViewState::frameBounds(const EditorBounds3D &bounds) {

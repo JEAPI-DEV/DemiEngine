@@ -21,8 +21,12 @@ EditorTerrainAuthoring::~EditorTerrainAuthoring() {
 
 void EditorTerrainAuthoring::bind(std::string document, std::string entityId,
                                   const nlohmann::json &recipe,
-                                  EditorTerrainSurfacePtr surface) {
-  if (document_ == document && entityId_ == entityId && authored_ == recipe) {
+                                  EditorTerrainSurfacePtr surface,
+                                  std::string draftIdentity) {
+  if (draftIdentity.empty())
+    draftIdentity = entityId;
+  if (document_ == document && entityId_ == entityId &&
+      draftIdentity_ == draftIdentity && authored_ == recipe) {
     validateBrushBiome();
     validateBrushLayer();
     if (!stroke_ && !released_ && !rollback_)
@@ -36,9 +40,10 @@ void EditorTerrainAuthoring::bind(std::string document, std::string entityId,
     brush = previousBrush;
   document_ = std::move(document);
   entityId_ = std::move(entityId);
+  draftIdentity_ = std::move(draftIdentity);
   authored_ = recipe;
   draft_ = recipe;
-  const auto saved = drafts_.find({document_, entityId_});
+  const auto saved = drafts_.find({document_, draftIdentity_});
   if (saved != drafts_.end()) {
     if (saved->second.baseline == authored_)
       draft_ = saved->second.recipe;
@@ -56,18 +61,19 @@ void EditorTerrainAuthoring::bind(std::string document, std::string entityId,
 void EditorTerrainAuthoring::unbind() {
   cancel();
   if (!entityId_.empty() && hasDraftChanges())
-    drafts_[{document_, entityId_}] = SavedDraft{authored_, draft_};
+    drafts_[{document_, draftIdentity_}] = SavedDraft{authored_, draft_};
   stroke_.reset();
   hit_.reset();
   lastStamp_.reset();
   document_.clear();
   entityId_.clear();
+  draftIdentity_.clear();
   surface_.reset();
   brush.mode = EditorTerrainBrush::Select;
 }
 
 void EditorTerrainAuthoring::discardDraft() {
-  drafts_.erase({document_, entityId_});
+  drafts_.erase({document_, draftIdentity_});
   draft_ = authored_;
   validateBrushBiome();
   validateBrushLayer();
@@ -142,6 +148,111 @@ bool EditorTerrainAuthoring::needsResizeDecision() const {
                         authored_.value("resolution", nlohmann::json{}));
 }
 
+const runtime::TerrainPreset *
+EditorTerrainAuthoring::preset(std::string_view id) const {
+  const auto found = std::ranges::find_if(
+      presets_, [&](const runtime::TerrainPreset &candidate) {
+        return candidate.id == id;
+      });
+  return found == presets_.end() ? nullptr : &*found;
+}
+
+bool EditorTerrainAuthoring::presetChangesGrid(
+    const runtime::TerrainPreset &candidate) const {
+  // Protection snapshots name the grid they were captured on, so the preset is
+  // compared against the authored grid rather than against its own defaults.
+  const nlohmann::json size =
+      nlohmann::json::array({candidate.size.x, candidate.size.y});
+  const nlohmann::json resolution =
+      nlohmann::json::array({candidate.cellsX, candidate.cellsZ});
+  return authored_.value("size", nlohmann::json{}) != size ||
+         authored_.value("resolution", nlohmann::json{}) != resolution;
+}
+
+bool EditorTerrainAuthoring::applyPreset(
+    const runtime::TerrainPreset &candidate, std::string &error) {
+  if (busy() || stroking()) {
+    error = "Finish the current terrain operation first.";
+    return false;
+  }
+  if (entityId_.empty()) {
+    error = "Terrain tools require the 3D scene stage.";
+    return false;
+  }
+  // The merged document is validated as a whole, so a preset that cannot
+  // resolve the draft's own strokes is rejected here rather than at generation
+  // time. That message is the engine's and is surfaced verbatim.
+  try {
+    draft_ = runtime::applyTerrainPreset(draft_, candidate);
+  } catch (const std::exception &exception) {
+    error = exception.what();
+    return false;
+  }
+  validateBrushBiome();
+  validateBrushLayer();
+  return true;
+}
+
+bool EditorTerrainAuthoring::clearPreset(std::string &error) {
+  if (busy() || stroking()) {
+    error = "Finish the current terrain operation first.";
+    return false;
+  }
+  if (entityId_.empty()) {
+    error = "Terrain tools require the 3D scene stage.";
+    return false;
+  }
+  if (!draft_.contains("preset_id") && !draft_.contains("preset_version"))
+    return true;
+  nlohmann::json cleared = draft_;
+  cleared.erase("preset_id");
+  cleared.erase("preset_version");
+  try {
+    (void)runtime::TerrainRecipe::parse(cleared).validate();
+  } catch (const std::exception &exception) {
+    error = exception.what();
+    return false;
+  }
+  draft_ = std::move(cleared);
+  return true;
+}
+
+std::optional<runtime::TerrainGenerationInputs>
+EditorTerrainAuthoring::prepareInputs(const nlohmann::json &recipe,
+                                      EditorTerrainSurfacePtr previous,
+                                      std::string &error) const {
+  error.clear();
+  try {
+    const auto parsed = runtime::TerrainRecipe::parse(recipe);
+    parsed.validate();
+    if (!parsed.paletteId.empty() && !inputResolver_) {
+      error = "Terrain palette requires an asset resolver before generation.";
+      return std::nullopt;
+    }
+    auto inputs = inputResolver_ ? inputResolver_(parsed)
+                                 : runtime::TerrainGenerationInputs{};
+    if (!parsed.paletteId.empty() &&
+        (!inputs.palette || inputs.palette->id != parsed.paletteId ||
+         inputs.fingerprint.empty())) {
+      error = "Terrain palette was not resolved: " + parsed.paletteId;
+      return std::nullopt;
+    }
+    const auto field = previous ? previous->heightField() : nullptr;
+    if (field && !resolvedUpdater_ &&
+        (field->paletteId != parsed.paletteId ||
+         (!parsed.paletteId.empty() &&
+          field->inputFingerprint != inputs.fingerprint))) {
+      error = "Terrain palette changed; the update path needs resolved "
+              "palette inputs before rebuilding.";
+      return std::nullopt;
+    }
+    return inputs;
+  } catch (const std::exception &exception) {
+    error = exception.what();
+    return std::nullopt;
+  }
+}
+
 bool EditorTerrainAuthoring::generate(
     std::optional<EditorTerrainResize> decision, std::string &error) {
   if (busy_ || entityId_.empty() || stroke_) {
@@ -168,12 +279,9 @@ bool EditorTerrainAuthoring::generate(
     pending_["edits"] = nlohmann::json::array();
     pending_["exclusions"] = nlohmann::json::array();
   }
-  try {
-    runtime::TerrainRecipe::parse(pending_).validate();
-  } catch (const std::exception &exception) {
-    error = exception.what();
+  auto inputs = prepareInputs(pending_, surface_, error);
+  if (!inputs)
     return false;
-  }
   pendingBefore_ = authored_;
   progress_ = 0.0F;
   cancelled_ = false;
@@ -182,30 +290,44 @@ bool EditorTerrainAuthoring::generate(
     std::promise<Result> promise;
     future_ = promise.get_future();
     // Replacing a completed jthread joins only the already completed job.
-    worker_ = std::jthread(
-        [this, recipe = pending_, before = authored_, previous = surface_,
-         promise = std::move(promise)](std::stop_token stop) mutable {
-          Result result;
-          try {
-            const auto progress = [this](float value) {
-              progress_ = std::clamp(value, 0.0F, 1.0F);
-            };
-            if (previous && previous->heightField()) {
-              if (auto update = updater_(before, recipe, previous, stop,
-                                         progress, result.error)) {
-                result.surface = std::move(update->surface);
-                result.patch = std::move(update->patch);
-              }
-            } else {
-              result.surface = generator_(recipe, stop, progress, result.error);
-            }
-          } catch (const std::exception &exception) {
-            result.error = exception.what();
-          } catch (...) {
-            result.error = "Terrain generation failed.";
+    const auto resolvedUpdater = resolvedUpdater_;
+    const auto generator = generator_;
+    const auto updater = updater_;
+    const bool hasInputResolver = bool(inputResolver_);
+    worker_ = std::jthread([this, recipe = pending_, before = authored_,
+                            previous = surface_, inputs = std::move(*inputs),
+                            resolvedUpdater, generator, updater,
+                            hasInputResolver, promise = std::move(promise)](
+                               std::stop_token stop) mutable {
+      Result result;
+      try {
+        const auto progress = [this](float value) {
+          progress_ = std::clamp(value, 0.0F, 1.0F);
+        };
+        if (previous && previous->heightField()) {
+          auto update = resolvedUpdater
+                            ? resolvedUpdater(before, recipe, previous, inputs,
+                                              stop, progress, result.error)
+                            : updater(before, recipe, previous, stop, progress,
+                                      result.error);
+          if (update) {
+            result.surface = std::move(update->surface);
+            result.patch = std::move(update->patch);
           }
-          promise.set_value(std::move(result));
-        });
+        } else {
+          result.surface =
+              hasInputResolver
+                  ? generateEditorTerrainWithInputs(recipe, inputs, stop,
+                                                    progress, result.error)
+                  : generator(recipe, stop, progress, result.error);
+        }
+      } catch (const std::exception &exception) {
+        result.error = exception.what();
+      } catch (...) {
+        result.error = "Terrain generation failed.";
+      }
+      promise.set_value(std::move(result));
+    });
     busy_ = true;
     return true;
   } catch (const std::exception &exception) {
@@ -245,32 +367,44 @@ bool EditorTerrainAuthoring::startBatch(std::string &error) {
     return true;
   pending_ = *stroke_;
   pendingBefore_ = evaluated_;
+  auto inputs = prepareInputs(pending_, surface_, error);
+  if (!inputs) {
+    cancel();
+    return false;
+  }
   progress_ = 0;
   cancelled_ = false;
   incremental_ = true;
   try {
     std::promise<Result> promise;
     future_ = promise.get_future();
-    worker_ = std::jthread([this, before = pendingBefore_, after = pending_,
-                            previous = surface_, promise = std::move(promise)](
-                               std::stop_token stop) mutable {
-      Result result;
-      try {
-        auto update = updater_(
-            before, after, previous, stop,
-            [this](float value) { progress_ = std::clamp(value, 0.0F, 1.0F); },
-            result.error);
-        if (update) {
-          result.surface = std::move(update->surface);
-          result.patch = std::move(update->patch);
-        }
-      } catch (const std::exception &exception) {
-        result.error = exception.what();
-      } catch (...) {
-        result.error = "Terrain update failed.";
-      }
-      promise.set_value(std::move(result));
-    });
+    const auto resolvedUpdater = resolvedUpdater_;
+    const auto updater = updater_;
+    worker_ = std::jthread(
+        [this, before = pendingBefore_, after = pending_, previous = surface_,
+         inputs = std::move(*inputs), resolvedUpdater, updater,
+         promise = std::move(promise)](std::stop_token stop) mutable {
+          Result result;
+          try {
+            const auto progress = [this](float value) {
+              progress_ = std::clamp(value, 0.0F, 1.0F);
+            };
+            auto update = resolvedUpdater
+                              ? resolvedUpdater(before, after, previous, inputs,
+                                                stop, progress, result.error)
+                              : updater(before, after, previous, stop, progress,
+                                        result.error);
+            if (update) {
+              result.surface = std::move(update->surface);
+              result.patch = std::move(update->patch);
+            }
+          } catch (const std::exception &exception) {
+            result.error = exception.what();
+          } catch (...) {
+            result.error = "Terrain update failed.";
+          }
+          promise.set_value(std::move(result));
+        });
     busy_ = true;
     return true;
   } catch (const std::exception &exception) {
@@ -503,6 +637,74 @@ EditorTerrainAuthoring::exclusionPreview(std::size_t sampleBudget) const {
           field->position(static_cast<int>(x), static_cast<int>(z));
       points.push_back(
           {{position.x, field->heights[index] + .04F, position.y}, weight});
+    }
+  }
+  return points;
+}
+
+std::vector<EditorTerrainRuleMaskSample>
+EditorTerrainAuthoring::ruleMaskPreview(EditorTerrainMaskPreview mode,
+                                        std::size_t sampleBudget) const {
+  std::vector<EditorTerrainRuleMaskSample> points;
+  if (mode == EditorTerrainMaskPreview::None || !surface_)
+    return points;
+  const auto field = surface_->heightField();
+  if (!field || field->heights.empty())
+    return points;
+  // The overlay is sampled to its screen budget; authored values stay exact and
+  // are queried through the immutable native result.
+  const auto budget = std::max<std::size_t>(sampleBudget, 1);
+  const auto cellsX = static_cast<std::int64_t>(field->cellsX);
+  const auto cellsZ = static_cast<std::int64_t>(field->cellsZ);
+  const auto samples = (cellsX + 1) * (cellsZ + 1);
+  auto stride = std::max<std::int64_t>(
+      1, static_cast<std::int64_t>(
+             std::ceil(std::sqrt(double(samples) / double(budget)))));
+  // The square-root estimate is approximate; grow it until the walk provably
+  // fits the budget rather than overdrawing the overlay.
+  while ((cellsX / stride + 1) * (cellsZ / stride + 1) >
+         static_cast<std::int64_t>(budget))
+    ++stride;
+  float minimum = 0.0F, span = 0.0F;
+  if (mode == EditorTerrainMaskPreview::Elevation) {
+    // The only extra pass, and only while this overlay is selected: a single
+    // read-only reduction over the committed heights, never over draft rules.
+    const auto [lowest, highest] =
+        std::minmax_element(field->heights.begin(), field->heights.end());
+    minimum = *lowest;
+    span = *highest - minimum;
+  }
+  for (std::int64_t z = 0; z <= field->cellsZ; z += stride) {
+    for (std::int64_t x = 0; x <= field->cellsX; x += stride) {
+      const auto index = field->index(static_cast<int>(x), static_cast<int>(z));
+      const auto position =
+          field->position(static_cast<int>(x), static_cast<int>(z));
+      float weight = 1.0F;
+      std::size_t biome = 0;
+      runtime::Color color;
+      switch (mode) {
+      case EditorTerrainMaskPreview::Biome:
+        biome = field->biomeIndices[index];
+        if (biome < field->biomeColors.size())
+          color = field->biomeColors[biome];
+        break;
+      case EditorTerrainMaskPreview::Elevation:
+        weight = span > 0.0F
+                     ? std::clamp((field->heights[index] - minimum) / span,
+                                  0.0F, 1.0F)
+                     : 0.0F;
+        break;
+      case EditorTerrainMaskPreview::Slope:
+        // Normals are already committed, so steepness is a single indexed read.
+        weight = std::clamp(1.0F - field->normals[index].y, 0.0F, 1.0F);
+        break;
+      case EditorTerrainMaskPreview::None:
+        return points;
+      }
+      points.push_back({{position.x, field->heights[index] + .04F, position.y},
+                        weight,
+                        biome,
+                        color});
     }
   }
   return points;

@@ -2,9 +2,11 @@
 
 #include "demi/runtime/scene/model/Entity.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
+#include "demi/runtime/terrain/TerrainGenerationCache.h"
 
 #include <nlohmann/json_fwd.hpp>
 
+#include <functional>
 #include <memory>
 #include <optional>
 #include <span>
@@ -16,6 +18,14 @@ namespace demi::runtime {
 
 struct World;
 struct TerrainUpdate;
+using TerrainFieldResolver = std::function<std::shared_ptr<const HeightField>(
+    std::string_view assetId, nlohmann::json &sourceRecipe)>;
+
+// The scene loader owns the registry. The callback returns an immutable input
+// snapshot before terrain generation begins, so no worker borrows registry
+// data.
+using TerrainInputResolver =
+    std::function<TerrainGenerationInputs(const TerrainRecipe &recipe)>;
 
 // Prepared native changes own their allocations and retain the source field.
 // Preparation reads a thread-confined world (or a worker-owned snapshot);
@@ -55,10 +65,11 @@ publishTerrainWorldUpdate(World &world, PreparedTerrainWorldUpdate &&prepared,
 // Local updates require the owner's retained generated field. Call before a
 // generic reflected recipe mutation clears it. Rectangles come from core's
 // inclusive height/normal/biome invalidation, including its computed halo.
-[[nodiscard]] bool updateTerrainWorld(World &world, std::string_view ownerId,
-                                      const nlohmann::json &recipe,
-                                      const TerrainUpdate &update,
-                                      std::string &error);
+[[nodiscard]] bool
+updateTerrainWorld(World &world, std::string_view ownerId,
+                   const nlohmann::json &recipe, const TerrainUpdate &update,
+                   std::string &error,
+                   class RuntimePrefabService *prefabs = nullptr);
 
 // Editor picking can map a native generated surface to its authored owner.
 [[nodiscard]] std::optional<std::string_view>
@@ -74,7 +85,25 @@ buildTerrainMeshEntity(const Entity &owner, std::string id,
 
 // Materializes native-only generated children without changing authored data.
 // Failure leaves the previous generated children and retained fields intact.
-[[nodiscard]] bool materializeTerrains(World &world, std::string &error);
+[[nodiscard]] bool
+materializeTerrains(World &world, std::string &error,
+                    class RuntimePrefabService *prefabs = nullptr,
+                    const TerrainInputResolver &resolveInputs = {},
+                    const TerrainFieldResolver &resolveField = {});
+
+// Spawns every palette placement a scene's terrain owners produced.
+//
+// Scene loading runs on a worker, and the prefab service is shared mutable
+// state, so placements are recorded on the field during the background pass and
+// instantiated here on the main thread once the world is complete. That keeps a
+// worker off a service the scripting host is also using.
+struct TerrainScatterResolution {
+  std::size_t placed = 0;
+  std::size_t unresolved = 0;
+};
+[[nodiscard]] TerrainScatterResolution
+materializeTerrainScatter(World &world, class RuntimePrefabService *prefabs,
+                          std::string &error);
 
 // Refresh native child visibility before physics/rendering after gameplay
 // edits.

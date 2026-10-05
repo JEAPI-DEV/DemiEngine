@@ -1,4 +1,7 @@
 #include "demi/runtime/terrain/TerrainWorld.h"
+#include "demi/runtime/terrain/TerrainWorldBatch.h"
+#include "demi/runtime/scene/WorldQueries.h"
+#include "demi/runtime/terrain/TerrainScatterRuntime.h"
 
 #include "demi/runtime/physics/ColliderAsset3D.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
@@ -12,10 +15,12 @@
 #include "demi/runtime/terrain/TerrainUpdate.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <map>
 #include <memory>
 #include <stdexcept>
+#include <tuple>
 #include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
@@ -134,7 +139,8 @@ bool sameSample(const HeightField &field, std::size_t index,
          field.biomeIndices.at(index) == value.biome;
 }
 
-bool samePalette(const HeightField &field, const TerrainPalette &palette) {
+bool sameBiomePalette(const HeightField &field,
+                      const TerrainBiomePalette &palette) {
   return field.biomeIds == palette.ids &&
          std::ranges::equal(field.biomeColors, palette.colors, sameColor);
 }
@@ -177,10 +183,10 @@ void validateUpdatePatch(const HeightField *before, const TerrainUpdate &update,
     throw std::invalid_argument("Terrain patch requires both palette states");
   bool forward = true, backward = true;
   if (patch.beforePalette) {
-    forward = samePalette(*before, *patch.beforePalette) &&
-              samePalette(field, *patch.afterPalette);
-    backward = samePalette(*before, *patch.afterPalette) &&
-               samePalette(field, *patch.beforePalette);
+    forward = sameBiomePalette(*before, *patch.beforePalette) &&
+              sameBiomePalette(field, *patch.afterPalette);
+    backward = sameBiomePalette(*before, *patch.afterPalette) &&
+               sameBiomePalette(field, *patch.beforePalette);
   }
   for (const auto &change : patch.samples) {
     if (stop.stop_requested())
@@ -330,7 +336,12 @@ std::optional<PreparedTerrainWorldUpdate> prepareTerrainWorldUpdate(
       if (!serialized.is_object())
         throw std::invalid_argument("Serialized Terrain3D must be an object");
     }
-    serialized["recipe"] = recipe;
+    if (terrain->asset.empty()) {
+      serialized["recipe"] = recipe;
+    } else {
+      serialized.erase("recipe");
+      serialized["asset"] = terrain->asset;
+    }
     state->serializedTerrain = serialized.dump();
     if (!state->beforeSerializedTerrain) {
       // A prepared node permits first publication on native-created owners
@@ -679,11 +690,10 @@ bool publishTerrainWorldUpdate(World &world,
 
 bool updateTerrainWorld(World &world, std::string_view ownerId,
                         const nlohmann::json &recipe,
-                        const TerrainUpdate &update, std::string &error) {
-  auto prepared =
-      prepareTerrainWorldUpdate(world, ownerId, recipe, update, error);
-  return prepared &&
-         publishTerrainWorldUpdate(world, std::move(*prepared), error);
+                        const TerrainUpdate &update, std::string &error,
+                        RuntimePrefabService *prefabs) {
+  const std::array<std::string, 1> owners{std::string(ownerId)};
+  return updateTerrainWorldBatch(world, owners, recipe, update, error, prefabs);
 }
 
 std::optional<std::string_view> terrainSurfaceOwner(const Entity &entity) {
@@ -692,7 +702,10 @@ std::optional<std::string_view> terrainSurfaceOwner(const Entity &entity) {
                  : std::nullopt;
 }
 
-bool materializeTerrains(World &world, std::string &error) {
+bool materializeTerrains(World &world, std::string &error,
+                         RuntimePrefabService *prefabs,
+                         const TerrainInputResolver &resolveInputs,
+                         const TerrainFieldResolver &resolveField) {
   error.clear();
   std::vector<Entity> generated;
   std::vector<TerrainRuntimeOwner> owners;
@@ -702,7 +715,8 @@ bool materializeTerrains(World &world, std::string &error) {
       ids.insert(entity.id);
 
   // Retention is committed with the meshes only after every owner succeeds.
-  std::vector<std::pair<std::size_t, std::shared_ptr<const HeightField>>>
+  std::vector<std::tuple<std::size_t, std::shared_ptr<const HeightField>,
+                         nlohmann::json>>
       fields;
   std::string ownerId;
   try {
@@ -717,10 +731,26 @@ bool materializeTerrains(World &world, std::string &error) {
         error = "Terrain3D on " + owner.id + " requires Transform3D";
         return false;
       }
-      const auto field = acquireTerrain(terrain->recipe);
+      nlohmann::json sourceRecipe = terrain->recipe;
+      std::shared_ptr<const HeightField> field;
+      if (!terrain->asset.empty()) {
+        if (!resolveField)
+          throw std::invalid_argument(
+              "Terrain asset requires an asset resolver: " + terrain->asset);
+        field = resolveField(terrain->asset, sourceRecipe);
+      } else if (!sourceRecipe.is_null()) {
+        // An inline recipe explicitly opts into procedural generation.
+        const auto parsed = TerrainRecipe::parse(sourceRecipe);
+        const auto inputs =
+            resolveInputs ? resolveInputs(parsed) : TerrainGenerationInputs{};
+        field = acquireTerrain(sourceRecipe, inputs);
+      } else {
+        // Empty components are authoring placeholders, not implicit generation.
+        continue;
+      }
       if (!field)
-        throw std::runtime_error("Terrain generation returned no heightfield");
-      fields.emplace_back(ownerIndex, field);
+        throw std::runtime_error("Terrain source returned no heightfield");
+      fields.emplace_back(ownerIndex, field, std::move(sourceRecipe));
       owners.push_back({.id = owner.id});
       const bool enabled = terrainHierarchyEnabled(world, owner);
       for (const TerrainChunk &chunk : field->chunks) {
@@ -757,8 +787,12 @@ bool materializeTerrains(World &world, std::string &error) {
     error = "Terrain3D on " + ownerId + ": " + exception.what();
     return false;
   }
-  for (const auto &[index, field] : fields)
-    world.entities[index].component<Terrain3DComponent>()->generated = field;
+  for (auto &[index, field, sourceRecipe] : fields) {
+    auto *terrain = world.entities[index].component<Terrain3DComponent>();
+    terrain->generated = field;
+    if (!terrain->asset.empty())
+      terrain->recipe.swap(sourceRecipe);
+  }
   std::erase_if(world.entities, [](const Entity &entity) {
     return entity.hasComponent<TerrainGeneratedSurface>();
   });
@@ -766,7 +800,58 @@ bool materializeTerrains(World &world, std::string &error) {
     world.entities.push_back(std::move(entity));
   world.terrainOwners = std::move(owners);
   world.terrainEntityLookup.clear();
+  // Scattering runs after the commit, outside the all-or-nothing block, because
+  // publication is allocation-free by contract and instantiating a prefab
+  // allocates. A scatter failure must not discard terrain that is already
+  // correct, so the placements stay recorded on the field for a later attempt.
+  {
+    WorldCommandBuffer commands;
+    for (const auto &[index, field, sourceRecipe] : fields) {
+      if (field->scatterPlacements.empty())
+        continue;
+      std::string scatterError;
+      (void)syncTerrainScatter(world, commands, world.entities[index].id,
+                               *field, prefabs, scatterError);
+    }
+    (void)commands.flush(world);
+  }
   return true;
+}
+
+TerrainScatterResolution
+materializeTerrainScatter(World &world, RuntimePrefabService *prefabs,
+                          std::string &error) {
+  error.clear();
+  TerrainScatterResolution resolution;
+  WorldCommandBuffer commands;
+  // Snapshot the owners first: the command buffer mutates world.entities, and
+  // iterating it while instances are appended would invalidate the walk.
+  std::vector<std::string> owners;
+  for (const auto &entity : world.entities) {
+    const auto *terrain = entity.component<Terrain3DComponent>();
+    if (terrain != nullptr && terrain->generated &&
+        !terrain->generated->scatterPlacements.empty())
+      owners.push_back(entity.id);
+  }
+  for (const auto &id : owners) {
+    const auto *owner = findEntity(world, id);
+    const auto *terrain =
+        owner == nullptr ? nullptr : owner->component<Terrain3DComponent>();
+    if (terrain == nullptr || !terrain->generated)
+      continue;
+    std::string scatterError;
+    const auto stats = syncTerrainScatter(
+        world, commands, id, *terrain->generated, prefabs, scatterError);
+    if (!scatterError.empty() && error.empty())
+      error = scatterError;
+    resolution.placed += stats.total();
+    resolution.unresolved += stats.unresolved;
+  }
+  if (error.empty() && resolution.unresolved == 0)
+    (void)commands.flush(world);
+  if (prefabs != nullptr)
+    prefabs->prune(world);
+  return resolution;
 }
 
 void synchronizeTerrainVisibility(World &world) {

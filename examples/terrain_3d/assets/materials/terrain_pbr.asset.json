@@ -1,0 +1,27 @@
+{
+  "dependencies": [
+    "asset://schemas/terrain_material_set",
+    "asset://terrain/surfaces/cliff_piece",
+    "asset://terrain/surfaces/exposed_rock",
+    "asset://terrain/surfaces/grass",
+    "asset://terrain/surfaces/sand",
+    "asset://terrain/surfaces/snow",
+    "asset://terrain/surfaces/soil",
+    "asset://terrain/surfaces/wet_ground"
+  ],
+  "format_version": 1,
+  "id": "asset://terrain/materials/terrain_pbr",
+  "importer": "json_data",
+  "importer_version": 1,
+  "settings": {
+    "content_type": "terrain_material_set",
+    "schema": "asset://schemas/terrain_material_set",
+    "tags": [
+      "terrain:surface",
+      "terrain:pbr"
+    ]
+  },
+  "source": "terrain_pbr.json",
+  "source_hash": "fnv1a64:993260afe8dcd749",
+  "type": "DataAsset"
+}

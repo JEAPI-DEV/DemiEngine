@@ -1,5 +1,6 @@
 #pragma once
 
+#include "editor/EditorKeyBindings.h"
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -20,7 +21,9 @@ struct EditorPreferences {
   bool showColliders2D = false;
   bool showCameras2D = true;
   std::string codeEditor = "code";
-  std::vector<std::string> codeEditorArguments{"--reuse-window", "{project}", "--goto", "{file}"};
+  std::vector<std::string> codeEditorArguments{"--reuse-window", "{project}",
+                                               "--goto", "{file}"};
+  EditorKeyBindings keyBindings;
   auto operator<=>(const EditorPreferences &) const = default;
 };
 

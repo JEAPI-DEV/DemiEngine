@@ -150,6 +150,8 @@ void drawFolderTree(const std::set<std::filesystem::path> &directories,
 }
 
 EditorIcon sourceIcon(const std::filesystem::path &source) {
+  if (source.filename().string().ends_with(".terrain.json"))
+    return EditorIcon::Terrain;
   if (isPrefabFile(source))
     return EditorIcon::Prefab;
   if (isSceneFile(source))
@@ -235,13 +237,32 @@ void drawAssetDetails(EditorWorkspace &workspace,
 
   const EditorAssetRecord *record =
       workspace.assetIndex().findByManifest(selected);
+  if (!record)
+    record = workspace.assetIndex().findBySource(selected);
+  if (record && record->manifest.type == "Terrain") {
+    ImGui::Spacing();
+    ImGui::TextWrapped("Editable terrain source. Place it in a 3D scene by "
+                       "dragging this asset onto the Viewport.");
+    if (ImGui::Button("Open Terrain asset", {-1.0F, 0.0F}))
+      workspace.requestTerrainAssetOpen(record->manifest.sourcePath);
+    ImGui::BeginDisabled(workspace.activeDocument() !=
+                         EditorWorkspaceDocument::Scene);
+    if (ImGui::Button("Add terrain to active scene", {-1.0F, 0.0F})) {
+      std::string error;
+      notice = workspace.placeTerrainAsset(record->manifest.sourcePath,
+                                            std::nullopt, error)
+                   ? "Terrain asset added to scene" : error;
+    }
+    ImGui::EndDisabled();
+  }
   if (record == nullptr)
     return;
   ImGui::SameLine();
   if (ImGui::SmallButton("Reimport")) {
     std::string error;
     notice =
-        workspace.reimportAsset(selected, error) ? "Asset reimported" : error;
+        workspace.reimportAsset(record->manifest.manifestPath, error)
+            ? "Asset reimported" : error;
     return;
   }
   if (record->manifest.type == "Model3D") {
@@ -329,6 +350,7 @@ void EditorAssetsPanel::draw(EditorWorkspace &workspace, const ImVec2 position,
              {"UI Prefab...", EditorSourceKind::UiPrefab},
              {"Lua Script...", EditorSourceKind::Lua},
              {"Material...", EditorSourceKind::Material},
+             {"Terrain...", EditorSourceKind::Terrain},
              {"Data Asset...", EditorSourceKind::Data}})
       if (ImGui::MenuItem(name))
         dialogs_.openNewSource(kind);
@@ -421,7 +443,9 @@ void EditorAssetsPanel::draw(EditorWorkspace &workspace, const ImVec2 position,
       const std::filesystem::path relative = relativeSource(workspace, source);
       const std::string display = relative.generic_string();
       const EditorAssetRecord *record =
-          workspace.assetIndex().findByManifest(source);
+          workspace.assetIndex().findByManifest(source)
+              ? workspace.assetIndex().findByManifest(source)
+              : workspace.assetIndex().findBySource(source);
       if (!typeFilter_.empty() &&
           (record == nullptr || record->manifest.type != typeFilter_))
         continue;
@@ -432,7 +456,9 @@ void EditorAssetsPanel::draw(EditorWorkspace &workspace, const ImVec2 position,
       hasEntries = true;
       ImGui::TableNextColumn();
       if (drawAssetTile(display.c_str(), relative.filename().string(),
-                        sourceIcon(source), selectedSource_ == source)) {
+                        record && record->manifest.type == "Terrain"
+                            ? EditorIcon::Terrain : sourceIcon(source),
+                        selectedSource_ == source)) {
         selectedSource_ = source;
         notice = "Selected project source: " + display;
         if (isSceneFile(source) || isHudFile(source))
@@ -452,6 +478,15 @@ void EditorAssetsPanel::draw(EditorWorkspace &workspace, const ImVec2 position,
             "Drop onto the scene Viewport or Scene in the Hierarchy");
         ImGui::EndDragDropSource();
       }
+      if (record && record->manifest.type == "Terrain" &&
+          ImGui::BeginDragDropSource()) {
+        const std::string path = record->manifest.sourcePath.string();
+        ImGui::SetDragDropPayload(EditorTerrainAssetPayload, path.c_str(),
+                                  path.size() + 1);
+        ImGui::TextUnformatted("Terrain asset");
+        ImGui::TextDisabled("Drop onto a 3D scene Viewport");
+        ImGui::EndDragDropSource();
+      }
       if (ImGui::BeginPopupContextItem()) {
         if (ImGui::MenuItem("Open"))
           openRequest_ = source;
@@ -468,8 +503,8 @@ void EditorAssetsPanel::draw(EditorWorkspace &workspace, const ImVec2 position,
           locateSource(source, notice);
         if (record != nullptr && ImGui::MenuItem("Reimport")) {
           std::string error;
-          notice = workspace.reimportAsset(source, error) ? "Asset reimported"
-                                                          : error;
+          notice = workspace.reimportAsset(record->manifest.manifestPath, error)
+                       ? "Asset reimported" : error;
         }
         if (record != nullptr && record->manifest.type == "Model3D" &&
             ImGui::MenuItem("Generate Collider Asset..."))

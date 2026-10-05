@@ -1,4 +1,5 @@
 #include "editor/EditorWorkspace.h"
+#include "editor/EditorEntityBounds3D.h"
 #include "editor/EditorViewportProjection.h"
 
 #include "demi/runtime/scene/Transform3DHierarchy.h"
@@ -24,8 +25,55 @@ bool close(const demi::runtime::Vec3 left, const demi::runtime::Vec3 right) {
 
 } // namespace
 
+namespace {
+// Regression: an authored Camera3D's far_clip is a gameplay value, and the
+// editor viewport used to inherit it verbatim. A large terrain then lost its
+// distant chunks to depth rejection, which reads as "the far parts never load"
+// rather than as a camera setting.
+void depthRangeCoversAuthoredContent(demi::editor::EditorWorkspace &workspace) {
+  const auto &world = workspace.project().world;
+  const auto bounds = demi::editor::editorSceneBounds3D(world);
+  assert(bounds.has_value());
+
+  // Align to a camera whose far_clip is far too small for the scene, the way a
+  // 1024-unit terrain paired with the engine default of 500 would be.
+  assert(workspace.sceneView().alignToFirstCamera(world));
+  const auto aligned = workspace.sceneView().camera();
+  const demi::runtime::Vec3 centre{
+      (bounds->minimum.x + bounds->maximum.x) * 0.5F,
+      (bounds->minimum.y + bounds->maximum.y) * 0.5F,
+      (bounds->minimum.z + bounds->maximum.z) * 0.5F};
+  const demi::runtime::Vec3 offset{aligned.position.x - centre.x,
+                                   aligned.position.y - centre.y,
+                                   aligned.position.z - centre.z};
+  const demi::runtime::Vec3 extent{bounds->maximum.x - centre.x,
+                                   bounds->maximum.y - centre.y,
+                                   bounds->maximum.z - centre.z};
+  const float radius =
+      std::max(std::sqrt(extent.x * extent.x + extent.y * extent.y +
+                         extent.z * extent.z),
+               0.5F);
+  assert(aligned.projection.farClip >= std::sqrt(
+                                            offset.x * offset.x +
+                                            offset.y * offset.y +
+                                            offset.z * offset.z) +
+                                            radius * 2.0F);
+  // And the near plane must stay proportionate, or distant geometry quantises
+  // once the camera orbits out.
+  assert(aligned.projection.nearClip > 0.0F);
+  assert(aligned.projection.farClip / aligned.projection.nearClip < 100000.0F);
+}
+} // namespace
+
 int main() {
   const std::filesystem::path root = DEMI_SOURCE_DIR;
+  {
+    demi::editor::EditorWorkspace wide;
+    std::string wideError;
+    assert(wide.open(root / "examples/terrain_3d", wideError));
+    depthRangeCoversAuthoredContent(wide);
+  }
+
   demi::editor::EditorWorkspace workspace;
   std::string error;
   assert(workspace.open(root / "examples/minimal_3d", error));

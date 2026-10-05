@@ -47,6 +47,34 @@ int main() {
   EditorPreferences restored;
   assert(preferencesStore.load(restored, error));
   assert(restored == preferences);
+  const auto key = parseEditorKeyChord(" Ctrl + Shift + C ", error);
+  assert(key && key->key == "C" && key->modifiers == (Control | Shift));
+  assert(preferences.keyBindings.assign(EditorCommand::Copy, {*key}, error));
+  assert(preferencesStore.save(preferences, error));
+  assert(preferencesStore.load(restored, error));
+  assert(restored.keyBindings == preferences.keyBindings);
+  const auto beforeConflict = preferences.keyBindings;
+  const auto duplicateKey = parseEditorKeyChord("Ctrl+D", error);
+  assert(duplicateKey);
+  assert(!preferences.keyBindings.assign(EditorCommand::Copy, {*duplicateKey},
+                                         error));
+  assert(preferences.keyBindings == beforeConflict);
+  assert(!parseEditorKeyChord("Ctrl+Ctrl+C", error));
+  assert(!parseEditorKeyChord("Ctrl", error));
+  assert(editorCommandAvailable(EditorCommand::Duplicate,
+                                EditorCommandContext::Scene));
+  assert(!editorCommandAvailable(EditorCommand::Duplicate,
+                                 EditorCommandContext::Game));
+  assert(editorCommandAvailable(EditorCommand::ReleaseGameInput,
+                                EditorCommandContext::Game));
+  EditorKeyBindings swapped;
+  assert(swapped.load({{"copy", {"Ctrl+X"}}, {"cut", {"Ctrl+C"}}}, error));
+  assert(swapped.label(EditorCommand::Copy) == "Ctrl+X");
+  const auto retained = swapped;
+  assert(!swapped.load({{"copy", {"Ctrl+D"}}}, error));
+  assert(swapped == retained);
+  assert(!swapped.assign(EditorCommand::ReleaseGameInput, {}, error));
+  assert(swapped == retained);
   preferences.codeEditor = "/opt/my editor/editor";
   preferences.codeEditorArguments = {"{project}", "--open", "{file}"};
   assert(preferencesStore.save(preferences, error));
