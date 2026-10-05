@@ -1,8 +1,9 @@
 #include "demi/runtime/terrain/TerrainGenerator.h"
-#include "demi/runtime/terrain/TerrainGraphExecutor.h"
 #include "demi/runtime/terrain/TerrainBiomeRules.h"
-#include "demi/runtime/terrain/TerrainScatter.h"
+#include "demi/runtime/terrain/TerrainBrushBounds.h"
 #include "demi/runtime/terrain/TerrainEvaluation.h"
+#include "demi/runtime/terrain/TerrainGraphExecutor.h"
+#include "demi/runtime/terrain/TerrainScatter.h"
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
@@ -25,8 +26,8 @@ float HeightField::height(int x, int z) const {
 Vec3 HeightField::normal(int x, int z) const { return normals.at(index(x, z)); }
 
 std::optional<HeightField>
-TerrainGenerator::generateBase(const TerrainRecipe &recipe, std::stop_token stop,
-                               const Progress &progress) {
+TerrainGenerator::generateBase(const TerrainRecipe &recipe,
+                               std::stop_token stop, const Progress &progress) {
   if (stop.stop_requested())
     return std::nullopt;
   const TerrainEvaluation evaluation(recipe);
@@ -101,10 +102,9 @@ TerrainGenerator::generateBase(const TerrainRecipe &recipe, std::stop_token stop
       for (int x = 0; x <= recipe.cellsX; ++x) {
         if (stop.stop_requested())
           return std::nullopt;
-        field.biomeIndices.set(field.index(x, z),
-                               decisions[std::size_t(z) * (recipe.cellsX + 1) +
-                                         x]
-                                   .biome);
+        field.biomeIndices.set(
+            field.index(x, z),
+            decisions[std::size_t(z) * (recipe.cellsX + 1) + x].biome);
       }
   }
   for (int z = 0; z < field.cellsZ;) {
@@ -127,15 +127,17 @@ TerrainGenerator::generateBase(const TerrainRecipe &recipe, std::stop_token stop
   return field;
 }
 
-bool TerrainGenerator::applyTerrainSurfaceLayers(
-    HeightField &field, const TerrainRecipe &recipe, std::stop_token stop,
-    const Progress &progress) {
+bool TerrainGenerator::applyTerrainSurfaceLayers(HeightField &field,
+                                                 const TerrainRecipe &recipe,
+                                                 std::stop_token stop,
+                                                 const Progress &progress) {
   if (stop.stop_requested())
     return false;
   if (field.cellsX != recipe.cellsX || field.cellsZ != recipe.cellsZ ||
       field.size.x != recipe.size.x || field.size.y != recipe.size.y ||
       field.heights.size() != recipe.sampleCount())
-    throw std::invalid_argument("Terrain surface layers do not match the recipe");
+    throw std::invalid_argument(
+        "Terrain surface layers do not match the recipe");
   const TerrainEvaluation evaluation(recipe);
   const auto count = field.heights.size();
   const auto rows = std::size_t(field.cellsZ) + 1;
@@ -181,6 +183,14 @@ bool TerrainGenerator::applyTerrainSurfaceLayers(
       report();
       continue;
     }
+    const auto affected =
+        terrainBrushSampleBounds(field, edit.center, edit.radius);
+    if (affected.empty() || edit.strength == 0) {
+      completed += rows;
+      report();
+      continue;
+    }
+    completed += rows - std::size_t(affected.maxZ - affected.minZ + 1);
     // Jacobi-style smoothing: every stencil reads the same pre-edit field.
     const auto snapshot = edit.kind == TerrainEditKind::Smooth
                               ? field.heights
@@ -188,10 +198,10 @@ bool TerrainGenerator::applyTerrainSurfaceLayers(
     const std::function<float(int, int)> sample = [&](int x, int z) {
       return snapshot[field.index(x, z)];
     };
-    for (int z = 0;; ++z) {
+    for (int z = affected.minZ;; ++z) {
       if (stop.stop_requested())
         return false;
-      for (int x = 0;; ++x) {
+      for (int x = affected.minX;; ++x) {
         if ((x & 255) == 0 && stop.stop_requested())
           return false;
         const auto sampleIndex = field.index(x, z);
@@ -203,12 +213,12 @@ bool TerrainGenerator::applyTerrainSurfaceLayers(
           if (height != previous)
             field.heights.set(sampleIndex, height);
         }
-        if (x == field.cellsX)
+        if (x == affected.maxX)
           break;
       }
       ++completed;
       report();
-      if (z == field.cellsZ)
+      if (z == affected.maxZ)
         break;
     }
   }
@@ -222,8 +232,8 @@ bool TerrainGenerator::applyTerrainSurfaceLayers(
 bool TerrainGenerator::recomputeTerrainNormals(HeightField &field,
                                                std::stop_token stop) {
   if (field.cellsX <= 0 || field.cellsZ <= 0 ||
-      field.heights.size() != (std::size_t(field.cellsX) + 1) *
-                                  (std::size_t(field.cellsZ) + 1))
+      field.heights.size() !=
+          (std::size_t(field.cellsX) + 1) * (std::size_t(field.cellsZ) + 1))
     throw std::invalid_argument("Terrain normals require a valid heightfield");
   field.normals.resize(field.heights.size());
   for (int z = 0;; ++z) {
@@ -257,7 +267,8 @@ bool TerrainGenerator::recomputeTerrainNormals(HeightField &field,
 std::optional<HeightField>
 TerrainGenerator::generate(const TerrainRecipe &recipe, std::stop_token stop,
                            const Progress &progress) {
-  if (!recipe.graph.is_null()) return executeTerrainGraph(recipe, {}, stop, progress);
+  if (!recipe.graph.is_null())
+    return executeTerrainGraph(recipe, {}, stop, progress);
   const auto baseProgress = [&](float value) {
     if (progress)
       progress(value * 0.5F);
@@ -280,7 +291,8 @@ TerrainGenerator::generate(const TerrainRecipe &recipe,
                            const Progress &progress,
                            std::string_view inputFingerprint) {
   if (!recipe.graph.is_null())
-    return executeTerrainGraph(recipe, {palette, std::string(inputFingerprint), {}}, stop, progress);
+    return executeTerrainGraph(
+        recipe, {palette, std::string(inputFingerprint), {}}, stop, progress);
   auto field = generate(recipe, stop, progress);
   if (!field)
     return field;
@@ -321,8 +333,8 @@ TerrainEdit createProtectionEdit(const HeightField &field, Vec2 center,
   validation.size = field.size;
   validation.cellsX = field.cellsX;
   validation.cellsZ = field.cellsZ;
-  // A flat probe surface, so the snapshot records the base level rather than the
-  // shape it happens to sit on.
+  // A flat probe surface, so the snapshot records the base level rather than
+  // the shape it happens to sit on.
   validation.landforms.at("default").heightVariation = 0;
   validation.landforms.at("default").octaves = 1;
   validation.landforms.at("default").featureSize =

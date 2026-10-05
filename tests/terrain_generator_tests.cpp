@@ -1,8 +1,10 @@
 #include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
 #include "demi/runtime/scene/model/Entity.h"
+#include "demi/runtime/terrain/TerrainBrushBounds.h"
+#include "demi/runtime/terrain/TerrainEvaluation.h"
 #include "demi/runtime/terrain/TerrainGenerator.h"
-#include <cassert>
 #include <algorithm>
+#include <cassert>
 #include <cmath>
 #include <cstdio>
 #include <limits>
@@ -71,7 +73,8 @@ void deterministicSampling() {
   // supplies the raised ground.
   recipe.landforms.at("default").heightVariation = 0;
   recipe.landforms.at("default").baseHeight = 0;
-  recipe.landforms.emplace("raised", TerrainLandform{.baseHeight = 10, .heightVariation = 0});
+  recipe.landforms.emplace(
+      "raised", TerrainLandform{.baseHeight = 10, .heightVariation = 0});
   recipe.biomes.emplace("hill", TerrainBiome{.landform = "raised"});
   recipe.regions.push_back({"hill", {4, 4}, 4, 1, 1});
   auto blended = TerrainGenerator::generate(recipe);
@@ -107,6 +110,51 @@ void snapshotSmoothing() {
   auto edge = TerrainGenerator::generate(recipe);
   assert(edge && near(edge->height(0, 0), 9.F / 4));
   assert(near(edge->height(1, 0), 9.F / 6));
+}
+void boundedReplayMatchesFullGrid() {
+  auto recipe = flatRecipe();
+  recipe.landforms.at("default").heightVariation = 3;
+  for (const auto kind : {TerrainEditKind::Raise, TerrainEditKind::Lower,
+                          TerrainEditKind::Flatten, TerrainEditKind::Smooth}) {
+    for (const auto center :
+         {Vec2{0, 0}, Vec2{3.4F, 5.2F}, Vec2{-0.3F, 8}, Vec2{20, 20}}) {
+      auto edit = hardBrush(kind, center, 1.7F);
+      edit.strength = .65F;
+      edit.falloff = .5F;
+      edit.targetHeight = 4;
+      recipe.edits.push_back(edit);
+    }
+  }
+  auto reference = TerrainGenerator::generateBase(recipe);
+  assert(reference);
+  const TerrainEvaluation evaluation(recipe);
+  for (const auto *edit : evaluation.edits()) {
+    const auto snapshot = reference->heights;
+    const auto sample = [&](int x, int z) {
+      return snapshot[reference->index(x, z)];
+    };
+    for (int z = 0; z <= reference->cellsZ; ++z)
+      for (int x = 0; x <= reference->cellsX; ++x) {
+        const auto index = reference->index(x, z);
+        const float previous = reference->height(x, z);
+        reference->heights.set(
+            index,
+            applyTerrainEdit(*edit, reference->position(x, z), previous, sample,
+                             x, z, reference->cellsX, reference->cellsZ));
+      }
+  }
+  assert(TerrainGenerator::recomputeTerrainNormals(*reference));
+  const auto bounded = TerrainGenerator::generate(recipe);
+  assert(bounded && bounded->heights == reference->heights);
+  for (std::size_t index = 0; index < bounded->normals.size(); ++index) {
+    const auto actual = bounded->normals[index];
+    const auto expected = reference->normals[index];
+    assert(actual.x == expected.x && actual.y == expected.y &&
+           actual.z == expected.z);
+  }
+  const auto footprint = terrainBrushSampleBounds(*bounded, {4, 4}, .25F);
+  assert(footprint.minX > 0 && footprint.maxX < bounded->cellsX);
+  assert(terrainBrushSampleBounds(*bounded, {20, 20}, 1).empty());
 }
 void persistentProtection() {
   auto recipe = flatRecipe();
@@ -151,10 +199,10 @@ void validationAndComponent() {
   component.generated = std::make_shared<const HeightField>();
   Terrain3DComponent replacement;
   replacement.recipe = {{"format_version", 1}};
-  const auto binding = std::find_if(Terrain3DComponent::runtimeFields.begin(),
-      Terrain3DComponent::runtimeFields.end(), [](const auto &field) {
-        return field.name == "recipe";
-      });
+  const auto binding =
+      std::find_if(Terrain3DComponent::runtimeFields.begin(),
+                   Terrain3DComponent::runtimeFields.end(),
+                   [](const auto &field) { return field.name == "recipe"; });
   assert(binding != Terrain3DComponent::runtimeFields.end());
   binding->copy(component, replacement);
   assert(!component.generated);
@@ -256,6 +304,7 @@ void cancellationAndProgress() {
 int main() {
   deterministicSampling();
   snapshotSmoothing();
+  boundedReplayMatchesFullGrid();
   persistentProtection();
   validationAndComponent();
   cancellationAndProgress();

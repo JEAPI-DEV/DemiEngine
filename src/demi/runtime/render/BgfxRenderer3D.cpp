@@ -8,6 +8,8 @@
 
 #include "demi/runtime/render/bgfx2d/ColorPacking2D.h"
 #include "demi/runtime/render/bgfx3d/MeshTransform3D.h"
+#include "demi/runtime/render/bgfx3d/MeshSurface3D.h"
+#include "demi/runtime/render/bgfx3d/MeshDrawOrder3D.h"
 #include "demi/runtime/render/bgfx3d/PrimitiveMeshFactory3D.h"
 #include "demi/runtime/render/bgfx3d/SceneLighting3D.h"
 #include "demi/runtime/render/bgfx3d/WorldTextProjection3D.h"
@@ -110,6 +112,10 @@ bool BgfxRenderer3D::initialize(std::string &error) {
       resources_.createUniform("u_alphaCutoff", UniformType::Vec4, 1, error);
   debugModeUniform_ =
       resources_.createUniform("u_debugMode", UniformType::Vec4, 1, error);
+  viewPositionUniform_ =
+      resources_.createUniform("u_viewPosition", UniformType::Vec4, 1, error);
+  metalRoughUniform_ =
+      resources_.createUniform("u_metalRough", UniformType::Vec4, 1, error);
   lightDirectionUniform_ =
       resources_.createUniform("u_lightDirection", UniformType::Vec4, 1, error);
   lightColorUniform_ =
@@ -141,6 +147,7 @@ bool BgfxRenderer3D::initialize(std::string &error) {
   if (!meshProgram_ || !instancedMeshProgram_ || !directionalMeshProgram_ ||
       !directionalInstancedProgram_ || !meshSampler_ ||
       !tintUniform_ || !alphaCutoffUniform_ || !debugModeUniform_ ||
+      !viewPositionUniform_ || !metalRoughUniform_ ||
       !whiteTexture_ || !lightDirectionUniform_ || !lightColorUniform_ ||
       !ambientColorUniform_ || !pointPositionRangeUniform_ ||
       !pointColorIntensityUniform_ || !spotPositionRangeUniform_ ||
@@ -208,6 +215,7 @@ void BgfxRenderer3D::shutdown() {
     resources_.destroy(meshSampler_);
   for (const UniformHandle uniform :
        {tintUniform_, alphaCutoffUniform_, debugModeUniform_,
+        viewPositionUniform_, metalRoughUniform_,
         lightDirectionUniform_, lightColorUniform_, ambientColorUniform_,
         pointPositionRangeUniform_, pointColorIntensityUniform_,
         spotPositionRangeUniform_, spotDirectionOuterUniform_,
@@ -223,6 +231,8 @@ void BgfxRenderer3D::shutdown() {
   tintUniform_ = {};
   alphaCutoffUniform_ = {};
   debugModeUniform_ = {};
+  viewPositionUniform_ = {};
+  metalRoughUniform_ = {};
   lightDirectionUniform_ = {};
   lightColorUniform_ = {};
   ambientColorUniform_ = {};
@@ -351,11 +361,10 @@ bool BgfxRenderer3D::renderView(const World &world,const BgfxCameraFrame3D &fram
   }
   if (frame.updateContent && !prepareAnimatedMeshes(visibility.meshes, frame, error))
     return false;
-  const bool hasFadingMeshes=std::ranges::any_of(visibility.meshes,[](const VisibleMesh3D &v){return v.entity->hasComponent<FragmentOpacity3D>();});
-  if(hasFadingMeshes) std::stable_sort(visibility.meshes.begin(),visibility.meshes.end(),[&](const auto &a,const auto &b) {
-    const auto depth=[&](const auto &v) {return (v.transform.position.x-frame.position.x)*frame.forward.x+(v.transform.position.y-frame.position.y)*frame.forward.y+(v.transform.position.z-frame.position.z)*frame.forward.z;};
-    return depth(a)>depth(b);
-  });
+  const std::size_t firstTransparent = shadowPass ? visibility.meshes.size()
+      : orderMeshSurfaces3D(visibility.meshes, materials_, frame.position,
+                            frame.forward);
+  const bool hasTransparentMeshes = firstTransparent < visibility.meshes.size();
   if (frame.updateContent &&
       !primitives_.begin(
           View3DConfig{
@@ -379,7 +388,7 @@ bool BgfxRenderer3D::renderView(const World &world,const BgfxCameraFrame3D &fram
               .clearDepth = frame.camera.clearMode != "none",
               .frameBuffer =
                   offscreen ? sourceTarget.frameBuffer : FrameBufferHandle{},
-              .sequential = !cosmeticFragments.empty() || hasFadingMeshes,
+              .sequential = !cosmeticFragments.empty() || hasTransparentMeshes,
           },
           error))
     return false;
@@ -426,7 +435,10 @@ bool BgfxRenderer3D::renderView(const World &world,const BgfxCameraFrame3D &fram
   const std::array<float, 4> debugMode{debugModeValue(frame.camera.debugMode),
                                        0.0F, 0.0F, 0.0F};
   const std::array<float, 16> disabledArrayLights{};
-  const std::array<DrawUniformValue, 12> lightingUniforms{{
+  const std::array<float, 4> viewPosition{frame.position.x, frame.position.y,
+                                          frame.position.z, 0.0F};
+  const std::array<float, 4> defaultMetalRough{0.0F, 0.8F, 0.0F, 0.0F};
+  const std::array<DrawUniformValue, 14> lightingUniforms{{
       {.handle = tintUniform_, .values = whiteTint},
       {.handle = alphaCutoffUniform_, .values = noAlphaCutoff},
       {.handle = debugModeUniform_, .values = debugMode},
@@ -449,11 +461,14 @@ bool BgfxRenderer3D::renderView(const World &world,const BgfxCameraFrame3D &fram
        .values = lighting.spotColorIntensity,
        .count = 4},
       {.handle = spotInnerUniform_, .values = lighting.spotInner, .count = 4},
+      {.handle = viewPositionUniform_, .values = viewPosition},
+      {.handle = metalRoughUniform_, .values = defaultMetalRough},
   }};
   struct InstanceGroup {
     const GpuMesh3D *mesh = nullptr;
     TextureHandle texture;
     std::array<float, 4> tint{1.0F, 1.0F, 1.0F, 1.0F};
+    std::array<float, 4> metalRough{0.0F, 0.8F, 0.0F, 0.0F};
     bool unlit = false;
     std::vector<std::array<float, 16>> transforms;
   };
@@ -464,11 +479,17 @@ bool BgfxRenderer3D::renderView(const World &world,const BgfxCameraFrame3D &fram
   std::uint32_t distanceCulled = 0;
   std::uint32_t mediumLodMeshes = 0;
   std::uint32_t lowLodMeshes = 0;
-  for(int fadingPass=0;fadingPass<(hasFadingMeshes?2:1);++fadingPass) {
+  for (int surfacePass = 0; surfacePass < (hasTransparentMeshes ? 2 : 1);
+       ++surfacePass) {
+  const auto passBegin = visibility.meshes.begin() +
+      (surfacePass == 0 ? 0 : firstTransparent);
+  const auto passEnd = visibility.meshes.begin() +
+      (surfacePass == 0 ? firstTransparent : visibility.meshes.size());
   if (frame.updateContent)
-    for (const VisibleMesh3D &visible : visibility.meshes) {
+    for (auto visibleIt = passBegin; visibleIt != passEnd; ++visibleIt) {
+      const VisibleMesh3D &visible = *visibleIt;
       const auto *fade=visible.entity->component<FragmentOpacity3D>();
-      if(bool(fade)!=bool(fadingPass) || (fade && shadowPass)) continue;
+      if (fade && shadowPass) continue;
       const Entity &entity = *visible.entity;
       const auto *mesh = entity.component<MeshRendererComponent>();
       const auto dents = entityMeshDents3D(entity);
@@ -488,18 +509,13 @@ bool BgfxRenderer3D::renderView(const World &world,const BgfxCameraFrame3D &fram
       const std::array<float, 4> entityTint{mesh->color.r, mesh->color.g,
                                             mesh->color.b, mesh->color.a*(fade?fade->value:1.F)};
       const MaterialBinding *material = materials_.find(mesh->material);
+      const MeshSurface3D surface = resolveMeshSurface3D(
+          *mesh, material,
+          fade ? std::optional<float>(fade->value) : std::nullopt);
       const ProgramHandle program = !shadowPass && material != nullptr && material->program
                                         ? material->program
                                         : defaultMeshProgram;
-      DrawState state =
-          material != nullptr
-              ? material->state
-              : DrawState{.blend = BlendMode::Opaque,
-                          .depthTest = DepthTest::Less,
-                          .cull = CullMode::None,
-                          .topology = PrimitiveTopology::Triangles,
-                          .writeDepth = true};
-      if(fade) {state.blend=BlendMode::Alpha;state.writeDepth=false;}
+      DrawState state = surface.state;
       if(shadowPass && (state.blend!=BlendMode::Opaque || !state.writeDepth))continue;
       if (frame.camera.debugMode == "overdraw") {
         state.blend = BlendMode::Additive;
@@ -508,16 +524,31 @@ bool BgfxRenderer3D::renderView(const World &world,const BgfxCameraFrame3D &fram
       }
       std::vector<DrawUniformValue> drawUniforms(lightingUniforms.begin(),
                                                  lightingUniforms.end());
-      drawUniforms.front().values = entityTint;
+      const std::array<float, 4> surfaceTint{
+          entityTint[0], entityTint[1], entityTint[2],
+          entityTint[3] * surface.opacity};
+      const std::array<float, 4> builtinSurfaceTint{
+          surfaceTint[0] * surface.baseColor[0],
+          surfaceTint[1] * surface.baseColor[1],
+          surfaceTint[2] * surface.baseColor[2],
+          surfaceTint[3] * surface.baseColor[3]};
+      // Custom shaders retain their own u_base_color uniform; multiplying it
+      // into u_tint as well would apply the asset color twice.
+      drawUniforms.front().values = material && material->program
+                                        ? surfaceTint : builtinSurfaceTint;
+      std::array<float, 4> metalRough = surface.shaderParameters();
+      drawUniforms[13].values = metalRough;
       const std::array<float, 4> alphaCutoff{
           material == nullptr ? 0.0F : material->alphaCutoff, 0.0F, 0.0F, 0.0F};
       drawUniforms[1].values = alphaCutoff;
       const auto modelLighting = modelUnlit_.find(selectedModel);
       const bool modelUnlit =
-          modelLighting != modelUnlit_.end() && modelLighting->second;
+          (modelLighting != modelUnlit_.end() && modelLighting->second) ||
+          (material != nullptr && material->unlit);
       const std::array<float, 4> unlitAmbient{1.0F, 1.0F, 1.0F, 1.0F};
       const std::array<float, 4> noLight{};
       if (modelUnlit) {
+        metalRough[2] = 1.0F;
         drawUniforms[3].values = noLight;
         drawUniforms[4].values = noLight;
         drawUniforms[5].values = unlitAmbient;
@@ -539,11 +570,13 @@ bool BgfxRenderer3D::renderView(const World &world,const BgfxCameraFrame3D &fram
         if(textureId.empty() && material)textureId=material->albedoTexture;
         const auto texture=textures_.find(textureId);
         const auto resolved=texture.handle?texture.handle:whiteTexture_;
-        if(!material && !fade) {
+        if (!material && !surface.transparent() && !fade) {
           const auto key="relief:"+std::to_string(reinterpret_cast<std::uintptr_t>(gpu))+":"+
-              std::to_string(color)+":"+std::to_string(resolved.index)+":"+std::to_string(resolved.generation);
-          auto &[groupMesh,groupTexture,groupTint,groupUnlit,transforms]=instanceGroups[key];
-          groupMesh=gpu;groupTexture=resolved;groupTint=entityTint;groupUnlit=false;
+              std::to_string(color)+":"+std::to_string(resolved.index)+":"+
+              std::to_string(resolved.generation)+":"+surfaceBatchKey3D(surface);
+          auto &[groupMesh,groupTexture,groupTint,groupMetalRough,groupUnlit,transforms]=instanceGroups[key];
+          groupMesh=gpu;groupTexture=resolved;groupTint=builtinSurfaceTint;
+          groupMetalRough=metalRough;groupUnlit=false;
           transforms.push_back(composeMeshTransform3D(transform,mesh->size));queued=true;
         } else {
           queued=gpu->draw(commands_,frame.viewId,program,resolved,meshSampler_,
@@ -641,6 +674,9 @@ bool BgfxRenderer3D::renderView(const World &world,const BgfxCameraFrame3D &fram
         const TextureHandle resolvedTexture =
             texture.handle ? texture.handle : whiteTexture_;
         if (gpuSkin) {
+          // GPU skinning uses the built-in lit program even when a material
+          // also provides a custom program for static geometry.
+          drawUniforms.front().values = builtinSurfaceTint;
           drawUniforms.push_back({.handle=skinMatricesUniform_, .values=*skinPalette,
               .count=static_cast<std::uint16_t>(skinPalette->size()/16)});
           drawUniforms.push_back({.handle=skinImportUniform_,
@@ -652,17 +688,21 @@ bool BgfxRenderer3D::renderView(const World &world,const BgfxCameraFrame3D &fram
             ++bufferedDraws;
             bufferedTriangles += gpuSkin->indexCount()/3;
           }
-        } else if (player == nullptr && material == nullptr && dents.empty() && !fade) {
+        } else if (player == nullptr && material == nullptr && dents.empty() &&
+                   !surface.transparent() && !fade) {
           const std::string groupKey =
               selectedModel + "\n" + mesh->material + "\n" +
               std::to_string(color) + "\n" +
               std::to_string(resolvedTexture.index) + ":" +
-              std::to_string(resolvedTexture.generation);
-          auto &[groupMesh, groupTexture, groupTint, groupUnlit, transforms] =
+              std::to_string(resolvedTexture.generation) + "\n" +
+              surfaceBatchKey3D(surface);
+          auto &[groupMesh, groupTexture, groupTint, groupMetalRough,
+                groupUnlit, transforms] =
               instanceGroups[groupKey];
           groupMesh = drawGpu;
           groupTexture = resolvedTexture;
-          groupTint = entityTint;
+          groupTint = builtinSurfaceTint;
+          groupMetalRough = metalRough;
           groupUnlit = modelUnlit;
           transforms.push_back(composeMeshTransform3D(transform, mesh->size));
           queued = true;
@@ -700,16 +740,19 @@ bool BgfxRenderer3D::renderView(const World &world,const BgfxCameraFrame3D &fram
         const TextureView2D texture = textures_.find(textureId);
         const TextureHandle resolvedTexture =
             texture.handle ? texture.handle : whiteTexture_;
-        if (material == nullptr && !fade) {
+        if (material == nullptr && !surface.transparent() && !fade) {
           const std::string groupKey =
               "primitive\n" + mesh->shape + "\n" + std::to_string(color) +
               "\n" + std::to_string(resolvedTexture.index) + ":" +
-              std::to_string(resolvedTexture.generation);
-          auto &[groupMesh, groupTexture, groupTint, groupUnlit, transforms] =
+              std::to_string(resolvedTexture.generation) + "\n" +
+              surfaceBatchKey3D(surface);
+          auto &[groupMesh, groupTexture, groupTint, groupMetalRough,
+                groupUnlit, transforms] =
               instanceGroups[groupKey];
           groupMesh = &cached->gpu;
           groupTexture = resolvedTexture;
-          groupTint = entityTint;
+          groupTint = builtinSurfaceTint;
+          groupMetalRough = metalRough;
           groupUnlit = false;
           transforms.push_back(composeMeshTransform3D(transform, mesh->size));
           queued = true;
@@ -729,7 +772,7 @@ bool BgfxRenderer3D::renderView(const World &world,const BgfxCameraFrame3D &fram
         return false;
       }
     }
-  if (frame.updateContent && !fadingPass) {
+  if (frame.updateContent && !surfacePass) {
     DrawState state{.blend = BlendMode::Opaque,
                     .depthTest = DepthTest::Less,
                     .cull = CullMode::None,
@@ -742,14 +785,17 @@ bool BgfxRenderer3D::renderView(const World &world,const BgfxCameraFrame3D &fram
     }
     for (const auto &[key, group] : instanceGroups) {
       static_cast<void>(key);
-      std::array<DrawUniformValue, 12> groupUniforms = lightingUniforms;
+      std::array<DrawUniformValue, 14> groupUniforms = lightingUniforms;
       groupUniforms.front().values = group.tint;
+      std::array<float, 4> groupMetalRough = group.metalRough;
+      groupUniforms[13].values = groupMetalRough;
       const std::array<float, 4> groupingMode{
           debugMode[0], group.transforms.size() > 1U ? 1.0F : 0.0F, 0.0F, 0.0F};
       groupUniforms[2].values = groupingMode;
       const std::array<float, 4> unlitAmbient{1.0F, 1.0F, 1.0F, 1.0F};
       const std::array<float, 4> noLight{};
       if (group.unlit) {
+        groupMetalRough[2] = 1.0F;
         groupUniforms[3].values = noLight;
         groupUniforms[4].values = noLight;
         groupUniforms[5].values = unlitAmbient;

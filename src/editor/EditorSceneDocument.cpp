@@ -563,17 +563,58 @@ bool EditorSceneDocument::removeValue(SceneValueTarget target,
 }
 
 bool EditorSceneDocument::createEntity(std::string &error,
-                                       std::optional<std::string> parent) {
+                                       std::optional<std::string> parent,
+                                       const EditorEntityKind kind,
+                                       std::optional<runtime::Vec3> position) {
   nlohmann::json *entities = entitiesArray(document_);
   if (entities == nullptr) {
     error = "The scene has no entities array.";
     reject({}, error);
     return false;
   }
-  const std::string id = uniqueEntityId(document_, "ent_new");
+  const char *label = "New Entity";
+  const char *shape = nullptr;
+  switch (kind) {
+  case EditorEntityKind::Empty:
+    break;
+  case EditorEntityKind::Cube:
+    label = "Cube";
+    shape = "cube";
+    break;
+  case EditorEntityKind::Sphere:
+    label = "Sphere";
+    shape = "sphere";
+    break;
+  case EditorEntityKind::Cylinder:
+    label = "Cylinder";
+    shape = "cylinder";
+    break;
+  case EditorEntityKind::Plane:
+    label = "Plane";
+    shape = "plane";
+    break;
+  }
+  const std::string id = uniqueEntityId(document_, shape ? shape : "ent_new");
   nlohmann::json entity{{"id", id},
-                        {"name", "New Entity"},
+                        {"name", label},
                         {"components", nlohmann::json::object()}};
+  if (shape != nullptr) {
+    entity["components"]["MeshRenderer"] =
+        kind == EditorEntityKind::Cube ? nlohmann::json::object()
+                                        : nlohmann::json{{"shape", shape}};
+    if (kind == EditorEntityKind::Sphere)
+      entity["components"]["SphereCollider3D"] = nlohmann::json::object();
+    else if (kind == EditorEntityKind::Cylinder)
+      entity["components"]["CapsuleCollider3D"] = {{"height", 1.0}};
+    else if (kind == EditorEntityKind::Plane)
+      entity["components"]["BoxCollider3D"] = {{"size", {1, 0.02, 1}}};
+    else
+      entity["components"]["BoxCollider3D"] = nlohmann::json::object();
+  }
+  if (position) {
+    entity["components"]["Transform3D"]["position"] =
+        {position->x, position->y, position->z};
+  }
   if (parent.has_value()) {
     const auto flat = runtime::composition::flattenEntityHierarchy(*entities);
     const nlohmann::json *parentEntity = runtime::composition::findAuthoredEntity(flat, *parent);
@@ -589,7 +630,8 @@ bool EditorSceneDocument::createEntity(std::string &error,
       reject({.entityId = *parent}, error);
       return false;
     }
-    entity["components"][transform] = nlohmann::json::object();
+    if (!entity["components"].contains(transform))
+      entity["components"][transform] = nlohmann::json::object();
   }
   if (parent) {
     auto staged = document_;
@@ -903,7 +945,8 @@ bool EditorSceneDocument::duplicateEntities(
     const std::span<const std::string> ids, std::vector<std::string> &createdIds,
     std::string &error) {
   const auto payload = exportEntities(ids, error);
-  return payload && pasteEntities(*payload, createdIds, error);
+  return payload && pasteEntities(nestLocalEntityLinks(*payload), createdIds,
+                                  error);
 }
 
 bool EditorSceneDocument::addComponent(const std::string_view id,

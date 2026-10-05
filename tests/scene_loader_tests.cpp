@@ -7,6 +7,7 @@
 #include "demi/schema/Validation.h"
 
 #include <filesystem>
+#include <limits>
 #include <fstream>
 #include <iostream>
 #include <optional>
@@ -72,6 +73,69 @@ int main(int argc, char **argv) {
     std::cerr << "Component metadata defaults, validation, schema, or "
                  "round-trip failed.\n";
     return 1;
+  }
+
+  const auto *meshDescriptor =
+      runtime::scene_loading::findComponentDescriptor("MeshRenderer");
+  if (meshDescriptor == nullptr)
+    return 1;
+  const auto &meshDefaults =
+      runtime::scene_loading::componentDefaults(*meshDescriptor);
+  const auto meshSchema = runtime::scene_loading::componentSchema(*meshDescriptor);
+  for (const char *field : {"metallic", "roughness", "opacity", "surface_mode"}) {
+    if (meshDefaults.contains(field) ||
+        meshSchema["properties"][field].contains("default")) {
+      std::cerr << "Mesh surface override invented a canonical default.\n";
+      return 1;
+    }
+  }
+  runtime::Entity meshEntity;
+  const nlohmann::json surface = {{"metallic", 0.5},
+                                  {"roughness", 0.75},
+                                  {"opacity", 0.25},
+                                  {"surface_mode", "transparent"}};
+  meshDescriptor->parse(surface, meshEntity);
+  const auto *surfaceMesh = meshEntity.component<runtime::MeshRendererComponent>();
+  nlohmann::json encoded;
+  if (surfaceMesh == nullptr || surfaceMesh->metallic != 0.5F ||
+      surfaceMesh->roughness != 0.75F || surfaceMesh->opacity != 0.25F ||
+      surfaceMesh->surfaceMode != "transparent" ||
+      !runtime::MeshRendererComponent::serializeField(*surfaceMesh, "metallic", encoded) ||
+      encoded != surface["metallic"] ||
+      !runtime::MeshRendererComponent::serializeField(*surfaceMesh, "surface_mode", encoded) ||
+      encoded != "transparent" ||
+      meshDescriptor->serialize(meshEntity) != surface) {
+    std::cerr << "Mesh surface overrides did not round-trip.\n";
+    return 1;
+  }
+  auto patchedSurface = surface;
+  patchedSurface["roughness"] = 0.5;
+  if (!meshDescriptor->patch(meshEntity, "roughness", patchedSurface) ||
+      meshEntity.component<runtime::MeshRendererComponent>()->roughness != 0.5F ||
+      meshEntity.component<runtime::MeshRendererComponent>()->metallic != 0.5F ||
+      meshEntity.component<runtime::MeshRendererComponent>()->surfaceMode !=
+          "transparent") {
+    std::cerr << "Mesh surface field mutation changed unrelated state.\n";
+    return 1;
+  }
+  for (const nlohmann::json invalid : {
+           nlohmann::json{{"metallic", -0.1}},
+           nlohmann::json{{"roughness", 1.1}},
+           nlohmann::json{{"opacity", nullptr}},
+           nlohmann::json{{"opacity", "half"}},
+           nlohmann::json{{"surface_mode", "alpha"}},
+           nlohmann::json{{"surface_mode", nullptr}},
+           nlohmann::json{{"metallic", std::numeric_limits<double>::infinity()}}}) {
+    bool rejected = false;
+    try {
+      runtime::MeshRendererComponent::parse(invalid, meshEntity);
+    } catch (const std::exception &) {
+      rejected = true;
+    }
+    if (!rejected || runtime::scene_loading::validateComponent(*meshDescriptor, invalid).empty()) {
+      std::cerr << "Invalid mesh surface override was accepted.\n";
+      return 1;
+    }
   }
 
   const std::filesystem::path invalidComponentFixture =

@@ -1,5 +1,6 @@
 #include "editor/EditorInspectorModel.h"
 #include "editor/EditorSceneDocument.h"
+#include "demi/assets/RenderAsset.h"
 
 #ifdef NDEBUG
 #undef NDEBUG
@@ -143,6 +144,37 @@ int main() {
       *animator, *atlas, nlohmann::json::object(), true, false);
   assert(absentInheritedAtlas.origin == EditorPropertyOrigin::Missing);
 
+  const auto *meshDescriptor =
+      runtime::scene_loading::findComponentDescriptor("MeshRenderer");
+  assert(meshDescriptor != nullptr);
+  assets::MaterialAsset assignedMaterial;
+  assignedMaterial.numbers["metallic"] = 0.5F;
+  assignedMaterial.numbers["roughness"] = 0.25F;
+  assignedMaterial.renderState.blend = "alpha";
+  const nlohmann::json meshWithCustomProperties = {
+      {"material_properties", {{"roughness", 0.75}}}};
+  assert(editorMeshSurfaceFallback("metallic", meshWithCustomProperties,
+                                   &assignedMaterial) == 0.5);
+  assert(editorMeshSurfaceFallback("roughness", meshWithCustomProperties,
+                                   &assignedMaterial) == 0.75);
+  assert(editorMeshSurfaceFallback("opacity", meshWithCustomProperties,
+                                   &assignedMaterial) == 1.0);
+  assert(editorMeshSurfaceFallback("surface_mode", meshWithCustomProperties,
+                                   &assignedMaterial) == "transparent");
+  assert(editorMeshSurfaceFallback("roughness", nlohmann::json::object(),
+                                   nullptr) == 0.8F);
+  assert(editorMeshSurfaceFallback("surface_mode", nlohmann::json::object(),
+                                   nullptr) == "opaque");
+  const auto metallic = std::ranges::find(
+      meshDescriptor->fields, "metallic", &runtime::ComponentFieldDescriptor::name);
+  assert(metallic != meshDescriptor->fields.end());
+  assert(!editorPropertyPresentation(*meshDescriptor, *metallic,
+                                     nlohmann::json::object(), false, false)
+              .hasValue);
+  assert(editorPropertyPresentation(*meshDescriptor, *metallic,
+                                    {{"metallic", 0.5}}, false, true)
+             .canReset);
+
   EditorSceneDocument document;
   std::string error;
   const auto defaultScenePath =
@@ -165,5 +197,17 @@ int main() {
   assert(document.removeValue(defaultPosition, error));
   assert(!document.component("world_stream", "Transform3D")
               ->contains("position"));
+  const SceneValueTarget opacityTarget{.entityId = "floor",
+                                       .component = "MeshRenderer",
+                                       .field = "opacity"};
+  const SceneValueTarget metallicTarget{.entityId = "floor",
+                                        .component = "MeshRenderer",
+                                        .field = "metallic"};
+  assert(document.setValue(opacityTarget, 0.5, false, error));
+  assert(document.setValue(metallicTarget, 0.75, false, error));
+  assert(document.removeValue(opacityTarget, error));
+  const auto *floorMesh = document.component("floor", "MeshRenderer");
+  assert(floorMesh != nullptr && !floorMesh->contains("opacity") &&
+         floorMesh->at("metallic") == 0.75 && floorMesh->contains("color"));
   return 0;
 }

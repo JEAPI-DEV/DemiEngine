@@ -1,3 +1,4 @@
+#include "demi/runtime/terrain/TerrainBrushStroke.h"
 #include "demi/runtime/terrain/TerrainEvaluation.h"
 #include "demi/runtime/terrain/TerrainGenerator.h"
 #include <algorithm>
@@ -412,6 +413,139 @@ void protectionBoundsMatchReference() {
     }
   }
 }
+
+void groupedBrushCodec() {
+  using Json = nlohmann::json;
+  const auto first = Json::parse(
+      R"({"type":"raise","radius":2.25,"strength":0.125,"falloff":1.5,"amount":0.75,"center":[1.125,2.25]})");
+  auto second = first;
+  second["center"] = Json::array({2.5, 3.75});
+  auto later = first;
+  later["center"] = Json::array({4.5, 5.75});
+  auto interruption = first;
+  interruption["strength"] = .25;
+  interruption["center"] = Json::array({3.5, 4.75});
+  Json stamps = Json::array({first, second, interruption, later});
+  const auto compacted = compactTerrainBrushEntries(stamps);
+  assert(compacted.size() == 3);
+  assert(compacted[0].at("points") ==
+         Json::array({first.at("center"), second.at("center")}));
+  assert(compacted[0].at("strength") == first.at("strength"));
+  assert(compacted[1].at("center") == interruption.at("center"));
+  assert(compacted[2].at("center") == later.at("center"));
+  assert(expandTerrainBrushEntries(compacted) == stamps);
+  assert(compactTerrainBrushEntries(compacted) == compacted);
+  Json appended = Json::array();
+  for (const auto &stamp : stamps)
+    appendTerrainBrushStamp(appended, stamp);
+  assert(appended == compacted);
+  Json authored{{"format_version", 1},
+                {"graph", {{"custom_metadata", Json::array({1, 2, 3})}}},
+                {"regions", Json::array()},
+                {"edits", stamps},
+                {"exclusions", Json::array()}};
+  const auto compactRecipe = compactTerrainBrushRecipe(authored);
+  assert(compactRecipe.at("edits") == compacted);
+  assert(compactRecipe.at("graph") == authored.at("graph"));
+  assert(compactRecipe.at("regions") == authored.at("regions"));
+  assert(compactRecipe.at("exclusions") == authored.at("exclusions"));
+  assert(compactTerrainBrushRecipe(compactRecipe) == compactRecipe);
+  expectInvalid([&] { (void)compactTerrainBrushRecipe(Json::array()); });
+  auto changedStrength = second;
+  changedStrength["strength"] = std::nextafter(.125, 1.0);
+  assert(compactTerrainBrushEntries(Json::array({first, changedStrength}))
+             .size() == 2);
+
+  // A center remains a valid single radial operation, including the existing
+  // omitted-center default. Snapshots cannot be shared across points.
+  assert(compactTerrainBrushEntries(Json::array({first}))[0] == first);
+  assert(expandTerrainBrushEntries(Json::array({Json::object()})) ==
+         Json::array({Json::object()}));
+  auto snapshot = first;
+  snapshot["snapshot"] = Json::object();
+  assert(compactTerrainBrushEntries(Json::array({snapshot, snapshot})).size() ==
+         2);
+  expectInvalid([&] {
+    Json entries = Json::array();
+    appendTerrainBrushStamp(entries, Json{{"points", Json::array({{1, 2}})}});
+  });
+  for (const auto &bad :
+       {Json{{"center", {1, 2}}, {"points", Json::array({{1, 2}})}},
+        Json{{"points", Json::array()}},
+        Json{{"points", Json::array({Json::array({1})})}},
+        Json{{"points", Json::array({Json::array({1, "z"})})}},
+        Json{{"points", Json::array({Json::array({1e100, 2})})}},
+        Json{{"type", "protect"},
+             {"points", Json::array({Json::array({1, 2})})}},
+        Json{{"points", Json::array({Json::array({1, 2})})},
+             {"snapshot", Json::object()}}}) {
+    expectInvalid([&] { (void)expandTerrainBrushEntries(Json::array({bad})); });
+  }
+}
+
+void groupedRecipeReplay() {
+  auto original = flatRecipe();
+  original.biomes.emplace("hill", TerrainBiome{});
+  original.regions = {{"hill", {2, 2}, 2, .75F, 1, "biomes"},
+                      {"hill", {3, 2}, 2, .75F, 1, "biomes"},
+                      {"default", {4, 2}, 1, 1, 0, "biomes"}};
+  auto raise = hardEdit(TerrainEditKind::Raise);
+  raise.center = {2, 2};
+  raise.strength = .375F;
+  raise.amount = .5F;
+  auto second = raise;
+  second.center = {3, 2};
+  auto flatten = hardEdit(TerrainEditKind::Flatten);
+  flatten.targetHeight = 4;
+  original.edits = {raise, second, flatten, raise};
+  TerrainExclusion exclusion;
+  exclusion.center = {2, 2};
+  exclusion.value = .25F;
+  original.exclusions.push_back(exclusion);
+  exclusion.center = {3, 2};
+  original.exclusions.push_back(exclusion);
+
+  const auto encoded = original.toJson();
+  assert(encoded.at("regions").size() == 2);
+  assert(encoded.at("regions")[0].at("points").size() == 2);
+  assert(encoded.at("edits").size() == 3);
+  assert(encoded.at("edits")[0].at("points").size() == 2);
+  assert(encoded.at("edits")[2].contains("center"));
+  assert(encoded.at("exclusions").size() == 1);
+  assert(encoded.at("exclusions")[0].at("points").size() == 2);
+  const auto decoded = TerrainRecipe::parse(encoded);
+  assert(decoded.regions.size() == original.regions.size());
+  assert(decoded.edits.size() == original.edits.size());
+  assert(decoded.exclusions.size() == original.exclusions.size());
+  assert(decoded.toJson() == encoded);
+  const auto before = TerrainGenerator::generate(original);
+  const auto after = TerrainGenerator::generate(decoded);
+  assert(before && after);
+  assert(before->heights == after->heights);
+  assert(before->biomeIndices == after->biomeIndices);
+  assert(before->exclusions == after->exclusions);
+
+  auto protectedRecipe = flatRecipe();
+  const auto source = TerrainGenerator::generate(protectedRecipe);
+  assert(source);
+  const auto protection = createProtectionEdit(*source, {4, 4}, 2);
+  protectedRecipe.edits = {protection, protection};
+  const auto protectedJson = protectedRecipe.toJson();
+  assert(protectedJson.at("edits").size() == 2);
+  assert(protectedJson.at("edits")[0].contains("snapshot"));
+  assert(protectedJson.at("edits")[1].contains("center"));
+  assert(TerrainRecipe::parse(protectedJson).toJson() == protectedJson);
+
+  auto bad = encoded;
+  bad["edits"][0]["points"] = nlohmann::json::array();
+  expectInvalid([&] { (void)TerrainRecipe::parse(bad); });
+  bad = encoded;
+  bad["regions"][0]["center"] = {1, 2};
+  expectInvalid([&] { (void)TerrainRecipe::parse(bad); });
+  bad = encoded;
+  bad["exclusions"][0]["points"][1] = {1};
+  expectInvalid([&] { (void)TerrainRecipe::parse(bad); });
+}
 } // namespace
 
 int main() {
@@ -423,4 +557,6 @@ int main() {
   sharedEvaluationAndSmoothing();
   sharedEditSemantics();
   protectionBoundsMatchReference();
+  groupedBrushCodec();
+  groupedRecipeReplay();
 }

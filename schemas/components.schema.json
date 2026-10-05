@@ -446,6 +446,7 @@
     },
     "BoxCollider3D": {
       "additionalProperties": false,
+      "description": "Collision shape, not visible geometry. Mesh Renderer draws the prop. Without a Rigidbody, this collider behaves as static geometry.",
       "properties": {
         "is_trigger": {
           "default": false,
@@ -2540,7 +2541,7 @@
     },
     "MeshRenderer": {
       "additionalProperties": false,
-      "description": "Choose a model or built-in shape, then assign its texture/material. Hover field labels for help.",
+      "description": "Draws a model or built-in shape. With no model or texture, the default is a light-grey unit cube; a texture/material is optional. Hover field labels for help.",
       "properties": {
         "color": {
           "default": [
@@ -2635,6 +2636,16 @@
           "x-demi-lua-writable": true,
           "x-demi-reference": "asset"
         },
+        "metallic": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number",
+          "x-demi-editor-help": "Metalness override, 0..1. Omit to inherit the material or use 0.",
+          "x-demi-editor-label": "Metallic",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
         "model": {
           "default": "",
           "type": "string",
@@ -2664,10 +2675,30 @@
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
+        "opacity": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number",
+          "x-demi-editor-help": "Opacity override, 0..1. Use Transparent or Additive surface mode for blending.",
+          "x-demi-editor-label": "Opacity",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
         "render_layer": {
           "default": "",
           "type": "string",
           "x-demi-editor-label": "Render Layer",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "roughness": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number",
+          "x-demi-editor-help": "Surface roughness override, 0..1. Omit to inherit the material or use 0.8.",
+          "x-demi-editor-label": "Roughness",
           "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
@@ -2695,6 +2726,19 @@
           "type": "array",
           "x-demi-editor-help": "Mesh dimensions applied before the entity Transform scale. Built-in primitives have unit dimensions.",
           "x-demi-editor-label": "Size",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "surface_mode": {
+          "enum": [
+            "opaque",
+            "transparent",
+            "additive"
+          ],
+          "type": "string",
+          "x-demi-editor-help": "Opaque, transparent alpha blending, or additive blending. Omit to inherit the material.",
+          "x-demi-editor-label": "Surface Mode",
           "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
@@ -3730,6 +3774,7 @@
     },
     "Rigidbody3D": {
       "additionalProperties": false,
+      "description": "Controls motion, gravity and mass; it does not draw geometry. Dynamic bodies simulate movement, static bodies stay fixed, and kinematic bodies are moved by gameplay.",
       "properties": {
         "allow_sleep": {
           "default": true,

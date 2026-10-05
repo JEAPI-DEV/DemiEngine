@@ -3,12 +3,14 @@
 #include "editor/EditorSceneJson.h"
 
 #include "demi/assets/AssetRegistry.h"
+#include "demi/assets/RenderAsset.h"
 #include "demi/filesystem/ProjectPaths.h"
 #include "demi/runtime/scene/composition/PrefabResolver.h"
 #include "demi/runtime/scene/composition/EntityHierarchy.h"
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <tuple>
 
 namespace demi::editor {
@@ -113,6 +115,34 @@ EditorPropertyPresentation editorPropertyPresentation(
   presentation.canReset =
       hasExplicitValue && (isPrefabEntity || !field.required);
   return presentation;
+}
+
+nlohmann::json editorMeshSurfaceFallback(
+    const std::string_view field, const nlohmann::json &component,
+    const assets::MaterialAsset *material) {
+  if (field == "surface_mode") {
+    if (material != nullptr) {
+      if (material->renderState.blend == "alpha")
+        return "transparent";
+      return material->renderState.blend;
+    }
+    return "opaque";
+  }
+  const float builtin = field == "roughness" ? 0.8F
+                      : field == "opacity" ? 1.0F : 0.0F;
+  float value = builtin;
+  if (material != nullptr) {
+    if (const auto found = material->numbers.find(std::string(field));
+        found != material->numbers.end())
+      value = found->second;
+  }
+  if (const auto properties = component.find("material_properties");
+      properties != component.end() && properties->is_object()) {
+    if (const auto found = properties->find(std::string(field));
+        found != properties->end() && found->is_number())
+      value = found->get<float>();
+  }
+  return std::isfinite(value) ? std::clamp(value, 0.0F, 1.0F) : builtin;
 }
 
 std::string_view editorPropertyOriginLabel(const EditorPropertyOrigin origin) {

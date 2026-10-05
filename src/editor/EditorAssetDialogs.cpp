@@ -24,6 +24,17 @@ std::string colliderIdForModel(const std::string_view modelId) {
   return "asset://colliders/" + relative.filename().string();
 }
 
+void drawAssetChoice(const char *label, const std::vector<std::string> &choices,
+                     std::string &selected) {
+  ImGui::SetNextItemWidth(-1.0F);
+  if (!ImGui::BeginCombo(label, selected.empty() ? "Choose an asset" : selected.c_str()))
+    return;
+  for (const std::string &id : choices)
+    if (ImGui::Selectable(id.c_str(), selected == id))
+      selected = id;
+  ImGui::EndCombo();
+}
+
 } // namespace
 
 void EditorAssetDialogs::openNewSource(
@@ -35,6 +46,8 @@ void EditorAssetDialogs::openNewSource(
   sourceDirectory_ = std::move(destinationDirectory);
   setBuffer(sourceName_, suggestedName);
   sourceError_.clear();
+  sourceAssetOptions_ = {};
+  sourceAssetChoices_.reset();
   showNewSource_ = true;
   focusSourceName_ = true;
 }
@@ -104,19 +117,62 @@ void EditorAssetDialogs::draw(EditorWorkspace &workspace, std::string &notice) {
       const bool entered = ImGui::InputText(
           "##source-name", sourceName_.data(), sourceName_.size(),
           ImGuiInputTextFlags_EnterReturnsTrue);
+      const bool needsReference =
+          sourceKind_ == EditorSourceKind::TerrainMaterialSet ||
+          sourceKind_ == EditorSourceKind::TerrainPalette;
+      if (needsReference) {
+        if (!sourceAssetChoices_)
+          sourceAssetChoices_ = editorSourceAssetChoices(workspace);
+        if (sourceKind_ == EditorSourceKind::TerrainPalette) {
+          std::vector<std::string> prefabs{"(No prefab)"};
+          prefabs.insert(prefabs.end(), sourceAssetChoices_->prefabs.begin(),
+                         sourceAssetChoices_->prefabs.end());
+          std::string selectedPrefab = sourceAssetOptions_.initialPrefab.empty()
+                                           ? "(No prefab)"
+                                           : sourceAssetOptions_.initialPrefab;
+          drawAssetChoice("Geometry prefab", prefabs, selectedPrefab);
+          const std::string newPrefab = selectedPrefab == "(No prefab)"
+                                            ? ""
+                                            : selectedPrefab;
+          if (newPrefab != sourceAssetOptions_.initialPrefab) {
+            sourceAssetOptions_.initialPrefab = newPrefab;
+            sourceAssetOptions_.initialAsset.clear();
+          }
+          std::vector<std::string> candidates = sourceAssetChoices_->models;
+          if (!sourceAssetOptions_.initialPrefab.empty()) {
+            candidates.insert(candidates.end(),
+                              sourceAssetChoices_->materials.begin(),
+                              sourceAssetChoices_->materials.end());
+            std::ranges::sort(candidates);
+          }
+          drawAssetChoice("Soil role asset", candidates,
+                          sourceAssetOptions_.initialAsset);
+          if (candidates.empty())
+            ImGui::TextDisabled("Import a Model3D asset, or create a terrain "
+                                "material and an entity prefab first.");
+        } else {
+          drawAssetChoice("Ground material", sourceAssetChoices_->materials,
+                          sourceAssetOptions_.initialAsset);
+          if (sourceAssetChoices_->materials.empty())
+            ImGui::TextDisabled("Create a terrain material first.");
+        }
+      }
       ImGui::Spacing();
-      ImGui::BeginDisabled(sourceName_[0] == '\0');
+      const bool canCreate = sourceName_[0] != '\0' &&
+                             (!needsReference ||
+                              !sourceAssetOptions_.initialAsset.empty());
+      ImGui::BeginDisabled(!canCreate);
       const bool create =
           ImGui::Button(sourceKind_ == EditorSourceKind::PrefabFromSelection
                             ? "Create prefab copy"
                             : "Create and open");
       ImGui::EndDisabled();
-      if ((create || entered) && sourceName_[0] != '\0') {
+      if ((create || entered) && canCreate) {
         std::filesystem::path created;
         std::string error;
         if (createEditorSource(workspace, sourceKind_, sourceName_.data(),
                                created, error, sourceSelection_,
-                               sourceDirectory_)) {
+                               sourceDirectory_, sourceAssetOptions_)) {
           createdSource_ = created;
           opensCreatedSource_ =
               sourceKind_ != EditorSourceKind::PrefabFromSelection;

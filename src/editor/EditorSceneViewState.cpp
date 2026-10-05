@@ -225,7 +225,8 @@ EditorSceneViewCamera EditorSceneViewState::camera() const {
                             .bounds = showBounds,
                             .lights = showLights,
                             .cameras = showCameras},
-          .studioLighting = studioLighting};
+          .studioLighting = studioLighting,
+          .focusDistance = distance_};
 }
 
 void EditorSceneViewState::setProjection(const EditorProjection projection) {

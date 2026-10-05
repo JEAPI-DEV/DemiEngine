@@ -1051,6 +1051,35 @@ void applyPresetLeavesNoPartialWrite(const std::filesystem::path &root) {
   assert(!contains(readFile(scenePath), "preset_id"));
 }
 
+void compactPreservesOperations(const std::filesystem::path &root) {
+  auto recipe = demi::runtime::TerrainRecipe::defaults();
+  recipe["edits"] = nlohmann::json::array();
+  for (int index = 0; index < 80; ++index)
+    recipe["edits"].push_back({{"type", "flatten"},
+                                {"center", {index * .5F, 8}},
+                                {"radius", 8},
+                                {"target_height", 12},
+                                {"strength", .4F}});
+  nlohmann::json source{{"format_version", 1},
+                         {"id", "asset://terrain/test"},
+                         {"name", "Keep this name"},
+                         {"recipe", recipe}};
+  const auto path = writeRecipe(root, "compact.terrain.json", source.dump(2));
+  const auto original = readFile(path);
+  const auto preview = invoke({"terrain", "compact", path});
+  assert(preview.code == 0 && readFile(path) == original);
+  const auto written = invoke({"terrain", "compact", path, "--write"});
+  assert(written.code == 0);
+  const auto compact = readFile(path);
+  assert(compact.size() < original.size());
+  const auto parsed = nlohmann::json::parse(compact);
+  assert(parsed.at("name") == source.at("name"));
+  assert(parsed.at("recipe").at("edits").size() == 1);
+  assert(demi::runtime::TerrainRecipe::parse(parsed.at("recipe")).toJson() ==
+         demi::runtime::TerrainRecipe::parse(recipe).toJson());
+  assert(invoke({"terrain", "compact", path, "--write"}).code == 0);
+  assert(readFile(path) == compact);
+}
 } // namespace
 
 int main() {
@@ -1076,6 +1105,7 @@ int main() {
   applyPresetSelectsOneOfSeveralTerrains(root);
   applyPresetFailuresAreDistinct(root);
   applyPresetLeavesNoPartialWrite(root);
+  compactPreservesOperations(root);
   std::filesystem::remove_all(root);
   std::cout << "Terrain CLI checks passed\n";
 }

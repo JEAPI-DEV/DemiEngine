@@ -24,6 +24,9 @@ public:
                           const EditorAssetIndex &assets, std::string &error);
 
   [[nodiscard]] EditorSpecializedKind kind() const { return kind_; }
+  [[nodiscard]] std::string_view dataContentType() const {
+    return dataContentType_;
+  }
   [[nodiscard]] std::string_view title() const;
   [[nodiscard]] EditorJsonDocument &document() { return document_; }
   [[nodiscard]] const EditorJsonDocument &document() const { return document_; }
@@ -44,6 +47,7 @@ public:
 private:
   EditorJsonDocument document_;
   EditorSpecializedKind kind_ = EditorSpecializedKind::Data;
+  std::string dataContentType_;
   nlohmann::json expandedPrefab_ = nlohmann::json::object();
   nlohmann::json prefabDiff_ = nlohmann::json::array();
   std::optional<std::filesystem::path> associatedManifest_;

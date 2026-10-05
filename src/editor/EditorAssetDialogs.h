@@ -49,6 +49,8 @@ private:
   std::string sourceSelection_;
   std::filesystem::path sourceDirectory_;
   std::string sourceError_;
+  EditorSourceAssetOptions sourceAssetOptions_;
+  std::optional<EditorSourceAssetChoices> sourceAssetChoices_;
   bool focusSourceName_ = false;
   std::optional<std::filesystem::path> createdSource_;
   bool opensCreatedSource_ = true;

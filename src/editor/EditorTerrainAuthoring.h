@@ -211,6 +211,7 @@ private:
   std::shared_ptr<const runtime::TerrainPatch> strokePatch_;
   std::optional<EditorTerrainCommit> rollback_;
   std::optional<nlohmann::json> stroke_;
+  std::vector<runtime::TerrainLayer> strokeLayers_;
   std::optional<runtime::Vec3> hit_, lastStamp_;
   float flattenHeight_ = 0.0F;
   void stamp(runtime::Vec3 hit);

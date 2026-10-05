@@ -43,6 +43,16 @@
   <a href="/images/docs-terrain-connections.png"><img src="/images/docs-terrain-connections.png" alt="The native Terrain Graph editor with source dropdowns for Height Blend inputs and separate Inputs, Parameters and Outputs sections." width="5120" height="2806" loading="lazy"></a>
   <figcaption>Choose compatible sources on each input, or connect the pins with wires. Click the screenshot to view it at full size.</figcaption>
 </figure>
+<h3>Create materials and palettes in the editor</h3>
+<ol>
+  <li>Choose <strong>File → New document</strong> or <strong>Assets → Create</strong>, then <strong>Terrain Surface Material</strong>, <strong>Terrain Material Set</strong> or <strong>Terrain Asset Palette</strong>.</li>
+  <li>A surface material starts with native defaults. Material sets require an initial surface material; palettes require a Model3D asset or a prefab with a compatible asset. The dialog offers project references instead of inventing a sample binding.</li>
+  <li>Open the resulting asset. Its Editor tab provides color/scalar controls, texture-map slots, material-role bindings or full placement-role settings, including scale, spacing, collision, LOD and biome filters.</li>
+  <li>Use Undo/Redo for edits and Save to update source and reimport its metadata. Native asset dependencies are derived during import/reimport; existing manual declarations remain intact. Prefabs remain prefab references, not asset-ID dependencies.</li>
+  <li>Select the authored material or palette in Terrain Graph settings. Palette geometry uses the existing scatter path; terrain PBR surface shading and blended layers are still pending.</li>
+</ol>
+<p>If metadata reimport fails after the source saves, the editor reports <strong>Import pending</strong>. Correct the reported issue and retry Save; the pending state remains available for recovery.</p>
+
 <h3>Edit colors, biome rules and asset placement</h3>
 <ol>
   <li>On <strong>Biome Rules</strong>, press <strong>Colors and biome rules...</strong>. The settings overlay opens the terrain's shared biome definitions and rules.</li>
@@ -114,7 +124,16 @@ demi run --project build/terrain-graph-cooked</code></pre>
 <p>Every brush except Select targets a layer, chosen in the <strong>Target layer</strong> field of the viewport brush controls. The list only offers layers of the kind the brush writes to, and disabled layers cannot be selected. Flatten keeps a captured target height and raise/lower keeps a separate additive offset, so the two kinds of manual adjustment stay distinct when you retune strength and falloff.</p>
 
 <h2>What a brush stroke changes</h2>
+<p>Brush data stores shared parameters once and ordered stamp positions in a <code>points</code> list. A single radial operation can use <code>center</code>. Consecutive stamps with identical settings share one entry; different settings or protection snapshots remain separate. Repeated positions and overlapping stamps are retained because they affect brush strength. This changes the source representation, not the terrain result.</p>
+<pre><code class="language-json">{
+  "type": "flatten",
+  "target_height": 12,
+  "radius": 8,
+  "points": [[24, 32], [25.6, 32], [27.2, 32]]
+}</code></pre>
+<p>New viewport strokes use this representation automatically. For existing data, choose <strong>Compact brush data</strong> in the graph's edit settings, then Generate and save the terrain asset. The CLI can preview the same conversion with <code>demi terrain compact path/to/landscape.terrain.json</code>; add <code>--write</code> to save it, then reimport its asset manifest. Compaction preserves unrelated recipe fields and validates native operation equivalence before saving. It does not replace the recipe with baked heights or remove regeneration and layer editing.</p>
 <p>Ordinary brush work is incremental. The generator keeps the generated base surface separately from the sculpted result, so a stroke recomputes only the samples the brush actually touched, plus the one-sample border that lighting and neighbouring smoothing depend on. Meshes and collision are rebuilt only for the affected chunks; untouched chunks keep their existing resources and are not re-uploaded.</p>
+<p>Full regeneration also limits each sculpt stamp to its brush footprint instead of scanning the whole terrain for that stamp. Brush order, smoothing snapshots and protected samples keep their existing meaning.</p>
 <p>A local edit produces the same heights as a full regeneration of the same recipe. History is stored as before/after sample values, so once a stroke is applied, Undo and Redo restore the recipe and the visible surface together. They stay unavailable while a stroke is still being dragged or a preview is pending, so that a half-finished stroke is never recorded as an edit.</p>
 <p>Some changes genuinely invalidate the whole base and trigger a full regeneration instead: changing the seed, terrain size, resolution or chunk size, and editing biome generation parameters such as base height, height variation, feature size, roughness or octave count. A change to the grid asks how to proceed rather than silently discarding edits, as described under changing terrain dimensions below.</p>
 <p>Editing only a biome tint is cheaper again: it recolours the existing triangles without rebuilding heights or colliders. Play mode never starts on a stale terrain surface, because Play waits for pending terrain work to finish, and a published stroke updates the visible mesh and its static collision together.</p>

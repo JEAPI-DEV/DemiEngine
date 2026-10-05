@@ -37,6 +37,8 @@ public:
   std::vector<DrawState> bufferedStates;
   std::size_t instanceDrawCalls = 0;
   std::vector<float> bufferedAlpha;
+  std::vector<std::array<float, 4>> bufferedTint;
+  std::vector<std::array<float, 4>> bufferedMetalRough;
   std::vector<std::array<float, 16>> bufferedTransforms;
   std::vector<View2DConfig> views2D;
   std::vector<View3DConfig> views3D;
@@ -59,6 +61,16 @@ public:
     textures.push_back(draw.texture);
     bufferedStates.push_back(draw.state);
     bufferedAlpha.push_back(draw.uniforms.empty()?1.F:draw.uniforms.front().values[3]);
+    if (!draw.uniforms.empty())
+      bufferedTint.push_back({draw.uniforms.front().values[0],
+                              draw.uniforms.front().values[1],
+                              draw.uniforms.front().values[2],
+                              draw.uniforms.front().values[3]});
+    if (draw.uniforms.size() > 13)
+      bufferedMetalRough.push_back({draw.uniforms[13].values[0],
+                                  draw.uniforms[13].values[1],
+                                  draw.uniforms[13].values[2],
+                                  draw.uniforms[13].values[3]});
     bufferedTransforms.push_back(draw.transform);
     return target_.submit(draw, error);
   }
@@ -176,6 +188,59 @@ int main() {
   const std::uint32_t batchesWithoutDebugGeometry =
       renderer.statistics().batches;
   static_cast<void>(graphics.endFrame());
+  {
+    World surfaces;
+    auto near = shape("transparent-near", "cube", {0, 0, 1});
+    near.component<MeshRendererComponent>()->surfaceMode = "transparent";
+    near.component<MeshRendererComponent>()->opacity = 0.5F;
+    near.component<MeshRendererComponent>()->roughness = 0.25F;
+    near.component<MeshRendererComponent>()->materialColors["base_color"] =
+        {0.5F, 0.25F, 1.0F, 0.5F};
+    auto opaque = shape("opaque", "cube", {0, 0, 0});
+    auto smoothOpaque = shape("smooth-opaque", "cube", {2, 0, 0});
+    smoothOpaque.component<MeshRendererComponent>()->roughness = 0.0F;
+    auto far = shape("transparent-far", "cube", {0, 0, -3});
+    far.component<MeshRendererComponent>()->surfaceMode = "additive";
+    far.component<MeshRendererComponent>()->metallic = 0.75F;
+    surfaces.entities.push_back(std::move(near));
+    surfaces.entities.push_back(std::move(opaque));
+    surfaces.entities.push_back(std::move(smoothOpaque));
+    surfaces.entities.push_back(std::move(far));
+    auto surfaceFrame = frame;
+    surfaceFrame.camera.renderHud = false;
+    capture.bufferedStates.clear();
+    capture.bufferedAlpha.clear();
+    capture.bufferedTint.clear();
+    capture.bufferedMetalRough.clear();
+    capture.bufferedTransforms.clear();
+    capture.views3D.clear();
+    assert(renderer.renderFrame(surfaces, surfaceFrame, 0.016F, error));
+    assert(capture.views3D.back().sequential);
+    assert(capture.bufferedStates.size() == 4);
+    assert(capture.bufferedStates[0].blend == BlendMode::Opaque);
+    assert(capture.bufferedStates[1].blend == BlendMode::Opaque);
+    assert((capture.bufferedMetalRough[0][1] == 0.0F &&
+            capture.bufferedMetalRough[1][1] == 0.8F) ||
+           (capture.bufferedMetalRough[0][1] == 0.8F &&
+            capture.bufferedMetalRough[1][1] == 0.0F));
+    assert(capture.bufferedStates[2].blend == BlendMode::Additive &&
+           !capture.bufferedStates[2].writeDepth);
+    assert(capture.bufferedStates[3].blend == BlendMode::Alpha &&
+           !capture.bufferedStates[3].writeDepth);
+    assert(capture.bufferedTransforms[2][14] == -3.0F);
+    assert(capture.bufferedTransforms[3][14] == 1.0F);
+    assert(capture.bufferedAlpha[3] == 0.25F);
+    assert(capture.bufferedTint[3][0] == 0.15F);
+    assert(capture.bufferedTint[3][1] == 0.175F);
+    assert(capture.bufferedMetalRough[2][0] == 0.75F);
+    assert(capture.bufferedMetalRough[3][1] == 0.25F);
+    static_cast<void>(graphics.endFrame());
+    surfaces.entities[0].component<MeshRendererComponent>()->roughness = 0.6F;
+    capture.bufferedMetalRough.clear();
+    assert(renderer.renderFrame(surfaces, surfaceFrame, 0.016F, error));
+    assert(capture.bufferedMetalRough.back()[1] == 0.6F);
+    static_cast<void>(graphics.endFrame());
+  }
   assert(collectSceneLighting3D(world,{}).msaaSamples==4);
   assert(capture.views3D.back().frameBuffer);
   const auto defaultAaTarget=capture.views3D.back().frameBuffer;

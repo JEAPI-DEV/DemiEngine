@@ -7,6 +7,8 @@ add_test(NAME demi-editor-prefab-components-tests COMMAND demi-editor-prefab-com
 add_test(NAME demi-editor-structured-value-tests COMMAND demi-editor-structured-value-tests)
 add_test(NAME demi-editor-drag-authoring-tests COMMAND demi-editor-drag-authoring-tests)
 add_test(NAME demi-editor-terrain-graph-ui-tests COMMAND demi-editor-terrain-graph-ui-tests)
+add_test(NAME demi-editor-data-asset-creation-tests COMMAND demi-editor-data-asset-creation-tests)
+add_test(NAME demi-editor-data-asset-controls-tests COMMAND demi-editor-data-asset-controls-tests)
 add_test(NAME demi-editor-value-history-tests COMMAND demi-editor-value-history-tests)
 add_test(NAME demi-editor-color-control-tests COMMAND demi-editor-color-control-tests)
 add_test(NAME demi-editor-palette-card-tests COMMAND demi-editor-palette-card-tests)

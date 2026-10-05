@@ -1,4 +1,5 @@
 #include "demi/runtime/terrain/TerrainRecipe.h"
+#include "demi/runtime/terrain/TerrainBrushStroke.h"
 #include "demi/runtime/terrain/TerrainGraph.h"
 #include <algorithm>
 #include <cmath>
@@ -571,7 +572,7 @@ TerrainRecipe TerrainRecipe::parse(const nlohmann::json &json) {
     if (json.contains("regions")) {
       require(json.at("regions").is_array(),
               "Terrain regions must be an array");
-      for (const auto &entry : json.at("regions")) {
+      for (const auto &entry : expandTerrainBrushEntries(json.at("regions"))) {
         checkKeys(entry, {"biome", "center", "radius", "strength", "falloff",
                           "layer"});
         TerrainRegion region;
@@ -583,7 +584,7 @@ TerrainRecipe TerrainRecipe::parse(const nlohmann::json &json) {
     }
     if (json.contains("edits")) {
       require(json.at("edits").is_array(), "Terrain edits must be an array");
-      for (const auto &entry : json.at("edits")) {
+      for (const auto &entry : expandTerrainBrushEntries(json.at("edits"))) {
         TerrainEdit edit;
         readBrush(entry, edit);
         edit.kind = editKind(entry.at("type").get<std::string>());
@@ -632,7 +633,8 @@ TerrainRecipe TerrainRecipe::parse(const nlohmann::json &json) {
     if (json.contains("exclusions")) {
       require(json.at("exclusions").is_array(),
               "Terrain exclusions must be an array");
-      for (const auto &entry : json.at("exclusions")) {
+      for (const auto &entry :
+           expandTerrainBrushEntries(json.at("exclusions"))) {
         checkKeys(entry, {"center", "radius", "strength", "falloff", "value",
                           "layer"});
         TerrainExclusion exclusion;
@@ -722,7 +724,7 @@ nlohmann::json TerrainRecipe::toJson() const {
                          {"falloff", region.falloff}};
     if (region.layer != "biomes")
       entry["layer"] = region.layer;
-    json["regions"].push_back(std::move(entry));
+    appendTerrainBrushStamp(json["regions"], std::move(entry));
   }
   for (const auto &rule : rules)
     json["rules"].push_back(rule.toJson());
@@ -755,7 +757,7 @@ nlohmann::json TerrainRecipe::toJson() const {
             {{"position", {sample.position.x, sample.position.y}},
              {"height", sample.height}});
     }
-    json["edits"].push_back(std::move(entry));
+    appendTerrainBrushStamp(json["edits"], std::move(entry));
   }
   for (const auto &exclusion : exclusions) {
     nlohmann::json entry{{"center", {exclusion.center.x, exclusion.center.y}},
@@ -766,7 +768,7 @@ nlohmann::json TerrainRecipe::toJson() const {
       entry["value"] = exclusion.value;
     if (exclusion.layer != "exclusions")
       entry["layer"] = exclusion.layer;
-    json["exclusions"].push_back(std::move(entry));
+    appendTerrainBrushStamp(json["exclusions"], std::move(entry));
   }
   if (!graph.is_null())
     json["graph"] = graph;

@@ -18,7 +18,9 @@ struct BoxCollider3DComponent {
       ComponentFieldDescriptor{"is_trigger", ComponentFieldType::Boolean},
       ComponentFieldDescriptor{"layer", ComponentFieldType::String}};
   static constexpr ComponentEditorMetadata editor{"Physics 3D",
-                                                  "Box Collider 3D"};
+      "Box Collider 3D",
+      "Collision shape, not visible geometry. Mesh Renderer draws the prop. "
+      "Without a Rigidbody, this collider behaves as static geometry."};
   static void parse(const nlohmann::json &json, Entity &entity);
 
   Vec3 size = {1.0F, 1.0F, 1.0F};

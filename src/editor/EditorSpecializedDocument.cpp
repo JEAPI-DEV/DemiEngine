@@ -1,4 +1,5 @@
 #include "editor/EditorSpecializedDocument.h"
+#include "demi/assets/DataAssetContent.h"
 
 #include "editor/EditorDocumentStore.h"
 
@@ -16,6 +17,7 @@ bool EditorSpecializedDocument::open(
     const EditorAssetIndex &assetIndex, std::string &error) {
   std::filesystem::path path = selectedSource;
   associatedManifest_.reset();
+  dataContentType_.clear();
   std::optional<AssetManifest> stagedDataManifest;
   if (isPrefabFile(path)) {
     kind_ = EditorSpecializedKind::Prefab;
@@ -43,6 +45,8 @@ bool EditorSpecializedDocument::open(
       path = record->manifest.sourcePath;
       associatedManifest_ = record->manifest.manifestPath;
       stagedDataManifest = record->manifest;
+      if (const auto metadata = assets::dataAssetMetadata(record->manifest))
+        dataContentType_ = metadata->contentType;
     } else if (record->manifest.type == "AudioClip") {
       kind_ = EditorSpecializedKind::Audio;
       path = record->manifest.manifestPath;
@@ -65,8 +69,26 @@ bool EditorSpecializedDocument::open(
           validateSpecializedDocument(kind, source, document);
       const auto parsed = assets::parseDataDocument(document.dump(), source);
       if (parsed.document) {
+        AssetManifest proposed = manifest;
+        const auto metadata = assets::dataAssetMetadata(manifest);
+        if (metadata) {
+          const auto content = assets::inspectDataAssetContent(
+              metadata->contentType, *parsed.document, registry, manifest.id);
+          diagnostics.insert(diagnostics.end(), content.diagnostics.begin(),
+                             content.diagnostics.end());
+          // Native content references are declared by reimport on Save. Use
+          // that prospective set while validating an unsaved edit; the
+          // manifest on disk is never modified by field controls.
+          proposed.dependencies.insert(proposed.dependencies.end(),
+                                       content.dependencies.begin(),
+                                       content.dependencies.end());
+          std::ranges::sort(proposed.dependencies);
+          proposed.dependencies.erase(std::unique(proposed.dependencies.begin(),
+                                                  proposed.dependencies.end()),
+                                      proposed.dependencies.end());
+        }
         Diagnostics schemaDiagnostics = assets::validateDataAssetDocument(
-            manifest, *parsed.document, registry);
+            proposed, *parsed.document, registry);
         diagnostics.insert(diagnostics.end(), schemaDiagnostics.begin(),
                            schemaDiagnostics.end());
       }
@@ -90,7 +112,13 @@ std::string_view EditorSpecializedDocument::title() const {
   case EditorSpecializedKind::Animation:
     return "Animation Editor";
   case EditorSpecializedKind::Data:
-    return "Data / Dialogue Editor";
+    if (dataContentType_ == "terrain_material")
+      return "Terrain Surface Material";
+    if (dataContentType_ == "terrain_material_set")
+      return "Terrain Material Set";
+    if (dataContentType_ == "terrain_palette")
+      return "Terrain Asset Palette";
+    return "Data Asset Editor";
   case EditorSpecializedKind::Audio:
     return "Audio Editor";
   }

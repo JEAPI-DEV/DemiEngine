@@ -269,7 +269,8 @@ int main() {
                           runtime::Vec3{12, 30, 8}, error));
   assert(authoring.update({.focused = true, .leftReleased = true}, {}, error));
   const auto stroke = finish(authoring, error);
-  assert(stroke && stroke->recipe["edits"].size() >= 2);
+  assert(stroke && stroke->recipe["edits"].size() == 1);
+  assert(stroke->recipe["edits"][0]["points"].size() >= 2);
   for (const auto &edit : stroke->recipe["edits"])
     assert(edit["target_height"] == 12); // Flatten holds initial hit height.
   assert(!authoring.poll(error));        // One completion per entire stroke.

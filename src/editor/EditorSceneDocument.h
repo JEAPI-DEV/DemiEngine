@@ -27,6 +27,8 @@ struct EditorDocumentIssue {
   std::string message;
 };
 
+enum class EditorEntityKind { Empty, Cube, Sphere, Cylinder, Plane };
+
 // Owns the active authored scene JSON, its command history, and its
 // conflict-safe persistence. Structural mutations are built with reusable
 // scene-JSON helpers (EditorSceneJson), staged and validated through the
@@ -59,7 +61,9 @@ public:
   [[nodiscard]] bool cancelContinuousEdit(std::string &error);
 
   [[nodiscard]] bool createEntity(std::string &error,
-                                  std::optional<std::string> parent = {});
+                                  std::optional<std::string> parent = {},
+                                  EditorEntityKind kind = EditorEntityKind::Empty,
+                                  std::optional<runtime::Vec3> position = {});
   [[nodiscard]] bool createTerrainAssetEntity(std::string_view assetId,
                                               std::optional<runtime::Vec3> position,
                                               std::string &error);

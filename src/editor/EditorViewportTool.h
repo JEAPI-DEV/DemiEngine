@@ -34,12 +34,20 @@ struct EditorViewportToolInput {
   bool navigationModifier = false;
   bool bypassSnapping = false;
   bool cancelPressed = false;
+
+  // The first click can arrive before the docked window gains keyboard focus.
+  [[nodiscard]] bool beginsToolGesture() const {
+    return hovered && leftPressed && !navigationModifier;
+  }
+  // A captured drag may leave the canvas while its window keeps focus.
+  [[nodiscard]] bool hasDragFocus() const { return focused || hovered; }
 };
 
 struct EditorGizmoLine {
   EditorGizmoAxis axis = EditorGizmoAxis::X;
   runtime::Vec2 start;
   runtime::Vec2 end;
+  float worldLength = 1.0F;
 };
 
 struct EditorGizmoPresentation {
@@ -92,6 +100,8 @@ private:
     runtime::WorldTransform3D initialWorld;
     runtime::Vec3 worldAxis;
     runtime::Vec2 screenDirection;
+    float translationPerPixel = 0.01F;
+    float scalePerPixel = 0.01F;
     float pixels = 0.0F;
   };
   std::optional<ActiveDrag> active_;

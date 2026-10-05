@@ -1,18 +1,23 @@
 #include "editor/EditorPrefabPlacement.h"
 
+#include "editor/EditorTerrainRuntime.h"
 #include "editor/EditorViewportProjection.h"
 #include "editor/EditorViewportProjection2D.h"
 
 #include "demi/runtime/isometric/IsoGridMath.h"
 #include "demi/runtime/isometric/IsoWorldQueries.h"
 #include "demi/runtime/scene/SceneEntityParser.h"
+#include "demi/runtime/scene/Transform3DHierarchy.h"
 #include "demi/runtime/scene/components/2dcomponents/IsoTransformComponent.h"
 #include "demi/runtime/scene/components/2dcomponents/Transform2DComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/Transform3DComponent.h"
 #include "demi/runtime/scene/composition/PrefabResolver.h"
 
+#include <cmath>
 #include <exception>
 #include <fstream>
+#include <limits>
 #include <utility>
 #include <vector>
 
@@ -118,6 +123,57 @@ prefabDropWorldPosition3D(const EditorSceneViewCamera &camera,
   return intersectSceneGroundPlane3D(camera, viewportPosition, viewportSize);
 }
 
+runtime::Vec3 sceneDropWorldPosition3D(const EditorSceneViewCamera &camera,
+                                      const runtime::World &world,
+                                      const runtime::Vec2 viewportPosition,
+                                      const runtime::Vec2 viewportSize) {
+  const EditorViewportRay ray =
+      sceneViewportRay(camera, viewportPosition, viewportSize);
+  std::optional<runtime::Vec3> closest;
+  float closestDistanceSquared = std::numeric_limits<float>::infinity();
+  for (const runtime::Entity &entity : world.entities) {
+    if (!entity.enabled || !entity.component<runtime::Terrain3DComponent>())
+      continue;
+    const auto surface = currentEditorTerrain(world, entity.id);
+    const auto transform = runtime::resolveWorldTransform3D(world, entity);
+    if (!surface || !transform || std::abs(transform->scale.x) < 1e-6F ||
+        std::abs(transform->scale.y) < 1e-6F ||
+        std::abs(transform->scale.z) < 1e-6F)
+      continue;
+    const auto local = surface->raycast(
+        runtime::inverseTransformPoint3D(*transform, ray.origin),
+        runtime::inverseTransformVector3D(*transform, ray.direction));
+    if (!local)
+      continue;
+    const runtime::Vec3 hit = runtime::transformPoint3D(*transform, *local);
+    const float dx = hit.x - ray.origin.x;
+    const float dy = hit.y - ray.origin.y;
+    const float dz = hit.z - ray.origin.z;
+    const float distanceSquared = dx * dx + dy * dy + dz * dz;
+    if (distanceSquared < closestDistanceSquared) {
+      closest = hit;
+      closestDistanceSquared = distanceSquared;
+    }
+  }
+  if (closest)
+    return *closest;
+  // A nearly horizontal ray can meet Y=0 far outside the visible work area.
+  if (const auto ground =
+          intersectSceneGroundPlane3D(camera, viewportPosition, viewportSize)) {
+    const float dx = ground->x - ray.origin.x;
+    const float dy = ground->y - ray.origin.y;
+    const float dz = ground->z - ray.origin.z;
+    const float workingDistance = std::max(camera.focusDistance, 0.01F);
+    if (dx * dx + dy * dy + dz * dz <=
+        workingDistance * workingDistance * 16.0F)
+      return *ground;
+  }
+  const float workingDistance = std::max(camera.focusDistance, 0.01F);
+  return {ray.origin.x + ray.direction.x * workingDistance,
+          ray.origin.y + ray.direction.y * workingDistance,
+          ray.origin.z + ray.direction.z * workingDistance};
+}
+
 std::optional<nlohmann::json>
 prefabPlacementOverrides(const std::filesystem::path &path,
                          const runtime::Vec3 groundPosition,
@@ -130,11 +186,12 @@ prefabPlacementOverrides(const std::filesystem::path &path,
     return std::nullopt;
   }
   const runtime::Vec3 anchor = roots->threeDimensional.front().position;
-  const runtime::Vec3 offset{groundPosition.x - anchor.x, 0.0F,
+  const runtime::Vec3 offset{groundPosition.x - anchor.x, groundPosition.y,
                              groundPosition.z - anchor.z};
   nlohmann::json overrides = nlohmann::json::object();
   for (const Root3D &root : roots->threeDimensional) {
-    const runtime::Vec3 position{root.position.x + offset.x, root.position.y,
+    const runtime::Vec3 position{root.position.x + offset.x,
+                                 root.position.y + offset.y,
                                  root.position.z + offset.z};
     overrides[root.id]["components"]["Transform3D"]["position"] =
         {position.x, position.y, position.z};

@@ -1,4 +1,5 @@
 <h1>Assets &amp; streaming</h1>
+<p>Typed data assets can be imported with <code>--type DataAsset --content-type terrain_material</code>, <code>terrain_material_set</code> or <code>terrain_palette</code>. Import and reimport run the native content parser and derive asset-ID dependencies. Unknown application content types remain ordinary data; strings are not guessed to be asset references. See <a href="/docs/terrain">terrain asset authoring</a> for the editor creation and property controls.</p>
 <p>Asset IDs are stable URIs you reference from scenes and scripts. Import records hashes and dependencies; cooking is keyed by content so rebuilds stay fast and deterministic.</p>
 
 <h2>Import a source</h2>

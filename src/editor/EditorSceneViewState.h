@@ -45,6 +45,7 @@ struct EditorSceneViewCamera {
   runtime::Vec3 up{0.0F, 1.0F, 0.0F};
   runtime::render::DebugGeometry3DRequest debugGeometry;
   bool studioLighting = false;
+  float focusDistance = 8.0F;
 };
 
 // Owns transient scene-view navigation. Nothing in this type is serialized

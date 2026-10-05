@@ -5,6 +5,7 @@
 #include "demi/runtime/scene/model/SceneTypes.h"
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -12,6 +13,8 @@
 namespace demi::runtime {
 
 struct MeshRendererComponent {
+  static constexpr std::array<std::string_view, 3> surfaceModes{
+      "opaque", "transparent", "additive"};
   static constexpr std::string_view typeName = "MeshRenderer";
   static constexpr bool exposedToLua = false;
   static constexpr ComponentDomain domain = ComponentDomain::ThreeDimensional;
@@ -45,6 +48,17 @@ struct MeshRendererComponent {
       ComponentFieldDescriptor{"color", ComponentFieldType::Color}.withHelp("RGBA tint multiplied with the base-color texture. Use white to preserve texture colors."),
       ComponentFieldDescriptor::assetReference("texture").withHelp("Base-color texture override. UV coordinates determine how it is mapped onto the mesh."),
       ComponentFieldDescriptor::assetReference("material").withHelp("Material asset containing shader and rendering settings."),
+      ComponentFieldDescriptor{"metallic", ComponentFieldType::Number, false,
+                               true, {}, 0.0, true, false, true, true, false,
+                               1.0, true}.withHelp("Metalness override, 0..1. Omit to inherit the material or use 0."),
+      ComponentFieldDescriptor{"roughness", ComponentFieldType::Number, false,
+                               true, {}, 0.0, true, false, true, true, false,
+                               1.0, true}.withHelp("Surface roughness override, 0..1. Omit to inherit the material or use 0.8."),
+      ComponentFieldDescriptor{"opacity", ComponentFieldType::Number, false,
+                               true, {}, 0.0, true, false, true, true, false,
+                               1.0, true}.withHelp("Opacity override, 0..1. Use Transparent or Additive surface mode for blending."),
+      ComponentFieldDescriptor{"surface_mode", ComponentFieldType::String,
+                               false, true, surfaceModes}.withHelp("Opaque, transparent alpha blending, or additive blending. Omit to inherit the material."),
       ComponentFieldDescriptor{"material_properties",
                                ComponentFieldType::Object},
       ComponentFieldDescriptor{"render_layer", ComponentFieldType::String},
@@ -53,7 +67,9 @@ struct MeshRendererComponent {
       ComponentFieldDescriptor{"uvs", ComponentFieldType::Vec2Array}.asAdvanced().withHelp("Texture coordinates for inline vertices, one UV pair per vertex. 0..1 spans the image; larger values tile when texture Wrap is Repeat."),
       ComponentFieldDescriptor{"wireframe", ComponentFieldType::Boolean}};
   static constexpr ComponentEditorMetadata editor{"3D", "Mesh Renderer",
-      "Choose a model or built-in shape, then assign its texture/material. Hover field labels for help."};
+      "Draws a model or built-in shape. With no model or texture, the default "
+      "is a light-grey unit cube; a texture/material is optional. "
+      "Hover field labels for help."};
   static void parse(const nlohmann::json &json, Entity &entity);
   static bool serializeField(const MeshRendererComponent &component,
                              std::string_view field, nlohmann::json &out);
@@ -69,6 +85,10 @@ struct MeshRendererComponent {
   Color color = {0.8F, 0.8F, 0.8F, 1.0F};
   std::string texture;
   std::string material;
+  std::optional<float> metallic;
+  std::optional<float> roughness;
+  std::optional<float> opacity;
+  std::optional<std::string> surfaceMode;
   std::unordered_map<std::string, float> materialNumbers;
   std::unordered_map<std::string, Color> materialColors;
   std::string renderLayer;
@@ -106,6 +126,14 @@ struct MeshRendererComponent {
           &MeshRendererComponent::texture>("texture"),
       RuntimeFieldBinding<MeshRendererComponent>::member<
           &MeshRendererComponent::material>("material"),
+      RuntimeFieldBinding<MeshRendererComponent>::member<
+          &MeshRendererComponent::metallic>("metallic").withoutDefault(),
+      RuntimeFieldBinding<MeshRendererComponent>::member<
+          &MeshRendererComponent::roughness>("roughness").withoutDefault(),
+      RuntimeFieldBinding<MeshRendererComponent>::member<
+          &MeshRendererComponent::opacity>("opacity").withoutDefault(),
+      RuntimeFieldBinding<MeshRendererComponent>::member<
+          &MeshRendererComponent::surfaceMode>("surface_mode").withoutDefault(),
       RuntimeFieldBinding<MeshRendererComponent>::members<
           &MeshRendererComponent::materialNumbers,
           &MeshRendererComponent::materialColors>("material_properties"),

@@ -111,25 +111,38 @@ int runAssetCommand(const std::vector<std::string> &args, std::ostream &output,
   }
   const std::string &command = args[1];
   if (command == "fracture") {
-    if(args.size()!=3) { error<<"Usage: demi asset fracture <prefab.prefab.json>\n";return ExitUsageError; }
-    const auto result=runtime::composition::bakeFracturePrefab(args[2]);
-    if(!result.document)return printDiagnostics(result.diagnostics,error);
-    std::size_t chunks=0, bonds=0, anchors=0;
-    for (const auto &entity : (*result.document)["entities"]) {
-      const auto &c=entity["components"];
-      if (!c.contains("Destructible3D") || !c.contains("ModelCollider3D") || !c["ModelCollider3D"].contains("inline_geometry")) continue;
-      const auto &geometry=c["ModelCollider3D"]["inline_geometry"];
-      chunks+=geometry["parts"].size(); bonds+=geometry["fracture"]["bonds"].size(); anchors+=geometry["fracture"]["anchors"].size();
+    if (args.size() != 3) {
+      error << "Usage: demi asset fracture <prefab.prefab.json>\n";
+      return ExitUsageError;
     }
-    output<<nlohmann::json{{"prefab",(*result.document)["id"]},{"chunks",chunks},
-       {"bonds",bonds},{"anchors",anchors},
-       {"source_unchanged",true}}.dump(2)<<'\n';
+    const auto result = runtime::composition::bakeFracturePrefab(args[2]);
+    if (!result.document)
+      return printDiagnostics(result.diagnostics, error);
+    std::size_t chunks = 0, bonds = 0, anchors = 0;
+    for (const auto &entity : (*result.document)["entities"]) {
+      const auto &c = entity["components"];
+      if (!c.contains("Destructible3D") || !c.contains("ModelCollider3D") ||
+          !c["ModelCollider3D"].contains("inline_geometry"))
+        continue;
+      const auto &geometry = c["ModelCollider3D"]["inline_geometry"];
+      chunks += geometry["parts"].size();
+      bonds += geometry["fracture"]["bonds"].size();
+      anchors += geometry["fracture"]["anchors"].size();
+    }
+    output << nlohmann::json{{"prefab", (*result.document)["id"]},
+                             {"chunks", chunks},
+                             {"bonds", bonds},
+                             {"anchors", anchors},
+                             {"source_unchanged", true}}
+                  .dump(2)
+           << '\n';
     return ExitSuccess;
   }
   if (command == "import") {
     if (args.size() < 3 || valueAfter(args, "--id").empty()) {
       error << "Usage: demi asset import <source> --project <project> --id "
-               "asset://id [--type type] [--importer id] [--license file]\n";
+               "asset://id [--type type] [--importer id] [--content-type type] "
+               "[--license file]\n";
       return ExitUsageError;
     }
     const std::string license = valueAfter(args, "--license");
@@ -169,7 +182,11 @@ int runAssetCommand(const std::vector<std::string> &args, std::ostream &output,
          .license = license.empty()
                         ? std::nullopt
                         : std::make_optional(std::filesystem::path(license)),
-         .modelProfile = profile});
+         .modelProfile = profile,
+         .dataContentType =
+             hasArg(args, "--content-type")
+                 ? std::make_optional(valueAfter(args, "--content-type"))
+                 : std::nullopt});
     const int status = printDiagnostics(result.diagnostics, error);
     if (status == ExitSuccess)
       output << "Imported asset: " << result.manifestPath.string() << '\n';
@@ -349,14 +366,18 @@ int runAssetCommand(const std::vector<std::string> &args, std::ostream &output,
       nlohmann::json report{
           {"id", manifest->id},
           {"shape", collider->parts.empty() ? "convex_hull" : "compound"},
-          {"points", [&] {
+          {"points",
+           [&] {
              auto count = collider->points.size();
-             for (const auto &part : collider->parts) count += part.points.size();
+             for (const auto &part : collider->parts)
+               count += part.points.size();
              return count;
            }()},
-          {"part_ids", [&] {
+          {"part_ids",
+           [&] {
              auto ids = nlohmann::json::array();
-             for (const auto &part : collider->parts) ids.push_back(part.id);
+             for (const auto &part : collider->parts)
+               ids.push_back(part.id);
              return ids;
            }()},
           {"dynamic_supported", true},

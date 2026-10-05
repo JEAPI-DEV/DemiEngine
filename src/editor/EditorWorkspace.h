@@ -189,7 +189,9 @@ public:
   [[nodiscard]] SceneValueTarget authoredTarget(SceneValueTarget target) const;
   [[nodiscard]] bool hasExplicitValue(SceneValueTarget target) const;
   [[nodiscard]] bool createEntity(std::string &error,
-                                  std::optional<std::string> parent = {});
+                                  std::optional<std::string> parent = {},
+                                  EditorEntityKind kind = EditorEntityKind::Empty,
+                                  std::optional<runtime::Vec3> worldPosition = {});
   [[nodiscard]] bool createPresetEntity(std::string_view preset,
                                         std::string &error);
   [[nodiscard]] bool unpackPreset(std::string_view id, std::string &error);

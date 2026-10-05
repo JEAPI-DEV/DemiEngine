@@ -36,6 +36,7 @@ else()
     src/cli/SceneCompositionCommands.cpp
     src/cli/TestCommands.cpp
     src/cli/TerrainCommands.cpp
+    src/cli/TerrainCompactCommand.cpp
     src/cli/main.cpp
   )
   target_link_libraries(demi PRIVATE demi-core demi-cli-support demi-runtime-lib)
@@ -54,6 +55,7 @@ else()
     src/cli/SceneCompositionCommands.cpp
     src/cli/TestCommands.cpp
     src/cli/TerrainCommands.cpp
+    src/cli/TerrainCompactCommand.cpp
     src/cli/main.cpp
   )
   target_link_libraries(demi-server PRIVATE demi-core demi-cli-support demi-server-runtime-lib)
@@ -187,6 +189,8 @@ else()
     src/editor/EditorProjectPanel.cpp
     src/editor/EditorShell.cpp
     src/editor/EditorSpecializedPanel.cpp
+    src/editor/EditorAssetReferenceControl.cpp
+    src/editor/EditorDataAssetControls.cpp
     src/editor/EditorStbRectPack.cpp
     src/editor/EditorTheme.cpp
     src/editor/EditorSettingsPanel.cpp

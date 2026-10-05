@@ -2,6 +2,7 @@
 #include "editor/EditorColorControl.h"
 #include "demi/assets/DataAsset.h"
 #include "demi/runtime/terrain/TerrainRecipe.h"
+#include "demi/runtime/terrain/TerrainBrushStroke.h"
 #include "editor/EditorWorkspace.h"
 #include <algorithm>
 #include <array>
@@ -782,6 +783,13 @@ void drawEdits(EditorTerrainAuthoring &authoring) {
   });
   ImGui::Text("Draft: %zu edits, %zu painted regions", edits.size(),
               regions.size());
+  if (ImGui::Button("Compact brush data")) {
+    draft = runtime::compactTerrainBrushRecipe(draft);
+    return;
+  }
+  if (ImGui::IsItemHovered())
+    ImGui::SetTooltip("Store shared brush settings once with ordered points. "
+                      "No stamps are removed. Generate applies this draft.");
   ImGui::BeginDisabled(!hasProtection);
   if (ImGui::Button("Clear protection"))
     ImGui::OpenPopup("Clear terrain protection?");

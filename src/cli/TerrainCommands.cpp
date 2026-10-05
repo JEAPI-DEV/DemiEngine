@@ -1,4 +1,5 @@
 #include "cli/TerrainCommands.h"
+#include "cli/TerrainCompactCommand.h"
 
 #include "cli/CliArguments.h"
 #include "demi/assets/AssetRegistry.h"
@@ -1277,6 +1278,7 @@ int runTerrainCommand(const std::vector<std::string> &args, std::ostream &out,
   if (args.size() < 2) {
     error << "Usage: demi terrain inspect <recipe.json> "
              "[--format text|json]\n"
+             "       demi terrain compact <recipe-or-terrain.json> [--write]\n"
              "       demi terrain explain <recipe.json> --at <x>,<z> "
              "[--format text|json]\n"
              "       demi terrain seeds <seed> [--format text|json]\n"
@@ -1288,6 +1290,8 @@ int runTerrainCommand(const std::vector<std::string> &args, std::ostream &out,
     return ExitUsageError;
   }
   const std::string &subcommand = args[1];
+  if (subcommand == "compact")
+    return runTerrainCompactCommand(args, out, error);
   if (subcommand == "inspect")
     return runInspect(args, out, error);
   if (subcommand == "explain")

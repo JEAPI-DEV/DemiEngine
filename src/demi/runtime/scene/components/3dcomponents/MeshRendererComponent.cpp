@@ -3,10 +3,45 @@
 #include "demi/runtime/scene/model/Entity.h"
 #include <algorithm>
 #include <atomic>
+#include <cmath>
+#include <stdexcept>
 namespace demi::runtime {
+namespace {
+std::optional<float> normalizedOverride(const nlohmann::json &json,
+                                        const char *name) {
+  const auto found = json.find(name);
+  if (found == json.end())
+    return std::nullopt;
+  if (!found->is_number())
+    throw std::invalid_argument(std::string("MeshRenderer.") + name +
+                                " must be a number from 0 to 1");
+  const float value = found->get<float>();
+  if (!std::isfinite(value) || value < 0.0F || value > 1.0F)
+    throw std::invalid_argument(std::string("MeshRenderer.") + name +
+                                " must be finite and between 0 and 1");
+  return value;
+}
+} // namespace
+
 bool MeshRendererComponent::serializeField(
     const MeshRendererComponent &component, std::string_view field,
     nlohmann::json &out) {
+  if (field == "metallic" && component.metallic) {
+    out = *component.metallic;
+    return true;
+  }
+  if (field == "roughness" && component.roughness) {
+    out = *component.roughness;
+    return true;
+  }
+  if (field == "opacity" && component.opacity) {
+    out = *component.opacity;
+    return true;
+  }
+  if (field == "surface_mode" && component.surfaceMode) {
+    out = *component.surfaceMode;
+    return true;
+  }
   if (field != "material_properties")
     return false;
   out = nlohmann::json::object();
@@ -65,6 +100,17 @@ void MeshRendererComponent::parse(const nlohmann::json &json, Entity &entity) {
     component.color = *value;
   component.texture = scene_loading::stringOr(json, "texture");
   component.material = scene_loading::stringOr(json, "material");
+  component.metallic = normalizedOverride(json, "metallic");
+  component.roughness = normalizedOverride(json, "roughness");
+  component.opacity = normalizedOverride(json, "opacity");
+  if (const auto found = json.find("surface_mode"); found != json.end()) {
+    if (!found->is_string())
+      throw std::invalid_argument("MeshRenderer.surface_mode must be opaque, transparent, or additive");
+    const std::string mode = found->get<std::string>();
+    if (std::ranges::find(surfaceModes, mode) == surfaceModes.end())
+      throw std::invalid_argument("MeshRenderer.surface_mode must be opaque, transparent, or additive");
+    component.surfaceMode = mode;
+  }
   component.renderLayer = scene_loading::stringOr(json, "render_layer");
   if (const auto *properties =
           scene_loading::objectField(json, "material_properties")) {

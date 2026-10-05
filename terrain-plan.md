@@ -8,6 +8,17 @@ Evidence is recorded in [docs/terrain-qualification.md](docs/terrain-qualificati
 
 ## In-scene authoring and graph settings
 
+- [x] Store shared brush parameters with ordered points instead of repeating
+  every field per stamp. Compact existing recipe data without changing native
+  operation order, strength, layers or protection snapshots. New viewport
+  authoring, the graph's compaction action and the CLI use the shared codec.
+- [x] Limit full sculpt replay to conservative brush sample bounds, using the
+  same coordinate conversion as incremental edits. Qualify exact equality
+  against full-grid replay; retain regeneration and editable layers.
+- [ ] Add editable raster/tile authoring for extensive sculpted layers where
+  point-based history is no longer the useful source representation. Do not
+  silently replace procedural replay semantics with baked absolute heights.
+
 - [x] Cursor-anchored wheel zoom, logical node coordinates independent of view
   scale, and collapsible floating recipe settings without a reserved column.
 - [x] Expand the graph example into a branched landscape with drainage-fed
@@ -422,9 +433,11 @@ that consumes a palette at generation time, and the drainage condition.
   silently; use developer-selected assets or explicitly installed licensed packs.
 
   Half of this is done. A palette's `asset://` and `prefab://` references are
-  collected by `TerrainPalette::assetDependencies`, and `validateDataAssets`
-  fails a palette whose manifest omits one with `DATA_DEPENDENCY_UNDECLARED`, so
-  cook and package export include the referenced art. Missing roles, map
+  retained by `TerrainPalette`. Typed import/reimport derives asset references
+  into manifest dependencies, while prefab references remain in the native
+  source-level prefab traversal rather than masquerading as asset IDs.
+  Schema-declared references also receive `DATA_DEPENDENCY_UNDECLARED` checks.
+  Missing roles, map
   compatibility and licence validation are not implemented, and the example
   palette deliberately points at placeholder material assets. All four example
   presets declare their own dependencies and `demi validate` covers them, so the
@@ -490,6 +503,15 @@ blending that replaces discrete triangle groups, and the quality-driven
 residency, are not implemented. Note the naming: `MaterialAsset`
 already meant the render material in `RenderAsset.h`, so the terrain types are
 prefixed to avoid an ODR collision.
+
+- [x] Create and edit surface materials, material sets and scatter palettes
+  through the editor without hand-writing JSON. Reuse shared reference/color
+  controls and native validation, retain source formatting and Undo/Redo, and
+  reimport dependencies when saving. Ordinary renderer materials remain valid
+  material-set choices. Failed reimport keeps a retryable, recoverable pending
+  state rather than pretending the asset was imported successfully.
+  See [asset authoring qualification](docs/editor-asset-authoring-qualification.md).
+  This delivers authoring, not terrain PBR shading or visible water.
 
 - [ ] Assign materials automatically from palette roles and generated masks:
   rock on exposed/steep surfaces, sediment in deposition areas, appropriate

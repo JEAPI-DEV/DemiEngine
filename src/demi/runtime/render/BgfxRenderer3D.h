@@ -121,6 +121,8 @@ private:
   UniformHandle tintUniform_;
   UniformHandle alphaCutoffUniform_;
   UniformHandle debugModeUniform_;
+  UniformHandle viewPositionUniform_;
+  UniformHandle metalRoughUniform_;
   UniformHandle lightDirectionUniform_;
   UniformHandle lightColorUniform_;
   UniformHandle ambientColorUniform_;

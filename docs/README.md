@@ -10,6 +10,10 @@ This directory keeps material that has a different job:
 - [Shared authoring foundations](shared-authoring-foundations.md) describes
   reusable graph, history, palette and color responsibilities and their adapters.
 
+- [Typed asset authoring qualification](editor-asset-authoring-qualification.md)
+  records native creation/editing, reference dependencies, save retry/recovery
+  and the remaining terrain rendering boundary.
+
 - [Editor commands, clipboard and docking](editor-shortcut-qualification.md)
   records shortcut ownership, clipboard identity/remapping, independent panel
   identities, contextual palettes and scoped verification.

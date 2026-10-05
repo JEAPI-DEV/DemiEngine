@@ -4,6 +4,7 @@
 #include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
 #include "editor/EditorIsoGridCell.h"
 #include "editor/EditorIsoGridCellDocument.h"
+#include "editor/EditorPrefabPlacement.h"
 #include "editor/EditorScenePreview.h"
 #include "editor/EditorTerrainPicking.h"
 
@@ -758,11 +759,39 @@ bool EditorWorkspace::hasExplicitValue(SceneValueTarget target) const {
 }
 
 bool EditorWorkspace::createEntity(std::string &error,
-                                   std::optional<std::string> parent) {
+                                   std::optional<std::string> parent,
+                                   const EditorEntityKind kind,
+                                   std::optional<runtime::Vec3> worldPosition) {
+  if (kind != EditorEntityKind::Empty &&
+      viewDimension() != EditorSceneViewDimension::ThreeDimensional) {
+    error = "3D primitives require a 3D scene view.";
+    return false;
+  }
+  if (project_ && viewDimension() == EditorSceneViewDimension::ThreeDimensional &&
+      !worldPosition) {
+    worldPosition = sceneDropWorldPosition3D(
+        sceneView_.camera(), project_->world, {0.5F, 0.5F}, {1.0F, 1.0F});
+  }
+  if (worldPosition && kind != EditorEntityKind::Empty &&
+      kind != EditorEntityKind::Plane)
+    worldPosition->y += 0.5F;
+  if (worldPosition && parent && project_) {
+    const runtime::Entity *parentEntity =
+        runtime::findEntity(project_->world, *parent);
+    const auto transform = parentEntity
+        ? runtime::resolveWorldTransform3D(project_->world, *parentEntity)
+        : std::nullopt;
+    if (!transform) {
+      error = "The parent has no resolvable 3D transform.";
+      return false;
+    }
+    worldPosition = runtime::inverseTransformPoint3D(*transform, *worldPosition);
+  }
   if (!mutateAndRebuild(
-          [parent = std::move(parent)](EditorSceneDocument &document,
-                                       std::string &mutationError) mutable {
-            return document.createEntity(mutationError, std::move(parent));
+          [parent = std::move(parent), kind, worldPosition](
+              EditorSceneDocument &document, std::string &mutationError) mutable {
+            return document.createEntity(mutationError, std::move(parent),
+                                         kind, worldPosition);
           },
           error))
     return false;

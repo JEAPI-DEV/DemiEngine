@@ -17,6 +17,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <iterator>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -94,6 +95,7 @@ struct HierarchyAction {
   std::optional<std::string> parentId;
   std::optional<EditorIsoGridCell> gridCell;
   std::filesystem::path prefabSource;
+  EditorEntityKind entityKind = EditorEntityKind::Empty;
 };
 
 void acceptEntityDrop(std::optional<HierarchyAction> &pending,
@@ -135,7 +137,7 @@ bool applyHierarchyAction(EditorWorkspace &workspace,
     notice = succeeded ? "Prefab instance added" : error;
     break;
   case HierarchyAction::Kind::Create:
-    succeeded = workspace.createEntity(error, action.parentId);
+    succeeded = workspace.createEntity(error, action.parentId, action.entityKind);
     notice = succeeded ? "Entity created" : error;
     break;
   case HierarchyAction::Kind::ToggleVisibility: {
@@ -519,7 +521,8 @@ void EditorHierarchyPanel::draw(EditorWorkspace &workspace,
                            filter_.data(), filter_.size());
   ImGui::Spacing();
   if (!hudOnly) {
-    if (editorIconButton("add-entity", EditorIcon::Add, "Add entity"))
+    if (editorIconButton("add-entity", EditorIcon::Add,
+                         "Create empty entity (no visible mesh)"))
       pending = HierarchyAction{.kind = HierarchyAction::Kind::Create};
     ImGui::SameLine();
     if (editorIconButton("add-preset", EditorIcon::Prefab,
@@ -529,8 +532,8 @@ void EditorHierarchyPanel::draw(EditorWorkspace &workspace,
       ImGui::TextDisabled("Entity preset");
       ImGui::Separator();
       constexpr std::pair<const char *, const char *> presets[]{
-          {"3D Static Box", "static_box_3d"},
-          {"3D Trigger Sphere", "trigger_sphere_3d"},
+          {"Static box collision (3D)", "static_box_3d"},
+          {"Trigger sphere collision (3D)", "trigger_sphere_3d"},
           {"2D Sprite", "prop_2d"},
           {"3D Character", "character_3d"},
       };
@@ -543,6 +546,37 @@ void EditorHierarchyPanel::draw(EditorWorkspace &workspace,
                      : error;
       }
       ImGui::EndPopup();
+    }
+    if (workspace.viewDimension() == EditorSceneViewDimension::ThreeDimensional) {
+      ImGui::TextDisabled("Create 3D  |  click or drag into Viewport");
+      constexpr std::pair<const char *, EditorEntityKind> shapes[]{
+          {"Cube", EditorEntityKind::Cube},
+          {"Sphere", EditorEntityKind::Sphere},
+          {"Cylinder", EditorEntityKind::Cylinder},
+          {"Plane", EditorEntityKind::Plane},
+      };
+      const float buttonWidth =
+          std::max(1.0F, (ImGui::GetContentRegionAvail().x -
+                          ImGui::GetStyle().ItemSpacing.x) * 0.5F);
+      for (std::size_t index = 0; index < std::size(shapes); ++index) {
+        const auto [label, kind] = shapes[index];
+        if (index % 2 == 1)
+          ImGui::SameLine();
+        ImGui::PushID(label);
+        if (ImGui::Button(label, {buttonWidth, 34.0F}))
+          pending = HierarchyAction{.kind = HierarchyAction::Kind::Create,
+                                    .entityKind = kind};
+        if (ImGui::IsItemHovered())
+          ImGui::SetTooltip("Click to create at the view center, or drag to "
+                            "place on terrain. Press F to frame the selection.");
+        if (ImGui::BeginDragDropSource()) {
+          ImGui::SetDragDropPayload(EditorEntityCreationPayload, &kind,
+                                    sizeof(kind));
+          ImGui::Text("Place %s", label);
+          ImGui::EndDragDropSource();
+        }
+        ImGui::PopID();
+      }
     }
   }
   if (workspace.hudDocument()) {

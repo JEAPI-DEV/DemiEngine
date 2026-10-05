@@ -51,8 +51,7 @@ struct CameraBasis {
 };
 
 CameraBasis cameraBasis(const EditorSceneViewCamera &camera) {
-  const runtime::Vec3 forward =
-      normalized(camera.forward, {0.0F, 0.0F, 1.0F});
+  const runtime::Vec3 forward = normalized(camera.forward, {0.0F, 0.0F, 1.0F});
   // Bgfx uses a right-handed look-at matrix. Its view direction is the
   // inverse of the gameplay-facing forward vector, so screen-right is
   // forward x up (not up x forward).
@@ -93,8 +92,14 @@ Ray cameraRay(const EditorSceneViewCamera &camera, const runtime::Vec2 position,
               forward)};
 }
 
-std::optional<float> rayBox(const Ray &ray, const runtime::Vec3 minimum,
-                            const runtime::Vec3 maximum) {
+struct RayBoxInterval {
+  float entry;
+  float exit;
+};
+
+std::optional<RayBoxInterval> rayBox(const Ray &ray,
+                                     const runtime::Vec3 minimum,
+                                     const runtime::Vec3 maximum) {
   float nearDistance = 0.0F;
   float farDistance = std::numeric_limits<float>::max();
   const auto clip = [&](const float origin, const float direction,
@@ -113,7 +118,7 @@ std::optional<float> rayBox(const Ray &ray, const runtime::Vec3 minimum,
       !clip(ray.origin.y, ray.direction.y, minimum.y, maximum.y) ||
       !clip(ray.origin.z, ray.direction.z, minimum.z, maximum.z))
     return std::nullopt;
-  return nearDistance;
+  return RayBoxInterval{nearDistance, farDistance};
 }
 
 } // namespace
@@ -157,12 +162,25 @@ projectScenePoint3D(const EditorSceneViewCamera &camera,
                        (1.0F - ndcY) * height * 0.5F};
 }
 
-runtime::Vec2 projectSceneDirection3D(
-    const EditorSceneViewCamera &camera,
-    const runtime::Vec3 worldDirection) {
+runtime::Vec2 projectSceneDirection3D(const EditorSceneViewCamera &camera,
+                                      const runtime::Vec3 worldDirection) {
   const CameraBasis basis = cameraBasis(camera);
-  return {dot(worldDirection, basis.right),
-          -dot(worldDirection, basis.up)};
+  return {dot(worldDirection, basis.right), -dot(worldDirection, basis.up)};
+}
+
+float sceneWorldUnitsPerPixel(const EditorSceneViewCamera &camera,
+                              runtime::Vec3 worldPoint,
+                              runtime::Vec2 viewportSize) {
+  if (viewportSize.y <= 0)
+    return 0;
+  if (!camera.projection.perspective)
+    return std::max(camera.projection.orthographicSize, 0.01F) / viewportSize.y;
+  const float depth =
+      dot(subtract(worldPoint, camera.position), cameraBasis(camera).forward);
+  constexpr float DegreesToRadians = 0.01745329251994329577F;
+  const float halfFov =
+      std::clamp(camera.projection.fov, 1.0F, 179.0F) * DegreesToRadians * 0.5F;
+  return 2.0F * std::max(depth, 0.0F) * std::tan(halfFov) / viewportSize.y;
 }
 
 std::optional<runtime::Vec3>
@@ -184,7 +202,14 @@ std::optional<std::string> pickSceneEntity3D(
     const runtime::World &world, const EditorSceneViewCamera &camera,
     const runtime::Vec2 viewportPosition, const runtime::Vec2 viewportSize) {
   const Ray ray = sceneViewportRay(camera, viewportPosition, viewportSize);
-  float nearestDistance = std::max(camera.projection.farClip, 0.0F);
+  const float viewDepthPerUnit =
+      dot(ray.direction, cameraBasis(camera).forward);
+  if (viewDepthPerUnit <= 0)
+    return std::nullopt;
+  const float nearDistance =
+      std::max(camera.projection.nearClip, 0.0F) / viewDepthPerUnit;
+  float nearestDistance =
+      std::max(camera.projection.farClip, 0.0F) / viewDepthPerUnit;
   std::optional<std::string> nearest;
 
   for (const runtime::Entity &entity : world.entities) {
@@ -194,14 +219,21 @@ std::optional<std::string> pickSceneEntity3D(
     if (!bounds)
       continue;
     const auto considerTransform = [&](const runtime::WorldTransform3D &pose) {
+      // Camera/light/empty markers behind the near plane are not drawn. Their
+      // proxy bounds must not steal clicks while the camera is inside them.
+      if (!bounds->isSceneGeometry &&
+          !projectScenePoint3D(camera, pose.position, viewportSize))
+        return;
       const Ray local{
           .origin = runtime::inverseTransformPoint3D(pose, ray.origin),
           .direction = runtime::inverseTransformVector3D(pose, ray.direction)};
-      const auto distance =
+      const auto interval =
           rayBox(local, bounds->local.minimum, bounds->local.maximum);
-      if (distance && *distance > camera.projection.nearClip &&
-          *distance < nearestDistance) {
-        nearestDistance = *distance;
+      if (!interval || interval->exit < nearDistance)
+        return;
+      const float distance = std::max(interval->entry, nearDistance);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
         const auto terrainOwner = runtime::terrainSurfaceOwner(entity);
         nearest = terrainOwner ? std::string(*terrainOwner) : entity.id;
       }

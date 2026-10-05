@@ -52,6 +52,12 @@ void drawMenu(EditorWorkspace &workspace, EditorDocumentSessions &documents,
               std::pair{"3D entity prefab...", EditorSourceKind::Prefab},
               std::pair{"UI prefab...", EditorSourceKind::UiPrefab},
               std::pair{"Terrain asset...", EditorSourceKind::Terrain},
+              std::pair{"Terrain surface material...",
+                        EditorSourceKind::TerrainMaterial},
+              std::pair{"Terrain material set...",
+                        EditorSourceKind::TerrainMaterialSet},
+              std::pair{"Terrain asset palette...",
+                        EditorSourceKind::TerrainPalette},
               std::pair{"Lua behaviour...", EditorSourceKind::Lua}}) {
           if (ImGui::MenuItem(label)) {
             dockingWorkspace.visibility().assets = true;

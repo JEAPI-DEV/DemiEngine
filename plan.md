@@ -31,9 +31,26 @@ automated docking input from interactive desktop and Android qualification.
 Editable terrain assets, persistent generated previews and cooked-only terrain
 loading are implemented. Generation configuration is in the Terrain Graph;
 shared terrain assets can be edited from scene placements, with viewport brush
-tools on the Terrain component. Next: material/asset palettes, rendered water,
-vegetation and landscape quality qualification.
+tools on the Terrain component. Terrain surface materials, material sets and
+scatter palettes now have native creation dialogs and typed asset controls,
+shared reference picking, Undo/Redo and validated dependency-aware reimport.
+See [asset authoring qualification](docs/editor-asset-authoring-qualification.md).
+Next: connect surface materials to terrain rendering, blended shading, rendered
+water, vegetation and landscape quality qualification.
 The expanded visual-quality and performance milestones remain planned.
+
+Brush source now groups shared settings with ordered points, and full sculpt
+replay is bounded to each brush footprint. Existing source can be compacted
+through the graph or CLI without changing native operations. Viewport object
+clicks and captured transform drags have scoped 2D/3D regressions; see
+[terrain qualification](docs/terrain-qualification.md).
+
+Scene authoring now distinguishes empty entities, visible 3D primitives and
+physics-only presets. Creation cards and prefab drops place against enabled
+generated terrain; move/scale sensitivity follows the projected gizmo rather
+than a fixed world-unit rate. Independent props remain independent of later
+terrain regeneration. See the editor authoring guide for pivot and collider
+semantics.
 
 Deferred feature plan: [neural networks](neural-networks.plan). Python training,
 native inference and later NPC training tooling; resume only on user request.

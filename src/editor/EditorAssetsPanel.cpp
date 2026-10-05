@@ -351,6 +351,9 @@ void EditorAssetsPanel::draw(EditorWorkspace &workspace, const ImVec2 position,
              {"Lua Script...", EditorSourceKind::Lua},
              {"Material...", EditorSourceKind::Material},
              {"Terrain...", EditorSourceKind::Terrain},
+             {"Terrain Material...", EditorSourceKind::TerrainMaterial},
+             {"Terrain Material Set...", EditorSourceKind::TerrainMaterialSet},
+             {"Terrain Palette...", EditorSourceKind::TerrainPalette},
              {"Data Asset...", EditorSourceKind::Data}})
       if (ImGui::MenuItem(name))
         dialogs_.openNewSource(kind);

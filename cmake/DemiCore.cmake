@@ -6,6 +6,8 @@ add_library(demi-core STATIC
   src/demi/runtime/terrain/TerrainGraphExecutor.cpp
   src/demi/runtime/terrain/TerrainGraphNodeEvaluation.cpp
   src/demi/runtime/terrain/TerrainRecipe.cpp
+  src/demi/runtime/terrain/TerrainBrushStroke.cpp
+  src/demi/runtime/terrain/TerrainBrushBounds.cpp
   src/demi/runtime/terrain/TerrainSeed.cpp
   src/demi/runtime/terrain/TerrainBiomeRules.cpp
   src/demi/runtime/terrain/TerrainGenerator.cpp
@@ -49,6 +51,7 @@ add_library(demi-core STATIC
   src/demi/assets/FontAssetSettings.cpp
   src/demi/assets/AssetHash.cpp
   src/demi/assets/DataAsset.cpp
+  src/demi/assets/DataAssetContent.cpp
   src/demi/assets/DataDocument.cpp
   src/demi/assets/YamlDataDocument.cpp
   src/demi/assets/ColliderAssetGenerator.cpp

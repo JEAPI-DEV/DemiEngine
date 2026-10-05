@@ -1,4 +1,5 @@
 #include "editor/EditorSpecializedPanel.h"
+#include "editor/EditorDataAssetControls.h"
 
 #include "editor/EditorColorControl.h"
 #include "editor/EditorJsonInspector.h"
@@ -145,10 +146,10 @@ void drawMaterialControls(EditorSpecializedDocument &editor,
     std::array<float, 4> edited{
         (*color)[0].get<float>(), (*color)[1].get<float>(),
         (*color)[2].get<float>(), (*color)[3].get<float>()};
-    if (drawEditorColorControl("Base color", edited.data(),
-                               {.flags = ImGuiColorEditFlags_AlphaBar |
-                                         ImGuiColorEditFlags_Float,
-                                .showPrecision = true})) {
+    if (drawEditorColorControl(
+            "Base color", edited.data(),
+            {.flags = ImGuiColorEditFlags_AlphaBar | ImGuiColorEditFlags_Float,
+             .showPrecision = true})) {
       std::string error;
       notice = document.set("/parameters/base_color", edited, error)
                    ? "Material color modified"
@@ -249,10 +250,23 @@ void drawDataPreview(const EditorJsonDocument &document) {
 bool EditorSpecializedPanel::open(const std::filesystem::path &source,
                                   const EditorAssetIndex &assets,
                                   std::string &error) {
+  if (isDirty()) {
+    const auto path = std::filesystem::absolute(source).lexically_normal();
+    if (path == std::filesystem::absolute(active_->document().path())
+                    .lexically_normal() ||
+        (active_->associatedManifest() &&
+         path == std::filesystem::absolute(*active_->associatedManifest())
+                     .lexically_normal()))
+      return true;
+    error = "Save or undo this document and finish pending asset import before "
+            "opening another asset.";
+    return false;
+  }
   EditorSpecializedDocument document;
   if (!document.open(source, assets, error))
     return false;
   active_ = std::move(document);
+  assetReimportPending_ = false;
   selectedPointer_.clear();
   editBuffer_.fill('\0');
   editBufferPointer_.clear();
@@ -270,13 +284,22 @@ EditorSpecializedPanel::recoveryDocument() const {
 
 bool EditorSpecializedPanel::saveActive(EditorWorkspace &workspace,
                                         std::string &error) {
-  if (!active_ || !active_->document().isDirty())
+  if (!active_)
     return true;
-  if (!active_->document().save(error))
-    return false;
-  if (active_->associatedManifest() &&
-      !workspace.reimportAsset(*active_->associatedManifest(), error))
-    return false;
+  if (active_->document().isDirty()) {
+    if (!active_->document().save(error))
+      return false;
+    assetReimportPending_ = active_->associatedManifest().has_value();
+  }
+  if (assetReimportPending_) {
+    if (!workspace.reimportAsset(*active_->associatedManifest(), error)) {
+      error = "Source saved, but asset reimport failed. Fix the issue and "
+              "retry Save: " +
+              error;
+      return false;
+    }
+    assetReimportPending_ = false;
+  }
   workspace.refreshAssetMetadata();
   return true;
 }
@@ -291,6 +314,7 @@ bool EditorSpecializedPanel::restore(const EditorRecoveryDocument &recovery,
     return false;
   }
   active_->rebuildPreview();
+  assetReimportPending_ = active_->associatedManifest().has_value();
   return true;
 }
 
@@ -319,10 +343,11 @@ void EditorSpecializedPanel::draw(EditorWorkspace &workspace,
   const float toolbarLeft =
       rowStartX + std::max(rowWidth - toolbarWidth, ImGui::GetTextLineHeight());
   const float titleWidth = ImGui::CalcTextSize(active_->title().data()).x;
+  const char *badge = assetReimportPending_ && !document.isDirty()
+                          ? "Import pending"
+                          : "Modified";
   const float badgeWidth =
-      document.isDirty()
-          ? ImGui::CalcTextSize("Modified").x + style.ItemSpacing.x
-          : 0.0F;
+      isDirty() ? ImGui::CalcTextSize(badge).x + style.ItemSpacing.x : 0.0F;
   const float pathLeft = rowStartX + titleWidth + style.ItemSpacing.x;
   const float pathRight = toolbarLeft - badgeWidth - style.ItemSpacing.x;
 
@@ -338,9 +363,9 @@ void EditorSpecializedPanel::draw(EditorWorkspace &workspace,
   ImGui::PopClipRect();
   if (ImGui::IsItemHovered())
     ImGui::SetTooltip("%s", documentPath.c_str());
-  if (document.isDirty()) {
+  if (isDirty()) {
     ImGui::SameLine(toolbarLeft - badgeWidth);
-    ImGui::TextColored({0.95F, 0.67F, 0.28F, 1.0F}, "Modified");
+    ImGui::TextColored({0.95F, 0.67F, 0.28F, 1.0F}, "%s", badge);
   }
   ImGui::SameLine(toolbarLeft);
   ImGui::BeginDisabled(!document.canUndo());
@@ -367,24 +392,16 @@ void EditorSpecializedPanel::draw(EditorWorkspace &workspace,
   }
   ImGui::EndDisabled();
   ImGui::SameLine();
-  ImGui::BeginDisabled(!document.isDirty());
+  ImGui::BeginDisabled(!isDirty());
   if (ImGui::Button("Save")) {
     std::string error;
-    if (document.save(error)) {
-      if (active_->associatedManifest() &&
-          !workspace.reimportAsset(*active_->associatedManifest(), error))
-        notice = error;
-      else {
-        workspace.refreshAssetMetadata();
-        notice = "Specialized document saved";
-      }
-    } else
-      notice = error;
+    notice =
+        saveActive(workspace, error) ? "Specialized document saved" : error;
   }
   ImGui::EndDisabled();
   ImGui::SameLine();
   if (ImGui::Button("Close")) {
-    if (document.isDirty())
+    if (isDirty())
       notice = "Save or undo specialized document changes before closing.";
     else {
       active_.reset();
@@ -395,7 +412,9 @@ void EditorSpecializedPanel::draw(EditorWorkspace &workspace,
   ImGui::Separator();
 
   if (ImGui::BeginTabBar("specialized-tabs")) {
-    if (ImGui::BeginTabItem("Preview")) {
+    if (ImGui::BeginTabItem(active_->kind() == EditorSpecializedKind::Data
+                                ? "Editor"
+                                : "Preview")) {
       active_->rebuildPreview();
       if (active_->kind() == EditorSpecializedKind::Prefab)
         drawPrefabPreview(*active_, notice);
@@ -405,9 +424,11 @@ void EditorSpecializedPanel::draw(EditorWorkspace &workspace,
       } else if (active_->kind() == EditorSpecializedKind::Animation) {
         drawAnimationControls(*active_, notice);
         drawAnimationPreview(*active_);
-      } else if (active_->kind() == EditorSpecializedKind::Data)
-        drawDataPreview(document);
-      else if (active_->kind() == EditorSpecializedKind::Audio) {
+      } else if (active_->kind() == EditorSpecializedKind::Data) {
+        if (!drawEditorDataAssetControls(workspace, document,
+                                         active_->dataContentType(), notice))
+          drawDataPreview(document);
+      } else if (active_->kind() == EditorSpecializedKind::Audio) {
         drawAudioControls(*active_, notice);
         ImGui::Text("Source: %s", document.json().value("source", "").c_str());
         ImGui::TextDisabled(

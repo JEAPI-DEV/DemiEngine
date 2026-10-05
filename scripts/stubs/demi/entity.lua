@@ -2,6 +2,19 @@
 -- Native module: require("demi.entity"). Annotations only.
 ---@class EntityService
 local Entity = {}
+---@alias MeshSurfaceMode "opaque"|"transparent"|"additive"
+---@class MeshRendererConfig
+---@field model? string
+---@field shape? "cube"|"sphere"|"cylinder"|"plane"
+---@field size? Vec3
+---@field color? number[] RGBA tint; alpha multiplies resolved surface opacity.
+---@field texture? string
+---@field material? string Material asset URI.
+---@field metallic? number 0..1 override; omitted inherits material or 0.
+---@field roughness? number 0..1 override; omitted inherits material or 0.8.
+---@field opacity? number 0..1 override; omitted inherits material or 1.
+---@field surface_mode? MeshSurfaceMode Omitted inherits material blend or opaque. Lower opacity alone does not enable blending.
+---@field material_properties? table Custom shader parameter overrides.
 ---@class EntityQuery
 ---@field all? string[]
 ---@field tags? string[]

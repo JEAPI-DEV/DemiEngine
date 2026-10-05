@@ -4,8 +4,12 @@
 #include "editor/EditorInspectorPanel.h"
 #include "editor/EditorModuleCatalog.h"
 #include "editor/EditorModulesPanel.h"
+#include "editor/EditorPrefabPlacement.h"
 #include "editor/EditorViewportPanel.h"
 #include "editor/EditorWorkspace.h"
+#include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/Transform3DComponent.h"
+#include "demi/runtime/terrain/TerrainGenerator.h"
 
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -18,6 +22,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -222,6 +227,109 @@ void checkViewportPrefabDrop(EditorWorkspace &workspace,
           "Viewport prefab drop inserted more than one undo command");
 }
 
+void checkViewportPrimitiveDrop(EditorWorkspace &workspace) {
+  EditorViewportArea area;
+  EditorHudViewportState hudState;
+  std::string notice;
+  const auto drawViewport = [&] {
+    demi::editor::drawEditorViewport(workspace, {0, 0}, {900, 700},
+                                     UINT16_MAX, area, hudState, false, notice);
+  };
+  renderFrame(drawViewport);
+  const ImVec2 drop{static_cast<float>(area.x) + area.width * 0.6F,
+                    static_cast<float>(area.y) + area.height * 0.65F};
+  const auto before = workspace.sceneDocument().json();
+  const auto kind = demi::editor::EditorEntityKind::Cube;
+  for (const bool mouseDown : {true, false}) {
+    ImGuiIO &io = ImGui::GetIO();
+    io.AddMousePosEvent(drop.x, drop.y);
+    io.AddMouseButtonEvent(ImGuiMouseButton_Left, mouseDown);
+    ImGui::NewFrame();
+    require(ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceExtern |
+                                       ImGuiDragDropFlags_SourceNoPreviewTooltip),
+            "Could not begin primitive drag source");
+    ImGui::SetDragDropPayload(demi::editor::EditorEntityCreationPayload,
+                              &kind, sizeof(kind));
+    ImGui::EndDragDropSource();
+    drawViewport();
+    ImGui::Render();
+  }
+  require(notice == "3D primitive placed",
+          "Primitive drag did not deliver: " + notice);
+  const auto *created = workspace.sceneDocument().entity("cube");
+  require(created && created->at("components").contains("MeshRenderer") &&
+              created->at("components").contains("BoxCollider3D"),
+          "Primitive drop did not author a visible cube and collider");
+  require(created->at("components").at("Transform3D").contains("position"),
+          "Primitive drop did not author its scene position");
+  std::string error;
+  require(workspace.undo(error) && workspace.sceneDocument().json() == before,
+          "One undo did not remove the whole primitive drop: " + error);
+  require(!workspace.sceneDocument().canUndo(),
+          "Primitive drop inserted more than one undo command");
+}
+
+void checkElevatedTerrainPlacement(const fs::path &prefabPath) {
+  demi::runtime::World world;
+  auto field = std::make_shared<demi::runtime::HeightField>();
+  field->size = {10, 10};
+  field->cellsX = field->cellsZ = 1;
+  field->heights = {2, 2, 2, 2};
+  demi::runtime::Entity terrain;
+  terrain.id = "raised-ground";
+  terrain.setComponent(demi::runtime::Transform3DComponent{
+      .position = {0, 3, 0}});
+  demi::runtime::Terrain3DComponent component;
+  component.generated = field;
+  terrain.setComponent(component);
+  world.entities.push_back(std::move(terrain));
+  demi::editor::EditorSceneViewCamera camera;
+  camera.position = {5, 10, 5};
+  camera.forward = {0, -1, 0};
+  camera.up = {0, 0, 1};
+  const auto hit = demi::editor::sceneDropWorldPosition3D(
+      camera, world, {400, 300}, {800, 600});
+  require(std::abs(hit.y - 5) < 0.001F && std::abs(hit.x - 5) < 0.001F &&
+              std::abs(hit.z - 5) < 0.001F,
+          "Drop did not hit the elevated generated terrain surface");
+  world.entities.front().enabled = false;
+  const auto withoutTerrain = demi::editor::sceneDropWorldPosition3D(
+      camera, world, {400, 300}, {800, 600});
+  require(std::abs(withoutTerrain.y) < 0.001F,
+          "Disabled terrain owner was still used for placement");
+  std::string error;
+  const auto overrides =
+      demi::editor::prefabPlacementOverrides(prefabPath, hit, error);
+  require(overrides.has_value(), error);
+  require(overrides->at("body").at("components").at("Transform3D")
+              .at("position")[1] == 6,
+          "Prefab drop lost its source height over elevated terrain");
+}
+
+void checkParentedPlacement(EditorWorkspace &workspace) {
+  std::string error;
+  const auto before = workspace.sceneDocument().json();
+  require(workspace.editValue({.entityId = "player", .component = "Transform3D",
+                               .field = "position"},
+                              {10, 3, 0}, false, error),
+          error);
+  const auto withParentMoved = workspace.sceneDocument().json();
+  require(workspace.createEntity(error, "player",
+                                 demi::editor::EditorEntityKind::Cube,
+                                 demi::runtime::Vec3{12, 6, 4}),
+          error);
+  const auto *child =
+      workspace.sceneDocument().entity(workspace.selectedEntityId());
+  require(child && child->at("components").at("Transform3D")
+                       .at("position") == json({2, 3.5, 4}),
+          "Parented placement did not convert world position to local offset");
+  require(workspace.undo(error) &&
+              workspace.sceneDocument().json() == withParentMoved,
+          "One undo did not remove the parented primitive: " + error);
+  require(workspace.undo(error) && workspace.sceneDocument().json() == before,
+          "Parent transform was not restored after placement test: " + error);
+}
+
 void checkHudModuleDrop(EditorWorkspace &workspace, const fs::path &hudPath) {
   std::string error;
   require(workspace.openHudDocument(hudPath, error), error);
@@ -381,8 +489,11 @@ int main() {
             "Fresh fixture unexpectedly has undo history");
 
     initializeImGui();
+    checkElevatedTerrainPlacement(dropPrefab);
     checkAssetsBackgroundDrop(workspace, root);
     checkViewportPrefabDrop(workspace, dropPrefab);
+    checkViewportPrimitiveDrop(workspace);
+    checkParentedPlacement(workspace);
     workspace.selectEntity("player");
     checkInspectorTabs(workspace, "scene");
     checkHudModuleDrop(workspace, hud);

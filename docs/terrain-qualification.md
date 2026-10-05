@@ -743,3 +743,57 @@ requires an explicit keep/clear decision; protected grids cannot be silently
 remapped. Independently authored scene objects are not automatically moved to
 follow regenerated land. Terrain-scattered placements are reconciled against the
 edited surface; existing instances keep their identity and live state when moved.
+
+## Compact strokes and bounded full replay
+
+The shared `TerrainBrushStroke` codec stores adjacent equal brush settings once
+with ordered `points`. Single radial operations keep `center`; protection
+snapshots remain separate. Expansion preserves every stamp and native replay
+order, including repeated points and overlap strength. Runtime parsing expands
+these source groups into the existing native stamp values; native stamp memory
+and very long editing histories are not eliminated by this representation.
+Editable raster/tile layers remain a separate authoring follow-up.
+
+The editor appends points without rescanning earlier points and resolves layer
+metadata once per pointer stroke, rather than parsing the entire growing recipe
+at every stamp. The graph's compaction action changes its draft; Generate/Save
+apply it through normal history. `demi terrain compact <source> [--write]` accepts
+a recipe or terrain asset source, defaults to preview only, verifies native
+operation equality and uses the source-preserving atomic writer. Reimport the
+registered manifest after CLI writes.
+
+`TerrainBrushBounds` owns conservative sample conversion for full and local
+replay. Full sculpt regeneration visits each brush footprint, not the whole
+heightfield per stamp. Snapshot smoothing, protection, cancellation and progress
+retain their contract. A reference test compares mixed ordered edits against
+the original full-grid algorithm, including borders, fractional centers and
+off-grid brushes.
+
+Measured workload: the edited `terrain_graph_3d` landscape, 2000×2000 world units,
+500×500 cells, 251001 samples, 2285 sculpt stamps and 474 paint stamps. Compaction
+changes 729118 source bytes / 32654 lines to 248600 bytes / 11636 lines, using
+nine sculpt groups and two paint groups. All generation settings and points are
+retained. The original source and manifest have temporary recovery copies under
+`/tmp/demi-landscape-original-01a10dba.json` and
+`/tmp/demi-landscape-manifest-original-01a10dba.json`; these are not durable backups.
+
+Release CLI probe, run sequentially without builds or tests in parallel:
+
+```sh
+TIMEFORMAT='elapsed_s=%R'
+time ./build/linux-release/demi terrain explain \
+  <(jq '.recipe' examples/terrain_graph_3d/assets/terrain/landscape.terrain.json) \
+  --at 1040,985 --format json
+```
+
+Before bounded replay: 16.206 seconds. After: 4.400 seconds. The probe's complete
+JSON output is byte-identical. These are single desktop wall-time samples, not
+medians, isolated surface-stage timings or GPU/frame-time measurements.
+
+Ten focused release tests pass: terrain generator/layers/update/locality/CLI,
+editor terrain authoring/workspace/history and viewport/2D scene interaction.
+The edited graph example and `terrain_3d` validate without diagnostics. Viewport
+regressions cover first-click selection before dock keyboard focus and exclusive
+translate/rotate/scale drag ownership across other objects, release, cancellation
+and focus loss. These model-level interaction tests do not replace manual
+desktop pointer qualification.

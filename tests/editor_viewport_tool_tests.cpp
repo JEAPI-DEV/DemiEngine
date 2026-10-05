@@ -1,12 +1,13 @@
-#include "editor/EditorViewportProjection.h"
-#include "editor/EditorPrefabPlacement.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshInstances3DComponent.h"
+#include "editor/EditorPrefabPlacement.h"
+#include "editor/EditorViewportProjection.h"
 #include "editor/EditorViewportTool.h"
 #include "editor/EditorWorkspace.h"
 
 #include "demi/runtime/scene/components/3dcomponents/Camera3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/Transform3DComponent.h"
+#include "demi/runtime/terrain/TerrainMeshBuilder.h"
 
 #include <cassert>
 #include <cmath>
@@ -50,10 +51,116 @@ demi::runtime::Vec2 direction(const demi::editor::EditorGizmoLine &line,
   return {x * pixels / magnitude, y * pixels / magnitude};
 }
 
+float dragAtDistance(float distance, float meshSize,
+                     demi::editor::EditorGizmoOperation operation,
+                     demi::editor::EditorProjection projection) {
+  using namespace demi;
+  runtime::World world;
+  auto camera = cameraEntity();
+  camera.component<runtime::Transform3DComponent>()->position.z = -distance;
+  world.entities.push_back(std::move(camera));
+  auto object = cube("cube", 0);
+  object.component<runtime::MeshRendererComponent>()->size = {
+      meshSize, meshSize, meshSize};
+  world.entities.push_back(std::move(object));
+  editor::EditorSceneViewState view;
+  view.reset(world);
+  assert(view.alignToFirstCamera(world));
+  view.setProjection(projection);
+  editor::EditorViewportTool tool;
+  tool.setOperation(operation);
+  const runtime::Vec2 viewport{800, 600};
+  const auto presentation = tool.presentation(world, "cube", view, viewport);
+  const auto axis =
+      std::ranges::find(presentation.axes, editor::EditorGizmoAxis::X,
+                        &editor::EditorGizmoLine::axis);
+  assert(axis != presentation.axes.end());
+  tool.update(world, "cube", view,
+              {.mousePosition = midpoint(*axis),
+               .viewportSize = viewport,
+               .hovered = true,
+               .focused = true,
+               .leftPressed = true,
+               .leftDown = true});
+  assert(tool.isDragging());
+  const auto action = tool.update(world, "cube", view,
+                                  {.mouseDelta = direction(*axis, 40),
+                                   .viewportSize = viewport,
+                                   .hovered = true,
+                                   .focused = true,
+                                   .leftDown = true,
+                                   .bypassSnapping = true});
+  assert(action.edit);
+  return action.edit->value[0].get<float>() -
+         (operation == editor::EditorGizmoOperation::Scale ? 1 : 0);
+}
 } // namespace
 
 int main() {
   using namespace demi;
+  for (const auto operation : {editor::EditorGizmoOperation::Translate,
+                               editor::EditorGizmoOperation::Scale}) {
+    const float near =
+        dragAtDistance(10, 1, operation, editor::EditorProjection::Perspective);
+    const float far = dragAtDistance(1000, 1, operation,
+                                     editor::EditorProjection::Perspective);
+    assert(std::abs(far / near - 100) < .01F);
+    const float orthoNear = dragAtDistance(
+        10, 1, operation, editor::EditorProjection::Orthographic);
+    const float orthoFar = dragAtDistance(
+        1000, 1, operation, editor::EditorProjection::Orthographic);
+    assert(std::abs(orthoFar - orthoNear) < .001F);
+  }
+  const float unitScale =
+      dragAtDistance(100, 1, editor::EditorGizmoOperation::Scale,
+                     editor::EditorProjection::Perspective);
+  const float largeScale =
+      dragAtDistance(100, 10, editor::EditorGizmoOperation::Scale,
+                     editor::EditorProjection::Perspective);
+  assert(std::abs(unitScale / largeScale - 10) < .01F);
+  {
+    runtime::World closeWorld;
+    closeWorld.entities.push_back(cameraEntity());
+    closeWorld.entities.push_back(cube("close-cube", 0));
+    editor::EditorSceneViewCamera closeCamera;
+    closeCamera.position = {0, 0, -.45F};
+    closeCamera.forward = {0, 0, 1};
+    closeCamera.projection.nearClip = .1F;
+    const runtime::Vec2 viewport{800, 600};
+    assert(editor::pickSceneEntity3D(closeWorld, closeCamera, {400, 300},
+                                     viewport) == "close-cube");
+    closeCamera.position.z = -.51F;
+    assert(editor::pickSceneEntity3D(closeWorld, closeCamera, {400, 300},
+                                     viewport) == "close-cube");
+    closeWorld.entities.back()
+        .component<runtime::MeshRendererComponent>()
+        ->size = {.02F, .02F, .02F};
+    closeWorld.entities.back()
+        .component<runtime::Transform3DComponent>()
+        ->position.z = -.48F;
+    assert(!editor::pickSceneEntity3D(closeWorld, closeCamera, {400, 300},
+                                      viewport));
+    closeCamera.position.z = -.45F;
+    closeWorld.entities.back() = cube("close-cube", 0);
+    closeWorld.entities.front()
+        .component<runtime::Transform3DComponent>()
+        ->position = closeCamera.position;
+    assert(editor::pickSceneEntity3D(closeWorld, closeCamera, {400, 300},
+                                     viewport) == "close-cube");
+    editor::EditorSceneViewState view;
+    view.reset(closeWorld);
+    assert(view.alignToFirstCamera(closeWorld));
+    editor::EditorViewportTool tool;
+    const auto handles =
+        tool.presentation(closeWorld, "close-cube", view, viewport);
+    const auto axis =
+        std::ranges::find(handles.axes, editor::EditorGizmoAxis::X,
+                          &editor::EditorGizmoLine::axis);
+    assert(axis != handles.axes.end());
+    assert(std::abs(std::hypot(axis->end.x - axis->start.x,
+                               axis->end.y - axis->start.y) -
+                    72) < .01F);
+  }
   runtime::World world;
   world.entities.push_back(cameraEntity());
   world.entities.push_back(cube("cube", 0.0F));
@@ -76,10 +183,13 @@ int main() {
     owner.setComponent(instances);
     instanceWorld.entities.push_back(owner);
     assert(editor::pickSceneEntity3D(instanceWorld, sceneView.camera(),
-                                     {400.0F, 300.0F}, viewport) == "instances");
-    instanceWorld.entities.front().component<runtime::MeshInstances3DComponent>()->transforms.clear();
+                                     {400.0F, 300.0F},
+                                     viewport) == "instances");
+    instanceWorld.entities.front()
+        .component<runtime::MeshInstances3DComponent>()
+        ->transforms.clear();
     assert(!editor::pickSceneEntity3D(instanceWorld, sceneView.camera(),
-                                     {400.0F, 300.0F}, viewport));
+                                      {400.0F, 300.0F}, viewport));
   }
 
   assert(editor::pickSceneEntity3D(world, sceneView.camera(), {400.0F, 300.0F},
@@ -88,11 +198,10 @@ int main() {
       sceneView.camera(), {3.0F, 0.0F, 0.0F}, viewport);
   assert(duplicateScreen.has_value());
   assert(duplicateScreen->x < 400.0F);
-  assert(editor::projectSceneDirection3D(sceneView.camera(),
-                                         {1.0F, 0.0F, 0.0F})
+  assert(editor::projectSceneDirection3D(sceneView.camera(), {1.0F, 0.0F, 0.0F})
              .x < 0.0F);
-  assert(editor::pickSceneEntity3D(world, sceneView.camera(),
-                                   *duplicateScreen, viewport) == "duplicate");
+  assert(editor::pickSceneEntity3D(world, sceneView.camera(), *duplicateScreen,
+                                   viewport) == "duplicate");
   std::erase_if(world.entities,
                 [](const auto &entity) { return entity.id == "cube"; });
   assert(!editor::pickSceneEntity3D(world, sceneView.camera(), {400.0F, 300.0F},
@@ -100,6 +209,90 @@ int main() {
   world.entities.push_back(cube("reloaded-cube", 0.0F));
   assert(editor::pickSceneEntity3D(world, sceneView.camera(), {400.0F, 300.0F},
                                    viewport) == "reloaded-cube");
+
+  // A generated surface selects its authored terrain placement.
+  {
+    runtime::World terrainWorld;
+    terrainWorld.entities.push_back(cube("terrain", 20.0F));
+    auto surface = cube("generated-chunk", 0.0F);
+    surface.setComponent(
+        runtime::terrain_detail::TerrainGeneratedSurface{.owner = "terrain"});
+    terrainWorld.entities.push_back(std::move(surface));
+    editor::EditorViewportTool selectionTool;
+    const auto picked = selectionTool.update(terrainWorld, "", sceneView,
+                                             {.mousePosition = {400.0F, 300.0F},
+                                              .viewportSize = viewport,
+                                              .hovered = true,
+                                              .leftPressed = true,
+                                              .leftDown = true});
+    assert(picked.selectionChanged && picked.selectedEntityId == "terrain");
+  }
+
+  // One press owns one gizmo target, even when the cursor crosses another
+  // selectable entity or leaves the viewport before release.
+  for (const auto operation : {editor::EditorGizmoOperation::Translate,
+                               editor::EditorGizmoOperation::Rotate,
+                               editor::EditorGizmoOperation::Scale}) {
+    editor::EditorViewportTool dragTool;
+    dragTool.setOperation(operation);
+    const auto lines =
+        dragTool.presentation(world, "reloaded-cube", sceneView, viewport);
+    const runtime::Vec2 start = midpoint(lines.axes.front());
+    const auto press = dragTool.update(world, "reloaded-cube", sceneView,
+                                       {.mousePosition = start,
+                                        .viewportSize = viewport,
+                                        .hovered = true,
+                                        .leftPressed = true,
+                                        .leftDown = true});
+    assert(dragTool.isDragging() && !press.selectionChanged);
+    const auto crossed =
+        dragTool.update(world, "reloaded-cube", sceneView,
+                        {.mousePosition = *duplicateScreen,
+                         .mouseDelta = direction(lines.axes.front(), 35.0F),
+                         .viewportSize = viewport,
+                         .hovered = true,
+                         .focused = true,
+                         .leftDown = true,
+                         .bypassSnapping = true});
+    assert(crossed.edit && crossed.edit->target.entityId == "reloaded-cube" &&
+           !crossed.selectionChanged);
+    const auto outside = dragTool.update(
+        world, "reloaded-cube", sceneView,
+        {.mousePosition = {viewport.x + 20.0F, viewport.y + 20.0F},
+         .mouseDelta = direction(lines.axes.front(), 10.0F),
+         .viewportSize = viewport,
+         .focused = true,
+         .leftDown = true,
+         .bypassSnapping = true});
+    assert(outside.edit && outside.edit->target.entityId == "reloaded-cube" &&
+           !outside.selectionChanged && dragTool.isDragging());
+    const auto released = dragTool.update(
+        world, "reloaded-cube", sceneView,
+        {.viewportSize = viewport, .focused = true, .leftReleased = true});
+    assert(released.completion == editor::EditorDragCompletion::Finish &&
+           !released.selectionChanged && !dragTool.isDragging());
+    const auto nextPress = dragTool.update(world, "reloaded-cube", sceneView,
+                                           {.mousePosition = *duplicateScreen,
+                                            .viewportSize = viewport,
+                                            .hovered = true,
+                                            .leftPressed = true,
+                                            .leftDown = true});
+    assert(nextPress.selectionChanged &&
+           nextPress.selectedEntityId == "duplicate");
+
+    const auto restart = dragTool.update(world, "reloaded-cube", sceneView,
+                                         {.mousePosition = start,
+                                          .viewportSize = viewport,
+                                          .hovered = true,
+                                          .leftPressed = true,
+                                          .leftDown = true});
+    assert(!restart.selectionChanged && dragTool.isDragging());
+    const auto cancelled = dragTool.update(
+        world, "reloaded-cube", sceneView,
+        {.viewportSize = viewport, .leftDown = true, .cancelPressed = true});
+    assert(cancelled.completion == editor::EditorDragCompletion::Cancel &&
+           !cancelled.selectionChanged && !dragTool.isDragging());
+  }
 
   editor::EditorViewportTool tool;
   const auto gizmo =
@@ -128,7 +321,12 @@ int main() {
   assert(action.edit.has_value());
   assert(action.edit->target.entityId == "reloaded-cube");
   assert(action.edit->target.field == "position");
-  assert(action.edit->value[0] == 1.0F);
+  const float xAxisPixels =
+      std::hypot(xAxis->end.x - xAxis->start.x, xAxis->end.y - xAxis->start.y);
+  const float translationPerPixel = xAxis->worldLength / xAxisPixels;
+  assert(action.edit->value[0] ==
+         std::round(120.0F * translationPerPixel / sceneView.translationSnap) *
+             sceneView.translationSnap);
   action = tool.update(
       world, "reloaded-cube", sceneView,
       {.viewportSize = viewport, .focused = true, .leftReleased = true});
@@ -152,7 +350,8 @@ int main() {
                         .leftDown = true,
                         .bypassSnapping = true});
   assert(action.edit.has_value());
-  assert(std::abs(action.edit->value.at(0).get<float>() - 0.37F) < 0.001F);
+  assert(std::abs(action.edit->value.at(0).get<float>() -
+                  37.0F * translationPerPixel) < 0.001F);
   action = tool.update(
       world, "reloaded-cube", sceneView,
       {.viewportSize = viewport, .focused = true, .leftReleased = true});
@@ -224,6 +423,11 @@ int main() {
                         .hovered = true,
                         .focused = false,
                         .leftDown = true});
+  assert(action.completion == editor::EditorDragCompletion::None &&
+         tool.isDragging());
+  action = tool.update(
+      world, "reloaded-cube", sceneView,
+      {.viewportSize = viewport, .focused = false, .leftDown = true});
   assert(action.completion == editor::EditorDragCompletion::Cancel);
 
   action = tool.update(world, "reloaded-cube", sceneView,

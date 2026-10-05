@@ -30,6 +30,12 @@ projectScenePoint3D(const EditorSceneViewCamera &camera,
 projectSceneDirection3D(const EditorSceneViewCamera &camera,
                         runtime::Vec3 worldDirection);
 
+// World-space length of a screen pixel at the point's view depth. Useful for
+// constant-screen-size editor handles without fixed world-distance floors.
+[[nodiscard]] float sceneWorldUnitsPerPixel(const EditorSceneViewCamera &camera,
+                                            runtime::Vec3 worldPoint,
+                                            runtime::Vec2 viewportSize);
+
 // Returns the cursor ray intersection with the 3D authoring ground plane
 // (Y = 0), or nullopt when the ray is parallel or points away from it.
 [[nodiscard]] std::optional<runtime::Vec3>

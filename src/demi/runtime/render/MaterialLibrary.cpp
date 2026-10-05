@@ -53,6 +53,7 @@ bool MaterialLibrary::load(const AssetRegistry &registry,
       continue;
     }
     MaterialBinding binding;
+    binding.unlit = descriptor->shader == "builtin://unlit";
     binding.uniformSet = nextUniformSet++;
     binding.state = {.blend = blendMode(descriptor->renderState.blend),
                      .depthTest = descriptor->renderState.depthTest
@@ -62,6 +63,17 @@ bool MaterialLibrary::load(const AssetRegistry &registry,
                      .topology = PrimitiveTopology::Triangles,
                      .writeDepth = descriptor->renderState.depthWrite};
     binding.alphaCutoff = descriptor->renderState.alphaCutoff;
+    const auto parameter = [&](std::string_view name, float fallback) {
+      const auto found = descriptor->numbers.find(std::string(name));
+      return found == descriptor->numbers.end() ? fallback : found->second;
+    };
+    binding.metallic = parameter("metallic", 0.0F);
+    binding.roughness = parameter("roughness", 0.8F);
+    binding.opacity = parameter("opacity", 1.0F);
+    if (const auto color = descriptor->colors.find("base_color");
+        color != descriptor->colors.end())
+      binding.baseColor = {color->second.r, color->second.g,
+                           color->second.b, color->second.a};
     if (const auto albedo = descriptor->textures.find("albedo");
         albedo != descriptor->textures.end())
       binding.albedoTexture = albedo->second;

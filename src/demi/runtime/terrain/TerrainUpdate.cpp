@@ -1,4 +1,5 @@
 #include "demi/runtime/terrain/TerrainUpdate.h"
+#include "demi/runtime/terrain/TerrainBrushBounds.h"
 #include "demi/runtime/terrain/TerrainGenerationCache.h"
 #include "demi/runtime/terrain/TerrainGraphExecutor.h"
 #include "demi/runtime/terrain/TerrainGraph.h"
@@ -70,24 +71,7 @@ TerrainRect intersect(TerrainRect a, TerrainRect b) {
           std::min(a.maxX, b.maxX), std::min(a.maxZ, b.maxZ)};
 }
 TerrainRect brushBounds(const HeightField &field, Vec2 center, float radius) {
-  const double minimumX = double(center.x) - radius;
-  const double maximumX = double(center.x) + radius;
-  const double minimumZ = double(center.y) - radius;
-  const double maximumZ = double(center.y) + radius;
-  if (maximumX < 0 || maximumZ < 0 || minimumX > field.size.x ||
-      minimumZ > field.size.y)
-    return {};
-  const auto sample = [](double coordinate, float extent, int cells,
-                         bool upper) {
-    const double value = coordinate / extent * cells;
-    return int(std::clamp(upper ? std::ceil(value) : std::floor(value), 0.0,
-                          double(cells)));
-  };
-  return TerrainRect{sample(minimumX, field.size.x, field.cellsX, false),
-                     sample(minimumZ, field.size.y, field.cellsZ, false),
-                     sample(maximumX, field.size.x, field.cellsX, true),
-                     sample(maximumZ, field.size.y, field.cellsZ, true)}
-      .expanded(1, field.cellsX, field.cellsZ);
+  return terrainBrushSampleBounds(field, center, radius);
 }
 template <class Stroke>
 TerrainRect changedBounds(const HeightField &field,

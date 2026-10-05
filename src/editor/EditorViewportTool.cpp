@@ -1,4 +1,5 @@
 #include "editor/EditorViewportTool.h"
+#include "editor/EditorEntityBounds3D.h"
 #include "editor/EditorViewportProjection.h"
 
 #include "demi/runtime/scene/Transform3DHierarchy.h"
@@ -102,12 +103,10 @@ EditorViewportTool::presentation(const runtime::World &world,
   if (!origin)
     return result;
   result.origin = *origin;
-  const float cameraDistance =
-      length(subtract(transform->position, camera.position));
+  constexpr float HandleLengthPixels = 72.0F;
   const float gizmoLength =
-      camera.projection.perspective
-          ? std::max(cameraDistance * 0.12F, 0.35F)
-          : std::max(camera.projection.orthographicSize * 0.15F, 0.35F);
+      HandleLengthPixels *
+      sceneWorldUnitsPerPixel(camera, transform->position, viewportSize);
   for (const EditorGizmoAxis axis :
        {EditorGizmoAxis::X, EditorGizmoAxis::Y, EditorGizmoAxis::Z}) {
     runtime::Vec3 direction = axisVector(axis);
@@ -118,7 +117,10 @@ EditorViewportTool::presentation(const runtime::World &world,
         camera, add(transform->position, multiply(direction, gizmoLength)),
         viewportSize);
     if (endpoint)
-      result.axes.push_back({.axis = axis, .start = *origin, .end = *endpoint});
+      result.axes.push_back({.axis = axis,
+                             .start = *origin,
+                             .end = *endpoint,
+                             .worldLength = gizmoLength});
   }
   return result;
 }
@@ -132,7 +134,7 @@ EditorViewportTool::update(const runtime::World &world,
   if (active_) {
     const auto entity = std::ranges::find(world.entities, active_->entityId,
                                           &runtime::Entity::id);
-    if (input.cancelPressed || !input.focused ||
+    if (input.cancelPressed || !input.hasDragFocus() ||
         selectedEntityId != active_->entityId ||
         entity == world.entities.end() ||
         !entity->hasComponent<runtime::Transform3DComponent>()) {
@@ -151,8 +153,8 @@ EditorViewportTool::update(const runtime::World &world,
     runtime::Transform3DComponent local = active_->initialLocal;
     if (active_->operation == EditorGizmoOperation::Translate) {
       const float amount =
-          applySnap(active_->pixels * 0.01F, sceneView.translationSnap,
-                    input.bypassSnapping);
+          applySnap(active_->pixels * active_->translationPerPixel,
+                    sceneView.translationSnap, input.bypassSnapping);
       runtime::WorldTransform3D desired = active_->initialWorld;
       desired.position =
           add(desired.position, multiply(active_->worldAxis, amount));
@@ -172,8 +174,8 @@ EditorViewportTool::update(const runtime::World &world,
     } else if (active_->operation == EditorGizmoOperation::Rotate) {
       constexpr float DegreesToRadians = 0.01745329251994329577F;
       const float increment = sceneView.rotationSnapDegrees * DegreesToRadians;
-      const float amount = applySnap(active_->pixels * 0.01F, increment,
-                                     input.bypassSnapping);
+      const float amount =
+          applySnap(active_->pixels * 0.01F, increment, input.bypassSnapping);
       if (sceneView.transformSpace() == EditorTransformSpace::Local) {
         local.rotation = runtime::rotateLocalEuler3D(
             active_->initialLocal.rotation, axisVector(active_->axis), amount);
@@ -196,9 +198,8 @@ EditorViewportTool::update(const runtime::World &world,
                      .field = "rotation"},
           .value = {local.rotation.x, local.rotation.y, local.rotation.z}};
     } else {
-      const float amount =
-          applySnap(active_->pixels * 0.01F, sceneView.scaleSnap,
-                    input.bypassSnapping);
+      const float amount = applySnap(active_->pixels * active_->scalePerPixel,
+                                     sceneView.scaleSnap, input.bypassSnapping);
       if (sceneView.transformSpace() == EditorTransformSpace::Local) {
         axisValue(local.scale, active_->axis) = std::max(
             axisValue(active_->initialLocal.scale, active_->axis) + amount,
@@ -226,8 +227,7 @@ EditorViewportTool::update(const runtime::World &world,
     return action;
   }
 
-  if (!input.hovered || !input.focused || !input.leftPressed ||
-      input.navigationModifier)
+  if (!input.beginsToolGesture())
     return action;
 
   const EditorGizmoPresentation gizmo =
@@ -255,17 +255,40 @@ EditorViewportTool::update(const runtime::World &world,
           worldAxis = normalized(
               runtime::transformDirection3D(*worldTransform, worldAxis),
               worldAxis);
-        active_ = ActiveDrag{.entityId = entity->id,
-                             .operation = operation_,
-                             .axis = hit->axis,
-                             .initialLocal = *local,
-                             .initialWorld = *worldTransform,
-                             .worldAxis = worldAxis,
-                             .screenDirection =
-                                 screenLength > 0.001F
-                                     ? runtime::Vec2{screenX / screenLength,
-                                                     screenY / screenLength}
-                                     : runtime::Vec2{1.0F, 0.0F}};
+        const float translationPerPixel =
+            hit->worldLength / std::max(screenLength, 1.0F);
+        float unscaledDimension = 1.0F;
+        if (const auto bounds = editorEntityBounds3D(world, *entity)) {
+          auto dimensions =
+              subtract(bounds->local.maximum, bounds->local.minimum);
+          const float extent = std::abs(axisValue(dimensions, hit->axis));
+          if (extent > 0.000001F)
+            unscaledDimension = extent;
+        }
+        float parentScale = 1.0F;
+        if (sceneView.transformSpace() == EditorTransformSpace::Local) {
+          auto localScale = local->scale;
+          auto worldScale = worldTransform->scale;
+          parentScale =
+              std::max(std::abs(axisValue(worldScale, hit->axis)) /
+                           std::max(std::abs(axisValue(localScale, hit->axis)),
+                                    0.000001F),
+                       0.000001F);
+        }
+        active_ = ActiveDrag{
+            .entityId = entity->id,
+            .operation = operation_,
+            .axis = hit->axis,
+            .initialLocal = *local,
+            .initialWorld = *worldTransform,
+            .worldAxis = worldAxis,
+            .screenDirection = screenLength > 0.001F
+                                   ? runtime::Vec2{screenX / screenLength,
+                                                   screenY / screenLength}
+                                   : runtime::Vec2{1.0F, 0.0F},
+            .translationPerPixel = translationPerPixel,
+            .scalePerPixel =
+                translationPerPixel / (unscaledDimension * parentScale)};
         return action;
       }
     }

@@ -18,10 +18,12 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstring>
 #include <filesystem>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <type_traits>
 
 namespace demi::editor {
 namespace {
@@ -81,8 +83,10 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
   const ImVec2 canvasMax{canvasMin.x + canvasWidth, canvasMin.y + canvasHeight};
   std::optional<std::filesystem::path> droppedPrefab;
   std::optional<std::filesystem::path> droppedTerrain;
+  std::optional<EditorEntityKind> droppedEntityKind;
   std::optional<runtime::Vec2> dropPosition2D;
   std::optional<runtime::Vec3> dropPosition3D;
+  bool canvasHovered = false;
   viewportArea = {};
   if (canvasWidth >= 1.0F && canvasHeight >= 1.0F) {
     viewportArea = {
@@ -103,12 +107,20 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
     } else {
       ImGui::InvisibleButton("viewport-canvas", {canvasWidth, canvasHeight});
     }
+    // Capture the canvas item's hover state before drag/drop and overlays.
+    canvasHovered = ImGui::IsItemHovered();
     const bool acceptsPrefabDrop =
         !hudOnly && !workspace.isPrefabDocument() &&
         workspace.activeDocument() == EditorWorkspaceDocument::Scene;
-    if (acceptsPrefabDrop && ImGui::BeginDragDropTarget()) {
+    const bool acceptsEntityCreationDrop =
+        !hudOnly && !is2D &&
+        workspace.activeDocument() == EditorWorkspaceDocument::Scene;
+    if ((acceptsPrefabDrop || acceptsEntityCreationDrop) &&
+        ImGui::BeginDragDropTarget()) {
       if (const ImGuiPayload *payload =
-              ImGui::AcceptDragDropPayload(EditorPrefabSourcePayload);
+              acceptsPrefabDrop
+                  ? ImGui::AcceptDragDropPayload(EditorPrefabSourcePayload)
+                  : nullptr;
           payload != nullptr && payload->IsDelivery()) {
         const auto *data = static_cast<const char *>(payload->Data);
         const bool valid = data != nullptr && payload->DataSize > 1 &&
@@ -127,10 +139,33 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
                 prefabDropWorldPosition2D(workspace.sceneView2D().camera(),
                                           viewportPosition, viewportSize);
           } else {
-            dropPosition3D = prefabDropWorldPosition3D(
-                workspace.sceneView().camera(), viewportPosition, viewportSize);
-            if (!dropPosition3D)
-              notice = "The cursor ray does not intersect the 3D ground plane.";
+            dropPosition3D = sceneDropWorldPosition3D(
+                workspace.sceneView().camera(), workspace.project().world,
+                viewportPosition, viewportSize);
+          }
+        }
+      }
+      if (const ImGuiPayload *payload =
+              acceptsEntityCreationDrop
+                  ? ImGui::AcceptDragDropPayload(EditorEntityCreationPayload)
+                  : nullptr;
+          payload != nullptr && payload->IsDelivery()) {
+        if (is2D || payload->Data == nullptr ||
+            payload->DataSize != sizeof(EditorEntityKind)) {
+          notice = "The 3D creation drag payload is invalid for this view.";
+        } else {
+          std::underlying_type_t<EditorEntityKind> value;
+          std::memcpy(&value, payload->Data, sizeof(value));
+          if (value < static_cast<int>(EditorEntityKind::Cube) ||
+              value > static_cast<int>(EditorEntityKind::Plane)) {
+            notice = "The 3D creation drag payload is invalid.";
+          } else {
+            droppedEntityKind = static_cast<EditorEntityKind>(value);
+            dropPosition3D = sceneDropWorldPosition3D(
+                workspace.sceneView().camera(), workspace.project().world,
+                {ImGui::GetIO().MousePos.x - canvasMin.x,
+                 ImGui::GetIO().MousePos.y - canvasMin.y},
+                {canvasWidth, canvasHeight});
           }
         }
       }
@@ -237,7 +272,7 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
   draw->AddText({canvasMin.x + 14.0F, badgeMax.y + 10.0F},
                 IM_COL32(205, 209, 218, 255), label.c_str());
   if (canvasWidth >= 1.0F && canvasHeight >= 1.0F) {
-    const bool hovered = ImGui::IsItemHovered();
+    const bool hovered = canvasHovered;
     const bool focused = ImGui::IsWindowFocused();
     ImGuiIO &io = ImGui::GetIO();
     const runtime::ui::UiDocument &hud = workspace.displayedHud();
@@ -341,7 +376,7 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
         .leftPressed = ImGui::IsMouseClicked(ImGuiMouseButton_Left),
         .leftDown = ImGui::IsMouseDown(ImGuiMouseButton_Left),
         .leftReleased = ImGui::IsMouseReleased(ImGuiMouseButton_Left),
-        .navigationModifier = io.KeyAlt || hudConsumed,
+        .navigationModifier = io.KeyAlt || hudConsumed || io.WantTextInput,
         .bypassSnapping = io.KeyShift,
         .cancelPressed = ImGui::IsKeyPressed(ImGuiKey_Escape, false)};
     const bool toolUpdated =
@@ -504,6 +539,13 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
                        : workspace.instantiatePrefab(*droppedPrefab,
                                                      *dropPosition3D, error);
     notice = placed ? "Prefab instance placed" : std::move(error);
+  }
+  if (droppedEntityKind && dropPosition3D) {
+    std::string error;
+    notice = workspace.createEntity(error, {}, *droppedEntityKind,
+                                    dropPosition3D)
+                 ? "3D primitive placed"
+                 : std::move(error);
   }
   if (droppedTerrain && dropPosition3D) {
     std::string error;

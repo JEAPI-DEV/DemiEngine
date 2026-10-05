@@ -1,4 +1,14 @@
 # Native test executables. Test registration lives in dedicated modules.
+  add_executable(demi-editor-data-asset-creation-tests tests/editor_data_asset_creation_tests.cpp)
+  target_link_libraries(demi-editor-data-asset-creation-tests PRIVATE demi-editor-model)
+  add_executable(demi-editor-data-asset-controls-tests tests/editor_data_asset_controls_tests.cpp)
+  target_link_libraries(demi-editor-data-asset-controls-tests PRIVATE demi-editor-ui)
+  target_include_directories(demi-editor-data-asset-controls-tests PRIVATE
+    "${DEMI_IMGUI_DOCKING_OVERLAY}" "${imgui_docking_SOURCE_DIR}"
+    "${bgfx_SOURCE_DIR}/bgfx/3rdparty/dear-imgui" "${bgfx_SOURCE_DIR}/bgfx/3rdparty")
+  target_compile_definitions(demi-editor-data-asset-controls-tests PRIVATE
+    DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+    IMGUI_USER_CONFIG="${CMAKE_SOURCE_DIR}/src/editor/EditorImGuiConfig.h")
   add_executable(demi-editor-color-control-tests tests/editor_color_control_tests.cpp)
   target_link_libraries(demi-editor-color-control-tests PRIVATE demi-editor-ui)
   target_include_directories(demi-editor-color-control-tests PRIVATE
@@ -632,6 +642,7 @@
     tests/terrain_scatter_runtime_tests.cpp)
   add_executable(demi-terrain-cli-tests
     tests/terrain_cli_tests.cpp
+    src/cli/TerrainCompactCommand.cpp
     src/cli/TerrainCommands.cpp)
   target_link_libraries(demi-terrain-patch-tests PRIVATE demi-runtime-lib)
   target_link_libraries(demi-terrain-locality-tests PRIVATE demi-core)

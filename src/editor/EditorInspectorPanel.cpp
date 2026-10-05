@@ -14,6 +14,8 @@
 
 #include "demi/runtime/scene/ComponentRegistry.h"
 #include "demi/runtime/scene/composition/PrefabResolver.h"
+#include "demi/assets/AssetRegistry.h"
+#include "demi/assets/RenderAsset.h"
 
 #include <nlohmann/json.hpp>
 
@@ -643,7 +645,14 @@ bool drawFieldValue(EditorWorkspace &workspace, const SceneValueTarget &target,
   }
   case ComponentFieldType::Number: {
     float edited = value.get<float>();
-    changed = ImGui::InputFloat("##value", &edited, 0.0F, 0.0F, "%.3f");
+    const bool meshSurface = target.component == "MeshRenderer" &&
+        (field.name == "metallic" || field.name == "roughness" ||
+         field.name == "opacity");
+    changed = meshSurface
+                  ? ImGui::SliderFloat("##value", &edited, 0.0F, 1.0F,
+                                       "%.3f")
+                  : ImGui::InputFloat("##value", &edited, 0.0F, 0.0F,
+                                      "%.3f");
     if (changed)
       clampNumericValue(edited, field);
     replacement = edited;
@@ -732,6 +741,16 @@ void drawComponentFields(EditorWorkspace &workspace,
     ImGui::Spacing();
   }
   bool showAdvanced = false;
+  std::optional<assets::MaterialAsset> material;
+  if (componentName == "MeshRenderer" && component.is_object()) {
+    const auto reference = component.value("material", std::string{});
+    if (!reference.empty()) {
+      const AssetManifest *asset =
+          findAsset(workspace.assetIndex().registry(), reference);
+      if (asset != nullptr && asset->type == "Material")
+        material = assets::loadMaterialAsset(asset->sourcePath);
+    }
+  }
   const bool hasAdvanced = std::ranges::any_of(
       descriptor.fields, [](const auto &field) { return field.editor.advanced; });
   if (hasAdvanced && query.empty()) {
@@ -750,9 +769,19 @@ void drawComponentFields(EditorWorkspace &workspace,
     const SceneValueTarget target{.entityId = std::string(entityId),
                                   .component = componentName,
                                   .field = std::string(field.name)};
-    const EditorPropertyPresentation presentation =
+    EditorPropertyPresentation presentation =
         editorPropertyPresentation(descriptor, field, component, prefabEntity,
                                    workspace.hasExplicitValue(target));
+    if (componentName == "MeshRenderer" && !presentation.hasValue &&
+        (field.name == "metallic" || field.name == "roughness" ||
+         field.name == "opacity" || field.name == "surface_mode")) {
+      presentation.value =
+          editorMeshSurfaceFallback(field.name, component, material ? &*material : nullptr);
+      presentation.hasValue = true;
+      presentation.requiresExplicitAdd = false;
+      presentation.origin = material ? EditorPropertyOrigin::Inherited
+                                     : EditorPropertyOrigin::Default;
+    }
     ImGui::PushID(field.name.data());
     const bool collection = field.type == ComponentFieldType::Object ||
                             field.type == ComponentFieldType::Vec2Array ||
@@ -1083,6 +1112,27 @@ static void drawInspectorContents(EditorWorkspace &workspace,
       workspace.project().project.projectDirectory, workspace.sources());
 
   const auto components = entity->find("components");
+  const auto hasAuthoredComponent = [&](const char *name) {
+    return (components != entity->end() && components->is_object() &&
+            components->contains(name)) || presetComponents.contains(name);
+  };
+  if (!hasAuthoredComponent("MeshRenderer") &&
+      (hasAuthoredComponent("BoxCollider3D") ||
+       hasAuthoredComponent("SphereCollider3D") ||
+       hasAuthoredComponent("CapsuleCollider3D") ||
+       hasAuthoredComponent("ConvexCollider3D"))) {
+    ImGui::TextWrapped("Physics only: colliders do not draw a visible object. "
+                       "Add Mesh Renderer for a prop, or keep this invisible "
+                       "for collision or trigger volumes.");
+    if (ImGui::SmallButton("Add Mesh Renderer")) {
+      std::string error;
+      notice = workspace.addComponent(selectedId, "MeshRenderer",
+                                      nlohmann::json::object(), error)
+                   ? "Visible mesh added"
+                   : error;
+      return;
+    }
+  }
   bool anyVisibleComponent = false;
   if (components != entity->end() && components->is_object()) {
     std::vector<std::string> componentOrder;

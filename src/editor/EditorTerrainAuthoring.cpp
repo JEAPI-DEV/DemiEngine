@@ -1,4 +1,5 @@
 #include "editor/EditorTerrainAuthoring.h"
+#include "demi/runtime/terrain/TerrainBrushStroke.h"
 #include "demi/runtime/terrain/TerrainGenerator.h"
 #include "demi/runtime/terrain/TerrainRecipe.h"
 #include <algorithm>
@@ -476,7 +477,7 @@ EditorTerrainAuthoring::poll(std::string &error) {
 void EditorTerrainAuthoring::stamp(runtime::Vec3 hit) {
   auto &recipe = *stroke_;
   runtime::TerrainRecipe stampRecipe;
-  stampRecipe.layers = runtime::TerrainRecipe::parse(authored_).layers;
+  stampRecipe.layers = strokeLayers_;
   if (brush.mode == EditorTerrainBrush::Biome) {
     stampRecipe.biomes.try_emplace(brush.biome);
     runtime::TerrainRegion region;
@@ -487,7 +488,8 @@ void EditorTerrainAuthoring::stamp(runtime::Vec3 hit) {
     region.falloff = brush.falloff;
     region.layer = brush.layer;
     stampRecipe.regions.push_back(std::move(region));
-    recipe["regions"].push_back(stampRecipe.toJson()["regions"].back());
+    runtime::appendTerrainBrushStamp(recipe["regions"],
+                                     stampRecipe.toJson()["regions"].back());
   } else if (brush.mode == EditorTerrainBrush::Exclusion) {
     runtime::TerrainExclusion exclusion;
     exclusion.center = {hit.x, hit.z};
@@ -497,7 +499,8 @@ void EditorTerrainAuthoring::stamp(runtime::Vec3 hit) {
     exclusion.value = brush.exclusionValue;
     exclusion.layer = brush.layer;
     stampRecipe.exclusions.push_back(std::move(exclusion));
-    recipe["exclusions"].push_back(stampRecipe.toJson()["exclusions"].back());
+    runtime::appendTerrainBrushStamp(recipe["exclusions"],
+                                     stampRecipe.toJson()["exclusions"].back());
   } else {
     runtime::TerrainEdit edit;
     edit.center = {hit.x, hit.z};
@@ -531,7 +534,8 @@ void EditorTerrainAuthoring::stamp(runtime::Vec3 hit) {
       return;
     }
     stampRecipe.edits.push_back(std::move(edit));
-    recipe["edits"].push_back(stampRecipe.toJson()["edits"].back());
+    runtime::appendTerrainBrushStamp(recipe["edits"],
+                                     stampRecipe.toJson()["edits"].back());
   }
   lastStamp_ = hit;
 }
@@ -578,7 +582,8 @@ bool EditorTerrainAuthoring::update(const EditorViewportToolInput &input,
       error = "Choose an existing biome before painting.";
       return false;
     }
-    stroke_ = authored_;
+    strokeLayers_ = runtime::TerrainRecipe::parse(authored_).layers;
+    stroke_ = runtime::compactTerrainBrushRecipe(authored_);
     evaluated_ = authored_;
     strokeSurface_ = surface_;
     strokePatch_.reset();

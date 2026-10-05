@@ -48,6 +48,22 @@ Animation.set_bone_segment(id, "leg_l", {
 })
 Animation.clear_bone_segments(id)</code></pre>
 
+<h2>Mesh surfaces</h2>
+<p>Use <code>MeshRenderer.metallic</code>, <code>roughness</code>, <code>opacity</code> and <code>surface_mode</code> for per-entity surface overrides. Omission inherits the assigned Material asset or the built-in defaults. These controls affect the shared built-in lit path in the editor and runtime, not an editor-only preview.</p>
+<pre><code class="language-json">"MeshRenderer": {
+  "shape": "cube",
+  "color": [0.5, 0.85, 1, 1],
+  "metallic": 0,
+  "roughness": 0.1,
+  "opacity": 0.25,
+  "surface_mode": "transparent"
+}</code></pre>
+<p>Surface modes are <code>opaque</code>, <code>transparent</code> and <code>additive</code>. Metallic, roughness and opacity must be finite numbers from 0 to 1. Shared Material assets supply these values under <code>parameters</code>, with alpha blending selected through <code>render_state.blend: "alpha"</code>. Existing <code>material_properties</code> can override the built-in scalar parameters; explicit Mesh Renderer fields take precedence.</p>
+<pre><code class="language-lua">local Entity = require("demi.entity")
+Entity.set_field("window", "MeshRenderer", "surface_mode", "transparent")
+Entity.set_field("window", "MeshRenderer", "opacity", 0.25)</code></pre>
+<p>This is direct metallic/roughness lighting and alpha blending. Glass refraction, reflected environments and general PBR texture maps are not provided by these controls. Arbitrary per-entity custom-shader uniform overrides are not covered by the built-in surface resolver.</p>
+
 <h2>Characters</h2>
 <pre><code>{
   "CharacterController3D": {

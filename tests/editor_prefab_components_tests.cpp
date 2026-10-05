@@ -94,6 +94,13 @@ void checkInspector(demi::editor::EditorWorkspace &workspace) {
       require(std::abs(currentBaseline - baseline) < 0.1F, "Vector inputs are misaligned");
   }
   ImGui::ClearActiveID();
+  ImGui::SetScrollY(inspector, inspector->ScrollMax.y);
+  for (int frame = 0; frame < 2; ++frame) {
+    ImGui::NewFrame();
+    demi::editor::drawInspectorPanel(workspace, {0, 0}, {420, 2300}, state,
+                                     notice);
+    ImGui::Render();
+  }
   ImGui::ActivateItemByID(ImGui::FindWindowByName("Inspector")->GetID("##add-component"));
   for (int frame = 0; frame < 3; ++frame) {
     ImGui::NewFrame();
@@ -105,6 +112,13 @@ void checkInspector(demi::editor::EditorWorkspace &workspace) {
           "Add Component did not open");
   ImGui::ClosePopupToLevel(0, true);
   ImGui::ClearActiveID();
+  ImGui::SetScrollY(inspector, 0);
+  for (int frame = 0; frame < 2; ++frame) {
+    ImGui::NewFrame();
+    demi::editor::drawInspectorPanel(workspace, {0, 0}, {420, 2300}, state,
+                                     notice);
+    ImGui::Render();
+  }
   io.AddMousePosEvent(menuPosition.x, menuPosition.y);
   for (int frame = 0; frame < 3; ++frame) {
     if (frame == 1)

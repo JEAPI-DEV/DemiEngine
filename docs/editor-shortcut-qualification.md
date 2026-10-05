@@ -183,3 +183,46 @@ Verification:
 - `terrain_graph_3d` validates without diagnostics; `git diff --check` is clean.
   Website templates were not rendered or deployed, and Android qualification
   was not performed for this desktop editor change.
+
+## Primitive creation and terrain placement
+
+The native ImGui Hierarchy separates Add Empty from visible primitive creation
+and physics-only presets. Cube/Sphere/Cylinder/Plane buttons support click
+creation and drag/drop into authored 3D views. New primitives author a mesh and
+basic collider, not a Rigidbody. Cylinder collision uses a capsule approximation;
+plane collision uses a thin box. An empty MeshRenderer uses the existing native
+light-grey unit-cube defaults; no renderer defaults or artificial editor-only
+geometry were added. Component help and a physics-only Inspector action explain
+and expose the missing renderer.
+
+`sceneDropWorldPosition3D` uses the immutable generated terrain surface and its
+owner's hierarchy transform. It chooses the closest hit on enabled terrain,
+then the ground plane within the view's working range, then the cursor ray at
+the view focus distance. There is no fixed world-distance limit on terrain hits.
+Primitive feet are offset above the hit; prefabs retain authored pivot/root
+offsets. Independent props do not automatically follow later terrain changes.
+Precise imported mesh surface placement remains outside this change.
+
+The 3D gizmo captures its projected world-length/pixel-length ratio at drag
+start. Translation uses that ratio; scale additionally divides by object bounds
+and parent scale. Rotation remains angular. Tests compare perspective drags at
+10 and 1000 world units, orthographic distance independence, scaled mesh sizes,
+snapping and captured drag ownership.
+
+The scene command gate also exposed duplication retaining flat internal parent
+links in new copies. `nestLocalEntityLinks` nests only those copied local links,
+including forward references; external parents and the original source remain
+unchanged. Existing nested clipboard layout and native entity-reference remapping
+remain tested.
+
+Release editor/CLI builds and nine focused checks pass (3.57 seconds): viewport
+tools, drag authoring, scene commands, game authoring, workspace, Inspector model,
+2D scene view, shell docking and authored clipboard. Elevated translated terrain,
+disabled terrain, parent-local placement and one-command Undo receive regression
+coverage. `terrain_graph_3d` and a small isolated placement fixture validate
+without diagnostics. A PID/title-verified native Vulkan capture at 5120×2806
+visually confirms the default cube on elevated terrain; it is published as
+`public/images/docs-editor-prop-placement.png`. These checks do not claim manual
+qualification of every drag gesture, imported art, Android or the full test suite.
+Website templates were updated but not rendered or deployed. User scene edits
+and their existing prop positions were left untouched; `git diff --check` is clean.

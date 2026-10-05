@@ -12,6 +12,8 @@
 #include <string>
 #include <vector>
 
+namespace demi::assets { struct MaterialAsset; }
+
 namespace demi::editor {
 
 struct EditorReferenceChoice {
@@ -75,6 +77,11 @@ editorComponentChoices(const nlohmann::json &entity);
     const runtime::ComponentFieldDescriptor &field,
     const nlohmann::json &resolvedComponent, bool isPrefabEntity,
     bool hasExplicitValue);
+
+// Value shown before an optional MeshRenderer surface field is authored.
+[[nodiscard]] nlohmann::json editorMeshSurfaceFallback(
+    std::string_view field, const nlohmann::json &component,
+    const assets::MaterialAsset *material);
 
 [[nodiscard]] std::string_view
 editorPropertyOriginLabel(EditorPropertyOrigin origin);

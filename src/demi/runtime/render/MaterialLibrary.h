@@ -20,8 +20,13 @@ struct MaterialParameter {
 
 struct MaterialBinding {
   ProgramHandle program;
+  bool unlit = false;
   std::string albedoTexture;
   DrawState state;
+  float metallic = 0.0F;
+  float roughness = 0.8F;
+  float opacity = 1.0F;
+  std::array<float, 4> baseColor{1.0F, 1.0F, 1.0F, 1.0F};
   float alphaCutoff = 0.0F;
   std::uint32_t uniformSet = 0;
   std::vector<MaterialParameter> parameters;
