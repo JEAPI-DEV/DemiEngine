@@ -7,6 +7,9 @@ are registered in `tools/package-store/src/Docs.php`.
 
 This directory keeps material that has a different job:
 
+- [Shared authoring foundations](shared-authoring-foundations.md) describes
+  reusable graph, history, palette and color responsibilities and their adapters.
+
 - [Editor commands, clipboard and docking](editor-shortcut-qualification.md)
   records shortcut ownership, clipboard identity/remapping, independent panel
   identities, contextual palettes and scoped verification.

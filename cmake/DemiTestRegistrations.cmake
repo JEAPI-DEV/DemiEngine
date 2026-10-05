@@ -7,6 +7,9 @@ add_test(NAME demi-editor-prefab-components-tests COMMAND demi-editor-prefab-com
 add_test(NAME demi-editor-structured-value-tests COMMAND demi-editor-structured-value-tests)
 add_test(NAME demi-editor-drag-authoring-tests COMMAND demi-editor-drag-authoring-tests)
 add_test(NAME demi-editor-terrain-graph-ui-tests COMMAND demi-editor-terrain-graph-ui-tests)
+add_test(NAME demi-editor-value-history-tests COMMAND demi-editor-value-history-tests)
+add_test(NAME demi-editor-color-control-tests COMMAND demi-editor-color-control-tests)
+add_test(NAME demi-editor-palette-card-tests COMMAND demi-editor-palette-card-tests)
 add_test(NAME demi-editor-terrain-graph-settings-tests COMMAND demi-editor-terrain-graph-settings-tests)
 add_test(NAME demi-editor-render-view-tests COMMAND demi-editor-render-view-tests)
 add_test(NAME demi-editor-document-sessions-tests COMMAND demi-editor-document-sessions-tests)
@@ -283,6 +286,7 @@ add_test(NAME demi-audio-phase7-tests COMMAND demi-audio-phase7-tests)
 add_test(NAME demi-asset-pipeline-tests COMMAND demi-asset-pipeline-tests)
 add_test(NAME demi-terrain-asset-pipeline-tests COMMAND demi-terrain-asset-pipeline-tests)
 add_test(NAME demi-asset-streaming-tests COMMAND demi-asset-streaming-tests)
+add_test(NAME demi-dependency-graph-tests COMMAND demi-dependency-graph-tests)
 add_test(NAME demi-prototype-texture-package-tests
   COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/scripts/test_prototype_texture_package.py"
           --demi "$<TARGET_FILE:demi>")

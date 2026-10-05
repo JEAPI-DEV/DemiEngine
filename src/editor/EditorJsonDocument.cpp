@@ -44,8 +44,7 @@ bool EditorJsonDocument::open(std::filesystem::path path,
     savedDocument_ = document_;
     savedCanonical_ = document_.dump();
     diagnostics_ = std::move(diagnostics);
-    undo_.clear();
-    redo_.clear();
+    history_.clear();
     return true;
   } catch (const nlohmann::json::exception &exception) {
     error = exception.what();
@@ -105,28 +104,28 @@ bool EditorJsonDocument::replace(nlohmann::json document, std::string &error) {
 }
 
 bool EditorJsonDocument::undo(std::string &error) {
-  if (undo_.empty()) {
+  if (!history_.canUndo()) {
     error = "There is no document edit to undo.";
     return false;
   }
-  Change change = std::move(undo_.back());
-  undo_.pop_back();
-  document_ = change.before;
+  if (history_.undo(document_) != EditorHistoryResult::Applied) {
+    error = "The document changed outside its edit history.";
+    return false;
+  }
   diagnostics_ = validator_ ? validator_(path_, document_) : Diagnostics{};
-  redo_.push_back(std::move(change));
   return true;
 }
 
 bool EditorJsonDocument::redo(std::string &error) {
-  if (redo_.empty()) {
+  if (!history_.canRedo()) {
     error = "There is no document edit to redo.";
     return false;
   }
-  Change change = std::move(redo_.back());
-  redo_.pop_back();
-  document_ = change.after;
+  if (history_.redo(document_) != EditorHistoryResult::Applied) {
+    error = "The document changed outside its edit history.";
+    return false;
+  }
   diagnostics_ = validator_ ? validator_(path_, document_) : Diagnostics{};
-  undo_.push_back(std::move(change));
   return true;
 }
 
@@ -160,8 +159,7 @@ bool EditorJsonDocument::commit(nlohmann::json replacement,
     diagnostics_ = std::move(diagnostics);
     return false;
   }
-  undo_.push_back({.before = document_, .after = replacement});
-  redo_.clear();
+  (void)history_.record(document_, replacement);
   document_ = std::move(replacement);
   diagnostics_ = std::move(diagnostics);
   return true;

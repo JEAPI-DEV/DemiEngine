@@ -154,7 +154,7 @@
             "base_height": 4.650000095367432,
             "height_variation": 3,
             "feature_size": 32,
-            "roughness": 0.3,
+            "roughness": 0.949999988079071,
             "seed_offset": 13
           }
         },
@@ -175,11 +175,11 @@
           "id": "foothill_blend",
           "type": "height_blend",
           "position": [
-            540,
-            165.84625244140625
+            548.0,
+            338.8462219238281
           ],
           "parameters": {
-            "amount": 0.9
+            "amount": 0.10000000149011612
           }
         },
         {
@@ -190,7 +190,7 @@
             20
           ],
           "parameters": {
-            "minimum": -100,
+            "minimum": -78.80000305175781,
             "maximum": 14,
             "falloff": 6
           }

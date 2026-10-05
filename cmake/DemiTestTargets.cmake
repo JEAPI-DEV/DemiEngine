@@ -1,4 +1,20 @@
 # Native test executables. Test registration lives in dedicated modules.
+  add_executable(demi-editor-color-control-tests tests/editor_color_control_tests.cpp)
+  target_link_libraries(demi-editor-color-control-tests PRIVATE demi-editor-ui)
+  target_include_directories(demi-editor-color-control-tests PRIVATE
+    "${DEMI_IMGUI_DOCKING_OVERLAY}" "${imgui_docking_SOURCE_DIR}"
+    "${bgfx_SOURCE_DIR}/bgfx/3rdparty/dear-imgui" "${bgfx_SOURCE_DIR}/bgfx/3rdparty")
+  target_compile_definitions(demi-editor-color-control-tests PRIVATE
+    IMGUI_USER_CONFIG="${CMAKE_SOURCE_DIR}/src/editor/EditorImGuiConfig.h")
+  add_executable(demi-editor-palette-card-tests tests/editor_palette_card_tests.cpp)
+  target_link_libraries(demi-editor-palette-card-tests PRIVATE demi-editor-ui)
+  target_include_directories(demi-editor-palette-card-tests PRIVATE
+    "${DEMI_IMGUI_DOCKING_OVERLAY}" "${imgui_docking_SOURCE_DIR}"
+    "${bgfx_SOURCE_DIR}/bgfx/3rdparty/dear-imgui" "${bgfx_SOURCE_DIR}/bgfx/3rdparty")
+  target_compile_definitions(demi-editor-palette-card-tests PRIVATE
+    IMGUI_USER_CONFIG="${CMAKE_SOURCE_DIR}/src/editor/EditorImGuiConfig.h")
+  add_executable(demi-editor-value-history-tests tests/editor_value_history_tests.cpp)
+  target_link_libraries(demi-editor-value-history-tests PRIVATE demi-editor-model)
   add_executable(demi-editor-render-view-tests tests/editor_render_view_tests.cpp)
   add_executable(demi-editor-document-sessions-tests tests/editor_document_sessions_tests.cpp)
   target_link_libraries(demi-editor-document-sessions-tests PRIVATE demi-editor-model)
@@ -539,6 +555,8 @@
   add_executable(demi-terrain-asset-pipeline-tests
     tests/terrain_asset_pipeline_tests.cpp)
   target_link_libraries(demi-terrain-asset-pipeline-tests PRIVATE demi-core)
+  add_executable(demi-dependency-graph-tests tests/dependency_graph_tests.cpp)
+  target_link_libraries(demi-dependency-graph-tests PRIVATE demi-core)
   add_executable(demi-asset-streaming-tests tests/asset_streaming_tests.cpp)
   target_link_libraries(demi-asset-streaming-tests PRIVATE demi-core)
   target_compile_definitions(demi-asset-streaming-tests PRIVATE

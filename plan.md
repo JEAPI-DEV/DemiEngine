@@ -1,6 +1,10 @@
 # DemiEngine Roadmap
 
 Active feature plan: [terrain generation and editing](terrain-plan.md).
+Shared-authoring consolidation: dependency topology, value history, palette
+cards and color controls are reused across existing non-terrain consumers.
+Domain schemas and terrain evaluation stay with their owners. See
+[shared foundation boundaries](docs/shared-authoring-foundations.md).
 Terrain graph controls now expose typed input rewiring/disconnect, active output,
 node-context landscape settings and Hex RGBA/precise color editing. The editor
 starts maximized in the display work area. Real screenshots illustrate these

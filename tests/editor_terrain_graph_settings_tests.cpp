@@ -251,10 +251,13 @@ void checkAppearanceControls(EditorWorkspace &workspace) {
               std::abs(colored.a - 128.0F / 255.0F) < 0.00001F,
           "Hex RGBA input did not write normalized native channels");
 
-  const auto tree = scopedId("Biome controls", {"default", "RGBA precision"});
+  const auto tree = scopedId("Biome controls",
+                             {"default", "##Color (Hex RGBA)",
+                              "RGBA precision"});
   activateWidget(tree, draw);
   auto component = scopedId("Biome controls",
-                            {"default", "RGBA precision", "##normalized-rgba"});
+                            {"default", "##Color (Hex RGBA)",
+                             "RGBA precision", "##normalized-rgba"});
   const int redAxis = 0;
   component = ImHashData(&redAxis, sizeof(redAxis), component);
   // The pinned ImGui DragScalarN submits DragScalar("") beneath its integer

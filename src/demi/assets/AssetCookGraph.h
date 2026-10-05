@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/diagnostics/Diagnostic.h"
+#include "demi/graph/DependencyGraph.h"
 
 #include <filesystem>
 #include <map>
@@ -44,13 +45,9 @@ public:
   [[nodiscard]] const std::map<std::string, AssetCookNode> &nodes() const;
 
 private:
-  [[nodiscard]] std::optional<std::string>
-  calculateKey(const std::string &assetId, std::set<std::string> &visiting,
-               Diagnostics *diagnostics);
-
   std::map<std::string, AssetCookNode> nodes_;
   std::map<std::string, std::string> keys_;
-  std::map<std::string, std::set<std::string>> reverseEdges_;
+  graph::DependencyGraph finalizedGraph_;
 };
 
 class AssetCookCache {

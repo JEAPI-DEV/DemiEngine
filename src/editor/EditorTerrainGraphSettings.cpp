@@ -1,4 +1,5 @@
 #include "editor/EditorTerrainGraphSettings.h"
+#include "editor/EditorColorControl.h"
 #include "demi/assets/DataAsset.h"
 #include "demi/runtime/terrain/TerrainRecipe.h"
 #include "editor/EditorWorkspace.h"
@@ -626,18 +627,13 @@ void drawBiomeColor(nlohmann::json &biome) {
       ImGuiColorEditFlags_DisplayHex | ImGuiColorEditFlags_InputRGB |
       ImGuiColorEditFlags_Float | ImGuiColorEditFlags_AlphaPreviewHalf |
       ImGuiColorEditFlags_AlphaBar;
-  bool changed =
-      ImGui::ColorEdit4(terrainField("Color (Hex RGBA)").c_str(), rgba, flags);
-  if (ImGui::TreeNode("RGBA precision")) {
-    ImGui::TextWrapped("Normalized red, green, blue and alpha (0 to 1). "
-                       "Hex edits use byte channels; these fields retain "
-                       "floating-point precision.");
-    ImGui::SetNextItemWidth(-1.0F);
-    changed |= ImGui::DragFloat4(
-        "##normalized-rgba", rgba, 0.001F, 0.0F, 1.0F, "%.6f",
-        ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_NoRoundToFormat);
-    ImGui::TreePop();
-  }
+  const bool changed = drawEditorColorControl(
+      terrainField("Color (Hex RGBA)").c_str(), rgba,
+      {.flags = flags,
+       .showPrecision = true,
+       .precisionHelp = "Normalized red, green, blue and alpha (0 to 1). "
+                        "Hex edits use byte channels; these fields retain "
+                        "floating-point precision."});
   if (changed)
     biome["color"] = {rgba[0], rgba[1], rgba[2], rgba[3]};
 }

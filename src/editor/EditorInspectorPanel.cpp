@@ -1,5 +1,6 @@
 #include "editor/EditorInspectorPanel.h"
 
+#include "editor/EditorColorControl.h"
 #include "editor/EditorInspectorModel.h"
 #include "editor/EditorHudNodeInspector.h"
 #include "editor/EditorIsoGridInspector.h"
@@ -306,7 +307,11 @@ void drawScriptProperties(EditorWorkspace &workspace,
         for (std::size_t index = 0; index < count; ++index)
           edited[index] = value[index].get<float>();
         changed = type == "color"
-                      ? ImGui::ColorEdit4("##value", edited.data())
+                      ? drawEditorColorControl(
+                            "##value", edited.data(),
+                            {.flags = ImGuiColorEditFlags_AlphaBar |
+                                      ImGuiColorEditFlags_Float,
+                             .showPrecision = true})
                       : drawVectorEditor(nullptr, edited,
                                          static_cast<int>(count));
         value = nlohmann::json::array();
@@ -670,7 +675,10 @@ bool drawFieldValue(EditorWorkspace &workspace, const SceneValueTarget &target,
     for (int index = 0; index < count; ++index)
       edited[index] = value[index].get<float>();
     if (field.type == ComponentFieldType::Color)
-      changed = ImGui::ColorEdit4("##value", edited.data());
+      changed = drawEditorColorControl(
+          "##value", edited.data(),
+          {.flags = ImGuiColorEditFlags_AlphaBar | ImGuiColorEditFlags_Float,
+           .showPrecision = true});
     else
       changed = drawVectorEditor(&field, edited, count);
     replacement = nlohmann::json::array();

@@ -75,41 +75,34 @@ void EditorTerrainGraphDocument::bind(std::string identity) {
   clearHistory();
 }
 
-void EditorTerrainGraphDocument::clearHistory() {
-  undo_.clear();
-  redo_.clear();
-}
+void EditorTerrainGraphDocument::clearHistory() { history_.clear(); }
 
 bool EditorTerrainGraphDocument::undo(Json &recipe) {
-  if (undo_.empty() || !recipe.is_object())
+  if (!history_.canUndo() || !recipe.is_object())
     return false;
   Json current;
   std::string error;
-  if (!readGraph(recipe, current, error) || current != undo_.back().after) {
+  if (!readGraph(recipe, current, error) ||
+      history_.undo(current) != EditorHistoryResult::Applied) {
     clearHistory();
     return false;
   }
-  Change change = std::move(undo_.back());
-  undo_.pop_back();
-  if (change.before.is_null())
+  if (current.is_null())
     recipe.erase("graph");
   else
-    recipe["graph"] = change.before;
-  redo_.push_back(std::move(change));
+    recipe["graph"] = std::move(current);
   return true;
 }
 
 bool EditorTerrainGraphDocument::redo(Json &recipe) {
-  if (redo_.empty() || !recipe.is_object())
+  if (!history_.canRedo() || !recipe.is_object())
     return false;
-  if (recipe.value("graph", Json{}) != redo_.back().before) {
+  Json current = recipe.value("graph", Json{});
+  if (history_.redo(current) != EditorHistoryResult::Applied) {
     clearHistory();
     return false;
   }
-  Change change = std::move(redo_.back());
-  redo_.pop_back();
-  recipe["graph"] = change.after;
-  undo_.push_back(std::move(change));
+  recipe["graph"] = std::move(current);
   return true;
 }
 
@@ -117,8 +110,7 @@ bool EditorTerrainGraphDocument::commit(Json &recipe, Json graph) {
   const Json before = recipe.value("graph", Json{});
   if (before == graph)
     return false;
-  undo_.push_back({before, graph});
-  redo_.clear();
+  (void)history_.record(before, graph);
   recipe["graph"] = std::move(graph);
   return true;
 }

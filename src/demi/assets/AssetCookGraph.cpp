@@ -62,60 +62,57 @@ bool AssetCookGraph::addNode(AssetCookNode node, Diagnostics *diagnostics) {
     return false;
   }
   keys_.clear();
+  finalizedGraph_ = {};
   return true;
-}
-
-std::optional<std::string>
-AssetCookGraph::calculateKey(const std::string &assetId,
-                             std::set<std::string> &visiting,
-                             Diagnostics *diagnostics) {
-  if (const auto found = keys_.find(assetId); found != keys_.end())
-    return found->second;
-  const auto found = nodes_.find(assetId);
-  if (found == nodes_.end()) {
-    error(diagnostics, "COOK_GRAPH_DEPENDENCY_MISSING",
-          "Cook graph dependency is missing: " + assetId, assetId);
-    return std::nullopt;
-  }
-  if (!visiting.insert(assetId).second) {
-    error(diagnostics, "COOK_GRAPH_CYCLE",
-          "Cook graph dependency cycle includes " + assetId, assetId);
-    return std::nullopt;
-  }
-  nlohmann::json dependencyKeys = nlohmann::json::array();
-  for (const std::string &dependency : found->second.dependencies) {
-    const auto dependencyKey = calculateKey(dependency, visiting, diagnostics);
-    if (!dependencyKey)
-      return std::nullopt;
-    dependencyKeys.push_back({{"id", dependency}, {"key", *dependencyKey}});
-    reverseEdges_[dependency].insert(assetId);
-  }
-  visiting.erase(assetId);
-  const auto &node = found->second;
-  const nlohmann::json keyDocument{
-      {"asset", node.assetId},
-      {"importer", node.importer},
-      {"importer_version", node.importerVersion},
-      {"settings_schema_version", node.settingsSchemaVersion},
-      {"settings", nlohmann::json::parse(node.normalizedSettings)},
-      {"source_hashes", node.sourceHashes},
-      {"platform", node.platform},
-      {"profile", node.profile},
-      {"source_package", node.sourcePackage},
-      {"package_content_hash", node.packageContentHash},
-      {"dependencies", std::move(dependencyKeys)}};
-  return keys_.emplace(assetId, hashText(keyDocument.dump())).first->second;
 }
 
 bool AssetCookGraph::finalize(Diagnostics *diagnostics) {
   keys_.clear();
-  reverseEdges_.clear();
-  std::set<std::string> visiting;
+  finalizedGraph_ = {};
+  graph::DependencyGraph graph;
   for (const auto &[assetId, unused] : nodes_) {
     (void)unused;
-    if (!calculateKey(assetId, visiting, diagnostics))
-      return false;
+    (void)graph.addNode(assetId);
   }
+  for (const auto &[assetId, node] : nodes_)
+    for (const auto &dependency : node.dependencies)
+      if (!graph.addDependency(assetId, dependency)) {
+        error(diagnostics, "COOK_GRAPH_DEPENDENCY_MISSING",
+              "Cook graph dependency is missing: " + dependency, dependency);
+        return false;
+      }
+
+  const auto order = graph.topologicalOrder();
+  if (order.blockedNode) {
+    error(diagnostics, "COOK_GRAPH_CYCLE",
+          "Cook graph dependency cycle blocks " + *order.blockedNode,
+          *order.blockedNode);
+    return false;
+  }
+
+  std::map<std::string, std::string> calculatedKeys;
+  for (const auto &assetId : order.nodes) {
+    const auto &node = nodes_.at(assetId);
+    nlohmann::json dependencyKeys = nlohmann::json::array();
+    for (const auto &dependency : node.dependencies)
+      dependencyKeys.push_back(
+          {{"id", dependency}, {"key", calculatedKeys.at(dependency)}});
+    const nlohmann::json keyDocument{
+        {"asset", node.assetId},
+        {"importer", node.importer},
+        {"importer_version", node.importerVersion},
+        {"settings_schema_version", node.settingsSchemaVersion},
+        {"settings", nlohmann::json::parse(node.normalizedSettings)},
+        {"source_hashes", node.sourceHashes},
+        {"platform", node.platform},
+        {"profile", node.profile},
+        {"source_package", node.sourcePackage},
+        {"package_content_hash", node.packageContentHash},
+        {"dependencies", std::move(dependencyKeys)}};
+    calculatedKeys.emplace(assetId, hashText(keyDocument.dump()));
+  }
+  keys_ = std::move(calculatedKeys);
+  finalizedGraph_ = std::move(graph);
   return true;
 }
 
@@ -128,18 +125,7 @@ AssetCookGraph::key(const std::string_view assetId) const {
 
 std::set<std::string>
 AssetCookGraph::reverseReachable(const std::set<std::string> &changed) const {
-  std::set<std::string> result = changed;
-  std::vector<std::string> pending(changed.begin(), changed.end());
-  while (!pending.empty()) {
-    const std::string current = std::move(pending.back());
-    pending.pop_back();
-    if (const auto found = reverseEdges_.find(current);
-        found != reverseEdges_.end())
-      for (const std::string &dependent : found->second)
-        if (result.insert(dependent).second)
-          pending.push_back(dependent);
-  }
-  return result;
+  return finalizedGraph_.dependentsReachable(changed);
 }
 
 const std::map<std::string, AssetCookNode> &AssetCookGraph::nodes() const {

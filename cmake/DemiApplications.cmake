@@ -147,6 +147,7 @@ else()
 
   add_library(demi-editor-ui STATIC
     "${imnodes_SOURCE_DIR}/imnodes.cpp"
+    src/editor/EditorColorControl.cpp
     src/editor/EditorTerrainInspector.cpp
     src/editor/EditorTerrainGraphSettings.cpp
     src/editor/EditorTerrainGraphPanel.cpp
@@ -174,9 +175,11 @@ else()
     src/editor/EditorGameViewPanel.cpp
     src/editor/EditorHierarchyPanel.cpp
     src/editor/EditorHudNodeInspector.cpp
+    src/editor/EditorHudColorEncoding.cpp
     src/editor/EditorImGuiInput.cpp
     src/editor/EditorInspectorPanel.cpp
     src/editor/EditorModulesPanel.cpp
+    src/editor/EditorPaletteCard.cpp
     src/editor/EditorStructuredValue.cpp
     src/editor/EditorIsoGridInspector.cpp
     src/editor/EditorJsonInspector.cpp

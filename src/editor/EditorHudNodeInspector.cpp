@@ -1,5 +1,7 @@
 #include "editor/EditorHudNodeInspector.h"
 
+#include "editor/EditorColorControl.h"
+#include "editor/EditorHudColorEncoding.h"
 #include "editor/EditorPanelStyle.h"
 #include "editor/EditorWorkspace.h"
 #include "demi/filesystem/ProjectPaths.h"
@@ -9,9 +11,7 @@
 #include <algorithm>
 #include <array>
 #include <cfloat>
-#include <cmath>
 #include <cstdint>
-#include <cstdio>
 #include <cstring>
 #include <optional>
 #include <string_view>
@@ -110,41 +110,22 @@ struct PropertyGrid {
   bool table = false;
 };
 
-std::string colorToHex(const runtime::Color &color) {
-  const auto byte = [](const float value) {
-    return static_cast<int>(std::round(std::clamp(value, 0.0F, 1.0F) * 255.0F));
-  };
-  char buffer[10];
-  const int red = byte(color.r);
-  const int green = byte(color.g);
-  const int blue = byte(color.b);
-  const int alpha = byte(color.a);
-  if (alpha == 255)
-    std::snprintf(buffer, sizeof(buffer), "#%02X%02X%02X", red, green, blue);
-  else
-    std::snprintf(buffer, sizeof(buffer), "#%02X%02X%02X%02X", red, green, blue,
-                  alpha);
-  return {buffer};
-}
-
 template <std::size_t Size>
 void editColor(EditorWorkspace &workspace, const runtime::ui::UiNode &node,
                const char *id, const char *field, const runtime::Color &color,
                std::array<char, Size> &buffer, std::string &synced,
                const char *successMessage, std::string &notice) {
-  syncBuffer(buffer, synced, colorToHex(color));
+  syncBuffer(buffer, synced, editorHudColorHex(color));
   float swatch[4]{color.r, color.g, color.b, color.a};
   const float available = ImGui::GetContentRegionAvail().x;
   ImGui::SetNextItemWidth(std::max(available - 98.0F, 56.0F));
   const std::string colorId = std::string("##") + id + "-color";
-  if (ImGui::ColorEdit4(colorId.c_str(), swatch,
-                        ImGuiColorEditFlags_AlphaBar)) {
-    if (setField(workspace, node, field,
-                 Json::array({swatch[0], swatch[1], swatch[2], swatch[3]}),
-                 successMessage, notice)) {
+  if (drawEditorColorControl(colorId.c_str(), swatch)) {
+    const std::string hex =
+        editorHudColorHex({swatch[0], swatch[1], swatch[2], swatch[3]});
+    if (setField(workspace, node, field, hex, successMessage, notice)) {
       synced.clear();
-      syncBuffer(buffer, synced,
-                 colorToHex({swatch[0], swatch[1], swatch[2], swatch[3]}));
+      syncBuffer(buffer, synced, hex);
     }
   }
   ImGui::SameLine();

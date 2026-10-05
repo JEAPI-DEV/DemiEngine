@@ -1,5 +1,6 @@
 #include "editor/EditorSpecializedPanel.h"
 
+#include "editor/EditorColorControl.h"
 #include "editor/EditorJsonInspector.h"
 
 #include "editor/EditorWorkspace.h"
@@ -144,7 +145,10 @@ void drawMaterialControls(EditorSpecializedDocument &editor,
     std::array<float, 4> edited{
         (*color)[0].get<float>(), (*color)[1].get<float>(),
         (*color)[2].get<float>(), (*color)[3].get<float>()};
-    if (ImGui::ColorEdit4("Base color", edited.data())) {
+    if (drawEditorColorControl("Base color", edited.data(),
+                               {.flags = ImGuiColorEditFlags_AlphaBar |
+                                         ImGuiColorEditFlags_Float,
+                                .showPrecision = true})) {
       std::string error;
       notice = document.set("/parameters/base_color", edited, error)
                    ? "Material color modified"

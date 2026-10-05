@@ -1,4 +1,5 @@
 #pragma once
+#include "editor/EditorValueHistory.h"
 
 #include <nlohmann/json.hpp>
 #include <optional>
@@ -19,8 +20,8 @@ public:
   };
   void bind(std::string identity);
   void clearHistory();
-  [[nodiscard]] bool canUndo() const { return !undo_.empty(); }
-  [[nodiscard]] bool canRedo() const { return !redo_.empty(); }
+  [[nodiscard]] bool canUndo() const { return history_.canUndo(); }
+  [[nodiscard]] bool canRedo() const { return history_.canRedo(); }
   [[nodiscard]] bool undo(nlohmann::json &recipe);
   [[nodiscard]] bool redo(nlohmann::json &recipe);
 
@@ -78,14 +79,9 @@ public:
                                std::string &error);
 
 private:
-  struct Change {
-    nlohmann::json before;
-    nlohmann::json after;
-  };
   [[nodiscard]] bool commit(nlohmann::json &recipe, nlohmann::json graph);
   std::string identity_;
-  std::vector<Change> undo_;
-  std::vector<Change> redo_;
+  EditorValueHistory<nlohmann::json> history_;
 };
 
 } // namespace demi::editor

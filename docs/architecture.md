@@ -34,6 +34,10 @@ The current source layout reflects those boundaries:
 
 - `src/demi/assets`: asset manifests and registry.
 - `src/demi/diagnostics`: shared structured diagnostics.
+- `src/demi/graph`: UI-free stable-ID dependency ordering and reachability.
+  Terrain graphs and asset cooking use it for traversal; each owner validates
+  its own authored links, errors, and content identity. The graph type can
+  store cycles; consumers request topological order when they require a DAG.
 - `src/demi/filesystem`: deterministic project path resolution.
 - `src/demi/schema`: source validation.
 - `src/demi/runtime/app`: loop and subsystem orchestration plus the narrow 2D
@@ -162,5 +166,10 @@ are centralized in `RenderAssetLoading`. Neither is a general-purpose utility
 namespace, and neither introduces a new owner or configuration object.
 
 ## Compatibility
+
+Shared dependency topology, value history, palette cards and color controls are
+documented in [shared authoring foundations](shared-authoring-foundations.md).
+The utility owners contain no terrain policy; format-specific adapters remain
+responsible for validation, encoding and persistence.
 
 All durable format changes follow the [compatibility policy](compatibility.md).

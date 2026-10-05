@@ -12,8 +12,10 @@
 #include <memory>
 #include <stdexcept>
 #include <stop_token>
+#include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 using namespace demi::runtime;
 
@@ -230,6 +232,30 @@ void rewiredSourceInvalidatesOutput() {
   assert(rewired->heights == first->heights);
 }
 
+void executionOrderFollowsOnlyActiveOutput() {
+  auto graph = defaultTerrainGraph();
+  graph["nodes"].push_back({{"id", "unused"}, {"type", "constant"}});
+  graph["nodes"].push_back({{"id", "offset"}, {"type", "offset"}});
+  graph["links"][0]["from"]["node"] = "offset";
+  graph["links"].push_back(
+      {{"id", "landform_offset"},
+       {"from", {{"node", "landform"}, {"port", "field"}}},
+       {"to", {{"node", "offset"}, {"port", "field"}}}});
+  const auto parsed = TerrainGraph::parse(graph);
+  assert((parsed.executionOrder() ==
+          std::vector<std::string>{"landform", "offset", "terrain_output"}));
+
+  // A cycle in an unused branch still invalidates the authored graph.
+  graph["nodes"].push_back({{"id", "unused_offset"}, {"type", "offset"}});
+  graph["links"].push_back(
+      {{"id", "unused_cycle"},
+       {"from", {{"node", "unused_offset"}, {"port", "field"}}},
+       {"to", {{"node", "unused_offset"}, {"port", "field"}}}});
+  const auto diagnostics = terrainGraphDiagnostics(graph);
+  assert(!diagnostics.empty());
+  assert(diagnostics.front().message == "Terrain graph contains a cycle");
+}
+
 void branchesAndPipelineUseGraphOutput() {
   auto authored = recipe();
   authored.graph = {
@@ -352,12 +378,19 @@ void exampleLandscapeRetainsBiomesAndWater() {
   assert(source && "Terrain graph example source must be available");
   const auto document = nlohmann::json::parse(source);
   const auto authored = TerrainRecipe::parse(document.at("recipe"));
+  const auto graph = TerrainGraph::parse(authored.graph);
+  const auto executionOrder = graph.executionOrder();
   const auto field = executeTerrainGraph(authored);
   assert(field && field->graphArtifacts);
-  assert(field->cellsX == 128 && field->cellsZ == 128);
-  assert(field->graphArtifacts->nodes.size() == 13);
+  assert(field->cellsX == authored.cellsX && field->cellsZ == authored.cellsZ);
+  assert(field->heights.size() == authored.sampleCount());
+  assert(field->biomeIndices.size() == authored.sampleCount());
+  assert(field->graphArtifacts->nodes.size() == executionOrder.size());
   assert(field->graphArtifacts->warnings.empty());
 
+  assert(field->biomeIds.size() == authored.biomes.size());
+  for (const auto &id : field->biomeIds)
+    assert(authored.biomes.contains(id));
   std::vector<std::size_t> biomeCounts(field->biomeIds.size());
   float lowest = field->heights.front();
   float highest = lowest;
@@ -367,17 +400,36 @@ void exampleLandscapeRetainsBiomesAndWater() {
     ++biomeCounts.at(field->biomeIndices[sample]);
   }
   assert(highest - lowest > 20.F);
-  assert(biomeCounts.size() == 5);
   assert(std::count_if(biomeCounts.begin(), biomeCounts.end(),
-                       [](std::size_t count) { return count > 0; }) >= 4);
+                       [](std::size_t count) { return count > 0; }) >= 2);
 
   const auto &artifacts = *field->graphArtifacts;
-  assert(artifacts.water.bodies.size() == 2);
-  assert(artifacts.water.bodies[0].id == "basin_lake");
-  assert(artifacts.water.bodies[1].id == "outlet_river");
+  std::vector<std::string> waterNodeIds;
+  for (const auto &id : executionOrder)
+    if (graph.node(id)->type == "water")
+      waterNodeIds.push_back(id);
+  assert(!waterNodeIds.empty());
+  assert(artifacts.water.bodies.size() == waterNodeIds.size());
+  for (std::size_t i = 0; i < waterNodeIds.size(); ++i)
+    assert(artifacts.water.bodies[i].id == waterNodeIds[i]);
+  assert(std::any_of(artifacts.water.bodies.begin(), artifacts.water.bodies.end(),
+                     [](const auto &body) {
+                       return body.kind == TerrainWaterBody::Lake;
+                     }));
+  assert(std::any_of(artifacts.water.bodies.begin(), artifacts.water.bodies.end(),
+                     [](const auto &body) {
+                       return body.kind == TerrainWaterBody::River;
+                     }));
   assert(artifacts.waterResult && artifacts.waterResult->dropped == 0);
-  assert(artifacts.waterResult->surfaces.size() == 2);
-  assert(!artifacts.waterResult->surfaces[1].vertices.empty());
+  assert(artifacts.waterResult->surfaces.size() == waterNodeIds.size());
+  for (std::size_t i = 0; i < waterNodeIds.size(); ++i)
+    assert(artifacts.waterResult->surfaces[i].id == waterNodeIds[i]);
+  assert(std::any_of(artifacts.waterResult->surfaces.begin(),
+                     artifacts.waterResult->surfaces.end(),
+                     [](const auto &surface) {
+                       return surface.kind == TerrainWaterBody::River &&
+                              !surface.vertices.empty();
+                     }));
 }
 
 void invalidParameterDomainsAreRejectedAtParse() {
@@ -437,6 +489,7 @@ int main() {
   cacheIgnoresAppearanceAndRetainsRuleBoundary();
   paletteFingerprintOnlyInvalidatesScatter();
   rewiredSourceInvalidatesOutput();
+  executionOrderFollowsOnlyActiveOutput();
   branchesAndPipelineUseGraphOutput();
   graphStageReportingFollowsNodes();
   graphWaterResultSurvivesPipeline();

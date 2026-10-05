@@ -1,8 +1,9 @@
 #include "demi/runtime/terrain/TerrainGraph.h"
 
+#include "demi/graph/DependencyGraph.h"
+
 #include <algorithm>
 #include <cmath>
-#include <map>
 #include <set>
 #include <stdexcept>
 
@@ -109,39 +110,18 @@ const TerrainGraphLink *TerrainGraph::input(std::string_view node,
 
 std::vector<std::string>
 TerrainGraph::executionOrder(bool requireInputs) const {
-  std::map<std::string, std::size_t> dependencies;
-  std::map<std::string, std::vector<std::string>> consumers;
+  graph::DependencyGraph dependencies;
   for (const auto &entry : nodes)
-    dependencies.emplace(entry.id, 0);
+    require(dependencies.addNode(entry.id),
+            "Duplicate terrain graph node ID: " + entry.id);
   for (const auto &link : links) {
-    ++dependencies.at(link.to.node);
-    consumers[link.from.node].push_back(link.to.node);
+    require(dependencies.addDependency(link.to.node, link.from.node),
+            "Link " + link.id + ": referenced node is missing");
   }
-  std::set<std::string> ready;
-  for (const auto &[id, count] : dependencies)
-    if (count == 0)
-      ready.insert(id);
-  std::vector<std::string> sorted;
-  while (!ready.empty()) {
-    auto current = *ready.begin();
-    ready.erase(ready.begin());
-    sorted.push_back(current);
-    for (const auto &consumer : consumers[current])
-      if (--dependencies.at(consumer) == 0)
-        ready.insert(consumer);
-  }
-  require(sorted.size() == nodes.size(), "Terrain graph contains a cycle");
-  std::set<std::string> reachable;
-  std::vector<std::string> pending{output};
-  while (!pending.empty()) {
-    auto current = std::move(pending.back());
-    pending.pop_back();
-    if (!reachable.insert(current).second)
-      continue;
-    for (const auto &link : links)
-      if (link.to.node == current)
-        pending.push_back(link.from.node);
-  }
+  auto order = dependencies.topologicalOrder();
+  require(!order.blockedNode, "Terrain graph contains a cycle");
+  const auto reachable = dependencies.dependenciesReachable({output});
+  auto &sorted = order.nodes;
   std::erase_if(sorted,
                 [&](const auto &entry) { return !reachable.contains(entry); });
   if (!requireInputs)

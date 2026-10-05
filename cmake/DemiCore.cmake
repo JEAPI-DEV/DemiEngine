@@ -1,5 +1,6 @@
 # Engine data, asset, scene, UI, input, physics, and navigation foundations.
 add_library(demi-core STATIC
+  src/demi/graph/DependencyGraph.cpp
   src/demi/runtime/terrain/TerrainGraph.cpp
   src/demi/runtime/terrain/TerrainGraphRegistry.cpp
   src/demi/runtime/terrain/TerrainGraphExecutor.cpp
