@@ -203,8 +203,9 @@ void main()
     DEMI_GGX_PRECISION float roughness = clamp(u_metalRough.y, 0.04, 1.0);
     DEMI_GGX_PRECISION vec3 toView = u_viewPosition.xyz - v_worldPos;
     DEMI_GGX_PRECISION vec3 viewDirection = toView / max(length(toView), 0.0001);
-    vec3 lighting = u_ambientColor.rgb;
-    vec3 shadedColor = baseColor * lighting * (1.0 - metallic);
+    vec3 lighting = u_ambientColor.rgb +
+                    u_lightColor.rgb * u_lightDirection.w * diffuse * visibility;
+    vec3 shadedColor = baseColor * u_ambientColor.rgb * (1.0 - metallic);
     shadedColor += u_lightColor.rgb * u_lightDirection.w * visibility *
                    directSurfaceLight(baseColor, normal, viewDirection,
                                       directionalDirection, metallic, roughness);

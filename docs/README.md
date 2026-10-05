@@ -14,6 +14,10 @@ This directory keeps material that has a different job:
   records native creation/editing, reference dependencies, save retry/recovery
   and the remaining terrain rendering boundary.
 
+- [Mesh surface qualification](mesh-surface-qualification.md) records material
+  inheritance, direct metallic/roughness lighting, transparent ordering and
+  near-camera picking coverage.
+
 - [Editor commands, clipboard and docking](editor-shortcut-qualification.md)
   records shortcut ownership, clipboard identity/remapping, independent panel
   identities, contextual palettes and scoped verification.

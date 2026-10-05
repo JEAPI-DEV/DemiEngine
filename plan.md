@@ -52,6 +52,13 @@ than a fixed world-unit rate. Independent props remain independent of later
 terrain regeneration. See the editor authoring guide for pivot and collider
 semantics.
 
+Mesh Renderer now exposes inherited/overridden metallic, roughness, opacity and
+surface mode. The shared 3D draw path provides direct metallic/roughness lighting
+and ordered alpha blending; reflection probes, refraction and general PBR texture
+maps remain open. Near-camera picking accepts partially clipped visible bounds
+and uses constant-screen-size handles. See
+[mesh surface qualification](docs/mesh-surface-qualification.md).
+
 Deferred feature plan: [neural networks](neural-networks.plan). Python training,
 native inference and later NPC training tooling; resume only on user request.
 
