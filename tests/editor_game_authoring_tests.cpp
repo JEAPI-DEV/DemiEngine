@@ -108,7 +108,8 @@ return Player
     require(workspace.addScriptComponent(actor, *behaviour, error), error);
     fs::path prefab;
     require(createEditorSource(workspace, EditorSourceKind::PrefabFromSelection,
-                               "actors/player", prefab, error, actor),
+                               "actors/player", prefab, error, actor, {},
+                               {.replaceSelectionWithPrefab = false}),
             error);
     require(workspace.sceneDocument().entity(actor) != nullptr,
             "Export replaced the source actor");

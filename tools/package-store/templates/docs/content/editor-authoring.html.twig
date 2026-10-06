@@ -13,7 +13,7 @@
 <h2>Create and finish a project in the editor</h2>
 <ol>
   <li>Use <strong>File → New project</strong> to choose a starter. <strong>File → New document</strong> (also under <strong>Assets → Create</strong>) creates a 2D/3D scene, HUD, entity or UI prefab, or Lua behaviour. The Assets Create menu also offers materials and data assets.</li>
-  <li>Build the scene and HUD in their stages. Use <strong>Scene → Create prefab from selection</strong> to copy an authored hierarchy into a reusable source while leaving the original in the scene. Add it through <strong>Scene → Add prefab instance</strong>, the Assets action, or a drag onto the Scene viewport.</li>
+  <li>Build the scene and HUD in their stages. Use <strong>Scene → Create prefab from selection</strong> to create a reusable source and replace the selection with a linked instance. <strong>Replace selection with a prefab instance</strong> is on by default: entity IDs, placement, hierarchy and references stay intact. Uncheck it to create an unlinked copy. One Undo restores the original hierarchy; the reusable prefab file remains. Add it through <strong>Scene → Add prefab instance</strong>, the Assets action, or a drag onto the Scene viewport.</li>
   <li>Attach a HUD with <strong>Scene → HUD</strong>. Set the built game's <strong>Start scene</strong> in Project Settings; the open editor scene does not choose it for you.</li>
   <li>Double-click a Lua behaviour to edit it in your configured external code editor. Use <strong>Ctrl+S</strong> or <strong>File → Save all</strong> for authored documents and project settings, then <strong>Build → Build Project</strong> for the saved game.</li>
 </ol>

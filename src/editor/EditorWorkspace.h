@@ -57,6 +57,10 @@ public:
                                        std::string &error);
   [[nodiscard]] bool openPrefabDocument(const std::filesystem::path &path,
                                         std::string &error);
+  [[nodiscard]] bool
+  replaceHierarchyWithPrefab(std::string_view selectedId,
+                             const std::filesystem::path &prefabPath,
+                             std::string &error);
   [[nodiscard]] bool instantiatePrefab(const std::filesystem::path &path,
                                         std::string &error);
   [[nodiscard]] bool instantiatePrefab(const std::filesystem::path &path,

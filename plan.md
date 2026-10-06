@@ -1,5 +1,9 @@
 # DemiEngine Roadmap
 
+Prefab creation now replaces the selected hierarchy with a linked instance by
+default. Explicit instance entity_ids preserve the original entity identities;
+scene Undo restores the hierarchy while retaining the new reusable source file.
+
 Terrain Presets provides four built-in learning landscapes beside Inspector and
 Terrain Nodes. Versioned presets may include graphs; editable comment nodes
 explain generation without affecting terrain output or generation cache keys.

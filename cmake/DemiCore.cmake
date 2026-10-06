@@ -109,6 +109,7 @@ add_library(demi-core STATIC
   src/demi/packages/PackageLock.cpp
   src/demi/schema/Validation.cpp
   src/demi/runtime/scene/composition/PrefabResolver.cpp
+  src/demi/runtime/scene/composition/PrefabEntityIdentity.cpp
   src/demi/runtime/scene/composition/EntityHierarchy.cpp
   src/demi/runtime/ui/UiLayoutEngine.cpp
   src/demi/runtime/ui/HudLayoutReport.cpp

@@ -115,6 +115,7 @@ else()
     src/editor/EditorScenePreview.cpp
     src/editor/EditorSourceCreation.cpp
     src/editor/EditorPrefabAuthoring.cpp
+    src/editor/EditorPrefabConversion.cpp
     src/editor/EditorEntityBounds3D.cpp
     src/editor/EditorCodeEditor.cpp
     src/editor/EditorSceneView2DState.cpp

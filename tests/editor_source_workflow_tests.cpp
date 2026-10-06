@@ -38,9 +38,9 @@ int main() {
   assert(workspace.openSceneDocument(scene, error));
   assert(workspace.sceneDocument().json()["id"] == "scene://levels/first");
   const auto unchangedScene = workspace.sceneDocument().json();
-  assert(createEditorSource(workspace, EditorSourceKind::PrefabFromSelection,
-                            "camera_copy", created, error, "camera",
-                            "prefabs/props"));
+  assert(createEditorSource(
+      workspace, EditorSourceKind::PrefabFromSelection, "camera_copy", created,
+      error, "camera", "prefabs/props", {.replaceSelectionWithPrefab = false}));
   assert(created == root / "prefabs/props/camera_copy.prefab.json");
   {
     std::ifstream source(created);

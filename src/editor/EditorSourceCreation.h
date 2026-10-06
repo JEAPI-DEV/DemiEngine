@@ -23,6 +23,7 @@ enum class EditorSourceKind {
   TerrainPalette
 };
 struct EditorSourceAssetOptions {
+  bool replaceSelectionWithPrefab = true;
   std::string initialRole;
   std::string initialAsset;
   std::string initialPrefab;

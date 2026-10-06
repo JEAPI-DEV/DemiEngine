@@ -29,10 +29,8 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": [
-          "id",
-          "components"
-        ],
+        "required": ["id"],
+        "anyOf": [{ "required": ["components"] }, { "required": ["prefab"] }],
         "properties": {
           "children": {
             "type": "array",
@@ -61,6 +59,9 @@
           "layer": {
             "type": "string"
           },
+          "prefab": { "type": "string", "pattern": "^prefab://" },
+          "entity_ids": { "$ref": "#/properties/instances/items/properties/entity_ids" },
+          "overrides": { "type": "object" },
           "components": {
             "$ref": "components.schema.json"
           }
@@ -75,6 +76,7 @@
         "properties": {
           "id": { "type": "string" },
           "prefab": { "type": "string", "pattern": "^prefab://" },
+          "entity_ids": { "type": "object", "propertyNames": { "minLength": 1 }, "additionalProperties": { "type": "string", "minLength": 1 }, "description": "Prefab-local expanded IDs mapped to stable IDs in the owning document. Destinations must remain unique." },
           "overrides": { "type": "object" }
         }
       }

@@ -40,8 +40,12 @@
 </table>
 <p>Use <code>entities</code> for entity-prefab authoring, including nested prefab references. A separate top-level <code>instances</code> array is still accepted by the loader, but is not needed or recommended for new documents. UI prefabs have their own <code>*.ui.prefab.json</code> format. Entity fields behave as in <a href="{{ path('docs_page', {slug: 'scene-json'}) }}">Scene files</a>.</p>
 
+<h2>Converting an existing hierarchy</h2>
+<p><strong>Scene → Create prefab from selection</strong> creates a source prefab and replaces the selected hierarchy with a linked instance by default. Its existing entity IDs and transforms are retained, so Lua, saved state and other scene references keep using the same IDs. Uncheck <strong>Replace selection with a prefab instance</strong> for a copy without changing the original. Undo restores the original hierarchy and source layout; it leaves the new prefab file available for reuse.</p>
+<p>The instance may contain an <code>entity_ids</code> object. Keys are expanded prefab-local IDs (including nested paths); values are stable IDs in the owning scene or prefab document. For example, <code>"entity_ids": {"body": "habitat", "door": "airlock"}</code> keeps those two entity identities instead of producing <code>instance/body</code> and <code>instance/door</code>. Inside another prefab, the outer instance namespace still applies. Override keys remain prefab-local, so <code>body.Transform3D.position</code> still edits the mapped body.</p>
+<p>Unmapped entities retain normal prefixed IDs. The mapping uses nonempty string keys and values, every key must resolve to an expanded entity, and destination IDs must be unique across the resulting scene. Missing keys and collisions are validation errors. If a mapped entity is removed from the source prefab, update the instance mapping as part of that authoring change. Copying or duplicating a mapped instance in the editor allocates fresh mapped IDs while preserving the original instance's identities. Instance handles are separate from the runtime entities they own.</p>
 <h2>ID expansion: how instance names are built</h2>
-<p>When a prefab is placed, its entity IDs are prefixed with the instance ID. This keeps two copies of the same prefab from colliding in one scene.</p>
+<p>By default, when a prefab is placed, its entity IDs are prefixed with the instance ID. This keeps two copies of the same prefab from colliding in one scene.</p>
 <p>Worked example. The prefab above has a local entity called <code>body</code>. A scene places it like this:</p>
 <pre><code>"entities": [
   {

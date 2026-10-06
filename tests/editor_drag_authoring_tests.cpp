@@ -163,22 +163,27 @@ void checkAssetsBackgroundDrop(EditorWorkspace &workspace,
   // Let the newly opened dialog's name-field focus request settle before
   // activating another widget through keyboard navigation.
   renderFrame(drawAssets);
-  ImGui::ActivateItemByID(dialog->GetID("Create prefab copy"));
+  ImGui::ActivateItemByID(dialog->GetID("Create prefab"));
   renderFrame(drawAssets);
 
   const fs::path created = root / "prefabs/Player_Prefab.prefab.json";
   require(fs::is_regular_file(created),
-          "Create prefab copy did not write the expected source");
+          "Create prefab did not write the expected source");
   const json prefab = readJson(created);
   require(prefab.at("id") == "prefab://Player_Prefab",
           "Created prefab has the wrong stable ID");
   require(prefab.at("entities") ==
               json::array({sceneBefore.at("entities").at(0)}),
           "Created prefab did not copy the dragged authored entity");
+  const auto &instance = workspace.sceneDocument().json().at("entities").at(0);
+  require(instance.at("prefab") == "prefab://Player_Prefab" &&
+              instance.at("entity_ids").at("player") == "player",
+          "Default creation did not replace the dragged hierarchy with "
+          "preserved IDs");
+  std::string error;
+  require(workspace.undo(error), error);
   require(workspace.sceneDocument().json() == sceneBefore,
-          "Creating a prefab copy changed the authored scene");
-  require(!workspace.sceneDocument().canUndo(),
-          "Creating a prefab copy inserted a scene undo command");
+          "Prefab replacement Undo did not restore the original hierarchy");
 }
 
 void checkViewportPrefabDrop(EditorWorkspace &workspace,

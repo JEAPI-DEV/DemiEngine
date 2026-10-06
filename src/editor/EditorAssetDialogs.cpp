@@ -94,10 +94,18 @@ void EditorAssetDialogs::draw(EditorWorkspace &workspace, std::string &notice) {
     if (ImGui::Begin("New document", &showNewSource_,
                      ImGuiWindowFlags_NoDocking)) {
       ImGui::TextWrapped("Choose a name for the new document.");
-      if (sourceKind_ == EditorSourceKind::PrefabFromSelection)
-        ImGui::TextWrapped("Copy hierarchy '%s' into a reusable prefab. The "
-                           "original stays unchanged.",
+      if (sourceKind_ == EditorSourceKind::PrefabFromSelection) {
+        ImGui::TextWrapped("Create a reusable prefab from hierarchy '%s'.",
                            sourceSelection_.c_str());
+        ImGui::Checkbox("Replace selection with a prefab instance",
+                        &sourceAssetOptions_.replaceSelectionWithPrefab);
+        ImGui::TextWrapped(
+            sourceAssetOptions_.replaceSelectionWithPrefab
+                ? "Keep entity IDs and placement. Prefab edits update this "
+                  "instance. Undo restores the original hierarchy; the prefab "
+                  "file remains."
+                : "Create a copy and leave the original hierarchy unlinked.");
+      }
       if (sourceKind_ == EditorSourceKind::TerrainFromSelection)
         ImGui::TextWrapped("Move the selected terrain's editable recipe into "
                            "a Terrain asset. The scene keeps a reference; "
@@ -164,7 +172,7 @@ void EditorAssetDialogs::draw(EditorWorkspace &workspace, std::string &notice) {
       ImGui::BeginDisabled(!canCreate);
       const bool create =
           ImGui::Button(sourceKind_ == EditorSourceKind::PrefabFromSelection
-                            ? "Create prefab copy"
+                            ? "Create prefab"
                             : "Create and open");
       ImGui::EndDisabled();
       if ((create || entered) && canCreate) {

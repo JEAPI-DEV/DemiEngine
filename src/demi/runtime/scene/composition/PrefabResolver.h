@@ -8,6 +8,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <unordered_set>
 
 namespace demi::runtime::composition {
@@ -34,6 +35,7 @@ public:
 
 private:
   std::unordered_set<std::string> instances_;
+  std::unordered_map<std::string, PrefabEntityOrigin> explicitIds_;
 };
 
 [[nodiscard]] std::optional<PrefabEntityOrigin>

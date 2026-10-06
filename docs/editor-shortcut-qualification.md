@@ -289,3 +289,27 @@ its introductory graph, and confirmed the orange terrain preview. A graph UI
 regression bounds comment-card width; asset tests cover comment-only generation,
 preset Undo/Redo and saving/reopening notes. The two maintained terrain examples
 validate. This is focused Linux qualification, not a full-suite or Android gate.
+
+## Prefab conversion with preserved IDs (2026-10-06)
+
+Create prefab from selection and hierarchy-to-Assets creation now default to
+replacing the selected hierarchy with a linked instance. Copy-only remains an
+explicit dialog option. Instance `entity_ids` maps expanded prefab-local IDs to
+stable owner-document IDs; overrides still use local keys. Nested owners apply
+their outer namespace, and sibling references resolve mapped identities through
+the shared composition loader. Cooked `prefab_origins` retains these mappings.
+
+The editor records replacement as one hierarchy command, preserving source
+nesting, placement and existing references. Undo restores the scene and leaves
+the reusable prefab file. A failed conversion restores the scene and removes
+only its unchanged newly created file. Clipboard duplication allocates fresh
+mapped IDs; Inspector ownership uses the mapped origin index.
+
+Focused Release checks cover 2D/3D conversion, transformed parents, nested
+instances, source updates, overrides, Undo/Redo, copy-only, rollback, clipboard,
+identity collisions, legacy/unified authoring, cached templates and fractures.
+The native Linux Vulkan probe converted the colony habitat without moving it;
+Inspector showed its instance origin while its ID remained `cylinder`. The
+converted project validated and cooked, and its cooked scene retained that ID
+and the mapped origin. This is scoped desktop qualification, not a full-suite
+or Android gate.

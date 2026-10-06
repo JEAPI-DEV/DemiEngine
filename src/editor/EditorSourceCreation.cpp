@@ -379,6 +379,31 @@ bool createEditorSource(EditorWorkspace &workspace, EditorSourceKind kind,
     if (!store.writeNew(target, content, error))
       return false;
     created = target;
+    if (kind == EditorSourceKind::PrefabFromSelection &&
+        assetOptions.replaceSelectionWithPrefab) {
+      const auto sourceId =
+          document.at("entities").front().at("id").get<std::string>();
+      if (!workspace.replaceHierarchyWithPrefab(sourceId, target, error)) {
+        // Roll back only the source we just created; never remove a concurrent
+        // edit.
+        std::string current;
+        FileRevision revision;
+        std::string readError;
+        std::error_code filesystemError;
+        if (!std::filesystem::is_symlink(target, filesystemError) &&
+            !filesystemError &&
+            store.read(target, current, revision, readError) &&
+            current == content &&
+            std::filesystem::remove(target, filesystemError) &&
+            !filesystemError)
+          created.clear();
+        else
+          error += " The created prefab remains at " + target.string() +
+                   "; inspect it before retrying.";
+        workspace.refreshAssetMetadata();
+        return false;
+      }
+    }
     if (asset) {
       const auto imported = assets::importAsset(
           {.projectDirectory = root,

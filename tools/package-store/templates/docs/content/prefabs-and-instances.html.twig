@@ -147,3 +147,5 @@ local id = Prefab.instantiate("prefab://characters/player", {
   <li><a href="{{ path('docs_page', {slug: 'scene-and-prefab-api'}) }}">Scene &amp; prefab API</a> — loading scenes and instantiating from Lua.</li>
   <li><a href="{{ path('docs_page', {slug: 'entities-and-components'}) }}">Entities &amp; components</a> — what every prefab is built from.</li>
 </ul>
+
+<p>To turn existing scene objects into a reusable prefab, choose <strong>Scene → Create prefab from selection</strong>. Replacement with a linked instance is enabled by default and preserves the existing entity IDs. Disable the checkbox to create an unlinked copy. See <a href="{{ path('docs_page', {slug: 'prefab-json'}) }}">Prefab files</a> for the explicit identity mapping and Undo behavior.</p>

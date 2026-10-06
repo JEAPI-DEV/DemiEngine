@@ -22,6 +22,21 @@ bool collectTree(const Json &node, std::vector<std::string> &ids,
     return false;
   }
   ids.push_back(id);
+  if (const auto mapping = node.find("entity_ids"); mapping != node.end()) {
+    if (!node.contains("prefab") || !mapping->is_object()) {
+      error = "entity_ids requires a prefab instance and an object.";
+      return false;
+    }
+    for (const auto &target : *mapping) {
+      if (!target.is_string() ||
+          target.get_ref<const std::string &>().empty() ||
+          !seen.insert(target.get<std::string>()).second) {
+        error = "Prefab identity mappings must use unique nonempty IDs.";
+        return false;
+      }
+      ids.push_back(target.get<std::string>());
+    }
+  }
   for (const char *field : {"children", "elements"}) {
     const auto children = node.find(field);
     if (children == node.end())
@@ -156,6 +171,9 @@ void remapClipboardEntities(Json &roots, const EditorClipboardIdMap &ids) {
   });
   visitTrees(roots, [&](Json &node) {
     node["id"] = ids.at(node["id"].get<std::string>());
+    if (auto mapping = node.find("entity_ids"); mapping != node.end())
+      for (auto &target : *mapping)
+        remapReference(target, ids);
     remapComponents(node, ids, instances);
     remapOverrides(node, ids, instances);
   });

@@ -904,6 +904,17 @@ bool EditorSceneDocument::pasteEntities(const nlohmann::json &payload,
         instances != document_.end())
       for (const auto &instance : *instances)
         reserved.insert(instance.at("id").get<std::string>());
+    const auto reserveMapped = [&](const auto &items) {
+      for (const auto &item : items)
+        if (const auto mapping = item.find("entity_ids");
+            mapping != item.end() && mapping->is_object())
+          for (const auto &id : *mapping)
+            if (id.is_string())
+              reserved.insert(id.template get<std::string>());
+    };
+    reserveMapped(flat);
+    if (document_.contains("instances"))
+      reserveMapped(document_["instances"]);
     const auto remapping = allocateClipboardIds(copiedIds, std::move(reserved));
     auto copies = payload;
     remapClipboardEntities(copies, remapping);

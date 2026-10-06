@@ -259,7 +259,9 @@ int main() {
   assert(reopened.duplicateEntity("crate_2", error));
   const auto copiedId = std::string(reopened.lastChangedEntityId());
   assert(copiedId == "crate_2_copy");
-  assert(reopened.json().at("instances").size() == 2);
+  // New copies use the unified entities array; the legacy source stays intact.
+  assert(reopened.json().at("instances") == beforeInstanceCopy.at("instances"));
+  assert(reopened.entity(copiedId) != nullptr);
   assert(reopened.undo(error));
   assert(reopened.json() == beforeInstanceCopy);
   assert(reopened.redo(error));
@@ -268,7 +270,8 @@ int main() {
   assert(reopened.json().at("instances").size() == 1);
   assert(reopened.undo(error));
   assert(reopened.entity("crate") != nullptr);
-  assert(reopened.json().at("instances").size() == 2);
+  assert(reopened.json().at("instances") == beforeInstanceCopy.at("instances"));
+  assert(reopened.entity(copiedId) != nullptr);
 
   fs::remove_all(root, ignored);
   return 0;

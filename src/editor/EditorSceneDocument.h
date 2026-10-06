@@ -77,6 +77,10 @@ public:
   [[nodiscard]] bool instantiatePrefab(std::string_view reference,
                                        nlohmann::json overrides,
                                        std::string &error);
+  [[nodiscard]] bool
+  replaceHierarchyWithPrefab(std::string_view selectedId,
+                             std::string_view prefabReference,
+                             nlohmann::json entityIds, std::string &error);
   [[nodiscard]] bool createPresetEntity(std::string_view preset,
                                         std::string &error);
   [[nodiscard]] bool unpackPreset(std::string_view id, std::string &error);
