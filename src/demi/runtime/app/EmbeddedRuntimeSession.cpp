@@ -1,6 +1,7 @@
 #include "demi/runtime/app/EmbeddedRuntimeSession.h"
 
 #include "demi/assets/AssetRegistry.h"
+#include "demi/assets/TerrainAsset.h"
 #include "demi/diagnostics/Diagnostic.h"
 #include "demi/runtime/animation/AnimationCollision2DSystem.h"
 #include "demi/runtime/animation/AnimationStateMachineSystem.h"
@@ -54,6 +55,9 @@ public:
   InputState input;
   ui::BufferedUiAccessibilityBridge accessibilityBridge;
   ui::UiAccessibilityBridgeController accessibility{accessibilityBridge};
+  // Shared with terrain scatter, so editor Play uses the same pool the game does.
+  RuntimePrefabService prefabs;
+  // Borrowed services must outlive the Lua host, including failed startup.
   LuaScriptHost lua;
   double fixedAccumulator = 0.0;
   std::uint64_t fixedTicks = 0;
@@ -84,6 +88,15 @@ bool EmbeddedRuntimeSession::start(const std::filesystem::path &projectPath,
     return false;
   }
   auto state = std::make_unique<State>();
+  try {
+    const auto directory = std::filesystem::is_directory(projectPath)
+                               ? projectPath
+                               : projectPath.parent_path();
+    assets::prepareTerrainAssets(loadAssetRegistry(directory));
+  } catch (const std::exception &exception) {
+    error = "Terrain asset preparation failed: " + std::string(exception.what());
+    return false;
+  }
   auto loaded = loadProject(projectPath, error);
   if (!loaded)
     return false;
@@ -120,6 +133,21 @@ bool EmbeddedRuntimeSession::start(const std::filesystem::path &projectPath,
   if (state->audioInitialized)
     state->assets.registerLoader(
         state->audio.createAssetLoader(state->assetRegistry));
+  state->prefabs.configure(state->loaded.project.projectDirectory);
+  {
+    std::string scatterError;
+    const auto resolution = materializeTerrainScatter(
+        state->loaded.world, &state->prefabs, scatterError);
+    if (!scatterError.empty() || resolution.unresolved != 0) {
+      error = scatterError.empty()
+                  ? "Initial terrain scatter left " +
+                        std::to_string(resolution.unresolved) +
+                        " prefab placement(s) unresolved."
+                  : std::move(scatterError);
+      return false;
+    }
+  }
+  state->lua.setPrefabService(&state->prefabs);
   state->lua.setMediaSystem(&state->media);
   state->lua.setNetworkSystem(&state->network);
   state->lua.setRuntimeAssetService(&state->assets);

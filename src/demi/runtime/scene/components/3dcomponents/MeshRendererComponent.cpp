@@ -3,10 +3,88 @@
 #include "demi/runtime/scene/model/Entity.h"
 #include <algorithm>
 #include <atomic>
+#include <cmath>
+#include <stdexcept>
 namespace demi::runtime {
+namespace {
+bool normalizedChannel(double value) {
+  return std::isfinite(value) && value >= 0.0 && value <= 1.0;
+}
+
+std::optional<float> normalizedOverride(const nlohmann::json &json,
+                                        const char *name) {
+  const auto found = json.find(name);
+  if (found == json.end())
+    return std::nullopt;
+  if (!found->is_number())
+    throw std::invalid_argument(std::string("MeshRenderer.") + name +
+                                " must be a number from 0 to 1");
+  const float value = found->get<float>();
+  if (!std::isfinite(value) || value < 0.0F || value > 1.0F)
+    throw std::invalid_argument(std::string("MeshRenderer.") + name +
+                                " must be finite and between 0 and 1");
+  return value;
+}
+} // namespace
+
+bool MeshRendererComponent::validateAuthored(const nlohmann::json &json,
+                                            std::string &error) {
+  if (!json.is_object()) {
+    error = "MeshRenderer must be an object";
+    return false;
+  }
+  const auto colors = json.find("vertex_colors");
+  if (colors == json.end())
+    return true;
+  if (!colors->is_array() ||
+      !std::ranges::all_of(*colors, [](const auto &color) {
+        return color.is_array() && color.size() == 4 &&
+               std::ranges::all_of(color, [](const auto &channel) {
+                 return channel.is_number() &&
+                        normalizedChannel(channel.template get<double>());
+               });
+      })) {
+    error = "MeshRenderer.vertex_colors must be an array of RGBA colors with "
+            "finite channels from 0 to 1";
+    return false;
+  }
+  const auto vertices = json.find("vertices");
+  if (!colors->empty() &&
+      (vertices == json.end() || !vertices->is_array() ||
+       vertices->size() != colors->size())) {
+    error = "MeshRenderer.vertex_colors must be empty or match the inline "
+            "vertices count";
+    return false;
+  }
+  return true;
+}
+
+nlohmann::json MeshRendererComponent::schemaConstraints() {
+  return {{"if", {{"required", {"vertex_colors"}},
+                  {"properties", {{"vertex_colors", {{"minItems", 1}}}}}}},
+          {"then", {{"required", {"vertices"}},
+                    {"properties", {{"vertices", {{"minItems", 1}}}}}}}};
+}
+
 bool MeshRendererComponent::serializeField(
     const MeshRendererComponent &component, std::string_view field,
     nlohmann::json &out) {
+  if (field == "metallic" && component.metallic) {
+    out = *component.metallic;
+    return true;
+  }
+  if (field == "roughness" && component.roughness) {
+    out = *component.roughness;
+    return true;
+  }
+  if (field == "opacity" && component.opacity) {
+    out = *component.opacity;
+    return true;
+  }
+  if (field == "surface_mode" && component.surfaceMode) {
+    out = *component.surfaceMode;
+    return true;
+  }
   if (field != "material_properties")
     return false;
   out = nlohmann::json::object();
@@ -17,7 +95,44 @@ bool MeshRendererComponent::serializeField(
   return true;
 }
 
+bool MeshRendererComponent::validateVertexColors(std::string &error) const {
+  if (!vertexColors.empty() && vertexColors.size() != vertices.size()) {
+    error = "MeshRenderer.vertex_colors must be empty or match the inline "
+            "vertices count";
+    return false;
+  }
+  for (const Color &value : vertexColors) {
+    if (!normalizedChannel(value.r) || !normalizedChannel(value.g) ||
+        !normalizedChannel(value.b) || !normalizedChannel(value.a)) {
+      error = "MeshRenderer.vertex_colors channels must be finite and from 0 to 1";
+      return false;
+    }
+  }
+  return true;
+}
+
+void MeshRendererComponent::copyVertices(
+    MeshRendererComponent &destination, const MeshRendererComponent &source) {
+  if (!destination.vertexColors.empty() &&
+      destination.vertexColors.size() != source.vertices.size())
+    throw std::invalid_argument(
+        "MeshRenderer.vertices must match the live vertex_colors count");
+  destination.vertices = source.vertices;
+}
+
+void MeshRendererComponent::copyVertexColors(
+    MeshRendererComponent &destination, const MeshRendererComponent &source) {
+  if (!source.vertexColors.empty() &&
+      source.vertexColors.size() != destination.vertices.size())
+    throw std::invalid_argument(
+        "MeshRenderer.vertex_colors must match the live inline vertices count");
+  destination.vertexColors = source.vertexColors;
+}
+
 void MeshRendererComponent::markGeometryChanged() {
+  std::string error;
+  if (!validateVertexColors(error))
+    throw std::invalid_argument(error);
   // Renderer caches are keyed by entity ID. A fresh mesh may reuse that ID,
   // so a per-component counter would repeat revisions after replacement.
   static std::atomic<std::uint64_t> nextRevision{1};
@@ -40,12 +155,16 @@ void MeshRendererComponent::markGeometryChanged() {
 
 void MeshRendererComponent::afterRuntimeFieldChange(
     MeshRendererComponent &mesh, std::string_view field) {
-  if (field == "vertices" || field == "normals" || field == "uvs") {
+  if (field == "vertices" || field == "normals" || field == "uvs" ||
+      field == "vertex_colors") {
     mesh.markGeometryChanged();
   }
 }
 
 void MeshRendererComponent::parse(const nlohmann::json &json, Entity &entity) {
+  std::string error;
+  if (!validateAuthored(json, error))
+    throw std::invalid_argument(error);
   MeshRendererComponent component;
   component.model = scene_loading::stringOr(json, "model");
   component.mediumLodModel = scene_loading::stringOr(json, "medium_lod_model");
@@ -65,6 +184,17 @@ void MeshRendererComponent::parse(const nlohmann::json &json, Entity &entity) {
     component.color = *value;
   component.texture = scene_loading::stringOr(json, "texture");
   component.material = scene_loading::stringOr(json, "material");
+  component.metallic = normalizedOverride(json, "metallic");
+  component.roughness = normalizedOverride(json, "roughness");
+  component.opacity = normalizedOverride(json, "opacity");
+  if (const auto found = json.find("surface_mode"); found != json.end()) {
+    if (!found->is_string())
+      throw std::invalid_argument("MeshRenderer.surface_mode must be opaque, transparent, or additive");
+    const std::string mode = found->get<std::string>();
+    if (std::ranges::find(surfaceModes, mode) == surfaceModes.end())
+      throw std::invalid_argument("MeshRenderer.surface_mode must be opaque, transparent, or additive");
+    component.surfaceMode = mode;
+  }
   component.renderLayer = scene_loading::stringOr(json, "render_layer");
   if (const auto *properties =
           scene_loading::objectField(json, "material_properties")) {
@@ -105,7 +235,14 @@ void MeshRendererComponent::parse(const nlohmann::json &json, Entity &entity) {
       if (value.is_array() && value.size() >= 2)
         component.uvs.push_back({value[0].get<float>(), value[1].get<float>()});
   }
-  if (!component.vertices.empty()) {
+  if (const auto *values = scene_loading::arrayField(json, "vertex_colors")) {
+    component.vertexColors.reserve(values->size());
+    for (const auto &value : *values)
+      component.vertexColors.push_back(
+          {value[0].get<float>(), value[1].get<float>(), value[2].get<float>(),
+           value[3].get<float>()});
+  }
+  if (!component.vertices.empty() || !component.vertexColors.empty()) {
     component.markGeometryChanged();
   }
   entity.setComponent(std::move(component));

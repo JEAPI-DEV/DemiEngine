@@ -1,0 +1,20 @@
+{
+  "dependencies": [
+    "asset://schemas/terrain_preset"
+  ],
+  "format_version": 1,
+  "id": "asset://terrain/presets/mountain_range",
+  "importer": "json_data",
+  "importer_version": 1,
+  "settings": {
+    "content_type": "terrain_preset",
+    "schema": "asset://schemas/terrain_preset",
+    "tags": [
+      "preset:terrain",
+      "terrain:mountain"
+    ]
+  },
+  "source": "mountain_range.json",
+  "source_hash": "fnv1a64:9eddbd6501c79445",
+  "type": "DataAsset"
+}

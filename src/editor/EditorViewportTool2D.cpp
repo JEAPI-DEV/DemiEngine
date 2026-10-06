@@ -196,7 +196,7 @@ EditorViewportToolAction EditorViewportTool2D::update(
   if (active_) {
     const auto entity = std::ranges::find(world.entities, active_->entityId,
                                           &runtime::Entity::id);
-    if (input.cancelPressed || !input.focused ||
+    if (input.cancelPressed || !input.hasDragFocus() ||
         selectedEntityId != active_->entityId ||
         entity == world.entities.end() ||
         (!active_->isGridCell &&
@@ -295,8 +295,7 @@ EditorViewportToolAction EditorViewportTool2D::update(
     return action;
   }
 
-  if (!input.hovered || !input.focused || !input.leftPressed ||
-      input.navigationModifier)
+  if (!input.beginsToolGesture())
     return action;
   const EditorGizmoPresentation gizmo = presentation(
       world, selectedEntityId, sceneView, input.viewportSize, selectedGridCell);

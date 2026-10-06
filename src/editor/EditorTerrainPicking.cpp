@@ -69,4 +69,31 @@ std::vector<EditorTerrainProjectedMaskSample> projectEditorTerrainExclusions(
   }
   return result;
 }
+
+std::vector<EditorTerrainProjectedRuleMaskSample> projectEditorTerrainRuleMask(
+    const runtime::World &world, const EditorTerrainAuthoring &authoring,
+    const EditorSceneViewCamera &camera, runtime::Vec2 viewportSize) {
+  std::vector<EditorTerrainProjectedRuleMaskSample> result;
+  const auto mode = authoring.maskPreview;
+  if (mode == EditorTerrainMaskPreview::None || viewportSize.x <= 0 ||
+      viewportSize.y <= 0)
+    return result;
+  const auto *entity = runtime::findEntity(world, authoring.entityId());
+  const auto transform =
+      entity ? runtime::resolveWorldTransform3D(world, *entity) : std::nullopt;
+  if (!transform)
+    return result;
+  const auto budget = static_cast<std::size_t>(
+      std::max(1.0F, viewportSize.x * viewportSize.y / 64));
+  for (const auto &sample : authoring.ruleMaskPreview(mode, budget)) {
+    const auto projected = projectScenePoint3D(
+        camera, runtime::transformPoint3D(*transform, sample.position),
+        viewportSize);
+    if (projected && projected->x >= 0 && projected->x <= viewportSize.x &&
+        projected->y >= 0 && projected->y <= viewportSize.y)
+      result.push_back(
+          {*projected, sample.weight, sample.biome, sample.color});
+  }
+  return result;
+}
 } // namespace demi::editor

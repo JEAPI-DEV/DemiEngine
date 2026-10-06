@@ -12,12 +12,23 @@
 #include <string>
 #include <vector>
 
+namespace demi::assets { struct MaterialAsset; }
+namespace demi::runtime { struct World; }
+
 namespace demi::editor {
 
 struct EditorReferenceChoice {
   std::string id;
   std::string label;
 };
+
+// Accept only a complete, null-terminated ID in the active choice set.
+[[nodiscard]] std::optional<std::string>
+editorReferenceFromPayload(std::span<const char> payload,
+                           std::span<const EditorReferenceChoice> choices);
+
+[[nodiscard]] std::vector<EditorReferenceChoice>
+editorEntityReferenceChoices(const runtime::World &world);
 
 struct EditorComponentChoice {
   const runtime::scene_loading::ComponentDescriptor *descriptor = nullptr;
@@ -75,6 +86,11 @@ editorComponentChoices(const nlohmann::json &entity);
     const runtime::ComponentFieldDescriptor &field,
     const nlohmann::json &resolvedComponent, bool isPrefabEntity,
     bool hasExplicitValue);
+
+// Value shown before an optional MeshRenderer surface field is authored.
+[[nodiscard]] nlohmann::json editorMeshSurfaceFallback(
+    std::string_view field, const nlohmann::json &component,
+    const assets::MaterialAsset *material);
 
 [[nodiscard]] std::string_view
 editorPropertyOriginLabel(EditorPropertyOrigin origin);

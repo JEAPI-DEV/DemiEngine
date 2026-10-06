@@ -1,16 +1,33 @@
 #include "demi/runtime/render/MaterialLibrary.h"
 #include "demi/runtime/render/backend/CookedShaderLibrary.h"
+#include "demi/runtime/render/bgfx3d/MeshSurface3D.h"
+#include "demi/runtime/render/bgfx3d/MeshDrawOrder3D.h"
 
 #include <cassert>
+#include <algorithm>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
+#include <numbers>
 #include <set>
 #include <string>
 
 using namespace demi;
+using namespace demi::runtime;
 using namespace demi::runtime::render;
 
 namespace {
+
+// Numeric reference for the fragment shader's stable GGX distribution.
+float ggxDistribution(const float roughness, const float normalDotHalf) {
+  const float alpha = roughness * roughness;
+  const float alpha2 = alpha * alpha;
+  const float crossSquared = 1.0F - normalDotHalf * normalDotHalf;
+  const float denominator = crossSquared +
+                            normalDotHalf * normalDotHalf * alpha2;
+  const float ratio = alpha / std::max(denominator, 0.00000001F);
+  return ratio * ratio / std::numbers::pi_v<float>;
+}
 
 void write(const std::filesystem::path &path, const std::string &contents) {
   std::filesystem::create_directories(path.parent_path());
@@ -98,6 +115,11 @@ std::string manifest(const std::string &entries) {
 } // namespace
 
 int main() {
+  assert(std::abs(ggxDistribution(0.04F, 1.0F) - 124339.8F) < 10.0F);
+  assert(std::abs(ggxDistribution(0.1F, 1.0F) - 3183.1F) < 0.5F);
+  assert(std::abs(ggxDistribution(0.8F, 1.0F) - 0.77712F) < 0.001F);
+  assert(std::isfinite(ggxDistribution(0.04F, 0.5F)) &&
+         ggxDistribution(0.04F, 0.5F) > 0.0F);
   const auto root =
       std::filesystem::temp_directory_path() / "demi_material_library_tests";
   std::filesystem::remove_all(root);
@@ -137,7 +159,7 @@ int main() {
 
   write(root / "cook.manifest.json", manifest(entry));
   write(root / "test.material.json",
-        R"({"format_version":1,"shader":"asset://shader/test","textures":{"albedo":"asset://texture/test"},"parameters":{"strength":0.5,"effect_color":[1,0.25,0.5,1]},"render_state":{"blend":"alpha","cull":"none","depth_test":false,"depth_write":false,"alpha_cutoff":0.25}})");
+        R"({"format_version":1,"shader":"asset://shader/test","textures":{"albedo":"asset://texture/test"},"parameters":{"strength":0.5,"effect_color":[1,0.25,0.5,1],"base_color":[0.2,0.4,0.6,0.8],"metallic":0.7,"roughness":0.2,"opacity":0.9},"render_state":{"blend":"alpha","cull":"none","depth_test":false,"depth_write":false,"alpha_cutoff":0.25}})");
   registry.assets.push_back({.id = "asset://material/test",
                              .type = "Material",
                              .sourcePath = root / "test.material.json"});
@@ -151,7 +173,83 @@ int main() {
   assert(material->state.depthTest == DepthTest::Disabled);
   assert(!material->state.writeDepth);
   assert(material->alphaCutoff == 0.25F);
-  assert(material->uniforms.size() == 2 && resources.uniforms.size() == 2);
+  assert(material->uniforms.size() == 6 && resources.uniforms.size() == 6);
+  assert(material->metallic == 0.7F && material->roughness == 0.2F &&
+         material->opacity == 0.9F);
+  assert(material->baseColor == (std::array<float, 4>{0.2F, 0.4F, 0.6F, 0.8F}));
+  assert(!material->unlit);
+  MeshRendererComponent mesh;
+  MaterialBinding inherited;
+  inherited = *material;
+  inherited.state.writeDepth = true; // Even an old alpha asset cannot write depth.
+  auto surface = resolveMeshSurface3D(mesh, &inherited);
+  assert(surface.metallic == 0.7F && surface.roughness == 0.2F);
+  assert(surface.baseColor == material->baseColor);
+  assert(surface.opacity == 0.9F && surface.blend == BlendMode::Alpha);
+  assert(!surface.state.writeDepth);
+  mesh.materialNumbers = {{"metallic", 0.4F}, {"roughness", 0.5F},
+                          {"opacity", 0.6F}};
+  mesh.materialColors["base_color"] = {0.9F, 0.8F, 0.7F, 0.6F};
+  surface = resolveMeshSurface3D(mesh, &inherited);
+  assert(surface.metallic == 0.4F && surface.roughness == 0.5F &&
+         surface.opacity == 0.6F);
+  assert(surface.baseColor == (std::array<float, 4>{0.9F, 0.8F, 0.7F, 0.6F}));
+  mesh.metallic = 0.1F;
+  mesh.roughness = 0.9F;
+  mesh.opacity = 0.3F;
+  mesh.surfaceMode = "additive";
+  surface = resolveMeshSurface3D(mesh, &inherited);
+  assert(surface.metallic == 0.1F && surface.roughness == 0.9F &&
+         surface.opacity == 0.3F && surface.blend == BlendMode::Additive);
+  assert(!surface.state.writeDepth);
+  mesh.surfaceMode = "opaque";
+  surface = resolveMeshSurface3D(mesh, &inherited);
+  assert(surface.blend == BlendMode::Opaque);
+  surface = resolveMeshSurface3D(mesh, &inherited, 0.5F);
+  assert(surface.blend == BlendMode::Alpha && !surface.state.writeDepth);
+  mesh = {};
+  surface = resolveMeshSurface3D(mesh, nullptr);
+  assert(surface.metallic == 0.0F && surface.roughness == 0.8F &&
+         surface.opacity == 1.0F && surface.blend == BlendMode::Opaque &&
+         surface.state.writeDepth);
+  mesh.opacity = 0.25F;
+  assert(resolveMeshSurface3D(mesh, nullptr).blend == BlendMode::Opaque);
+  mesh.roughness = 0.0F;
+  assert(resolveMeshSurface3D(mesh, nullptr).roughness == 0.0F);
+  // Resolving per draw means editing a material property does not require a
+  // geometry or batch cache invalidation.
+  mesh.roughness = 0.35F;
+  const auto firstBatchKey = surfaceBatchKey3D(resolveMeshSurface3D(mesh, nullptr));
+  assert(resolveMeshSurface3D(mesh, nullptr).roughness == 0.35F);
+  mesh.roughness = 0.65F;
+  assert(resolveMeshSurface3D(mesh, nullptr).roughness == 0.65F);
+  assert(surfaceBatchKey3D(resolveMeshSurface3D(mesh, nullptr)) != firstBatchKey);
+
+  std::vector<Entity> entities(3);
+  entities[0].id = "near";
+  entities[1].id = "opaque";
+  entities[2].id = "far";
+  for (Entity &entity : entities)
+    entity.setComponent(MeshRendererComponent{});
+  entities[0].component<MeshRendererComponent>()->surfaceMode = "transparent";
+  entities[2].component<MeshRendererComponent>()->surfaceMode = "additive";
+  std::vector<VisibleMesh3D> visible{
+      {.entity = &entities[0], .transform = {.position = {0, 0, 1}}},
+      {.entity = &entities[1], .transform = {.position = {0, 0, 0}}},
+      {.entity = &entities[2], .transform = {.position = {0, 0, -3}}}};
+  assert(orderMeshSurfaces3D(visible, materials, {0, 0, 5}, {0, 0, -1}) == 1);
+  assert(visible[0].entity->id == "opaque" &&
+         visible[1].entity->id == "far" &&
+         visible[2].entity->id == "near");
+  write(root / "unlit.material.json",
+        R"({"format_version":1,"shader":"builtin://unlit"})");
+  registry.assets.push_back({.id = "asset://material/unlit",
+                             .type = "Material",
+                             .sourcePath = root / "unlit.material.json"});
+  diagnostics.clear();
+  assert(materials.load(registry, diagnostics));
+  assert(materials.find("asset://material/unlit") &&
+         materials.find("asset://material/unlit")->unlit);
   materials.clear();
   assert(resources.uniforms.empty() && resources.programs.empty());
 

@@ -47,6 +47,8 @@ std::string fieldTypeName(const runtime::ComponentFieldType type) {
     return "vec2_array";
   case Type::Vec3Array:
     return "vec3_array";
+  case Type::ColorArray:
+    return "color_array";
   }
   return "unknown";
 }

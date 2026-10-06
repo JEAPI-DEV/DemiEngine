@@ -490,7 +490,28 @@ int runProject(const RuntimeOptions &options) {
   if (audioInitialized)
     runtimeAssets.registerLoader(audioSystem.createAssetLoader(assetRegistry));
 
+  // One prefab service for the whole application, shared with terrain scatter so
+  // a prefab spawned from Lua and one spawned from the terrain use one pool
+  // rather than two.
+  RuntimePrefabService prefabService;
+  prefabService.configure(loaded.project.projectDirectory);
+  {
+    std::string scatterError;
+    const auto resolution =
+        materializeTerrainScatter(loaded.world, &prefabService, scatterError);
+    if (!scatterError.empty() || resolution.unresolved != 0) {
+      std::cerr << "Initial terrain scatter failed: "
+                << (scatterError.empty()
+                        ? std::to_string(resolution.unresolved) +
+                              " placement(s) unresolved."
+                        : scatterError)
+                << '\n';
+      return RuntimeFailure;
+    }
+  }
+
   LuaScriptHost luaHost;
+  luaHost.setPrefabService(&prefabService);
   luaHost.setMediaSystem(&mediaSystem);
   luaHost.setNetworkSystem(&networkSystem);
   luaHost.setRuntimeAssetService(&runtimeAssets);

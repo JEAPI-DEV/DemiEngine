@@ -1,5 +1,8 @@
 #include "editor/EditorInspectorModel.h"
 #include "editor/EditorSceneDocument.h"
+#include "demi/assets/RenderAsset.h"
+#include "demi/runtime/scene/model/World.h"
+#include "demi/runtime/terrain/TerrainWaterMesh.h"
 
 #ifdef NDEBUG
 #undef NDEBUG
@@ -27,6 +30,37 @@ int main() {
   assert(entities.size() == 2);
   assert(entities[0].id == "a");
   assert(entities[1].id == "b");
+
+  const char validReference[] = "a";
+  const char unknownReference[] = "missing";
+  const char unterminatedReference[] = {'a'};
+  const char embeddedNull[] = {'a', '\0', 'b', '\0'};
+  assert(editorReferenceFromPayload(validReference, entities) == "a");
+  assert(!editorReferenceFromPayload(unknownReference, entities));
+  assert(!editorReferenceFromPayload(unterminatedReference, entities));
+  assert(!editorReferenceFromPayload(embeddedNull, entities));
+  assert(!editorReferenceFromPayload({}, entities));
+
+  runtime::World referenceWorld;
+  runtime::Entity cube;
+  cube.id = "cube";
+  cube.name = "Cube";
+  referenceWorld.entities.push_back(cube);
+  runtime::Entity prefabMember;
+  prefabMember.id = "door/handle";
+  prefabMember.name = "Handle";
+  prefabMember.prefabInstance = "door";
+  referenceWorld.entities.push_back(prefabMember);
+  const auto resolvedChoices = editorEntityReferenceChoices(referenceWorld);
+  assert(resolvedChoices.size() == 2);
+  const char cubeReference[] = "cube";
+  assert(editorReferenceFromPayload(cubeReference, resolvedChoices) == "cube");
+  runtime::Entity generatedWater;
+  generatedWater.id = "cube/__water/lake";
+  generatedWater.setComponent<runtime::terrain_detail::TerrainGeneratedWaterSurface>(
+      {.owner = "cube"});
+  referenceWorld.entities.push_back(std::move(generatedWater));
+  assert(editorEntityReferenceChoices(referenceWorld).size() == 2);
 
   const auto project = std::filesystem::path(__FILE__).parent_path().parent_path() /
                        "examples/performance_3d_lab";
@@ -143,6 +177,49 @@ int main() {
       *animator, *atlas, nlohmann::json::object(), true, false);
   assert(absentInheritedAtlas.origin == EditorPropertyOrigin::Missing);
 
+  const auto *meshDescriptor =
+      runtime::scene_loading::findComponentDescriptor("MeshRenderer");
+  assert(meshDescriptor != nullptr);
+  const auto vertexColors = std::ranges::find(
+      meshDescriptor->fields, "vertex_colors", &runtime::ComponentFieldDescriptor::name);
+  assert(vertexColors != meshDescriptor->fields.end());
+  assert(vertexColors->type == runtime::ComponentFieldType::ColorArray);
+  assert(vertexColors->editor.advanced);
+  assert(runtime::scene_loading::componentFieldEditorLabel(*vertexColors) == "Vertex Colors");
+  const auto omittedVertexColors = editorPropertyPresentation(
+      *meshDescriptor, *vertexColors, nlohmann::json::object(), false, false);
+  assert(omittedVertexColors.hasValue);
+  assert(omittedVertexColors.value == nlohmann::json::array());
+  assert(omittedVertexColors.origin == EditorPropertyOrigin::Default);
+  assert(!omittedVertexColors.canReset);
+  assets::MaterialAsset assignedMaterial;
+  assignedMaterial.numbers["metallic"] = 0.5F;
+  assignedMaterial.numbers["roughness"] = 0.25F;
+  assignedMaterial.renderState.blend = "alpha";
+  const nlohmann::json meshWithCustomProperties = {
+      {"material_properties", {{"roughness", 0.75}}}};
+  assert(editorMeshSurfaceFallback("metallic", meshWithCustomProperties,
+                                   &assignedMaterial) == 0.5);
+  assert(editorMeshSurfaceFallback("roughness", meshWithCustomProperties,
+                                   &assignedMaterial) == 0.75);
+  assert(editorMeshSurfaceFallback("opacity", meshWithCustomProperties,
+                                   &assignedMaterial) == 1.0);
+  assert(editorMeshSurfaceFallback("surface_mode", meshWithCustomProperties,
+                                   &assignedMaterial) == "transparent");
+  assert(editorMeshSurfaceFallback("roughness", nlohmann::json::object(),
+                                   nullptr) == 0.8F);
+  assert(editorMeshSurfaceFallback("surface_mode", nlohmann::json::object(),
+                                   nullptr) == "opaque");
+  const auto metallic = std::ranges::find(
+      meshDescriptor->fields, "metallic", &runtime::ComponentFieldDescriptor::name);
+  assert(metallic != meshDescriptor->fields.end());
+  assert(!editorPropertyPresentation(*meshDescriptor, *metallic,
+                                     nlohmann::json::object(), false, false)
+              .hasValue);
+  assert(editorPropertyPresentation(*meshDescriptor, *metallic,
+                                    {{"metallic", 0.5}}, false, true)
+             .canReset);
+
   EditorSceneDocument document;
   std::string error;
   const auto defaultScenePath =
@@ -165,5 +242,17 @@ int main() {
   assert(document.removeValue(defaultPosition, error));
   assert(!document.component("world_stream", "Transform3D")
               ->contains("position"));
+  const SceneValueTarget opacityTarget{.entityId = "floor",
+                                       .component = "MeshRenderer",
+                                       .field = "opacity"};
+  const SceneValueTarget metallicTarget{.entityId = "floor",
+                                        .component = "MeshRenderer",
+                                        .field = "metallic"};
+  assert(document.setValue(opacityTarget, 0.5, false, error));
+  assert(document.setValue(metallicTarget, 0.75, false, error));
+  assert(document.removeValue(opacityTarget, error));
+  const auto *floorMesh = document.component("floor", "MeshRenderer");
+  assert(floorMesh != nullptr && !floorMesh->contains("opacity") &&
+         floorMesh->at("metallic") == 0.75 && floorMesh->contains("color"));
   return 0;
 }

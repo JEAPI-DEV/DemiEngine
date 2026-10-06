@@ -18,6 +18,7 @@ struct AssetImportRequest {
   std::string importer;
   std::optional<std::filesystem::path> license;
   std::optional<ModelImportProfile> modelProfile;
+  std::optional<std::string> dataContentType;
 };
 
 struct GeneratedAssetRegistrationRequest {

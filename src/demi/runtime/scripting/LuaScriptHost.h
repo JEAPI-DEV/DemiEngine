@@ -26,6 +26,7 @@
 #include "demi/runtime/scene/WorldCommandBuffer.h"
 #include "demi/runtime/scene/model/ProjectData.h"
 #include "demi/runtime/scene/model/World.h"
+#include "demi/runtime/terrain/TerrainWaterRuntime.h"
 #include "demi/runtime/simulation/DeterministicRandom.h"
 #include "demi/runtime/tilemap/TilemapRuntime.h"
 #include "demi/runtime/ui/UiAccessibilityTree.h"
@@ -110,6 +111,10 @@ public:
                     const PrefabInstantiateOptions &options);
   [[nodiscard]] bool releasePrefab(const std::string &instanceId);
   [[nodiscard]] std::size_t pooledPrefabCount(const std::string &prefab) const;
+  // Injected by the composition root before the project is loaded. Must be done
+  // before any prefab operation; the service must outlive this host.
+  void setPrefabService(RuntimePrefabService *prefabs);
+  [[nodiscard]] RuntimePrefabService *prefabService() const { return prefabs_; }
   void setPrefabTemplateCacheCapacity(std::size_t entries);
   [[nodiscard]] input::GameplayInputService &gameplayInput();
   [[nodiscard]] const InputState *inputState() const;
@@ -121,6 +126,8 @@ public:
   [[nodiscard]] float randomRange(float minimum, float maximum);
   [[nodiscard]] int randomInteger(int minimum, int maximum);
   [[nodiscard]] isometric::IsoGridApi &isoGridApi();
+  [[nodiscard]] std::optional<TerrainWaterSample>
+  sampleTerrainWater(Vec3 position, std::string_view terrainId = {});
   [[nodiscard]] navigation::NavigationGrid2D &navigationGrid2D();
   [[nodiscard]] const navigation::NavigationGrid2D &navigationGrid2D() const {
     return navigationGrid2D_;
@@ -147,6 +154,8 @@ public:
                                          float y, float z);
   [[nodiscard]] std::optional<Vec3>
   entityPosition3D(const std::string &entityId) const;
+  [[nodiscard]] std::optional<Vec3>
+  entityWorldPosition3D(const std::string &entityId) const;
   [[nodiscard]] std::optional<Vec3>
   entityRotation3D(const std::string &entityId) const;
   [[nodiscard]] bool setEntityRotation3D(const std::string &entityId, float x,
@@ -698,6 +707,7 @@ private:
   platform::ApplicationServices applicationServices_;
   simulation::DeterministicRandom random_;
   isometric::IsoGridApi isoGridApi_;
+  TerrainWaterRuntime terrainWaterRuntime_;
   navigation::NavigationGrid2D navigationGrid2D_;
   TilemapRuntime tilemapRuntime_;
   DataAssetStore dataAssetStore_;
@@ -749,7 +759,11 @@ private:
   std::vector<EventSubscription> eventSubscriptions_;
   std::vector<SaveMigrationHook> saveMigrationHooks_;
   WorldCommandBuffer worldCommands_;
-  RuntimePrefabService prefabService_;
+  // Borrowed, not owned. The composition root creates one service and shares it
+  // with terrain scatter, so a prefab spawned from Lua and one spawned from the
+  // terrain share a single pool. Null when no owner injected one, in which case
+  // prefab operations report that rather than guessing.
+  RuntimePrefabService *prefabs_ = nullptr;
   SceneFlow sceneFlow_;
   ResourceLifetimeRegistry resourceLifetimes_;
   std::string lastSaveError_;

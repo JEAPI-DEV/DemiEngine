@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://demiengine.local/schemas/terrain-source.schema.json",
+  "title": "DemiEngine Terrain Source",
+  "type": "object",
+  "required": ["format_version", "id", "recipe"],
+  "additionalProperties": false,
+  "properties": {
+    "format_version": {"const": 1},
+    "id": {"type": "string", "pattern": "^asset://.+"},
+    "name": {"type": "string"},
+    "recipe": {
+      "type": "object",
+      "required": ["format_version"],
+      "properties": {
+        "format_version": {"const": 1},
+        "biomes": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "material": {"type": "string", "pattern": "^(asset://.+)?$"},
+              "texture_scale": {"type": "number", "exclusiveMinimum": 0, "default": 1}
+            }
+          }
+        }
+      }
+    }
+  }
+}

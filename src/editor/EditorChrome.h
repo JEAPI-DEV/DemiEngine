@@ -24,8 +24,19 @@ enum class EditorIcon {
   Folder,
   File,
   Scene,
+  Terrain,
   Prefab,
   Add,
+  Copy,
+  Cut,
+  Paste,
+  Duplicate,
+  Delete,
+  SelectAll,
+  Generate,
+  Modules,
+  ZoomReset,
+  Discard,
   Settings
 };
 

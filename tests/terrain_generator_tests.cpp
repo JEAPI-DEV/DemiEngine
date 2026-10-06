@@ -1,8 +1,12 @@
 #include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
 #include "demi/runtime/scene/model/Entity.h"
+#include "demi/runtime/terrain/TerrainBrushBounds.h"
+#include "demi/runtime/terrain/TerrainEvaluation.h"
 #include "demi/runtime/terrain/TerrainGenerator.h"
+#include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <cstdio>
 #include <limits>
 #include <stdexcept>
 
@@ -24,7 +28,7 @@ TerrainRecipe flatRecipe() {
   recipe.cellsX = 8;
   recipe.cellsZ = 8;
   recipe.chunkCells = 3;
-  recipe.biomes.at("default").heightVariation = 0;
+  recipe.landforms.at("default").heightVariation = 0;
   return recipe;
 }
 TerrainEdit hardBrush(TerrainEditKind kind, Vec2 center, float radius) {
@@ -37,11 +41,22 @@ TerrainEdit hardBrush(TerrainEditKind kind, Vec2 center, float radius) {
 }
 void deterministicSampling() {
   auto recipe = flatRecipe();
-  recipe.biomes.at("default").heightVariation = 6;
+  recipe.landforms.at("default").heightVariation = 6;
   auto first = TerrainGenerator::generate(recipe);
   auto second =
       TerrainGenerator::generate(TerrainRecipe::parse(recipe.toJson()));
   assert(first && second && first->heights == second->heights);
+  assert(first->biomeMaterials.size() == first->biomeIds.size() &&
+         first->biomeTextureScales.size() == first->biomeIds.size() &&
+         first->biomeMaterials.front().empty() &&
+         first->biomeTextureScales.front() == 1);
+  auto appearance = recipe;
+  appearance.biomes.at("default").material = "asset://ground/stone";
+  appearance.biomes.at("default").textureScale = 2.5F;
+  const auto restyled = TerrainGenerator::generate(appearance);
+  assert(restyled && restyled->heights == first->heights &&
+         restyled->biomeMaterials.front() == "asset://ground/stone" &&
+         restyled->biomeTextureScales.front() == 2.5F);
   assert(first->baseHeights == first->heights);
   recipe.seed += 17;
   auto changed = TerrainGenerator::generate(recipe);
@@ -63,14 +78,23 @@ void deterministicSampling() {
     assert(chunk.firstCellZ + chunk.cellsZ <= first->cellsZ);
   }
   recipe = flatRecipe();
-  recipe.biomes.emplace("hill", TerrainBiome{});
-  recipe.biomes.at("hill").heightVariation = 0;
-  recipe.biomes.at("hill").baseHeight = 10;
+  // A painted region reshapes the ground by pointing at a landform, which is
+  // the whole point of separating shape from appearance: the "hill" biome keeps
+  // its own look while sharing the default landform, and a second landform
+  // supplies the raised ground.
+  recipe.landforms.at("default").heightVariation = 0;
+  recipe.landforms.at("default").baseHeight = 0;
+  recipe.landforms.emplace(
+      "raised", TerrainLandform{.baseHeight = 10, .heightVariation = 0});
+  recipe.biomes.emplace("hill", TerrainBiome{.landform = "raised"});
   recipe.regions.push_back({"hill", {4, 4}, 4, 1, 1});
   auto blended = TerrainGenerator::generate(recipe);
   assert(blended && near(blended->height(4, 4), 10));
-  assert(near(blended->height(6, 4), 5));
   assert(near(blended->height(8, 4), 0));
+  // The blend falls off with the brush, and two biomes sharing the default
+  // landform must not be counted twice.
+  assert(blended->height(2, 4) < blended->height(4, 4));
+  assert(blended->height(6, 4) < blended->height(4, 4));
   assert(blended->biomeIds[blended->biomeIndices[blended->index(4, 4)]] ==
          "hill");
 }
@@ -98,6 +122,51 @@ void snapshotSmoothing() {
   assert(edge && near(edge->height(0, 0), 9.F / 4));
   assert(near(edge->height(1, 0), 9.F / 6));
 }
+void boundedReplayMatchesFullGrid() {
+  auto recipe = flatRecipe();
+  recipe.landforms.at("default").heightVariation = 3;
+  for (const auto kind : {TerrainEditKind::Raise, TerrainEditKind::Lower,
+                          TerrainEditKind::Flatten, TerrainEditKind::Smooth}) {
+    for (const auto center :
+         {Vec2{0, 0}, Vec2{3.4F, 5.2F}, Vec2{-0.3F, 8}, Vec2{20, 20}}) {
+      auto edit = hardBrush(kind, center, 1.7F);
+      edit.strength = .65F;
+      edit.falloff = .5F;
+      edit.targetHeight = 4;
+      recipe.edits.push_back(edit);
+    }
+  }
+  auto reference = TerrainGenerator::generateBase(recipe);
+  assert(reference);
+  const TerrainEvaluation evaluation(recipe);
+  for (const auto *edit : evaluation.edits()) {
+    const auto snapshot = reference->heights;
+    const auto sample = [&](int x, int z) {
+      return snapshot[reference->index(x, z)];
+    };
+    for (int z = 0; z <= reference->cellsZ; ++z)
+      for (int x = 0; x <= reference->cellsX; ++x) {
+        const auto index = reference->index(x, z);
+        const float previous = reference->height(x, z);
+        reference->heights.set(
+            index,
+            applyTerrainEdit(*edit, reference->position(x, z), previous, sample,
+                             x, z, reference->cellsX, reference->cellsZ));
+      }
+  }
+  assert(TerrainGenerator::recomputeTerrainNormals(*reference));
+  const auto bounded = TerrainGenerator::generate(recipe);
+  assert(bounded && bounded->heights == reference->heights);
+  for (std::size_t index = 0; index < bounded->normals.size(); ++index) {
+    const auto actual = bounded->normals[index];
+    const auto expected = reference->normals[index];
+    assert(actual.x == expected.x && actual.y == expected.y &&
+           actual.z == expected.z);
+  }
+  const auto footprint = terrainBrushSampleBounds(*bounded, {4, 4}, .25F);
+  assert(footprint.minX > 0 && footprint.maxX < bounded->cellsX);
+  assert(terrainBrushSampleBounds(*bounded, {20, 20}, 1).empty());
+}
 void persistentProtection() {
   auto recipe = flatRecipe();
   auto flatten = hardBrush(TerrainEditKind::Flatten, {4, 4}, 2);
@@ -111,7 +180,7 @@ void persistentProtection() {
   lower.amount = 3;
   recipe.edits.push_back(lower);
   recipe.seed = -12;
-  recipe.biomes.at("default").baseHeight = 20;
+  recipe.landforms.at("default").baseHeight = 20;
   auto preserved =
       TerrainGenerator::generate(TerrainRecipe::parse(recipe.toJson()));
   assert(preserved && near(preserved->height(4, 4), 7));
@@ -140,10 +209,16 @@ void validationAndComponent() {
   assert(component.recipe == authored);
   component.generated = std::make_shared<const HeightField>();
   Terrain3DComponent replacement;
-  Terrain3DComponent::runtimeFields[0].copy(component, replacement);
+  replacement.recipe = {{"format_version", 1}};
+  const auto binding =
+      std::find_if(Terrain3DComponent::runtimeFields.begin(),
+                   Terrain3DComponent::runtimeFields.end(),
+                   [](const auto &field) { return field.name == "recipe"; });
+  assert(binding != Terrain3DComponent::runtimeFields.end());
+  binding->copy(component, replacement);
   assert(!component.generated);
   nlohmann::json serialized;
-  assert(Terrain3DComponent::runtimeFields[0].read(component, serialized));
+  assert(binding->read(component, serialized));
   assert(serialized == replacement.recipe);
   const auto good = flatRecipe().toJson();
   for (const auto &resolution :
@@ -196,7 +271,7 @@ void validationAndComponent() {
   typed.cellsZ = std::numeric_limits<int>::max();
   expectInvalid([&] { typed.validate(); });
   typed = flatRecipe();
-  typed.biomes.at("default").baseHeight = std::numeric_limits<float>::max();
+  typed.landforms.at("default").baseHeight = std::numeric_limits<float>::max();
   auto overflow = hardBrush(TerrainEditKind::Raise, {4, 4}, 20);
   overflow.amount = std::numeric_limits<float>::max();
   typed.edits.push_back(overflow);
@@ -240,6 +315,7 @@ void cancellationAndProgress() {
 int main() {
   deterministicSampling();
   snapshotSmoothing();
+  boundedReplayMatchesFullGrid();
   persistentProtection();
   validationAndComponent();
   cancellationAndProgress();

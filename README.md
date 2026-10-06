@@ -356,6 +356,8 @@ Each example is an executable engine probe that exercises real engine features:
 | `asset_streaming_showcase` | Optional group load, progress, cancellation, reload, unload, transitive dependencies, and backend memory ownership |
 | `minimal_3d` | Lightweight 3D movement, queries, collisions, materials, and debug overlays ![minimal_3d](images/minimal_3d.png) |
 | [shadows_3d](examples/shadows_3d/README.md) | A moving caster with real-time directional shadows and environment quality controls |
+| `terrain_3d` | Editable terrain assets, landscape presets, biome rules, painting and sculpting |
+| [terrain_graph_3d](examples/terrain_graph_3d/README.md) | Connected terrain modules, manual layers and cooked terrain-asset loading |
 | `animation_3d` | glTF skeletal animation selection and playback ![animation_3d](images/animation_3d.png) |
 | [performance_3d_lab](examples/performance_3d_lab/README.md) | Rigid-body scaling, barrel towers, projectile impacts, and mesh denting |
 | [destruction_weapons_3d_lab](examples/destruction_weapons_3d_lab/README.md) | Hammer/rocket damage, breakable masonry and door hinges, streamed damage state, sky and prototype textures |

@@ -42,8 +42,12 @@ bool EditorPreferencesStore::load(EditorPreferences &preferences,
     preferences.showBounds2D = document.value("show_bounds_2d", true);
     preferences.showColliders2D = document.value("show_colliders_2d", false);
     preferences.showCameras2D = document.value("show_cameras_2d", true);
-    preferences.codeEditor=document.value("code_editor",std::string("code"));
-    preferences.codeEditorArguments=document.value("code_editor_arguments",preferences.codeEditorArguments);
+    preferences.codeEditor = document.value("code_editor", std::string("code"));
+    preferences.codeEditorArguments = document.value(
+        "code_editor_arguments", preferences.codeEditorArguments);
+    if (document.contains("key_bindings") &&
+        !preferences.keyBindings.load(document.at("key_bindings"), error))
+      return false;
     return true;
   } catch (const std::exception &exception) {
     error = exception.what();
@@ -79,8 +83,9 @@ bool EditorPreferencesStore::save(const EditorPreferences &preferences,
       {"show_bounds_2d", preferences.showBounds2D},
       {"show_colliders_2d", preferences.showColliders2D},
       {"show_cameras_2d", preferences.showCameras2D},
-      {"code_editor",preferences.codeEditor},
-      {"code_editor_arguments",preferences.codeEditorArguments}};
+      {"code_editor", preferences.codeEditor},
+      {"code_editor_arguments", preferences.codeEditorArguments},
+      {"key_bindings", preferences.keyBindings.toJson()}};
   return EditorDocumentStore::writeAtomically(path_, document.dump(2) + '\n',
                                               error);
 }

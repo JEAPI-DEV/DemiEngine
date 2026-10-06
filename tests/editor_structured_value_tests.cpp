@@ -33,12 +33,13 @@ int main() {
     nlohmann::json value = nlohmann::json::object();
     demi::editor::StructuredValueState state;
     bool readOnly = false;
+    int vectorWidth = 0;
     const auto frame = [&] {
       ImGui::NewFrame();
       ImGui::SetNextWindowSize({400, 1100}, ImGuiCond_Always);
       ImGui::Begin("Data");
-      const auto edit =
-          demi::editor::drawStructuredValue(value, state, 0, readOnly);
+      const auto edit = demi::editor::drawStructuredValue(
+          value, state, vectorWidth, readOnly);
       ImGui::End();
       ImGui::Render();
       return edit;
@@ -113,6 +114,41 @@ int main() {
     io.AddInputCharactersUTF8(longText.c_str());
     frame();
     require(value.at("text") == longText, "Text input was truncated");
+    value = nlohmann::json::array({{0.25, 0.5, 0.75, 1.0}});
+    vectorWidth = 4;
+    frame();
+    const auto colors = value;
+    frame();
+    require(value == colors, "Drawing RGBA colors changed authored channels");
+    const ImGuiID item = ImHashStr("0", 0, collection);
+    const ImGuiID input = ImHashStr("##value", 0, item);
+    // ImGui's multi-component input puts each scalar below its axis ID.
+    const int alphaAxis = 3;
+    const ImGuiID alphaInput =
+        ImHashStr("", 0, ImHashData(&alphaAxis, sizeof(alphaAxis), input));
+    activate(alphaInput);
+    if (ImGui::GetActiveID() != alphaInput) {
+      io.AddKeyEvent(ImGuiKey_Enter, true);
+      frame();
+      io.AddKeyEvent(ImGuiKey_Enter, false);
+      frame();
+    }
+    require(ImGui::GetActiveID() == alphaInput,
+            "RGBA alpha input did not receive keyboard focus");
+    io.AddKeyEvent(ImGuiMod_Ctrl, true);
+    io.AddKeyEvent(ImGuiKey_A, true);
+    frame();
+    io.AddKeyEvent(ImGuiKey_A, false);
+    io.AddKeyEvent(ImGuiMod_Ctrl, false);
+    io.AddInputCharactersUTF8("0.5");
+    frame();
+    io.AddKeyEvent(ImGuiKey_Enter, true);
+    frame();
+    io.AddKeyEvent(ImGuiKey_Enter, false);
+    frame();
+    require(value[0][3] == 0.5 && value[0][0] == 0.25 && value[0][1] == 0.5 &&
+                value[0][2] == 0.75,
+            "RGBA editor did not edit alpha independently");
     ImGui::DestroyContext();
     std::cout << "Structured-value interactions passed\n";
     return 0;

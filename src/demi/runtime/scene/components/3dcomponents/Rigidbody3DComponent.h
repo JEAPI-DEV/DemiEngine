@@ -97,7 +97,10 @@ struct Rigidbody3DComponent {
       ComponentFieldDescriptor{"lock_rotation_x", ComponentFieldType::Boolean},
       ComponentFieldDescriptor{"lock_rotation_y", ComponentFieldType::Boolean},
       ComponentFieldDescriptor{"lock_rotation_z", ComponentFieldType::Boolean}};
-  static constexpr ComponentEditorMetadata editor{"Physics 3D", "Rigidbody 3D"};
+  static constexpr ComponentEditorMetadata editor{"Physics 3D", "Rigidbody 3D",
+      "Controls motion, gravity and mass; it does not draw geometry. "
+      "Dynamic bodies simulate movement, static bodies stay fixed, and "
+      "kinematic bodies are moved by gameplay."};
   static void parse(const nlohmann::json &json, Entity &entity);
 
   std::string bodyType = "dynamic";

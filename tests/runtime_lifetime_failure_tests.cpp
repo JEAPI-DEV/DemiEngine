@@ -123,10 +123,12 @@ bool testPreparationFailures(const ProjectData &project) {
     return false;
   }
 
-  if (!flow.prepare("scene://missing/fails_after_lookup", false) ||
-      !waitUntilSettled(flow) ||
-      flow.state() != ScenePreparationState::Failed || flow.error().empty() ||
-      flow.activate(world, resources).has_value() ||
+  const bool started = flow.prepare("scene://missing/fails_after_lookup", false);
+  const bool settled = started && waitUntilSettled(flow);
+  const std::string failure = flow.error();
+  if (!started || !settled ||
+      flow.state() != ScenePreparationState::Failed || failure.empty() ||
+      flow.activate(world, resources).has_value() || flow.error() != failure ||
       world.entities.size() != entityCount ||
       world.activeSceneId != activeScene) {
     std::cerr << "Failed preparation did not preserve the active scene.\n";

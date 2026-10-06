@@ -58,6 +58,22 @@ void SceneFlow::poll() {
     state_ = ScenePreparationState::Failed;
     return;
   }
+  // The world is not adopted yet and this runs on the main thread, so this is
+  // where palette placements become entities. The loading worker never touches
+  // the shared prefab service.
+  std::string scatterError;
+  const auto resolution =
+      materializeTerrainScatter(*prepared_->world, prefabs_, scatterError);
+  if (!scatterError.empty() || resolution.unresolved != 0) {
+    error_ = !scatterError.empty()
+                 ? scatterError
+                 : "Terrain scatter left " +
+                       std::to_string(resolution.unresolved) +
+                       " prefab placement(s) unresolved.";
+    prepared_.reset();
+    state_ = ScenePreparationState::Failed;
+    return;
+  }
   state_ = ScenePreparationState::Ready;
 }
 
@@ -110,6 +126,8 @@ std::string SceneFlow::activationError(const World &world) const {
 std::optional<SceneTransition>
 SceneFlow::activate(World &world, ResourceLifetimeRegistry &resources) {
   poll();
+  if (state_ == ScenePreparationState::Failed)
+    return std::nullopt;
   if (const std::string activationFailure = activationError(world);
       !activationFailure.empty()) {
     error_ = activationFailure;

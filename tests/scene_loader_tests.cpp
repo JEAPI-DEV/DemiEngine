@@ -7,9 +7,12 @@
 #include "demi/schema/Validation.h"
 
 #include <filesystem>
+#include <limits>
 #include <fstream>
 #include <iostream>
 #include <optional>
+#include <utility>
+#include <vector>
 
 namespace {
 
@@ -71,6 +74,163 @@ int main(int argc, char **argv) {
            .contains("GameplayData")) {
     std::cerr << "Component metadata defaults, validation, schema, or "
                  "round-trip failed.\n";
+    return 1;
+  }
+
+  const auto *meshDescriptor =
+      runtime::scene_loading::findComponentDescriptor("MeshRenderer");
+  if (meshDescriptor == nullptr)
+    return 1;
+  const auto &meshDefaults =
+      runtime::scene_loading::componentDefaults(*meshDescriptor);
+  const auto meshSchema = runtime::scene_loading::componentSchema(*meshDescriptor);
+  for (const char *field : {"metallic", "roughness", "opacity", "surface_mode"}) {
+    if (meshDefaults.contains(field) ||
+        meshSchema["properties"][field].contains("default")) {
+      std::cerr << "Mesh surface override invented a canonical default.\n";
+      return 1;
+    }
+  }
+  runtime::Entity meshEntity;
+  const nlohmann::json surface = {{"metallic", 0.5},
+                                  {"roughness", 0.75},
+                                  {"opacity", 0.25},
+                                  {"surface_mode", "transparent"}};
+  meshDescriptor->parse(surface, meshEntity);
+  const auto *surfaceMesh = meshEntity.component<runtime::MeshRendererComponent>();
+  nlohmann::json encoded;
+  if (surfaceMesh == nullptr || surfaceMesh->metallic != 0.5F ||
+      surfaceMesh->roughness != 0.75F || surfaceMesh->opacity != 0.25F ||
+      surfaceMesh->surfaceMode != "transparent" ||
+      !runtime::MeshRendererComponent::serializeField(*surfaceMesh, "metallic", encoded) ||
+      encoded != surface["metallic"] ||
+      !runtime::MeshRendererComponent::serializeField(*surfaceMesh, "surface_mode", encoded) ||
+      encoded != "transparent" ||
+      meshDescriptor->serialize(meshEntity) != surface) {
+    std::cerr << "Mesh surface overrides did not round-trip.\n";
+    return 1;
+  }
+  auto patchedSurface = surface;
+  patchedSurface["roughness"] = 0.5;
+  if (!meshDescriptor->patch(meshEntity, "roughness", patchedSurface) ||
+      meshEntity.component<runtime::MeshRendererComponent>()->roughness != 0.5F ||
+      meshEntity.component<runtime::MeshRendererComponent>()->metallic != 0.5F ||
+      meshEntity.component<runtime::MeshRendererComponent>()->surfaceMode !=
+          "transparent") {
+    std::cerr << "Mesh surface field mutation changed unrelated state.\n";
+    return 1;
+  }
+  for (const nlohmann::json invalid : {
+           nlohmann::json{{"metallic", -0.1}},
+           nlohmann::json{{"roughness", 1.1}},
+           nlohmann::json{{"opacity", nullptr}},
+           nlohmann::json{{"opacity", "half"}},
+           nlohmann::json{{"surface_mode", "alpha"}},
+           nlohmann::json{{"surface_mode", nullptr}},
+           nlohmann::json{{"metallic", std::numeric_limits<double>::infinity()}}}) {
+    bool rejected = false;
+    try {
+      runtime::MeshRendererComponent::parse(invalid, meshEntity);
+    } catch (const std::exception &) {
+      rejected = true;
+    }
+    if (!rejected || runtime::scene_loading::validateComponent(*meshDescriptor, invalid).empty()) {
+      std::cerr << "Invalid mesh surface override was accepted.\n";
+      return 1;
+    }
+  }
+
+  const nlohmann::json inlineColors = {
+      {"vertices", {{0, 0, 0}, {1, 0, 0}, {0, 1, 0}}},
+      {"vertex_colors", {{1, 0, 0, 1}, {0, 1, 0, 0.5}, {0, 0, 1, 0}}}};
+  meshDescriptor->parse(inlineColors, meshEntity);
+  const auto *coloredMesh =
+      meshEntity.component<runtime::MeshRendererComponent>();
+  const auto &colorProperty = meshSchema["properties"]["vertex_colors"];
+  if (!runtime::scene_loading::validateComponent(*meshDescriptor, inlineColors)
+           .empty() ||
+      meshDescriptor->serialize(meshEntity) != inlineColors ||
+      coloredMesh->vertexColors.size() != 3 ||
+      coloredMesh->vertexColors[1].g != 1 ||
+      coloredMesh->vertexColors[1].a != 0.5F ||
+      !runtime::runtimeFieldJson(coloredMesh->vertexColors, encoded) ||
+      encoded != inlineColors["vertex_colors"] ||
+      meshDefaults["vertex_colors"] != nlohmann::json::array() ||
+      colorProperty["items"]["minItems"] != 4 ||
+      colorProperty["items"]["maxItems"] != 4 ||
+      colorProperty["items"]["items"]["minimum"] != 0 ||
+      colorProperty["items"]["items"]["maximum"] != 1 ||
+      meshDescriptor->exposedToLua) {
+    std::cerr << "Inline mesh colors did not round-trip through the native "
+                 "contract.\n";
+    return 1;
+  }
+  for (const nlohmann::json &valid :
+       {nlohmann::json::object(),
+        nlohmann::json{{"vertex_colors", nlohmann::json::array()}}}) {
+    runtime::Entity uncolored;
+    meshDescriptor->parse(valid, uncolored);
+    if (!uncolored.component<runtime::MeshRendererComponent>()
+             ->vertexColors.empty() ||
+        !runtime::scene_loading::validateComponent(*meshDescriptor, valid)
+             .empty()) {
+      std::cerr
+          << "Omitted or empty vertex colors must retain white vertex tint.\n";
+      return 1;
+    }
+  }
+  std::vector<nlohmann::json> invalidColors{nullptr,
+                                            "red",
+                                            nlohmann::json::object(),
+                                            {{1, 0, 0}},
+                                            {{1, 0, 0, 1, 0}},
+                                            {{1, 0, "blue", 1}},
+                                            {{1, 0, 0, 1}}};
+  for (double channel :
+       {-0.01, 1.01, 1.000000001, std::numeric_limits<double>::infinity(),
+        std::numeric_limits<double>::quiet_NaN()}) {
+    auto colors = inlineColors["vertex_colors"];
+    colors[1][3] = channel;
+    invalidColors.push_back(std::move(colors));
+  }
+  for (const auto &colors : invalidColors) {
+    auto invalid = inlineColors;
+    invalid["vertex_colors"] = colors;
+    bool rejected = false;
+    try {
+      meshDescriptor->parse(invalid, meshEntity);
+    } catch (const std::exception &) {
+      rejected = true;
+    }
+    if (!rejected ||
+        runtime::scene_loading::validateComponent(*meshDescriptor, invalid)
+            .empty() ||
+        meshDescriptor->serialize(meshEntity) != inlineColors) {
+      std::cerr << "Invalid vertex colors were accepted or replaced the "
+                   "previous mesh.\n";
+      return 1;
+    }
+  }
+  const nlohmann::json withoutVertices = {
+      {"vertex_colors", inlineColors["vertex_colors"]}};
+  if (runtime::scene_loading::validateComponent(*meshDescriptor,
+                                                withoutVertices)
+          .empty()) {
+    std::cerr << "Nonempty vertex colors require inline vertices.\n";
+    return 1;
+  }
+  auto malformedGeometry = inlineColors;
+  malformedGeometry["vertices"] =
+      nlohmann::json::array({nullptr, nullptr, nullptr});
+  bool rejectedMalformedGeometry = false;
+  try {
+    runtime::MeshRendererComponent::parse(malformedGeometry, meshEntity);
+  } catch (const std::exception &) {
+    rejectedMalformedGeometry = true;
+  }
+  if (!rejectedMalformedGeometry) {
+    std::cerr
+        << "Vertex colors were accepted without parsed inline vertices.\n";
     return 1;
   }
 

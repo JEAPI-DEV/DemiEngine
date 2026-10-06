@@ -1,6 +1,10 @@
 #include "editor/EditorInspectorPanel.h"
 
+#include "editor/EditorColorControl.h"
 #include "editor/EditorInspectorModel.h"
+#include "editor/EditorReferenceControl.h"
+#include "editor/EditorDragDropPayloads.h"
+#include "editor/EditorHudNodeInspector.h"
 #include "editor/EditorIsoGridInspector.h"
 #include "editor/EditorTerrainInspector.h"
 #include "editor/EditorLuaComponentMetadata.h"
@@ -12,6 +16,8 @@
 
 #include "demi/runtime/scene/ComponentRegistry.h"
 #include "demi/runtime/scene/composition/PrefabResolver.h"
+#include "demi/assets/AssetRegistry.h"
+#include "demi/assets/RenderAsset.h"
 
 #include <nlohmann/json.hpp>
 
@@ -246,7 +252,7 @@ void drawScriptProperties(EditorWorkspace &workspace,
     }
     if (!collection)
       ImGui::TableSetColumnIndex(1);
-    if (!hasValue) {
+    if (!hasValue && type != "entity") {
       if (ImGui::Button("Add value")) {
         properties[name] = initialScriptPropertyValue(type, definition);
         (void)commit(workspace, propertiesTarget, properties, notice);
@@ -259,7 +265,13 @@ void drawScriptProperties(EditorWorkspace &workspace,
     ImGui::SetNextItemWidth(-1.0F);
     bool changed = false;
     std::optional<StructuredValueEdit> structured;
-    if (type == "boolean" && value.is_boolean()) {
+    if (type == "entity" && (!hasValue || value.is_string())) {
+      std::string edited = hasValue ? value.get<std::string>() : std::string{};
+      const auto choices = editorEntityReferenceChoices(workspace.project().world);
+      changed = drawEditorReferenceControl("##value", choices, edited, true,
+                                            EditorSceneEntityPayload);
+      value = std::move(edited);
+    } else if (type == "boolean" && value.is_boolean()) {
       bool edited = value.get<bool>();
       changed = ImGui::Checkbox("##value", &edited);
       value = edited;
@@ -275,7 +287,7 @@ void drawScriptProperties(EditorWorkspace &workspace,
       int edited = value.get<int>();
       changed = ImGui::InputInt("##value", &edited);
       value = edited;
-    } else if ((type == "string" || type == "asset" || type == "entity") &&
+    } else if ((type == "string" || type == "asset") &&
                value.is_string()) {
       std::string edited = value.get<std::string>();
       changed = inputString("##value", edited);
@@ -305,7 +317,11 @@ void drawScriptProperties(EditorWorkspace &workspace,
         for (std::size_t index = 0; index < count; ++index)
           edited[index] = value[index].get<float>();
         changed = type == "color"
-                      ? ImGui::ColorEdit4("##value", edited.data())
+                      ? drawEditorColorControl(
+                            "##value", edited.data(),
+                            {.flags = ImGuiColorEditFlags_AlphaBar |
+                                      ImGuiColorEditFlags_Float,
+                             .showPrecision = true})
                       : drawVectorEditor(nullptr, edited,
                                          static_cast<int>(count));
         value = nlohmann::json::array();
@@ -364,6 +380,7 @@ nlohmann::json initialFieldValue(const ComponentDescriptor &descriptor,
     return nlohmann::json::object();
   case ComponentFieldType::Vec2Array:
   case ComponentFieldType::Vec3Array:
+  case ComponentFieldType::ColorArray:
     return nlohmann::json::array();
   case ComponentFieldType::Boolean:
     return false;
@@ -525,28 +542,16 @@ bool drawReferenceString(EditorWorkspace &workspace,
                          const nlohmann::json &value, std::string &notice,
                          const std::vector<SceneValueTarget> *targets) {
   std::string selected = value.get<std::string>();
-  bool changed = false;
-  if (ImGui::BeginCombo("##value",
-                        selected.empty() ? "None" : selected.c_str())) {
-    const auto choices = editorReferenceChoices(
+  const bool entityReference =
+      field.referenceKind == runtime::ComponentReferenceKind::Entity;
+  const auto choices = entityReference ? editorEntityReferenceChoices(workspace.project().world)
+                                      : editorReferenceChoices(
         field.referenceKind, workspace.project().project.projectDirectory,
         workspace.sceneDocument().path(), workspace.sceneDocument().json(),
         workspace.sources(), target.component);
-    if (field.nullable && ImGui::Selectable("None", selected.empty())) {
-      selected.clear();
-      changed = true;
-    }
-    for (const EditorReferenceChoice &choice : choices) {
-      const bool isSelected = selected == choice.id;
-      if (ImGui::Selectable(choice.label.c_str(), isSelected)) {
-        selected = choice.id;
-        changed = true;
-      }
-      if (isSelected)
-        ImGui::SetItemDefaultFocus();
-    }
-    ImGui::EndCombo();
-  }
+  const bool changed = drawEditorReferenceControl(
+      "##value", choices, selected, field.nullable,
+      entityReference ? EditorSceneEntityPayload : nullptr);
   return !changed || (targets == nullptr
                           ? commit(workspace, target, selected, notice)
                           : commitMany(workspace, *targets, selected, notice));
@@ -637,7 +642,14 @@ bool drawFieldValue(EditorWorkspace &workspace, const SceneValueTarget &target,
   }
   case ComponentFieldType::Number: {
     float edited = value.get<float>();
-    changed = ImGui::InputFloat("##value", &edited, 0.0F, 0.0F, "%.3f");
+    const bool meshSurface = target.component == "MeshRenderer" &&
+        (field.name == "metallic" || field.name == "roughness" ||
+         field.name == "opacity");
+    changed = meshSurface
+                  ? ImGui::SliderFloat("##value", &edited, 0.0F, 1.0F,
+                                       "%.3f")
+                  : ImGui::InputFloat("##value", &edited, 0.0F, 0.0F,
+                                      "%.3f");
     if (changed)
       clampNumericValue(edited, field);
     replacement = edited;
@@ -669,7 +681,10 @@ bool drawFieldValue(EditorWorkspace &workspace, const SceneValueTarget &target,
     for (int index = 0; index < count; ++index)
       edited[index] = value[index].get<float>();
     if (field.type == ComponentFieldType::Color)
-      changed = ImGui::ColorEdit4("##value", edited.data());
+      changed = drawEditorColorControl(
+          "##value", edited.data(),
+          {.flags = ImGuiColorEditFlags_AlphaBar | ImGuiColorEditFlags_Float,
+           .showPrecision = true});
     else
       changed = drawVectorEditor(&field, edited, count);
     replacement = nlohmann::json::array();
@@ -679,12 +694,15 @@ bool drawFieldValue(EditorWorkspace &workspace, const SceneValueTarget &target,
   }
   case ComponentFieldType::Object:
   case ComponentFieldType::Vec2Array:
-  case ComponentFieldType::Vec3Array: {
+  case ComponentFieldType::Vec3Array:
+  case ComponentFieldType::ColorArray: {
     int vectorSize = 0;
     if (field.type == ComponentFieldType::Vec2Array)
       vectorSize = 2;
     else if (field.type == ComponentFieldType::Vec3Array)
       vectorSize = 3;
+    else if (field.type == ComponentFieldType::ColorArray)
+      vectorSize = 4;
     const auto edit = drawStructuredValue(replacement, structuredState, vectorSize);
     bool accepted = true;
     if (edit.changed) {
@@ -723,6 +741,16 @@ void drawComponentFields(EditorWorkspace &workspace,
     ImGui::Spacing();
   }
   bool showAdvanced = false;
+  std::optional<assets::MaterialAsset> material;
+  if (componentName == "MeshRenderer" && component.is_object()) {
+    const auto reference = component.value("material", std::string{});
+    if (!reference.empty()) {
+      const AssetManifest *asset =
+          findAsset(workspace.assetIndex().registry(), reference);
+      if (asset != nullptr && asset->type == "Material")
+        material = assets::loadMaterialAsset(asset->sourcePath);
+    }
+  }
   const bool hasAdvanced = std::ranges::any_of(
       descriptor.fields, [](const auto &field) { return field.editor.advanced; });
   if (hasAdvanced && query.empty()) {
@@ -741,13 +769,24 @@ void drawComponentFields(EditorWorkspace &workspace,
     const SceneValueTarget target{.entityId = std::string(entityId),
                                   .component = componentName,
                                   .field = std::string(field.name)};
-    const EditorPropertyPresentation presentation =
+    EditorPropertyPresentation presentation =
         editorPropertyPresentation(descriptor, field, component, prefabEntity,
                                    workspace.hasExplicitValue(target));
+    if (componentName == "MeshRenderer" && !presentation.hasValue &&
+        (field.name == "metallic" || field.name == "roughness" ||
+         field.name == "opacity" || field.name == "surface_mode")) {
+      presentation.value =
+          editorMeshSurfaceFallback(field.name, component, material ? &*material : nullptr);
+      presentation.hasValue = true;
+      presentation.requiresExplicitAdd = false;
+      presentation.origin = material ? EditorPropertyOrigin::Inherited
+                                     : EditorPropertyOrigin::Default;
+    }
     ImGui::PushID(field.name.data());
     const bool collection = field.type == ComponentFieldType::Object ||
                             field.type == ComponentFieldType::Vec2Array ||
-                            field.type == ComponentFieldType::Vec3Array;
+                            field.type == ComponentFieldType::Vec3Array ||
+                            field.type == ComponentFieldType::ColorArray;
     if (!collection && !beginPropertyTable("##component-properties")) {
       ImGui::PopID();
       continue;
@@ -969,13 +1008,9 @@ void drawEntityHeader(EditorWorkspace &workspace, const nlohmann::json &entity,
 
 } // namespace
 
-void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
-                        const ImVec2 size, EditorInspectorPanelState &state,
-                        std::string &notice, bool *open) {
-  if (!beginEditorPanel("Inspector", position, size, open)) {
-    ImGui::End();
-    return;
-  }
+static void drawInspectorContents(EditorWorkspace &workspace,
+                                  EditorInspectorPanelState &state,
+                                  std::string &notice) {
   const float panelWidth = ImGui::GetContentRegionAvail().x;
   if (workspace.sceneDocument().isDirty()) {
     ImGui::SetCursorPosX(std::max(panelWidth - 68.0F, 0.0F));
@@ -983,13 +1018,11 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
   }
   ImGui::Separator();
   if (drawIsoGridCellInspector(workspace, notice)) {
-    ImGui::End();
     return;
   }
   const runtime::Entity *selected = workspace.selectedEntity();
   if (selected == nullptr) {
     ImGui::TextDisabled("Select an entity to inspect its authored data.");
-    ImGui::End();
     return;
   }
   ImGui::SetNextItemWidth(-1.0F);
@@ -1000,7 +1033,6 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
   ImGui::Separator();
   if (workspace.selectedEntityIds().size() > 1) {
     drawMultiSelection(workspace, notice, propertyQuery, state.structuredValues);
-    ImGui::End();
     return;
   }
 
@@ -1028,14 +1060,12 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
         state.openRequest = *path;
       else
         notice = "Could not resolve the source prefab for this instance.";
-      ImGui::End();
       return;
     }
     ImGui::Separator();
   }
   if (entity == nullptr) {
     ImGui::TextDisabled("The selected entity has no authored source.");
-    ImGui::End();
     return;
   }
   // A commit can replace scene-document storage and rebuild the preview world.
@@ -1056,7 +1086,6 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
     if (ImGui::Button("Unpack preset")) {
       std::string error;
       notice = workspace.unpackPreset(selectedId, error) ? "Preset converted to independent components" : error;
-      ImGui::End();
       return;
     }
     if (ImGui::IsItemHovered())
@@ -1077,7 +1106,6 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
         state.openRequest = *path;
       else
         notice = "Could not resolve placement prefab";
-      ImGui::End();
       return;
     }
   }
@@ -1085,6 +1113,27 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
       workspace.project().project.projectDirectory, workspace.sources());
 
   const auto components = entity->find("components");
+  const auto hasAuthoredComponent = [&](const char *name) {
+    return (components != entity->end() && components->is_object() &&
+            components->contains(name)) || presetComponents.contains(name);
+  };
+  if (!hasAuthoredComponent("MeshRenderer") &&
+      (hasAuthoredComponent("BoxCollider3D") ||
+       hasAuthoredComponent("SphereCollider3D") ||
+       hasAuthoredComponent("CapsuleCollider3D") ||
+       hasAuthoredComponent("ConvexCollider3D"))) {
+    ImGui::TextWrapped("Physics only: colliders do not draw a visible object. "
+                       "Add Mesh Renderer for a prop, or keep this invisible "
+                       "for collision or trigger volumes.");
+    if (ImGui::SmallButton("Add Mesh Renderer")) {
+      std::string error;
+      notice = workspace.addComponent(selectedId, "MeshRenderer",
+                                      nlohmann::json::object(), error)
+                   ? "Visible mesh added"
+                   : error;
+      return;
+    }
+  }
   bool anyVisibleComponent = false;
   if (components != entity->end() && components->is_object()) {
     std::vector<std::string> componentOrder;
@@ -1171,7 +1220,6 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
         notice =
             reverted ? "Component reverted to the shared prefab source" : error;
         ImGui::PopID();
-        ImGui::End();
         return;
       }
       if (removeRequested) {
@@ -1183,7 +1231,6 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
                                      : "Component removed")
                      : error;
         ImGui::PopID();
-        ImGui::End();
         return;
       }
       if (!componentOpen) {
@@ -1244,7 +1291,6 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
             selectedId, restoreComponent, error);
         notice = restored ? "Component restored from the shared prefab source"
                           : error;
-        ImGui::End();
         return;
       }
     }
@@ -1297,7 +1343,6 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
         if (!choice.compatible)
           ImGui::EndDisabled();
         ImGui::EndCombo();
-        ImGui::End();
         return;
       }
       if (!choice.compatible &&
@@ -1336,7 +1381,6 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
           if (hasLuaScript)
             ImGui::EndDisabled();
           ImGui::EndCombo();
-          ImGui::End();
           return;
         }
         if (hasLuaScript &&
@@ -1405,7 +1449,6 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
               state.pendingReferenceField.clear();
             }
             ImGui::EndCombo();
-            ImGui::End();
             return;
           }
           ImGui::EndCombo();
@@ -1419,6 +1462,40 @@ void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
         }
       }
     }
+  }
+}
+
+void drawInspectorPanel(EditorWorkspace &workspace, const ImVec2 position,
+                        const ImVec2 size, EditorInspectorPanelState &state,
+                        std::string &notice, bool *open) {
+  if (beginEditorPanel("Inspector", position, size, open))
+    drawInspectorContents(workspace, state, notice);
+  ImGui::End();
+}
+
+void drawEditorInspector(EditorWorkspace &workspace, const ImVec2 position,
+                         const ImVec2 size, EditorInspectorPanelState &state,
+                         EditorHudInspectorState &hudState, std::string &notice,
+                         bool *open) {
+  if (!beginEditorPanel("Inspector", position, size, open)) {
+    ImGui::End();
+    return;
+  }
+  if (workspace.activeDocument() == EditorWorkspaceDocument::Hud) {
+    drawEditorHudNodeInspectorContents(workspace, hudState, notice);
+  } else if (workspace.activeDocument() ==
+             EditorWorkspaceDocument::TerrainAsset) {
+    const auto *asset = workspace.terrainAssetDocument();
+    if (asset) {
+      ImGui::TextDisabled("TERRAIN ASSET");
+      ImGui::TextWrapped("%s", asset->id().c_str());
+      ImGui::TextDisabled("Saved as %s",
+                          asset->path().filename().string().c_str());
+      ImGui::Separator();
+      drawEditorTerrainInspector(workspace, notice);
+    }
+  } else {
+    drawInspectorContents(workspace, state, notice);
   }
   ImGui::End();
 }

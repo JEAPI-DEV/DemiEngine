@@ -111,11 +111,19 @@ std::optional<Entity> RuntimeObjectModel::buildEntity(const Json &spec,
 
 ObjectModelResult RuntimeObjectModel::addEntity(World &world, Entity entity,
                                                 const bool replace) {
+  Entity *existing = findEntity(world, entity.id);
+  return insertEntity(world, std::move(entity), replace, existing);
+}
+
+ObjectModelResult RuntimeObjectModel::insertEntity(World &world, Entity entity,
+                                                   const bool replace,
+                                                   Entity *existing) {
   if (entity.id.empty()) {
     return failure("entity id must not be empty");
   }
-  Entity *existing = findEntity(world, entity.id);
   if (existing != nullptr) {
+    if (existing->id != entity.id)
+      return failure("entity index does not match stable id: " + entity.id);
     if (!replace) {
       return failure("entity already exists: " + entity.id);
     }

@@ -1,6 +1,9 @@
 #include "editor/EditorEntityHierarchy.h"
 #include "editor/EditorSceneJson.h"
 
+#include <utility>
+#include <vector>
+
 namespace demi::editor {
 void eraseEntitySubtrees(nlohmann::json &entities,
                          const std::unordered_set<std::string> &ids) {
@@ -40,5 +43,26 @@ void insertEntityUnder(nlohmann::json &document, nlohmann::json entity,
   } else {
     document["entities"].push_back(std::move(entity));
   }
+}
+nlohmann::json nestLocalEntityLinks(nlohmann::json entities) {
+  std::unordered_set<std::string> roots;
+  std::vector<std::pair<std::string, std::string>> links;
+  for (const auto &entity : entities) {
+    const auto id = entity.at("id").get<std::string>();
+    roots.insert(id);
+    links.emplace_back(id, transformParentId(entity));
+  }
+  nlohmann::json staged{{"entities", std::move(entities)}};
+  for (const auto &[id, parent] : links) {
+    if (parent.empty() || !roots.contains(parent))
+      continue;
+    auto *entity = findEntity(staged, id);
+    if (!entity)
+      continue;
+    auto subtree = *entity;
+    eraseEntitySubtrees(staged["entities"], {id});
+    insertEntityUnder(staged, std::move(subtree), parent);
+  }
+  return std::move(staged["entities"]);
 }
 } // namespace demi::editor

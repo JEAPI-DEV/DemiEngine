@@ -1,0 +1,201 @@
+{
+  "format_version": 1,
+  "name": "Coastal Island",
+  "label": "Coastal Island",
+  "description": "Land falling away into open sea. The ocean floor sits well below sea level so real water forms around a single island mass, sand rings every shoreline, dune grass backs the beaches, coastal scrub covers the slopes and bare rock claims the steep headlands.",
+  "size": [
+    512.0,
+    512.0
+  ],
+  "cells_x": 256,
+  "cells_z": 256,
+  "chunk_cells": 32,
+  "seed": 70433,
+  "default_biome": "island",
+  "default_landform": "island",
+  "landforms": {
+    "island": {
+      "base_height": 24.0,
+      "height_variation": 42.0,
+      "feature_size": 130.0,
+      "roughness": 0.5,
+      "octaves": 5
+    },
+    "ocean_floor": {
+      "base_height": -18.0,
+      "height_variation": 4.0,
+      "feature_size": 150.0,
+      "roughness": 0.4,
+      "octaves": 3
+    },
+    "beach": {
+      "base_height": 14.0,
+      "height_variation": 3.0,
+      "feature_size": 26.0,
+      "roughness": 0.3,
+      "octaves": 3
+    },
+    "dune_grass": {
+      "base_height": 17.0,
+      "height_variation": 4.0,
+      "feature_size": 44.0,
+      "roughness": 0.34,
+      "octaves": 3
+    },
+    "coastal_scrub": {
+      "base_height": 24.0,
+      "height_variation": 9.0,
+      "feature_size": 66.0,
+      "roughness": 0.42,
+      "octaves": 4
+    },
+    "headland_rock": {
+      "base_height": 38.0,
+      "height_variation": 14.0,
+      "feature_size": 52.0,
+      "roughness": 0.6,
+      "octaves": 4
+    }
+  },
+  "biomes": {
+    "island": {
+      "landform": "island",
+      "color": [
+        0.35,
+        0.47,
+        0.26,
+        1.0
+      ]
+    },
+    "ocean_floor": {
+      "landform": "ocean_floor",
+      "color": [
+        0.16,
+        0.3,
+        0.38,
+        1.0
+      ]
+    },
+    "beach": {
+      "landform": "beach",
+      "color": [
+        0.84,
+        0.78,
+        0.6,
+        1.0
+      ]
+    },
+    "dune_grass": {
+      "landform": "dune_grass",
+      "color": [
+        0.55,
+        0.56,
+        0.31,
+        1.0
+      ]
+    },
+    "coastal_scrub": {
+      "landform": "coastal_scrub",
+      "color": [
+        0.29,
+        0.4,
+        0.23,
+        1.0
+      ]
+    },
+    "headland_rock": {
+      "landform": "headland_rock",
+      "color": [
+        0.44,
+        0.43,
+        0.41,
+        1.0
+      ]
+    }
+  },
+  "rules": [
+    {
+      "id": "open_water",
+      "layer": "biomes",
+      "biome": "ocean_floor",
+      "priority": 90,
+      "blend": 3,
+      "elevation": [
+        -60,
+        17
+      ],
+      "substrate": [
+        "wet"
+      ]
+    },
+    {
+      "id": "headland_rock",
+      "layer": "biomes",
+      "biome": "headland_rock",
+      "priority": 80,
+      "blend": 4,
+      "elevation": [
+        0,
+        90
+      ],
+      "substrate": [
+        "rock"
+      ]
+    },
+    {
+      "id": "shoreline_beach",
+      "layer": "biomes",
+      "biome": "beach",
+      "priority": 70,
+      "blend": 4,
+      "elevation": [
+        16,
+        26
+      ],
+      "water_distance": [
+        0,
+        7
+      ],
+      "substrate": [
+        "sand"
+      ]
+    },
+    {
+      "id": "back_dune_grass",
+      "layer": "biomes",
+      "biome": "dune_grass",
+      "priority": 55,
+      "blend": 6,
+      "elevation": [
+        21,
+        30
+      ],
+      "water_distance": [
+        6,
+        24
+      ]
+    },
+    {
+      "id": "coastal_slope_scrub",
+      "layer": "biomes",
+      "biome": "coastal_scrub",
+      "priority": 45,
+      "blend": 8,
+      "elevation": [
+        26,
+        36
+      ]
+    },
+    {
+      "id": "island_interior",
+      "layer": "biomes",
+      "biome": "island",
+      "priority": 35,
+      "blend": 8,
+      "elevation": [
+        33,
+        90
+      ]
+    }
+  ]
+}

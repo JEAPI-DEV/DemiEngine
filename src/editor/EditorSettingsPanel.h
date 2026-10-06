@@ -2,5 +2,8 @@
 
 namespace demi::editor {
 struct EditorPreferences;
-void drawEditorSettingsPanel(bool &open, float &uiScale, EditorPreferences &preferences);
-}
+struct EditorShortcutSettingsState;
+void drawEditorSettingsPanel(bool &open, float &uiScale,
+                             EditorPreferences &preferences,
+                             EditorShortcutSettingsState &shortcuts);
+} // namespace demi::editor

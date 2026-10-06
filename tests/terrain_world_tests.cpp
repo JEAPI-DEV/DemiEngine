@@ -25,8 +25,8 @@ TerrainRecipe smallRecipe() {
   recipe.size = {4, 4};
   recipe.cellsX = recipe.cellsZ = 4;
   recipe.chunkCells = 2;
-  recipe.biomes.at("default").heightVariation = 0;
-  recipe.biomes.at("default").baseHeight = 1;
+  recipe.landforms.at("default").heightVariation = 0;
+  recipe.landforms.at("default").baseHeight = 1;
   return recipe;
 }
 
@@ -38,7 +38,10 @@ void testWorld() {
   owner.setComponent(Transform3DComponent{
       .position = {10, 3, 20}, .rotation = {0, .5F, 0}, .scale = {2, 3, 2}});
   Terrain3DComponent terrain;
-  terrain.recipe = smallRecipe().toJson();
+  auto settings = smallRecipe();
+  settings.biomes.at("default").material = "asset://ground/stone";
+  settings.biomes.at("default").textureScale = 2;
+  terrain.recipe = settings.toJson();
   const auto recipe = terrain.recipe;
   owner.setComponent(std::move(terrain));
   world.entities.push_back(std::move(owner));
@@ -65,6 +68,8 @@ void testWorld() {
     check(mesh->normals.size() == mesh->vertices.size() &&
               mesh->uvs.size() == mesh->vertices.size(),
           "Generated normals or UVs missing");
+    check(mesh->material == "asset://ground/stone",
+          "Biome material was not bound to generated mesh");
     for (std::size_t vertex = 0; vertex < mesh->vertices.size(); ++vertex) {
       const auto point = mesh->vertices[vertex];
       const auto sample = retained->generated->index(static_cast<int>(point.x),
@@ -73,7 +78,9 @@ void testWorld() {
       check(point.y == retained->generated->heights[sample] &&
                 mesh->normals[vertex].x == expectedNormal.x &&
                 mesh->normals[vertex].y == expectedNormal.y &&
-                mesh->normals[vertex].z == expectedNormal.z,
+                mesh->normals[vertex].z == expectedNormal.z &&
+                mesh->uvs[vertex].x == point.x * 2 &&
+                mesh->uvs[vertex].y == point.z * 2,
             "Chunk borders diverged from shared height/normal samples");
     }
     for (std::size_t triangle = 0; triangle < triangles->size(); ++triangle) {
@@ -139,7 +146,8 @@ void testWorld() {
 void testSceneAndBiomeGroups() {
   auto recipe = smallRecipe();
   recipe.chunkCells = 4;
-  recipe.biomes.emplace("red/rock", TerrainBiome{.color = {1, 0, 0, 1}});
+  recipe.biomes.emplace("red/rock", TerrainBiome{.color = {1, 0, 0, 1},
+                                                  .textureScale = 4});
   auto generated = TerrainGenerator::generate(recipe);
   check(generated.has_value(), "Generation failed");
   // Publish a known worker result to probe grouping/cache consumption directly.
@@ -148,7 +156,7 @@ void testSceneAndBiomeGroups() {
       generated->biomeIndices.set(generated->index(x, z), x < 2 ? 0 : 1);
   auto field = std::make_shared<const HeightField>(std::move(*generated));
   const auto recipeJson = recipe.toJson();
-  publishTerrain(recipeJson, field);
+  publishTerrain(recipeJson, "", field);
   ProjectData project;
   project.projectDirectory = DEMI_SOURCE_DIR;
   project.scenes = {{.id = "scene://terrain", .path = "terrain.scene.json"}};
@@ -176,6 +184,12 @@ void testSceneAndBiomeGroups() {
         "Runtime/editor did not consume published worker field");
   check(findEntity(*scene, "land/__terrain/0_0/red%2frock") != nullptr,
         "Biome ID was not encoded stably");
+  const auto *rock = findEntity(*scene, "land/__terrain/0_0/red%2frock")
+                         ->component<MeshRendererComponent>();
+  for (std::size_t vertex = 0; vertex < rock->vertices.size(); ++vertex)
+    check(rock->uvs[vertex].x == rock->vertices[vertex].x * 4 &&
+              rock->uvs[vertex].y == rock->vertices[vertex].z * 4,
+          "Biome group used another biome's texture scale");
   std::size_t triangleCount = 0;
   for (std::size_t index = 1; index < scene->entities.size(); ++index)
     triangleCount +=
@@ -222,6 +236,26 @@ void testMeshHelper() {
   check(!buildTerrainMeshEntity(owner, "bad", vertices, {}, uvs, {}, {}, error),
         "Mesh helper accepted mismatched arrays");
 }
+
+void testMissingPaletteInputsLeaveWorldIntact() {
+  World world;
+  Entity owner;
+  owner.id = "palette_owner";
+  owner.setComponent(Transform3DComponent{});
+  Terrain3DComponent terrain;
+  auto recipe = smallRecipe();
+  recipe.paletteId = "asset://terrain/palettes/missing";
+  terrain.recipe = recipe.toJson();
+  owner.setComponent(std::move(terrain));
+  world.entities.push_back(std::move(owner));
+  std::string error;
+  check(!materializeTerrains(world, error),
+        "Unresolved palette generated a field without scatter inputs");
+  check(error.find("must be resolved") != std::string::npos &&
+            world.entities.size() == 1 &&
+            !world.entities.front().component<Terrain3DComponent>()->generated,
+        "Failed palette resolution changed the world");
+}
 } // namespace
 
 int main() {
@@ -229,6 +263,7 @@ int main() {
     testWorld();
     testSceneAndBiomeGroups();
     testMeshHelper();
+    testMissingPaletteInputsLeaveWorldIntact();
   } catch (const std::exception &exception) {
     std::cerr << exception.what() << '\n';
     return 1;

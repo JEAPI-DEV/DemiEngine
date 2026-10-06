@@ -63,7 +63,9 @@ int main() {
       auto field = std::make_shared<const HeightField>(std::move(*generated));
       const auto sampled = Clock::now();
       const auto json = recipe.toJson();
-      publishTerrain(json, field);
+      // Keyed on the same fingerprint scene loading would supply, so the
+      // benchmark measures the same cache path the engine uses.
+      publishTerrain(json, field->inputFingerprint, field);
       World world;
       Entity owner;
       owner.id = "terrain";

@@ -1,21 +1,176 @@
-<h1>Terrain generation and editing</h1>
-<p><code>Terrain3D</code> generates a finite heightfield from a seed and biome settings. The editor lets you regenerate the base, paint biome regions and apply sculpt edits without writing JSON. This is an experimental 3D workflow; it does not yet provide large-world streaming, vegetation scattering or volumetric caves.</p>
+<h1>Terrain assets and editing</h1>
+<p>A Terrain asset owns its generation graph, biome settings and manual edits. Scenes reference it through <code>Terrain3D.asset</code> and place it with Transform 3D. The editor generates and edits its preview; shipped games load prepared terrain data. This is an experimental finite-heightfield workflow; large-world streaming and volumetric caves are not yet available.</p>
 
 <h2>Generate a terrain</h2>
 <ol>
-  <li>Open a 3D scene, add an entity with <strong>Transform 3D</strong>, then add <strong>Terrain 3D</strong> in the Inspector.</li>
-  <li>Choose the X/Z size in world units, resolution in cells, seed and chunk size. Resolution determines surface detail; chunk size controls how the surface is split into meshes.</li>
-  <li>Adjust the biome settings and press <strong>Generate</strong> or <strong>Regenerate</strong>. Settings remain an unapplied draft until you do this.</li>
+  <li>Choose <strong>Assets → Create → Terrain...</strong> to create a Terrain asset. Double-click its source or manifest to open its own terrain stage, independently of the scene.</li>
+  <li>Choose <strong>Open Terrain Graph</strong>. Its generation settings contain the X/Z size in world units, resolution in cells, seed and chunk size. Resolution determines surface detail; chunk size controls how the surface is split into meshes.</li>
+  <li>Adjust landforms, biomes, rules, palette and connected graph modules there, then press <strong>Generate</strong> or <strong>Regenerate</strong>. Settings remain an unapplied draft until you do this.</li>
   <li>Inspect the result in the viewport. Generation runs in the background with progress and cancellation. The last completed surface remains visible while it runs.</li>
-  <li>Save the scene normally. Undo/Redo restores the authored recipe and its generated preview.</li>
+  <li>Save the asset normally. Undo/Redo restores its authored recipe and preview. Drag the asset from Assets into a 3D scene to place it; the scene stores a reference, not a recipe copy.</li>
 </ol>
-<p>Adding a Terrain component previews its default recipe. Terrain-local X/Z coordinates run from zero to the configured size; use the entity transform to position it in the scene. The same generated triangles provide rendering and static collision. The terrain surface is not a dynamic rigid body.</p>
-<p>Select the terrain owner and press <strong>F</strong> over the viewport to frame its full surface. Generated chunks are hidden from the authored hierarchy. Generation controls sit above the recipe settings; expanding biomes exposes their individual controls.</p>
+<p>An empty Terrain component is a placeholder until an asset or an explicit procedural recipe is assigned. Terrain-local X/Z coordinates run from zero to the configured size; use the scene entity's transform to position it. Generated meshes and static triangle-mesh colliders are split into chunks and biome groups. One logical Terrain asset therefore has multiple native render/collision objects.</p>
+<p>Select the terrain owner and press <strong>F</strong> over the viewport to frame its full surface. Generated chunks are hidden from the authored hierarchy. Generation configuration belongs to the Terrain Graph workspace; the Terrain component Inspector contains the viewport brush tools.</p>
 
-<h2>Biomes and region painting</h2>
-<p>Add biomes in the Terrain Inspector and choose a default biome. Each biome controls base height, height variation, feature size, roughness, octave count and tint. Larger feature sizes produce broader terrain features. The seed makes repeated generation of the same recipe reproducible within the same generator implementation.</p>
-<p>Select <strong>Paint biome</strong>, choose a biome, then drag on the surface. Radius sets the brush footprint; strength and falloff control its influence. Overlapping strokes blend height contributions, with later strokes painting over earlier ones. Surface tint currently uses the dominant biome per terrain cell; smooth material/texture blending is separate follow-up work.</p>
-<p>Biomes are currently stored in the terrain recipe. Reusable biome asset files, material rules and vegetation density controls are not implemented yet. A biome referenced by the default setting or painted regions cannot be removed until those references are removed.</p>
+<h2>Edit a placed terrain</h2>
+<p>Select a scene entity with a <code>Terrain3D.asset</code> reference. Sculpt and paint it directly in the scene Viewport, using the Terrain component's brush controls. There is no need to open an isolated asset stage. <strong>Open Terrain Graph</strong> edits the same shared asset's generation draft.</p>
+<p>Use <strong>Apply changes to asset</strong> to save the edited recipe and prepared surface. Edits affect other placements of that asset; their transforms remain independent. The scene continues to store its asset reference, without embedding an override recipe. Duplicate the source asset first if a placement needs a different terrain. The standalone Terrain asset stage remains available for working in isolation.</p>
+<p>Selecting an unrelated scene object does not discard pending terrain edits. Before editing a different Terrain asset, apply or undo the current asset's changes and generate or discard its pending settings. Scene placement edits and terrain source edits have separate histories.</p>
+
+<h2>Terrain module graph</h2>
+<p>Try <code>demi editor --project examples/terrain_graph_3d</code> for a connected landscape example: mountain, foothill and lowland noise branches blend through elevation masks, followed by drainage-fed erosion, lake/river carving and biome rules. Its terrain can then be painted and sculpted in the Viewport. Connected water outputs now display transparent water surfaces.</p>
+<p>Water positions are terrain-local coordinates. Moving the terrain entity moves its water; changing terrain dimensions does not scale water-body positions.</p>
+<p>A lake fills the submerged region connected to its centre within its radius. If the centre is dry, the nearest wet terrain sample selects the basin. Separate depressions behind land at or above the water level stay dry; add another Water Body node to fill them. Oceans cover all submerged regions in their footprint, and rivers follow their authored paths. Connectivity is computed during generation or terrain edits and saved with prepared terrain, not searched again each rendered frame.</p>
+<figure class="docs-figure">
+  <a href="/images/docs-terrain-graph-lake.png"><img src="/images/docs-terrain-graph-lake.png" alt="The actual terrain graph example in the native Viewport, with blue water inside its sculpted central basin." width="5120" height="2806" loading="lazy"></a>
+  <figcaption>A lake created with Water Body nodes in the terrain graph example.</figcaption>
+</figure>
+<p>The graph lives in the Terrain asset's <code>recipe.graph</code>. Select its scene placement or open the asset, then choose <strong>Open Terrain Graph</strong> in the Inspector. Global recipe settings and node parameters are edited in this workspace, with one authoritative recipe rather than separate Inspector and graph copies. Use <strong>Starter graph</strong> for a working chain, or drag terrain cards from the independent <strong>Terrain Nodes</strong> panel onto the canvas. Each card has a stable type; moving a node changes layout, while connections and parameters determine generation.</p>
+<p>Opening the graph pins it to that terrain's stable owner and source document. Changing Inspector selection does not switch the graph to another terrain or discard its draft. Graph shortcuts also work from Terrain Nodes. To open another terrain's graph, generate or discard the current draft and finish any pending generation or brush stroke first. Select the bound terrain when using its Viewport brushes; editing the graph does not force scene selection back to that terrain.</p>
+<p>Connect an output pin to an input pin of the same kind. Pins carry a heightfield, mask, drainage result, water result or instance placements. An input accepts one connection, cycles and incompatible links are rejected, and required inputs must be connected before generation. The graph names the <strong>Terrain Output</strong> node by its stable node ID; an unconnected or invalid draft shows diagnostics. You can keep assembling an incomplete draft, use <strong>Undo graph</strong> or <strong>Redo graph</strong>, and press <strong>Generate</strong> when it is ready. Generation validates and evaluates the draft before replacing the committed terrain; the previous surface stays available if generation fails.</p>
+<p>The registry currently provides these modules:</p>
+<ul>
+  <li><strong>Generators:</strong> Landform uses the recipe's landscape settings; Noise terrain makes a seeded heightfield; Flat terrain makes a constant-height base.</li>
+  <li><strong>Masks:</strong> Elevation mask and Slope mask select height or steepness bands. Connect a mask to Height Blend or Height Offset to limit its effect.</li>
+  <li><strong>Modifiers:</strong> Height Blend mixes two heightfields; Height Offset raises or lowers one. Their inputs must share the same terrain grid.</li>
+  <li><strong>Simulation:</strong> Drainage computes flow and basins for a surface; Erosion changes its heights and can take matching drainage as an optional input.</li>
+  <li><strong>Appearance and placement:</strong> Biome Rules assigns rule-based biomes to its connected field; painted region overrides are applied after graph evaluation. Scatter Palette generates deterministic instances from a resolved asset palette.</li>
+  <li><strong>Water and output:</strong> Water Body carves a finite lake, ocean or authored river path and produces a heightfield plus water data. Terrain Output publishes the connected heightfield and optional water and instances.</li>
+</ul>
+<p>The graph produces the procedural base. The terrain's authored regions, sculpt edits, exclusions and protection stay in separate surface layers and are replayed when you Generate again; they do not turn into graph nodes. A size or resolution change with existing edits opens the editor's keep-or-clear decision, and protection snapshots cannot be moved to a different grid. Water Body computes carved terrain and water-surface data for finite authored bodies. Connect its water output to Terrain Output to display the surface.</p>
+
+<p>When chaining Water Body nodes, connect both the terrain output and the earlier node's water output to the next node's <strong>Existing water</strong> input. This preserves the earlier bodies while carving the new one. Connect the final water result to Terrain Output. Biome Rules currently derives its water context from the recipe's landforms; graph-authored bodies do not automatically replace that context.</p>
+<p>Scroll the mouse wheel over the canvas to zoom around the cursor; middle-drag pans. The zoom percentage is view state, not part of the terrain recipe. <strong>100%</strong> resets the scale without changing authored node coordinates.</p>
+<p>Terrain Nodes uses cards with an icon, title and description. Drag any part of a card onto the graph canvas and release to insert one node at that position; hovering does not change the graph. Dropping accounts for canvas zoom and panning, and insertion can be undone. The optional local node palette uses the same cards and also supports click-to-insert.</p>
+<h3>Configure connections and the active output</h3>
+<p>Each node separates <strong>Inputs</strong>, <strong>Parameters</strong> and <strong>Outputs</strong>. An input's source dropdown lists compatible outputs from other nodes. Choose a source to connect or replace a wire; choose <strong>None</strong> to disconnect it. Replacing a connection is one Undo step. Required inputs must be connected before Generate. Invalid cycles are rejected without changing the draft.</p>
+<p>On a Terrain Output node, select <strong>Active terrain output</strong> to publish that branch. A node's port types are defined by its operation: a terrain surface connects to a terrain-surface input, while water and instance results use their matching inputs.</p>
+<figure class="docs-figure">
+  <a href="/images/docs-terrain-connections.png"><img src="/images/docs-terrain-connections.png" alt="The native Terrain Graph editor with source dropdowns for Height Blend inputs and separate Inputs, Parameters and Outputs sections." width="5120" height="2806" loading="lazy"></a>
+  <figcaption>Choose compatible sources on each input, or connect the pins with wires. Click the screenshot to view it at full size.</figcaption>
+</figure>
+<h3>Create materials and palettes in the editor</h3>
+<ol>
+  <li>Choose <strong>File → New document</strong> or <strong>Assets → Create</strong>, then <strong>Terrain Surface Material</strong>, <strong>Terrain Material Set</strong> or <strong>Terrain Asset Palette</strong>.</li>
+  <li>A surface material starts with native defaults. Material sets require an initial surface material; palettes require a Model3D asset or a prefab with a compatible asset. The dialog offers project references instead of inventing a sample binding.</li>
+  <li>Open the resulting asset. Its Editor tab provides color/scalar controls, texture-map slots, material-role bindings or full placement-role settings, including scale, spacing, collision, LOD and biome filters.</li>
+  <li>Use Undo/Redo for edits and Save to update source and reimport its metadata. Native asset dependencies are derived during import/reimport; existing manual declarations remain intact. Prefabs remain prefab references, not asset-ID dependencies.</li>
+  <li>Select a renderable Material asset or a scatter palette in Terrain Graph settings. Ordinary Material assets now reach biome meshes; typed terrain material definitions and smooth blended layers remain pending.</li>
+</ol>
+<p>If metadata reimport fails after the source saves, the editor reports <strong>Import pending</strong>. Correct the reported issue and retry Save; the pending state remains available for recovery.</p>
+
+<h3>Edit colors, biome rules and asset placement</h3>
+<ol>
+  <li>On <strong>Biome Rules</strong>, press <strong>Colors and biome rules...</strong>. The settings overlay opens the terrain's shared biome definitions and rules.</li>
+  <li>Edit a color swatch or enter <strong>Hex RGBA</strong>, including alpha. Expand <strong>RGBA precision</strong> for normalized 0–1 numeric channels.</li>
+  <li>Press <strong>Generate</strong> to apply the draft to the preview. Connect Biome Rules into the branch you publish if its rules should assign the surface's biomes.</li>
+</ol>
+<p><strong>Scatter Palette → Choose asset palette...</strong> opens placement settings, and <strong>Landform → Landscape shapes...</strong> opens landform definitions. These controls edit the same recipe as <strong>All landscape settings</strong>; they do not create separate copies of colors, rules or palettes. Recipe sections collapse independently. Ordinary Material assets render on terrain; typed PBR definitions and blended layers remain pending.</p>
+<figure class="docs-figure">
+  <a href="/images/docs-terrain-colors.png"><img src="/images/docs-terrain-colors.png" alt="Biome Rules settings in the native editor, showing the default biome, Hex RGBA color, precision controls and biome properties." width="5120" height="2806" loading="lazy"></a>
+  <figcaption>The Biome Rules node opens the shared appearance settings. Change a color, then Generate to update the terrain preview. Click to view the screenshot at full size.</figcaption>
+</figure>
+<p>Open the example directly in this view:</p>
+<pre><code>./build/linux-release/demi-editor --project examples/terrain_graph_3d --terrain-graph
+./build/linux-release/demi-editor --project examples/terrain_graph_3d --terrain-settings-node biome_rules</code></pre>
+<p>The graph toolbar uses action icons with descriptive tooltips and your current shortcut bindings. Ctrl-click or drag a selection box to select several nodes. Copy/paste and duplicate retain their parameters and internal links while assigning fresh IDs. Cut, paste, multi-delete and multi-node movement each form one graph-draft Undo step. Shortcuts act on the focused graph; text fields keep normal editing. Configure mappings and alternatives in <strong>Edit → Editor Settings → Keyboard shortcuts</strong>. See <a href="/docs/editor-workspace">workspace shortcuts</a>.</p>
+<p>The canvas uses the whole Terrain Graph window width. Recipe settings float over it; collapse their header to leave only the title strip, or use <strong>Hide settings</strong> to remove them entirely. Scrolling over settings scrolls that panel without zooming the graph. <strong>Show local modules</strong> opens an optional local palette; the searchable <strong>Terrain Nodes</strong> window can be docked separately. Terrain Graph itself can sit beside Viewport so you can inspect the generated terrain while editing its graph. Node footers show the last generation's CPU time or whether its result was reused.</p>
+
+<h2>Source assets, caching and shipping</h2>
+<p>The editable source is a <code>*.terrain.json</code> document with <code>format_version</code>, a stable <code>asset://</code> ID and a <code>recipe</code>. Its ordinary <code>*.asset.json</code> manifest uses type <code>Terrain</code> and importer <code>terrain_heightfield</code>. Generated previews live in the platform cache directory, not in the developer's asset folder.</p>
+<pre><code>{
+  "id": "landscape",
+  "components": {
+    "Transform3D": { "position": [0, 0, 0] },
+    "Terrain3D": { "asset": "asset://terrain/landscape" }
+  }
+}</code></pre>
+<p>Several scene entities can reference the same Terrain asset while using different placement transforms. The recipe remains shared. Editing the asset does not add an override recipe to each scene instance.</p>
+<p>Cook and package builds produce a <code>*.terrain.bin</code> payload and rewrite the cooked asset manifest to reference it. The payload includes the prepared surface, edit checkpoint, biome data, exclusions, water data and scatter placements. Runtime loading decodes that data and creates native render/collision resources; it does not evaluate noise, erosion, water carving or scatter selection. Missing or corrupt payloads produce an error rather than silently generating replacement terrain.</p>
+<pre><code>demi cook --project examples/terrain_graph_3d \
+  --output build/terrain-graph-cooked --platform linux
+demi run --project build/terrain-graph-cooked</code></pre>
+<p>Development tools can prepare missing or stale source-asset caches before running a project. Warm source loads reuse prepared results; normal shipped projects load their binary payloads. Source edits and dependency changes invalidate preparation through the shared asset/cook services.</p>
+<p>For a deliberately procedural game, an entity can instead specify <code>Terrain3D.recipe</code> inline. That explicitly requests runtime generation. <code>asset</code> and <code>recipe</code> cannot be supplied together.</p>
+
+<h2>Landforms and biomes</h2>
+<p>A landform is the shape of the ground. A biome is how that ground looks. They are authored separately, so recolouring a surface never changes the terrain and reshaping a hill never changes its tint.</p>
+<p>A <code>landforms</code> object is keyed by name and each entry takes <code>base_height</code>, <code>height_variation</code>, <code>feature_size</code>, <code>roughness</code> and <code>octaves</code>. The recipe names the one used where nothing else applies with <code>default_landform</code>.</p>
+<p>A <code>biomes</code> object is keyed by name and each entry takes a <code>color</code>, an optional ordinary <code>material</code> asset, a <code>texture_scale</code>, and an optional <code>landform</code> naming the shape its ground uses. Leave <code>landform</code> out to use the recipe's default. Several biomes can share one landform, and one landform can serve several looks, so a shared rocky shape costs nothing to reuse.</p>
+<p>The two are edited in the Terrain Graph's generation settings: <strong>Landforms</strong> for elevation and relief, <strong>Biomes</strong> for tint and landform choice.</p>
+
+<h3>Textures, scenery and water: current support</h3>
+<figure class="docs-figure">
+  <a href="/images/docs-terrain-material-binding.png"><img src="/images/docs-terrain-material-binding.png" alt="Native terrain viewport showing an ordinary material's checker texture repeated continuously across sixteen generated chunks." width="5120" height="2806" loading="lazy"></a>
+  <figcaption>A checker material tiled across terrain chunks.</figcaption>
+</figure>
+<p>Biome assignment creates discrete triangle groups that now use the biome's ordinary <code>Material</code> asset. In Terrain Graph settings, open a biome's properties and choose <strong>Render material (Material)</strong>. Its base-colour/albedo texture and supported metallic/roughness controls use the shared Mesh Renderer path in preview, Game View and cooked runtime. Biome <code>color</code> is still a tint: use <code>[1,1,1,1]</code> when you want the material's appearance without colour tinting.</p>
+<p><code>texture_scale</code> is positive finite repetitions per terrain-local unit and defaults to 1. A value of 0.5 repeats a texture every two units; 2 repeats twice per unit. Coordinates are continuous across chunk boundaries. Set the Texture2D asset's Wrap to Repeat for tiling; a clamped texture will not repeat. Scaling the terrain entity scales this authored texture pattern with it. Reset removes the scale override.</p>
+<p>Material and tint changes preserve terrain geometry and collision; texture-scale changes update UVs and GPU geometry revision without rebuilding heights or colliders. Generate applies the draft through the existing update/history path, and prepared/cooked payloads retain material IDs and scales without needing the source recipe at runtime.</p>
+<p>Prepared binary terrain is read-only in the editor. Open the source project to edit its graph or use terrain brushes, then cook the project again.</p>
+<p>Typed <code>terrain_material</code> and <code>terrain_material_set</code> data assets remain authoring definitions, not renderable biome materials. Validation warns when one is assigned here. Smooth blended layers, triplanar mapping and general PBR texture maps remain pending; this binding step is not the complete high-quality landscape renderer.</p>
+<p>Scatter Palette places models or prefabs on the generated surface. Those objects use their own Mesh Renderer materials. Connect Biome Rules before Scatter Palette when biome rules should control placement.</p>
+<p>Water Body nodes carve finite lakes, oceans or river paths and produce surface/depth data that survives cooking. Connect the water result to Terrain Output: Generate publishes transparent, directly lit water meshes alongside the terrain, and cooked games load the same surfaces without carving again. Water follows the terrain placement and enabled state. It has no solid collider, so it does not act as a walkable floor.</p>
+<p>Water Body nodes expose <strong>Shallow RGBA</strong>, <strong>Deep RGBA</strong>, <strong>Absorption distance</strong> and <strong>Roughness</strong>. The alpha channels control shallow and deep opacity. Absorption distance is positive, in terrain-local units: at that depth the shallow contribution falls to about 37%. The mesh renderer interpolates depth-derived vertex colours and opacity; this is an artistic depth approximation, not scene refraction or a fluid simulation. Generated water meshes are native runtime resources, not authored entities or extra asset files.</p>
+<p>Shore triangles are clipped where the terrain meets the water plane rather than extending a full grid cell beyond it. Queries use the same terrain-triangle interpolation independently of the visible mesh. A bounded lake still needs banks at or above its chosen level: the engine warns after Generate if wet ground reaches the authored boundary below that level. It does not silently lower your level, raise banks or simulate spilling. Lower the water, enlarge the boundary, or sculpt a containing basin.</p>
+<p>Press Generate after changing water appearance or geometry. Shore contours follow the terrain's resolution. Animated waves, foam, reflection/refraction, underwater camera effects and buoyancy/swimming integration are not currently supported.</p>
+<figure class="docs-figure">
+  <a href="/images/docs-terrain-water-publication.png"><img src="/images/docs-terrain-water-publication.png" alt="Native terrain viewport with a transparent blue water surface over the generated lake basin." width="5120" height="2806" loading="lazy"></a>
+  <figcaption>A lake in a sculpted basin, with clipped shores and depth-derived colour/opacity. Reflections, waves and foam are still pending.</figcaption>
+</figure>
+<p>Existing recipes that put <code>base_height</code> and friends inside a biome are rejected with a message naming the field and telling you to move it to a landform. They are not silently ignored, because a dropped height field would quietly flatten terrain that used to have relief.</p>
+<p>Without a graph, a painted biome can also select its landform and change height. With a graph, painting overrides biome labels without replacing the graph's generated shape; use sculpting or graph modules to change height.</p>
+<p>A recipe with no rules behaves as it did before rules existed. A biome referenced by the default setting, a rule or a painted region cannot be removed until those references are removed, and a biome naming a landform that does not exist is rejected.</p>
+
+<h2>Query water from Lua</h2>
+<p>Import <code>local Water = require("demi.terrain.water")</code> to query prepared water data. <code>Water.sample(position, terrain_id)</code> takes a world-space <code>Vec3</code>: a dense, one-based numeric array of exactly three finite numbers, <code>{x, y, z}</code>. The optional <code>terrain_id</code> is the stable entity ID of a terrain placement; omit it to query loaded, enabled terrains. Dry or unavailable water returns <code>nil</code>. A wet column can return a sample even when the point is above its surface or below its bed; check <code>underwater</code> for immersion.</p>
+<p>A <code>WaterSample</code> contains:</p>
+<ul>
+  <li><code>terrain_id: string</code> and <code>body_id: string</code> identify the terrain placement and its water body.</li>
+  <li><code>kind: "lake" | "ocean" | "river"</code> identifies the body kind.</li>
+  <li><code>surface: Vec3</code> is a world-space surface point, and <code>normal: Vec3</code> is a world-space unit surface normal.</li>
+  <li><code>depth: number</code> is the bed-to-surface depth in world units along terrain-local up.</li>
+  <li><code>underwater: boolean</code> is true when the queried point lies at or above the bed and below the surface. Points on the surface or below the bed are not underwater.</li>
+</ul>
+<p>Queries follow translated, rotated and scaled terrain placements. The surface point projects the query along terrain-local up, which is not necessarily global vertical on tilted terrain. Sampling has no renderer dependency and does not generate terrain on demand.</p>
+
+<h3>Track point immersion</h3>
+<p><code>Water.tracker(terrain_id)</code> creates an opaque <code>WaterTracker</code> with the same optional terrain filter. Call <code>tracker:update(position)</code> with a world-space <code>Vec3</code> to receive an ordered array of <code>WaterEvent</code> values. Each event has <code>phase: "enter" | "exit" | "stay"</code> and <code>sample: WaterSample</code>. The tracker follows one point, not collider extents.</p>
+<ul>
+  <li>The first update inside water emits <code>enter</code>.</li>
+  <li>Remaining inside the same body emits <code>stay</code> on every explicit update.</li>
+  <li>Switching bodies emits <code>exit</code> for the old body, followed by <code>enter</code> for the new body.</li>
+  <li>Moving outside emits <code>exit</code> once; subsequent outside updates return an empty array.</li>
+</ul>
+<p><code>tracker:current()</code> returns the immersed sample retained by the latest update, or <code>nil</code>. <code>tracker:reset()</code> clears that state without an event. Terrain unload, disable and regeneration are reflected on the next update. Tracker identity includes the terrain placement, body and scene, so duplicate body IDs across placements or scenes do not mix. Scene identity remains private and is not returned in samples.</p>
+<p>Call <code>update</code> from <code>on_fixed_update</code> or <code>on_update</code> to choose the cadence and implement gameplay mechanics. Events are returned to that call; there are no interrupt callbacks or automatic global listeners. <code>Transform3D.get_world_position</code> resolves parent transforms for the tracked entity:</p>
+<pre><code class="language-lua">local Water = require("demi.terrain.water")
+local Transform3D = require("demi.transform3d")
+
+local script = {}
+
+function script:on_create()
+    self.water_tracker = Water.tracker()
+end
+
+function script:on_fixed_update(dt)
+    local x, y, z = Transform3D.get_world_position(self.entity_id)
+    if x == nil or y == nil or z == nil then
+        self.water_tracker:reset()
+        return
+    end
+
+    local position = {x, y, z}
+    for _, event in ipairs(self.water_tracker:update(position)) do
+        -- Handle enter, exit or stay here; event.sample describes the body.
+        self.last_water_phase = event.phase
+    end
+    self.underwater = self.water_tracker:current() ~= nil
+end
+
+return script</code></pre>
+<p>Use <code>Water.sample(position)</code> for a single query without tracking transitions. Animated waves and automatic buoyancy are not implemented; these queries provide point immersion and depth for script-controlled behavior.</p>
+<p>The graph example includes an optional <strong>Water Sensor</strong> script component in <code>scripts/water_sensor.lua</code>. Attach it to an entity to emit <code>water_enter</code>, <code>water_exit</code> and <code>water_stay</code> through <code>demi.events</code>, with <code>entity_id</code> and <code>water</code> in the payload. Configure <code>offset_y</code> for the sampled point and disable <code>emit_stay</code> when only transitions are needed.</p>
 
 <h2>Manual adjustments</h2>
 <ul>
@@ -23,16 +178,129 @@
   <li><strong>Flatten:</strong> captures the height where the stroke starts and moves affected samples toward that elevation.</li>
   <li><strong>Smooth:</strong> averages neighbouring samples using the pre-edit surface for each stroke stamp.</li>
   <li><strong>Protect:</strong> records absolute sample heights and keeps them through later regeneration and sculpting. Protection snapshots use the original grid.</li>
+  <li><strong>Paint exclusion:</strong> paints a separate 0&ndash;1 mask over the surface without changing any height. Choose <strong>Exclude</strong> to add mask weight or <strong>Erase</strong> to clear a subsection. Later generation stages use the mask to skip an area; the editor can preview it directly. Enable <strong>Preview exclusions</strong> to see it in the viewport.</li>
 </ul>
 <p>The brush outline follows the actual surface. Release a drag to generate and apply the stroke as an undoable edit; Esc cancels the active stroke. Generate or discard pending settings before painting. Regeneration changes the procedural base and replays the stored edits; it does not discard them.</p>
 <p>Buildings and other scene objects remain independent and are never deleted or moved by regeneration. Terrain changes may leave objects above or below the ground; repositioning them is an explicit editing action.</p>
+
+<h2>Layers</h2>
+<p>The recipe stores five named, toggleable layers by default: <strong>generation</strong>, <strong>biomes</strong>, <strong>sculpt</strong>, <strong>protection</strong> and <strong>exclusions</strong>. Each layer has a stable ID, a display name and an enabled toggle in the Terrain Graph's settings. The component Inspector selects which eligible layer receives a brush stroke.</p>
+<p>Disabling a layer removes its strokes from evaluation without deleting them, so a stroke can be switched off and restored while you iterate. Strokes on disabled layers keep their authored data.</p>
+<p>Two ordering rules matter:</p>
+<ul>
+  <li>Base stages always evaluate before surface edits, regardless of the order layers appear in the recipe. Disabling the <strong>generation</strong> layer therefore freezes the base heights and lets you sculpt on top of them.</li>
+  <li>Within a stage, layers and the strokes inside them keep their authored order. Later strokes in the same stage paint over earlier ones.</li>
+</ul>
+<p>You can add extra layers to the biome, sculpt, protection and exclusion groups, and rename any layer. The <strong>generation</strong> layer is the base noise pass and cannot be removed. Layer names and toggles are draft settings: press Generate to apply them.</p>
+<p>Every brush except Select targets a layer, chosen in the <strong>Target layer</strong> field of the viewport brush controls. The list only offers layers of the kind the brush writes to, and disabled layers cannot be selected. Flatten keeps a captured target height and raise/lower keeps a separate additive offset, so the two kinds of manual adjustment stay distinct when you retune strength and falloff.</p>
+
+<h2>What a brush stroke changes</h2>
+<p>Brush data stores shared parameters once and ordered stamp positions in a <code>points</code> list. A single radial operation can use <code>center</code>. Consecutive stamps with identical settings share one entry; different settings or protection snapshots remain separate. Repeated positions and overlapping stamps are retained because they affect brush strength. This changes the source representation, not the terrain result.</p>
+<pre><code class="language-json">{
+  "type": "flatten",
+  "target_height": 12,
+  "radius": 8,
+  "points": [[24, 32], [25.6, 32], [27.2, 32]]
+}</code></pre>
+<p>New viewport strokes use this representation automatically. For existing data, choose <strong>Compact brush data</strong> in the graph's edit settings, then Generate and save the terrain asset. The CLI can preview the same conversion with <code>demi terrain compact path/to/landscape.terrain.json</code>; add <code>--write</code> to save it, then reimport its asset manifest. Compaction preserves unrelated recipe fields and validates native operation equivalence before saving. It does not replace the recipe with baked heights or remove regeneration and layer editing.</p>
+<p>Ordinary brush work is incremental. The generator keeps the generated base surface separately from the sculpted result, so a stroke recomputes only the samples the brush actually touched, plus the one-sample border that lighting and neighbouring smoothing depend on. Meshes and collision are rebuilt only for the affected chunks; untouched chunks keep their existing resources and are not re-uploaded.</p>
+<p>Full regeneration also limits each sculpt stamp to its brush footprint instead of scanning the whole terrain for that stamp. Brush order, smoothing snapshots and protected samples keep their existing meaning.</p>
+<p>A local edit produces the same heights as a full regeneration of the same recipe. History is stored as before/after sample values, so once a stroke is applied, Undo and Redo restore the recipe and the visible surface together. They stay unavailable while a stroke is still being dragged or a preview is pending, so that a half-finished stroke is never recorded as an edit.</p>
+<p>Some changes genuinely invalidate the whole base and trigger a full regeneration instead: changing the seed, terrain size, resolution or chunk size, and editing biome generation parameters such as base height, height variation, feature size, roughness or octave count. A change to the grid asks how to proceed rather than silently discarding edits, as described under changing terrain dimensions below.</p>
+<p>Editing only a biome tint is cheaper again: it recolours the existing triangles without rebuilding heights or colliders. Play mode never starts on a stale terrain surface, because Play waits for pending terrain work to finish, and a published stroke updates the visible mesh and its static collision together.</p>
+
+<h2>Biome rules</h2>
+<p>Biome rules assign biomes automatically from the finished surface, so a landscape no longer needs manual painting. Add a <code>rules</code> array to the recipe. Each rule names a target biome and may band the following conditions; an omitted condition is unconstrained.</p>
+<ul>
+  <li><code>elevation</code> &mdash; world height, as a <code>[minimum, maximum]</code> pair.</li>
+  <li><code>slope</code> &mdash; surface steepness in degrees, 0 flat to 90 vertical.</li>
+  <li><code>moisture</code> &mdash; a stable climate field in <code>[0, 1]</code>, independent of your biome list.</li>
+  <li><code>water_distance</code> &mdash; world distance to the nearest water sample.</li>
+  <li><code>substrate</code> &mdash; any of <code>soil</code>, <code>rock</code>, <code>sand</code> or <code>wet</code>, derived from the surface rather than painted.</li>
+</ul>
+<p>On conflict the highest <code>priority</code> wins. An equal priority is broken by blend weight, so a stronger transition outranks a weaker one, and a full tie keeps the earlier rule, so the result never depends on evaluation order. <code>blend</code> is a transition width in world units measured from the lower edge of the rule's <code>elevation</code> band. It softens how strongly a rule claims the ground just above that edge, and that strength is what breaks a <code>priority</code> tie. It does not cross-fade biome colours: surface tint is a discrete biome per cell, so a higher <code>blend</code> gives a rule the edge rather than a gradient. Use overlapping <code>elevation</code> bands with different priorities to shape a transition.</p>
+<p>Painted regions always win over rules, so a manual stroke stays authoritative over automatic assignment. Disabling a biome layer removes its rules exactly as it removes its regions. Because rules read the whole surface, changing one rebuilds the terrain base; sculpting alone stays incremental.</p>
+<p>With no <code>rules</code> array, the default biome and painted regions determine assignment. Rules are draft settings like every other recipe field: the <strong>Biome rules</strong> section of the Terrain Graph edits them, and they take effect when you press Generate.</p>
+<p>In that section each rule exposes its ID, target biome, target layer, priority, blend, a checkbox and minimum/maximum pair per band, and a substrate multi-select. The layer list only offers enabled biome layers; a rule pointing at a disabled one is not evaluated, and the section says so. A band checkbox removes its key from the recipe rather than writing a null, which keeps the saved source free of conventions that mean nothing. Rule IDs are referenced by nothing except the rule itself, so renaming one is safe.</p>
+<p>The <strong>Rule mask overlay</strong> selector in the viewport brush controls draws a mask over the surface: <strong>None</strong>, <strong>Biome</strong>, <strong>Elevation</strong> or <strong>Slope</strong>. The overlay samples the committed generated field, so it does not change until you press Generate, even if the draft rules differ. Elevation is normalized against the range the current field actually spans, and slope is read from the committed normals. There is no moisture overlay: moisture is derived in a transient pass over the field during generation and is not stored on the result, so drawing it would either cost a fresh pass every frame or show a fabricated zero.</p>
+<p>Biome rules are an experimental authoring aid. A drainage condition, such as flow accumulation or basin membership, arrives with the landform work, because it needs stage output that does not exist yet.</p>
+
+<h2>Landscape presets</h2>
+<p>A landscape preset is a reusable, versioned data asset that configures the shared generator. The Terrain Graph's <strong>Landscape preset</strong> section lists project presets with their names and descriptions and offers <strong>Apply</strong> and <strong>Clear</strong>. Applying is one undoable recipe edit; Undo and Redo move the recipe and visible surface together. The same operation is available from the command line as <code>demi terrain apply-preset</code>.</p>
+<p><code>examples/terrain_3d</code> includes <strong>Mountain Range</strong>, <strong>River Valley</strong>, <strong>Rolling Hills</strong> and <strong>Coastal Island</strong> presets. Rolling Hills sets gentle relief; River Valley uses channel and gravel-bar landforms with riverbank biome rules; Coastal Island sets an ocean-floor landform and shoreline biomes around higher island ground. These are terrain-shape and biome settings, not authored or rendered water surfaces.</p>
+<p>A preset is a data asset whose manifest declares <code>settings.content_type</code> as <code>terrain_palette</code>'s sibling <code>terrain_preset</code>, and it is referenced by a normal <code>asset://</code> URI. The document may supply any of <code>size</code>, <code>cells_x</code> and <code>cells_z</code> (the preset names resolution per axis, while the recipe it produces uses <code>resolution</code> as one pair), <code>chunk_cells</code>, <code>seed</code>, <code>default_biome</code>, <code>biomes</code>, <code>layers</code> and <code>rules</code>, plus a required <code>name</code>, an optional <code>label</code> and <code>description</code> and a <code>format_version</code> of 1. Keys the preset omits fall back to canonical recipe defaults, so a preset that only sets a seed still produces a valid recipe. Rule objects inside a preset use exactly the same grammar and the same rejections as authored rules.</p>
+<p>Applying a preset merges it into the author's recipe once and stamps <code>preset_id</code> and <code>preset_version</code>. Both keys are always recorded together; a half-stamped recipe is rejected, because a version without an id would make a recipe look applied when it is not. The recipe therefore remains self-describing: it regenerates identically from its own contents, and provenance is recorded rather than implied by a reference. Provenance is also part of the locality contract, so applying a different preset is treated as a real recipe change rather than a display preference.</p>
+<p>Strokes are never templated. <code>regions</code>, <code>edits</code> and <code>exclusions</code> always come from the author's recipe, so applying a preset cannot destroy painting or sculpting. The merged document is then validated as a whole, which means your strokes are checked against the biomes they will actually be generated with, not against the ones the recipe had before.</p>
+<p>That guarantee has a consequence worth knowing before you apply one to painted terrain. Because your strokes survive, a <code>regions</code> entry must name a biome the preset actually defines, and applying a preset whose biome set does not include your region names is refused with a clear error rather than quietly discarding the stroke. The fix is on your side: either pick a preset that defines those biome names, or rename the regions to match the preset. Renaming a region is safe, because a region stores the biome <em>name</em> and nothing else references it.</p>
+<p>The reason a preset is applied rather than referenced is worth stating plainly: the recipe stays the single source of truth for generation. Incremental editing, the rebuild-versus-replay decision and undo/redo all operate on the recipe, so a runtime override would make each of those three answer a different question from the one the author asked. A preset applied once cannot also disagree with the terrain it was applied to.</p>
+
+<h2>Asset palettes</h2>
+<p>An asset palette maps semantic roles to existing material, mesh and prefab assets, so automatic selection can be described without naming art. Like presets, a palette is a data asset with its own <code>settings.content_type</code> of <code>terrain_palette</code> rather than a new document kind, so it inherits cooking, packaging, dependency closure, <code>demi validate</code> coverage and hot reload from the existing data-asset pipeline.</p>
+<p>A palette document has a <code>format_version</code> of 1, a required <code>name</code>, a <code>roles</code> object keyed by role name, and an optional <code>required_roles</code> array naming roles a consumer must find. Roles are keyed rather than listed because the object is key-sorted: a duplicate role is then structurally impossible and iteration order does not depend on how the file was written. The eleven role names are <code>exposed_rock</code>, <code>soil</code>, <code>sand</code>, <code>snow</code>, <code>wet_ground</code>, <code>tree</code>, <code>bush</code>, <code>grass</code>, <code>reed</code>, <code>cliff_piece</code> and <code>debris</code>. An unknown role name is a load error, not a role that silently never scatters.</p>
+<p>Each role entry accepts:</p>
+<ul>
+  <li><code>asset</code> &mdash; required. An <code>asset://</code> reference that must resolve to a real asset.</li>
+  <li><code>prefab</code> &mdash; optional. A <code>prefab://</code> reference.</li>
+  <li><code>weight</code> &mdash; relative selection weight, at least 0. At least one role must have a weight above 0, otherwise nothing would ever be chosen.</li>
+  <li><code>scale</code> &mdash; <code>[minimum, maximum]</code> with <code>0 &lt; minimum &le; maximum</code>.</li>
+  <li><code>spacing</code> &mdash; world units between instances, at least 0. Zero means unconstrained, which is what continuous ground cover needs.</li>
+  <li><code>collision</code> &mdash; <code>none</code>, <code>static</code> or <code>trigger</code>.</li>
+  <li><code>lod</code> &mdash; level, at least 0.</li>
+  <li><code>biomes</code> &mdash; optional. Biome names this role may appear in. Omit it, or leave it empty, to allow every biome. Keep it narrow for ground cover, where grass belongs on meadow and rock on rock, and deliberately omit it for a global role such as debris.</li>
+</ul>
+<p><strong>Every <code>asset://</code> reference must also appear in the palette manifest's <code>dependencies</code> array.</strong> This is the most common authoring mistake. Cooking and packaging follow the manifest, so an undeclared reference produces a palette that validates, loads and then ships without its art. Removing an entry from <code>dependencies</code> fails validation with <code>DATA_DEPENDENCY_UNDECLARED</code>.</p>
+<h3>Scattering a palette onto terrain</h3>
+<p>Name the palette on the recipe with a <code>palette</code> field holding an <code>asset://</code> id. A recipe without one scatters nothing, so the feature is opt-in. In the conventional pipeline, a palette change takes the full generation path rather than a local brush replay. In a terrain graph, a palette change invalidates the Scatter Palette branch and its downstream output; unchanged upstream nodes can be reused from a previous graph result.</p>
+<p>In the conventional pipeline, scattering reads the finished surface after sculpting and uses the final biome, water and exclusion constraints. In a graph, Scatter Palette reads the heightfield connected to its input before the final authored region, sculpt and exclusion overlays. After graph output, placements snap to edited heights and placements on excluded samples are removed. A newly painted biome region therefore does not guarantee that graph scatter will choose different biome-specific roles; connect a Biome Rules node upstream when rule-based biomes should inform candidate selection.</p>
+<p><code>weight</code> is a relative share of eligible ground, so weight 0 keeps a role available but never selects it. <code>spacing</code> is a minimum distance enforced per role, so one role's spacing never rejects another's, and <code>spacing</code> of 0 is continuous, unconstrained cover. The resulting placements are recorded against the terrain, and reaching the placement ceiling is reported rather than silently accepted.</p>
+<p>Placement is deterministic in the same way generation is: a candidate draws from the scatter sub-seed combined with its own cell and role, so the result does not depend on the order cells are visited, on how many workers ran, or on how many times the terrain is scattered.</p>
+<p>Placements become real objects. When a scene loads and after every terrain update, each placement is reconciled into an object under its terrain owner, and a placement is identified by the cell that owns it rather than by its position. A stroke that moves the ground under an object moves that object instead of destroying and rebuilding it, so per-instance state survives. Placements the new terrain no longer produces are removed, and two roles landing in one cell stay distinct.</p>
+<p>A role without a prefab must reference a <code>Model3D</code> asset, because its asset becomes <code>MeshRenderer.model</code>. A material can be named when a prefab supplies the geometry. The <code>examples/terrain_3d</code> palette uses a clearly labeled cube prefab as prototype geometry for every role; replace it with role-specific art for a game. A failed or unresolved prefab placement prevents the scene from becoming ready.</p>
+
+<h2>Inspecting terrain from the command line</h2>
+<pre><code>demi terrain inspect &lt;recipe.json&gt; [--format text|json]
+demi terrain explain &lt;recipe.json&gt; --at &lt;x&gt;,&lt;z&gt; [--format text|json]
+demi terrain seeds &lt;seed&gt; [--format text|json]</code></pre>
+<p>These commands accept a recipe JSON document: the <code>recipe</code> object from a Terrain asset source or an explicit inline Terrain3D recipe. They do not accept the enclosing scene or Terrain asset document. <code>inspect</code> reads the recipe without generating a field, and reports size, resolution, sample count, seed, chunk size, default biome, derived sea level, the biome table, the layer tree, every rule with its conditions, stroke counts by kind and the derived sub-seeds.</p>
+
+<p>Two more verbs apply a preset:</p>
+<ul>
+  <li><code>demi terrain presets &lt;project&gt;</code> lists every <code>terrain_preset</code> data asset in the project with its name, description and a summary of its biomes and rules. A project with no presets prints an empty result and still succeeds.</li>
+  <li><code>demi terrain apply-preset &lt;project&gt; --preset &lt;asset://id&gt;</code> currently targets an inline Terrain3D recipe in the scene, writing it through the shared small-diff patcher. If the scene has more than one terrain, pass <code>--entity &lt;id&gt;</code>. For an asset-backed terrain, apply presets in the Terrain Graph; this CLI command does not yet follow the asset reference.</li>
+</ul>
+<p>Your work survives either path: applying a preset keeps every <code>regions</code>, <code>edits</code> and <code>exclusions</code> entry. A preset that changes the terrain size or resolution is not applied blindly. With protected areas present the engine refuses it and says why, and otherwise it asks whether to keep your radial edits before generating at the new size.</p>
+<p><code>explain</code> answers the question a rule list cannot: why is this point this biome? It generates the field, then reports the assigned biome and where the assignment came from: a named rule, a painted region override, or the default biome. It prints the full rule context for that sample, and then either the conditions of the winning rule or, when nothing matched, every active rule with each band marked <code>INSIDE</code> or <code>OUTSIDE</code> against the sample value and the first condition that rejected it. Progress and diagnostics go to stderr, so stdout stays parseable for <code>--format json</code>.</p>
+<pre><code>$ demi terrain explain recipe.json --at 10,110
+Position: 10.000,110.000 in terrain 128.000 x 128.000
+Cell: 10,110 (sample 14200 of 16641)
+Sea level: 8.500
+
+Biome: sand
+Source: rule "shoreline"
+
+Context:
+  height          0.274
+  slope           6.638 deg
+  moisture        0.268
+  water distance  0.000
+  substrate       wet
+
+Rule "shoreline" biome=sand priority=30 blend=1.500
+      slope          unconstrained
+      moisture       unconstrained
+      water distance [0.000,6.000] sample 0.000 -&gt; INSIDE
+      elevation      unconstrained
+      substrate      unconstrained</code></pre>
+<p>The tool reports band containment facts and takes the assignment from the runtime decision. It does not reimplement the runtime's blending weighting, so a <code>blend</code> ramp is visible as a matched band rather than as a fractional score. That is a deliberate limit: it can tell you a rule did or did not accept a sample, and it will not invent a number the runtime never produces.</p>
+<p><code>seeds</code> prints the derived sub-seed of every seed channel for a world seed. The channels are <code>landform</code>, <code>erosion</code>, <code>hydrology</code>, <code>biome_placement</code> and <code>scatter</code>. Erosion, drainage and water processing, and scattering are implemented stages; which ones run depends on the recipe or connected graph nodes. The command reports stable channel values even when a particular terrain does not use a stage. Each sub-seed is derived by hashing the channel's <em>name</em> rather than its position in the enum, so adding or reordering a channel cannot change an existing channel's value.</p>
+<p>The generator version is folded into the terrain generation cache key, alongside the canonical recipe. Graph node positions are excluded from that key; changing connections or parameters changes it. A resolved palette and its referenced asset hashes are included, so changing palette content cannot serve placements from an older input.</p>
 
 <h2>Changing terrain dimensions</h2>
 <p>If size or resolution changes while edits exist, the editor asks how to proceed. Radial edits can keep their terrain-local positions. Protection snapshots require the original grid: keep that grid or explicitly clear the edits before generating a resized terrain. Clearing is undoable. Cancelling generation or a failed generation leaves the previously committed terrain intact.</p>
 
 <h2>Saved source and generated geometry</h2>
-<p>The scene or prefab stores a versioned recipe, region strokes and manual edits. It does not store generated triangle lists or one authored entity per chunk. Generated child meshes and colliders exist in the loaded world; editor and runtime use the same generator. An immutable, weak-reference cache lets the editor hand completed heightfields to scene loading without retaining unused worlds indefinitely.</p>
-<p>Heightfields and chunk geometry are currently regenerated when loading uncached recipes. Background work covers heightfield generation; scene publication, mesh construction and GPU/physics updates can still take time on large terrains. Chunking does not imply LOD or streaming, and brush edits currently regenerate the full finite heightfield. Cooked terrain caches and dirty-region generation remain planned.</p>
+<p>A Terrain asset stores a versioned recipe, region strokes and manual edits; a scene placement stores its asset reference. Neither stores generated triangle lists or one authored entity per chunk. Generated child meshes and colliders exist in the loaded world. Explicit inline procedural recipes remain available in scenes and prefabs.</p>
+<p>Development tools prepare uncached source assets; shipped games load cooked heightfields without rerunning generation. Chunk geometry and native resources are built from the loaded field. Background work covers generation, but scene publication, mesh construction and GPU/physics updates can still take time on large terrains. Chunking does not imply integrated LOD or large-world streaming.</p>
 
 <h2>Try the example</h2>
 <pre><code>demi editor --project examples/terrain_3d

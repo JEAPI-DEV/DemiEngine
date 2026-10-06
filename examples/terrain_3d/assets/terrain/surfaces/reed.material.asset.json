@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://terrain/surfaces/reed",
+  "importer": "material",
+  "importer_version": 1,
+  "settings": {},
+  "source": "reed.material.json",
+  "source_hash": "fnv1a64:79d0c69eb27cc85f",
+  "type": "Material"
+}

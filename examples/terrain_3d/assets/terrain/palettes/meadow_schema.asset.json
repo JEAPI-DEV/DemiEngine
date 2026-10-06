@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://schemas/terrain_palette",
+  "importer": "json_schema",
+  "importer_version": 1,
+  "settings": {},
+  "source": "meadow.schema.json",
+  "source_hash": "fnv1a64:c1ae84b4203ce449",
+  "type": "DataSchema"
+}

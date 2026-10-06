@@ -23,10 +23,11 @@ struct UiDocument;
 
 namespace demi::editor {
 
-// Owns the authored Scene/HUD viewport renderers and offscreen target.
+// Owns one authored view's renderers, camera view range and offscreen target.
 class EditorViewportRenderer {
 public:
-  EditorViewportRenderer(runtime::render::GpuResources &resources,
+  EditorViewportRenderer(std::uint16_t firstView,
+                         runtime::render::GpuResources &resources,
                          runtime::render::RenderCommands &commands);
   ~EditorViewportRenderer();
 
@@ -59,6 +60,7 @@ private:
 
   runtime::render::GpuResources &resources_;
   runtime::render::RenderCommands &commands_;
+  const std::uint16_t firstView_;
   std::unique_ptr<runtime::render::BgfxRenderer3D> renderer3D_;
   std::unique_ptr<runtime::render::BgfxRenderer2D> renderer2D_;
   std::unique_ptr<runtime::render::RenderTargetHandles> target_;

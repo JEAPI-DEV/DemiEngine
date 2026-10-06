@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://terrain/surfaces/bush",
+  "importer": "material",
+  "importer_version": 1,
+  "settings": {},
+  "source": "bush.material.json",
+  "source_hash": "fnv1a64:8ec8ebda9adadd5e",
+  "type": "Material"
+}

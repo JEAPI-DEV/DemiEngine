@@ -8,6 +8,7 @@
 #include "cli/RuntimeCommands.h"
 #include "cli/SceneCompositionCommands.h"
 #include "cli/TestCommands.h"
+#include "cli/TerrainCommands.h"
 #include "cli/doctor/DoctorService.h"
 #include "cli/package/PackageCommands.h"
 #include "cli/project/ProjectDiscovery.h"
@@ -152,6 +153,15 @@ void printHelp() {
       << "  demi capabilities verify-gates [--manifest path]\n"
       << "  demi prefab inspect <prefab>\n"
       << "  demi hud inspect <hud.json> [--format text|json]\n"
+      << "  demi terrain inspect <recipe.json> [--format text|json]\n"
+      << "  demi terrain compact <recipe-or-terrain.json> [--write]\n"
+      << "  demi terrain explain <recipe.json> --at <x>,<z> "
+         "[--format text|json]\n"
+      << "  demi terrain validate <project> [--palette <asset://id>] [--materials <asset://id>] [--development] [--json]\n"
+      << "  demi terrain seeds <seed> [--format text|json]\n"
+      << "  demi terrain presets <project> [--format text|json]\n"
+      << "  demi terrain apply-preset <project> --preset <asset://id> "
+         "[--entity <id>] [--format text|json]\n"
       << "  demi scene list <project>\n"
       << "  demi scene inspect <scene>\n"
       << "  demi scene expand <scene>\n"
@@ -160,7 +170,7 @@ void printHelp() {
          "bounds] [--format json]\n"
       << "  demi asset deps <asset>\n"
       << "  demi asset import <source> --project <project> --id asset://id "
-         "[--importer id] "
+         "[--importer id] [--content-type type] "
          "[--preset static_prop|animated_character|environment|billboard] "
          "[--up +y] [--forward +z] [--meters-per-unit 1]\n"
       << "  demi asset reimport <asset>\n"
@@ -469,6 +479,10 @@ int main(int argc, char **argv) {
 
   if (args[0] == "prefab") {
     return demi::cli::runPrefabCommand(args, std::cout, std::cerr);
+  }
+
+  if (args[0] == "terrain") {
+    return demi::cli::runTerrainCommand(args, std::cout, std::cerr);
   }
 
   if (args[0] == "asset") {

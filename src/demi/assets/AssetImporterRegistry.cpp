@@ -1,9 +1,12 @@
 #include "demi/assets/AssetImporterRegistry.h"
 #include "demi/assets/ColliderShapeAsset.h"
+#include "demi/assets/TerrainAsset.h"
 
 #include <algorithm>
 #include <cctype>
+#include <fstream>
 #include <nlohmann/json.hpp>
+#include <stdexcept>
 
 namespace demi::assets {
 namespace {
@@ -75,6 +78,37 @@ public:
       return result;
     }
     result.generatedOutputs.push_back(target);
+    return result;
+  }
+};
+
+class TerrainSourceImporter final : public AssetImporter {
+public:
+  ImportExecutionResult import(const ImportExecutionRequest &request) override {
+    ImportExecutionResult result;
+    if (!request.source.filename().string().ends_with(".terrain.json")) {
+      result.diagnostics.push_back({.severity = Severity::Error,
+                                    .code = "TERRAIN_ASSET_SOURCE_INVALID",
+                                    .message = "Terrain sources use the .terrain.json suffix.",
+                                    .path = request.source.string()});
+      return result;
+    }
+    try {
+      std::ifstream input(request.source);
+      if (!input)
+        throw std::runtime_error("Could not read terrain source.");
+      const TerrainAssetSource source =
+          parseTerrainAssetSource(nlohmann::json::parse(input));
+      if (source.id != request.assetId)
+        throw std::invalid_argument(
+            "Terrain source ID must match its asset manifest ID.");
+      result.dependencies = terrainAssetDependencies(source);
+    } catch (const std::exception &error) {
+      result.diagnostics.push_back({.severity = Severity::Error,
+                                    .code = "TERRAIN_ASSET_SOURCE_INVALID",
+                                    .message = error.what(),
+                                    .path = request.source.string()});
+    }
     return result;
   }
 };
@@ -201,6 +235,14 @@ AssetImporterRegistry createBuiltinImporterRegistry() {
   text.copyToGeneratedOnImport = false;
   add(std::move(text));
   add(descriptor("json_data", {".json"}, {"DataAsset"}));
+  auto terrain = descriptor("terrain_heightfield", {".json", ".bin"},
+                            {"Terrain"});
+  // The source is an editable recipe. Binary generation belongs to cook.
+  terrain.copyToGeneratedOnImport = false;
+  terrain.version = 1;
+  (void)registry.registerImporter(
+      std::move(terrain),
+      [] { return std::make_unique<TerrainSourceImporter>(); });
   auto colliderShape = descriptor("collider-shape", {".json"}, {"Collider3D"});
   // Self-contained runtime geometry needs no duplicate import-cache artifact.
   colliderShape.copyToGeneratedOnImport = false;

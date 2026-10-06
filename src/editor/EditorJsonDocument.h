@@ -1,6 +1,7 @@
 #pragma once
 
 #include "editor/EditorDocumentStore.h"
+#include "editor/EditorValueHistory.h"
 
 #include "demi/diagnostics/Diagnostic.h"
 
@@ -35,14 +36,10 @@ public:
   [[nodiscard]] const std::filesystem::path &path() const { return path_; }
   [[nodiscard]] const Diagnostics &diagnostics() const { return diagnostics_; }
   [[nodiscard]] bool isDirty() const;
-  [[nodiscard]] bool canUndo() const { return !undo_.empty(); }
-  [[nodiscard]] bool canRedo() const { return !redo_.empty(); }
+  [[nodiscard]] bool canUndo() const { return history_.canUndo(); }
+  [[nodiscard]] bool canRedo() const { return history_.canRedo(); }
 
 private:
-  struct Change {
-    nlohmann::json before;
-    nlohmann::json after;
-  };
   [[nodiscard]] bool commit(nlohmann::json replacement, std::string &error);
 
   EditorDocumentStore store_;
@@ -54,8 +51,7 @@ private:
   std::string originalText_;
   std::string savedCanonical_;
   Diagnostics diagnostics_;
-  std::vector<Change> undo_;
-  std::vector<Change> redo_;
+  EditorValueHistory<nlohmann::json> history_;
 };
 
 } // namespace demi::editor

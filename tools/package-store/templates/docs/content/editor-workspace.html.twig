@@ -6,11 +6,37 @@
 <ul>
   <li><code>editor</code> — launches the native editor application.</li>
 </ul>
-<p>The editor is a <strong>docking workspace</strong>: a single window whose panels tile, stack, and rearrange like tabs in a browser. Drag a panel's title to dock it beside or below another. The dock layout is per-user state stored under the platform data directory — it never enters the project folder, generated content, packages, undo history, or a shipped build. Deleting your local settings restores the default layout; your game files are untouched.</p>
+<p>The editor is a <strong>docking workspace</strong>: each view and tool is an independent window that you can tile, stack as tabs, or leave floating inside the main application window. Drag an individual dock tab or window title to arrange it beside or below another. For example, put Terrain Graph beside Viewport, or Profiler beside Console. The default tab groups are starting positions; moving one tab does not move its neighbours.</p>
+<p>Use <strong>View</strong> to show or hide individual panels and <strong>View → Reset Workspace</strong> to restore the default arrangement. Layout and visibility save per-user under the platform data directory, outside the project, generated content, packages and undo history. The independent-panel layout uses new v2 settings files; previous v1 files are left untouched.</p>
 <p>Interface scale is adjustable in the editor settings, so the same workspace works on a small laptop screen and a high-density display.</p>
 
+<h2>Editing shortcuts and clipboard</h2>
+<p>Use the focused Hierarchy, Viewport, HUD/UI prefab or Terrain Graph to copy, cut, paste, duplicate and delete authored content. Terrain Nodes routes these shortcuts to its bound graph, rather than the selected scene entity. Text fields keep their normal text-editing shortcuts. Game View has its own input context, and the runtime Inspector and Hierarchy are read-only: authoring shortcuts there do not change the source scene.</p>
+<table>
+  <thead><tr><th>Action</th><th>Default</th></tr></thead>
+  <tbody>
+    <tr><td>Copy / Cut / Paste</td><td>Ctrl+C / Ctrl+X / Ctrl+V</td></tr>
+    <tr><td>Duplicate / Select all</td><td>Ctrl+D / Ctrl+A</td></tr>
+    <tr><td>Delete</td><td>Delete or Backspace</td></tr>
+    <tr><td>Undo / Redo</td><td>Ctrl+Z / Ctrl+Shift+Z or Ctrl+Y</td></tr>
+    <tr><td>Save all / Refresh project</td><td>Ctrl+S / F5</td></tr>
+    <tr><td>Frame scene selection or graph nodes</td><td>F</td></tr>
+    <tr><td>Rename scene entity / Create child entity</td><td>F2 / Ctrl+Shift+N</td></tr>
+    <tr><td>Release captured Game View input</td><td>Ctrl+D in Game View</td></tr>
+  </tbody>
+</table>
+<p>Choose <strong>Edit → Editor Settings → Keyboard shortcuts</strong> to change a binding, add an alternative, clear an optional binding or restore defaults. Conflicts within overlapping contexts are rejected. Cursor release must keep at least one binding. Mappings save automatically in your user preferences, not in a game project or package. Toolbar tooltips and menu shortcuts show your current mappings.</p>
+<p>Common toolbar actions use vector icons with tooltips; property labels remain visible. Scene and HUD selections support Ctrl-click and Select All. Copying selected parents and children includes each subtree only once. Pasting creates fresh stable IDs and remaps internal typed references while preserving asset, script and prefab URIs. Prefab instances stay instances; open their source to edit inherited children. Graph clipboard operations preserve node parameters and links between the copied nodes. Paste, duplicate, cut and multi-delete are undoable as a single edit.</p>
+<p>The system clipboard uses a versioned authoring payload, so incompatible or malformed content is rejected without changing the document. Clipboard actions operate on authored objects and graph nodes, not arbitrary source-file operations in the Assets browser. Drag entities to Assets to create prefabs, or drag existing assets into the relevant authoring view.</p>
+
 <h2>The panels</h2>
-<p>Five panels cover the daily job. Each is a window inside the dock with a stable identity, so its position survives restarts.</p>
+<p>Every panel below has a stable window identity and its own visibility preference. The default layout groups related windows as dock tabs:</p>
+<ul>
+  <li><strong>Centre:</strong> Viewport, Prefab, HUD, Terrain Graph, Terrain Asset and Game View. Document-specific views become available when their document is open.</li>
+  <li><strong>Right:</strong> Inspector, UI Palette and Terrain Nodes. Palettes appear only in their editing context.</li>
+  <li><strong>Bottom:</strong> Console, Lua Console, Profiler and Debug share a default dock, beside Assets.</li>
+  <li><strong>Left:</strong> Hierarchy follows the active authored document or running game.</li>
+</ul>
 
 <h3>Hierarchy</h3>
 <p>The <strong>hierarchy</strong> is a tree of everything in the active document: scene entities, HUD nodes, or prefab entities. It answers "what exists?" and "what is inside what?".</p>
@@ -24,13 +50,13 @@
 <p>The <strong>Inspector</strong> is a form for the selected object. It answers "what are its properties?".</p>
 <ul>
   <li>It lists each <strong>component</strong> on the object and that component's fields — transforms, sprites, bodies, lights, and so on.</li>
-  <li>For Lua scripts with <code>@demi_component</code> and <code>@demi_property</code> annotations, it also shows the script's typed properties so gameplay data is editable without opening the script.</li>
+  <li>For Lua scripts with <code>@demi_component</code> and <code>@demi_property</code> annotations, it also shows the script's typed properties so gameplay data is editable without opening the script. Drag a Hierarchy object onto an <code>entity</code> property to assign its stable ID, or use the picker and <strong>None</strong>. Native entity-reference fields accept the same drops.</li>
   <li>Controls let you <strong>add</strong> and <strong>remove</strong> components. Field edits are applied through the same typed value model the runtime uses.</li>
   <li>Omitted fields show their canonical component defaults; values you type become explicit in the document.</li>
 </ul>
 
 <h3>Viewport</h3>
-<p>The <strong>viewport</strong> is the live picture of the active stage — the scene, the HUD, or the prefab. It answers "what does it look like?".</p>
+<p><strong>Viewport</strong> shows the scene. Prefab, HUD and Terrain Asset have their own authoring windows; Game View shows the isolated play session. These views answer "what does it look like?" and can be arranged beside the tools you use to edit them.</p>
 <ul>
   <li>Scene and HUD views render to GPU targets displayed as images inside the panel, so they composite correctly with docking. You can freely drag the panel without display glitches.</li>
   <li>Click objects to select them; the hierarchy and Inspector follow.</li>
@@ -38,14 +64,15 @@
 </ul>
 
 <h3>Diagnostics</h3>
-<p>The <strong>diagnostics</strong> panel lists validation problems in the active document and everything it references. It uses the <strong>same diagnostic codes</strong> as <code>demi validate</code> on the command line, so a code you see here can be grepped in build logs and continuous integration output. Selecting a diagnostic jumps to the offending object.</p>
+<p><strong>Console</strong> lists validation problems in the active document and everything it references. It uses the <strong>same diagnostic codes</strong> as <code>demi validate</code> on the command line, so a code you see here can be grepped in build logs and continuous integration output. Selecting a diagnostic jumps to the offending object. Lua Console, Profiler and Debug are separate windows; you can keep them visible beside Console rather than switching internal tabs.</p>
 
 <h3>Profiler</h3>
 <p>The resource overview separates <strong>Editor + Game</strong> process CPU/RAM from the Lua VM heap. Process CPU uses 100% per logical CPU, and peak RAM is a process-lifetime value. Lua heap usage can rise and fall as automatic garbage collection reclaims memory.</p>
 <p>The <strong>profiler</strong> panel shows frame timing while the game runs in play mode: total frame time and per-scope costs. It is the in-editor view of the same measurement data as the command-line profiler. Use it to find the slow part, then confirm with the reports described in <a href="{{ path('docs_page', {slug: 'replay-and-profiler'}) }}">Replay &amp; profiler</a>.</p>
 
 <h2>Stages: scene, HUD, and prefab</h2>
-<p>The workspace edits three kinds of documents, called <strong>stages</strong>. Each stage reuses the same hierarchy, viewport, selection, Inspector, undo/redo, save, diagnostics, and recovery paths — there is one editing model, not three.</p>
+<p>The editor starts maximized in the display's available work area. It remains resizable and windowed, so desktop panels and window controls stay available.</p>
+<p>Scene, prefab, HUD/UI prefab and terrain asset views use the same editing tools, but retain distinct document state. Each open session keeps its own source, selection and Undo/Redo history. Focusing another view changes what Inspector and Hierarchy show; it does not replace the document displayed in an unfocused view.</p>
 <table>
   <thead><tr><th>Stage</th><th>Document</th><th>What you author</th></tr></thead>
   <tbody>
@@ -54,7 +81,14 @@
     <tr><td>Prefab</td><td><code>*.prefab.json</code></td><td>Reusable entity compositions placed by scenes and other prefabs.</td></tr>
   </tbody>
 </table>
-<p>Scene and HUD editing are integrated workspace documents: there is no separate modal editor for interfaces. Switching stages keeps the panel arrangement and your selection conventions, so working on a menu HUD feels like working on a level. Authoring flow is covered on <a href="{{ path('docs_page', {slug: 'editor-authoring'}) }}">Authoring scenes &amp; HUDs</a>.</p>
+<p>A scene's attached HUD opens in an independent HUD session when you enter HUD editing. Explicitly opened HUDs and UI prefabs use that same session. With HUD and Viewport side by side, clicking the scene leaves the HUD's opened source and selection intact. <strong>Save all</strong> includes the open sessions and checks for conflicting unsaved edits to the same source before writing. Authoring flow is covered on <a href="{{ path('docs_page', {slug: 'editor-authoring'}) }}">Authoring scenes &amp; HUDs</a>.</p>
+<p>Terrain Graph is pinned to the terrain owner you opened it for. Selecting a camera, another object or another terrain in Inspector does not retarget the open graph or change its draft. To open another terrain's graph, generate or discard the current draft and finish any pending generation or brush stroke first. Viewport brushes require the bound terrain to be selected.</p>
+<p><strong>Inspector</strong> contains the selected object's properties. The two drag-and-drop palettes are separate dockable windows:</p>
+<ul>
+  <li><strong>UI Palette</strong> appears while editing a HUD or UI prefab. Search controls and project UI prefabs, then drag a card onto the HUD canvas. It is hidden when you leave HUD editing.</li>
+  <li><strong>Terrain Nodes</strong> appears while working in Terrain Graph. Search graph node types, then drag one onto the graph canvas.</li>
+</ul>
+<p>Clicking Inspector or the active palette keeps that editing context and its palette available, including its toggle in the View menu. Switching to another authoring context hides the previous palette without changing your visibility preference or dock location. Dragging a card carries its stable module ID, so the destination resolves the current definition before authoring. These palettes are authoring tools, not installed engine packages.</p>
 
 <h2>Shared rules with the CLI</h2>
 <p>The editor is not a second engine. It uses the same loaders, metadata, diagnostics, importer, build service, cook, and package paths as <code>demi</code> commands:</p>

@@ -1,6 +1,9 @@
+#include "demi/runtime/scene/SceneEntityParser.h"
+#include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
 #include "editor/EditorSceneCommand.h"
 #include "editor/EditorSceneDocument.h"
 #include "editor/EditorSceneJson.h"
+#include "editor/EditorEntityHierarchy.h"
 
 #ifdef NDEBUG
 #undef NDEBUG
@@ -9,6 +12,7 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <tuple>
 
 namespace {
 
@@ -134,6 +138,57 @@ int main() {
   assert(document.redo(error));
   assert(entityExists(document, createdId));
 
+  const auto beforePrimitive = document.json();
+  const nlohmann::json forwardHierarchy = nlohmann::json::array({
+      {{"id", "leaf"},
+       {"components", {{"Transform3D", {{"parent", "owner"}}}}}},
+      {{"id", "owner"}, {"components", {{"Transform3D", nlohmann::json::object()}}}},
+      {{"id", "external"},
+       {"components", {{"Transform3D", {{"parent", "outside"}}}}}}});
+  const auto nestedHierarchy = demi::editor::nestLocalEntityLinks(forwardHierarchy);
+  assert(nestedHierarchy.size() == 2);
+  assert(nestedHierarchy[0]["id"] == "owner");
+  assert(nestedHierarchy[0]["children"][0]["id"] == "leaf");
+  assert(!nestedHierarchy[0]["children"][0]["components"]["Transform3D"]
+              .contains("parent"));
+  assert(nestedHierarchy[1]["components"]["Transform3D"]["parent"] == "outside");
+  assert(document.createEntity(error, {}, demi::editor::EditorEntityKind::Cube,
+                               demi::runtime::Vec3{3, 5.5F, 4}));
+  const std::string cubeId(document.lastChangedEntityId());
+  const auto *authoredCube = document.entity(cubeId);
+  assert(authoredCube &&
+         authoredCube->at("components").contains("MeshRenderer"));
+  assert(authoredCube->at("components").contains("BoxCollider3D"));
+  assert(!authoredCube->at("components").contains("Rigidbody3D"));
+  const auto parsedCube =
+      demi::runtime::scene_loading::parseSceneEntity(*authoredCube);
+  const auto *mesh =
+      parsedCube.component<demi::runtime::MeshRendererComponent>();
+  assert(mesh && mesh->shape == "cube" && mesh->color.r > 0.0F);
+  assert(document.undo(error) && document.json() == beforePrimitive);
+  assert(document.redo(error) && document.entity(cubeId));
+  assert(document.createEntity(error, "root",
+                               demi::editor::EditorEntityKind::Sphere,
+                               demi::runtime::Vec3{1, 2, 3}));
+  const auto *authoredSphere = document.entity(document.lastChangedEntityId());
+  assert(authoredSphere &&
+         authoredSphere->at("components").contains("SphereCollider3D"));
+  assert(authoredSphere->at("components").at("Transform3D").at("position") ==
+         nlohmann::json({1, 2, 3}));
+  assert(document.undo(error));
+  for (const auto [kind, shape, collider] :
+       {std::tuple{demi::editor::EditorEntityKind::Cylinder, "cylinder",
+                   "CapsuleCollider3D"},
+        std::tuple{demi::editor::EditorEntityKind::Plane, "plane",
+                   "BoxCollider3D"}}) {
+    assert(
+        document.createEntity(error, {}, kind, demi::runtime::Vec3{3, 5, 4}));
+    const auto *authored = document.entity(document.lastChangedEntityId());
+    assert(authored && authored->at("components").contains(collider));
+    assert(authored->at("components").at("MeshRenderer").at("shape") == shape);
+    assert(document.undo(error));
+  }
+
   // Delete: undo restores the full authored JSON.
   assert(document.deleteEntity("child", error));
   assert(!entityExists(document, "child"));
@@ -225,8 +280,9 @@ int main() {
   assert(document.entity("root")->at("children")[0]["id"] == "child");
   assert(!document.component("child", "Transform3D")->contains("parent"));
   const auto nested = document.json();
-  assert(document.setValue({.entityId = "child", .component = "Transform3D",
-                            .field = "position"}, {3, 2, 1}, false, error));
+  assert(document.setValue(
+      {.entityId = "child", .component = "Transform3D", .field = "position"},
+      {3, 2, 1}, false, error));
   assert(document.undo(error) && document.json() == nested);
   assert(document.createEntity(error, "child"));
   const std::string grandchild(document.lastChangedEntityId());

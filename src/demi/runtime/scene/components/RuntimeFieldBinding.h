@@ -26,6 +26,7 @@ bool runtimeFieldJson(const Vec3 &value, nlohmann::json &out);
 bool runtimeFieldJson(const Color &value, nlohmann::json &out);
 bool runtimeFieldJson(const std::vector<Vec2> &value, nlohmann::json &out);
 bool runtimeFieldJson(const std::vector<Vec3> &value, nlohmann::json &out);
+bool runtimeFieldJson(const std::vector<Color> &value, nlohmann::json &out);
 
 template <typename Value>
 bool runtimeFieldJson(const Value &value, nlohmann::json &out) {

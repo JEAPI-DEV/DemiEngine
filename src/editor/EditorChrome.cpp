@@ -194,6 +194,17 @@ void drawEditorGlyph(ImDrawList &draw, const EditorIcon icon,
                      point(center, 3.0F, 0.0F, scale),
                      point(center, 7.0F, 5.5F, scale), color, thickness);
     break;
+  case EditorIcon::Terrain:
+    draw.AddRect(point(center, -8.0F, -7.0F, scale),
+                 point(center, 8.0F, 7.0F, scale), color, 1.0F, thickness,
+                 ImDrawFlags_None);
+    draw.PathLineTo(point(center, -7.0F, 4.0F, scale));
+    draw.PathLineTo(point(center, -3.0F, 1.0F, scale));
+    draw.PathLineTo(point(center, 0.0F, 2.0F, scale));
+    draw.PathLineTo(point(center, 3.0F, -3.0F, scale));
+    draw.PathLineTo(point(center, 7.0F, 2.0F, scale));
+    draw.PathStroke(color, thickness, ImDrawFlags_None);
+    break;
   case EditorIcon::Prefab:
     draw.AddRect(point(center, -3.5F, -8.0F, scale),
                  point(center, 3.5F, -3.0F, scale), color, 1.0F, thickness,
@@ -218,6 +229,102 @@ void drawEditorGlyph(ImDrawList &draw, const EditorIcon icon,
                  point(center, 7.0F, 0.0F, scale), color, thickness);
     draw.AddLine(point(center, 0.0F, -7.0F, scale),
                  point(center, 0.0F, 7.0F, scale), color, thickness);
+    break;
+  case EditorIcon::Copy:
+  case EditorIcon::Duplicate:
+    draw.AddRect(point(center, -7.0F, -7.0F, scale),
+                 point(center, 3.0F, 3.0F, scale), color, 1.0F, thickness,
+                 ImDrawFlags_None);
+    draw.AddRectFilled(point(center, -3.0F, -3.0F, scale),
+                       point(center, 7.0F, 7.0F, scale),
+                       ImGui::GetColorU32(ImGuiCol_Button), 1.0F);
+    draw.AddRect(point(center, -3.0F, -3.0F, scale),
+                 point(center, 7.0F, 7.0F, scale), color, 1.0F, thickness,
+                 ImDrawFlags_None);
+    if (icon == EditorIcon::Duplicate) {
+      draw.AddLine(point(center, -1.0F, 2.0F, scale),
+                   point(center, 5.0F, 2.0F, scale), color, thickness);
+      draw.AddLine(point(center, 2.0F, -1.0F, scale),
+                   point(center, 2.0F, 5.0F, scale), color, thickness);
+    }
+    break;
+  case EditorIcon::Cut:
+    draw.AddCircle(point(center, -4.5F, 5.0F, scale), 2.8F * scale, color, 14,
+                   thickness);
+    draw.AddCircle(point(center, 4.5F, 5.0F, scale), 2.8F * scale, color, 14,
+                   thickness);
+    draw.AddLine(point(center, -3.0F, 3.0F, scale),
+                 point(center, 6.0F, -7.0F, scale), color, thickness);
+    draw.AddLine(point(center, 3.0F, 3.0F, scale),
+                 point(center, -6.0F, -7.0F, scale), color, thickness);
+    draw.AddCircleFilled(center, 1.5F * scale, color);
+    break;
+  case EditorIcon::Paste:
+    draw.AddRect(point(center, -6.5F, -5.5F, scale),
+                 point(center, 6.5F, 8.0F, scale), color, 1.0F, thickness,
+                 ImDrawFlags_None);
+    draw.AddRectFilled(point(center, -3.0F, -8.0F, scale),
+                       point(center, 3.0F, -4.0F, scale), color, 1.0F);
+    for (float y : {0.0F, 4.0F})
+      draw.AddLine(point(center, -3.0F, y, scale),
+                   point(center, 3.0F, y, scale), color, thickness);
+    break;
+  case EditorIcon::Delete:
+    draw.AddLine(point(center, -7.0F, -5.0F, scale),
+                 point(center, 7.0F, -5.0F, scale), color, thickness);
+    draw.AddRect(point(center, -5.0F, -5.0F, scale),
+                 point(center, 5.0F, 7.0F, scale), color, 1.0F, thickness,
+                 ImDrawFlags_None);
+    draw.AddRect(point(center, -2.5F, -8.0F, scale),
+                 point(center, 2.5F, -5.0F, scale), color, 0.5F, thickness,
+                 ImDrawFlags_None);
+    for (float x : {-2.0F, 2.0F})
+      draw.AddLine(point(center, x, -2.0F, scale),
+                   point(center, x, 4.0F, scale), color, thickness);
+    break;
+  case EditorIcon::SelectAll:
+    for (float x : {-7.0F, 0.0F, 7.0F})
+      for (float y : {-7.0F, 7.0F})
+        draw.AddLine(point(center, x - 1.5F, y, scale),
+                     point(center, x + 1.5F, y, scale), color, thickness);
+    for (float y : {-7.0F, 0.0F, 7.0F})
+      for (float x : {-7.0F, 7.0F})
+        draw.AddLine(point(center, x, y - 1.5F, scale),
+                     point(center, x, y + 1.5F, scale), color, thickness);
+    draw.AddRectFilled(point(center, -3.0F, -3.0F, scale),
+                       point(center, 3.0F, 3.0F, scale), color, 0.5F);
+    break;
+  case EditorIcon::Generate:
+    draw.AddTriangle(point(center, -4.0F, -6.0F, scale),
+                     point(center, 6.0F, 0.0F, scale),
+                     point(center, -4.0F, 6.0F, scale), color, thickness);
+    draw.AddLine(point(center, -8.0F, -6.0F, scale),
+                 point(center, -8.0F, 6.0F, scale), color, thickness);
+    break;
+  case EditorIcon::Modules:
+    for (float x : {-7.0F, 2.0F})
+      for (float y : {-7.0F, 2.0F})
+        draw.AddRect(point(center, x, y, scale),
+                     point(center, x + 5.0F, y + 5.0F, scale), color, 0.8F,
+                     thickness, ImDrawFlags_None);
+    break;
+  case EditorIcon::ZoomReset:
+    draw.AddCircle(point(center, -1.5F, -1.5F, scale), 5.5F * scale, color, 18,
+                   thickness);
+    draw.AddLine(point(center, 2.5F, 2.5F, scale),
+                 point(center, 7.5F, 7.5F, scale), color, thickness * 1.5F);
+    draw.AddLine(point(center, -1.5F, -4.0F, scale),
+                 point(center, -1.5F, 1.0F, scale), color, thickness);
+    break;
+  case EditorIcon::Discard:
+    draw.PathArcTo(center, 7.0F * scale, -2.7F, 1.8F, 18);
+    draw.PathStroke(color, thickness, ImDrawFlags_None);
+    arrowHead(draw, point(center, -6.3F, -3.0F, scale), {-1.0F, 0.0F}, color,
+              scale);
+    draw.AddLine(point(center, -2.5F, -2.5F, scale),
+                 point(center, 2.5F, 2.5F, scale), color, thickness);
+    draw.AddLine(point(center, -2.5F, 2.5F, scale),
+                 point(center, 2.5F, -2.5F, scale), color, thickness);
     break;
   case EditorIcon::Settings:
     draw.AddCircle(center, 6.0F * scale, color, 16, thickness);
@@ -280,9 +387,10 @@ bool editorStageTab(const char *label, const bool selected, const ImVec2 size) {
                                  : ImVec4{0.09F, 0.095F, 0.11F, 1.0F});
   ImGui::PushStyleColor(ImGuiCol_ButtonHovered, {0.18F, 0.18F, 0.22F, 1.0F});
   ImGui::PushStyleColor(ImGuiCol_ButtonActive, {0.20F, 0.18F, 0.27F, 1.0F});
-  const ImVec2 measured{std::max(size.x, ImGui::CalcTextSize(label).x +
-                                          ImGui::GetStyle().FramePadding.x * 2.0F),
-                        std::max(size.y, ImGui::GetFrameHeight())};
+  const ImVec2 measured{
+      std::max(size.x, ImGui::CalcTextSize(label).x +
+                           ImGui::GetStyle().FramePadding.x * 2.0F),
+      std::max(size.y, ImGui::GetFrameHeight())};
   const bool pressed = ImGui::Button(label, measured);
   if (selected) {
     const ImVec2 min = ImGui::GetItemRectMin();

@@ -70,8 +70,8 @@ Json recipe(bool protectedSamples = false) {
   native.size = {32, 32};
   native.cellsX = native.cellsZ = 32;
   native.chunkCells = 8;
-  native.biomes.at("default").baseHeight = 2;
-  native.biomes.at("default").heightVariation = 0;
+  native.landforms.at("default").baseHeight = 2;
+  native.landforms.at("default").heightVariation = 0;
   if (protectedSamples) {
     runtime::TerrainEdit protection;
     protection.kind = runtime::TerrainEditKind::Protect;

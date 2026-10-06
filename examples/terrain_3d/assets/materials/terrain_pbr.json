@@ -1,0 +1,22 @@
+{
+  "format_version": 1,
+  "name": "Terrain PBR surfaces",
+  "description": "Surface roles for generated terrain. Every role binds one of this project's existing material assets; no role carries texture maps yet because the project ships no texture assets, so base colour and roughness stay the authored scalars in those materials.",
+  "roles": {
+    "cliff": "asset://terrain/surfaces/cliff_piece",
+    "grass": "asset://terrain/surfaces/grass",
+    "ground": "asset://terrain/surfaces/soil",
+    "rock": "asset://terrain/surfaces/exposed_rock",
+    "sand": "asset://terrain/surfaces/sand",
+    "sediment": "asset://terrain/surfaces/soil",
+    "snow": "asset://terrain/surfaces/snow",
+    "wet_ground": "asset://terrain/surfaces/wet_ground"
+  },
+  "required_roles": [
+    "cliff",
+    "grass",
+    "rock",
+    "snow",
+    "wet_ground"
+  ]
+}

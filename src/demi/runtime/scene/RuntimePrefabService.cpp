@@ -7,6 +7,7 @@
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 
 #include <algorithm>
+#include <unordered_set>
 
 namespace demi::runtime {
 namespace {
@@ -223,10 +224,17 @@ bool RuntimePrefabService::release(World &world, WorldCommandBuffer &commands,
 }
 
 void RuntimePrefabService::prune(const World &world) {
+  ProfileScope pruning("Prefab.prune");
+  // The world is not mutated during pruning, so borrowed ID views remain valid.
+  // Index once rather than scanning the world for every tracked instance.
+  std::unordered_set<std::string_view> liveIds;
+  liveIds.reserve(world.entities.size());
+  for (const auto &entity : world.entities)
+    liveIds.insert(entity.id);
   std::erase_if(instances_, [&](const auto &entry) {
     return std::ranges::none_of(entry.second.entityIds,
                                 [&](const std::string &id) {
-                                  return findEntity(world, id) != nullptr;
+                                  return liveIds.contains(id);
                                 });
   });
 }

@@ -1,0 +1,180 @@
+{
+  "format_version": 1,
+  "name": "Mountain Range",
+  "label": "Ridged Range",
+  "description": "A high alpine massif. Snow takes the peaks, exposed mountain rock claims every steep face, scree collects below the snowline, meadow holds the valley floors and sand marks the shorelines.",
+  "size": [
+    512.0,
+    512.0
+  ],
+  "cells_x": 256,
+  "cells_z": 256,
+  "chunk_cells": 32,
+  "seed": 90210,
+  "default_biome": "mountains",
+  "default_landform": "mountains",
+  "landforms": {
+    "mountains": {
+      "base_height": 34.0,
+      "height_variation": 52.0,
+      "feature_size": 96.0,
+      "roughness": 0.62,
+      "octaves": 6
+    },
+    "scree": {
+      "base_height": 12.0,
+      "height_variation": 10.0,
+      "feature_size": 56.0,
+      "roughness": 0.5,
+      "octaves": 4
+    },
+    "snow": {
+      "base_height": 18.0,
+      "height_variation": 8.0,
+      "feature_size": 72.0,
+      "roughness": 0.42,
+      "octaves": 5
+    },
+    "meadow": {
+      "base_height": 4.0,
+      "height_variation": 6.0,
+      "feature_size": 38.0,
+      "roughness": 0.38,
+      "octaves": 3
+    },
+    "sand": {
+      "base_height": 2.0,
+      "height_variation": 3.0,
+      "feature_size": 24.0,
+      "roughness": 0.3,
+      "octaves": 3
+    }
+  },
+  "biomes": {
+    "mountains": {
+      "landform": "mountains",
+      "color": [
+        0.41,
+        0.38,
+        0.34,
+        1.0
+      ]
+    },
+    "scree": {
+      "landform": "scree",
+      "color": [
+        0.57,
+        0.54,
+        0.5,
+        1.0
+      ]
+    },
+    "snow": {
+      "landform": "snow",
+      "color": [
+        0.93,
+        0.95,
+        0.97,
+        1.0
+      ]
+    },
+    "meadow": {
+      "landform": "meadow",
+      "color": [
+        0.29,
+        0.45,
+        0.22,
+        1.0
+      ]
+    },
+    "sand": {
+      "landform": "sand",
+      "color": [
+        0.78,
+        0.72,
+        0.55,
+        1.0
+      ]
+    }
+  },
+  "rules": [
+    {
+      "id": "valley_meadow",
+      "layer": "biomes",
+      "biome": "meadow",
+      "priority": 40,
+      "blend": 5,
+      "elevation": [
+        0,
+        24
+      ]
+    },
+    {
+      "id": "alpine_scree",
+      "layer": "biomes",
+      "biome": "scree",
+      "priority": 50,
+      "blend": 5,
+      "elevation": [
+        22,
+        38
+      ]
+    },
+    {
+      "id": "shoreline_sand",
+      "layer": "biomes",
+      "biome": "sand",
+      "priority": 52,
+      "blend": 4,
+      "elevation": [
+        0,
+        18
+      ],
+      "water_distance": [
+        0,
+        6
+      ],
+      "substrate": [
+        "soil",
+        "sand",
+        "wet"
+      ]
+    },
+    {
+      "id": "gorge_rock",
+      "layer": "biomes",
+      "biome": "mountains",
+      "priority": 60,
+      "blend": 3,
+      "elevation": [
+        0,
+        40
+      ],
+      "substrate": [
+        "rock"
+      ]
+    },
+    {
+      "id": "summit_rock",
+      "layer": "biomes",
+      "biome": "mountains",
+      "priority": 70,
+      "blend": 6,
+      "elevation": [
+        34,
+        50
+      ]
+    },
+    {
+      "id": "snowline",
+      "layer": "biomes",
+      "biome": "snow",
+      "priority": 80,
+      "blend": 8,
+      "elevation": [
+        48,
+        220
+      ]
+    }
+  ]
+}

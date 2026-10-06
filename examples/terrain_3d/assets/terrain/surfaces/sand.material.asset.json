@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://terrain/surfaces/sand",
+  "importer": "material",
+  "importer_version": 1,
+  "settings": {},
+  "source": "sand.material.json",
+  "source_hash": "fnv1a64:516fb93e3a105e07",
+  "type": "Material"
+}

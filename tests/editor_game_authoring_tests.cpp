@@ -5,6 +5,7 @@
 #include "demi/schema/Validation.h"
 #include "editor/EditorPlaySession.h"
 #include "editor/EditorLuaComponentMetadata.h"
+#include "editor/EditorModuleCatalog.h"
 #include "editor/EditorSourceCreation.h"
 #include "editor/EditorWorkspace.h"
 
@@ -44,6 +45,11 @@ int main(int argc, char **argv) {
     EditorWorkspace workspace;
     std::string error;
     require(workspace.open(root, error), error);
+    const auto starterModules = editorModules(workspace);
+    require(resolveModule(starterModules, "prefab:ui-prefab://health_bar") &&
+                resolveModule(starterModules,
+                              "prefab:ui-prefab://panel_button_row"),
+            "Starter UI prefab compositions did not enter the Modules catalog");
     fs::path scene;
     require(createEditorSource(workspace, EditorSourceKind::Scene2D, "arena",
                                scene, error),
@@ -162,6 +168,70 @@ return Player
             error);
     require(workspace.openHudDocument(hud, error), error);
     require(workspace.setHudCanvasSize({1280, 720}, error), error);
+    const auto modules = editorModules(workspace);
+    const EditorModule *panelModule = resolveModule(modules, "hud:panel");
+    const EditorModule *buttonModule = resolveModule(modules, "hud:button");
+    const EditorModule *prefabModule =
+        resolveModule(modules, "prefab:ui-prefab://widgets/start");
+    const EditorModule *terrainModule = resolveModule(modules, "terrain:output");
+    require(panelModule && buttonModule && prefabModule && terrainModule,
+            "Modules catalog missed an authored control, UI prefab, or terrain node");
+    require(terrainModule->title == "Terrain Output" &&
+                terrainModule->kind == EditorModuleKind::TerrainNode &&
+                terrainModule->category == "Output" &&
+                !terrainModule->description.empty(),
+            "Terrain module did not come from the graph registry");
+    const auto beforeRejectedDrop = workspace.hudDocument()->json();
+    require(!workspace.placeHudModule(*terrainModule, {10, 10}, "root", error) &&
+                workspace.hudDocument()->json() == beforeRejectedDrop,
+            "Terrain graph module changed a HUD document");
+    error.clear();
+    const auto beforePanelDrop = workspace.hudDocument()->json();
+    require(workspace.placeHudModule(*panelModule, {100, 80}, "root", error),
+            error);
+    const std::string droppedPanel(workspace.selectedHudNodeId());
+    require(workspace.hudDocument()->authoredNode(droppedPanel)->at("position") ==
+                nlohmann::json({100, 80}),
+            "Panel drop did not use authored canvas coordinates");
+    require(workspace.undo(error), error);
+    require(workspace.hudDocument()->json() == beforePanelDrop,
+            "HUD drop Undo did not remove creation and position together");
+    require(workspace.redo(error), error);
+    require(workspace.placeHudModule(*buttonModule, {125, 100}, droppedPanel,
+                                     error), error);
+    const std::string droppedButton(workspace.selectedHudNodeId());
+    const auto *nestedButton = workspace.hudDocument()->authoredNode(droppedButton);
+    require(nestedButton && nestedButton->at("position") ==
+                nlohmann::json({25, 20}),
+            "Nested HUD drop did not use parent-local coordinates");
+    require(workspace.placeHudModule(*prefabModule, {360, 220}, "root", error),
+            error);
+    const std::string droppedPrefabId(workspace.selectedHudNodeId());
+    const auto *droppedUiPrefab = workspace.hudDocument()->authoredNode(droppedPrefabId);
+    require(droppedUiPrefab && droppedUiPrefab->at("prefab") ==
+                "ui-prefab://widgets/start" &&
+                droppedUiPrefab->at("overrides").at("position") ==
+                    nlohmann::json({360, 220}),
+            "UI prefab drop lost its stable reference or position override");
+    require(workspace.undo(error), error);
+    require(workspace.hudDocument()->authoredNode(droppedPrefabId) == nullptr,
+            "UI prefab drop was not one undoable edit");
+    require(workspace.redo(error), error);
+    const auto beforeGeneratedTargetDrop = workspace.hudDocument()->json();
+    require(workspace.placeHudModule(*buttonModule, {410, 260}, droppedPrefabId,
+                                     error), error);
+    const std::string siblingId(workspace.selectedHudNodeId());
+    require(std::ranges::any_of(
+                workspace.hudDocument()->json().at("root").at("children"),
+                [&](const auto &child) {
+                  return child.value("id", "") == siblingId;
+                }),
+            "Drop on prefab-generated content did not use its authored parent");
+    require(workspace.undo(error) &&
+                workspace.hudDocument()->json() == beforeGeneratedTargetDrop,
+            "Generated-content target drop did not undo in one step");
+    require(workspace.selectedHudNodeId().empty(),
+            "Undo kept a selection for a removed node in an opened HUD");
     require(
         workspace.createHudPrefabInstance("ui-prefab://widgets/start", error),
         error);

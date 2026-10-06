@@ -2,6 +2,7 @@
 
 #include "editor/EditorDocumentStore.h"
 #include "editor/EditorSceneCommand.h"
+#include "demi/runtime/scene/model/SceneTypes.h"
 
 #include <nlohmann/json.hpp>
 
@@ -25,6 +26,8 @@ struct EditorDocumentIssue {
   SceneValueTarget target;
   std::string message;
 };
+
+enum class EditorEntityKind { Empty, Cube, Sphere, Cylinder, Plane };
 
 // Owns the active authored scene JSON, its command history, and its
 // conflict-safe persistence. Structural mutations are built with reusable
@@ -58,7 +61,15 @@ public:
   [[nodiscard]] bool cancelContinuousEdit(std::string &error);
 
   [[nodiscard]] bool createEntity(std::string &error,
-                                  std::optional<std::string> parent = {});
+                                  std::optional<std::string> parent = {},
+                                  EditorEntityKind kind = EditorEntityKind::Empty,
+                                  std::optional<runtime::Vec3> position = {});
+  [[nodiscard]] bool createTerrainAssetEntity(std::string_view assetId,
+                                              std::optional<runtime::Vec3> position,
+                                              std::string &error);
+  [[nodiscard]] bool setTerrainAsset(std::string_view entityId,
+                                      std::string_view assetId,
+                                      std::string &error);
   [[nodiscard]] bool instantiatePrefab(std::string_view reference,
                                        std::string &error);
   // Non-empty overrides are stored on the inserted instance as part of the
@@ -76,6 +87,17 @@ public:
                               std::optional<std::string> newParent,
                               std::string &error);
   [[nodiscard]] bool duplicateEntity(std::string_view id, std::string &error);
+  // Payloads are arrays of authored root subtrees; selected descendants of a
+  // copied root occur only inside that subtree. Paste owns ID allocation and
+  // typed reference remapping, then validates one reversible command.
+  [[nodiscard]] std::optional<nlohmann::json>
+  exportEntities(std::span<const std::string> ids, std::string &error) const;
+  [[nodiscard]] bool pasteEntities(const nlohmann::json &payload,
+                                   std::vector<std::string> &createdIds,
+                                   std::string &error);
+  [[nodiscard]] bool duplicateEntities(std::span<const std::string> ids,
+                                       std::vector<std::string> &createdIds,
+                                       std::string &error);
   [[nodiscard]] bool addComponent(std::string_view id,
                                   std::string_view componentName,
                                   std::string &error);

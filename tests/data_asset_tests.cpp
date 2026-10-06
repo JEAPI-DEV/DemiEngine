@@ -1,13 +1,16 @@
 #include "demi/assets/AssetImporter.h"
 #include "demi/assets/DataAsset.h"
+#include "demi/assets/DataAssetContent.h"
 #include "demi/assets/DataDocument.h"
 #include "demi/assets/YamlDataDocument.h"
 #include "demi/runtime/data/DataAssetStore.h"
+#include "demi/runtime/terrain/TerrainPalette.h"
 
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <nlohmann/json.hpp>
 
 namespace {
 
@@ -158,6 +161,117 @@ count: 3
       importedManifest->type != "DataAsset" || !importedMetadata ||
       importedMetadata->contentType != "data") {
     std::cerr << "Default JSON import did not create a usable DataAsset.\n";
+    return 1;
+  }
+
+  const auto typedProject = root / "typed_project";
+  const auto typedSources = root / "typed_sources";
+  if (!write(typedSources / "reference.json",
+             R"({"format_version":1,"note":"asset://not-a-dependency"})") ||
+      !write(typedSources / "material.json",
+             R"({"format_version":1,"name":"Stone","maps":[{"base_color":"asset://refs/texture"}]})") ||
+      !write(typedSources / "set.json",
+             R"({"format_version":1,"name":"Ground","roles":{"rock":"asset://terrain/stone"}})") ||
+      !write(typedSources / "palette.json",
+             R"({"format_version":1,"name":"Props","roles":{"soil":{"asset":"asset://terrain/stone","prefab":"prefab://props/stone"}}})"))
+    return 1;
+  const auto reference = importAsset({.projectDirectory = typedProject,
+                                      .source = typedSources / "reference.json",
+                                      .id = "asset://refs/texture"});
+  const auto material = importAsset({.projectDirectory = typedProject,
+                                     .source = typedSources / "material.json",
+                                     .id = "asset://terrain/stone",
+                                     .dataContentType = "terrain_material"});
+  const auto set = importAsset({.projectDirectory = typedProject,
+                                .source = typedSources / "set.json",
+                                .id = "asset://terrain/set",
+                                .dataContentType = "terrain_material_set"});
+  const auto palette = importAsset({.projectDirectory = typedProject,
+                                    .source = typedSources / "palette.json",
+                                    .id = "asset://terrain/palette",
+                                    .dataContentType = "terrain_palette"});
+  const auto referenceManifest = loadAssetManifest(reference.manifestPath);
+  const auto materialManifest = loadAssetManifest(material.manifestPath);
+  const auto setManifest = loadAssetManifest(set.manifestPath);
+  const auto paletteManifest = loadAssetManifest(palette.manifestPath);
+  if (hasErrors(reference.diagnostics) || hasErrors(material.diagnostics) ||
+      hasErrors(set.diagnostics) || hasErrors(palette.diagnostics) ||
+      !referenceManifest || !materialManifest || !setManifest ||
+      !paletteManifest || !referenceManifest->dependencies.empty() ||
+      materialManifest->dependencies !=
+          std::vector<std::string>{"asset://refs/texture"} ||
+      setManifest->dependencies !=
+          std::vector<std::string>{"asset://terrain/stone"} ||
+      paletteManifest->dependencies !=
+          std::vector<std::string>{"asset://terrain/stone"}) {
+    std::cerr << "Typed DataAsset import lost its content type or dependencies.\n";
+    return 1;
+  }
+  const auto paletteDocument = loadDataDocument(paletteManifest->sourcePath);
+  if (!paletteDocument.document ||
+      runtime::parseTerrainPalette(*paletteDocument.document,
+                                   loadAssetRegistry(typedProject),
+                                   paletteManifest->id)
+              .assetDependencies() !=
+          (std::vector<std::string>{"asset://terrain/stone",
+                                    "prefab://props/stone"})) {
+    std::cerr << "Terrain palette lost its prefab source reference.\n";
+    return 1;
+  }
+  const auto parsedReference = loadDataDocument(referenceManifest->sourcePath);
+  if (!parsedReference.document ||
+      !inspectDataAssetContent("item", *parsedReference.document,
+                               loadAssetRegistry(typedProject),
+                               referenceManifest->id)
+           .dependencies.empty()) {
+    std::cerr << "Generic data guessed dependencies from a URI string.\n";
+    return 1;
+  }
+  nlohmann::json declared;
+  {
+    std::ifstream input(material.manifestPath);
+    input >> declared;
+  }
+  declared["dependencies"].push_back("asset://manual/keep");
+  if (!write(material.manifestPath, declared.dump(2) + "\n") ||
+      hasErrors(reimportAsset(material.manifestPath)))
+    return 1;
+  const auto reimported = loadAssetManifest(material.manifestPath);
+  if (!reimported ||
+      reimported->dependencies !=
+          (std::vector<std::string>{"asset://manual/keep",
+                                    "asset://refs/texture"})) {
+    std::cerr << "Reimport removed a declared dependency.\n";
+    return 1;
+  }
+  const std::string oldHash = reimported->sourceHash;
+  if (!write(reimported->sourcePath,
+             R"({"format_version":1,"name":"Stone","roughness":2})") ||
+      !containsCode(reimportAsset(material.manifestPath),
+                    "DATA_CONTENT_INVALID"))
+    return 1;
+  const auto rejected = loadAssetManifest(material.manifestPath);
+  if (!rejected || rejected->sourceHash != oldHash ||
+      rejected->dependencies != reimported->dependencies) {
+    std::cerr << "Invalid reimport published new manifest metadata.\n";
+    return 1;
+  }
+  const auto invalidImport = importAsset({.projectDirectory = typedProject,
+      .source = reimported->sourcePath, .id = "asset://terrain/invalid",
+      .dataContentType = "terrain_material"});
+  if (!containsCode(invalidImport.diagnostics, "DATA_CONTENT_INVALID") ||
+      std::filesystem::exists(invalidImport.manifestPath)) {
+    std::cerr << "Invalid typed source was published by import.\n";
+    return 1;
+  }
+  const auto emptyContentType = importAsset({
+      .projectDirectory = typedProject,
+      .source = reimported->sourcePath,
+      .id = "asset://terrain/empty_type",
+      .dataContentType = ""});
+  if (!containsCode(emptyContentType.diagnostics, "DATA_CONTENT_TYPE_MISSING") ||
+      std::filesystem::exists(emptyContentType.manifestPath)) {
+    std::cerr << "An explicit empty content type was silently defaulted.\n";
     return 1;
   }
   if (!write(root / "sword.json",

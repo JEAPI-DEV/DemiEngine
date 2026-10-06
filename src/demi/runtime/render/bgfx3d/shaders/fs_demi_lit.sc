@@ -2,6 +2,14 @@ $input v_color0, v_normal, v_texcoord0, v_worldPos
 
 #include "bgfx_shader.sh"
 
+#if BGFX_SHADER_LANGUAGE_ESSL == 100
+// GLES 2 fragment floats need explicit highp for narrow GGX peaks.
+precision highp float;
+#define DEMI_GGX_PRECISION highp
+#else
+#define DEMI_GGX_PRECISION
+#endif
+
 SAMPLER2D(s_texColor, 0);
 SAMPLER2D(s_shadowMap, 1);
 uniform vec4 u_shadowX[4];
@@ -21,6 +29,9 @@ uniform vec4 u_ambientColor;
 uniform vec4 u_tint;
 uniform vec4 u_alphaCutoff;
 uniform vec4 u_debugMode;
+uniform vec4 u_viewPosition;
+// x metallic, y roughness; opacity is applied to u_tint alpha on the CPU.
+uniform vec4 u_metalRough;
 #ifndef DEMI_DIRECTIONAL_ONLY
 uniform vec4 u_pointPositionRange[4];
 uniform vec4 u_pointColorIntensity[4];
@@ -45,6 +56,43 @@ vec3 encodeColor(vec3 color)
     color = max(color, vec3(0.0));
     return mix(color * 12.92, 1.055 * pow(color, vec3(1.0 / 2.4)) - 0.055,
                step(vec3(0.0031308), color));
+}
+
+// Direct Cook-Torrance lighting: GGX distribution, height-correlated Smith
+// visibility and Schlick Fresnel, following Filament's standard model:
+// https://google.github.io/filament/main/filament.html#material-system/standard-model
+// There is no environment lighting or reflection probe here.
+DEMI_GGX_PRECISION vec3 directSurfaceLight(
+    DEMI_GGX_PRECISION vec3 baseColor, DEMI_GGX_PRECISION vec3 normal,
+    DEMI_GGX_PRECISION vec3 viewDirection,
+    DEMI_GGX_PRECISION vec3 lightDirection, DEMI_GGX_PRECISION float metallic,
+    DEMI_GGX_PRECISION float roughness)
+{
+    DEMI_GGX_PRECISION float nl = max(dot(normal, lightDirection), 0.0);
+    DEMI_GGX_PRECISION float nv = dot(normal, viewDirection);
+    if (nl <= 0.0 || nv <= 0.0) return vec3(0.0);
+    DEMI_GGX_PRECISION vec3 halfway = viewDirection + lightDirection;
+    DEMI_GGX_PRECISION vec3 halfVector = halfway / max(length(halfway), 0.000001);
+    DEMI_GGX_PRECISION float nh = max(dot(normal, halfVector), 0.0);
+    DEMI_GGX_PRECISION float vh = max(dot(viewDirection, halfVector), 0.0);
+    DEMI_GGX_PRECISION float alpha = roughness * roughness;
+    DEMI_GGX_PRECISION float alpha2 = alpha * alpha;
+    // The cross product avoids cancellation in 1 - NoH^2 at highlight peaks.
+    // At roughness .04 and NoH=1 the denominator is 2.56e-6, so a broad
+    // 1e-4 clamp would erase the highlight. ESSL 100 uses highp here.
+    DEMI_GGX_PRECISION vec3 normalCrossHalf = cross(normal, halfVector);
+    DEMI_GGX_PRECISION float ggxDenominator = dot(normalCrossHalf, normalCrossHalf) + nh * nh * alpha2;
+    DEMI_GGX_PRECISION float ggxRatio = alpha / max(ggxDenominator, 0.00000001);
+    DEMI_GGX_PRECISION float distribution = ggxRatio * ggxRatio / 3.14159265;
+    nv = max(nv, 0.0001);
+    DEMI_GGX_PRECISION float correlatedView = nl * sqrt(nv * nv * (1.0 - alpha2) + alpha2);
+    DEMI_GGX_PRECISION float correlatedLight = nv * sqrt(nl * nl * (1.0 - alpha2) + alpha2);
+    DEMI_GGX_PRECISION float visibility = 0.5 / max(correlatedView + correlatedLight, 0.0001);
+    DEMI_GGX_PRECISION vec3 f0 = mix(vec3(0.04), baseColor, metallic);
+    DEMI_GGX_PRECISION vec3 fresnel = f0 + (vec3(1.0) - f0) * pow(1.0 - vh, 5.0);
+    DEMI_GGX_PRECISION vec3 specular = distribution * visibility * fresnel;
+    DEMI_GGX_PRECISION vec3 diffuse = (vec3(1.0) - fresnel) * (1.0 - metallic) * baseColor / 3.14159265;
+    return (diffuse + specular) * nl;
 }
 
 float compareShadowTap(int cascade, vec2 tap, float receiverDepth)
@@ -150,8 +198,17 @@ void main()
             visibility = mix(visibility, 1.0, blend);
         if (viewDepth < 0.0 || viewDepth > farDepth) visibility = 1.0;
     }
+    DEMI_GGX_PRECISION vec3 baseColor = decodeColor(albedo.rgb);
+    DEMI_GGX_PRECISION float metallic = clamp(u_metalRough.x, 0.0, 1.0);
+    DEMI_GGX_PRECISION float roughness = clamp(u_metalRough.y, 0.04, 1.0);
+    DEMI_GGX_PRECISION vec3 toView = u_viewPosition.xyz - v_worldPos;
+    DEMI_GGX_PRECISION vec3 viewDirection = toView / max(length(toView), 0.0001);
     vec3 lighting = u_ambientColor.rgb +
-                    u_lightColor.rgb * diffuse * u_lightDirection.w * visibility;
+                    u_lightColor.rgb * u_lightDirection.w * diffuse * visibility;
+    vec3 shadedColor = baseColor * u_ambientColor.rgb * (1.0 - metallic);
+    shadedColor += u_lightColor.rgb * u_lightDirection.w * visibility *
+                   directSurfaceLight(baseColor, normal, viewDirection,
+                                      directionalDirection, metallic, roughness);
 #ifndef DEMI_DIRECTIONAL_ONLY
     for (int ii = 0; ii < 4; ++ii)
     {
@@ -163,10 +220,11 @@ void main()
             vec3 lightDirection = toLight / max(distanceToLight, 0.0001);
             float attenuation = max(1.0 - distanceToLight /
                                     u_pointPositionRange[ii].w, 0.0);
-            float pointDiffuse = max(dot(normal, lightDirection), 0.0);
-            lighting += u_pointColorIntensity[ii].rgb *
-                        u_pointColorIntensity[ii].w * pointDiffuse *
-                        attenuation * attenuation;
+            vec3 irradiance = u_pointColorIntensity[ii].rgb *
+                              u_pointColorIntensity[ii].w * attenuation * attenuation;
+            lighting += irradiance * max(dot(normal, lightDirection), 0.0);
+            shadedColor += irradiance * directSurfaceLight(
+                baseColor, normal, viewDirection, lightDirection, metallic, roughness);
         }
 
         if (u_spotPositionRange[ii].w > 0.0 &&
@@ -182,13 +240,17 @@ void main()
                                           u_spotInner[ii].x, cone);
             float spotAttenuation = max(1.0 - distanceToSpot /
                                         u_spotPositionRange[ii].w, 0.0);
-            float spotDiffuse = max(dot(normal, lightDirection), 0.0);
-            lighting += u_spotColorIntensity[ii].rgb *
-                        u_spotColorIntensity[ii].w * spotDiffuse * coneAmount *
-                        spotAttenuation * spotAttenuation;
+            vec3 irradiance = u_spotColorIntensity[ii].rgb *
+                              u_spotColorIntensity[ii].w * coneAmount *
+                              spotAttenuation * spotAttenuation;
+            lighting += irradiance * max(dot(normal, lightDirection), 0.0);
+            shadedColor += irradiance * directSurfaceLight(
+                baseColor, normal, viewDirection, lightDirection, metallic, roughness);
         }
     }
 #endif
+    if (u_metalRough.z > 0.5)
+        shadedColor = baseColor;
     if (u_debugMode.x > 0.5 && u_debugMode.x < 1.5)
     {
         gl_FragColor = vec4(normal * 0.5 + 0.5, 1.0);
@@ -223,6 +285,6 @@ void main()
     }
     else
     {
-        gl_FragColor = vec4(encodeColor(decodeColor(albedo.rgb) * lighting), albedo.a);
+        gl_FragColor = vec4(encodeColor(shadedColor), albedo.a);
     }
 }

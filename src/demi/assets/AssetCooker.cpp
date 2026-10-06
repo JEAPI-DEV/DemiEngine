@@ -10,6 +10,7 @@
 #include "demi/assets/GeneratedAtlasCooker.h"
 #include "demi/assets/PackageContent.h"
 #include "demi/assets/RenderAsset.h"
+#include "demi/assets/TerrainAssetCook.h"
 #include "demi/filesystem/ProjectPaths.h"
 #include "demi/schema/Validation.h"
 #include "demi/runtime/scene/composition/PrefabResolver.h"
@@ -52,6 +53,8 @@ bool skippedRoot(const std::filesystem::path &relative) {
 bool skippedFile(const std::filesystem::path &relative) {
   if (relative.empty())
     return false;
+  if (isTerrainSourceFile(relative))
+    return true;
   const std::string name = relative.filename().string();
   if (name == "README.md" || name == "report.csv")
     return true;
@@ -275,6 +278,13 @@ Diagnostics cookProject(const CookRequest &request) {
   diagnostics.insert(diagnostics.end(), summary.diagnostics.begin(),
                      summary.diagnostics.end());
   const auto projectDirectory = absoluteProject.parent_path();
+  if (pathIsInside(request.outputDirectory, projectDirectory)) {
+    diagnostics.push_back({.severity = Severity::Error,
+                           .code = "COOK_OUTPUT_OVERLAPS_PROJECT",
+                           .message = "Cook output cannot contain the authored project.",
+                           .path = request.outputDirectory.string()});
+    return diagnostics;
+  }
   AssetRegistry registry = loadAuthoredAssetRegistry(projectDirectory);
   LockedPackageContent packageContent =
       loadLockedPackageContent(projectDirectory, request.platform, &registry);
@@ -307,6 +317,16 @@ Diagnostics cookProject(const CookRequest &request) {
 
   AssetCookGraph cookGraph;
   for (const AssetManifest &asset : registry.assets) {
+    if (asset.type != "Terrain" &&
+        std::ranges::any_of(asset.sourcePaths, isTerrainSourceFile)) {
+      diagnostics.push_back({
+          .severity = Severity::Error,
+          .code = "COOK_TERRAIN_SOURCE_WRONG_ASSET_TYPE",
+          .message = "An authored .terrain.json source must be imported "
+                     "as a Terrain asset before shipping.",
+          .path = asset.manifestPath.string()});
+      continue;
+    }
     const auto descriptor = importerDescriptorFor(
         asset, packageContent, request.platform, diagnostics);
     std::vector<std::string> sourceHashes;
@@ -319,12 +339,25 @@ Diagnostics cookProject(const CookRequest &request) {
         descriptor ? descriptor->version : asset.importerVersion;
     const int settingsSchemaVersion =
         descriptor ? descriptor->settingsSchemaVersion : 1;
+    std::string normalizedSettings =
+        normalizedSettingsFor(asset, request.platform, diagnostics);
+    if (asset.type == "Terrain") {
+      try {
+        auto settings = nlohmann::json::parse(normalizedSettings);
+        settings["terrain"] = terrainAssetCookSettings(asset, registry);
+        normalizedSettings = settings.dump();
+      } catch (const std::exception &error) {
+        diagnostics.push_back({.severity = Severity::Error,
+                               .code = "TERRAIN_ASSET_COOK_INPUT_INVALID",
+                               .message = error.what(),
+                               .path = asset.sourcePath.string()});
+      }
+    }
     (void)cookGraph.addNode({.assetId = asset.id,
                              .importer = asset.importer,
                              .importerVersion = importerVersion,
                              .settingsSchemaVersion = settingsSchemaVersion,
-                             .normalizedSettings = normalizedSettingsFor(
-                                 asset, request.platform, diagnostics),
+                             .normalizedSettings = std::move(normalizedSettings),
                              .sourceHashes = std::move(sourceHashes),
                              .dependencies = asset.dependencies,
                              .platform = request.platform,
@@ -342,11 +375,14 @@ Diagnostics cookProject(const CookRequest &request) {
   AssetCookCache cookCache(request.outputDirectory);
   std::map<std::string, AssetCookDecision> cookDecisions;
   std::map<std::filesystem::path, std::string> fileOwners;
+  std::set<std::filesystem::path> terrainSourceFiles;
   for (const AssetManifest &asset : registry.assets) {
     const std::string key = cookGraph.key(asset.id).value_or("");
     cookDecisions.emplace(asset.id, cookCache.inspect(asset.id, key));
     for (const auto &file : collectAssetFiles(asset))
       fileOwners.emplace(file, asset.id);
+    if (asset.type == "Terrain")
+      terrainSourceFiles.insert(asset.sourcePath);
   }
   nlohmann::json cookedFiles = nlohmann::json::array();
   std::set<std::string> reportedFiles;
@@ -366,9 +402,32 @@ Diagnostics cookProject(const CookRequest &request) {
   for (const auto &source : files) {
     const auto relative = cookedRelativePath(source, projectDirectory);
     const auto target = request.outputDirectory / relative;
+    if (terrainSourceFiles.contains(source)) {
+      // Authoring sources are omitted. A previous cook's copy is handled
+      // transactionally when the new cook manifest is published.
+      continue;
+    }
     const auto owner = fileOwners.find(source);
     const bool isCacheHit =
         owner != fileOwners.end() && cookDecisions.at(owner->second).isCacheHit;
+    const AssetManifest *terrainAsset =
+        owner == fileOwners.end() ? nullptr : findAsset(registry, owner->second);
+    if (terrainAsset != nullptr && terrainAsset->type == "Terrain" &&
+        source == terrainAsset->manifestPath) {
+      if (!isCacheHit) {
+        const TerrainAssetCookResult cooked = cookRegisteredTerrainAsset(
+            *terrainAsset, registry, request.outputDirectory, relative,
+            cookedRelativePath(terrainAsset->sourcePath, projectDirectory));
+        diagnostics.insert(diagnostics.end(), cooked.diagnostics.begin(),
+                           cooked.diagnostics.end());
+      }
+      reportCookedFile(target);
+      auto binaryRelative =
+          cookedRelativePath(terrainAsset->sourcePath, projectDirectory);
+      binaryRelative.replace_extension(".bin");
+      reportCookedFile(request.outputDirectory / binaryRelative);
+      continue;
+    }
     std::filesystem::create_directories(target.parent_path(), code);
     bool bakedFracture=false;
     if (!code && (isPrefabFile(source) || isSceneFile(source))) {
@@ -423,10 +482,23 @@ Diagnostics cookProject(const CookRequest &request) {
       continue;
     }
     if (!decision.isCacheHit) {
-      for (const auto &source : collectAssetFiles(asset))
-        decision.outputs.push_back(
-            request.outputDirectory /
-            cookedRelativePath(source, projectDirectory));
+      if (asset.type == "Terrain") {
+        const auto relativeManifest =
+            cookedRelativePath(asset.manifestPath, projectDirectory);
+        auto binaryRelative =
+            cookedRelativePath(asset.sourcePath, projectDirectory);
+        binaryRelative.replace_extension(".bin");
+        decision.outputs.push_back(request.outputDirectory / relativeManifest);
+        decision.outputs.push_back(request.outputDirectory / binaryRelative);
+        if (asset.licensePath)
+          decision.outputs.push_back(request.outputDirectory /
+              cookedRelativePath(*asset.licensePath, projectDirectory));
+      } else {
+        for (const auto &source : collectAssetFiles(asset))
+          decision.outputs.push_back(
+              request.outputDirectory /
+              cookedRelativePath(source, projectDirectory));
+      }
       GeneratedAtlasCookResult generated =
           cookGeneratedAtlas(asset, registry, request.outputDirectory);
       diagnostics.insert(diagnostics.end(), generated.diagnostics.begin(),
@@ -520,14 +592,11 @@ Diagnostics cookProject(const CookRequest &request) {
       {"package_extensions", std::move(extensions)},
       {"shader_programs", std::move(shaderPrograms)},
   };
-  std::ofstream output(request.outputDirectory / "cook.manifest.json");
-  if (!output)
-    diagnostics.push_back({.severity = Severity::Error,
-                           .code = "COOK_MANIFEST_WRITE_FAILED",
-                           .message = "Could not write cook manifest.",
-                           .path = request.outputDirectory.string()});
-  else
-    output << manifest.dump(2) << '\n';
+  const Diagnostics publication =
+      publishCookManifestWithTerrainPrune(request.outputDirectory, manifest);
+  diagnostics.insert(diagnostics.end(), publication.begin(), publication.end());
+  if (hasErrors(publication))
+    return diagnostics;
   std::ofstream reportOutput(request.outputDirectory /
                              ".cook-cache/last-report.json");
   if (reportOutput)

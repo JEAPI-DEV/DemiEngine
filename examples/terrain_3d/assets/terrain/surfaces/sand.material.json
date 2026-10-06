@@ -1,0 +1,9 @@
+{
+  "format_version": 1,
+  "shader": "builtin://lit",
+  "fallback": "builtin://unlit",
+  "parameters": {
+    "base_color": [0.76, 0.64, 0.39, 1],
+    "roughness": 0.9
+  }
+}

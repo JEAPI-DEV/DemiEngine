@@ -1,0 +1,80 @@
+{
+  "format_version": 1,
+  "id": "scene://terrain_graph_3d/main",
+  "name": "Branched landscape graph",
+  "entities": [
+    {
+      "id": "terrain",
+      "name": "Open Terrain Graph, then paint or sculpt",
+      "components": {
+        "Transform3D": {"position": [-64, 0, -64]},
+        "Terrain3D": {
+          "asset": "asset://terrain/landscape"
+        },
+        "LuaScript": {
+          "module": "script://scripts/water_sensor.lua",
+          "properties": {
+            "emit_stay": true,
+            "offset_y": 0.0,
+            "target": "cube_copy"
+          }
+        }
+      }
+    },
+    {
+      "id": "camera",
+      "components": {
+        "Transform3D": {"position": [1012, 85, 1014]},
+        "Camera3D": {"target_offset": [-85, -75, -105], "far_clip": 500,
+                     "clear_color": [0.22, 0.32, 0.43, 1]}
+      }
+    },
+    {"id": "sun", "components": {"DirectionalLight": {
+      "direction": [-0.5, -1, -0.35], "intensity": 1.2, "casts_shadows": true
+    }}},
+    {"id": "environment", "components": {"Environment3D": {
+      "ambient_intensity": 0.4, "shadow_distance": 140,
+      "shadow_resolution": 2048, "shadow_bias": 0.025
+    }}},
+    {
+      "id": "cube",
+      "components": {
+        "Transform3D": {
+          "position": [
+            927.032,
+            7.35,
+            908.684
+          ],
+          "scale": [
+            5.0,
+            5.0,
+            5.0
+          ]
+        },
+        "BoxCollider3D": {"size": [5.0,5.0,5.0]},
+        "MeshRenderer": {"color": [1.0,1.0,1.0,1.0], "metallic": 0.0, "opacity": 0.084, "roughness": 1.0, "surface_mode": "additive"}
+      },
+      "name": "mmi"
+    },
+    {
+      "id": "cube_copy",
+      "components": {
+        "Transform3D": {
+          "position": [
+            927.032,
+            7.35,
+            908.684
+          ],
+          "scale": [
+            5.0,
+            5.0,
+            5.0
+          ]
+        },
+        "BoxCollider3D": {"size": [5.0,5.0,5.0]},
+        "MeshRenderer": {"color": [1.0,1.0,1.0,1.0], "metallic": 0.0, "opacity": 0.084, "roughness": 1.0, "surface_mode": "additive"}
+      },
+      "name": "mmi2"
+    }
+  ]
+}

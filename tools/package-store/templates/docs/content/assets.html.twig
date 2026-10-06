@@ -1,4 +1,5 @@
 <h1>Assets &amp; streaming</h1>
+<p>Typed data assets can be imported with <code>--type DataAsset --content-type terrain_material</code>, <code>terrain_material_set</code> or <code>terrain_palette</code>. Import and reimport run the native content parser and derive asset-ID dependencies. Unknown application content types remain ordinary data; strings are not guessed to be asset references. See <a href="/docs/terrain">terrain asset authoring</a> for the editor creation and property controls.</p>
 <p>Asset IDs are stable URIs you reference from scenes and scripts. Import records hashes and dependencies; cooking is keyed by content so rebuilds stay fast and deterministic.</p>
 
 <h2>Import a source</h2>
@@ -32,6 +33,9 @@
   <li>Data: <code>settings.schema</code>, <code>content_type</code>, <code>tags</code> — see <a href="{{ path('docs_page', {slug: 'game-data'}) }}">Game data</a>.</li>
   <li><code>platform_overrides</code> lets one manifest differ per platform without duplicate assets.</li>
 </ul>
+
+<h2>Terrain assets</h2>
+<p>Terrain sources use <code>*.terrain.json</code>, type <code>Terrain</code> and importer <code>terrain_heightfield</code>. Scenes place them through <code>Terrain3D.asset</code>. Select a placement to sculpt or paint in the scene Viewport; its Terrain Graph contains generation settings and modules. Apply changes to the shared asset without embedding recipes in the scene. The editor and build tools prepare the generated data; shipped games load the cooked payload. See <a href="/docs/terrain">Terrain assets and editing</a> for creation, graph editing and shipping.</p>
 
 <h2>Atlases</h2>
 <p><code>TextureAtlas2D</code> packs sprites from a units descriptor: <code>page_width</code>, <code>page_height</code>, <code>padding</code>, <code>bleed</code>, and <code>sprites[]</code> entries with <code>id</code>, <code>source</code>, <code>pivot</code>, <code>border</code>, and <code>animation_tag</code>. <code>FontAtlas2D</code> rasterizes glyphs with <code>pixel_height</code>, <code>page_size</code>, <code>padding</code>, <code>glyph_ranges</code>, and <code>fallbacks</code>.</p>

@@ -153,6 +153,67 @@ int main() {
   assert(close(isoEdit.edit->value.at(0).get<float>(), 3.0F));
   assert(close(isoEdit.edit->value.at(1).get<float>(), 3.0F));
 
+  runtime::World interactionWorld;
+  interactionWorld.entities.push_back(sprite("target", 0.0F));
+  interactionWorld.entities.push_back(sprite("other", 4.0F));
+  editor::EditorSceneView2DState interactionView;
+  interactionView.reset(interactionWorld);
+  const runtime::Vec2 otherPoint =
+      editor::projectScenePoint2D(interactionView.camera(), {4.0F, 0.0F},
+                                  viewport);
+  for (const auto operation : {editor::EditorGizmoOperation::Translate,
+                               editor::EditorGizmoOperation::Rotate,
+                               editor::EditorGizmoOperation::Scale}) {
+    editor::EditorViewportTool2D dragTool;
+    dragTool.setOperation(operation);
+    const auto lines =
+        dragTool.presentation(interactionWorld, "target", interactionView,
+                              viewport);
+    assert(!lines.axes.empty());
+    const auto press = dragTool.update(
+        interactionWorld, "target", interactionView,
+        {.mousePosition = midpoint(lines.axes.front()),
+         .viewportSize = viewport, .hovered = true,
+         .leftPressed = true, .leftDown = true});
+    assert(dragTool.isDragging() && !press.selectionChanged);
+    const auto crossed = dragTool.update(
+        interactionWorld, "target", interactionView,
+        {.mousePosition = otherPoint, .mouseDelta = {50.0F, 0.0F},
+         .viewportSize = viewport, .hovered = true, .focused = true,
+         .leftDown = true,
+         .bypassSnapping = true});
+    assert(crossed.edit && crossed.edit->target.entityId == "target" &&
+           !crossed.selectionChanged);
+    const auto outside = dragTool.update(
+        interactionWorld, "target", interactionView,
+        {.mousePosition = {viewport.x + 20.0F, viewport.y + 20.0F},
+         .mouseDelta = {10.0F, 0.0F}, .viewportSize = viewport,
+         .focused = true, .leftDown = true, .bypassSnapping = true});
+    assert(outside.edit && outside.edit->target.entityId == "target" &&
+           !outside.selectionChanged && dragTool.isDragging());
+    const auto released = dragTool.update(
+        interactionWorld, "target", interactionView,
+        {.viewportSize = viewport, .focused = true, .leftReleased = true});
+    assert(released.completion == editor::EditorDragCompletion::Finish &&
+           !dragTool.isDragging());
+    const auto picked = dragTool.update(
+        interactionWorld, "target", interactionView,
+        {.mousePosition = otherPoint, .viewportSize = viewport,
+         .hovered = true, .leftPressed = true, .leftDown = true});
+    assert(picked.selectionChanged && picked.selectedEntityId == "other");
+
+    (void)dragTool.update(
+        interactionWorld, "target", interactionView,
+        {.mousePosition = midpoint(lines.axes.front()),
+         .viewportSize = viewport, .hovered = true,
+         .leftPressed = true, .leftDown = true});
+    const auto cancelled = dragTool.update(
+        interactionWorld, "target", interactionView,
+        {.viewportSize = viewport, .leftDown = true});
+    assert(cancelled.completion == editor::EditorDragCompletion::Cancel &&
+           !dragTool.isDragging());
+  }
+
   editor::EditorViewportTool2D tool;
   const auto gizmo = tool.presentation(world, "front", sceneView, viewport);
   assert(gizmo.axes.size() == 2);

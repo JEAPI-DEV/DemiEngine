@@ -1,7 +1,67 @@
 # Native test executables. Test registration lives in dedicated modules.
+  add_executable(demi-editor-data-asset-creation-tests tests/editor_data_asset_creation_tests.cpp)
+  target_link_libraries(demi-editor-data-asset-creation-tests PRIVATE demi-editor-model)
+  add_executable(demi-editor-data-asset-controls-tests tests/editor_data_asset_controls_tests.cpp)
+  target_link_libraries(demi-editor-data-asset-controls-tests PRIVATE demi-editor-ui)
+  target_include_directories(demi-editor-data-asset-controls-tests PRIVATE
+    "${DEMI_IMGUI_DOCKING_OVERLAY}" "${imgui_docking_SOURCE_DIR}"
+    "${bgfx_SOURCE_DIR}/bgfx/3rdparty/dear-imgui" "${bgfx_SOURCE_DIR}/bgfx/3rdparty")
+  target_compile_definitions(demi-editor-data-asset-controls-tests PRIVATE
+    DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+    IMGUI_USER_CONFIG="${CMAKE_SOURCE_DIR}/src/editor/EditorImGuiConfig.h")
+  add_executable(demi-editor-color-control-tests tests/editor_color_control_tests.cpp)
+  target_link_libraries(demi-editor-color-control-tests PRIVATE demi-editor-ui)
+  target_include_directories(demi-editor-color-control-tests PRIVATE
+    "${DEMI_IMGUI_DOCKING_OVERLAY}" "${imgui_docking_SOURCE_DIR}"
+    "${bgfx_SOURCE_DIR}/bgfx/3rdparty/dear-imgui" "${bgfx_SOURCE_DIR}/bgfx/3rdparty")
+  target_compile_definitions(demi-editor-color-control-tests PRIVATE
+    IMGUI_USER_CONFIG="${CMAKE_SOURCE_DIR}/src/editor/EditorImGuiConfig.h")
+  add_executable(demi-editor-palette-card-tests tests/editor_palette_card_tests.cpp)
+  target_link_libraries(demi-editor-palette-card-tests PRIVATE demi-editor-ui)
+  target_include_directories(demi-editor-palette-card-tests PRIVATE
+    "${DEMI_IMGUI_DOCKING_OVERLAY}" "${imgui_docking_SOURCE_DIR}"
+    "${bgfx_SOURCE_DIR}/bgfx/3rdparty/dear-imgui" "${bgfx_SOURCE_DIR}/bgfx/3rdparty")
+  target_compile_definitions(demi-editor-palette-card-tests PRIVATE
+    IMGUI_USER_CONFIG="${CMAKE_SOURCE_DIR}/src/editor/EditorImGuiConfig.h")
+  add_executable(demi-editor-value-history-tests tests/editor_value_history_tests.cpp)
+  target_link_libraries(demi-editor-value-history-tests PRIVATE demi-editor-model)
+  add_executable(demi-editor-render-view-tests tests/editor_render_view_tests.cpp)
+  add_executable(demi-editor-document-sessions-tests tests/editor_document_sessions_tests.cpp)
+  target_link_libraries(demi-editor-document-sessions-tests PRIVATE demi-editor-model)
+  add_executable(demi-editor-docking-ui-tests tests/editor_docking_ui_tests.cpp)
+  add_executable(demi-editor-console-docking-tests tests/editor_console_docking_tests.cpp)
+  target_link_libraries(demi-editor-console-docking-tests PRIVATE demi-editor-ui)
+  target_include_directories(demi-editor-console-docking-tests PRIVATE
+    "${DEMI_IMGUI_DOCKING_OVERLAY}" "${imgui_docking_SOURCE_DIR}"
+    "${bgfx_SOURCE_DIR}/bgfx/3rdparty/dear-imgui" "${bgfx_SOURCE_DIR}/bgfx/3rdparty")
+  target_compile_definitions(demi-editor-console-docking-tests PRIVATE
+    IMGUI_USER_CONFIG="${CMAKE_SOURCE_DIR}/src/editor/EditorImGuiConfig.h")
+  target_link_libraries(demi-editor-docking-ui-tests PRIVATE demi-editor-ui)
+  target_include_directories(demi-editor-docking-ui-tests PRIVATE
+    "${DEMI_IMGUI_DOCKING_OVERLAY}" "${imgui_docking_SOURCE_DIR}"
+    "${bgfx_SOURCE_DIR}/bgfx/3rdparty/dear-imgui" "${bgfx_SOURCE_DIR}/bgfx/3rdparty")
+  target_compile_definitions(demi-editor-docking-ui-tests PRIVATE
+    IMGUI_USER_CONFIG="${CMAKE_SOURCE_DIR}/src/editor/EditorImGuiConfig.h")
+  target_link_libraries(demi-editor-render-view-tests PRIVATE demi-editor-model)
+  add_executable(demi-editor-shell-docking-tests tests/editor_shell_docking_tests.cpp)
+  target_link_libraries(demi-editor-shell-docking-tests PRIVATE demi-editor-ui)
+  target_include_directories(demi-editor-shell-docking-tests PRIVATE
+    "${DEMI_IMGUI_DOCKING_OVERLAY}" "${imgui_docking_SOURCE_DIR}"
+    "${imnodes_SOURCE_DIR}"
+    "${bgfx_SOURCE_DIR}/bgfx/3rdparty/dear-imgui" "${bgfx_SOURCE_DIR}/bgfx/3rdparty")
+  target_compile_definitions(demi-editor-shell-docking-tests PRIVATE
+    IMGUI_USER_CONFIG="${CMAKE_SOURCE_DIR}/src/editor/EditorImGuiConfig.h")
+  add_executable(demi-terrain-asset-world-tests tests/terrain_asset_world_tests.cpp)
+  target_link_libraries(demi-terrain-asset-world-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-terrain-asset-runtime-service-tests tests/terrain_asset_runtime_service_tests.cpp)
+  target_link_libraries(demi-terrain-asset-runtime-service-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-terrain-asset-tests tests/terrain_asset_tests.cpp)
+  target_link_libraries(demi-terrain-asset-tests PRIVATE demi-core)
   add_executable(demi-prefab-origin-index-tests tests/prefab_origin_index_tests.cpp)
   target_link_libraries(demi-prefab-origin-index-tests PRIVATE demi-core)
   add_executable(demi-editor-game-authoring-tests tests/editor_game_authoring_tests.cpp)
+  add_executable(demi-editor-authoring-clipboard-tests tests/editor_authoring_clipboard_tests.cpp)
+  target_link_libraries(demi-editor-authoring-clipboard-tests PRIVATE demi-editor-model)
   target_link_libraries(demi-editor-game-authoring-tests PRIVATE demi-editor-model demi-cli-support)
   target_compile_definitions(demi-editor-game-authoring-tests PRIVATE DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
   add_executable(demi-editor-prefab-authoring-tests tests/editor_prefab_authoring_tests.cpp)
@@ -20,6 +80,23 @@
     "${DEMI_IMGUI_DOCKING_OVERLAY}" "${imgui_docking_SOURCE_DIR}"
     "${bgfx_SOURCE_DIR}/bgfx/3rdparty/dear-imgui" "${bgfx_SOURCE_DIR}/bgfx/3rdparty")
   target_compile_definitions(demi-editor-drag-authoring-tests PRIVATE
+    IMGUI_USER_CONFIG="${CMAKE_SOURCE_DIR}/src/editor/EditorImGuiConfig.h")
+  add_executable(demi-editor-terrain-graph-ui-tests
+    tests/editor_terrain_graph_ui_tests.cpp)
+  add_executable(demi-editor-terrain-graph-settings-tests
+    tests/editor_terrain_graph_settings_tests.cpp)
+  target_link_libraries(demi-editor-terrain-graph-settings-tests PRIVATE demi-editor-ui)
+  target_include_directories(demi-editor-terrain-graph-settings-tests PRIVATE
+    "${DEMI_IMGUI_DOCKING_OVERLAY}" "${imgui_docking_SOURCE_DIR}"
+    "${bgfx_SOURCE_DIR}/bgfx/3rdparty/dear-imgui" "${bgfx_SOURCE_DIR}/bgfx/3rdparty")
+  target_compile_definitions(demi-editor-terrain-graph-settings-tests PRIVATE
+    IMGUI_USER_CONFIG="${CMAKE_SOURCE_DIR}/src/editor/EditorImGuiConfig.h")
+  target_link_libraries(demi-editor-terrain-graph-ui-tests PRIVATE demi-editor-ui)
+  target_include_directories(demi-editor-terrain-graph-ui-tests PRIVATE
+    "${DEMI_IMGUI_DOCKING_OVERLAY}" "${imgui_docking_SOURCE_DIR}"
+    "${imnodes_SOURCE_DIR}"
+    "${bgfx_SOURCE_DIR}/bgfx/3rdparty/dear-imgui" "${bgfx_SOURCE_DIR}/bgfx/3rdparty")
+  target_compile_definitions(demi-editor-terrain-graph-ui-tests PRIVATE
     IMGUI_USER_CONFIG="${CMAKE_SOURCE_DIR}/src/editor/EditorImGuiConfig.h")
   target_link_libraries(demi-editor-structured-value-tests PRIVATE demi-editor-ui)
   target_include_directories(demi-editor-structured-value-tests PRIVATE
@@ -181,10 +258,10 @@
     PRIVATE demi-editor-model)
   target_compile_definitions(demi-editor-lua-component-metadata-tests PRIVATE
     DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
-  add_executable(demi-editor-authored-json-tests
-    tests/editor_authored_json_tests.cpp)
-  target_link_libraries(demi-editor-authored-json-tests
-    PRIVATE demi-editor-model)
+  add_executable(demi-authored-json-patch-tests
+    tests/authored_json_patch_tests.cpp)
+  target_link_libraries(demi-authored-json-patch-tests
+    PRIVATE demi-editor-model demi-runtime-lib)
   add_executable(demi-editor-release-workflow-tests
     tests/editor_release_workflow_tests.cpp)
   target_link_libraries(demi-editor-release-workflow-tests
@@ -257,6 +334,9 @@
   add_executable(demi-runtime-object-model-tests
     tests/runtime_object_model_tests.cpp)
   target_link_libraries(demi-runtime-object-model-tests PRIVATE demi-core)
+  add_executable(demi-world-command-buffer-benchmarks
+    tests/world_command_buffer_benchmarks.cpp)
+  target_link_libraries(demi-world-command-buffer-benchmarks PRIVATE demi-core)
   add_executable(demi-component-schema-tests tests/component_schema_tests.cpp)
   add_executable(demi-atomic-text-file-tests tests/atomic_text_file_tests.cpp)
   target_link_libraries(demi-atomic-text-file-tests PRIVATE demi-core)
@@ -482,6 +562,11 @@
   target_link_libraries(demi-audio-phase7-tests PRIVATE demi-runtime-lib)
   add_executable(demi-asset-pipeline-tests tests/asset_pipeline_tests.cpp)
   target_link_libraries(demi-asset-pipeline-tests PRIVATE demi-core)
+  add_executable(demi-terrain-asset-pipeline-tests
+    tests/terrain_asset_pipeline_tests.cpp)
+  target_link_libraries(demi-terrain-asset-pipeline-tests PRIVATE demi-core)
+  add_executable(demi-dependency-graph-tests tests/dependency_graph_tests.cpp)
+  target_link_libraries(demi-dependency-graph-tests PRIVATE demi-core)
   add_executable(demi-asset-streaming-tests tests/asset_streaming_tests.cpp)
   target_link_libraries(demi-asset-streaming-tests PRIVATE demi-core)
   target_compile_definitions(demi-asset-streaming-tests PRIVATE
@@ -547,14 +632,98 @@
   add_executable(demi-terrain-edit-benchmarks tests/terrain_edit_benchmarks.cpp)
   add_executable(demi-terrain-update-tests tests/terrain_update_tests.cpp)
   add_executable(demi-terrain-patch-tests tests/terrain_patch_tests.cpp)
+  add_executable(demi-terrain-locality-tests tests/terrain_locality_tests.cpp)
+  add_executable(demi-terrain-seed-tests tests/terrain_seed_tests.cpp)
+  add_executable(demi-terrain-rule-tests tests/terrain_rule_tests.cpp)
+  add_executable(demi-terrain-preset-tests tests/terrain_preset_tests.cpp)
+  add_executable(demi-terrain-palette-tests tests/terrain_palette_tests.cpp)
+  add_executable(demi-terrain-scatter-tests tests/terrain_scatter_tests.cpp)
+  add_executable(demi-terrain-scatter-runtime-tests
+    tests/terrain_scatter_runtime_tests.cpp)
+  add_executable(demi-terrain-cli-tests
+    tests/terrain_cli_tests.cpp
+    src/cli/TerrainCompactCommand.cpp
+    src/cli/TerrainCommands.cpp)
   target_link_libraries(demi-terrain-patch-tests PRIVATE demi-runtime-lib)
+  target_link_libraries(demi-terrain-locality-tests PRIVATE demi-core)
+  target_link_libraries(demi-terrain-seed-tests PRIVATE demi-core)
+  target_link_libraries(demi-terrain-rule-tests PRIVATE demi-core)
+  target_link_libraries(demi-terrain-preset-tests PRIVATE demi-core)
+  target_link_libraries(demi-terrain-palette-tests PRIVATE demi-core)
+  target_link_libraries(demi-terrain-scatter-tests PRIVATE demi-core)
+  target_link_libraries(demi-terrain-scatter-runtime-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-terrain-lod-tests tests/terrain_lod_tests.cpp)
+  target_link_libraries(demi-terrain-lod-tests PRIVATE demi-core)
+  add_executable(demi-terrain-lod-biomes-tests
+    tests/terrain_lod_biomes_tests.cpp)
+  target_link_libraries(demi-terrain-lod-biomes-tests PRIVATE demi-core)
+  add_executable(demi-terrain-streaming-tests
+    tests/terrain_streaming_tests.cpp)
+  target_link_libraries(demi-terrain-streaming-tests PRIVATE demi-core)
+  add_executable(demi-terrain-drainage-tests tests/terrain_drainage_tests.cpp)
+  add_executable(demi-terrain-erosion-tests tests/terrain_erosion_tests.cpp)
+  add_executable(demi-terrain-water-tests tests/terrain_water_tests.cpp)
+  add_executable(demi-terrain-water-mesh-tests tests/terrain_water_mesh_tests.cpp)
+  target_link_libraries(demi-terrain-water-mesh-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-terrain-water-world-tests tests/terrain_water_world_tests.cpp)
+  target_link_libraries(demi-terrain-water-world-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-terrain-water-runtime-tests tests/terrain_water_runtime_tests.cpp)
+  target_link_libraries(demi-terrain-water-runtime-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-lua-terrain-water-tests tests/lua_terrain_water_tests.cpp)
+  target_link_libraries(demi-lua-terrain-water-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-terrain-water-queries-tests tests/terrain_water_queries_tests.cpp)
+  add_executable(demi-terrain-scatter-constraints-tests
+    tests/terrain_scatter_constraints_tests.cpp)
+  add_executable(demi-terrain-scatter-layout-tests tests/terrain_scatter_layout_tests.cpp)
+  add_executable(demi-terrain-material-layers-tests
+    tests/terrain_material_layers_tests.cpp)
+  add_executable(demi-terrain-cook-tests tests/terrain_cook_tests.cpp)
+  add_executable(demi-terrain-pipeline-tests tests/terrain_pipeline_tests.cpp)
+  add_executable(demi-terrain-graph-tests tests/terrain_graph_tests.cpp)
+  add_executable(demi-terrain-cook-node-tests tests/terrain_cook_node_tests.cpp)
+  add_executable(demi-material-asset-tests tests/material_asset_tests.cpp)
+  add_executable(demi-material-set-tests tests/material_set_tests.cpp)
+  target_link_libraries(demi-terrain-drainage-tests PRIVATE demi-core)
+  target_link_libraries(demi-terrain-erosion-tests PRIVATE demi-core)
+  target_link_libraries(demi-terrain-water-tests PRIVATE demi-terrain-water)
+  target_link_libraries(demi-terrain-water-queries-tests PRIVATE demi-terrain-water)
+  target_link_libraries(demi-terrain-scatter-constraints-tests PRIVATE demi-core)
+  target_link_libraries(demi-terrain-scatter-layout-tests PRIVATE demi-core)
+  target_link_libraries(demi-terrain-material-layers-tests PRIVATE demi-core)
+  add_executable(demi-terrain-material-blend-tests
+    tests/terrain_material_blend_tests.cpp)
+  target_link_libraries(demi-terrain-material-blend-tests PRIVATE demi-core)
+  add_executable(demi-terrain-texture-residency-tests
+    tests/terrain_texture_residency_tests.cpp)
+  target_link_libraries(demi-terrain-texture-residency-tests PRIVATE demi-core)
+  add_executable(demi-terrain-asset-validation-tests
+    tests/terrain_asset_validation_tests.cpp)
+  target_link_libraries(demi-terrain-asset-validation-tests PRIVATE demi-core)
+  target_compile_definitions(demi-terrain-asset-validation-tests PRIVATE
+    DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  target_link_libraries(demi-terrain-cook-tests PRIVATE demi-core)
+  target_link_libraries(demi-terrain-pipeline-tests PRIVATE demi-core)
+  target_link_libraries(demi-terrain-graph-tests PRIVATE demi-core)
+  target_link_libraries(demi-terrain-cook-node-tests PRIVATE demi-core)
+  target_link_libraries(demi-material-asset-tests PRIVATE demi-core)
+  target_link_libraries(demi-material-set-tests PRIVATE demi-core)
+  target_compile_definitions(demi-material-asset-tests PRIVATE
+    DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  target_compile_definitions(demi-material-set-tests PRIVATE
+    DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  target_link_libraries(demi-terrain-cli-tests PRIVATE demi-core demi-runtime-lib)
+  target_compile_definitions(demi-terrain-palette-tests PRIVATE
+    DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
   add_executable(demi-terrain-layers-tests tests/terrain_layers_tests.cpp)
   add_executable(demi-terrain-world-update-tests tests/terrain_world_update_tests.cpp)
   add_executable(demi-editor-terrain-history-tests tests/editor_terrain_history_tests.cpp)
+  add_executable(demi-editor-terrain-graph-document-tests
+    tests/editor_terrain_graph_document_tests.cpp)
   target_link_libraries(demi-terrain-update-tests PRIVATE demi-core)
   target_link_libraries(demi-terrain-layers-tests PRIVATE demi-core)
   target_link_libraries(demi-terrain-world-update-tests PRIVATE demi-runtime-lib)
   target_link_libraries(demi-editor-terrain-history-tests PRIVATE demi-editor-model)
+  target_link_libraries(demi-editor-terrain-graph-document-tests PRIVATE demi-editor-model)
   target_link_libraries(demi-terrain-edit-benchmarks PRIVATE demi-runtime-lib)
   add_executable(demi-terrain-cache-tests tests/terrain_cache_tests.cpp)
   target_link_libraries(demi-terrain-cache-tests PRIVATE demi-core Threads::Threads)
@@ -564,6 +733,8 @@
   target_link_libraries(demi-editor-terrain-authoring-tests PRIVATE demi-editor-model)
   add_executable(demi-editor-terrain-workspace-tests tests/editor_terrain_workspace_tests.cpp)
   target_link_libraries(demi-editor-terrain-workspace-tests PRIVATE demi-editor-model)
+  add_executable(demi-editor-terrain-asset-tests tests/editor_terrain_asset_tests.cpp)
+  target_link_libraries(demi-editor-terrain-asset-tests PRIVATE demi-editor-model)
   target_link_libraries(demi-terrain-generator-tests PRIVATE demi-core)
   target_link_libraries(demi-terrain-surface-tests PRIVATE demi-core)
   target_link_libraries(demi-terrain-world-tests PRIVATE demi-runtime-lib)

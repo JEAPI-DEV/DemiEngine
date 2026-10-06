@@ -1,4 +1,5 @@
 #include "demi/runtime/terrain/TerrainEvaluation.h"
+#include "demi/runtime/terrain/TerrainSeed.h"
 #include <FastNoiseLite.h>
 #include <algorithm>
 #include <array>
@@ -28,14 +29,20 @@ std::string_view editLayer(const TerrainEdit &edit) {
 } // namespace
 
 struct TerrainEvaluation::Impl {
-  struct Biome {
-    const TerrainBiome *settings;
+  // Elevation is sampled per landform, not per biome. A biome names a landform
+  // rather than carrying a shape, so several biomes can share one ground shape
+  // and one noise instance.
+  struct Landform {
+    const TerrainLandform *settings;
     FastNoiseLite noise;
   };
 
   bool generationEnabled = false;
   std::size_t defaultBiome = 0;
-  std::vector<Biome> biomes;
+  // Index into landforms for each biome, in biome order.
+  std::vector<std::size_t> biomeLandforms;
+  std::vector<Landform> landforms;
+  std::size_t defaultLandform = 0;
   std::vector<const TerrainRegion *> regions;
   std::vector<std::size_t> regionBiomes;
   std::vector<const TerrainEdit *> edits;
@@ -46,15 +53,28 @@ TerrainEvaluation::TerrainEvaluation(const TerrainRecipe &recipe)
     : impl_(std::make_unique<Impl>()) {
   recipe.validate();
   std::map<std::string, std::size_t> biomeIndices;
-  for (const auto &[id, settings] : recipe.biomes) {
-    biomeIndices.emplace(id, impl_->biomes.size());
-    FastNoiseLite noise(recipe.seed);
+  // One sub-seed per channel, not per landform: shapes are separated by their
+  // own parameters, so per-landform seeds would make adding a shape silently
+  // reshape existing terrain.
+  const auto landformSeed =
+      deriveTerrainSubSeed(recipe.seed, TerrainSeedChannel::Landform);
+  std::map<std::string, std::size_t> landformIndices;
+  for (const auto &[id, settings] : recipe.landforms) {
+    landformIndices.emplace(id, impl_->landforms.size());
+    FastNoiseLite noise(landformSeed);
     noise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
     noise.SetFrequency(1.F / settings.featureSize);
     noise.SetFractalType(FastNoiseLite::FractalType_FBm);
     noise.SetFractalOctaves(settings.octaves);
     noise.SetFractalGain(settings.roughness);
-    impl_->biomes.push_back({&settings, noise});
+    impl_->landforms.push_back({&settings, noise});
+  }
+  impl_->defaultLandform = landformIndices.at(recipe.defaultLandform);
+  for (const auto &[id, biome] : recipe.biomes) {
+    biomeIndices.emplace(id, impl_->biomeLandforms.size());
+    impl_->biomeLandforms.push_back(
+        biome.landform.empty() ? impl_->defaultLandform
+                               : landformIndices.at(biome.landform));
   }
   impl_->defaultBiome = biomeIndices.at(recipe.defaultBiome);
 
@@ -104,10 +124,10 @@ TerrainBaseSample TerrainEvaluation::baseSample(Vec2 position) const {
   std::array<double, 16> localWeights{};
   std::vector<double> extendedWeights;
   std::span<double> weights;
-  if (impl_->biomes.size() <= localWeights.size()) {
-    weights = std::span(localWeights).first(impl_->biomes.size());
+  if (impl_->biomeLandforms.size() <= localWeights.size()) {
+    weights = std::span(localWeights).first(impl_->biomeLandforms.size());
   } else {
-    extendedWeights.resize(impl_->biomes.size());
+    extendedWeights.resize(impl_->biomeLandforms.size());
     weights = extendedWeights;
   }
   weights[impl_->defaultBiome] = 1;
@@ -123,14 +143,30 @@ TerrainBaseSample TerrainEvaluation::baseSample(Vec2 position) const {
 
   double height = 0;
   if (impl_->generationEnabled) {
-    for (std::size_t index = 0; index < impl_->biomes.size(); ++index) {
-      if (weights[index] == 0)
+    // Weights are per biome because that is what a region paints, but the shape
+    // is per landform. Several biomes can share one landform, so the weights are
+    // folded per landform first; summing them directly would let a shared shape
+    // be counted twice and warp the blend.
+    std::array<double, 16> localShape{};
+    std::vector<double> extendedShape;
+    std::span<double> shapeWeights;
+    if (impl_->landforms.size() <= localShape.size()) {
+      shapeWeights = std::span(localShape).first(impl_->landforms.size());
+    } else {
+      extendedShape.resize(impl_->landforms.size());
+      shapeWeights = extendedShape;
+    }
+    for (std::size_t index = 0; index < weights.size(); ++index)
+      shapeWeights[impl_->biomeLandforms[index]] += weights[index];
+    for (std::size_t index = 0; index < shapeWeights.size(); ++index) {
+      if (shapeWeights[index] == 0)
         continue;
-      const auto &biome = impl_->biomes[index];
+      const auto &landform = impl_->landforms[index];
       height +=
-          weights[index] * (double(biome.settings->baseHeight) +
-                            double(biome.settings->heightVariation) *
-                                biome.noise.GetNoise(position.x, position.y));
+          shapeWeights[index] * (double(landform.settings->baseHeight) +
+                                 double(landform.settings->heightVariation) *
+                                     landform.noise.GetNoise(position.x,
+                                                              position.y));
     }
   }
   const auto dominant = std::max_element(weights.begin(), weights.end());

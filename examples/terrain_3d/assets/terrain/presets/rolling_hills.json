@@ -1,0 +1,103 @@
+{
+  "format_version": 1,
+  "name": "Rolling Hills",
+  "label": "Rolling Hills",
+  "description": "Gentle low-relief farmland. Shallow slopes and few octaves keep generation cheap and the silhouette quiet, and every biome transition is an overlapping elevation band with a wide blend so the patchwork of pasture, hay meadow and tilled crop rolls rather than steps.",
+  "size": [
+    512.0,
+    512.0
+  ],
+  "cells_x": 128,
+  "cells_z": 128,
+  "chunk_cells": 32,
+  "seed": 31607,
+  "default_biome": "pasture",
+  "default_landform": "pasture",
+  "landforms": {
+    "pasture": {
+      "base_height": 14.0,
+      "height_variation": 5.0,
+      "feature_size": 120.0,
+      "roughness": 0.36,
+      "octaves": 3
+    },
+    "hay_meadow": {
+      "base_height": 17.0,
+      "height_variation": 4.0,
+      "feature_size": 88.0,
+      "roughness": 0.34,
+      "octaves": 3
+    },
+    "tilled_field": {
+      "base_height": 11.0,
+      "height_variation": 3.0,
+      "feature_size": 64.0,
+      "roughness": 0.3,
+      "octaves": 2
+    }
+  },
+  "biomes": {
+    "pasture": {
+      "landform": "pasture",
+      "color": [
+        0.38,
+        0.52,
+        0.25,
+        1.0
+      ]
+    },
+    "hay_meadow": {
+      "landform": "hay_meadow",
+      "color": [
+        0.52,
+        0.58,
+        0.28,
+        1.0
+      ]
+    },
+    "tilled_field": {
+      "landform": "tilled_field",
+      "color": [
+        0.47,
+        0.38,
+        0.25,
+        1.0
+      ]
+    }
+  },
+  "rules": [
+    {
+      "id": "valley_crop",
+      "layer": "biomes",
+      "biome": "tilled_field",
+      "priority": 30,
+      "blend": 4,
+      "elevation": [
+        0,
+        14
+      ]
+    },
+    {
+      "id": "mid_pasture",
+      "layer": "biomes",
+      "biome": "pasture",
+      "priority": 40,
+      "blend": 3,
+      "elevation": [
+        12,
+        15
+      ]
+    },
+    {
+      "id": "ridge_hay",
+      "layer": "biomes",
+      "biome": "hay_meadow",
+      "priority": 50,
+      "blend": 4,
+      "elevation": [
+        14,
+        26
+      ]
+    }
+  ]
+}

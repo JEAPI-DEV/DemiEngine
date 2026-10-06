@@ -2,6 +2,7 @@
 
 #include "editor/EditorPanelStyle.h"
 #include "editor/EditorPreferencesStore.h"
+#include "editor/EditorShortcutSettings.h"
 
 #include <imgui.h>
 
@@ -30,7 +31,8 @@ bool inputText(const char *id, std::string &value) {
 } // namespace
 
 void drawEditorSettingsPanel(bool &open, float &uiScale,
-                             EditorPreferences &preferences) {
+                             EditorPreferences &preferences,
+                             EditorShortcutSettingsState &shortcuts) {
   if (!open)
     return;
 
@@ -119,6 +121,7 @@ void drawEditorSettingsPanel(bool &open, float &uiScale,
       preferences.codeEditorArguments = {"--reuse-window", "{project}",
                                          "--goto", "{file}"};
     }
+    drawEditorShortcutSettings(preferences.keyBindings, shortcuts);
     ImGui::EndChild();
   }
   ImGui::End();

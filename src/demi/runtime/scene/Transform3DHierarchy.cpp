@@ -66,7 +66,7 @@ Quaternion quaternionFromAxisAngle(const Vec3 axis, const float radians) {
 }
 
 float safeDivide(const float value, const float divisor) {
-  return std::abs(divisor) > 0.000001F ? value / divisor : 0.0F;
+  return divisor != 0.0F ? value / divisor : 0.0F;
 }
 
 Vec3 rotate(const Quaternion rotation, const Vec3 value) {

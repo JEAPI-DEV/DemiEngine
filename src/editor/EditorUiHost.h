@@ -9,6 +9,7 @@
 #include "demi/runtime/scene/model/SceneTypes.h"
 #include "demi/runtime/ui/UiModel.h"
 #include "editor/EditorGpuTiming.h"
+#include "editor/EditorRenderViews.h"
 #include "editor/EditorSceneView2DState.h"
 #include "editor/EditorSceneViewState.h"
 
@@ -43,21 +44,34 @@ public:
   [[nodiscard]] virtual std::vector<std::filesystem::path>
   takeDroppedFiles() = 0;
   [[nodiscard]] virtual std::string takeWorkspaceDiagnostic() = 0;
+  // Register/reconfigure before the frame's ImGui images are queued. GPU asset
+  // initialization is deferred to the first visible target preparation.
   [[nodiscard]] virtual bool
-  configureViewport(const std::filesystem::path &projectDirectory,
+  configureViewport(EditorAuthoringView view,
+                    const std::filesystem::path &projectDirectory,
                     std::string &error) = 0;
-  [[nodiscard]] virtual bool prepareViewportTarget(EditorViewportArea area,
+  // Configuration records the project; the first visible preparation loads
+  // assets. Prepare visible views before drawing their ImGui image commands.
+  [[nodiscard]] virtual bool prepareViewportTarget(EditorAuthoringView view,
+                                                   EditorViewportArea area,
                                                    std::string &error) = 0;
-  [[nodiscard]] virtual std::uint16_t viewportTextureIndex() const = 0;
-  [[nodiscard]] virtual bool renderViewport(const runtime::World &world,
+  [[nodiscard]] virtual std::uint16_t
+  viewportTextureIndex(EditorAuthoringView view) const = 0;
+  // Release closed views before queuing images; retain their project
+  // registration so reopening can prepare them without reconfiguration.
+  virtual void releaseViewport(EditorAuthoringView view) = 0;
+  [[nodiscard]] virtual bool renderViewport(EditorAuthoringView view,
+                                            const runtime::World &world,
                                             EditorViewportArea area,
                                             const EditorSceneViewCamera &camera,
                                             std::string &error) = 0;
   [[nodiscard]] virtual bool
-  renderViewport2D(const runtime::World &world, EditorViewportArea area,
+  renderViewport2D(EditorAuthoringView view, const runtime::World &world,
+                   EditorViewportArea area,
                    const EditorSceneView2DCamera &camera, bool showColliders,
                    std::string &error) = 0;
-  [[nodiscard]] virtual bool renderHud(const runtime::ui::UiDocument &document,
+  [[nodiscard]] virtual bool renderHud(EditorAuthoringView view,
+                                       const runtime::ui::UiDocument &document,
                                        EditorViewportArea area,
                                        std::string &error) = 0;
   [[nodiscard]] virtual bool

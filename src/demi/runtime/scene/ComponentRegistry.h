@@ -40,6 +40,8 @@ struct ComponentDescriptor {
   ComponentEditorMetadata editor;
   bool exposedToLua = false;
   ComponentDomain domain = ComponentDomain::Generic;
+  bool (*validateAuthored)(const nlohmann::json &, std::string &) = nullptr;
+  nlohmann::json (*schemaConstraints)() = nullptr;
 };
 
 template <typename ComponentClass>
@@ -180,7 +182,7 @@ template <typename ComponentClass>
 [[nodiscard]] constexpr ComponentDescriptor makeComponentDescriptor() {
   static_assert(runtimeFieldsComplete<ComponentClass>(),
                 "Every reflected field needs a runtime mutation binding");
-  return ComponentDescriptor{
+  auto descriptor = ComponentDescriptor{
       .name = ComponentClass::typeName,
       .parse = &parseComponent<ComponentClass>,
       .serialize = &serializeComponent<ComponentClass>,
@@ -193,6 +195,13 @@ template <typename ComponentClass>
       .exposedToLua = ComponentClass::exposedToLua,
       .domain = ComponentClass::domain,
   };
+  if constexpr (requires(const nlohmann::json &json, std::string &error) {
+                  ComponentClass::validateAuthored(json, error);
+                })
+    descriptor.validateAuthored = &ComponentClass::validateAuthored;
+  if constexpr (requires { ComponentClass::schemaConstraints(); })
+    descriptor.schemaConstraints = &ComponentClass::schemaConstraints;
+  return descriptor;
 }
 
 [[nodiscard]] std::vector<ComponentValidationError>

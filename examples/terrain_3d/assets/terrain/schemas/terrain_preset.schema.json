@@ -1,0 +1,68 @@
+{
+  "format_version": 1,
+  "type": "object",
+  "required": ["format_version", "name"],
+  "description": "A reusable terrain generation template. Applying one merges its generation keys into a Terrain3D recipe and stamps preset_id/preset_version; regions, edits and exclusions are authorial content and are never templated. This schema is documentation and editor tooling only: the engine's data-asset validator ignores additionalProperties, pattern, minItems, maxItems, maxLength, uniqueItems, const and exclusiveMinimum, so src/demi/runtime/terrain/TerrainPreset.cpp is what actually rejects a malformed preset.",
+  "properties": {
+    "format_version": { "type": "integer", "enum": [1] },
+    "name": { "type": "string", "description": "Stable preset name, shown by `demi terrain presets`." },
+    "label": { "type": "string", "description": "Short picker label. Defaults to name." },
+    "description": { "type": "string" },
+    "size": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "exclusiveMinimum": 0 }, "description": "Terrain extent in world units, [x, z]." },
+    "cells_x": { "type": "integer", "minimum": 1 },
+    "cells_z": { "type": "integer", "minimum": 1 },
+    "chunk_cells": { "type": "integer", "minimum": 1 },
+    "seed": { "type": "integer" },
+    "default_biome": { "type": "string", "description": "Key into biomes. Defaults to \"default\"." },
+    "biomes": {
+      "type": "object",
+      "description": "Keyed by biome name, so a duplicate biome is structurally impossible and iteration order is deterministic.",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "base_height": { "type": "number" },
+          "height_variation": { "type": "number" },
+          "feature_size": { "type": "number", "exclusiveMinimum": 0 },
+          "roughness": { "type": "number", "minimum": 0, "maximum": 1 },
+          "octaves": { "type": "integer", "minimum": 1, "maximum": 16 },
+          "color": { "type": "array", "minItems": 4, "maxItems": 4, "items": { "type": "number" } }
+        }
+      }
+    },
+    "layers": {
+      "type": "array",
+      "description": "Layer tree, in evaluation order. Omitted layers fall back to the canonical recipe defaults.",
+      "items": {
+        "type": "object",
+        "required": ["id"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "kind": { "enum": ["generation", "biomes", "sculpt", "protection", "exclusions"] },
+          "enabled": { "type": "boolean" }
+        }
+      }
+    },
+    "rules": {
+      "type": "array",
+      "description": "Biome assignment rules. The key set is closed: id, layer, biome, priority, blend, elevation, slope, moisture, water_distance, substrate. The C++ loader rejects any other key.",
+      "items": {
+        "type": "object",
+        "required": ["id", "biome"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "layer": { "type": "string", "description": "Biome layer this rule belongs to. Defaults to \"biomes\"." },
+          "biome": { "type": "string", "description": "Key into biomes." },
+          "priority": { "type": "integer", "description": "Highest priority wins; a tie is broken by blend weight." },
+          "blend": { "type": "number", "minimum": 0, "description": "Transition width in world units, applied on the interior side of an elevation band's lower edge." },
+          "elevation": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } },
+          "slope": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" }, "description": "Surface angle in degrees." },
+          "moisture": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "minimum": 0, "maximum": 1 } },
+          "water_distance": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } },
+          "substrate": { "type": "array", "items": { "enum": ["soil", "rock", "sand", "wet"] }, "uniqueItems": true }
+        }
+      }
+    }
+  }
+}

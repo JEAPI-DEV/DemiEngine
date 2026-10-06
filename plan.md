@@ -1,9 +1,94 @@
 # DemiEngine Roadmap
 
+Entity-reference Inspector controls share a picker and validated hierarchy-drop
+adapter for native fields and annotated Lua `entity` properties. Hierarchy drags
+preserve the inspected selection; assignment uses existing reversible document
+commands and stable IDs rather than native object handles.
+
 Active feature plan: [terrain generation and editing](terrain-plan.md).
-Next: incremental brush updates, followed by seed/preset-driven landscapes,
-biome rules, material/asset palettes, erosion, integrated water and vegetation.
+Terrain sampling/hydrology now have small standalone build targets; generated
+field/mask data is separate from generation, and water tessellation has its own
+owner. Query contexts share immutable prepared coverage and flow snapshots and
+report native surface/bed heights and point containment. World-space Lua water
+queries and explicit immersion trackers use a shared runtime cache. A Lua sensor
+can emit entry/exit/stay events while game code owns the mechanics. See
+[boundary and iteration evidence](docs/terrain-boundaries-qualification.md).
+Shared-authoring consolidation: dependency topology, value history, palette
+cards and color controls are reused across existing non-terrain consumers.
+Domain schemas and terrain evaluation stay with their owners. See
+[shared foundation boundaries](docs/shared-authoring-foundations.md).
+Terrain graph controls now expose typed input rewiring/disconnect, active output,
+node-context landscape settings and Hex RGBA/precise color editing. The editor
+starts maximized in the display work area. Real screenshots illustrate these
+workflows in the maintained terrain guide; six scoped UI/platform checks and
+native captures qualify the changes without claiming terrain PBR/water rendering.
+Delivered editor usability: shared icon actions, versioned authoring clipboard and
+per-user key mappings across scenes, prefabs, HUD/UI prefabs and terrain graphs.
+Clipboard edits must preserve nesting and references, allocate fresh IDs and
+form one reversible command. Text editing and captured Game View keep separate
+input ownership; cursor release must remain available.
+Independent dock windows replace the internal Stage, Inspector/Modules and
+Console tab groups. Viewport, Prefab, HUD, Terrain Graph, Terrain Asset, Game
+View, Inspector, UI Palette, Terrain Nodes, Console, Lua Console, Profiler,
+Debug, Hierarchy and Assets have separate visibility preferences. Default
+groups remain ordinary detachable dock tabs. UI Palette is available only during
+HUD/UI-prefab editing; Terrain Nodes is contextual to graph editing. Scene,
+prefab, terrain asset and HUD sessions retain separate source/selection/history,
+including a scene's attached HUD. Graphs pin their terrain owner independently
+of Inspector selection. Palette/tool focus retains its editing context; runtime
+Inspector and Hierarchy do not dispatch authored mutations. The layout change
+passes seventeen scoped editor checks and native Vulkan startup smoke tests;
+[qualification evidence](docs/editor-shortcut-qualification.md) distinguishes
+automated docking input from interactive desktop and Android qualification.
+Editable terrain assets, persistent generated previews and cooked-only terrain
+loading are implemented. Generation configuration is in the Terrain Graph;
+shared terrain assets can be edited from scene placements, with viewport brush
+tools on the Terrain component. Terrain surface materials, material sets and
+scatter palettes now have native creation dialogs and typed asset controls,
+shared reference picking, Undo/Redo and validated dependency-aware reimport.
+See [asset authoring qualification](docs/editor-asset-authoring-qualification.md).
+Ordinary biome Material references now reach terrain meshes with per-biome
+texture scale and source/cooked appearance metadata. Material edits retain
+geometry/collision and texture-scale edits update UVs only. Typed terrain PBR
+definitions, blended layers and advanced water shading remain rendering work.
+Fifteen scoped checks and source/cooked native Vulkan probes qualify this binding
+step; [evidence](docs/terrain-material-binding-qualification.md) records the
+new derived-data versions and the remaining renderer scope.
+Connected graph water outputs now publish transparent native surfaces in the
+scene preview and prepared runtime. Water follows its terrain owner, has no
+solid collider and updates transactionally across shared placements. The
+water stage now includes configurable appearance, depth-derived vertex colours
+and terrain-triangle shoreline clipping. Uncontained lakes warn rather than
+silently changing their level. Reflection/refraction, waves, foam and
+underwater/gameplay integration remain. See
+[water publication evidence](docs/terrain-water-publication-qualification.md).
+Nineteen focused checks pass, and source/cooked native Vulkan captures verify
+visible water. Both terrain examples validate without diagnostics.
+The subsequent shore/depth stage passes fourteen focused renderer, component,
+editor and terrain checks. Source/cooked native captures now use a contained
+basin and replace the earlier levitating probe; derived terrain requires recook
+for generator/envelope v3. No full water-quality or full-suite gate is claimed.
 The expanded visual-quality and performance milestones remain planned.
+
+Brush source now groups shared settings with ordered points, and full sculpt
+replay is bounded to each brush footprint. Existing source can be compacted
+through the graph or CLI without changing native operations. Viewport object
+clicks and captured transform drags have scoped 2D/3D regressions; see
+[terrain qualification](docs/terrain-qualification.md).
+
+Scene authoring now distinguishes empty entities, visible 3D primitives and
+physics-only presets. Creation cards and prefab drops place against enabled
+generated terrain; move/scale sensitivity follows the projected gizmo rather
+than a fixed world-unit rate. Independent props remain independent of later
+terrain regeneration. See the editor authoring guide for pivot and collider
+semantics.
+
+Mesh Renderer now exposes inherited/overridden metallic, roughness, opacity and
+surface mode. The shared 3D draw path provides direct metallic/roughness lighting
+and ordered alpha blending; reflection probes, refraction and general PBR texture
+maps remain open. Near-camera picking accepts partially clipped visible bounds
+and uses constant-screen-size handles. See
+[mesh surface qualification](docs/mesh-surface-qualification.md).
 
 Deferred feature plan: [neural networks](neural-networks.plan). Python training,
 native inference and later NPC training tooling; resume only on user request.

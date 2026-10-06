@@ -16,4 +16,13 @@ struct EditorTerrainProjectedMaskSample {
 std::vector<EditorTerrainProjectedMaskSample> projectEditorTerrainExclusions(
     const runtime::World &world, const EditorTerrainAuthoring &authoring,
     const EditorSceneViewCamera &camera, runtime::Vec2 viewportSize);
+struct EditorTerrainProjectedRuleMaskSample {
+  runtime::Vec2 position;
+  float weight = 0;
+  std::size_t biome = 0;
+  runtime::Color color;
+};
+std::vector<EditorTerrainProjectedRuleMaskSample> projectEditorTerrainRuleMask(
+    const runtime::World &world, const EditorTerrainAuthoring &authoring,
+    const EditorSceneViewCamera &camera, runtime::Vec2 viewportSize);
 } // namespace demi::editor

@@ -1,4 +1,11 @@
 # Example validation, headless runtime, packaging, replay, and script checks.
+add_test(NAME demi-terrain-graph-example-validate
+  COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/terrain_graph_3d)
+add_test(NAME demi-terrain-graph-example-smoke
+  COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/terrain_graph_3d
+          --max-frames 3)
+set_tests_properties(demi-terrain-graph-example-smoke PROPERTIES
+  ENVIRONMENT "DEMI_HEADLESS=1" TIMEOUT 30)
 add_test(NAME demi-performance-3d-lab-validate
   COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/performance_3d_lab)
 add_test(NAME demi-performance-3d-lab-smoke

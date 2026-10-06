@@ -1,14 +1,18 @@
 #include "editor/EditorInspectorModel.h"
 
 #include "editor/EditorSceneJson.h"
+#include "editor/EditorScenePreview.h"
+#include "demi/runtime/scene/model/World.h"
 
 #include "demi/assets/AssetRegistry.h"
+#include "demi/assets/RenderAsset.h"
 #include "demi/filesystem/ProjectPaths.h"
 #include "demi/runtime/scene/composition/PrefabResolver.h"
 #include "demi/runtime/scene/composition/EntityHierarchy.h"
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <tuple>
 
 namespace demi::editor {
@@ -115,6 +119,34 @@ EditorPropertyPresentation editorPropertyPresentation(
   return presentation;
 }
 
+nlohmann::json editorMeshSurfaceFallback(
+    const std::string_view field, const nlohmann::json &component,
+    const assets::MaterialAsset *material) {
+  if (field == "surface_mode") {
+    if (material != nullptr) {
+      if (material->renderState.blend == "alpha")
+        return "transparent";
+      return material->renderState.blend;
+    }
+    return "opaque";
+  }
+  const float builtin = field == "roughness" ? 0.8F
+                      : field == "opacity" ? 1.0F : 0.0F;
+  float value = builtin;
+  if (material != nullptr) {
+    if (const auto found = material->numbers.find(std::string(field));
+        found != material->numbers.end())
+      value = found->second;
+  }
+  if (const auto properties = component.find("material_properties");
+      properties != component.end() && properties->is_object()) {
+    if (const auto found = properties->find(std::string(field));
+        found != properties->end() && found->is_number())
+      value = found->get<float>();
+  }
+  return std::isfinite(value) ? std::clamp(value, 0.0F, 1.0F) : builtin;
+}
+
 std::string_view editorPropertyOriginLabel(const EditorPropertyOrigin origin) {
   switch (origin) {
   case EditorPropertyOrigin::Default:
@@ -129,6 +161,33 @@ std::string_view editorPropertyOriginLabel(const EditorPropertyOrigin origin) {
     return "Not set";
   }
   return {};
+}
+
+std::optional<std::string>
+editorReferenceFromPayload(std::span<const char> payload,
+                           std::span<const EditorReferenceChoice> choices) {
+  if (payload.size() < 2 || payload.back() != '\0')
+    return std::nullopt;
+  const std::string_view id(payload.data(), payload.size() - 1);
+  if (id.find('\0') != std::string_view::npos)
+    return std::nullopt;
+  const auto found = std::ranges::find(choices, id,
+                                       &EditorReferenceChoice::id);
+  return found == choices.end() ? std::nullopt
+                                : std::make_optional(found->id);
+}
+
+std::vector<EditorReferenceChoice>
+editorEntityReferenceChoices(const runtime::World &world) {
+  std::vector<EditorReferenceChoice> choices;
+  for (const auto &entity : world.entities) {
+    const std::string generatedOwner = editorPlacementOwner(world, entity.id);
+    if (!generatedOwner.empty() && generatedOwner != entity.id)
+      continue;
+    choices.push_back({entity.id, entity.name + " (" + entity.id + ")"});
+  }
+  std::ranges::sort(choices, {}, &EditorReferenceChoice::label);
+  return choices;
 }
 
 std::vector<EditorReferenceChoice>

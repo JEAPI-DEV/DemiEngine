@@ -1,0 +1,20 @@
+{
+  "dependencies": [
+    "asset://schemas/terrain_preset"
+  ],
+  "format_version": 1,
+  "id": "asset://terrain/presets/rolling_hills",
+  "importer": "json_data",
+  "importer_version": 1,
+  "settings": {
+    "content_type": "terrain_preset",
+    "schema": "asset://schemas/terrain_preset",
+    "tags": [
+      "preset:terrain",
+      "terrain:hills"
+    ]
+  },
+  "source": "rolling_hills.json",
+  "source_hash": "fnv1a64:44806bee68f3e03b",
+  "type": "DataAsset"
+}

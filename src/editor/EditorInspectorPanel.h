@@ -2,15 +2,16 @@
 #include "editor/EditorStructuredValue.h"
 
 #include <array>
-#include <string>
 #include <filesystem>
 #include <optional>
+#include <string>
 
 struct ImVec2;
 
 namespace demi::editor {
 
 class EditorWorkspace;
+struct EditorHudInspectorState;
 
 struct EditorInspectorPanelState {
   StructuredValueState structuredValues;
@@ -25,5 +26,10 @@ struct EditorInspectorPanelState {
 void drawInspectorPanel(EditorWorkspace &workspace, ImVec2 position,
                         ImVec2 size, EditorInspectorPanelState &state,
                         std::string &notice, bool *open = nullptr);
+
+void drawEditorInspector(EditorWorkspace &workspace, ImVec2 position,
+                         ImVec2 size, EditorInspectorPanelState &state,
+                         EditorHudInspectorState &hudState, std::string &notice,
+                         bool *open = nullptr);
 
 } // namespace demi::editor

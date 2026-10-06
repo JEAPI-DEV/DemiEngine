@@ -324,7 +324,8 @@ public:
       return false;
     }
     SDL_WindowFlags flags = SDL_WINDOW_HIGH_PIXEL_DENSITY |
-                            (config.resizable ? SDL_WINDOW_RESIZABLE : 0);
+                            (config.resizable ? SDL_WINDOW_RESIZABLE : 0) |
+                            (config.maximized ? SDL_WINDOW_MAXIMIZED : 0);
     window_ = SDL_CreateWindow(config.title.c_str(), config.width,
                                config.height, flags);
     if (window_ == nullptr) {
@@ -551,8 +552,8 @@ public:
     return false;
   }
 
-  bool setMouseVisible(bool visible,std::string &error) override {
-    visible=visible && !SDL_GetWindowRelativeMouseMode(window_);
+  bool setMouseVisible(bool visible, std::string &error) override {
+    visible = visible && !SDL_GetWindowRelativeMouseMode(window_);
     if(visible?SDL_ShowCursor():SDL_HideCursor()) return true;
     error=SDL_GetError();return false;
   }

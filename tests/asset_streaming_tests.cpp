@@ -16,7 +16,10 @@
 #include <memory>
 #include <nlohmann/json.hpp>
 #include <set>
+#include <string>
 #include <thread>
+#include <utility>
+#include <vector>
 
 namespace {
 
@@ -128,6 +131,54 @@ void cookGraphTest() {
   assert(first.key("asset://root") != changed.key("asset://root"));
   assert(first.reverseReachable({"asset://dependency"}) ==
          std::set<std::string>({"asset://dependency", "asset://root"}));
+}
+
+demi::assets::AssetCookNode cookNode(std::string id,
+                                     std::vector<std::string> dependencies = {}) {
+  return {.assetId = std::move(id),
+          .importer = "fixture",
+          .dependencies = std::move(dependencies),
+          .platform = "linux"};
+}
+
+void cookGraphFailureClearsPublishedState() {
+  demi::assets::AssetCookGraph graph;
+  assert(graph.addNode(cookNode("asset://root")));
+  assert(graph.finalize());
+  assert(graph.key("asset://root"));
+
+  assert(graph.addNode(cookNode("asset://broken", {"asset://missing"})));
+  demi::Diagnostics diagnostics;
+  assert(!graph.finalize(&diagnostics));
+  assert(!diagnostics.empty() &&
+         diagnostics.back().code == "COOK_GRAPH_DEPENDENCY_MISSING");
+  assert(!graph.key("asset://root"));
+  assert(graph.reverseReachable({"asset://root"}) ==
+         std::set<std::string>{"asset://root"});
+
+  demi::assets::AssetCookGraph cyclic;
+  assert(cyclic.addNode(cookNode("asset://a", {"asset://b"})));
+  assert(cyclic.addNode(cookNode("asset://b", {"asset://a"})));
+  diagnostics.clear();
+  assert(!cyclic.finalize(&diagnostics));
+  assert(!diagnostics.empty() &&
+         diagnostics.back().code == "COOK_GRAPH_CYCLE");
+  assert(!cyclic.key("asset://a"));
+}
+
+void cookGraphLongChain() {
+  demi::assets::AssetCookGraph graph;
+  constexpr int count = 2500;
+  for (int i = count - 1; i >= 0; --i) {
+    const auto id = "asset://" + std::to_string(i);
+    const auto dependencies =
+        i == 0 ? std::vector<std::string>{}
+               : std::vector<std::string>{"asset://" + std::to_string(i - 1)};
+    assert(graph.addNode(cookNode(id, dependencies)));
+  }
+  assert(graph.finalize());
+  assert(graph.key("asset://2499"));
+  assert(graph.reverseReachable({"asset://0"}).size() == count);
 }
 
 void cookCacheTest() {
@@ -544,6 +595,8 @@ void generatedAtlasTest() {
 int main() {
   importerRegistryTest();
   cookGraphTest();
+  cookGraphFailureClearsPublishedState();
+  cookGraphLongChain();
   cookCacheTest();
   groupLifetimeTest();
   concurrentGroupDeduplicationTest();

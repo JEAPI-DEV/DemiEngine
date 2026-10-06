@@ -75,6 +75,28 @@ Tower.projectile_mass = 60</code></pre>
 </table>
 <p>Vectors and colors are embedded numeric arrays, exactly as in <a href="{{ path('docs_page', {slug: 'api-conventions'}) }}">API conventions</a>: index <code>1</code> is the first component. An enum default must be one of its <code>options</code>; anything else is invalid.</p>
 
+<h2>Assigning objects in the Inspector</h2>
+<p>Declare an <code>entity</code> property to reference another object. Select the entity that owns the script, then drag the target object from the Hierarchy onto the property in the Inspector. You can also choose it from the property's picker, or choose <strong>None</strong> to clear it. Assignment uses the normal Undo/Redo and Save workflow.</p>
+<pre><code class="language-lua">local Entity = require("demi.entity")
+local Transform3D = require("demi.transform3d")
+
+---@demi_component
+local Follower = {}
+
+---@demi_property entity
+Follower.target = ""
+
+function Follower:on_update(dt)
+    if self.target == "" or not Entity.exists(self.target) then
+        return
+    end
+    local x, y, z = Transform3D.get_world_position(self.target)
+    -- Use the target's position for your gameplay behavior.
+end
+
+return Follower</code></pre>
+<p>The property holds the object's stable entity ID, not a copy of its components or a native pointer. Pass it to engine services such as <code>Entity.exists</code> and <code>Transform3D.get_world_position</code>. An empty string means unassigned. Check availability before using a reference: the target may have been destroyed or its scene unloaded. The picker uses objects in the active scene or prefab document, including resolved prefab members; editing an instance records an override for that instance.</p>
+
 <h2>The property_schema table</h2>
 <p>Annotations are the friendly form. The same declarations can be a returned table named <code>property_schema</code> when you need to build the description in Lua, or when a module should validate properties without opting into the component selector:</p>
 <pre><code>local Player = {}

@@ -7,8 +7,38 @@ are registered in `tools/package-store/src/Docs.php`.
 
 This directory keeps material that has a different job:
 
+- [Shared authoring foundations](shared-authoring-foundations.md) describes
+  reusable graph, history, palette and color responsibilities and their adapters.
+
+- [Typed asset authoring qualification](editor-asset-authoring-qualification.md)
+  records native creation/editing, reference dependencies, save retry/recovery
+  and the remaining terrain rendering boundary.
+
+- [Mesh surface qualification](mesh-surface-qualification.md) records material
+  inheritance, direct metallic/roughness lighting, transparent ordering and
+  near-camera picking coverage.
+
+- [Editor commands, clipboard and docking](editor-shortcut-qualification.md)
+  records shortcut ownership, clipboard identity/remapping, independent panel
+  identities, contextual palettes and scoped verification.
+
 - [Terrain qualification](terrain-qualification.md) records finite-heightfield
   authoring ownership, tests, surface-query measurements and remaining scope.
+
+- [Terrain material binding](terrain-material-binding-qualification.md) records
+  ordinary-material publication, texture scale, retained geometry and prepared
+  payload appearance metadata.
+
+- [Terrain water publication](terrain-water-publication-qualification.md)
+  records transparent surface ownership, native publication and prepared loading.
+
+- [Terrain data and query boundaries](terrain-boundaries-qualification.md)
+  records the lightweight hydrology test targets, shared query snapshots and
+  build-iteration investigation.
+
+- [Terrain water gameplay](terrain-water-gameplay-qualification.md) records
+  world-space Lua queries, explicit immersion tracking, cache ownership and
+  sensor lifecycle qualification.
 
 - [Lua task qualification](lua-task-qualification.md) records scheduler and
   asynchronous I/O ownership, overhead measurements, and validation boundaries.

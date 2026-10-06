@@ -1,4 +1,5 @@
 #include "demi/runtime/assets/RuntimeAssetService.h"
+#include "demi/runtime/assets/TerrainAssetResourceLoader.h"
 
 #include "demi/filesystem/ProjectPaths.h"
 #include "demi/runtime/scene/SceneAssetReferences.h"
@@ -116,6 +117,7 @@ void RuntimeAssetService::shutdown() {
   groups_.clear();
   loaders_.clear();
   fallbackLoader_.reset();
+  terrainLoader_.reset();
   pendingLoads_.clear();
   registry_ = nullptr;
   project_ = {};
@@ -144,6 +146,10 @@ bool RuntimeAssetService::configure(const ProjectData &project,
       registry, [this](const std::string_view root, Diagnostics *issues) {
         return resolveRoot(root, issues);
       });
+  if (terrainLoader_)
+    std::erase(loaders_, terrainLoader_);
+  terrainLoader_ = createTerrainAssetResourceLoader(registry);
+  loaders_.push_back(terrainLoader_);
   if (!fallbackLoader_) {
     fallbackLoader_ = std::make_shared<ResidentSourceAssetLoader>(
         ResidentSourceAssetLoader::SupportPredicate{

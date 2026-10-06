@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://terrain/surfaces/exposed_rock",
+  "importer": "material",
+  "importer_version": 1,
+  "settings": {},
+  "source": "exposed_rock.material.json",
+  "source_hash": "fnv1a64:b29d4a0257f9eeae",
+  "type": "Material"
+}

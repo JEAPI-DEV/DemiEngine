@@ -1,0 +1,19 @@
+{
+  "format_version": 1,
+  "id": "prefab://scatter_prototype",
+  "name": "Scatter geometry prototype",
+  "entities": [
+    {
+      "id": "body",
+      "name": "Prototype cube (replace with role art)",
+      "components": {
+        "Transform3D": {},
+        "MeshRenderer": {
+          "shape": "cube",
+          "size": [0.4, 0.8, 0.4],
+          "color": [0.28, 0.6, 0.22, 1]
+        }
+      }
+    }
+  ]
+}

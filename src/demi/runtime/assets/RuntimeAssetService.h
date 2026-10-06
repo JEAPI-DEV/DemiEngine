@@ -69,6 +69,7 @@ private:
   std::map<std::string, assets::AssetGroupDescriptor> groups_;
   std::vector<std::shared_ptr<assets::AssetResourceLoader>> loaders_;
   std::shared_ptr<assets::AssetResourceLoader> fallbackLoader_;
+  std::shared_ptr<assets::AssetResourceLoader> terrainLoader_;
   std::unique_ptr<assets::AssetGroupService> service_;
   std::map<assets::AssetGroupRequestHandle, std::string> pendingLoads_;
 };

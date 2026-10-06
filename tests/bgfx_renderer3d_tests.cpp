@@ -1,5 +1,7 @@
 #include "demi/runtime/render/BgfxRenderer3D.h"
 #include "demi/runtime/render/bgfx3d/SceneVisibility3D.h"
+#include "demi/runtime/render/bgfx2d/ColorPacking2D.h"
+#include "demi/runtime/geometry/MeshDeformation3D.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshInstances3DComponent.h"
 #include "demi/runtime/destruction/DestructionWorld3D.h"
 #include "demi/runtime/destruction/DetachedFragmentFade3D.h"
@@ -12,6 +14,7 @@
 #include "demi/runtime/scene/components/3dcomponents/BoxCollider3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/Environment3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/DirectionalLightComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/Dentable3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/ParticleEmitter3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/Transform3DComponent.h"
@@ -21,6 +24,7 @@
 #undef NDEBUG
 #endif
 #include <cassert>
+#include <cstring>
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -30,6 +34,81 @@ using namespace demi::runtime::render;
 
 namespace {
 
+class MeshUploadCapture final : public GpuResources {
+public:
+  explicit MeshUploadCapture(GpuResources &target) : target_(target) {}
+  std::vector<std::vector<GpuMeshVertex3D>> meshUploads;
+  RenderDeviceLimits limits() const override { return target_.limits(); }
+  TextureHandle createTexture(const TextureCreateInfo &info,
+                              std::string &error) override {
+    return target_.createTexture(info, error);
+  }
+  bool updateTexture(TextureHandle handle, const TextureUpdateInfo &info,
+                     std::string &error) override {
+    return target_.updateTexture(handle, info, error);
+  }
+  SamplerHandle createSampler(std::string_view name,
+                              std::string &error) override {
+    return target_.createSampler(name, error);
+  }
+  UniformHandle createUniform(std::string_view name, UniformType type,
+                              std::uint16_t count,
+                              std::string &error) override {
+    return target_.createUniform(name, type, count, error);
+  }
+  BufferHandle createBuffer(const BufferCreateInfo &info,
+                            std::string &error) override {
+    const auto handle = target_.createBuffer(info, error);
+    if (handle && info.kind == BufferKind::Vertex &&
+        info.debugName == "3D mesh vertices") {
+      assert(info.data.size() % sizeof(GpuMeshVertex3D) == 0);
+      auto &vertices =
+          meshUploads.emplace_back(info.data.size() / sizeof(GpuMeshVertex3D));
+      std::memcpy(vertices.data(), info.data.data(), info.data.size());
+    }
+    return handle;
+  }
+  bool updateBuffer(BufferHandle handle, std::span<const std::byte> data,
+                    std::string &error) override {
+    return target_.updateBuffer(handle, data, error);
+  }
+  ProgramHandle createProgram(const ProgramCreateInfo &info,
+                              std::string &error) override {
+    return target_.createProgram(info, error);
+  }
+  ProgramHandle createBuiltinProgram(BuiltinProgram program,
+                                     std::string &error) override {
+    return target_.createBuiltinProgram(program, error);
+  }
+  std::string_view shaderBackend() const override {
+    return target_.shaderBackend();
+  }
+  RenderTargetHandles createRenderTarget(const RenderTargetCreateInfo &info,
+                                         std::string &error) override {
+    return target_.createRenderTarget(info, error);
+  }
+  bool destroy(TextureHandle handle) override {
+    return target_.destroy(handle);
+  }
+  bool destroy(SamplerHandle handle) override {
+    return target_.destroy(handle);
+  }
+  bool destroy(UniformHandle handle) override {
+    return target_.destroy(handle);
+  }
+  bool destroy(BufferHandle handle) override { return target_.destroy(handle); }
+  bool destroy(ProgramHandle handle) override {
+    return target_.destroy(handle);
+  }
+  bool destroy(FrameBufferHandle handle) override {
+    return target_.destroy(handle);
+  }
+  void clear() override { target_.clear(); }
+
+private:
+  GpuResources &target_;
+};
+
 class TextureCapture final : public RenderCommands {
 public:
   explicit TextureCapture(RenderCommands &target) : target_(target) {}
@@ -37,6 +116,8 @@ public:
   std::vector<DrawState> bufferedStates;
   std::size_t instanceDrawCalls = 0;
   std::vector<float> bufferedAlpha;
+  std::vector<std::array<float, 4>> bufferedTint;
+  std::vector<std::array<float, 4>> bufferedMetalRough;
   std::vector<std::array<float, 16>> bufferedTransforms;
   std::vector<View2DConfig> views2D;
   std::vector<View3DConfig> views3D;
@@ -59,6 +140,16 @@ public:
     textures.push_back(draw.texture);
     bufferedStates.push_back(draw.state);
     bufferedAlpha.push_back(draw.uniforms.empty()?1.F:draw.uniforms.front().values[3]);
+    if (!draw.uniforms.empty())
+      bufferedTint.push_back({draw.uniforms.front().values[0],
+                              draw.uniforms.front().values[1],
+                              draw.uniforms.front().values[2],
+                              draw.uniforms.front().values[3]});
+    if (draw.uniforms.size() > 13)
+      bufferedMetalRough.push_back({draw.uniforms[13].values[0],
+                                  draw.uniforms[13].values[1],
+                                  draw.uniforms[13].values[2],
+                                  draw.uniforms[13].values[3]});
     bufferedTransforms.push_back(draw.transform);
     return target_.submit(draw, error);
   }
@@ -176,6 +267,150 @@ int main() {
   const std::uint32_t batchesWithoutDebugGeometry =
       renderer.statistics().batches;
   static_cast<void>(graphics.endFrame());
+
+  {
+    MeshUploadCapture uploads(*resources);
+    TextureCapture coloredDraws(*commands);
+    BgfxRenderer3D coloredRenderer(uploads, coloredDraws);
+    assert(coloredRenderer.initialize(error));
+    World coloredWorld;
+    Entity panel = shape("colored_inline", "", {});
+    auto *mesh = panel.component<MeshRendererComponent>();
+    mesh->color = {1, 1, 1, 1};
+    mesh->opacity = 1;
+    mesh->surfaceMode = "transparent";
+    mesh->vertices = {{0, 0, 0}, {1, 0, 0}, {0, 1, 0}};
+    mesh->vertexColors = {{1, 0, 0, 1}, {0, 1, 0, 0.5F}, {0, 0, 1, 0}};
+    mesh->markGeometryChanged();
+    coloredWorld.entities.push_back(std::move(panel));
+    mesh = coloredWorld.entities.front().component<MeshRendererComponent>();
+    uploads.meshUploads.clear();
+    assert(coloredRenderer.renderFrame(coloredWorld, frame, 0.016F, error));
+    assert(uploads.meshUploads.size() == 1);
+    assert(uploads.meshUploads.back()[0].rgba == 0xff0000ffU);
+    assert(uploads.meshUploads.back()[1].rgba == 0x8000ff00U);
+    assert(uploads.meshUploads.back()[2].rgba == 0x00ff0000U);
+    assert(
+        (coloredDraws.bufferedTint.back() == std::array<float, 4>{1, 1, 1, 1}));
+    assert(coloredDraws.bufferedStates.back().blend == BlendMode::Alpha);
+    static_cast<void>(graphics.endFrame());
+    assert(coloredRenderer.renderFrame(coloredWorld, frame, 0.016F, error));
+    assert(uploads.meshUploads.size() == 1);
+    static_cast<void>(graphics.endFrame());
+
+    // Equal-sized color edits need a revision refresh, while tint changes
+    // remain draw-time multipliers and do not replace vertex buffers.
+    mesh->vertexColors[1] = {0.25F, 0.5F, 0.75F, 0.25F};
+    mesh->markGeometryChanged();
+    assert(coloredRenderer.renderFrame(coloredWorld, frame, 0.016F, error));
+    assert(uploads.meshUploads.size() == 2);
+    assert(uploads.meshUploads.back()[1].rgba == 0x40bf8040U);
+    static_cast<void>(graphics.endFrame());
+    mesh->color = {0.25F, 0.5F, 0.75F, 0.5F};
+    mesh->opacity = 0.5F;
+    assert(coloredRenderer.renderFrame(coloredWorld, frame, 0.016F, error));
+    assert(uploads.meshUploads.size() == 2);
+    assert(coloredDraws.bufferedTint.back()[0] == mesh->color.r);
+    assert(coloredDraws.bufferedTint.back()[3] == 0.25F);
+    static_cast<void>(graphics.endFrame());
+
+    // Dent refinement keeps original colors and interpolates new vertices;
+    // the source revision still invalidates an already dented GPU mesh.
+    const std::array<std::uint32_t, 3> sourceColors{
+        packVertexColorRgba8(mesh->vertexColors[0]),
+        packVertexColorRgba8(mesh->vertexColors[1]),
+        packVertexColorRgba8(mesh->vertexColors[2])};
+    coloredWorld.entities.front().setComponent(Dentable3DComponent{});
+    assert(dentMesh3D(coloredWorld, "colored_inline", {0.25F, 0.25F, 0},
+                      {0, 0, -1}, 0.1F, 0.03F, error));
+    assert(coloredRenderer.renderFrame(coloredWorld, frame, 0.016F, error));
+    assert(uploads.meshUploads.size() == 3);
+    assert(uploads.meshUploads.back().size() > mesh->vertices.size());
+    for (std::size_t i = 0; i < sourceColors.size(); ++i)
+      assert(uploads.meshUploads.back()[i].rgba == sourceColors[i]);
+    static_cast<void>(graphics.endFrame());
+    assert(coloredRenderer.renderFrame(coloredWorld, frame, 0.016F, error));
+    assert(uploads.meshUploads.size() == 3);
+    static_cast<void>(graphics.endFrame());
+    mesh->vertexColors[0] = {0, 1, 1, 0.75F};
+    mesh->markGeometryChanged();
+    assert(coloredRenderer.renderFrame(coloredWorld, frame, 0.016F, error));
+    assert(uploads.meshUploads.size() == 4);
+    assert(uploads.meshUploads.back()[0].rgba == 0xbfffff00U);
+    static_cast<void>(graphics.endFrame());
+    assert(resetMeshDents3D(coloredWorld, "colored_inline"));
+    assert(coloredRenderer.renderFrame(coloredWorld, frame, 0.016F, error));
+    assert(uploads.meshUploads.size() == 5);
+    assert(uploads.meshUploads.back().size() == mesh->vertices.size());
+    assert(uploads.meshUploads.back()[0].rgba == 0xbfffff00U);
+    static_cast<void>(graphics.endFrame());
+    mesh->vertexColors.clear();
+    mesh->markGeometryChanged();
+    assert(coloredRenderer.renderFrame(coloredWorld, frame, 0.016F, error));
+    assert(uploads.meshUploads.size() == 6);
+    for (const auto &vertex : uploads.meshUploads.back())
+      assert(vertex.rgba == 0xffffffffU);
+    static_cast<void>(graphics.endFrame());
+
+    // Native publishers get the same validation on a cache refresh.
+    mesh->vertexColors = {{1, 1, 1, 1}};
+    assert(!coloredRenderer.renderFrame(coloredWorld, frame, 0.016F, error));
+    assert(error.find("vertex_colors") != std::string::npos);
+    assert(uploads.meshUploads.size() == 6);
+  }
+  {
+    World surfaces;
+    auto near = shape("transparent-near", "cube", {0, 0, 1});
+    near.component<MeshRendererComponent>()->surfaceMode = "transparent";
+    near.component<MeshRendererComponent>()->opacity = 0.5F;
+    near.component<MeshRendererComponent>()->roughness = 0.25F;
+    near.component<MeshRendererComponent>()->materialColors["base_color"] =
+        {0.5F, 0.25F, 1.0F, 0.5F};
+    auto opaque = shape("opaque", "cube", {0, 0, 0});
+    auto smoothOpaque = shape("smooth-opaque", "cube", {2, 0, 0});
+    smoothOpaque.component<MeshRendererComponent>()->roughness = 0.0F;
+    auto far = shape("transparent-far", "cube", {0, 0, -3});
+    far.component<MeshRendererComponent>()->surfaceMode = "additive";
+    far.component<MeshRendererComponent>()->metallic = 0.75F;
+    surfaces.entities.push_back(std::move(near));
+    surfaces.entities.push_back(std::move(opaque));
+    surfaces.entities.push_back(std::move(smoothOpaque));
+    surfaces.entities.push_back(std::move(far));
+    auto surfaceFrame = frame;
+    surfaceFrame.camera.renderHud = false;
+    capture.bufferedStates.clear();
+    capture.bufferedAlpha.clear();
+    capture.bufferedTint.clear();
+    capture.bufferedMetalRough.clear();
+    capture.bufferedTransforms.clear();
+    capture.views3D.clear();
+    assert(renderer.renderFrame(surfaces, surfaceFrame, 0.016F, error));
+    assert(capture.views3D.back().sequential);
+    assert(capture.bufferedStates.size() == 4);
+    assert(capture.bufferedStates[0].blend == BlendMode::Opaque);
+    assert(capture.bufferedStates[1].blend == BlendMode::Opaque);
+    assert((capture.bufferedMetalRough[0][1] == 0.0F &&
+            capture.bufferedMetalRough[1][1] == 0.8F) ||
+           (capture.bufferedMetalRough[0][1] == 0.8F &&
+            capture.bufferedMetalRough[1][1] == 0.0F));
+    assert(capture.bufferedStates[2].blend == BlendMode::Additive &&
+           !capture.bufferedStates[2].writeDepth);
+    assert(capture.bufferedStates[3].blend == BlendMode::Alpha &&
+           !capture.bufferedStates[3].writeDepth);
+    assert(capture.bufferedTransforms[2][14] == -3.0F);
+    assert(capture.bufferedTransforms[3][14] == 1.0F);
+    assert(capture.bufferedAlpha[3] == 0.25F);
+    assert(capture.bufferedTint[3][0] == 0.15F);
+    assert(capture.bufferedTint[3][1] == 0.175F);
+    assert(capture.bufferedMetalRough[2][0] == 0.75F);
+    assert(capture.bufferedMetalRough[3][1] == 0.25F);
+    static_cast<void>(graphics.endFrame());
+    surfaces.entities[0].component<MeshRendererComponent>()->roughness = 0.6F;
+    capture.bufferedMetalRough.clear();
+    assert(renderer.renderFrame(surfaces, surfaceFrame, 0.016F, error));
+    assert(capture.bufferedMetalRough.back()[1] == 0.6F);
+    static_cast<void>(graphics.endFrame());
+  }
   assert(collectSceneLighting3D(world,{}).msaaSamples==4);
   assert(capture.views3D.back().frameBuffer);
   const auto defaultAaTarget=capture.views3D.back().frameBuffer;

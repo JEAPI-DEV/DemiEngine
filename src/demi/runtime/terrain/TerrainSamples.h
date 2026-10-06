@@ -23,7 +23,7 @@ template <class T> class TerrainSamples {
 
   void writeSample(std::size_t index, T value) {
     auto &page = pages_[index / PageSize];
-    if (!page.unique())
+    if (page.use_count() != 1)
       page = std::make_shared<Page>(*page);
     (*page)[index % PageSize] = std::move(value);
   }

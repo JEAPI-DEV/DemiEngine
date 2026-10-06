@@ -1,0 +1,6 @@
+{
+  "format_version": 1,
+  "name": "Terrain Graph Authoring",
+  "main_scene": "scene://terrain_graph_3d/main",
+  "scenes": [{"id": "scene://terrain_graph_3d/main"}]
+}

@@ -3,6 +3,7 @@
 #include "cli/CliArguments.h"
 #include "cli/doctor/DoctorService.h"
 #include "cli/project/ProjectDiscovery.h"
+#include "demi/assets/TerrainAsset.h"
 #include "demi/runtime/app/RuntimeApp.h"
 #include "demi/runtime/platform/RuntimeCapabilities.h"
 
@@ -67,6 +68,14 @@ int runRuntimeCommand(const std::vector<std::string> &args,
 #ifdef DEMI_SERVER_CLI
   serve = true;
 #endif
+  try {
+    // Development tools prepare source assets before entering the runtime.
+    // Shipped binary assets pass through without generation.
+    assets::prepareTerrainAssets(loadAssetRegistry(project.parent_path()));
+  } catch (const std::exception &exception) {
+    error << "Terrain asset preparation failed: " << exception.what() << '\n';
+    return 1;
+  }
   return runtime::runProject(runtime::RuntimeOptions{
       .projectPath = project,
       .maxFrames = numericValueAfter(args, "--max-frames"),

@@ -1,0 +1,20 @@
+{
+  "dependencies": [
+    "asset://schemas/terrain_preset"
+  ],
+  "format_version": 1,
+  "id": "asset://terrain/presets/coastal_island",
+  "importer": "json_data",
+  "importer_version": 1,
+  "settings": {
+    "content_type": "terrain_preset",
+    "schema": "asset://schemas/terrain_preset",
+    "tags": [
+      "preset:terrain",
+      "terrain:coastal"
+    ]
+  },
+  "source": "coastal_island.json",
+  "source_hash": "fnv1a64:c4f3f5b7f73045f4",
+  "type": "DataAsset"
+}

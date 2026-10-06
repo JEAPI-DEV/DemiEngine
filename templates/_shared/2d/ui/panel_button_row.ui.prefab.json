@@ -1,0 +1,22 @@
+{
+  "format_version": 1,
+  "id": "ui-prefab://panel_button_row",
+  "parameters": {
+    "left_label": {"type": "string", "default": "Back"},
+    "right_label": {"type": "string", "default": "Continue"},
+    "left_action": {"type": "string", "default": ""},
+    "right_action": {"type": "string", "default": ""}
+  },
+  "root": {
+    "id": "panel_button_row",
+    "type": "panel",
+    "size": [360, 64],
+    "stack": "row",
+    "pad": 8,
+    "gap": 8,
+    "children": [
+      {"id": "left", "type": "button", "text": "${left_label}", "action": "${left_action}", "size": [168, 48]},
+      {"id": "right", "type": "button", "text": "${right_label}", "action": "${right_action}", "size": [168, 48]}
+    ]
+  }
+}

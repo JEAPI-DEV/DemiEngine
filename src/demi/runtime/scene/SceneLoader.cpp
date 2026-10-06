@@ -1,6 +1,7 @@
 #include "demi/runtime/scene/SceneLoader.h"
 
 #include "demi/assets/AssetRegistry.h"
+#include "demi/assets/TerrainAsset.h"
 #include "demi/diagnostics/Diagnostic.h"
 #include "demi/runtime/network/NetworkContract.h"
 #include "demi/runtime/physics/ColliderAsset3D.h"
@@ -47,7 +48,9 @@ namespace {
 buildSceneWorld(const ProjectData &project, const std::string &sceneId,
                 const std::filesystem::path &scenePath,
                 const scene_loading::Json &sceneJson, std::string &error,
-                bool compileFractures = true) {
+                bool compileFractures = true,
+                RuntimePrefabService *prefabs = nullptr,
+                const AssetRegistry *registry = nullptr) {
   const composition::ExpansionResult expansion =
       composition::expandScene(scenePath, sceneJson, compileFractures);
   if (!expansion.document.has_value()) {
@@ -63,14 +66,33 @@ buildSceneWorld(const ProjectData &project, const std::string &sceneId,
   const composition::PrefabOriginIndex prefabOrigins(sceneJson);
   for (Entity &entity : world.entities) {
     entity.sceneOwner = sceneId;
-    if (const auto origin =
-            prefabOrigins.find(entity.id)) {
+    if (const auto origin = prefabOrigins.find(entity.id)) {
       entity.prefabInstance = origin->instanceId;
       entity.prefabLocalId = origin->localEntityId;
     }
   }
-  if (!materializeTerrains(world, error))
+  TerrainInputResolver resolveInputs;
+  TerrainFieldResolver resolveField;
+  if (registry != nullptr)
+    resolveInputs = [registry](const TerrainRecipe &recipe) {
+      return resolveTerrainGenerationInputs(recipe, *registry);
+    };
+  if (registry != nullptr)
+    resolveField = [registry](std::string_view assetId,
+                              nlohmann::json &sourceRecipe) {
+      return assets::loadTerrainAsset(*registry, assetId, &sourceRecipe);
+    };
+  if (!materializeTerrains(world, error, prefabs, resolveInputs, resolveField))
     return std::nullopt;
+  if (prefabs) {
+    const auto scatter = materializeTerrainScatter(world, prefabs, error);
+    if (!error.empty())
+      return std::nullopt;
+    if (scatter.unresolved != 0) {
+      error = "Terrain scenery could not be resolved while loading " + sceneId;
+      return std::nullopt;
+    }
+  }
   if (const auto issues = validateTransform3DHierarchy(world);
       !issues.empty()) {
     const auto &issue = issues.front();
@@ -171,7 +193,8 @@ loadProject(const std::filesystem::path &projectPath, std::string &error) {
 }
 
 std::optional<World> loadScene(const ProjectData &project,
-                               const std::string &sceneId, std::string &error) {
+                               const std::string &sceneId, std::string &error,
+                               RuntimePrefabService *prefabs) {
   const SceneEntry *scene = findSceneEntry(project, sceneId);
   if (scene == nullptr) {
     error = "No scene registered with id: " + sceneId;
@@ -190,13 +213,17 @@ std::optional<World> loadScene(const ProjectData &project,
     return std::nullopt;
   }
 
-  return buildSceneWorld(project, sceneId, scenePath, *sceneJson, error);
+  const AssetRegistry registry = loadAssetRegistry(project.projectDirectory);
+  return buildSceneWorld(project, sceneId, scenePath, *sceneJson, error, true,
+                         prefabs, &registry);
 }
 
 std::optional<World> loadSceneDocument(const ProjectData &project,
                                        const std::string &sceneId,
                                        const nlohmann::json &document,
-                                       std::string &error, bool compileFractures) {
+                                       std::string &error,
+                                       bool compileFractures,
+                                       RuntimePrefabService *prefabs) {
   const SceneEntry *scene = findSceneEntry(project, sceneId);
   if (scene == nullptr) {
     error = "No scene registered with id: " + sceneId;
@@ -205,7 +232,9 @@ std::optional<World> loadSceneDocument(const ProjectData &project,
 
   const std::filesystem::path scenePath =
       project.projectDirectory / scene->path;
-  return buildSceneWorld(project, sceneId, scenePath, document, error, compileFractures);
+  const AssetRegistry registry = loadAssetRegistry(project.projectDirectory);
+  return buildSceneWorld(project, sceneId, scenePath, document, error,
+                         compileFractures, prefabs, &registry);
 }
 
 } // namespace demi::runtime

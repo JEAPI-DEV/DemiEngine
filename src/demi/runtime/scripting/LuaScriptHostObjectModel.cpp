@@ -25,10 +25,10 @@ nlohmann::json LuaScriptHost::prefabPlacements(const std::string &ancestor) cons
 
 std::optional<std::string> LuaScriptHost::instantiatePrefab(
     const std::string &prefab, const PrefabInstantiateOptions &options) {
-  if (world_ == nullptr)
+  if (world_ == nullptr || prefabs_ == nullptr)
     return std::nullopt;
   PrefabInstanceResult result =
-      prefabService_.instantiate(*world_, worldCommands_, prefab, options);
+      prefabs_->instantiate(*world_, worldCommands_, prefab, options);
   if (!result) {
     if (!result.diagnostics.empty())
       std::cerr << "Prefab instantiate failed: "
@@ -39,17 +39,18 @@ std::optional<std::string> LuaScriptHost::instantiatePrefab(
 }
 
 bool LuaScriptHost::releasePrefab(const std::string &instanceId) {
-  return world_ != nullptr &&
-         prefabService_.release(*world_, worldCommands_, instanceId);
+  return world_ != nullptr && prefabs_ != nullptr &&
+         prefabs_->release(*world_, worldCommands_, instanceId);
 }
 
 std::size_t
 LuaScriptHost::pooledPrefabCount(const std::string &prefab) const {
-  return prefabService_.pooledCount(prefab);
+  return prefabs_ == nullptr ? 0 : prefabs_->pooledCount(prefab);
 }
 
 void LuaScriptHost::setPrefabTemplateCacheCapacity(std::size_t entries) {
-  prefabService_.setTemplateCacheCapacity(entries);
+  if (prefabs_ != nullptr)
+    prefabs_->setTemplateCacheCapacity(entries);
 }
 
 bool LuaScriptHost::entityExists(const std::string &entityId) const {

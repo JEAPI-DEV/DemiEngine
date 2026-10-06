@@ -1,6 +1,8 @@
 #include "editor/EditorImGuiInput.h"
 #include "editor/EditorInputOwnership.h"
 #include "editor/EditorStructuredValue.h"
+#include "editor/EditorReferenceControl.h"
+#include "editor/EditorDragDropPayloads.h"
 #include <nlohmann/json.hpp>
 
 #include "demi/runtime/scene/model/SceneTypes.h"
@@ -14,6 +16,7 @@
 #include <cassert>
 #include <cmath>
 #include <cstdlib>
+#include <cstring>
 
 namespace {
 
@@ -136,6 +139,55 @@ int main() {
     assert(!buttonFrame(false,false));
     assert(!buttonFrame(false,true));
     assert(buttonFrame(false,false));
+  }
+  {
+    io.ClearInputKeys();
+    io.ClearInputMouse();
+    const std::vector<demi::editor::EditorReferenceChoice> choices{
+        {"player", "Player (player)"}, {"door/handle", "Handle (door/handle)"}};
+    std::string selected;
+    ImVec2 target;
+    const auto drawReference = [&](bool dragging, const char *id,
+                                   const char *payloadType) {
+      ImGui::NewFrame();
+      ImGui::SetNextWindowPos({0, 0});
+      ImGui::SetNextWindowSize({640, 480});
+      ImGui::Begin("Reference input", nullptr,
+                   ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoSavedSettings);
+      if (dragging && ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceExtern)) {
+        ImGui::SetDragDropPayload(payloadType, id, std::strlen(id) + 1);
+        ImGui::EndDragDropSource();
+      }
+      ImGui::SetNextItemWidth(300);
+      const bool changed = demi::editor::drawEditorReferenceControl(
+          "##reference", choices, selected, true,
+          demi::editor::EditorSceneEntityPayload);
+      const auto a = ImGui::GetItemRectMin();
+      const auto b = ImGui::GetItemRectMax();
+      target = {(a.x + b.x) / 2, (a.y + b.y) / 2};
+      ImGui::End();
+      ImGui::Render();
+      return changed;
+    };
+    drawReference(false, "", "");
+    const auto drop = [&](const char *id, const char *type) {
+      io.AddMousePosEvent(target.x, target.y);
+      io.AddMouseButtonEvent(0, true);
+      drawReference(true, id, type);
+      drawReference(true, id, type);
+      io.AddMouseButtonEvent(0, false);
+      const bool changed = drawReference(true, id, type);
+      drawReference(false, "", "");
+      return changed;
+    };
+    assert(drop("player", demi::editor::EditorSceneEntityPayload));
+    assert(selected == "player");
+    assert(drop("door/handle", demi::editor::EditorSceneEntityPayload));
+    assert(selected == "door/handle");
+    assert(!drop("missing", demi::editor::EditorSceneEntityPayload));
+    assert(selected == "door/handle");
+    assert(!drop("player", demi::editor::EditorPrefabSourcePayload));
+    assert(selected == "door/handle");
   }
   ImGui::DestroyContext();
   return 0;

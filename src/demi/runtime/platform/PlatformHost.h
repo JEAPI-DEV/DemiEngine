@@ -19,6 +19,7 @@ struct PlatformHostConfig {
   int width = 960;
   int height = 540;
   bool resizable = true;
+  bool maximized = false;
 };
 
 struct PlatformFrameState {
@@ -65,7 +66,8 @@ public:
                                            std::string &error) = 0;
   [[nodiscard]] virtual bool setMouseCaptured(bool captured,
                                               std::string &error) = 0;
-  [[nodiscard]] virtual bool setMouseVisible(bool visible,std::string &error) = 0;
+  [[nodiscard]] virtual bool setMouseVisible(bool visible,
+                                             std::string &error) = 0;
   // Requests compositor pacing at this rate. Zero restores the platform
   // default. Returns false when the platform cannot control presentation
   // cadence and the runtime must enforce a cap itself.

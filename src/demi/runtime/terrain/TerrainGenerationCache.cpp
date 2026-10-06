@@ -1,5 +1,8 @@
 #include "demi/runtime/terrain/TerrainGenerationCache.h"
+#include "demi/assets/AssetHash.h"
+#include "demi/assets/AssetRegistry.h"
 #include "demi/runtime/terrain/TerrainGenerator.h"
+#include "demi/runtime/terrain/TerrainGraph.h"
 
 #include <algorithm>
 #include <cmath>
@@ -22,8 +25,58 @@ GenerationCache &cache() {
   return instance;
 }
 
-std::string recipeKey(const nlohmann::json &recipe) {
-  return TerrainRecipe::parse(recipe).toJson().dump();
+// The key mixes the generator version, semantic recipe and resolved input
+// fingerprint. Graph layout belongs to the authored document but not to the
+// generated field, so only the graph's content key enters this cache.
+std::string recipeKey(const TerrainRecipe &parsed,
+                      std::string_view inputFingerprint) {
+  auto semantic = parsed.toJson();
+  if (!parsed.graph.is_null())
+    semantic["graph"] = TerrainGraph::parse(parsed.graph).contentKey();
+  return std::to_string(terrainGeneratorVersion) + "\n" +
+         semantic.dump() + "\n" + std::string(inputFingerprint);
+}
+
+std::string paletteFingerprint(const TerrainPalette &palette,
+                               const AssetRegistry &registry) {
+  nlohmann::json semantic{{"format_version", palette.formatVersion},
+                          {"id", palette.id},
+                          {"roles", nlohmann::json::object()},
+                          {"assets", nlohmann::json::object()}};
+  for (const auto &[name, entry] : palette.roles)
+    semantic["roles"][name] = {
+        {"asset", entry.asset}, {"prefab", entry.prefab},
+        {"weight", entry.weight}, {"scale", {entry.scaleMin, entry.scaleMax}},
+        {"spacing", entry.spacing},
+        {"collision", std::string(terrainCollisionPolicyName(entry.collision))},
+        {"lod", entry.lod}, {"biomes", entry.biomes}};
+  for (const auto &id : palette.assetDependencies()) {
+    if (!id.starts_with("asset://"))
+      continue;
+    const auto *asset = findAsset(registry, id);
+    if (asset == nullptr || asset->sourceHash.empty())
+      throw std::invalid_argument("Terrain palette dependency has no content "
+                                  "hash: " + id);
+    semantic["assets"][id] = asset->sourceHash;
+  }
+  const std::string serialized = semantic.dump();
+  return assets::hashBytes(std::span(
+      reinterpret_cast<const unsigned char *>(serialized.data()),
+      serialized.size()));
+}
+
+void validateInputs(const TerrainRecipe &recipe,
+                    const TerrainGenerationInputs &inputs) {
+  if (recipe.paletteId.empty()) {
+    if (inputs.palette)
+      throw std::invalid_argument(
+          "Terrain generation inputs name a palette absent from the recipe");
+    return;
+  }
+  if (!inputs.palette || inputs.palette->id != recipe.paletteId ||
+      inputs.fingerprint.empty())
+    throw std::invalid_argument("Terrain palette " + recipe.paletteId +
+                                " must be resolved before generation");
 }
 
 void validateField(const TerrainRecipe &recipe, const HeightField &field) {
@@ -118,20 +171,48 @@ void removeExpiredLocked(GenerationCache &store) {
 }
 } // namespace
 
-std::shared_ptr<const HeightField> findTerrain(const nlohmann::json &recipe) {
-  const auto key = recipeKey(recipe);
+TerrainGenerationInputs
+resolveTerrainGenerationInputs(const TerrainRecipe &recipe,
+                               const AssetRegistry &registry) {
+  if (recipe.paletteId.empty())
+    return {};
+  auto loaded = loadTerrainPalette(registry, recipe.paletteId);
+  if (!loaded)
+    throw std::invalid_argument("Terrain palette did not resolve: " +
+                                recipe.paletteId);
+  TerrainGenerationInputs inputs;
+  inputs.fingerprint = paletteFingerprint(*loaded, registry);
+  inputs.palette = std::make_shared<const TerrainPalette>(std::move(*loaded));
+  return inputs;
+}
+
+std::string terrainGenerationCacheKey(const nlohmann::json &recipe,
+                                      std::string_view inputFingerprint) {
+  return recipeKey(TerrainRecipe::parse(recipe), inputFingerprint);
+}
+
+std::shared_ptr<const HeightField>
+findTerrain(const nlohmann::json &recipe, std::string_view inputFingerprint) {
+  const auto key = recipeKey(TerrainRecipe::parse(recipe), inputFingerprint);
   auto &store = cache();
   std::scoped_lock lock(store.mutex);
   return findLocked(store, key);
 }
 
 void publishTerrain(const nlohmann::json &recipe,
+                    std::string_view inputFingerprint,
                     std::shared_ptr<const HeightField> field) {
   if (!field)
     throw std::invalid_argument("Cannot publish an empty terrain result");
   const auto parsed = TerrainRecipe::parse(recipe);
   validateField(parsed, *field);
-  const auto key = parsed.toJson().dump();
+  if (!parsed.paletteId.empty() &&
+      (inputFingerprint.empty() || !field->resolvedPalette ||
+       field->paletteId != parsed.paletteId ||
+       field->inputFingerprint != inputFingerprint))
+    throw std::invalid_argument(
+        "Published terrain does not match its resolved palette inputs");
+  const auto key = recipeKey(parsed, inputFingerprint);
   auto &store = cache();
   std::scoped_lock lock(store.mutex);
   removeExpiredLocked(store);
@@ -139,20 +220,38 @@ void publishTerrain(const nlohmann::json &recipe,
 }
 
 std::shared_ptr<const HeightField>
-acquireTerrain(const nlohmann::json &recipe) {
+acquireTerrain(const nlohmann::json &recipe, std::string_view inputFingerprint) {
+  if (!TerrainRecipe::parse(recipe).paletteId.empty())
+    throw std::invalid_argument(
+        "Palette terrain requires resolved generation inputs");
+  return acquireTerrain(recipe, TerrainGenerationInputs{
+                                    .palette = {},
+                                    .fingerprint = std::string(inputFingerprint)});
+}
+
+std::shared_ptr<const HeightField>
+acquireTerrain(const nlohmann::json &recipe,
+               const TerrainGenerationInputs &inputs) {
   const auto parsed = TerrainRecipe::parse(recipe);
-  const auto key = parsed.toJson().dump();
+  validateInputs(parsed, inputs);
+  const auto key = recipeKey(parsed, inputs.fingerprint);
   auto &store = cache();
   {
     std::scoped_lock lock(store.mutex);
     if (auto existing = findLocked(store, key))
       return existing;
   }
-  auto generated = TerrainGenerator::generate(parsed);
+  auto generated = TerrainGenerator::generate(
+      parsed, inputs.palette.get(), {}, {}, inputs.fingerprint);
   if (!generated)
     throw std::runtime_error("Terrain generation unexpectedly cancelled");
   auto field = std::make_shared<const HeightField>(std::move(*generated));
   validateField(parsed, *field);
+  if (inputs.palette &&
+      (field->paletteId != parsed.paletteId ||
+       field->inputFingerprint != inputs.fingerprint ||
+       !field->resolvedPalette))
+    throw std::logic_error("Terrain generator dropped resolved palette inputs");
   std::scoped_lock lock(store.mutex);
   if (auto existing = findLocked(store, key))
     return existing;

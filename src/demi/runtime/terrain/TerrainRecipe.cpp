@@ -1,4 +1,6 @@
 #include "demi/runtime/terrain/TerrainRecipe.h"
+#include "demi/runtime/terrain/TerrainBrushStroke.h"
+#include "demi/runtime/terrain/TerrainGraph.h"
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -10,6 +12,12 @@ namespace {
 void require(bool condition, const char *message) {
   if (!condition)
     throw std::invalid_argument(message);
+}
+// Same check for a message built at runtime, so validation stays
+// allocation-free on the common path.
+void requireMessage(bool condition, std::string message) {
+  if (!condition)
+    throw std::invalid_argument(std::move(message));
 }
 bool finite(float value) { return std::isfinite(value); }
 Vec2 vector(const nlohmann::json &json) {
@@ -60,6 +68,24 @@ const char *editName(TerrainEditKind kind) {
   }
   throw std::invalid_argument("Unknown terrain edit kind");
 }
+void checkKeys(const nlohmann::json &json,
+               std::initializer_list<std::string_view> allowed) {
+  require(json.is_object(), "Terrain document entry must be an object");
+  for (auto entry = json.begin(); entry != json.end(); ++entry) {
+    if (std::find(allowed.begin(), allowed.end(), entry.key()) == allowed.end())
+      throw std::invalid_argument("Unknown terrain field: " + entry.key());
+  }
+}
+template <class T> void readBrush(const nlohmann::json &json, T &value) {
+  require(json.is_object(), "Terrain brush must be an object");
+  if (json.contains("center"))
+    value.center = vector(json.at("center"));
+  value.radius = json.value("radius", value.radius);
+  value.strength = json.value("strength", value.strength);
+  value.falloff = json.value("falloff", value.falloff);
+}
+} // namespace
+
 TerrainLayerKind layerKind(const std::string &name) {
   if (name == "generation")
     return TerrainLayerKind::Generation;
@@ -88,23 +114,132 @@ const char *layerName(TerrainLayerKind kind) {
   }
   throw std::invalid_argument("Unknown terrain layer kind");
 }
-void checkKeys(const nlohmann::json &json,
-               std::initializer_list<std::string_view> allowed) {
-  require(json.is_object(), "Terrain document entry must be an object");
-  for (auto entry = json.begin(); entry != json.end(); ++entry) {
-    if (std::find(allowed.begin(), allowed.end(), entry.key()) == allowed.end())
-      throw std::invalid_argument("Unknown terrain field: " + entry.key());
+
+std::string_view terrainSubstrateName(TerrainSubstrate substrate) {
+  switch (substrate) {
+  case TerrainSubstrate::Soil:
+    return "soil";
+  case TerrainSubstrate::Rock:
+    return "rock";
+  case TerrainSubstrate::Sand:
+    return "sand";
+  case TerrainSubstrate::Wet:
+    return "wet";
   }
+  return "soil";
 }
-template <class T> void readBrush(const nlohmann::json &json, T &value) {
-  require(json.is_object(), "Terrain brush must be an object");
-  if (json.contains("center"))
-    value.center = vector(json.at("center"));
-  value.radius = json.value("radius", value.radius);
-  value.strength = json.value("strength", value.strength);
-  value.falloff = json.value("falloff", value.falloff);
+
+std::optional<TerrainSubstrate>
+terrainSubstrateFromName(std::string_view name) {
+  if (name == "soil")
+    return TerrainSubstrate::Soil;
+  if (name == "rock")
+    return TerrainSubstrate::Rock;
+  if (name == "sand")
+    return TerrainSubstrate::Sand;
+  if (name == "wet")
+    return TerrainSubstrate::Wet;
+  return std::nullopt;
 }
-} // namespace
+
+bool TerrainRuleBand::contains(float value) const {
+  return !enabled || (value >= minimum && value <= maximum);
+}
+
+TerrainRuleBand TerrainRuleBand::parse(const nlohmann::json &json,
+                                       std::string_view field) {
+  TerrainRuleBand band;
+  if (!json.contains(field))
+    return band;
+  const auto &value = json.at(field);
+  if (value.is_null())
+    return band;
+  require(value.is_array() && value.size() == 2,
+          "Terrain rule condition must be a [minimum, maximum] pair");
+  band.enabled = true;
+  require(std::isfinite(value.at(0).get<double>()) &&
+              std::isfinite(value.at(1).get<double>()),
+          "Terrain rule condition bounds must be finite");
+  band.minimum = value.at(0).get<float>();
+  band.maximum = value.at(1).get<float>();
+  require(band.minimum <= band.maximum,
+          "Terrain rule condition minimum must not exceed its maximum");
+  return band;
+}
+
+nlohmann::json TerrainRuleBand::toJson() const {
+  if (!enabled)
+    return nullptr;
+  return nlohmann::json::array({minimum, maximum});
+}
+
+TerrainBiomeRule TerrainBiomeRule::parse(const nlohmann::json &json) {
+  checkKeys(json, {"id", "biome", "layer", "priority", "blend", "elevation",
+                   "slope", "moisture", "water_distance", "substrate"});
+  require(json.contains("id") && json.at("id").is_string(),
+          "Terrain rule requires a string id");
+  require(json.contains("biome") && json.at("biome").is_string(),
+          "Terrain rule requires a string biome");
+  TerrainBiomeRule rule;
+  rule.id = json.at("id").get<std::string>();
+  if (json.contains("layer")) {
+    rule.layer = json.at("layer").get<std::string>();
+    require(!rule.layer.empty(), "Terrain rule layer must not be empty");
+  }
+  rule.biome = json.at("biome").get<std::string>();
+  if (json.contains("priority"))
+    rule.priority = json.at("priority").get<int>();
+  if (json.contains("blend")) {
+    require(std::isfinite(json.at("blend").get<double>()),
+            "Terrain rule blend must be finite");
+    rule.blend = json.at("blend").get<float>();
+  }
+  require(rule.blend >= 0, "Terrain rule blend must not be negative");
+  rule.elevation = TerrainRuleBand::parse(json, "elevation");
+  rule.slope = TerrainRuleBand::parse(json, "slope");
+  rule.moisture = TerrainRuleBand::parse(json, "moisture");
+  rule.waterDistance = TerrainRuleBand::parse(json, "water_distance");
+  if (json.contains("substrate")) {
+    const auto &values = json.at("substrate");
+    require(values.is_array(), "Terrain rule substrate must be an array");
+    for (const auto &entry : values) {
+      const auto substrate = terrainSubstrateFromName(entry.get<std::string>());
+      require(substrate.has_value(), "Unknown terrain substrate name");
+      rule.substrate.push_back(*substrate);
+    }
+  }
+  return rule;
+}
+
+nlohmann::json TerrainBiomeRule::toJson() const {
+  nlohmann::json json{{"id", id}, {"biome", biome}, {"priority", priority}};
+  if (layer != "biomes")
+    json["layer"] = layer;
+  if (blend != 0)
+    json["blend"] = blend;
+  if (elevation.enabled)
+    json["elevation"] = elevation.toJson();
+  if (slope.enabled)
+    json["slope"] = slope.toJson();
+  if (moisture.enabled)
+    json["moisture"] = moisture.toJson();
+  if (waterDistance.enabled)
+    json["water_distance"] = waterDistance.toJson();
+  if (!substrate.empty()) {
+    std::vector<std::string> names;
+    names.reserve(substrate.size());
+    for (const auto entry : substrate)
+      names.emplace_back(terrainSubstrateName(entry));
+    json["substrate"] = names;
+  }
+  return json;
+}
+
+void TerrainBiomeRule::validate(const TerrainRecipe &recipe) const {
+  require(!id.empty(), "Terrain rule id must not be empty");
+  require(recipe.biomes.contains(biome),
+          "Terrain rule references an unknown biome");
+}
 
 float terrainBrushWeight(Vec2 position, Vec2 center, float radius,
                          float strength, float falloff) {
@@ -116,6 +251,52 @@ float terrainBrushWeight(Vec2 position, Vec2 center, float radius,
     return strength;
   return strength * static_cast<float>(std::pow(
                         std::max(0.0, 1 - distance / radius), falloff));
+}
+
+bool TerrainRecipe::sameGenerationInputs(const TerrainRecipe &other) const {
+  if (graph.is_null() != other.graph.is_null())
+    return false;
+  if (!graph.is_null() && TerrainGraph::parse(graph).contentKey() !=
+                              TerrainGraph::parse(other.graph).contentKey())
+    return false;
+  if (size.x != other.size.x || size.y != other.size.y ||
+      cellsX != other.cellsX || cellsZ != other.cellsZ || seed != other.seed ||
+      defaultBiome != other.defaultBiome ||
+      biomes.size() != other.biomes.size() || presetId != other.presetId ||
+      presetVersion != other.presetVersion || paletteId != other.paletteId)
+    return false;
+  // Biome rules are a field-wide stage: they read the finished base surface, so
+  // any change to them invalidates every cell, not just the edited region.
+  if (rules.size() != other.rules.size())
+    return false;
+  for (std::size_t i = 0; i < rules.size(); ++i)
+    if (rules[i].toJson() != other.rules[i].toJson())
+      return false;
+  if (defaultLandform != other.defaultLandform ||
+      landforms.size() != other.landforms.size())
+    return false;
+  for (const auto &[id, shape] : landforms) {
+    const auto found = other.landforms.find(id);
+    if (found == other.landforms.end())
+      return false;
+    if (shape.baseHeight != found->second.baseHeight ||
+        shape.heightVariation != found->second.heightVariation ||
+        shape.featureSize != found->second.featureSize ||
+        shape.roughness != found->second.roughness ||
+        shape.octaves != found->second.octaves)
+      return false;
+  }
+  // Only a biome's landform reference is a generation input. Tint, material,
+  // and texture scale are appearance. Restyling a biome stays a local surface
+  // change rather than forcing the whole base to regenerate.
+  for (const auto &[id, base] : biomes) {
+    const auto found = other.biomes.find(id);
+    if (found == other.biomes.end())
+      return false;
+    if (base.landform != found->second.landform)
+      return false;
+  }
+  return true;
 }
 
 std::size_t TerrainRecipe::sampleCount() const {
@@ -139,6 +320,8 @@ std::size_t TerrainRecipe::sampleCount() const {
   return count;
 }
 void TerrainRecipe::validate() const {
+  if (!graph.is_null())
+    (void)TerrainGraph::parse(graph);
   (void)sampleCount();
   require(finite(size.x) && finite(size.y) && size.x > 0 && size.y > 0 &&
               size.x / cellsX > 0 && size.y / cellsZ > 0,
@@ -184,32 +367,44 @@ void TerrainRecipe::validate() const {
   };
   require(!biomes.empty() && biomes.contains(defaultBiome),
           "Terrain default_biome must reference an existing biome");
+  require(!landforms.empty() && landforms.contains(defaultLandform),
+          "Terrain default_landform must reference an existing landform");
   for (const auto &[id, biome] : biomes) {
     require(!id.empty(), "Terrain biome id must not be empty");
-    require(finite(biome.baseHeight) && finite(biome.heightVariation) &&
-                biome.heightVariation >= 0 && finite(biome.featureSize) &&
-                biome.featureSize > 0 && finite(biome.roughness) &&
-                biome.roughness >= 0 && biome.roughness <= 1 &&
-                biome.octaves > 0,
-            "Invalid terrain biome height/noise parameters");
-    require(double(std::abs(biome.baseHeight)) + biome.heightVariation <=
+    require(finite(biome.textureScale) && biome.textureScale > 0,
+            "Terrain biome texture_scale must be finite and positive");
+    // A biome points at a shape; it never carries one itself.
+    requireMessage(biome.landform.empty() || landforms.contains(biome.landform),
+                   "Terrain biome '" + id + "' references unknown landform '" +
+                       biome.landform + "'");
+  }
+  for (const auto &[id, shape] : landforms) {
+    require(!id.empty(), "Terrain landform id must not be empty");
+    require(finite(shape.baseHeight) && finite(shape.heightVariation) &&
+                shape.heightVariation >= 0 && finite(shape.featureSize) &&
+                shape.featureSize > 0 && finite(shape.roughness) &&
+                shape.roughness >= 0 && shape.roughness <= 1 &&
+                shape.octaves > 0,
+            "Invalid terrain landform height/noise parameters");
+    require(double(std::abs(shape.baseHeight)) + shape.heightVariation <=
                 std::numeric_limits<float>::max(),
-            "Terrain biome height range overflows");
-    require(std::isfinite(1.F / biome.featureSize),
+            "Terrain landform height range overflows");
+    require(std::isfinite(1.F / shape.featureSize),
             "Terrain feature_size produces an unrepresentable noise frequency");
     // FastNoiseLite floors lattice positions into signed ints; its octave
     // frequencies double. Reject inputs outside that representable domain.
     const double frequency =
-        std::ldexp(1.0 / biome.featureSize, biome.octaves - 1);
+        std::ldexp(1.0 / shape.featureSize, shape.octaves - 1);
     require(std::isfinite(frequency) &&
                 frequency * std::max(size.x, size.y) <
                     std::numeric_limits<int>::max() / 4.0,
             "Terrain octave coordinates exceed noise lattice range");
+  }
+  for (const auto &[id, biome] : biomes)
     for (float channel :
          {biome.color.r, biome.color.g, biome.color.b, biome.color.a})
       require(finite(channel) && channel >= 0 && channel <= 1,
               "Terrain colors must be RGBA values in [0,1]");
-  }
   for (const auto &region : regions) {
     brush(region.center, region.radius, region.strength, region.falloff);
     require(biomes.contains(region.biome),
@@ -265,14 +460,26 @@ void TerrainRecipe::validate() const {
             "Terrain exclusion value must be in [0,1]");
     requireLayer(exclusion.layer, TerrainLayerKind::Exclusion);
   }
+  for (const auto &rule : rules) {
+    require(std::isfinite(rule.blend) && rule.blend >= 0,
+            "Terrain rule blend must be a non-negative finite value");
+    rule.validate(*this);
+    requireLayer(rule.layer, TerrainLayerKind::Biome);
+  }
+  // Provenance is either absent or complete. A version without an id, or an id
+  // without a version, would make a recipe look applied when it is not.
+  require((presetId.empty()) == (presetVersion == 0),
+          "Terrain preset id and version must be recorded together");
 }
 
 TerrainRecipe TerrainRecipe::parse(const nlohmann::json &json) {
   try {
     require(json.is_object(), "Terrain recipe must be an object");
-    checkKeys(json, {"format_version", "size", "resolution", "seed",
-                     "chunk_cells", "default_biome", "biomes", "layers",
-                     "regions", "edits", "exclusions"});
+    checkKeys(json,
+              {"format_version", "size", "resolution", "seed", "chunk_cells",
+               "default_biome", "default_landform", "biomes", "landforms",
+               "layers", "regions", "edits", "exclusions", "rules", "preset_id",
+               "preset_version", "palette", "graph"});
     require(json.contains("format_version") &&
                 integer(json.at("format_version")) == formatVersion,
             "Unsupported terrain recipe format_version");
@@ -312,16 +519,24 @@ TerrainRecipe TerrainRecipe::parse(const nlohmann::json &json) {
            biomeEntry != json.at("biomes").end(); ++biomeEntry) {
         const auto &entry = biomeEntry.value();
         require(entry.is_object(), "Terrain biome must be an object");
-        checkKeys(entry, {"base_height", "height_variation", "feature_size",
-                          "roughness", "octaves", "color"});
+        // An old biome carried its own elevation. Rejecting it loudly beats
+        // ignoring it, because a silently dropped height field would quietly
+        // flatten a terrain that used to have relief.
+        for (const auto legacy : {"base_height", "height_variation",
+                                  "feature_size", "roughness", "octaves"})
+          requireMessage(!entry.contains(legacy),
+                         "Terrain biome '" + biomeEntry.key() +
+                             "' no longer accepts '" + std::string(legacy) +
+                             "'. Move it to a landform: declare a landform "
+                             "with those values and point the biome at it with "
+                             "\"landform\".");
+        checkKeys(entry, {"landform", "color", "material", "texture_scale"});
         TerrainBiome biome;
-        biome.baseHeight = entry.value("base_height", biome.baseHeight);
-        biome.heightVariation =
-            entry.value("height_variation", biome.heightVariation);
-        biome.featureSize = entry.value("feature_size", biome.featureSize);
-        biome.roughness = entry.value("roughness", biome.roughness);
-        if (entry.contains("octaves"))
-          biome.octaves = integer(entry.at("octaves"));
+        biome.landform = entry.value("landform", std::string{});
+        if (entry.contains("material"))
+          biome.material = entry.at("material").get<std::string>();
+        if (entry.contains("texture_scale"))
+          biome.textureScale = entry.at("texture_scale").get<float>();
         if (entry.contains("color")) {
           const auto &channels = entry.at("color");
           require(channels.is_array() && channels.size() == 4,
@@ -332,10 +547,35 @@ TerrainRecipe TerrainRecipe::parse(const nlohmann::json &json) {
         recipe.biomes.emplace(biomeEntry.key(), biome);
       }
     }
+    if (json.contains("landforms")) {
+      require(json.at("landforms").is_object(),
+              "Terrain landforms must be an object keyed by stable ids");
+      recipe.landforms.clear();
+      for (auto entry = json.at("landforms").begin();
+           entry != json.at("landforms").end(); ++entry) {
+        const auto &value = entry.value();
+        requireMessage(value.is_object(),
+                       "Terrain landform must be an object: " + entry.key());
+        checkKeys(value, {"base_height", "height_variation", "feature_size",
+                          "roughness", "octaves"});
+        TerrainLandform landform;
+        landform.baseHeight = value.value("base_height", landform.baseHeight);
+        landform.heightVariation =
+            value.value("height_variation", landform.heightVariation);
+        landform.featureSize =
+            value.value("feature_size", landform.featureSize);
+        landform.roughness = value.value("roughness", landform.roughness);
+        if (value.contains("octaves"))
+          landform.octaves = integer(value.at("octaves"));
+        recipe.landforms.emplace(entry.key(), landform);
+      }
+    }
+    if (json.contains("default_landform"))
+      recipe.defaultLandform = json.at("default_landform").get<std::string>();
     if (json.contains("regions")) {
       require(json.at("regions").is_array(),
               "Terrain regions must be an array");
-      for (const auto &entry : json.at("regions")) {
+      for (const auto &entry : expandTerrainBrushEntries(json.at("regions"))) {
         checkKeys(entry, {"biome", "center", "radius", "strength", "falloff",
                           "layer"});
         TerrainRegion region;
@@ -347,7 +587,7 @@ TerrainRecipe TerrainRecipe::parse(const nlohmann::json &json) {
     }
     if (json.contains("edits")) {
       require(json.at("edits").is_array(), "Terrain edits must be an array");
-      for (const auto &entry : json.at("edits")) {
+      for (const auto &entry : expandTerrainBrushEntries(json.at("edits"))) {
         TerrainEdit edit;
         readBrush(entry, edit);
         edit.kind = editKind(entry.at("type").get<std::string>());
@@ -396,7 +636,8 @@ TerrainRecipe TerrainRecipe::parse(const nlohmann::json &json) {
     if (json.contains("exclusions")) {
       require(json.at("exclusions").is_array(),
               "Terrain exclusions must be an array");
-      for (const auto &entry : json.at("exclusions")) {
+      for (const auto &entry :
+           expandTerrainBrushEntries(json.at("exclusions"))) {
         checkKeys(entry, {"center", "radius", "strength", "falloff", "value",
                           "layer"});
         TerrainExclusion exclusion;
@@ -406,6 +647,30 @@ TerrainRecipe TerrainRecipe::parse(const nlohmann::json &json) {
         recipe.exclusions.push_back(std::move(exclusion));
       }
     }
+    if (json.contains("rules")) {
+      require(json.at("rules").is_array(), "Terrain rules must be an array");
+      for (const auto &entry : json.at("rules"))
+        recipe.rules.push_back(TerrainBiomeRule::parse(entry));
+    }
+    if (json.contains("preset_id")) {
+      recipe.presetId = json.at("preset_id").get<std::string>();
+      require(!recipe.presetId.empty(),
+              "Terrain preset id must not be empty when present");
+    }
+    if (json.contains("palette")) {
+      recipe.paletteId = json.at("palette").get<std::string>();
+      require(!recipe.paletteId.empty(),
+              "Terrain palette id must not be empty when present");
+      require(recipe.paletteId.starts_with("asset://"),
+              "Terrain palette must be an asset:// reference");
+    }
+    if (json.contains("preset_version")) {
+      recipe.presetVersion = integer(json.at("preset_version"));
+      require(recipe.presetVersion > 0,
+              "Terrain preset version must be positive when present");
+    }
+    if (json.contains("graph"))
+      recipe.graph = json.at("graph");
     recipe.validate();
     return recipe;
   } catch (const nlohmann::json::exception &error) {
@@ -427,7 +692,8 @@ nlohmann::json TerrainRecipe::toJson() const {
                       {"layers", nlohmann::json::array()},
                       {"regions", nlohmann::json::array()},
                       {"edits", nlohmann::json::array()},
-                      {"exclusions", nlohmann::json::array()}};
+                      {"exclusions", nlohmann::json::array()},
+                      {"rules", nlohmann::json::array()}};
   for (const auto &layer : layers) {
     nlohmann::json entry{{"id", layer.id}, {"kind", layerName(layer.kind)}};
     if (layer.name != layer.id)
@@ -436,15 +702,25 @@ nlohmann::json TerrainRecipe::toJson() const {
       entry["enabled"] = false;
     json["layers"].push_back(std::move(entry));
   }
-  for (const auto &[id, biome] : biomes)
-    json["biomes"][id] = {
-        {"base_height", biome.baseHeight},
-        {"height_variation", biome.heightVariation},
-        {"feature_size", biome.featureSize},
-        {"roughness", biome.roughness},
-        {"octaves", biome.octaves},
+  json["default_landform"] = defaultLandform;
+  for (const auto &[id, biome] : biomes) {
+    nlohmann::json entry{
         {"color",
          {biome.color.r, biome.color.g, biome.color.b, biome.color.a}}};
+    if (!biome.landform.empty())
+      entry["landform"] = biome.landform;
+    if (!biome.material.empty())
+      entry["material"] = biome.material;
+    if (biome.textureScale != 1)
+      entry["texture_scale"] = biome.textureScale;
+    json["biomes"][id] = std::move(entry);
+  }
+  for (const auto &[id, shape] : landforms)
+    json["landforms"][id] = {{"base_height", shape.baseHeight},
+                             {"height_variation", shape.heightVariation},
+                             {"feature_size", shape.featureSize},
+                             {"roughness", shape.roughness},
+                             {"octaves", shape.octaves}};
   for (const auto &region : regions) {
     nlohmann::json entry{{"biome", region.biome},
                          {"center", {region.center.x, region.center.y}},
@@ -453,8 +729,16 @@ nlohmann::json TerrainRecipe::toJson() const {
                          {"falloff", region.falloff}};
     if (region.layer != "biomes")
       entry["layer"] = region.layer;
-    json["regions"].push_back(std::move(entry));
+    appendTerrainBrushStamp(json["regions"], std::move(entry));
   }
+  for (const auto &rule : rules)
+    json["rules"].push_back(rule.toJson());
+  if (!presetId.empty()) {
+    json["preset_id"] = presetId;
+    json["preset_version"] = presetVersion;
+  }
+  if (!paletteId.empty())
+    json["palette"] = paletteId;
   for (const auto &edit : edits) {
     nlohmann::json entry{{"type", editName(edit.kind)},
                          {"center", {edit.center.x, edit.center.y}},
@@ -478,7 +762,7 @@ nlohmann::json TerrainRecipe::toJson() const {
             {{"position", {sample.position.x, sample.position.y}},
              {"height", sample.height}});
     }
-    json["edits"].push_back(std::move(entry));
+    appendTerrainBrushStamp(json["edits"], std::move(entry));
   }
   for (const auto &exclusion : exclusions) {
     nlohmann::json entry{{"center", {exclusion.center.x, exclusion.center.y}},
@@ -489,7 +773,18 @@ nlohmann::json TerrainRecipe::toJson() const {
       entry["value"] = exclusion.value;
     if (exclusion.layer != "exclusions")
       entry["layer"] = exclusion.layer;
-    json["exclusions"].push_back(std::move(entry));
+    appendTerrainBrushStamp(json["exclusions"], std::move(entry));
+  }
+  if (!graph.is_null())
+    json["graph"] = graph;
+  return json;
+}
+
+nlohmann::json TerrainRecipe::generationJson() const {
+  auto json = toJson();
+  for (auto &biome : json["biomes"]) {
+    biome.erase("material");
+    biome.erase("texture_scale");
   }
   return json;
 }
