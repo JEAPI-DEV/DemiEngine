@@ -409,6 +409,8 @@ public:
   }
   void setViewDimension(EditorSceneViewDimension dimension);
 
+  [[nodiscard]] bool canAlignSelectedCameraToView() const;
+  [[nodiscard]] bool alignSelectedCameraToView(std::string &error);
   void selectEntity(std::string id);
   void selectHudNode(std::string id);
   void toggleHudNodeSelection(std::string id);

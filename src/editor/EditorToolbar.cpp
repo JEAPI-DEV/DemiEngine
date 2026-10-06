@@ -141,7 +141,8 @@ void drawPlayGroup(EditorWorkspace &workspace, EditorPlaySession &playSession,
 
 void drawTransformGroup(EditorWorkspace &workspace,
                         const EditorKeyBindings &bindings,
-                        const std::function<void(EditorCommand)> &execute) {
+                        const std::function<void(EditorCommand)> &execute,
+                        bool allowCameraEdit, std::string &notice) {
   if (workspace.sceneDomain() == EditorSceneDomain::Mixed) {
     if (ImGui::Button(is2D(workspace) ? "2D" : "3D", {38.0F, 30.0F}))
       workspace.setViewDimension(
@@ -197,6 +198,16 @@ void drawTransformGroup(EditorWorkspace &workspace,
   if (editorIconButton("align-camera", EditorIcon::Camera,
                        "Align view to the first authored camera"))
     alignToCamera(workspace);
+  sameLine();
+  if (editorIconButton(
+          "camera-to-view", EditorIcon::Camera,
+          "Align selected camera to view (select one matching camera)", false,
+          allowCameraEdit && workspace.canAlignSelectedCameraToView())) {
+    std::string error;
+    notice = workspace.alignSelectedCameraToView(error)
+                 ? "Camera aligned to view"
+                 : error;
+  }
   sameLine();
   if (editorIconButton("reset-view", EditorIcon::Refresh, "Reset Scene view")) {
     if (is2D(workspace))
@@ -288,7 +299,10 @@ void drawEditorToolbar(const ImVec2 position, const ImVec2 size,
   drawPlayGroup(playWorkspace, playSession, showGameView, stepRequested,
                 notice);
   editorToolbarSeparator();
-  drawTransformGroup(workspace, bindings, execute);
+  drawTransformGroup(workspace, bindings, execute,
+                     !showGameView && !playSession.isRunning() &&
+                         playSession.state() != EditorPlayState::Starting,
+                     notice);
   editorToolbarSeparator();
 
   const float remaining = size.x - ImGui::GetCursorPosX();

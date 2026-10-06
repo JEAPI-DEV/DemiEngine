@@ -1,5 +1,9 @@
 # DemiEngine Roadmap
 
+Selected 2D/3D cameras can align to the authored Viewport through the Scene menu
+and toolbar. Pose/projection edits share one validated Undo command and preserve
+parenting, camera scale, unrelated camera settings and prefab override history.
+
 Prefab creation now replaces the selected hierarchy with a linked instance by
 default. Explicit instance entity_ids preserve the original entity identities;
 scene Undo restores the hierarchy while retaining the new reusable source file.

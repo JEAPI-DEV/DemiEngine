@@ -55,6 +55,10 @@
   <li>Omitted fields show their canonical component defaults; values you type become explicit in the document.</li>
 </ul>
 
+<h3>Framing a game camera</h3>
+<p>Arrange the scene Viewport using its normal navigation, then select one camera in Hierarchy. Choose <strong>Scene → Align selected camera to view</strong>, or the matching camera button beside the existing view-to-camera action. The selected camera must have a matching Transform2D or Transform3D component for the current view dimension. The action is disabled in Play mode.</p>
+<p>For a 3D camera, alignment copies the view's position, aim, projection mode, active lens setting and clipping distances. Parent translation, rotation and scale are taken into account; the camera's scale and parent remain unchanged. For 2D, it copies position and orthographic size. A parent with zero scale cannot be inverted, so alignment reports an error without changing the document.</p>
+<p>Clear colour, render targets, viewport rectangles, masks, priority, HUD and follow settings remain unchanged. Game View may have a different aspect ratio, and gameplay scripts or camera-follow settings may subsequently move the camera. Prefab cameras receive instance overrides. The whole alignment is one Undo step, and Save writes the authored changes. The existing <strong>Align view to the first authored camera</strong> button moves only the editor view.</p>
 <h3>Viewport</h3>
 <p><strong>Viewport</strong> shows the scene. Prefab, HUD and Terrain Asset have their own authoring windows; Game View shows the isolated play session. These views answer "what does it look like?" and can be arranged beside the tools you use to edit them.</p>
 <ul>

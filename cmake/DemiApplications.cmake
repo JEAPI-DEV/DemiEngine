@@ -130,6 +130,7 @@ else()
     src/editor/EditorWorkspace.cpp
     src/editor/EditorWorkspaceComponents.cpp
     src/editor/EditorWorkspacePrefab.cpp
+    src/editor/EditorCameraAlignment.cpp
     src/editor/EditorWorkspaceLayout.cpp
     src/editor/EditorWorkspaceAssets.cpp
     src/editor/EditorWorkspaceTerrainAsset.cpp)

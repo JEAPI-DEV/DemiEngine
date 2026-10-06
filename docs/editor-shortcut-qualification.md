@@ -313,3 +313,20 @@ Inspector showed its instance origin while its ID remained `cylinder`. The
 converted project validated and cooked, and its cooked scene retained that ID
 and the mapped origin. This is scoped desktop qualification, not a full-suite
 or Android gate.
+
+
+## Align selected camera to view (2026-10-06)
+
+The Scene menu and viewport toolbar expose selected-camera alignment. The UI
+requires one matching camera and transform, and disables this mutation during
+Play. The UI-free workspace operation uses shared transform hierarchy helpers
+and commits differing pose/projection fields through one validated multi-field
+command. Prefab cameras use the same override targets as the Inspector. Camera
+scale, parent and unrelated rendering/follow settings stay unchanged.
+
+Focused Release checks cover perspective/orthographic 3D, 2D, translated/rotated
+and nonuniformly scaled parents, preserved-ID prefab cameras, singular parents,
+invalid selections, transaction rollback, no-op repetition, exact Undo/Redo and
+save/reopen. Native Vulkan desktop verification exercised the Scene menu action
+and a single Undo on the colony camera while the editor view stayed in place.
+This is scoped Linux qualification, not a full-suite or Android gate.

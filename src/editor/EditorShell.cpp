@@ -34,7 +34,7 @@ void drawMenu(EditorWorkspace &workspace, EditorDocumentSessions &documents,
               EditorDockingWorkspace &dockingWorkspace, bool &showSettings,
               std::string &notice, const EditorKeyBindings &bindings,
               EditorCommandContext context, bool uiPaletteAvailable,
-              bool terrainNodesAvailable,
+              bool terrainNodesAvailable, bool allowCameraEdit,
               const std::function<void(EditorCommand)> &execute) {
   beginEditorShellPanel("MainMenu", {0.0F, 0.0F}, size,
                         ImGuiWindowFlags_MenuBar |
@@ -156,6 +156,14 @@ void drawMenu(EditorWorkspace &workspace, EditorDocumentSessions &documents,
         dockingWorkspace.visibility().assets = true;
         assetsPanel.openCreate(EditorSourceKind::PrefabFromSelection,
                                std::string(selected));
+      }
+      if (ImGui::MenuItem("Align selected camera to view", nullptr, false,
+                          allowCameraEdit &&
+                              workspace.canAlignSelectedCameraToView())) {
+        std::string error;
+        notice = workspace.alignSelectedCameraToView(error)
+                     ? "Camera aligned to view"
+                     : error;
       }
       if (ImGui::BeginMenu("HUD", !workspace.isPrefabDocument())) {
         std::string error;
@@ -432,6 +440,8 @@ void EditorShell::draw(const int width, const int height,
            preferences_.keyBindings, menuContext,
            showHudView_ && !showGameView_,
            showTerrainGraphView_ && !showGameView_,
+           !showGameView_ && !playSession_.isRunning() &&
+               playSession_.state() != EditorPlayState::Starting,
            [this, menuContext](EditorCommand command) {
              executeCommand(command, menuContext);
            });

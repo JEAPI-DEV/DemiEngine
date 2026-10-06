@@ -27,6 +27,11 @@ struct EditorDocumentIssue {
   std::string message;
 };
 
+struct EditorFieldEdit {
+  SceneValueTarget target;
+  nlohmann::json value;
+};
+
 enum class EditorEntityKind { Empty, Cube, Sphere, Cylinder, Plane };
 
 // Owns the active authored scene JSON, its command history, and its
@@ -115,6 +120,10 @@ public:
   [[nodiscard]] bool removeComponent(std::string_view id,
                                      std::string_view componentName,
                                      std::string &error);
+
+  // Apply different field values as one validated, reversible command.
+  [[nodiscard]] bool setFieldValues(std::vector<EditorFieldEdit> edits,
+                                    std::string &error);
 
   // Object adds/configures a component, JSON null removes it, nullopt reverts
   // this component's local overrides to the prefab source.

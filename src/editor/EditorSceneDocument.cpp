@@ -500,6 +500,59 @@ bool EditorSceneDocument::setValues(std::vector<SceneValueTarget> targets,
   return stageAndCommit(std::move(command), error);
 }
 
+bool EditorSceneDocument::setFieldValues(std::vector<EditorFieldEdit> edits,
+                                         std::string &error) {
+  SetValuesCommand command;
+  auto staged = document_;
+  for (auto &edit : edits) {
+    if (std::ranges::any_of(command.values, [&](const auto &value) {
+          return value.target == edit.target;
+        })) {
+      error = "A field transaction cannot contain the same field twice.";
+      reject(edit.target, error);
+      return false;
+    }
+    const auto *current = value(edit.target);
+    auto replacement =
+        normalizeFieldValue(edit.target, std::move(edit.value), current);
+    if (current && *current == replacement)
+      continue;
+    if (!validate(edit.target, replacement, error)) {
+      reject(edit.target, error);
+      return false;
+    }
+    SetValueCommand next{.target = edit.target,
+                         .before = current
+                                       ? std::optional<nlohmann::json>(*current)
+                                       : std::nullopt,
+                         .after = std::move(replacement)};
+    if (edit.target.isPrefabOverride()) {
+      const auto *instance =
+          findPrefabInstance(document_, edit.target.prefabInstanceId);
+      if (instance && instance->contains("overrides"))
+        next.prefabOverridesBefore = instance->at("overrides");
+    } else if (!edit.target.component.empty()) {
+      const auto *owner = entity(edit.target.entityId);
+      next.createdComponent =
+          owner &&
+          component(edit.target.entityId, edit.target.component) == nullptr;
+      next.createdComponentsContainer =
+          next.createdComponent && !owner->contains("components");
+    }
+    if (!assignValueInDocument(staged, edit.target, next.after)) {
+      error = "A field transaction target no longer exists.";
+      reject(edit.target, error);
+      return false;
+    }
+    command.values.push_back(std::move(next));
+  }
+  if (command.values.empty()) {
+    clearIssue();
+    return true;
+  }
+  return stageAndCommit(std::move(command), error);
+}
+
 void EditorSceneDocument::endContinuousEdit() {
   continuousTarget_.reset();
   continuousRedoBackup_.clear();
