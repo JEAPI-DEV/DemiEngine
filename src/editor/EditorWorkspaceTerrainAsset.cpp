@@ -259,12 +259,15 @@ bool EditorWorkspace::placeTerrainAsset(
     error = failure.what();
     return false;
   }
-  return mutateAndRebuild(
-      [id = record->manifest.id, position](EditorSceneDocument &scene,
-                                           std::string &issue) {
-        return scene.createTerrainAssetEntity(id, position, issue);
-      },
-      error);
+  if (!mutateAndRebuild(
+          [id = record->manifest.id, position](EditorSceneDocument &scene,
+                                               std::string &issue) {
+            return scene.createTerrainAssetEntity(id, position, issue);
+          },
+          error))
+    return false;
+  selectEntity(std::string(sceneDocument_.lastChangedEntityId()));
+  return true;
 }
 
 bool EditorWorkspace::assignTerrainAsset(const std::string_view entityId,

@@ -144,9 +144,27 @@ void verifyPinnedAssetGraph() {
       workspace.assetIndex().findByManifest(manifestPath)->manifest.sourcePath;
   require(workspace.placeTerrainAsset(manifestPath, runtime::Vec3{}, error),
           error);
+  const auto firstPlaced = workspace.sceneDocument().json()["entities"][1]
+                               ["id"].get<std::string>();
+  require(workspace.selectedEntityId() == firstPlaced &&
+              workspace.terrainAuthoring().entityId() == firstPlaced &&
+              workspace.terrainAuthoringDocumentPath() == sourcePath,
+          "Terrain placement did not select and bind the new terrain");
   require(workspace.placeTerrainAsset(manifestPath, runtime::Vec3{150, 0, 0},
                                       error),
           error);
+  const auto secondPlaced = workspace.sceneDocument().json()["entities"][2]
+                                ["id"].get<std::string>();
+  require(workspace.selectedEntityId() == secondPlaced &&
+              workspace.terrainAuthoring().entityId() == secondPlaced,
+          "Repeated terrain placement kept the previous selection");
+  const auto beforeFailure = workspace.sceneDocument().json();
+  require(!workspace.placeTerrainAsset(temporary.root / "missing.asset.json",
+                                       runtime::Vec3{}, error) &&
+              workspace.selectedEntityId() == secondPlaced &&
+              workspace.sceneDocument().json() == beforeFailure,
+          "Failed terrain placement changed selection or scene content");
+  error.clear();
   require(workspace.saveAll(error), error);
   const auto originalScene = workspace.sceneDocument().json();
   const auto first = originalScene["entities"][1]["id"].get<std::string>();
