@@ -27,6 +27,8 @@ struct TerrainBiome {
   Color color{.35F, .55F, .25F, 1};
   // Optional material asset, applied alongside the tint where a surface has one.
   std::string material;
+  // Texture repetitions per terrain-local unit.
+  float textureScale = 1;
 };
 
 // Substrate is derived from the finished field, not authored, so rules can key
@@ -188,6 +190,9 @@ struct TerrainRecipe {
   static TerrainRecipe parse(const nlohmann::json &json);
   static nlohmann::json defaults();
   nlohmann::json toJson() const;
+  // Cache identity omits mesh-only appearance. Color stays because the field
+  // stores biome colors and a color edit must refresh those values.
+  nlohmann::json generationJson() const;
   void validate() const;
   std::size_t sampleCount() const;
 

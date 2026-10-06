@@ -1,12 +1,14 @@
 #include "editor/EditorTerrainGraphSettings.h"
-#include "editor/EditorColorControl.h"
 #include "demi/assets/DataAsset.h"
-#include "demi/runtime/terrain/TerrainRecipe.h"
 #include "demi/runtime/terrain/TerrainBrushStroke.h"
+#include "demi/runtime/terrain/TerrainRecipe.h"
+#include "editor/EditorAssetReferenceControl.h"
+#include "editor/EditorColorControl.h"
 #include "editor/EditorWorkspace.h"
 #include <algorithm>
 #include <array>
 #include <bit>
+#include <cmath>
 #include <imgui.h>
 #include <initializer_list>
 #include <optional>
@@ -51,31 +53,17 @@ bool biomeCombo(const char *label, const nlohmann::json &biomes,
 bool chooseAsset(EditorWorkspace &workspace, const char *label,
                  std::initializer_list<std::string_view> contentTypes,
                  std::string &selected) {
-  const std::string preview = selected.empty() ? "None" : selected;
-  if (!ImGui::BeginCombo(terrainField(label).c_str(), preview.c_str()))
-    return false;
-  bool changed = false;
-  if (ImGui::Selectable("None", selected.empty())) {
-    selected.clear();
-    changed = true;
-  }
-  for (const auto &record : workspace.assetIndex().assets()) {
-    const auto &manifest = record.manifest;
-    if (manifest.type != "DataAsset")
-      continue;
-    const auto metadata = assets::dataAssetMetadata(manifest);
-    if (!metadata)
-      continue;
-    if (std::ranges::find(contentTypes, metadata->contentType) ==
-        contentTypes.end())
-      continue;
-    if (ImGui::Selectable(manifest.id.c_str(), selected == manifest.id)) {
-      selected = manifest.id;
-      changed = true;
-    }
-  }
-  ImGui::EndCombo();
-  return changed;
+  return drawEditorAssetReferenceControl(
+      terrainField(label).c_str(), workspace.assetIndex().registry(),
+      [contentTypes](const AssetManifest &manifest) {
+        if (manifest.type != "DataAsset")
+          return false;
+        const auto metadata = assets::dataAssetMetadata(manifest);
+        return metadata &&
+               std::ranges::find(contentTypes, metadata->contentType) !=
+                   contentTypes.end();
+      },
+      selected);
 }
 
 void drawLandforms(nlohmann::json &draft, nlohmann::json &biomes,
@@ -639,6 +627,30 @@ void drawBiomeColor(nlohmann::json &biome) {
     biome["color"] = {rgba[0], rgba[1], rgba[2], rgba[3]};
 }
 
+void drawBiomeTextureScale(nlohmann::json &biome, std::string &notice) {
+  const float fallback = runtime::TerrainBiome{}.textureScale;
+  float scale = biome.value("texture_scale", fallback);
+  const std::string label =
+      terrainField("Texture scale (repeats/local unit, Enter)");
+  ImGui::SetNextItemWidth(-105.0F);
+  if (ImGui::InputFloat(label.c_str(), &scale, 0.0F, 0.0F, "%.9g",
+                        ImGuiInputTextFlags_EnterReturnsTrue)) {
+    if (!std::isfinite(scale) || scale <= 0.0F)
+      notice = "Texture scale must be a positive finite number.";
+    else if (scale == fallback)
+      biome.erase("texture_scale");
+    else
+      biome["texture_scale"] = scale;
+  }
+  ImGui::SameLine();
+  ImGui::BeginDisabled(!biome.contains("texture_scale"));
+  if (ImGui::SmallButton("Reset scale"))
+    biome.erase("texture_scale");
+  ImGui::EndDisabled();
+  ImGui::TextDisabled("Albedo repeats per terrain-local unit; default %.0f.",
+                      fallback);
+}
+
 void drawAppearance(EditorWorkspace &workspace, std::string &notice) {
   auto &authoring = workspace.terrainAuthoring();
   auto &draft = authoring.draft();
@@ -648,9 +660,10 @@ void drawAppearance(EditorWorkspace &workspace, std::string &notice) {
   const auto previousBiomes = biomes;
   std::string defaultBiome =
       draft.value("default_biome", std::string("default"));
-  ImGui::TextWrapped(
-      "Surface colors: Hex RGBA or precise normalized channels.");
-  ImGui::TextWrapped("PBR materials and visible water: rendering pending.");
+  ImGui::TextWrapped("Biome tint: Hex RGBA or precise normalized channels.");
+  ImGui::TextWrapped("Ordinary Material values and tiled albedo reach terrain. "
+                     "Smooth blending and typed terrain Material PBR maps are "
+                     "pending. Water appearance is configured on Water Body nodes.");
   if (biomeCombo("Default biome", biomes, defaultBiome))
     draft["default_biome"] = defaultBiome;
   std::optional<std::string> removeBiome;
@@ -688,15 +701,21 @@ void drawAppearance(EditorWorkspace &workspace, std::string &notice) {
         ImGui::EndCombo();
       }
       std::string material = biome.value("material", std::string{});
-      if (chooseAsset(workspace, "Material asset",
-                      {"terrain_material", "terrain_material_set"}, material)) {
+      if (drawEditorAssetReferenceControl(
+              terrainField("Render material (Material)").c_str(),
+              workspace.assetIndex().registry(),
+              [](const AssetManifest &manifest) {
+                return manifest.type == "Material";
+              },
+              material)) {
         if (material.empty())
           biome.erase("material");
         else
           biome["material"] = material;
       }
-      ImGui::TextDisabled("Material reference is stored; terrain rendering "
-                          "does not apply it yet.");
+      drawBiomeTextureScale(biome, notice);
+      ImGui::TextDisabled("Terrain Material/Set definitions remain editable "
+                          "in Assets; terrain PBR shading is pending.");
       bool referenced = defaultBiome == id || biomes.size() <= 1;
       const auto &paintedRegions =
           draft.contains("regions") ? draft.at("regions") : emptyArray;
@@ -847,7 +866,7 @@ void drawTerrainGraphSettings(EditorWorkspace &workspace, std::string &notice) {
   if (ImGui::CollapsingHeader("Landscape preset"))
     drawTerrainPresets(workspace, notice);
   ImGui::BeginDisabled(authoring.busy() || authoring.stroking());
-  if (ImGui::CollapsingHeader("Appearance - biome colors",
+  if (ImGui::CollapsingHeader("Appearance - biome surfaces",
                               ImGuiTreeNodeFlags_DefaultOpen))
     drawAppearance(workspace, notice);
   if (ImGui::CollapsingHeader("Terrain grid and seed"))
@@ -883,7 +902,7 @@ void drawTerrainNodeSettings(EditorWorkspace &workspace,
     if (ImGui::CollapsingHeader("Landforms", ImGuiTreeNodeFlags_DefaultOpen))
       drawLandformSettings(authoring, notice);
   } else if (nodeType == "biomes") {
-    if (ImGui::CollapsingHeader("Appearance - biome colors",
+    if (ImGui::CollapsingHeader("Appearance - biome surfaces",
                                 ImGuiTreeNodeFlags_DefaultOpen))
       drawAppearance(workspace, notice);
     if (ImGui::CollapsingHeader("Biome rules", ImGuiTreeNodeFlags_DefaultOpen))
@@ -894,7 +913,7 @@ void drawTerrainNodeSettings(EditorWorkspace &workspace,
       drawPlacement(workspace);
   } else {
     drawOutputSummary(authoring);
-    if (ImGui::CollapsingHeader("Appearance - biome colors",
+    if (ImGui::CollapsingHeader("Appearance - biome surfaces",
                                 ImGuiTreeNodeFlags_DefaultOpen))
       drawAppearance(workspace, notice);
     if (ImGui::CollapsingHeader("Terrain grid and seed"))

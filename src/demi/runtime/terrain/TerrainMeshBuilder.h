@@ -35,6 +35,10 @@ struct SurfaceTriangles {
 std::string surfaceId(const std::string &owner, const TerrainChunk &chunk,
                       const std::string &biome);
 
+Vec2 terrainUv(Vec2 position, float textureScale);
+std::vector<Vec2> terrainUvs(std::span<const Vec3> vertices,
+                             float textureScale);
+
 std::map<std::size_t, SurfaceTriangles>
 buildChunkTriangles(const HeightField &field, const TerrainChunk &chunk,
                     std::stop_token stop = {});

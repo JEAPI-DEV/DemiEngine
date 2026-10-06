@@ -38,7 +38,8 @@ TerrainPreset mountainPreset() {
                                                     .featureSize = 18});
   preset.biomes.emplace("rock",
                         TerrainBiome{.landform = "rock",
-                                     .color = {.5F, .47F, .42F, 1}});
+                                     .color = {.5F, .47F, .42F, 1},
+                                     .textureScale = 2});
   preset.biomes.emplace("scree",
                         TerrainBiome{.landform = "scree",
                                      .color = {.6F, .58F, .54F, 1}});
@@ -75,6 +76,7 @@ void fragmentSuppliesOnlyGenerationKeys() {
   (void)TerrainRecipe::parse(fragment);
   assert(fragment.at("seed") == 4242);
   assert(fragment.at("rules").size() == 2);
+  assert(fragment.at("biomes").at("rock").at("texture_scale") == 2);
 }
 
 // Applying must never destroy the author's own painting or sculpting.

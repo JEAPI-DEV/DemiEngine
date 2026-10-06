@@ -15,6 +15,7 @@ enum class TerrainGraphParameterKind {
   Boolean,
   Text,
   Choice,
+  Color,
   Structured
 };
 struct TerrainGraphPort {

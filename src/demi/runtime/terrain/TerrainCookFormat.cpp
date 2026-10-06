@@ -300,6 +300,21 @@ bool validateField(const TerrainCookedField &field, std::size_t &samples,
     error = "Terrain biome ids and colours disagree in count.";
     return false;
   }
+  if (field.biomeMaterials.size() != field.biomeIds.size() ||
+      field.biomeTextureScales.size() != field.biomeIds.size()) {
+    error = "Terrain appearance arrays do not match its biome palette.";
+    return false;
+  }
+  for (std::size_t index = 0; index < field.biomeIds.size(); ++index) {
+    const auto &material = field.biomeMaterials[index];
+    if ((!material.empty() &&
+         (!material.starts_with("asset://") || material.size() <= 8)) ||
+        !std::isfinite(field.biomeTextureScales[index]) ||
+        field.biomeTextureScales[index] <= 0) {
+      error = "Terrain biome appearance requires an asset URI and positive finite texture scale.";
+      return false;
+    }
+  }
   if (field.baseHeights.size() != samples || field.heights.size() != samples ||
       field.normalsX.size() != samples || field.normalsY.size() != samples ||
       field.normalsZ.size() != samples ||
@@ -495,6 +510,10 @@ std::vector<std::byte> serializeBody(const TerrainCookedField &field) {
     appendLittle<float>(out, colour.b);
     appendLittle<float>(out, colour.a);
   }
+  appendLittle<std::int32_t>(out, static_cast<std::int32_t>(field.biomeMaterials.size()));
+  for (const auto &material : field.biomeMaterials)
+    appendText(out, material);
+  appendFloats(out, field.biomeTextureScales);
   appendLittle<std::int32_t>(out, static_cast<std::int32_t>(field.chunks.size()));
   for (const auto &chunk : field.chunks) {
     appendLittle<std::int32_t>(out, chunk.firstCellX);
@@ -697,6 +716,25 @@ bool decode(std::span<const std::byte> bytes, TerrainCookedField &field,
         !std::isfinite(colour.b) || !std::isfinite(colour.a))
       return fail("Terrain cook biome colour is not finite.");
   }
+
+  std::size_t materialCount = 0;
+  if (!readCount(reader, "biome_materials", sizeof(std::int32_t), materialCount, reason))
+    return fail(std::move(reason));
+  if (materialCount != biomeCount)
+    return fail("Terrain biome material count differs from its palette.");
+  field.biomeMaterials.assign(materialCount, {});
+  for (auto &material : field.biomeMaterials)
+    if (!readText(reader, "biome_material", material, reason))
+      return fail(std::move(reason));
+  std::size_t scaleCount = 0;
+  if (!readCount(reader, "biome_texture_scales", sizeof(float), scaleCount, reason))
+    return fail(std::move(reason));
+  if (scaleCount != biomeCount)
+    return fail("Terrain texture scale count differs from its palette.");
+  field.biomeTextureScales.assign(scaleCount, 1.0F);
+  for (auto &scale : field.biomeTextureScales)
+    if (!reader.scalar(scale) || !std::isfinite(scale) || scale <= 0)
+      return fail("Terrain texture scale must be positive and finite.");
 
   std::size_t chunkCount = 0;
   if (!readCount(reader, "chunks", 4 * sizeof(std::int32_t), chunkCount,

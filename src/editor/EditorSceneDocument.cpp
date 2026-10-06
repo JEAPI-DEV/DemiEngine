@@ -45,7 +45,7 @@ nlohmann::json normalizeFieldValue(const SceneValueTarget &target,
       // widget noise. Rounding them can move protected samples off their grid
       // or change unrelated gameplay data merely by editing another property.
       if (field.type == Type::Object || field.type == Type::Vec2Array ||
-          field.type == Type::Vec3Array)
+          field.type == Type::Vec3Array || field.type == Type::ColorArray)
         return value;
       break;
     }

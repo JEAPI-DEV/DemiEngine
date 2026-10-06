@@ -23,6 +23,9 @@ add_library(demi-core STATIC
   src/demi/runtime/terrain/TerrainDrainage.cpp
   src/demi/runtime/terrain/TerrainErosion.cpp
   src/demi/runtime/terrain/TerrainWater.cpp
+  src/demi/runtime/terrain/TerrainWaterConnectivity.cpp
+  src/demi/runtime/terrain/TerrainWaterAppearance.cpp
+  src/demi/runtime/terrain/TerrainWaterDiagnostics.cpp
   src/demi/runtime/terrain/TerrainWaterQueries.cpp
   src/demi/runtime/terrain/TerrainScatterConstraints.cpp
   src/demi/runtime/terrain/TerrainMaterialLayers.cpp
@@ -75,6 +78,7 @@ add_library(demi-core STATIC
   src/demi/assets/TerrainAssetValidation.cpp
   src/demi/assets/TerrainAssetCook.cpp
   src/demi/assets/TerrainAsset.cpp
+  src/demi/assets/TerrainSurfaceReferences.cpp
   src/demi/assets/TerrainAssetSource.cpp
   src/demi/assets/TerrainAssetStorage.cpp
   src/demi/assets/TerrainAssetPayload.cpp

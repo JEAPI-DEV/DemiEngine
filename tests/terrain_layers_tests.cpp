@@ -83,6 +83,23 @@ void authoredDefaultsAndRoundTrip() {
   assert(!canonical.at("exclusions")[0].contains("layer"));
   assert(TerrainRecipe::parse(canonical).toJson() == canonical);
 
+  auto appearance = flatRecipe();
+  appearance.biomes.at("default").material = "asset://ground/stone";
+  appearance.biomes.at("default").textureScale = 2.5F;
+  const auto appearanceJson = appearance.toJson();
+  assert(appearanceJson.at("biomes").at("default").at("texture_scale") == 2.5F);
+  assert(TerrainRecipe::parse(appearanceJson).toJson() == appearanceJson);
+  assert(appearance.generationJson() == flatRecipe().generationJson());
+  assert(!flatRecipe().toJson().at("biomes").at("default").contains("texture_scale"));
+  appearance.biomes.at("default").textureScale = 1e20F;
+  appearance.validate();
+  for (const float invalid : {0.F, -1.F,
+                              std::numeric_limits<float>::infinity(),
+                              std::numeric_limits<float>::quiet_NaN()}) {
+    appearance.biomes.at("default").textureScale = invalid;
+    expectInvalid([&] { appearance.validate(); });
+  }
+
   auto recipe = flatRecipe();
   recipe.layers.push_back(
       {"detail", "Detail passes", TerrainLayerKind::Sculpt, false});

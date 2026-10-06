@@ -1,4 +1,5 @@
 #include "demi/runtime/terrain/TerrainGraphExecutor.h"
+#include "demi/runtime/terrain/TerrainWaterDiagnostics.h"
 
 #include "demi/assets/AssetHash.h"
 #include "demi/runtime/terrain/TerrainEvaluation.h"
@@ -34,9 +35,13 @@ struct CacheEntry {
 void refreshOutputMetadata(HeightField &field, const TerrainRecipe &recipe) {
   field.biomeIds.clear();
   field.biomeColors.clear();
+  field.biomeMaterials.clear();
+  field.biomeTextureScales.clear();
   for (const auto &[id, biome] : recipe.biomes) {
     field.biomeIds.push_back(id);
     field.biomeColors.push_back(biome.color);
+    field.biomeMaterials.push_back(biome.material);
+    field.biomeTextureScales.push_back(biome.textureScale);
   }
   field.chunks.clear();
   for (int z = 0; z < field.cellsZ;) {
@@ -56,8 +61,8 @@ public:
   std::map<std::string, CacheEntry> nodes;
 };
 
-TerrainGraphBiomeOverlay::TerrainGraphBiomeOverlay(
-    const HeightField &base, const TerrainRecipe &recipe)
+TerrainGraphBiomeOverlay::TerrainGraphBiomeOverlay(const HeightField &base,
+                                                   const TerrainRecipe &recipe)
     : base_(base) {
   if (base.biomeIndices.size() != recipe.sampleCount() ||
       base.biomeIds.size() != recipe.biomes.size())
@@ -92,9 +97,9 @@ std::size_t TerrainGraphBiomeOverlay::biomeAt(int x, int z) const {
   const auto position = base_.position(x, z);
   for (std::size_t region = 0; region < regions_.size(); ++region) {
     const auto *stroke = regions_[region];
-    const double alpha = terrainBrushWeight(
-        position, stroke->center, stroke->radius, stroke->strength,
-        stroke->falloff);
+    const double alpha =
+        terrainBrushWeight(position, stroke->center, stroke->radius,
+                           stroke->strength, stroke->falloff);
     for (auto &weight : weights)
       weight *= 1.0 - alpha;
     weights[regionBiomes_[region]] += alpha;
@@ -136,10 +141,9 @@ executeTerrainGraph(const TerrainRecipe &recipe,
       if (link.to.node != nodeId)
         continue;
       const auto &upstream = cache->nodes.at(link.from.node);
-      signature["inputs"][link.to.port] =
-          {{"node", link.from.node},
-           {"port", link.from.port},
-           {"key", upstream.key}};
+      signature["inputs"][link.to.port] = {{"node", link.from.node},
+                                           {"port", link.from.port},
+                                           {"key", upstream.key}};
       connected.emplace(link.to.port,
                         upstream.result.outputs.at(link.from.port));
     }
@@ -174,8 +178,8 @@ executeTerrainGraph(const TerrainRecipe &recipe,
     if (!evaluated)
       return std::nullopt;
     artifacts->warnings.insert(artifacts->warnings.end(),
-                                 evaluated->warnings.begin(),
-                                 evaluated->warnings.end());
+                               evaluated->warnings.begin(),
+                               evaluated->warnings.end());
     cache->nodes.emplace(
         nodeId, CacheEntry{key, serializedSignature, std::move(*evaluated)});
     artifacts->nodes.push_back({nodeId, false,
@@ -212,16 +216,21 @@ executeTerrainGraph(const TerrainRecipe &recipe,
   if (const auto found = outputs.find("water"); found != outputs.end()) {
     if (stop.stop_requested())
       return std::nullopt;
-    const auto water = std::get<std::shared_ptr<const GraphWater>>(found->second);
+    const auto water =
+        std::get<std::shared_ptr<const GraphWater>>(found->second);
     artifacts->water = water->authoring;
-    auto refreshed = refreshTerrainWaterResult(
-        result, artifacts->water, result.heights, stop);
+    auto refreshed = refreshTerrainWaterResult(result, artifacts->water,
+                                               result.heights, stop);
     if (stop.stop_requested())
       return std::nullopt;
     if (!refreshed || refreshed->dropped)
       throw std::invalid_argument(
           "Graph water does not match the final terrain surface");
     artifacts->waterResult = std::move(*refreshed);
+    const auto warnings =
+        terrainWaterContainmentWarnings(result, artifacts->water);
+    artifacts->warnings.insert(artifacts->warnings.end(), warnings.begin(),
+                               warnings.end());
   }
   result.scatterPlacements.clear();
   result.scatterTruncated = false;
@@ -236,10 +245,10 @@ executeTerrainGraph(const TerrainRecipe &recipe,
       artifacts->warnings.push_back(
           "Scatter placement budget reached; some placements were omitted.");
   }
-  const auto candidates = artifacts->basePlacements
-                              ? std::span<const TerrainScatterPlacement>(
-                                    *artifacts->basePlacements)
-                              : std::span<const TerrainScatterPlacement>{};
+  const auto candidates =
+      artifacts->basePlacements
+          ? std::span<const TerrainScatterPlacement>(*artifacts->basePlacements)
+          : std::span<const TerrainScatterPlacement>{};
   if (!refreshTerrainScatterPlacements(
           result, candidates,
           artifacts->water.bodies.empty() ? nullptr : &artifacts->water, stop))

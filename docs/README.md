@@ -25,6 +25,13 @@ This directory keeps material that has a different job:
 - [Terrain qualification](terrain-qualification.md) records finite-heightfield
   authoring ownership, tests, surface-query measurements and remaining scope.
 
+- [Terrain material binding](terrain-material-binding-qualification.md) records
+  ordinary-material publication, texture scale, retained geometry and prepared
+  payload appearance metadata.
+
+- [Terrain water publication](terrain-water-publication-qualification.md)
+  records transparent surface ownership, native publication and prepared loading.
+
 - [Lua task qualification](lua-task-qualification.md) records scheduler and
   asynchronous I/O ownership, overhead measurements, and validation boundaries.
 

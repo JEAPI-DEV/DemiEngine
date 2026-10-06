@@ -663,6 +663,10 @@
   add_executable(demi-terrain-drainage-tests tests/terrain_drainage_tests.cpp)
   add_executable(demi-terrain-erosion-tests tests/terrain_erosion_tests.cpp)
   add_executable(demi-terrain-water-tests tests/terrain_water_tests.cpp)
+  add_executable(demi-terrain-water-mesh-tests tests/terrain_water_mesh_tests.cpp)
+  target_link_libraries(demi-terrain-water-mesh-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-terrain-water-world-tests tests/terrain_water_world_tests.cpp)
+  target_link_libraries(demi-terrain-water-world-tests PRIVATE demi-runtime-lib)
   add_executable(demi-terrain-water-queries-tests tests/terrain_water_queries_tests.cpp)
   add_executable(demi-terrain-scatter-constraints-tests
     tests/terrain_scatter_constraints_tests.cpp)

@@ -7,6 +7,8 @@
 #include "demi/assets/ColliderShapeAsset.h"
 #include "demi/assets/SceneBudget3D.h"
 #include "demi/assets/TerrainAsset.h"
+#include "demi/assets/TerrainSurfaceReferences.h"
+#include "demi/runtime/terrain/TerrainRecipe.h"
 #include "demi/filesystem/ProjectPaths.h"
 #include "demi/packages/PackageManifest.h"
 #include "demi/runtime/scene/ComponentRegistry.h"
@@ -768,8 +770,15 @@ Diagnostics validateTextFile(const std::filesystem::path &path,
   switch (kind) {
   case SourceFileKind::TerrainAsset:
     try {
-      (void)assets::parseTerrainAssetSource(nlohmann::json::parse(text));
+      const auto terrain = assets::parseTerrainAssetSource(nlohmann::json::parse(text));
       validateReferences(diagnostics, path, text);
+      if (const auto project = findProjectDirectory(path)) {
+        const auto registry = loadAssetRegistry(*project);
+        auto surfaceDiagnostics = assets::validateTerrainSurfaceReferences(
+            registry, runtime::TerrainRecipe::parse(terrain.recipe), path);
+        diagnostics.insert(diagnostics.end(), surfaceDiagnostics.begin(),
+                           surfaceDiagnostics.end());
+      }
     } catch (const std::exception &error) {
       diagnostics.push_back({.severity = Severity::Error,
                              .code = "TERRAIN_ASSET_SOURCE_INVALID",

@@ -2,17 +2,22 @@
 
 #include "demi/runtime/terrain/TerrainGenerator.h"
 #include "demi/runtime/terrain/TerrainSamples.h"
+#include "demi/runtime/terrain/TerrainWaterAppearance.h"
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
-#include <string>
 #include <stop_token>
+#include <string>
 #include <vector>
 
 namespace demi::runtime {
 
 struct TerrainMasks;
+namespace terrain_water_detail {
+struct WaterLevelField;
+}
 
 // A water body is authored, not inferred, because the shape an author draws and
 // the shape a drainage pass proposes are different intentions and one of them
@@ -37,11 +42,13 @@ struct TerrainWaterBodySpec {
   // Lake/ocean only: the basin centre in terrain-local (x, z). Required for a
   // bounded body; ignored when `radius` is 0.
   Vec2 center{};
-  // 0 means "every basin below level" for a lake or ocean.
+  // Zero removes the radius bound. Lakes still select the basin connected to
+  // their centre; oceans cover all submerged regions in their footprint.
   float radius = 0;
   // Eases the ground into the waterline over a band, so a shore is a slope
   // rather than a cliff. Never changes which samples are water.
   bool shorelineSoftening = true;
+  TerrainWaterAppearance appearance;
 };
 
 // A render-ready surface. Deliberately the only tessellated representation of a
@@ -52,8 +59,8 @@ struct TerrainWaterSurface {
   std::string id;
   TerrainWaterBody kind = TerrainWaterBody::Ocean;
   float level = 0;
-  // Terrain-local. One quad per covered cell, two triangles, wound like the
-  // terrain mesh so both accept the same culling convention.
+  // Terrain-local triangles clipped against ground depth and body ownership,
+  // wound like the terrain mesh. Intersections add zero-depth shore vertices.
   std::vector<Vec3> vertices;
   std::vector<std::size_t> indices;
   // Flat up. Wave animation is the renderer's business; a level surface is the
@@ -78,6 +85,7 @@ struct TerrainWaterAuthoring {
 };
 
 struct TerrainWaterResult {
+  std::shared_ptr<const terrain_water_detail::WaterLevelField> resolvedCoverage;
   // The ground after every channel, basin and shoreline in authored order. The
   // field this came from is untouched.
   TerrainSamples<float> carvedHeights;
@@ -99,8 +107,7 @@ struct TerrainWaterResult {
 [[nodiscard]] std::optional<TerrainWaterResult>
 carveTerrainWater(const HeightField &field,
                   const TerrainWaterAuthoring &authoring,
-                  const TerrainMasks *masks,
-                  std::stop_token stop = {});
+                  const TerrainMasks *masks, std::stop_token stop = {});
 
 // Rebuilds every accepted body's surface against the already-carved ground and
 // combined authoring. `grid` supplies only size/resolution; its heights are not

@@ -140,8 +140,8 @@ void submergedPointReportsDepthAndBody() {
   assert(std::fabs(wading.depth - 0.5F) < 1e-4F);
   assert(!wading.swimmable);
 
-  // Bilinear on the authored grid, so a point between samples is answered from
-  // the surface it is really over rather than from a snapped sample.
+  // Triangulated on the authored grid, so a point between samples is answered
+  // from the surface it is really over rather than from a snapped sample.
   const auto between =
       *ask(authoring, result, nullptr, Vec3{16, 0, 16.5}, field);
   assert(between.submerged);
@@ -382,14 +382,121 @@ void droppedBodiesAreInvisibleToQueries() {
   // answer naming "pool" is proof the dropped body is gone from the query path
   // and not merely hidden behind the valid one.
   authoring.bodies.push_back(lake("", 0, {16, 16}, 4));
+  auto invalidAppearance = lake("invalid-appearance", 0, {16, 16}, 4);
+  invalidAppearance.appearance.roughness = 2.F;
+  authoring.bodies.push_back(invalidAppearance);
   const auto result = *carveTerrainWater(field, authoring, nullptr);
-  assert(result.dropped == 1);
+  assert(result.dropped == 2);
   assert(result.surfaces.size() == 1);
   assert(result.surfaces.front().id == "pool");
 
   const auto query = *ask(authoring, result, nullptr, Vec3{16, 0, 18}, field);
   assert(query.submerged);
   assert(query.bodyId == "pool");
+}
+
+void nonplanarGroundUsesTheRenderedDiagonal() {
+  const auto field = fieldWith(
+      {1, 1}, 1, 1, [](double x, double z) { return float(4.0 * x * z); });
+  const auto authoring = authoringWith(ocean("sea", 1));
+  const auto result =
+      *refreshTerrainWaterResult(field, authoring, field.heights);
+  const auto context = *TerrainWaterQueryContext::build(
+      authoring, result, nullptr, field.cellsX, field.cellsZ, field.size);
+  // a,c,b is flat at zero; b,c,d rises as 4*(u+v-1).
+  const auto first = *context.sample({0.25F, 0, 0.25F});
+  assert(first.submerged && first.depth == 1.F);
+  const auto diagonal = *context.sample({0.5F, 0, 0.5F});
+  assert(diagonal.submerged && diagonal.depth == 1.F);
+  const auto second = *context.sample({0.6F, 0, 0.6F});
+  assert(second.submerged && second.bodyId == "sea");
+  assert(std::fabs(second.depth - 0.2F) < 1e-6F);
+  assert(!context.sample({0.625F, 0, 0.625F})->submerged);
+  assert(!context.sample({0.9F, 0, 0.9F})->submerged);
+  assert(!context.sample({1, 0, 1})->submerged);
+
+  auto noMesh = result;
+  noMesh.surfaces.clear();
+  const auto independent =
+      *ask(authoring, noMesh, nullptr, {0.6F, 0, 0.6F}, field);
+  assert(independent.depth == second.depth &&
+         independent.bodyId == second.bodyId);
+}
+
+void partialCellQueriesFollowGroundAndFootprintClips() {
+  const auto field =
+      fieldWith({1, 2}, 1, 2, [](double x, double) { return float(x - 0.75); });
+  const auto authoring = authoringWith(ocean("sea", 0));
+  const auto result =
+      *refreshTerrainWaterResult(field, authoring, field.heights);
+  const auto context = *TerrainWaterQueryContext::build(
+      authoring, result, nullptr, field.cellsX, field.cellsZ, field.size);
+  for (const auto z : {0.F, 0.25F, 0.999F, 1.F, 1.001F, 2.F}) {
+    const auto inside = *context.sample({0.7F, 0, z});
+    assert(inside.submerged && inside.bodyId == "sea");
+    assert(std::fabs(inside.depth - 0.05F) < 1e-6F);
+    assert(!context.sample({0.75F, 0, z})->submerged);
+    assert(!context.sample({0.8F, 0, z})->submerged);
+    assert(!context.sample({1, 0, z})->submerged);
+  }
+
+  const auto flat =
+      fieldWith({1, 1}, 1, 1, [](double, double) { return -1.F; });
+  const auto bounded = authoringWith(lake("pool", 0, {0, 0}, 0.1F));
+  const auto clipped = *refreshTerrainWaterResult(flat, bounded, flat.heights);
+  const auto inside = *ask(bounded, clipped, nullptr, {0.1F, 0, 0.1F}, flat);
+  assert(inside.submerged && inside.depth == 1.F && inside.bodyId == "pool");
+  for (const auto point :
+       {Vec3{0.4F, 0, 0.4F}, Vec3{0.5F, 0, 0}, Vec3{1, 0, 0}, Vec3{1, 0, 1}}) {
+    const auto dry = *ask(bounded, clipped, nullptr, point, flat);
+    assert(!dry.submerged && dry.depth == 0 && dry.bodyId.empty());
+  }
+}
+
+void ownershipSelectsOneAuthoredPlaneWithoutBlending() {
+  const auto field =
+      fieldWith({1, 1}, 1, 1, [](double, double) { return -1.F; });
+  auto authoring = authoringWith(ocean("sea", 2));
+  authoring.bodies.push_back(lake("pool", 0, {1, 1}, 0.1F));
+  const auto result =
+      *refreshTerrainWaterResult(field, authoring, field.heights);
+  const auto context = *TerrainWaterQueryContext::build(
+      authoring, result, nullptr, field.cellsX, field.cellsZ, field.size);
+  const auto sea = *context.sample({0.6F, 0, 0.6F});
+  assert(sea.submerged && sea.depth == 3.F && sea.bodyId == "sea");
+  const auto pool = *context.sample({0.9F, 0, 0.9F});
+  assert(pool.submerged && pool.depth == 1.F && pool.bodyId == "pool");
+  const auto boundary = *context.sample({0.75F, 0, 0.75F});
+  assert(!boundary.submerged && boundary.bodyId.empty());
+  // The opposite ground triangle has no pool corner at all.
+  const auto other = *context.sample({0.3F, 0, 0.3F});
+  assert(other.depth == 3.F && other.bodyId == "sea");
+
+  // A later bounded body whose plane is below the bed cannot steal wet water.
+  authoring.bodies.back().level = -2.F;
+  const auto dryLater =
+      *refreshTerrainWaterResult(field, authoring, field.heights);
+  const auto retained = *ask(authoring, dryLater, nullptr, {1, 0, 1}, field);
+  assert(retained.depth == 3.F && retained.bodyId == "sea");
+}
+
+void drainageUsesTheSameTriangleWeights() {
+  const auto field =
+      fieldWith({1, 1}, 1, 1, [](double, double) { return -2.F; });
+  auto river = ocean("river", 0);
+  river.kind = TerrainWaterBody::River;
+  river.riverWidth = 100;
+  river.riverPath = {{-10, -2, 0.5F}, {10, -2, 0.5F}};
+  const auto authoring = authoringWith(river);
+  const auto result =
+      *refreshTerrainWaterResult(field, authoring, field.heights);
+  auto flow = flowingField(field, 0);
+  flow.flow.set(field.index(1, 1), 1.F);
+  const auto first = *ask(authoring, result, &flow, {0.25F, 0, 0.25F}, field);
+  assert(first.flowSpeed == 0.F);
+  const auto second = *ask(authoring, result, &flow, {0.6F, 0, 0.6F}, field);
+  assert(second.submerged && second.bodyId == "river");
+  assert(std::fabs(second.flowSpeed - 1.2F) < 1e-6F);
 }
 } // namespace
 
@@ -402,5 +509,9 @@ int main() {
   gameplayAnswersIgnoreTheRenderSurface();
   contextMatchesTheOneShotCall();
   droppedBodiesAreInvisibleToQueries();
+  nonplanarGroundUsesTheRenderedDiagonal();
+  partialCellQueriesFollowGroundAndFootprintClips();
+  ownershipSelectsOneAuthoredPlaneWithoutBlending();
+  drainageUsesTheSameTriangleWeights();
   std::cout << "Terrain water query checks passed\n";
 }

@@ -26,6 +26,11 @@ recipe, region strokes and manual edits.
 Generated mesh/collider chunks are native runtime data, not authored assets.
 Biome tints are discrete triangle groups; heights blend. Local strokes update
 dirty chunks, and cooked builds load prepared terrain without regenerating it.
+The sample now binds ordinary Material assets to its biomes. Choose a render
+material and texture scale in Terrain Graph biome properties; a scale of 0.5
+repeats albedo every two terrain-local units. Use Repeat wrapping on its texture.
+Material and scale changes preserve heights and collision. These prototype
+materials are not production landscape art or blended terrain PBR layers.
 Blended materials, visible water, production foliage, integrated LOD and
 large-world streaming remain follow-up work. This example uses a conventional
 recipe (no connected graph) and prototype geometry for its scattered palette.

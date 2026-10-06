@@ -94,6 +94,16 @@ bool matchesFieldType(const nlohmann::json &value,
                     std::ranges::all_of(item, finiteNumber);
            });
   }
+  case ComponentFieldType::ColorArray:
+    return value.is_array() &&
+           std::ranges::all_of(value, [](const auto &item) {
+             return item.is_array() && item.size() == 4 &&
+                    std::ranges::all_of(item, [](const auto &channel) {
+                      return finiteNumber(channel) &&
+                             channel.template get<double>() >= 0.0 &&
+                             channel.template get<double>() <= 1.0;
+                    });
+           });
   }
   return false;
 }
@@ -206,7 +216,8 @@ bool componentFieldEditorReadOnly(const ComponentFieldDescriptor &field) {
   return field.editor.readOnly || field.runtimeReadOnly ||
          field.type == ComponentFieldType::Object ||
          field.type == ComponentFieldType::Vec2Array ||
-         field.type == ComponentFieldType::Vec3Array;
+         field.type == ComponentFieldType::Vec3Array ||
+         field.type == ComponentFieldType::ColorArray;
 }
 
 nlohmann::json componentSchema(const ComponentDescriptor &descriptor) {
@@ -263,6 +274,15 @@ nlohmann::json componentSchema(const ComponentDescriptor &descriptor) {
                     {"maxItems", count}}}};
       break;
     }
+    case ComponentFieldType::ColorArray:
+      property = {{"type", "array"},
+                  {"items",
+                   {{"type", "array"},
+                    {"items",
+                     {{"type", "number"}, {"minimum", 0}, {"maximum", 1}}},
+                    {"minItems", 4},
+                    {"maxItems", 4}}}};
+      break;
     }
     if (field.hasMinimum)
       property["minimum"] = field.minimum;
@@ -341,6 +361,8 @@ std::string generatedLuaComponentTypes() {
       return "Vec2[]";
     case ComponentFieldType::Vec3Array:
       return "Vec3[]";
+    case ComponentFieldType::ColorArray:
+      return "number[][]";
     }
     return "unknown";
   };

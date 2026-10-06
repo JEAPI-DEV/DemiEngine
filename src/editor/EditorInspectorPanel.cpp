@@ -372,6 +372,7 @@ nlohmann::json initialFieldValue(const ComponentDescriptor &descriptor,
     return nlohmann::json::object();
   case ComponentFieldType::Vec2Array:
   case ComponentFieldType::Vec3Array:
+  case ComponentFieldType::ColorArray:
     return nlohmann::json::array();
   case ComponentFieldType::Boolean:
     return false;
@@ -697,12 +698,15 @@ bool drawFieldValue(EditorWorkspace &workspace, const SceneValueTarget &target,
   }
   case ComponentFieldType::Object:
   case ComponentFieldType::Vec2Array:
-  case ComponentFieldType::Vec3Array: {
+  case ComponentFieldType::Vec3Array:
+  case ComponentFieldType::ColorArray: {
     int vectorSize = 0;
     if (field.type == ComponentFieldType::Vec2Array)
       vectorSize = 2;
     else if (field.type == ComponentFieldType::Vec3Array)
       vectorSize = 3;
+    else if (field.type == ComponentFieldType::ColorArray)
+      vectorSize = 4;
     const auto edit = drawStructuredValue(replacement, structuredState, vectorSize);
     bool accepted = true;
     if (edit.changed) {
@@ -785,7 +789,8 @@ void drawComponentFields(EditorWorkspace &workspace,
     ImGui::PushID(field.name.data());
     const bool collection = field.type == ComponentFieldType::Object ||
                             field.type == ComponentFieldType::Vec2Array ||
-                            field.type == ComponentFieldType::Vec3Array;
+                            field.type == ComponentFieldType::Vec3Array ||
+                            field.type == ComponentFieldType::ColorArray;
     if (!collection && !beginPropertyTable("##component-properties")) {
       ImGui::PopID();
       continue;

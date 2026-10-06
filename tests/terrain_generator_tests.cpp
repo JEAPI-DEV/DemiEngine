@@ -46,6 +46,17 @@ void deterministicSampling() {
   auto second =
       TerrainGenerator::generate(TerrainRecipe::parse(recipe.toJson()));
   assert(first && second && first->heights == second->heights);
+  assert(first->biomeMaterials.size() == first->biomeIds.size() &&
+         first->biomeTextureScales.size() == first->biomeIds.size() &&
+         first->biomeMaterials.front().empty() &&
+         first->biomeTextureScales.front() == 1);
+  auto appearance = recipe;
+  appearance.biomes.at("default").material = "asset://ground/stone";
+  appearance.biomes.at("default").textureScale = 2.5F;
+  const auto restyled = TerrainGenerator::generate(appearance);
+  assert(restyled && restyled->heights == first->heights &&
+         restyled->biomeMaterials.front() == "asset://ground/stone" &&
+         restyled->biomeTextureScales.front() == 2.5F);
   assert(first->baseHeights == first->heights);
   recipe.seed += 17;
   auto changed = TerrainGenerator::generate(recipe);

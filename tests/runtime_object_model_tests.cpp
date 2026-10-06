@@ -9,6 +9,7 @@
 #include <cmath>
 #include <iostream>
 #include <limits>
+#include <stdexcept>
 #include <vector>
 
 using demi::runtime::RuntimeObjectModel;
@@ -883,6 +884,82 @@ int main() {
     std::cerr << "Geometry field edit did not invalidate bounds and mesh revision.\n";
     return 1;
   }
+  auto *coloredMesh = liveBody.component<demi::runtime::MeshRendererComponent>();
+  coloredMesh->normals = {{0, 0, 1}, {0, 0, 1}, {0, 0, 1}};
+  coloredMesh->uvs = {{0, 0}, {1, 0}, {0, 1}};
+  coloredMesh->color = {0.25F, 0.5F, 0.75F, 1};
+  auto colorRevision = coloredMesh->revision;
+  const nlohmann::json vertexColors = {
+      {1, 0, 0, 1}, {0, 1, 0, 0.5}, {0, 0, 1, 0}};
+  if (!RuntimeObjectModel::setComponentField(liveBody, "MeshRenderer",
+                                             "vertex_colors", vertexColors) ||
+      coloredMesh->revision == colorRevision ||
+      coloredMesh->vertexColors.size() != 3 ||
+      coloredMesh->vertexColors[1].a != 0.5F || coloredMesh->boundsMax.x != 4 ||
+      coloredMesh->vertices[2].y != 2 || coloredMesh->normals[1].z != 1 ||
+      coloredMesh->uvs[1].x != 1 || coloredMesh->color.r != 0.25F) {
+    std::cerr << "Vertex color mutation did not invalidate the mesh or "
+                 "overwrote live attributes.\n";
+    return 1;
+  }
+  colorRevision = coloredMesh->revision;
+  const auto coloredSource = liveBody.serializedComponents.at("MeshRenderer");
+  for (const nlohmann::json &invalid :
+       {nlohmann::json{{1, 0, 0, 1}},
+        nlohmann::json{{1, 0, 0, 1}, {0, 1, 0, -0.5}, {0, 0, 1, 0}}}) {
+    if (RuntimeObjectModel::setComponentField(liveBody, "MeshRenderer",
+                                              "vertex_colors", invalid) ||
+        coloredMesh->revision != colorRevision ||
+        coloredMesh->vertexColors[1].a != 0.5F ||
+        liveBody.serializedComponents.at("MeshRenderer") != coloredSource) {
+      std::cerr << "Rejected vertex color mutation changed live state.\n";
+      return 1;
+    }
+  }
+  // Native geometry may differ from its authored snapshot. Validate the live
+  // attribute count before copying, so a rejected edit remains transactional.
+  coloredMesh->vertices.insert(coloredMesh->vertices.end(),
+                               mesh.vertices.begin(), mesh.vertices.end());
+  coloredMesh->vertexColors.resize(6, {1, 1, 1, 1});
+  coloredMesh->markGeometryChanged();
+  colorRevision = coloredMesh->revision;
+  if (RuntimeObjectModel::setComponentField(liveBody, "MeshRenderer",
+                                            "vertex_colors", vertexColors) ||
+      coloredMesh->vertexColors.size() != 6 ||
+      coloredMesh->revision != colorRevision ||
+      RuntimeObjectModel::setComponentField(
+          liveBody, "MeshRenderer", "vertices",
+          nlohmann::json{{0, 0, 0}, {1, 0, 0}, {0, 1, 0}}) ||
+      coloredMesh->vertices.size() != 6 ||
+      coloredMesh->revision != colorRevision ||
+      liveBody.serializedComponents.at("MeshRenderer") != coloredSource) {
+    std::cerr
+        << "Rejected field edit changed mismatched native mesh attributes.\n";
+    return 1;
+  }
+  if (!RuntimeObjectModel::setComponentField(
+          liveBody, "MeshRenderer", "vertex_colors", nlohmann::json::array()) ||
+      !coloredMesh->vertexColors.empty() ||
+      coloredMesh->revision == colorRevision) {
+    std::cerr << "Clearing vertex colors did not restore the white vertex "
+                 "fallback.\n";
+    return 1;
+  }
+  coloredMesh->vertexColors.resize(6, {1, 1, 1, 1});
+  coloredMesh->vertexColors[0].a = std::numeric_limits<float>::quiet_NaN();
+  colorRevision = coloredMesh->revision;
+  bool rejectedNativeColor = false;
+  try {
+    coloredMesh->markGeometryChanged();
+  } catch (const std::invalid_argument &) {
+    rejectedNativeColor = true;
+  }
+  if (!rejectedNativeColor || coloredMesh->revision != colorRevision) {
+    std::cerr
+        << "Native mesh publication accepted a non-finite color channel.\n";
+    return 1;
+  }
+  coloredMesh->vertexColors.clear();
   demi::runtime::AnimationPlayer3DComponent animation;
   animation.time = 3.5F;
   animation.visualClock = 12;

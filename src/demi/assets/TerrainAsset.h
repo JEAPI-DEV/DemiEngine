@@ -14,7 +14,7 @@ namespace demi::assets {
 
 // Bump when the complete prepared payload envelope or derived-data contract
 // changes. Cook settings and the persistent cache key use this version.
-inline constexpr int terrainAssetPayloadVersion = 1;
+inline constexpr int terrainAssetPayloadVersion = 4;
 
 struct TerrainAssetSource {
   int formatVersion = 1;
@@ -22,6 +22,11 @@ struct TerrainAssetSource {
   std::string name;
   nlohmann::json recipe;
 };
+
+inline bool isPreparedTerrainAsset(const AssetManifest &manifest) {
+  return manifest.type == "Terrain" &&
+         manifest.sourcePath.filename().string().ends_with(".terrain.bin");
+}
 
 // Authoring source is separate from the generated runtime payload.
 TerrainAssetSource parseTerrainAssetSource(const nlohmann::json &document);

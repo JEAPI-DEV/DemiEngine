@@ -23,6 +23,7 @@ enum class ComponentFieldType {
   Color,
   Vec2Array,
   Vec3Array,
+  ColorArray,
 };
 
 enum class ComponentReferenceKind {

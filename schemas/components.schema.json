@@ -2542,6 +2542,16 @@
     "MeshRenderer": {
       "additionalProperties": false,
       "description": "Draws a model or built-in shape. With no model or texture, the default is a light-grey unit cube; a texture/material is optional. Hover field labels for help.",
+      "if": {
+        "properties": {
+          "vertex_colors": {
+            "minItems": 1
+          }
+        },
+        "required": [
+          "vertex_colors"
+        ]
+      },
       "properties": {
         "color": {
           "default": [
@@ -2772,6 +2782,27 @@
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
+        "vertex_colors": {
+          "default": [],
+          "items": {
+            "items": {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            "maxItems": 4,
+            "minItems": 4,
+            "type": "array"
+          },
+          "type": "array",
+          "x-demi-editor-advanced": true,
+          "x-demi-editor-help": "RGBA multipliers for inline vertices, with finite channels from 0 to 1. Omit or leave empty for white; otherwise supply one color per vertex.",
+          "x-demi-editor-label": "Vertex Colors",
+          "x-demi-editor-read-only": true,
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
         "vertices": {
           "default": [],
           "items": {
@@ -2799,6 +2830,16 @@
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         }
+      },
+      "then": {
+        "properties": {
+          "vertices": {
+            "minItems": 1
+          }
+        },
+        "required": [
+          "vertices"
+        ]
       },
       "type": "object"
     },

@@ -16,7 +16,7 @@
     {
       "id": "camera",
       "components": {
-        "Transform3D": {"position": [85, 85, 105]},
+        "Transform3D": {"position": [1012, 85, 1014]},
         "Camera3D": {"target_offset": [-85, -75, -105], "far_clip": 500,
                      "clear_color": [0.22, 0.32, 0.43, 1]}
       }

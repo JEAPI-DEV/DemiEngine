@@ -25,6 +25,8 @@ TerrainRecipe recipeForField() {
   recipe.seed = 4242;
   recipe.biomes.emplace("rock", TerrainBiome{.color = {.6F, .5F, .4F, 1}});
   recipe.biomes.emplace("sand", TerrainBiome{.color = {.8F, .75F, .55F, 1}});
+  recipe.biomes.at("sand").material = "asset://materials/sand";
+  recipe.biomes.at("sand").textureScale = .25F;
   recipe.defaultBiome = "sand";
   return recipe;
 }
@@ -104,6 +106,8 @@ void roundTripsEveryField() {
   const auto bytes = serializeTerrainCookedField(*cooked);
   const auto loaded = deserializeTerrainCookedField(bytes, &error);
   assert(loaded && error.empty());
+  assert(loaded->biomeMaterials == field->biomeMaterials);
+  assert(loaded->biomeTextureScales == field->biomeTextureScales);
 
   assert(loaded->version == terrainCookVersion);
   assert(loaded->version == cooked->version);
@@ -167,6 +171,8 @@ void emptyBiomesAndEmptyMasksRoundTrip() {
   auto withoutBiomes = *field;
   withoutBiomes.biomeIds.clear();
   withoutBiomes.biomeColors.clear();
+  withoutBiomes.biomeMaterials.clear();
+  withoutBiomes.biomeTextureScales.clear();
   withoutBiomes.biomeIndices = TerrainSamples<std::size_t>{};
   withoutBiomes.biomeIndices.resize(withoutBiomes.heights.size());
   for (std::size_t index = 0; index < withoutBiomes.heights.size(); ++index)

@@ -89,6 +89,8 @@ private:
     explicit CachedMesh(GpuResources &resources) : gpu(resources) {}
     GpuMesh3D gpu;
     std::uint64_t signature = 0;
+    std::uint64_t inlineColorSignature = 0;
+    std::vector<std::uint32_t> inlineColors;
     MeshGeometry3D restGeometry;
     std::string animationModel;
     std::unique_ptr<GpuSkinnedMesh3D> gpuSkin;

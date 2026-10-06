@@ -38,7 +38,10 @@ void testWorld() {
   owner.setComponent(Transform3DComponent{
       .position = {10, 3, 20}, .rotation = {0, .5F, 0}, .scale = {2, 3, 2}});
   Terrain3DComponent terrain;
-  terrain.recipe = smallRecipe().toJson();
+  auto settings = smallRecipe();
+  settings.biomes.at("default").material = "asset://ground/stone";
+  settings.biomes.at("default").textureScale = 2;
+  terrain.recipe = settings.toJson();
   const auto recipe = terrain.recipe;
   owner.setComponent(std::move(terrain));
   world.entities.push_back(std::move(owner));
@@ -65,6 +68,8 @@ void testWorld() {
     check(mesh->normals.size() == mesh->vertices.size() &&
               mesh->uvs.size() == mesh->vertices.size(),
           "Generated normals or UVs missing");
+    check(mesh->material == "asset://ground/stone",
+          "Biome material was not bound to generated mesh");
     for (std::size_t vertex = 0; vertex < mesh->vertices.size(); ++vertex) {
       const auto point = mesh->vertices[vertex];
       const auto sample = retained->generated->index(static_cast<int>(point.x),
@@ -73,7 +78,9 @@ void testWorld() {
       check(point.y == retained->generated->heights[sample] &&
                 mesh->normals[vertex].x == expectedNormal.x &&
                 mesh->normals[vertex].y == expectedNormal.y &&
-                mesh->normals[vertex].z == expectedNormal.z,
+                mesh->normals[vertex].z == expectedNormal.z &&
+                mesh->uvs[vertex].x == point.x * 2 &&
+                mesh->uvs[vertex].y == point.z * 2,
             "Chunk borders diverged from shared height/normal samples");
     }
     for (std::size_t triangle = 0; triangle < triangles->size(); ++triangle) {
@@ -139,7 +146,8 @@ void testWorld() {
 void testSceneAndBiomeGroups() {
   auto recipe = smallRecipe();
   recipe.chunkCells = 4;
-  recipe.biomes.emplace("red/rock", TerrainBiome{.color = {1, 0, 0, 1}});
+  recipe.biomes.emplace("red/rock", TerrainBiome{.color = {1, 0, 0, 1},
+                                                  .textureScale = 4});
   auto generated = TerrainGenerator::generate(recipe);
   check(generated.has_value(), "Generation failed");
   // Publish a known worker result to probe grouping/cache consumption directly.
@@ -176,6 +184,12 @@ void testSceneAndBiomeGroups() {
         "Runtime/editor did not consume published worker field");
   check(findEntity(*scene, "land/__terrain/0_0/red%2frock") != nullptr,
         "Biome ID was not encoded stably");
+  const auto *rock = findEntity(*scene, "land/__terrain/0_0/red%2frock")
+                         ->component<MeshRendererComponent>();
+  for (std::size_t vertex = 0; vertex < rock->vertices.size(); ++vertex)
+    check(rock->uvs[vertex].x == rock->vertices[vertex].x * 4 &&
+              rock->uvs[vertex].y == rock->vertices[vertex].z * 4,
+          "Biome group used another biome's texture scale");
   std::size_t triangleCount = 0;
   for (std::size_t index = 1; index < scene->entities.size(); ++index)
     triangleCount +=

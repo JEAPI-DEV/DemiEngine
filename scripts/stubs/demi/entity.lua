@@ -4,6 +4,7 @@
 local Entity = {}
 ---@alias MeshSurfaceMode "opaque"|"transparent"|"additive"
 ---@class MeshRendererConfig
+---@field vertex_colors? number[][] Normalized RGBA per inline vertex; empty means white. Counts must match vertices.
 ---@field model? string
 ---@field shape? "cube"|"sphere"|"cylinder"|"plane"
 ---@field size? Vec3

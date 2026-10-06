@@ -237,19 +237,22 @@ void drawValue(Json &value, StructuredValueState &state, int vectorWidth,
       ImGui::PopID();
       break;
     }
-    if (!object && vectorWidth > 0 && entry->is_array() &&
+    if (!object && vectorWidth >= 2 && vectorWidth <= 4 && entry->is_array() &&
         entry->size() == static_cast<std::size_t>(vectorWidth) &&
         std::ranges::all_of(
             *entry, [](const Json &item) { return item.is_number(); })) {
-      std::array<float, 3> values{};
+      std::array<float, 4> values{};
       for (int axis = 0; axis < vectorWidth; ++axis)
         values[axis] = (*entry)[axis].get<float>();
       ImGui::SetNextItemWidth(-1);
       ImGui::BeginDisabled(readOnly);
-      const bool changed =
-          vectorWidth == 2
-              ? ImGui::InputFloat2("##value", values.data(), "%.5g")
-              : ImGui::InputFloat3("##value", values.data(), "%.5g");
+      bool changed = false;
+      if (vectorWidth == 2)
+        changed = ImGui::InputFloat2("##value", values.data(), "%.5g");
+      else if (vectorWidth == 3)
+        changed = ImGui::InputFloat3("##value", values.data(), "%.5g");
+      else if (vectorWidth == 4)
+        changed = ImGui::InputFloat4("##value", values.data(), "%.5g");
       if (changed)
         for (int axis = 0; axis < vectorWidth; ++axis)
           (*entry)[axis] = values[axis];

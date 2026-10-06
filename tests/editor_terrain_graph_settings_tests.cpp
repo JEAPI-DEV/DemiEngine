@@ -1,3 +1,4 @@
+#include "demi/assets/AssetHash.h"
 #include "demi/runtime/terrain/TerrainGraph.h"
 #include "demi/runtime/terrain/TerrainGraphRegistry.h"
 #include "demi/runtime/terrain/TerrainRecipe.h"
@@ -69,6 +70,34 @@ struct TestProject {
                   {"components",
                    {{"Transform3D", Json::object()},
                     {"Terrain3D", {{"recipe", recipe.toJson()}}}}}}}}});
+
+    const auto renderSource = root / "assets/materials/stone.material.json";
+    writeJson(renderSource, {{"format_version", 1},
+                             {"shader", "builtin://lit"},
+                             {"parameters", {{"base_color", {1, 1, 1, 1}}}}});
+    writeJson(root / "assets/materials/stone.asset.json",
+              {{"format_version", 1},
+               {"id", "asset://materials/stone"},
+               {"type", "Material"},
+               {"source", "stone.material.json"},
+               {"importer", "material"},
+               {"importer_version", 1},
+               {"source_hash", *demi::assets::hashFiles({renderSource})},
+               {"dependencies", Json::array()},
+               {"settings", Json::object()}});
+
+    const auto typedSource = root / "assets/terrain_materials/stone.json";
+    writeJson(typedSource, {{"format_version", 1}, {"name", "Terrain stone"}});
+    writeJson(root / "assets/terrain_materials/stone.asset.json",
+              {{"format_version", 1},
+               {"id", "asset://terrain_materials/stone"},
+               {"type", "DataAsset"},
+               {"source", "stone.json"},
+               {"importer", "json_data"},
+               {"importer_version", 1},
+               {"source_hash", *demi::assets::hashFiles({typedSource})},
+               {"dependencies", Json::array()},
+               {"settings", {{"content_type", "terrain_material"}}}});
   }
 
   ~TestProject() {
@@ -102,8 +131,8 @@ void initializeImGui() {
 }
 
 void drawSettings(EditorWorkspace &workspace, const char *windowName,
-                  const std::string_view nodeType = {},
-                  const float width = 340) {
+                  const std::string_view nodeType = {}, const float width = 340,
+                  std::string *reportedNotice = nullptr) {
   std::string notice;
   ImGui::NewFrame();
   ImGui::SetNextWindowPos({0, 0}, ImGuiCond_Always);
@@ -117,7 +146,10 @@ void drawSettings(EditorWorkspace &workspace, const char *windowName,
   ImGui::Render();
   require(ImGui::GetCurrentContext()->ErrorCountCurrentFrame == 0,
           "Terrain settings produced an ImGui scope/layout error");
-  require(notice.empty(), "Terrain settings reported: " + notice);
+  if (reportedNotice != nullptr && !notice.empty())
+    *reportedNotice = notice;
+  else if (reportedNotice == nullptr)
+    require(notice.empty(), "Terrain settings reported: " + notice);
 }
 
 ImGuiID scopedId(const char *windowName,
@@ -130,6 +162,11 @@ ImGuiID scopedId(const char *windowName,
   return id;
 }
 
+ImGuiID biomePropertyId(const char *windowName, const char *label) {
+  // An open TreeNode pushes its own ID before submitting property controls.
+  return scopedId(windowName, {"default", "Biome properties", label});
+}
+
 template <typename Draw> void pressKey(const ImGuiKey key, Draw &&draw) {
   auto &io = ImGui::GetIO();
   io.AddKeyEvent(key, true);
@@ -140,7 +177,8 @@ template <typename Draw> void pressKey(const ImGuiKey key, Draw &&draw) {
   draw();
 }
 
-template <typename Draw> void focusWidget(const ImGuiID id, Draw &&draw) {
+template <typename Draw>
+void focusWidget(const ImGuiID id, Draw &&draw, const char *stage = nullptr) {
   draw();
   auto *context = ImGui::GetCurrentContext();
   if (context->OpenPopupStack.empty()) {
@@ -177,20 +215,27 @@ template <typename Draw> void focusWidget(const ImGuiID id, Draw &&draw) {
     pressKey(ImGuiKey_Tab, draw);
   require(context->NavId == id,
           "Keyboard navigation could not reach settings widget " +
-              std::to_string(id) + " (focused " +
-              std::to_string(context->NavId) + ", window " +
+              std::to_string(id) +
+              (stage ? " during " + std::string(stage) : std::string{}) +
+              " (focused " + std::to_string(context->NavId) + ", window " +
               (context->NavWindow ? context->NavWindow->Name : "none") + ")");
   draw();
 }
 
-template <typename Draw> void activateWidget(const ImGuiID id, Draw &&draw) {
-  focusWidget(id, draw);
+template <typename Draw>
+void activateWidget(const ImGuiID id, Draw &&draw,
+                    const char *stage = nullptr) {
+  focusWidget(id, draw, stage);
   pressKey(ImGuiKey_Space, draw);
 }
 
 template <typename Draw>
 void replaceText(const ImGuiID id, const char *text, Draw &&draw) {
   focusWidget(id, draw);
+  // Enter commits scalar text and leaves navigation on the widget while
+  // clearing its active editor. Reactivate it before a second edit.
+  if (ImGui::GetCurrentContext()->ActiveId != id)
+    pressKey(ImGuiKey_Enter, draw);
   require(ImGui::GetCurrentContext()->ActiveId == id,
           std::string("Could not focus terrain settings input for '") + text +
               "' (requested " + std::to_string(id) + ", active " +
@@ -276,6 +321,96 @@ void checkAppearanceControls(EditorWorkspace &workspace) {
       "Context settings use a second model or changed source before Generate");
 }
 
+void checkRenderMaterialAndTextureScale(EditorWorkspace &workspace) {
+  const auto &registry = workspace.assetIndex().registry();
+  const auto *renderAsset =
+      demi::findAsset(registry, "asset://materials/stone");
+  const auto *typedAsset =
+      demi::findAsset(registry, "asset://terrain_materials/stone");
+  require(renderAsset && renderAsset->type == "Material" && typedAsset &&
+              typedAsset->type == "DataAsset",
+          "Fixture must register ordinary and typed material assets");
+  auto &draft = workspace.terrainAuthoring().draft();
+  const auto source = workspace.sceneDocument().json();
+  const auto before = draft;
+  auto biome = [&]() -> Json & { return draft["biomes"]["default"]; };
+  biome().erase("material");
+  biome().erase("texture_scale");
+  const auto omitted = draft;
+  const auto draw = [&] {
+    drawSettings(workspace, "Biome surface controls", "biomes");
+  };
+  draw();
+  draw();
+  require(draft == omitted,
+          "Viewing the render material or texture scale authored defaults");
+
+  activateWidget(
+      scopedId("Biome surface controls", {"default", "Biome properties"}),
+      draw);
+  activateWidget(
+      biomePropertyId("Biome surface controls", "##Render material (Material)"),
+      draw, "material selection");
+  auto &popups = ImGui::GetCurrentContext()->OpenPopupStack;
+  require(!popups.empty() && popups.back().Window != nullptr,
+          "Biome properties did not expose the render material picker");
+  activateWidget(popups.back().Window->GetID("asset://materials/stone"), draw);
+  require(biome().at("material") == "asset://materials/stone",
+          "Ordinary Material manifest could not be selected for terrain");
+  require(!biome().contains("texture_scale"),
+          "Choosing a material authored the texture scale fallback");
+
+  activateWidget(
+      biomePropertyId("Biome surface controls", "##Render material (Material)"),
+      draw, "material clear after selection");
+  require(!popups.empty() && popups.back().Window != nullptr,
+          "Biome material picker did not reopen");
+  activateWidget(popups.back().Window->GetID("None"), draw);
+  require(draft == omitted,
+          "Clearing the render material changed unrelated draft fields");
+
+  const auto scaleField = biomePropertyId(
+      "Biome surface controls", "##Texture scale (repeats/local unit, Enter)");
+  replaceText(scaleField, "2048", draw);
+  require(biome().at("texture_scale") == 2048.0F,
+          "Texture scale rejected a valid value above common UI ranges");
+  replaceText(scaleField, "0.125", draw);
+  require(biome().at("texture_scale") == 0.125F,
+          "Texture scale edit did not preserve a fractional local-unit value");
+  require(demi::runtime::TerrainRecipe::parse(draft)
+                  .biomes.at("default")
+                  .textureScale == 0.125F,
+          "The scale control did not produce a native biome value");
+  const auto selected = draft;
+  std::string notice;
+  const auto drawInvalid = [&] {
+    drawSettings(workspace, "Biome surface controls", "biomes", 340, &notice);
+  };
+  replaceText(scaleField, "0", drawInvalid);
+  require(notice == "Texture scale must be a positive finite number." &&
+              draft == selected,
+          "Invalid texture scale changed the draft or lacked feedback");
+
+  replaceText(scaleField, "1", draw);
+  require(!biome().contains("texture_scale"),
+          "Entering the canonical scale should restore omission");
+  replaceText(scaleField, "0.25", draw);
+
+  activateWidget(biomePropertyId("Biome surface controls", "Reset scale"), draw,
+                 "texture scale reset after 0.25 edit");
+  require(!biome().contains("texture_scale"),
+          "Reset scale did not restore the omitted native default");
+  require(demi::runtime::TerrainRecipe::parse(draft)
+                  .biomes.at("default")
+                  .textureScale == demi::runtime::TerrainBiome{}.textureScale,
+          "Omitted texture scale did not use the native default");
+
+  require(draft == omitted && workspace.sceneDocument().json() == source,
+          "Reset or clearing material changed unrelated draft/source fields");
+  require(before == omitted,
+          "Fixture unexpectedly started with material or texture scale");
+}
+
 void checkSectionsAndRules(EditorWorkspace &workspace) {
   auto &draft = workspace.terrainAuthoring().draft();
   const auto before = draft;
@@ -285,7 +420,7 @@ void checkSectionsAndRules(EditorWorkspace &workspace) {
   drawRoot();
   drawRoot();
   const auto appearance =
-      scopedId("Collapsible settings", {"Appearance - biome colors"});
+      scopedId("Collapsible settings", {"Appearance - biome surfaces"});
   activateWidget(appearance, drawRoot);
   require(!ImGui::FindWindowByName("Collapsible settings")
                ->StateStorage.GetBool(appearance),
@@ -363,6 +498,7 @@ int main() {
     workspace.syncTerrainAuthoring();
     initializeImGui();
     checkAppearanceControls(workspace);
+    checkRenderMaterialAndTextureScale(workspace);
     checkSectionsAndRules(workspace);
     checkLandformReferences(workspace);
     checkPlacementControls(workspace);

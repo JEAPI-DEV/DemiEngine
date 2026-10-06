@@ -1,4 +1,5 @@
 #include "editor/EditorTerrainInspector.h"
+#include "demi/assets/TerrainAsset.h"
 
 #include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
 #include "demi/runtime/scene/model/Entity.h"
@@ -188,6 +189,14 @@ void drawEditorTerrainInspector(EditorWorkspace &workspace,
         entity ? entity->component<runtime::Terrain3DComponent>() : nullptr;
     if (entity && terrain)
       drawSceneAssetActions(workspace, *entity, *terrain, notice);
+    if (terrain && !terrain->asset.empty()) {
+      const auto *asset = findAsset(workspace.assetIndex().registry(), terrain->asset);
+      if (asset && assets::isPreparedTerrainAsset(*asset)) {
+        ImGui::TextWrapped("Prepared terrain is read-only. Open the authored "
+                           "source project to edit its graph and brushes.");
+        return;
+      }
+    }
     if (terrain && terrain->asset.empty() && terrain->recipe.is_null())
       return;
   }

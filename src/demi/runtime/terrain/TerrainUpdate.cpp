@@ -434,17 +434,28 @@ updateTerrainWithInputs(const TerrainRecipe &before, const TerrainRecipe &after,
     return std::nullopt;
   std::size_t biomeIndex = 0;
   for (const auto &[id, biome] : after.biomes) {
-    if (!same(field->biomeColors[biomeIndex], biome.color)) {
+    if (!same(field->biomeColors[biomeIndex], biome.color) ||
+        field->biomeMaterial(biomeIndex) != biome.material ||
+        field->biomeTextureScale(biomeIndex) != biome.textureScale) {
       if (!patch->beforePalette)
-        patch->beforePalette =
-            TerrainBiomePalette{previous->biomeIds, previous->biomeColors};
+        patch->beforePalette = TerrainBiomePalette{
+            previous->biomeIds, previous->biomeColors,
+            previous->biomeMaterials, previous->biomeTextureScales};
+      if (field->biomeMaterials.empty())
+        field->biomeMaterials.resize(field->biomeIds.size());
+      if (field->biomeTextureScales.empty())
+        field->biomeTextureScales.resize(field->biomeIds.size(), 1.F);
       field->biomeColors[biomeIndex] = biome.color;
+      field->biomeMaterials[biomeIndex] = biome.material;
+      field->biomeTextureScales[biomeIndex] = biome.textureScale;
       patch->invalidation.materialsChanged = true;
     }
     ++biomeIndex;
   }
   if (patch->beforePalette)
-    patch->afterPalette = TerrainBiomePalette{field->biomeIds, field->biomeColors};
+    patch->afterPalette = TerrainBiomePalette{
+        field->biomeIds, field->biomeColors, field->biomeMaterials,
+        field->biomeTextureScales};
   TerrainRect dirty = heightArea;
   dirty.include(normalsArea);
   dirty.include(baseArea);

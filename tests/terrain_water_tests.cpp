@@ -1,11 +1,17 @@
 #include "demi/runtime/terrain/TerrainWater.h"
 
 #include "demi/runtime/terrain/TerrainGeneration.h"
+#include "demi/runtime/terrain/TerrainSurface.h"
+#include "demi/runtime/terrain/TerrainWaterGeometry.h"
+#include "demi/runtime/terrain/TerrainWaterQueries.h"
 
+#include <algorithm>
+#include <array>
 #include <cassert>
 #include <cmath>
 #include <functional>
 #include <iostream>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -74,6 +80,28 @@ TerrainWaterAuthoring authoringWith(TerrainWaterBodySpec body) {
 float carvedAt(const TerrainWaterResult &result, const HeightField &field,
                int x, int z) {
   return result.carvedHeights[field.index(x, z)];
+}
+
+double surfaceArea(const TerrainWaterSurface &surface) {
+  double area = 0;
+  std::set<std::array<std::size_t, 3>> triangles;
+  std::set<std::pair<float, float>> positions;
+  for (const auto &vertex : surface.vertices)
+    assert(positions.emplace(vertex.x, vertex.z).second);
+  for (std::size_t i = 0; i < surface.indices.size(); i += 3) {
+    std::array<std::size_t, 3> indices{
+        surface.indices[i], surface.indices[i + 1], surface.indices[i + 2]};
+    const auto a = surface.vertices[indices[0]];
+    const auto b = surface.vertices[indices[1]];
+    const auto c = surface.vertices[indices[2]];
+    const double twiceArea = (double(b.z) - a.z) * (double(c.x) - a.x) -
+                             (double(b.x) - a.x) * (double(c.z) - a.z);
+    assert(twiceArea > 0);
+    std::sort(indices.begin(), indices.end());
+    assert(triangles.insert(indices).second);
+    area += 0.5 * twiceArea;
+  }
+  return area;
 }
 
 // A river cuts a channel along its path, and the ground there ends up below the
@@ -183,9 +211,7 @@ void lakeFillsBasinWithLevelSurface() {
   assert(surface.id == "tarn" && surface.kind == TerrainWaterBody::Lake);
   assert(!surface.vertices.empty());
   assert(surface.indices.size() % 3 == 0);
-  // One quad per covered cell, so a full field's worth of water is a full
-  // field's worth of triangles and nothing is silently dropped.
-  assert(surface.indices.size() % 6 == 0);
+  assert(surfaceArea(surface) > 0);
 
   // Level is the whole point of a lake: every vertex sits on one plane.
   for (const auto &vertex : surface.vertices)
@@ -204,10 +230,12 @@ void lakeFillsBasinWithLevelSurface() {
 
   // And the render-ready surface agrees with the carved ground vertex for
   // vertex, which is the property the renderer's absorption term depends on.
+  auto carved = field;
+  carved.heights = result.carvedHeights;
   for (std::size_t vertex = 0; vertex < surface.vertices.size(); ++vertex) {
-    const auto x = int(std::lround(surface.vertices[vertex].x));
-    const auto z = int(std::lround(surface.vertices[vertex].z));
-    const auto ground = carvedAt(result, field, x, z);
+    const auto point = surface.vertices[vertex];
+    const auto ground = *sampleTerrainHeight(carved, {point.x, point.z});
+    assert(ground <= surface.level + 1e-4F);
     const auto expected = std::max(0.F, surface.level - ground);
     assert(std::fabs(surface.depth[vertex] - expected) < 1e-4F);
   }
@@ -238,17 +266,17 @@ void surfaceDepthRampsToZeroAtTheEdge() {
   }
   assert(positive && zero);
 
-  // The zero-depth vertices are the waterline and the dry corner of a
-  // boundary cell, which is clamped to the surface so the shore is not stepped
-  // along cell boundaries. Neither is a place with ground under the water, and
-  // at least one of them really is the waterline.
+  // Zero-depth vertices must be actual intersections with the ground plane,
+  // including fractional crossings rather than clamped dry grid corners.
   bool onWaterline = false;
+  auto carved = field;
+  carved.heights = result.carvedHeights;
   for (std::size_t vertex = 0; vertex < surface.vertices.size(); ++vertex) {
-    const auto x = int(std::lround(surface.vertices[vertex].x));
-    const auto z = int(std::lround(surface.vertices[vertex].z));
-    const auto ground = carvedAt(result, field, x, z);
+    const auto point = surface.vertices[vertex];
+    const auto ground = *sampleTerrainHeight(carved, {point.x, point.z});
+    assert(ground <= surface.level + 1e-4F);
     if (surface.depth[vertex] == 0.F) {
-      assert(ground >= surface.level - 1e-4F);
+      assert(std::fabs(ground - surface.level) < 1e-4F);
       onWaterline = onWaterline || std::fabs(ground - surface.level) < 1e-4F;
     }
     // A vertex with real water over it is deeper than the surface claims by
@@ -343,7 +371,7 @@ void bodyOrderDecidesOverlap() {
   bool contested = false;
   for (int z = 0; z <= field.cellsZ; ++z)
     for (int x = 0; x <= field.cellsX; ++x) {
-      if (field.height(x, z) > -1.F)
+      if (field.height(x, z) >= -1.F)
         continue;
       const auto sample = lowHigh.sampleAt(x, z);
       assert(lowHigh.wet[sample] && highLow.wet[sample]);
@@ -433,6 +461,23 @@ void invalidBodiesAreDroppedAndCounted() {
   TerrainWaterAuthoring empty;
   const auto none = carveTerrainWater(field, empty, nullptr);
   assert(!none);
+}
+
+void invalidAppearanceRejectsTheBodyAndReservesItsId() {
+  const auto field = bowlField();
+  auto broken = lake("broken", 0, 5);
+  broken.appearance.absorptionDistance = 0.F;
+  auto duplicate = lake("broken", 0, 5);
+  auto valid = lake("valid", 0, 5);
+  TerrainWaterAuthoring authoring;
+  authoring.authored = true;
+  authoring.bodies = {broken, duplicate, valid};
+  const auto accepted = terrain_water_detail::acceptedBodies(authoring);
+  assert(accepted == std::vector<std::size_t>{2});
+  const auto result =
+      *refreshTerrainWaterResult(field, authoring, field.heights);
+  assert(result.dropped == 2);
+  assert(result.surfaces.size() == 1 && result.surfaces[0].id == "valid");
 }
 
 // An ocean with no radius is the sea: it fills every basin the landform left
@@ -578,6 +623,147 @@ void refreshedSurfacesComposeWithoutRecarving() {
                                     cancelled.get_token()));
 }
 
+void partialCellsReachTheActualShoreWithoutDryCorners() {
+  // No cell has four wet corners. Restricting output to full cells loses all
+  // water; accepting any wet corner draws twice the intended area.
+  const auto field =
+      fieldWith({1, 2}, 1, 2, [](double x, double) { return float(x - 0.75); });
+  auto sea = lake("sea", 0);
+  sea.kind = TerrainWaterBody::Ocean;
+  sea.shorelineSoftening = false;
+  const auto authoring = authoringWith(sea);
+  const auto result =
+      *refreshTerrainWaterResult(field, authoring, field.heights);
+  const auto &surface = result.surfaces.front();
+  assert(std::fabs(surfaceArea(surface) - 1.5) < 1e-6);
+  bool sharedEdge = false;
+  bool diagonal = false;
+  for (std::size_t i = 0; i < surface.vertices.size(); ++i) {
+    const auto point = surface.vertices[i];
+    assert(point.x <= 0.75F);
+    assert(std::fabs(surface.depth[i] - (0.75F - point.x)) < 1e-6F);
+    sharedEdge = sharedEdge || (point.x == 0.75F && point.z == 1.F);
+    diagonal = diagonal || (point.x == 0.75F && point.z == 0.25F);
+  }
+  assert(sharedEdge && diagonal);
+  // Shared crossings are reused by triangles on both sides of the cell edge.
+  for (std::size_t i = 0; i < surface.vertices.size(); ++i) {
+    const auto point = surface.vertices[i];
+    if (point.x != 0.75F || point.z != 1.F)
+      continue;
+    bool below = false;
+    bool above = false;
+    for (std::size_t t = 0; t < surface.indices.size(); t += 3) {
+      if (surface.indices[t] != i && surface.indices[t + 1] != i &&
+          surface.indices[t + 2] != i)
+        continue;
+      for (std::size_t c = 0; c < 3; ++c) {
+        const auto z = surface.vertices[surface.indices[t + c]].z;
+        below = below || z < 1.F;
+        above = above || z > 1.F;
+      }
+    }
+    assert(below && above);
+  }
+  const auto again =
+      *refreshTerrainWaterResult(field, authoring, field.heights);
+  assert(again.surfaces.front().indices == surface.indices);
+  assert(again.surfaces.front().depth == surface.depth);
+}
+
+void ownershipClipsBodiesRatherThanSharingCells() {
+  const auto field =
+      fieldWith({1, 1}, 1, 1, [](double, double) { return -1.F; });
+  auto first = lake("first", 2);
+  auto later = lake("later", 0, 0.1F);
+  later.center = {1, 1};
+  TerrainWaterAuthoring authoring;
+  authoring.authored = true;
+  authoring.bodies = {first, later};
+  const auto result =
+      *refreshTerrainWaterResult(field, authoring, field.heights);
+  assert(std::fabs(surfaceArea(result.surfaces[0]) - 0.875) < 1e-6);
+  assert(std::fabs(surfaceArea(result.surfaces[1]) - 0.125) < 1e-6);
+  for (const auto point : result.surfaces[0].vertices)
+    assert(point.x + point.z <= 1.5F);
+  for (const auto point : result.surfaces[1].vertices)
+    assert(point.x + point.z >= 1.5F);
+
+  authoring.bodies[1].radius = 0;
+  const auto shadowed =
+      *refreshTerrainWaterResult(field, authoring, field.heights);
+  assert(shadowed.surfaces[0].vertices.empty());
+  assert(shadowed.surfaces[0].indices.empty());
+  assert(surfaceArea(shadowed.surfaces[1]) == 1.0);
+}
+
+void zeroDepthDoesNotEmitDegenerateTrianglesOrInventBanks() {
+  const auto field =
+      fieldWith({1, 1}, 1, 1, [](double, double) { return 0.F; });
+  auto body = lake("bounded", 0, 0.1F);
+  body.center = {0, 0};
+  auto authoring = authoringWith(body);
+  const auto dry = *refreshTerrainWaterResult(field, authoring, field.heights);
+  assert(dry.surfaces.front().vertices.empty());
+  assert(dry.surfaces.front().indices.empty());
+  authoring.bodies[0].level = 5.F;
+  const auto raised =
+      *refreshTerrainWaterResult(field, authoring, field.heights);
+  assert(raised.carvedHeights == field.heights);
+  assert(raised.surfaces.front().level == 5.F);
+  assert(surfaceArea(raised.surfaces.front()) == 0.125);
+  for (const auto depth : raised.surfaces.front().depth)
+    assert(depth == 5.F);
+
+  // Two vertices on the level and the third above it leave only a line.
+  const auto line =
+      fieldWith({1, 1}, 1, 1, [](double x, double z) { return float(x * z); });
+  authoring.bodies[0].radius = 0;
+  authoring.bodies[0].level = 0;
+  const auto touching =
+      *refreshTerrainWaterResult(line, authoring, line.heights);
+  assert(touching.surfaces.front().indices.empty());
+
+  std::stop_source cancelled;
+  cancelled.request_stop();
+  assert(!carveTerrainWater(field, authoring, nullptr, cancelled.get_token()));
+  assert(terrain_water_detail::buildWaterGeometryField(
+             field.size, field.cellsX, field.cellsZ, field.heights, authoring,
+             cancelled.get_token())
+             .samples() == 0);
+}
+
+void sharedClippingHandlesBothBoundariesAndCanonicalEdges() {
+  using namespace terrain_water_detail;
+  const WaterGeometryVertex a{0, 0, 3, -1};
+  const WaterGeometryVertex c{0, 1, -1, 1};
+  const WaterGeometryVertex b{1, 0, 3, 1};
+  const auto polygon = clipWaterTriangle({a, c, b});
+  assert(polygon.count == 5);
+  for (std::size_t i = 0; i < polygon.count; ++i) {
+    const auto &point = polygon.vertices[i];
+    assert(point.depth >= 0 && point.coverage >= 0);
+    assert(
+        !sameWaterPosition(point, polygon.vertices[(i + 1) % polygon.count]));
+  }
+  const auto forward =
+      waterBoundaryIntersection(a, c, &WaterGeometryVertex::depth);
+  const auto reverse =
+      waterBoundaryIntersection(c, a, &WaterGeometryVertex::depth);
+  assert(sameWaterPosition(forward, reverse));
+  assert(forward.depth == 0 && forward.coverage == reverse.coverage);
+  const auto maskForward =
+      waterBoundaryIntersection(a, b, &WaterGeometryVertex::coverage);
+  const auto maskReverse =
+      waterBoundaryIntersection(b, a, &WaterGeometryVertex::coverage);
+  assert(sameWaterPosition(maskForward, maskReverse));
+  assert(maskForward.coverage == 0 && maskForward.depth == maskReverse.depth);
+  const auto touching = clipWaterTriangle({WaterGeometryVertex{0, 0, 0, 1},
+                                           WaterGeometryVertex{0, 1, -1, 1},
+                                           WaterGeometryVertex{1, 0, 1, 1}});
+  assert(touching.count == 3);
+}
+
 // A field that is not a usable grid is reported, not carved into.
 void unusableFieldsAreReported() {
   const auto field = bowlField();
@@ -598,6 +784,53 @@ void unusableFieldsAreReported() {
 }
 } // namespace
 
+void lakeSelectsOnlyItsConnectedBasin() {
+  const auto makeGround = [](bool channel) {
+    return fieldWith({12, 8}, 12, 8, [channel](double x, double z) {
+      if ((x >= 1 && x <= 4 && z >= 2 && z <= 6) ||
+          (x >= 8 && x <= 11 && z >= 2 && z <= 6) ||
+          (channel && x >= 4 && x <= 8 && z == 4))
+        return 0.F;
+      return 4.F;
+    });
+  };
+  TerrainWaterAuthoring authoring;
+  authoring.authored = true;
+  TerrainWaterBodySpec lake;
+  lake.id = "seeded_lake";
+  lake.kind = TerrainWaterBody::Lake;
+  lake.center = {2, 4};
+  lake.level = 2;
+  lake.radius = 20;
+  lake.shorelineSoftening = false;
+  authoring.bodies.push_back(lake);
+  auto ground = makeGround(false);
+  auto isolated = carveTerrainWater(ground, authoring, nullptr);
+  assert(isolated && isolated->resolvedCoverage);
+  assert(isolated->carvedHeights[ground.index(9, 4)] == 0);
+  for (const auto vertex : isolated->surfaces.front().vertices)
+    assert(vertex.x < 6);
+  auto query = TerrainWaterQueryContext::build(authoring, *isolated, nullptr,
+                                               12, 8, {12, 8});
+  assert(query && query->sample({2, 0, 4})->submerged);
+  assert(!query->sample({9, 0, 4})->submerged);
+  // Lowering a connecting channel recomputes coverage once; the second basin
+  // becomes part of the same body in rendering and queries.
+  auto connected = carveTerrainWater(makeGround(true), authoring, nullptr);
+  auto connectedQuery = TerrainWaterQueryContext::build(
+      authoring, *connected, nullptr, 12, 8, {12, 8});
+  assert(connectedQuery && connectedQuery->sample({9, 0, 4})->submerged);
+  // Oceans intentionally cover independent depressions at their level.
+  authoring.bodies.front().kind = TerrainWaterBody::Ocean;
+  auto ocean = carveTerrainWater(ground, authoring, nullptr);
+  auto oceanQuery = TerrainWaterQueryContext::build(authoring, *ocean, nullptr,
+                                                    12, 8, {12, 8});
+  assert(oceanQuery && oceanQuery->sample({9, 0, 4})->submerged);
+  std::stop_source cancel;
+  cancel.request_stop();
+  assert(!carveTerrainWater(ground, authoring, nullptr, cancel.get_token()));
+}
+
 int main() {
   riverCarvesChannelAndLeavesFieldUnchanged();
   riverDepthFollowsDrainage();
@@ -606,9 +839,15 @@ int main() {
   shorelineSofteningLowersGroundNearTheWaterline();
   bodyOrderDecidesOverlap();
   invalidBodiesAreDroppedAndCounted();
+  invalidAppearanceRejectsTheBodyAndReservesItsId();
   oceanFillsEveryBasinBelowSeaLevel();
   everyAcceptedBodyGetsASurface();
   refreshedSurfacesComposeWithoutRecarving();
+  partialCellsReachTheActualShoreWithoutDryCorners();
+  ownershipClipsBodiesRatherThanSharingCells();
+  zeroDepthDoesNotEmitDegenerateTrianglesOrInventBanks();
+  sharedClippingHandlesBothBoundariesAndCanonicalEdges();
   unusableFieldsAreReported();
+  lakeSelectsOnlyItsConnectedBasin();
   std::cout << "Terrain water checks passed\n";
 }

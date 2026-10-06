@@ -58,6 +58,14 @@ cookTerrainField(const TerrainCookInput &input, std::string *error) {
                           "Terrain biome ids and colours disagree in count.");
     return std::nullopt;
   }
+  if ((!field.biomeMaterials.empty() &&
+       field.biomeMaterials.size() != field.biomeIds.size()) ||
+      (!field.biomeTextureScales.empty() &&
+       field.biomeTextureScales.size() != field.biomeIds.size())) {
+    cook_format::setError(
+        error, "Terrain appearance arrays do not match its biome palette.");
+    return std::nullopt;
+  }
   if (!std::isfinite(input.water.seaLevel)) {
     cook_format::setError(error,
                           "Terrain water level must be finite to be cooked.");
@@ -85,6 +93,13 @@ cookTerrainField(const TerrainCookInput &input, std::string *error) {
   }
   cooked.biomeIds = field.biomeIds;
   cooked.biomeColors = field.biomeColors;
+  cooked.biomeMaterials = field.biomeMaterials.empty()
+                              ? std::vector<std::string>(field.biomeIds.size())
+                              : field.biomeMaterials;
+  cooked.biomeTextureScales =
+      field.biomeTextureScales.empty()
+          ? std::vector<float>(field.biomeIds.size(), 1.0F)
+          : field.biomeTextureScales;
   cooked.chunks = field.chunks;
   cooked.generatorVersionTag = input.generatorVersionTag;
   cooked.recipeDigest = input.recipeDigest;
@@ -182,6 +197,8 @@ loadTerrainCookedField(const TerrainCookedField &field) {
   }
   loaded->biomeIds = field.biomeIds;
   loaded->biomeColors = field.biomeColors;
+  loaded->biomeMaterials = field.biomeMaterials;
+  loaded->biomeTextureScales = field.biomeTextureScales;
   loaded->chunks = field.chunks;
   loaded->paletteId = field.paletteId;
   loaded->inputFingerprint = field.inputFingerprint;
@@ -225,6 +242,19 @@ std::string terrainCookStaleness(const TerrainCookedField &cached,
   if (field.biomeIds != cached.biomeIds ||
       !cook_format::sameColors(field.biomeColors, cached.biomeColors))
     return "grid";
+  for (std::size_t index = 0; index < field.biomeIds.size(); ++index) {
+    const auto material = field.biomeMaterials.empty()
+                              ? std::string{}
+                              : field.biomeMaterials.at(index);
+    const float scale = field.biomeTextureScales.empty()
+                            ? 1.0F
+                            : field.biomeTextureScales.at(index);
+    if (index >= cached.biomeMaterials.size() ||
+        index >= cached.biomeTextureScales.size() ||
+        material != cached.biomeMaterials[index] ||
+        scale != cached.biomeTextureScales[index])
+      return "appearance";
+  }
   if (cached.stageOrder != field.stageOrder || cached.quality != field.quality)
     return "grid";
   // Recomputed from the payload rather than trusted from the struct, so a

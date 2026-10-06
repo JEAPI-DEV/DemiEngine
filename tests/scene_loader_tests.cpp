@@ -11,6 +11,8 @@
 #include <fstream>
 #include <iostream>
 #include <optional>
+#include <utility>
+#include <vector>
 
 namespace {
 
@@ -136,6 +138,100 @@ int main(int argc, char **argv) {
       std::cerr << "Invalid mesh surface override was accepted.\n";
       return 1;
     }
+  }
+
+  const nlohmann::json inlineColors = {
+      {"vertices", {{0, 0, 0}, {1, 0, 0}, {0, 1, 0}}},
+      {"vertex_colors", {{1, 0, 0, 1}, {0, 1, 0, 0.5}, {0, 0, 1, 0}}}};
+  meshDescriptor->parse(inlineColors, meshEntity);
+  const auto *coloredMesh =
+      meshEntity.component<runtime::MeshRendererComponent>();
+  const auto &colorProperty = meshSchema["properties"]["vertex_colors"];
+  if (!runtime::scene_loading::validateComponent(*meshDescriptor, inlineColors)
+           .empty() ||
+      meshDescriptor->serialize(meshEntity) != inlineColors ||
+      coloredMesh->vertexColors.size() != 3 ||
+      coloredMesh->vertexColors[1].g != 1 ||
+      coloredMesh->vertexColors[1].a != 0.5F ||
+      !runtime::runtimeFieldJson(coloredMesh->vertexColors, encoded) ||
+      encoded != inlineColors["vertex_colors"] ||
+      meshDefaults["vertex_colors"] != nlohmann::json::array() ||
+      colorProperty["items"]["minItems"] != 4 ||
+      colorProperty["items"]["maxItems"] != 4 ||
+      colorProperty["items"]["items"]["minimum"] != 0 ||
+      colorProperty["items"]["items"]["maximum"] != 1 ||
+      meshDescriptor->exposedToLua) {
+    std::cerr << "Inline mesh colors did not round-trip through the native "
+                 "contract.\n";
+    return 1;
+  }
+  for (const nlohmann::json &valid :
+       {nlohmann::json::object(),
+        nlohmann::json{{"vertex_colors", nlohmann::json::array()}}}) {
+    runtime::Entity uncolored;
+    meshDescriptor->parse(valid, uncolored);
+    if (!uncolored.component<runtime::MeshRendererComponent>()
+             ->vertexColors.empty() ||
+        !runtime::scene_loading::validateComponent(*meshDescriptor, valid)
+             .empty()) {
+      std::cerr
+          << "Omitted or empty vertex colors must retain white vertex tint.\n";
+      return 1;
+    }
+  }
+  std::vector<nlohmann::json> invalidColors{nullptr,
+                                            "red",
+                                            nlohmann::json::object(),
+                                            {{1, 0, 0}},
+                                            {{1, 0, 0, 1, 0}},
+                                            {{1, 0, "blue", 1}},
+                                            {{1, 0, 0, 1}}};
+  for (double channel :
+       {-0.01, 1.01, 1.000000001, std::numeric_limits<double>::infinity(),
+        std::numeric_limits<double>::quiet_NaN()}) {
+    auto colors = inlineColors["vertex_colors"];
+    colors[1][3] = channel;
+    invalidColors.push_back(std::move(colors));
+  }
+  for (const auto &colors : invalidColors) {
+    auto invalid = inlineColors;
+    invalid["vertex_colors"] = colors;
+    bool rejected = false;
+    try {
+      meshDescriptor->parse(invalid, meshEntity);
+    } catch (const std::exception &) {
+      rejected = true;
+    }
+    if (!rejected ||
+        runtime::scene_loading::validateComponent(*meshDescriptor, invalid)
+            .empty() ||
+        meshDescriptor->serialize(meshEntity) != inlineColors) {
+      std::cerr << "Invalid vertex colors were accepted or replaced the "
+                   "previous mesh.\n";
+      return 1;
+    }
+  }
+  const nlohmann::json withoutVertices = {
+      {"vertex_colors", inlineColors["vertex_colors"]}};
+  if (runtime::scene_loading::validateComponent(*meshDescriptor,
+                                                withoutVertices)
+          .empty()) {
+    std::cerr << "Nonempty vertex colors require inline vertices.\n";
+    return 1;
+  }
+  auto malformedGeometry = inlineColors;
+  malformedGeometry["vertices"] =
+      nlohmann::json::array({nullptr, nullptr, nullptr});
+  bool rejectedMalformedGeometry = false;
+  try {
+    runtime::MeshRendererComponent::parse(malformedGeometry, meshEntity);
+  } catch (const std::exception &) {
+    rejectedMalformedGeometry = true;
+  }
+  if (!rejectedMalformedGeometry) {
+    std::cerr
+        << "Vertex colors were accepted without parsed inline vertices.\n";
+    return 1;
   }
 
   const std::filesystem::path invalidComponentFixture =

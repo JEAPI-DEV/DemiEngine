@@ -147,6 +147,18 @@ int main() {
   const auto *meshDescriptor =
       runtime::scene_loading::findComponentDescriptor("MeshRenderer");
   assert(meshDescriptor != nullptr);
+  const auto vertexColors = std::ranges::find(
+      meshDescriptor->fields, "vertex_colors", &runtime::ComponentFieldDescriptor::name);
+  assert(vertexColors != meshDescriptor->fields.end());
+  assert(vertexColors->type == runtime::ComponentFieldType::ColorArray);
+  assert(vertexColors->editor.advanced);
+  assert(runtime::scene_loading::componentFieldEditorLabel(*vertexColors) == "Vertex Colors");
+  const auto omittedVertexColors = editorPropertyPresentation(
+      *meshDescriptor, *vertexColors, nlohmann::json::object(), false, false);
+  assert(omittedVertexColors.hasValue);
+  assert(omittedVertexColors.value == nlohmann::json::array());
+  assert(omittedVertexColors.origin == EditorPropertyOrigin::Default);
+  assert(!omittedVertexColors.canReset);
   assets::MaterialAsset assignedMaterial;
   assignedMaterial.numbers["metallic"] = 0.5F;
   assignedMaterial.numbers["roughness"] = 0.25F;

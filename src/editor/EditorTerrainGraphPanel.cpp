@@ -1,6 +1,7 @@
 #include "editor/EditorTerrainGraphPanel.h"
 #include "editor/EditorChrome.h"
 #include "editor/EditorClipboard.h"
+#include "editor/EditorColorControl.h"
 #include "editor/EditorGraphCanvasScale.h"
 #include "editor/EditorKeyBindings.h"
 #include "editor/EditorModulesPanel.h"
@@ -612,6 +613,25 @@ void EditorTerrainGraphPanel::drawParameter(
   bool changed = false;
   Json edited;
   switch (definition.kind) {
+  case runtime::TerrainGraphParameterKind::Color: {
+    Json &working = numericEdits_.try_emplace(key, value).first->second;
+    float rgba[4]{working.at(0).get<float>(), working.at(1).get<float>(),
+                  working.at(2).get<float>(), working.at(3).get<float>()};
+    const bool colorChanged =
+        drawEditorColorControl("##value", rgba,
+                               {.flags = ImGuiColorEditFlags_AlphaBar |
+                                         ImGuiColorEditFlags_DisplayHex});
+    if (colorChanged)
+      working = Json::array({rgba[0], rgba[1], rgba[2], rgba[3]});
+    if (ImGui::IsItemDeactivatedAfterEdit() ||
+        (colorChanged && !ImGui::IsItemActive())) {
+      edited = working;
+      changed = true;
+    } else if (!ImGui::IsAnyItemActive()) {
+      working = value;
+    }
+    break;
+  }
   case runtime::TerrainGraphParameterKind::Number: {
     Json &working = numericEdits_.try_emplace(key, value).first->second;
     float number = working.is_number() ? working.get<float>() : 0.0F;

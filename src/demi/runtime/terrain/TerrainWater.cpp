@@ -1,10 +1,14 @@
 #include "demi/runtime/terrain/TerrainWater.h"
 
 #include "demi/runtime/terrain/TerrainGeneration.h"
+#include "demi/runtime/terrain/TerrainWaterConnectivity.h"
+#include "demi/runtime/terrain/TerrainWaterGeometry.h"
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <map>
+#include <stdexcept>
 #include <unordered_set>
 #include <utility>
 
@@ -137,8 +141,8 @@ bool covers(const BodyProbe &probe, double x, double z, double ground) {
   if (ground > double(spec.level))
     return false;
   if (spec.kind == TerrainWaterBody::River) {
-    const auto nearest = nearestOnPath(spec.riverPath, probe.river, x, z,
-                                      probe.stop);
+    const auto nearest =
+        nearestOnPath(spec.riverPath, probe.river, x, z, probe.stop);
     if (!std::isfinite(nearest.distance))
       return false;
     return nearest.distance <=
@@ -182,9 +186,47 @@ BodyCoverage coverBody(const BodyProbe &probe, Vec2 size, int cellsX,
                   double(ground[sample])))
         continue;
       coverage.covered[sample] = 1;
-      coverage.distance[sample] = 0.F;
     }
   }
+  if (probe.spec->kind == TerrainWaterBody::Lake) {
+    for (std::size_t sample = 0; sample < count; ++sample)
+      if (!(ground[sample] < probe.spec->level))
+        coverage.covered[sample] = 0;
+    auto connected = terrain_water_detail::connectedLakeCoverage(
+        size, cellsX, cellsZ, probe.spec->center, coverage.covered, stop);
+    if (stop.stop_requested())
+      return coverage;
+    coverage.covered = std::move(connected);
+    // Exact waterline samples can start the shoreline band, but must not
+    // connect two basins through zero-depth land during the flood fill.
+    const auto selected = coverage.covered;
+    constexpr std::array<std::array<int, 2>, 6> edges{
+        {{{-1, 0}}, {{1, 0}}, {{0, -1}}, {{0, 1}}, {{-1, 1}}, {{1, -1}}}};
+    for (int z = 0; z <= cellsZ; ++z) {
+      if (stop.stop_requested())
+        return coverage;
+      for (int x = 0; x <= cellsX; ++x) {
+        const auto sample = at(x, z);
+        if (ground[sample] != probe.spec->level)
+          continue;
+        const auto position = Vec2{float(double(x) * size.x / cellsX),
+                                   float(double(z) * size.y / cellsZ)};
+        if (!covers(probe, position.x, position.y, ground[sample]))
+          continue;
+        for (const auto &edge : edges) {
+          const int nx = x + edge[0], nz = z + edge[1];
+          if (nx >= 0 && nz >= 0 && nx <= cellsX && nz <= cellsZ &&
+              selected[at(nx, nz)]) {
+            coverage.covered[sample] = 1;
+            break;
+          }
+        }
+      }
+    }
+  }
+  for (std::size_t sample = 0; sample < count; ++sample)
+    if (coverage.covered[sample])
+      coverage.distance[sample] = 0.F;
 
   const double stepX = double(size.x) / cellsX;
   const double stepZ = double(size.y) / cellsZ;
@@ -257,9 +299,9 @@ void carveRiver(const TerrainWaterBodySpec &spec, const BodyProbe &probe,
       // channel that begins and ends for no reason.
       const auto position = Vec2{float(double(x) * size.x / cellsX),
                                  float(double(z) * size.y / cellsZ)};
-      const auto nearest = nearestOnPath(
-          spec.riverPath, probe.river, double(position.x), double(position.y),
-          stop);
+      const auto nearest =
+          nearestOnPath(spec.riverPath, probe.river, double(position.x),
+                        double(position.y), stop);
       if (!std::isfinite(nearest.distance))
         continue;
       const double halfWidth =
@@ -328,8 +370,8 @@ void carveShoreline(const TerrainWaterBodySpec &spec, Vec2 size, int cellsX,
 
 terrain_water_detail::WaterLevelField
 buildField(Vec2 size, int cellsX, int cellsZ, const std::vector<float> &ground,
-           const TerrainWaterAuthoring &authoring,
-           std::stop_token stop = {}) {
+           const TerrainWaterAuthoring &authoring, std::stop_token stop = {},
+           bool includeDryFootprint = false) {
   using terrain_water_detail::WaterLevelField;
   WaterLevelField field;
   field.size = size;
@@ -339,19 +381,70 @@ buildField(Vec2 size, int cellsX, int cellsZ, const std::vector<float> &ground,
   field.level.assign(count, 0.F);
   field.wet.assign(count, 0);
   field.body.assign(count, WaterLevelField::noBody);
-  for (const auto index : terrain_water_detail::acceptedBodies(authoring, stop)) {
+  for (const auto index :
+       terrain_water_detail::acceptedBodies(authoring, stop)) {
     if (stop.stop_requested())
       return field;
     const auto &spec = authoring.bodies[index];
     const auto probe = probeFor(spec, stop);
+    std::vector<std::uint8_t> connected;
+    if (spec.kind == TerrainWaterBody::Lake) {
+      std::vector<std::uint8_t> wet(count);
+      for (int z = 0; z <= cellsZ; ++z) {
+        if (stop.stop_requested())
+          return field;
+        for (int x = 0; x <= cellsX; ++x) {
+          const auto sample = field.sampleAt(x, z);
+          const auto position = field.position(x, z);
+          wet[sample] = std::isfinite(ground[sample]) &&
+                        ground[sample] < spec.level &&
+                        covers(probe, position.x, position.y, ground[sample]);
+        }
+      }
+      connected = terrain_water_detail::connectedLakeCoverage(
+          size, cellsX, cellsZ, spec.center, wet, stop);
+      if (stop.stop_requested())
+        return field;
+    }
     for (int z = 0; z <= cellsZ; ++z) {
       if (stop.stop_requested())
         return field;
       for (int x = 0; x <= cellsX; ++x) {
+        if ((x & 255) == 0 && stop.stop_requested())
+          return field;
         const auto sample = field.sampleAt(x, z);
         const auto position = field.position(x, z);
+        if (!std::isfinite(ground[sample]))
+          continue;
+        const double coverageGround =
+            includeDryFootprint ? -std::numeric_limits<double>::infinity()
+                                : double(ground[sample]);
         if (!covers(probe, double(position.x), double(position.y),
-                    double(ground[sample])))
+                    coverageGround))
+          continue;
+        if (spec.kind == TerrainWaterBody::Lake && !connected[sample]) {
+          if (!includeDryFootprint || ground[sample] < spec.level)
+            continue;
+          // Only a one-edge dry halo participates in shoreline interpolation.
+          // Extending the whole footprint would recreate disconnected puddles.
+          bool shoreline = false;
+          constexpr std::array<std::array<int, 2>, 6> edges{
+              {{{-1, 0}}, {{1, 0}}, {{0, -1}}, {{0, 1}}, {{-1, 1}}, {{1, -1}}}};
+          for (const auto &edge : edges) {
+            const int nx = x + edge[0], nz = z + edge[1];
+            if (nx >= 0 && nz >= 0 && nx <= cellsX && nz <= cellsZ &&
+                connected[field.sampleAt(nx, nz)]) {
+              shoreline = true;
+              break;
+            }
+          }
+          if (!shoreline)
+            continue;
+        }
+        // A dry footprint supplies shoreline interpolation, but cannot steal
+        // water from an earlier body whose level still covers this sample.
+        if (includeDryFootprint && ground[sample] >= spec.level &&
+            field.wet[sample] && ground[sample] <= field.level[sample])
           continue;
         // Authored order is the priority order: a later body overwrites the
         // overlap rather than blending with it, so the result is decidable
@@ -373,48 +466,63 @@ buildSurface(const TerrainWaterBodySpec &spec, std::size_t bodyIndex,
   surface.id = spec.id;
   surface.kind = spec.kind;
   surface.level = spec.level;
-  constexpr std::size_t noVertex = ~std::size_t(0);
-  std::vector<std::size_t> vertexForSample(field.samples(), noVertex);
-  const auto owned = [&](int x, int z) {
-    const auto sample = field.sampleAt(x, z);
-    return field.wet[sample] && field.body[sample] == bodyIndex;
-  };
-  // A cell with any covered corner is drawn in full, with the dry corner
-  // clamped to the surface. Emitting only fully covered cells would step the
-  // waterline along cell boundaries, which is the one thing a shoreline must
-  // not do.
-  const auto vertex = [&](int x, int z) {
-    const auto sample = field.sampleAt(x, z);
-    if (vertexForSample[sample] != noVertex)
-      return vertexForSample[sample];
-    const auto position = field.position(x, z);
-    surface.vertices.push_back({position.x, spec.level, position.y});
+  using namespace terrain_water_detail;
+  std::map<std::pair<float, float>, std::size_t> vertexAt;
+  const auto vertex = [&](const WaterGeometryVertex &point) {
+    const auto position = std::pair{float(point.x), float(point.z)};
+    const auto [entry, inserted] =
+        vertexAt.try_emplace(position, surface.vertices.size());
+    if (!inserted)
+      return entry->second;
+    surface.vertices.push_back({position.first, spec.level, position.second});
     surface.normals.push_back({0.F, 1.F, 0.F});
-    // A non-finite ground sample would put a NaN in the depth buffer, which is
-    // exactly the kind of corruption a renderer cannot recover from; the
-    // surface keeps the vertex and reports no depth instead.
-    const float bed =
-        std::isfinite(ground[sample]) ? ground[sample] : spec.level;
-    surface.depth.push_back(std::max(0.F, spec.level - bed));
-    vertexForSample[sample] = surface.vertices.size() - 1;
-    return vertexForSample[sample];
+    surface.depth.push_back(float(std::max(0.0, point.depth)));
+    return entry->second;
   };
   for (int z = 0; z < field.cellsZ; ++z) {
     if (stop.stop_requested())
       return surface;
     for (int x = 0; x < field.cellsX; ++x) {
-      if (!owned(x, z) && !owned(x + 1, z) && !owned(x, z + 1) &&
-          !owned(x + 1, z + 1))
-        continue;
-      const auto a = vertex(x, z);
-      const auto b = vertex(x + 1, z);
-      const auto c = vertex(x, z + 1);
-      const auto d = vertex(x + 1, z + 1);
-      // Same winding as the terrain mesh, so one culling convention covers
-      // both.
-      const std::size_t triangles[] = {a, c, b, b, c, d};
-      surface.indices.insert(surface.indices.end(), std::begin(triangles),
-                             std::end(triangles));
+      if ((x & 255) == 0 && stop.stop_requested())
+        return surface;
+      std::array<WaterGeometryVertex, 4> corners;
+      const std::array<std::pair<int, int>, 4> coordinates{
+          std::pair{x, z}, std::pair{x + 1, z}, std::pair{x, z + 1},
+          std::pair{x + 1, z + 1}};
+      for (std::size_t i = 0; i < corners.size(); ++i) {
+        const auto [cx, cz] = coordinates[i];
+        const auto sample = field.sampleAt(cx, cz);
+        const auto position = field.position(cx, cz);
+        corners[i] = {position.x, position.y,
+                      double(spec.level) - double(ground[sample]),
+                      waterOwnershipMask(field.wet[sample], field.body[sample],
+                                         bodyIndex)};
+      }
+      for (const auto &triangle : waterCellTriangles) {
+        const bool hasWetCorner =
+            std::ranges::any_of(triangle, [&](auto corner) {
+              return corners[corner].coverage > 0 && corners[corner].depth > 0;
+            });
+        if (!hasWetCorner)
+          continue;
+        const auto polygon = clipWaterTriangle(
+            {corners[triangle[0]], corners[triangle[1]], corners[triangle[2]]});
+        for (std::size_t i = 1; i + 1 < polygon.count; ++i) {
+          const auto &a = polygon.vertices[0];
+          const auto &b = polygon.vertices[i];
+          const auto &c = polygon.vertices[i + 1];
+          // Test the final float positions: rounding can collapse a tiny
+          // polygon even when its double-precision area was positive.
+          const double area = (double(float(b.z)) - float(a.z)) *
+                                  (double(float(c.x)) - float(a.x)) -
+                              (double(float(b.x)) - float(a.x)) *
+                                  (double(float(c.z)) - float(a.z));
+          if (!(area > 0.0))
+            continue;
+          surface.indices.insert(surface.indices.end(),
+                                 {vertex(a), vertex(b), vertex(c)});
+        }
+      }
     }
   }
   return surface;
@@ -426,19 +534,23 @@ std::optional<TerrainWaterResult> finishWaterResult(
     TerrainSamples<float> carvedHeights, std::stop_token stop) {
   // Coverage, ownership and depth all read the finished ground. Later bodies
   // own overlaps, even when an earlier body carved part of the same basin.
-  const auto resolved =
-      buildField(size, cellsX, cellsZ, carved, authoring, stop);
+  auto resolved =
+      buildField(size, cellsX, cellsZ, carved, authoring, stop, true);
   if (stop.stop_requested())
     return std::nullopt;
   TerrainWaterResult result;
   result.dropped = authoring.bodies.size() - accepted.size();
   result.carvedHeights = std::move(carvedHeights);
+  result.resolvedCoverage =
+      std::make_shared<const terrain_water_detail::WaterLevelField>(
+          std::move(resolved));
   result.surfaces.reserve(accepted.size());
   for (const auto index : accepted) {
     if (stop.stop_requested())
       return std::nullopt;
-    result.surfaces.push_back(
-        buildSurface(authoring.bodies[index], index, resolved, carved, stop));
+    result.surfaces.push_back(buildSurface(authoring.bodies[index], index,
+                                           *result.resolvedCoverage, carved,
+                                           stop));
   }
   if (stop.stop_requested())
     return std::nullopt;
@@ -448,9 +560,8 @@ std::optional<TerrainWaterResult> finishWaterResult(
 
 namespace terrain_water_detail {
 
-std::vector<std::size_t>
-acceptedBodies(const TerrainWaterAuthoring &authoring,
-               std::stop_token stop) {
+std::vector<std::size_t> acceptedBodies(const TerrainWaterAuthoring &authoring,
+                                        std::stop_token stop) {
   std::vector<std::size_t> accepted;
   accepted.reserve(authoring.bodies.size());
   std::unordered_set<std::string> seenIds;
@@ -463,6 +574,11 @@ acceptedBodies(const TerrainWaterAuthoring &authoring,
     if (!std::isfinite(spec.level) || !std::isfinite(spec.radius) ||
         !std::isfinite(spec.center.x) || !std::isfinite(spec.center.y))
       continue;
+    try {
+      validateTerrainWaterAppearance(spec.appearance);
+    } catch (const std::invalid_argument &) {
+      continue;
+    }
     if (spec.kind == TerrainWaterBody::River) {
       if (spec.riverPath.size() < 2 || !std::isfinite(spec.riverWidth) ||
           !(spec.riverWidth > 0))
@@ -491,6 +607,23 @@ WaterLevelField buildWaterLevelField(Vec2 size, int cellsX, int cellsZ,
   for (std::size_t sample = 0; sample < count; ++sample)
     samples[sample] = ground[sample];
   return buildField(size, cellsX, cellsZ, samples, authoring);
+}
+
+WaterLevelField buildWaterGeometryField(Vec2 size, int cellsX, int cellsZ,
+                                        const TerrainSamples<float> &ground,
+                                        const TerrainWaterAuthoring &authoring,
+                                        std::stop_token stop) {
+  if (cellsX <= 0 || cellsZ <= 0 ||
+      ground.size() != sampleCount(cellsX, cellsZ))
+    return {};
+  std::vector<float> samples(ground.size());
+  for (std::size_t sample = 0; sample < samples.size(); ++sample) {
+    if ((sample & 255) == 0 && stop.stop_requested())
+      return {};
+    samples[sample] = ground[sample];
+  }
+  auto field = buildField(size, cellsX, cellsZ, samples, authoring, stop, true);
+  return stop.stop_requested() ? WaterLevelField{} : std::move(field);
 }
 } // namespace terrain_water_detail
 

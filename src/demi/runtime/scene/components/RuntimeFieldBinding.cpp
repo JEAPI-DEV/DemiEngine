@@ -94,4 +94,15 @@ bool runtimeFieldJson(const std::vector<Vec3> &value, nlohmann::json &out) {
   return true;
 }
 
+bool runtimeFieldJson(const std::vector<Color> &value, nlohmann::json &out) {
+  out = nlohmann::json::array();
+  for (const auto &color : value) {
+    nlohmann::json item;
+    if (!runtimeFieldJson(color, item))
+      return false;
+    out.push_back(std::move(item));
+  }
+  return true;
+}
+
 } // namespace demi::runtime

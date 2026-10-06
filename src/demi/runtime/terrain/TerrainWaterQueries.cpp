@@ -1,6 +1,7 @@
 #include "demi/runtime/terrain/TerrainWaterQueries.h"
 
 #include "demi/runtime/terrain/TerrainGeneration.h"
+#include "demi/runtime/terrain/TerrainWaterGeometry.h"
 
 #include <algorithm>
 #include <array>
@@ -48,11 +49,24 @@ std::optional<TerrainWaterQueryContext> TerrainWaterQueryContext::build(
   if (masks != nullptr && masks->flow.size() != count) {
     return std::nullopt;
   }
-  const auto field = terrain_water_detail::buildWaterLevelField(
-      size, cellsX, cellsZ, result.carvedHeights, authoring);
-  if (field.samples() != count) {
+  const auto generated =
+      result.resolvedCoverage
+          ? terrain_water_detail::WaterLevelField{}
+          : terrain_water_detail::buildWaterGeometryField(
+                size, cellsX, cellsZ, result.carvedHeights, authoring);
+  const auto &field =
+      result.resolvedCoverage ? *result.resolvedCoverage : generated;
+  if (field.samples() != count || field.wet.size() != count ||
+      field.body.size() != count || field.cellsX != cellsX ||
+      field.cellsZ != cellsZ || field.size.x != size.x ||
+      field.size.y != size.y) {
     return std::nullopt;
   }
+  for (std::size_t sample = 0; sample < count; ++sample)
+    if (field.wet[sample] &&
+        (field.body[sample] >= authoring.bodies.size() ||
+         field.level[sample] != authoring.bodies[field.body[sample]].level))
+      return std::nullopt;
 
   TerrainWaterQueryContext context;
   context.size_ = size;
@@ -81,10 +95,10 @@ TerrainWaterQueryContext::sample(Vec3 worldPosition) const {
       worldPosition.z > size_.y) {
     return std::nullopt;
   }
-  const auto cellX =
+  auto cellX =
       std::clamp(int(std::floor(double(worldPosition.x) / size_.x * cellsX_)),
                  0, cellsX_ - 1);
-  const auto cellZ =
+  auto cellZ =
       std::clamp(int(std::floor(double(worldPosition.z) / size_.y * cellsZ_)),
                  0, cellsZ_ - 1);
   // The same corner positions the field itself is built from, so a query lands
@@ -95,9 +109,17 @@ TerrainWaterQueryContext::sample(Vec3 worldPosition) const {
   const auto cornerZ = [&](int z) {
     return float(double(z) * size_.y / cellsZ_);
   };
-  const auto u = double(worldPosition.x - cornerX(cellX)) /
+  while (cellX > 0 && worldPosition.x < cornerX(cellX))
+    --cellX;
+  while (cellX < cellsX_ - 1 && worldPosition.x >= cornerX(cellX + 1))
+    ++cellX;
+  while (cellZ > 0 && worldPosition.z < cornerZ(cellZ))
+    --cellZ;
+  while (cellZ < cellsZ_ - 1 && worldPosition.z >= cornerZ(cellZ + 1))
+    ++cellZ;
+  const auto u = (double(worldPosition.x) - cornerX(cellX)) /
                  (double(cornerX(cellX + 1)) - double(cornerX(cellX)));
-  const auto v = double(worldPosition.z - cornerZ(cellZ)) /
+  const auto v = (double(worldPosition.z) - cornerZ(cellZ)) /
                  (double(cornerZ(cellZ + 1)) - double(cornerZ(cellZ)));
 
   const auto columns = std::size_t(cellsX_) + 1;
@@ -106,41 +128,54 @@ TerrainWaterQueryContext::sample(Vec3 worldPosition) const {
       std::size_t(cellZ) * columns + std::size_t(cellX + 1),
       std::size_t(cellZ + 1) * columns + std::size_t(cellX),
       std::size_t(cellZ + 1) * columns + std::size_t(cellX + 1)};
-  const std::array<double, 4> weights{(1.0 - u) * (1.0 - v), u * (1.0 - v),
-                                      (1.0 - u) * v, u * v};
+  const auto weights = terrain_water_detail::waterTriangleWeights(u, v);
 
   double ground = 0.0;
   double level = 0.0;
-  double levelWeight = 0.0;
   double flow = 0.0;
   auto owner = terrain_water_detail::WaterLevelField::noBody;
   for (std::size_t corner = 0; corner < corners.size(); ++corner) {
     const auto sample = corners[corner];
+    if (weights[corner] == 0.0)
+      continue;
+    if (!std::isfinite(ground_[sample]))
+      return TerrainWaterQuery{};
     ground += weights[corner] * double(ground_[sample]);
     flow += weights[corner] * double(flow_[sample]);
     if (!wet_[sample]) {
       continue;
     }
-    // Weighted over the wet corners only. Normalising over all four would drag
-    // the level down towards a dry neighbour and shrink the body by a cell;
-    // ignoring the weights would make a level field of stepped values answer
-    // with one corner's height. The surface is a plane, so the blend is a
-    // blend of planes, and it is the ground that crosses it that decides where
-    // the shoreline is.
-    level += weights[corner] * double(level_[sample]);
-    levelWeight += weights[corner];
-    // Authored priority order decides an overlap, here as it did on the mesh.
+    double coverage = 0.0;
+    for (std::size_t i = 0; i < corners.size(); ++i) {
+      const auto neighbour = corners[i];
+      coverage +=
+          weights[i] * terrain_water_detail::waterOwnershipMask(
+                           wet_[neighbour], body_[neighbour], body_[sample]);
+    }
+    if (!(coverage > 0.0))
+      continue;
+    // Keep the winning body's authored plane; interpolating different bodies'
+    // levels would introduce a slope neither body nor its mesh contains.
     if (owner == terrain_water_detail::WaterLevelField::noBody ||
         body_[sample] > owner) {
       owner = body_[sample];
+      level = level_[sample];
     }
   }
-  if (levelWeight <= 0.0) {
+  if (owner == terrain_water_detail::WaterLevelField::noBody) {
     return TerrainWaterQuery{};
   }
+  const auto &triangle =
+      terrain_water_detail::waterCellTriangles[u + v <= 1 ? 0 : 1];
+  const bool hasWetCorner = std::ranges::any_of(triangle, [&](auto corner) {
+    const auto sample = corners[corner];
+    return wet_[sample] && body_[sample] == owner && ground_[sample] < level;
+  });
+  if (!hasWetCorner)
+    return TerrainWaterQuery{};
 
   TerrainWaterQuery query;
-  query.depth = float(std::max(0.0, level / levelWeight - ground));
+  query.depth = float(std::max(0.0, level - ground));
   query.submerged = query.depth > 0.F;
   if (!query.submerged) {
     // Dry means dry, including exactly on the waterline: a body id on a point

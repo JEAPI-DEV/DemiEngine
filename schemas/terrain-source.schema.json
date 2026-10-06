@@ -9,6 +9,22 @@
     "format_version": {"const": 1},
     "id": {"type": "string", "pattern": "^asset://.+"},
     "name": {"type": "string"},
-    "recipe": {"type": "object", "required": ["format_version"]}
+    "recipe": {
+      "type": "object",
+      "required": ["format_version"],
+      "properties": {
+        "format_version": {"const": 1},
+        "biomes": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "material": {"type": "string", "pattern": "^(asset://.+)?$"},
+              "texture_scale": {"type": "number", "exclusiveMinimum": 0, "default": 1}
+            }
+          }
+        }
+      }
+    }
   }
 }

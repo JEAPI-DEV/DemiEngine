@@ -87,7 +87,8 @@ TerrainInvalidation mergedInvalidation(TerrainInvalidation first,
 namespace {
 bool sameBiomePalette(const TerrainBiomePalette &a,
                          const TerrainBiomePalette &b) {
-  if (a.ids != b.ids || a.colors.size() != b.colors.size())
+  if (a.ids != b.ids || a.colors.size() != b.colors.size() ||
+      a.materials != b.materials || a.textureScales != b.textureScales)
     return false;
   for (std::size_t i = 0; i < a.colors.size(); ++i) {
     const auto left = a.colors[i], right = b.colors[i];
@@ -139,8 +140,10 @@ bool terrainFieldsEqual(const HeightField &left, const HeightField &right) {
       left.exclusions != right.exclusions ||
       left.normals.size() != right.normals.size() ||
       left.chunks.size() != right.chunks.size() ||
-      !sameBiomePalette({left.biomeIds, left.biomeColors},
-                   {right.biomeIds, right.biomeColors}))
+      !sameBiomePalette({left.biomeIds, left.biomeColors,
+                         left.biomeMaterials, left.biomeTextureScales},
+                        {right.biomeIds, right.biomeColors,
+                         right.biomeMaterials, right.biomeTextureScales}))
     return false;
   for (std::size_t i = 0; i < left.normals.size(); ++i) {
     const auto a = left.normals[i], b = right.normals[i];
@@ -163,8 +166,11 @@ std::size_t TerrainPatch::retainedBytes() const {
     if (!*palette)
       continue;
     bytes += (*palette)->colors.size() * sizeof(Color);
+    bytes += (*palette)->textureScales.size() * sizeof(float);
     for (const auto &id : (*palette)->ids)
       bytes += sizeof(std::string) + id.size();
+    for (const auto &material : (*palette)->materials)
+      bytes += sizeof(std::string) + material.size();
   }
   for (const auto *derived : {&beforeDerived, &afterDerived})
     if (*derived)
@@ -207,8 +213,10 @@ TerrainUpdate applyTerrainPatch(std::shared_ptr<const HeightField> current,
     const auto &expectedPalette =
         forward ? patch.beforePalette : patch.afterPalette;
     if (expectedPalette &&
-        !sameBiomePalette({current->biomeIds, current->biomeColors},
-                     *expectedPalette))
+        !sameBiomePalette({current->biomeIds, current->biomeColors,
+                           current->biomeMaterials,
+                           current->biomeTextureScales},
+                          *expectedPalette))
       throw std::invalid_argument("Terrain history palette no longer matches");
     auto updated = std::make_shared<HeightField>(*current);
     for (const auto &change : patch.samples) {
@@ -221,6 +229,8 @@ TerrainUpdate applyTerrainPatch(std::shared_ptr<const HeightField> current,
     if (palette) {
       updated->biomeIds = palette->ids;
       updated->biomeColors = palette->colors;
+      updated->biomeMaterials = palette->materials;
+      updated->biomeTextureScales = palette->textureScales;
     }
     const auto &derived =
         forward ? patch.afterDerived : patch.beforeDerived;

@@ -1,7 +1,7 @@
 #include "demi/runtime/terrain/TerrainWorld.h"
-#include "demi/runtime/terrain/TerrainWorldBatch.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/terrain/TerrainScatterRuntime.h"
+#include "demi/runtime/terrain/TerrainWorldBatch.h"
 
 #include "demi/runtime/physics/ColliderAsset3D.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
@@ -13,6 +13,7 @@
 #include "demi/runtime/terrain/TerrainGenerator.h"
 #include "demi/runtime/terrain/TerrainMeshBuilder.h"
 #include "demi/runtime/terrain/TerrainUpdate.h"
+#include "demi/runtime/terrain/TerrainWaterMesh.h"
 
 #include <algorithm>
 #include <array>
@@ -32,6 +33,7 @@ using terrain_detail::buildChunkTriangles;
 using terrain_detail::buildMeshEntity;
 using terrain_detail::surfaceId;
 using terrain_detail::TerrainGeneratedSurface;
+using terrain_detail::TerrainGeneratedWaterSurface;
 
 bool terrainHierarchyEnabled(const World &world, const Entity &owner) {
   const Entity *ancestor = &owner;
@@ -86,8 +88,11 @@ struct PreparedTerrainWorldUpdate::State {
     std::uint64_t revision;
     std::shared_ptr<const ColliderAsset3D> collider;
     Color beforeColor;
+    std::string beforeMaterial;
     std::optional<Entity> replacement;
     std::optional<Color> tint;
+    std::optional<std::string> material;
+    std::optional<std::vector<Vec2>> uvs;
     bool remove = false;
   };
 
@@ -142,7 +147,9 @@ bool sameSample(const HeightField &field, std::size_t index,
 bool sameBiomePalette(const HeightField &field,
                       const TerrainBiomePalette &palette) {
   return field.biomeIds == palette.ids &&
-         std::ranges::equal(field.biomeColors, palette.colors, sameColor);
+         std::ranges::equal(field.biomeColors, palette.colors, sameColor) &&
+         field.biomeMaterials == palette.materials &&
+         field.biomeTextureScales == palette.textureScales;
 }
 
 void validateUpdatePatch(const HeightField *before, const TerrainUpdate &update,
@@ -232,15 +239,21 @@ void validateUpdateLayout(const TerrainRecipe &recipe, const HeightField &field,
     throw std::invalid_argument(
         "Terrain result arrays do not match its sample count");
   if (field.biomeIds.size() != recipe.biomes.size() ||
-      field.biomeColors.size() != recipe.biomes.size())
+      field.biomeColors.size() != recipe.biomes.size() ||
+      (!field.biomeMaterials.empty() &&
+       field.biomeMaterials.size() != recipe.biomes.size()) ||
+      (!field.biomeTextureScales.empty() &&
+       field.biomeTextureScales.size() != recipe.biomes.size()))
     throw std::invalid_argument(
         "Terrain result palette does not match its recipe");
   std::size_t biome = 0;
   for (const auto &[id, settings] : recipe.biomes) {
     if (field.biomeIds[biome] != id ||
-        !sameColor(field.biomeColors[biome], settings.color))
+        !sameColor(field.biomeColors[biome], settings.color) ||
+        field.biomeMaterial(biome) != settings.material ||
+        field.biomeTextureScale(biome) != settings.textureScale)
       throw std::invalid_argument(
-          "Terrain result biome IDs/colors do not match its recipe");
+          "Terrain result biome appearance does not match its recipe");
     ++biome;
   }
 
@@ -358,9 +371,12 @@ std::optional<PreparedTerrainWorldUpdate> prepareTerrainWorldUpdate(
     const bool full =
         update.invalidation.fullGeneration || update.invalidation.layoutChanged;
     const auto dirty = update.invalidation.geometrySamples();
+    const bool waterChanged =
+        terrainWaterMeshesChanged(terrain->generated.get(), field);
 
     // Exclusions and recipe-only changes do not even inspect native surfaces.
-    if (!full && dirty.empty() && !update.invalidation.materialsChanged) {
+    if (!full && dirty.empty() && !update.invalidation.materialsChanged &&
+        !waterChanged) {
       if (stop.stop_requested()) {
         error = "Terrain publication cancelled";
         return std::nullopt;
@@ -382,6 +398,10 @@ std::optional<PreparedTerrainWorldUpdate> prepareTerrainWorldUpdate(
         ownerSurfaces.push_back(index);
         previousChunks[{surface->firstCellX, surface->firstCellZ}].push_back(
             index);
+      } else if (const auto *water =
+                     entity.component<TerrainGeneratedWaterSurface>();
+                 water && water->owner == owner.id) {
+        ownerSurfaces.push_back(index);
       }
     }
     for (std::size_t index = 0; index < world.terrainOwners.size(); ++index)
@@ -397,15 +417,18 @@ std::optional<PreparedTerrainWorldUpdate> prepareTerrainWorldUpdate(
       const auto &entity = world.entities[index];
       const auto *mesh = entity.component<MeshRendererComponent>();
       const auto *collider = entity.component<ModelCollider3DComponent>();
-      if (!mesh || !collider || !collider->inlineGeometry)
+      const bool water = entity.hasComponent<TerrainGeneratedWaterSurface>();
+      if (!mesh || (!water && (!collider || !collider->inlineGeometry)))
         throw std::invalid_argument(
             "Terrain surface is missing mesh/collision: " + entity.id);
       staged.emplace(index, state->changes.size());
-      state->changes.push_back({.index = index,
-                                .id = entity.id,
-                                .revision = mesh->revision,
-                                .collider = collider->inlineGeometry,
-                                .beforeColor = mesh->color});
+      state->changes.push_back(
+          {.index = index,
+           .id = entity.id,
+           .revision = mesh->revision,
+           .collider = collider ? collider->inlineGeometry : nullptr,
+           .beforeColor = mesh->color,
+           .beforeMaterial = mesh->material});
       return state->changes.back();
     };
     if (full)
@@ -434,6 +457,7 @@ std::optional<PreparedTerrainWorldUpdate> prepareTerrainWorldUpdate(
       for (const auto &[biome, triangles] : surfaces) {
         const auto &biomeId = field.biomeIds.at(biome);
         const auto color = field.biomeColors.at(biome);
+        const auto &material = field.biomeMaterial(biome);
         auto id = surfaceId(owner.id, chunk, biomeId);
         const auto existing = ids.find(id);
         const Entity *old =
@@ -456,6 +480,8 @@ std::optional<PreparedTerrainWorldUpdate> prepareTerrainWorldUpdate(
           if (sameGeometry) {
             if (!sameColor(mesh->color, color))
               change.tint = color;
+            if (mesh->material != material)
+              change.material = material;
             continue;
           }
           if (sameTriangles(*change.collider, triangles.vertices))
@@ -472,9 +498,9 @@ std::optional<PreparedTerrainWorldUpdate> prepareTerrainWorldUpdate(
               break;
             }
           }
-        auto entity = buildMeshEntity(owner, std::move(id), triangles.vertices,
-                                      triangles.normals, triangles.uvs, color,
-                                      {}, error, std::move(retainedCollider));
+        auto entity = buildMeshEntity(
+            owner, std::move(id), triangles.vertices, triangles.normals,
+            triangles.uvs, color, material, error, std::move(retainedCollider));
         if (!entity)
           return std::nullopt;
         entity->enabled = enabled;
@@ -504,13 +530,15 @@ std::optional<PreparedTerrainWorldUpdate> prepareTerrainWorldUpdate(
           continue;
         const auto *surface =
             world.entities[index].component<TerrainGeneratedSurface>();
+        if (!surface)
+          continue;
         const auto biome = std::ranges::find(field.biomeIds, surface->biome);
         if (biome == field.biomeIds.end())
           throw std::invalid_argument(
               "Removed biome still owns unchanged terrain triangles: " +
               surface->biome);
-        const auto color =
-            field.biomeColors.at(std::size_t(biome - field.biomeIds.begin()));
+        const auto biomeIndex = std::size_t(biome - field.biomeIds.begin());
+        const auto color = field.biomeColors.at(biomeIndex);
         const auto *mesh =
             world.entities[index].component<MeshRendererComponent>();
         if (!mesh)
@@ -518,6 +546,44 @@ std::optional<PreparedTerrainWorldUpdate> prepareTerrainWorldUpdate(
                                       world.entities[index].id);
         if (!sameColor(mesh->color, color))
           stage(index).tint = color;
+        if (mesh->material != field.biomeMaterial(biomeIndex))
+          stage(index).material = field.biomeMaterial(biomeIndex);
+        const auto oldBiome =
+            std::ranges::find(state->beforeField->biomeIds, surface->biome);
+        if (oldBiome == state->beforeField->biomeIds.end())
+          throw std::invalid_argument(
+              "Terrain surface biome is missing from retained field");
+        const auto oldIndex =
+            std::size_t(oldBiome - state->beforeField->biomeIds.begin());
+        if (state->beforeField->biomeTextureScale(oldIndex) !=
+            field.biomeTextureScale(biomeIndex))
+          stage(index).uvs = terrain_detail::terrainUvs(
+              mesh->vertices, field.biomeTextureScale(biomeIndex));
+      }
+    }
+    if (full || waterChanged) {
+      for (const auto index : ownerSurfaces)
+        if (world.entities[index].hasComponent<TerrainGeneratedWaterSurface>())
+          stage(index).remove = true;
+      for (auto &entity : buildTerrainWaterMeshes(owner, field, stop)) {
+        entity.enabled = enabled;
+        const auto existing = ids.find(entity.id);
+        if (existing != ids.end()) {
+          const auto &previous = world.entities[existing->second];
+          if (!previous.hasComponent<TerrainGeneratedWaterSurface>() ||
+              terrainSurfaceOwner(previous) != owner.id)
+            throw std::invalid_argument(
+                "Generated water entity ID conflicts with existing entity: " +
+                entity.id);
+          auto &change = stage(existing->second);
+          change.remove = false;
+          change.replacement = std::move(entity);
+        } else {
+          if (!state->additionIds.insert(entity.id).second)
+            throw std::invalid_argument(
+                "Duplicate generated water entity ID: " + entity.id);
+          state->additions.push_back(std::move(entity));
+        }
       }
     }
     for (const auto &change : state->changes)
@@ -590,11 +656,14 @@ bool publishTerrainWorldUpdate(World &world,
       const auto &entity = world.entities[change.index];
       const auto *mesh = entity.component<MeshRendererComponent>();
       const auto *collider = entity.component<ModelCollider3DComponent>();
+      const auto currentCollider =
+          collider ? collider->inlineGeometry : nullptr;
       if (entity.id != change.id ||
-          terrainSurfaceOwner(entity) != state.ownerId || !mesh || !collider ||
+          terrainSurfaceOwner(entity) != state.ownerId || !mesh ||
           mesh->revision != change.revision ||
           !sameColor(mesh->color, change.beforeColor) ||
-          collider->inlineGeometry != change.collider)
+          mesh->material != change.beforeMaterial ||
+          currentCollider != change.collider)
         throw std::invalid_argument(
             "Terrain preparation is stale: surface changed");
     }
@@ -647,10 +716,17 @@ bool publishTerrainWorldUpdate(World &world,
       if (change.replacement) {
         change.replacement->enabled = enabled;
         world.entities[change.index] = std::move(*change.replacement);
-      } else if (change.tint) {
-        // Color is a draw uniform; geometry and physics caches stay resident.
-        world.entities[change.index].component<MeshRendererComponent>()->color =
-            *change.tint;
+      } else {
+        auto *mesh =
+            world.entities[change.index].component<MeshRendererComponent>();
+        if (change.tint)
+          mesh->color = *change.tint;
+        if (change.material)
+          mesh->material.swap(*change.material);
+        if (change.uvs) {
+          mesh->uvs.swap(*change.uvs);
+          mesh->markGeometryChanged();
+        }
       }
     }
     auto &installedOwner = world.entities[state.ownerIndex];
@@ -697,6 +773,8 @@ bool updateTerrainWorld(World &world, std::string_view ownerId,
 }
 
 std::optional<std::string_view> terrainSurfaceOwner(const Entity &entity) {
+  if (const auto *water = entity.component<TerrainGeneratedWaterSurface>())
+    return water->owner;
   const auto *surface = entity.component<TerrainGeneratedSurface>();
   return surface ? std::optional<std::string_view>{surface->owner}
                  : std::nullopt;
@@ -711,7 +789,7 @@ bool materializeTerrains(World &world, std::string &error,
   std::vector<TerrainRuntimeOwner> owners;
   std::unordered_set<std::string> ids;
   for (const auto &entity : world.entities)
-    if (!entity.hasComponent<TerrainGeneratedSurface>())
+    if (!terrainSurfaceOwner(entity))
       ids.insert(entity.id);
 
   // Retention is committed with the meshes only after every owner succeeds.
@@ -750,6 +828,17 @@ bool materializeTerrains(World &world, std::string &error,
       }
       if (!field)
         throw std::runtime_error("Terrain source returned no heightfield");
+      if (field->biomeIds.size() != field->biomeColors.size() ||
+          (!field->biomeMaterials.empty() &&
+           field->biomeIds.size() != field->biomeMaterials.size()) ||
+          (!field->biomeTextureScales.empty() &&
+           field->biomeIds.size() != field->biomeTextureScales.size()))
+        throw std::invalid_argument(
+            "Terrain field has incomplete biome appearance metadata");
+      for (const float scale : field->biomeTextureScales)
+        if (!std::isfinite(scale) || scale <= 0)
+          throw std::invalid_argument(
+              "Terrain field has invalid biome texture scale");
       fields.emplace_back(ownerIndex, field, std::move(sourceRecipe));
       owners.push_back({.id = owner.id});
       const bool enabled = terrainHierarchyEnabled(world, owner);
@@ -766,7 +855,8 @@ bool materializeTerrains(World &world, std::string &error,
           }
           auto entity = buildTerrainMeshEntity(
               owner, std::move(id), surface.vertices, surface.normals,
-              surface.uvs, field->biomeColors.at(biome), {}, error);
+              surface.uvs, field->biomeColors.at(biome),
+              field->biomeMaterial(biome), error);
           if (!entity)
             return false;
           entity->setComponent(TerrainGeneratedSurface{
@@ -776,6 +866,15 @@ bool materializeTerrains(World &world, std::string &error,
           owners.back().surfaces.push_back(entity->id);
           generated.push_back(std::move(*entity));
         }
+      }
+      for (auto &entity : buildTerrainWaterMeshes(owner, *field)) {
+        if (!ids.insert(entity.id).second)
+          throw std::invalid_argument(
+              "Generated water entity ID conflicts with existing entity: " +
+              entity.id);
+        entity.enabled = enabled;
+        owners.back().surfaces.push_back(entity.id);
+        generated.push_back(std::move(entity));
       }
     }
     // Reserve before mutating the world so allocation failure leaves it intact.
@@ -794,7 +893,7 @@ bool materializeTerrains(World &world, std::string &error,
       terrain->recipe.swap(sourceRecipe);
   }
   std::erase_if(world.entities, [](const Entity &entity) {
-    return entity.hasComponent<TerrainGeneratedSurface>();
+    return terrainSurfaceOwner(entity).has_value();
   });
   for (auto &entity : generated)
     world.entities.push_back(std::move(entity));

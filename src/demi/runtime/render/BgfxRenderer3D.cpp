@@ -47,6 +47,7 @@ std::uint64_t meshCacheRevision(const MeshRendererComponent &mesh) {
   hashValue(hash, static_cast<std::uint32_t>(mesh.vertices.size()));
   hashValue(hash, static_cast<std::uint32_t>(mesh.normals.size()));
   hashValue(hash, static_cast<std::uint32_t>(mesh.uvs.size()));
+  hashValue(hash, static_cast<std::uint32_t>(mesh.vertexColors.size()));
   for (const char value : mesh.shape)
     hashValue(hash, static_cast<unsigned char>(value));
   return hash;
@@ -592,11 +593,22 @@ bool BgfxRenderer3D::renderView(const World &world,const BgfxCameraFrame3D &fram
           cached->gpu.clear();
           cached->animationModel.clear();
           cached->skinPalette.clear();
+          cached->inlineColorSignature = 0;
+        }
+        if (cached->inlineColorSignature != signature) {
+          if (!mesh->validateVertexColors(error)) {
+            error = entity.id + ": " + error;
+            return false;
+          }
+          cached->inlineColors.resize(mesh->vertexColors.size());
+          std::ranges::transform(mesh->vertexColors, cached->inlineColors.begin(),
+                                 packVertexColorRgba8);
+          cached->inlineColorSignature = signature;
         }
         if (dents.empty() &&
             (cached->signature != signature || !cached->gpu.valid())) {
           if (!cached->gpu.upload(mesh->vertices, mesh->uvs, {}, 0xffffffffU,
-                                  error, mesh->normals)) {
+                                  error, mesh->normals, cached->inlineColors)) {
             error = entity.id + ": " + error;
             return false;
           }
@@ -609,7 +621,8 @@ bool BgfxRenderer3D::renderView(const World &world,const BgfxCameraFrame3D &fram
         const GpuMesh3D *drawMesh = &cached->gpu;
         if (!dents.empty()) {
           drawMesh = deformedMeshes_.get(entity.id, "inline", signature,
-                                         mesh->vertices, mesh->uvs, {}, {},
+                                         mesh->vertices, mesh->uvs, {},
+                                         cached->inlineColors,
                                          dents, error);
           if (!drawMesh)
             return false;

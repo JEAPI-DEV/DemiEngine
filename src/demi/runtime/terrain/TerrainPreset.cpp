@@ -253,6 +253,8 @@ parseTerrainPreset(const assets::DataDocument &document, std::string_view id) {
       biome.landform = readString(entry, "landform", pointer + "/landform", false);
       biome.material =
           readString(entry, "material", pointer + "/material", false);
+      biome.textureScale = readNumber(entry, "texture_scale",
+                                      pointer + "/texture_scale", 1.F);
       biome.color = readColor(entry, "color", pointer + "/color", biome.color);
       preset.biomes.emplace(name, biome);
     }

@@ -221,7 +221,8 @@ Json waterBody(const TerrainWaterBodySpec &value) {
           {"river_width", value.riverWidth},
           {"center", vec2(value.center)},
           {"radius", value.radius},
-          {"shoreline_softening", value.shorelineSoftening}};
+          {"shoreline_softening", value.shorelineSoftening},
+          {"appearance", terrainWaterAppearanceJson(value.appearance)}};
 }
 
 TerrainWaterBodySpec readWaterBody(const Json &value) {
@@ -238,6 +239,7 @@ TerrainWaterBodySpec readWaterBody(const Json &value) {
   result.center = readVec2(value.at("center"), "water center");
   result.radius = finiteFloat(value.at("radius"), "water radius");
   result.shorelineSoftening = value.at("shoreline_softening").get<bool>();
+  result.appearance = parseTerrainWaterAppearance(value.at("appearance"));
   require(result.riverWidth >= 0 && result.radius >= 0,
           "water body dimensions must be nonnegative");
   return result;
@@ -263,7 +265,108 @@ TerrainWaterAuthoring readWaterAuthoring(const Json &value) {
   return result;
 }
 
-Json waterResult(const TerrainWaterResult &value) {
+std::size_t waterCoverageSampleCount(const HeightField &field) {
+  require(field.cellsX > 0 && field.cellsZ > 0 && std::isfinite(field.size.x) &&
+              std::isfinite(field.size.y) && field.size.x > 0 &&
+              field.size.y > 0,
+          "water coverage requires a finite positive terrain grid");
+  const auto columns = std::size_t(field.cellsX) + 1;
+  const auto rows = std::size_t(field.cellsZ) + 1;
+  require(columns <= std::numeric_limits<std::size_t>::max() / rows,
+          "water coverage grid exceeds host size");
+  const auto count = columns * rows;
+  require(count == field.heights.size(),
+          "water coverage terrain samples must match the grid");
+  return count;
+}
+
+void validateWaterCoverage(
+    const terrain_water_detail::WaterLevelField &coverage,
+    const HeightField &field, const TerrainWaterAuthoring &authoring) {
+  const auto count = waterCoverageSampleCount(field);
+  require(coverage.size.x == field.size.x && coverage.size.y == field.size.y &&
+              coverage.cellsX == field.cellsX &&
+              coverage.cellsZ == field.cellsZ,
+          "water coverage dimensions must match the terrain grid");
+  require(coverage.level.size() == count && coverage.wet.size() == count &&
+              coverage.body.size() == count,
+          "water coverage arrays must match the terrain grid");
+  std::vector<std::uint8_t> accepted(authoring.bodies.size());
+  for (const auto body : terrain_water_detail::acceptedBodies(authoring))
+    accepted[body] = 1;
+  for (std::size_t sample = 0; sample < count; ++sample) {
+    require(std::isfinite(coverage.level[sample]),
+            "water coverage levels must be finite");
+    require(coverage.wet[sample] <= 1,
+            "water coverage wet flags must be zero or one");
+    const auto body = coverage.body[sample];
+    const bool hasBody = body != terrain_water_detail::WaterLevelField::noBody;
+    require(bool(coverage.wet[sample]) == hasBody,
+            "water coverage wet flags must match body ownership");
+    if (!hasBody)
+      continue;
+    require(body < authoring.bodies.size(),
+            "water coverage body index lies outside authoring");
+    require(accepted[body] != 0,
+            "water coverage body index references a rejected body");
+    require(coverage.level[sample] == authoring.bodies[body].level,
+            "water coverage level must match its authored body");
+  }
+}
+
+Json waterCoverage(const TerrainWaterResult &value, const HeightField &field,
+                   const TerrainWaterAuthoring &authoring) {
+  if (!value.resolvedCoverage)
+    return nullptr;
+  const auto &coverage = *value.resolvedCoverage;
+  validateWaterCoverage(coverage, field, authoring);
+  Json bodies = Json::array();
+  for (const auto body : coverage.body) {
+    if (body == terrain_water_detail::WaterLevelField::noBody)
+      bodies.push_back(-1);
+    else
+      bodies.push_back(body);
+  }
+  // Grid dimensions come from the terrain; flags and levels come from owners.
+  // Ownership includes dry shore samples and must survive without re-solving.
+  return {{"body", std::move(bodies)}};
+}
+
+std::shared_ptr<const terrain_water_detail::WaterLevelField>
+readWaterCoverage(const Json &value, const HeightField &field,
+                  const TerrainWaterAuthoring &authoring) {
+  if (value.is_null())
+    return nullptr;
+  require(value.is_object(), "water coverage must be an object or null");
+  const auto count = waterCoverageSampleCount(field);
+  const auto &bodies = value.at("body");
+  require(bodies.is_array() && bodies.size() == count,
+          "water coverage body array must match the terrain grid");
+  auto coverage = std::make_shared<terrain_water_detail::WaterLevelField>();
+  coverage->size = field.size;
+  coverage->cellsX = field.cellsX;
+  coverage->cellsZ = field.cellsZ;
+  coverage->level.assign(count, 0.F);
+  coverage->wet.assign(count, 0);
+  coverage->body.assign(count, terrain_water_detail::WaterLevelField::noBody);
+  for (std::size_t sample = 0; sample < count; ++sample) {
+    const auto &entry = bodies[sample];
+    if (entry.is_number_integer() && !entry.is_number_unsigned() &&
+        entry.get<std::int64_t>() == -1)
+      continue;
+    const auto body = checkedSize(entry, "water coverage body index");
+    require(body < authoring.bodies.size(),
+            "water coverage body index lies outside authoring");
+    coverage->body[sample] = body;
+    coverage->wet[sample] = 1;
+    coverage->level[sample] = authoring.bodies[body].level;
+  }
+  validateWaterCoverage(*coverage, field, authoring);
+  return coverage;
+}
+
+Json waterResult(const TerrainWaterResult &value, const HeightField &field,
+                 const TerrainWaterAuthoring &authoring) {
   Json surfaces = Json::array();
   Json carvedHeights = Json::array();
   for (float height : value.carvedHeights)
@@ -282,14 +385,18 @@ Json waterResult(const TerrainWaterResult &value) {
                         {"normals", std::move(normals)},
                         {"depth", surface.depth}});
   }
-  return {{"carved_heights", std::move(carvedHeights)},
+  return {{"resolved_coverage", waterCoverage(value, field, authoring)},
+          {"carved_heights", std::move(carvedHeights)},
           {"surfaces", std::move(surfaces)},
           {"dropped", value.dropped}};
 }
 
 TerrainWaterResult readWaterResult(const Json &value,
-                                   const HeightField &field) {
+                                   const HeightField &field,
+                                   const TerrainWaterAuthoring &authoring) {
   TerrainWaterResult result;
+  result.resolvedCoverage =
+      readWaterCoverage(value.at("resolved_coverage"), field, authoring);
   const auto &heights = value.at("carved_heights");
   require(heights.is_array() && heights.size() == field.heights.size(),
           "carved water heights must match the terrain grid");
@@ -358,7 +465,8 @@ Json encodeDerived(const HeightField &field) {
                            : Json(nullptr)},
         {"water_authoring", waterAuthoring(artifacts.water)},
         {"water_result", artifacts.waterResult
-                             ? waterResult(*artifacts.waterResult)
+                             ? waterResult(*artifacts.waterResult, field,
+                                           artifacts.water)
                              : Json(nullptr)},
         {"runs", std::move(runs)},
         {"warnings", artifacts.warnings}};
@@ -389,7 +497,8 @@ void decodeDerived(const Json &document, HeightField &field) {
               readPlacements(graph.at("candidates"), field));
     artifacts->water = readWaterAuthoring(graph.at("water_authoring"));
     if (!graph.at("water_result").is_null())
-      artifacts->waterResult = readWaterResult(graph.at("water_result"), field);
+      artifacts->waterResult =
+          readWaterResult(graph.at("water_result"), field, artifacts->water);
     for (const auto &run : graph.at("runs")) {
       TerrainGraphNodeRun decoded;
       decoded.id = run.at("id").get<std::string>();

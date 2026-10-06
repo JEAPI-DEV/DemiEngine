@@ -1,4 +1,5 @@
 #include "demi/assets/TerrainAsset.h"
+#include "demi/assets/TerrainSurfaceReferences.h"
 
 #include "demi/assets/TerrainAssetPayload.h"
 #include "demi/assets/TerrainAssetStorage.h"
@@ -27,10 +28,6 @@ const AssetManifest &terrainManifest(const AssetRegistry &registry,
     throw std::invalid_argument("Terrain asset source has an unknown suffix: " +
                                 manifest->sourcePath.string());
   return *manifest;
-}
-
-bool isPrepared(const AssetManifest &manifest) {
-  return manifest.sourcePath.filename().string().ends_with(".terrain.bin");
 }
 
 struct SourceInputs {
@@ -83,6 +80,10 @@ deserializeTerrainAssetPayload(std::span<const std::byte> payload) {
 runtime::TerrainGenerationInputs
 resolveTerrainAssetGenerationInputs(const AssetRegistry &registry,
                                     const runtime::TerrainRecipe &recipe) {
+  const auto diagnostics = validateTerrainSurfaceReferences(registry, recipe);
+  for (const auto &diagnostic : diagnostics)
+    if (diagnostic.severity == Severity::Error)
+      throw std::invalid_argument(diagnostic.message);
   auto inputs = runtime::resolveTerrainGenerationInputs(recipe, registry);
   inputs.fingerprint =
       terrain_storage::assetInputFingerprint(registry, recipe, inputs);
@@ -95,7 +96,7 @@ loadTerrainAsset(const AssetRegistry &registry, std::string_view assetId,
   if (sourceRecipe)
     *sourceRecipe = nullptr;
   const auto &manifest = terrainManifest(registry, assetId);
-  if (isPrepared(manifest))
+  if (isPreparedTerrainAsset(manifest))
     return terrain_storage::read(manifest.sourcePath).field;
 
   const auto source = resolveSource(registry, manifest);
@@ -120,7 +121,7 @@ std::filesystem::path prepareTerrainAsset(const AssetRegistry &registry,
                                           std::string_view assetId,
                                           std::stop_token stop) {
   const auto &manifest = terrainManifest(registry, assetId);
-  if (isPrepared(manifest))
+  if (isPreparedTerrainAsset(manifest))
     return manifest.sourcePath;
   const auto source = resolveSource(registry, manifest);
   if (std::filesystem::exists(source.cachePath)) {
@@ -152,7 +153,7 @@ storeTerrainAssetPreview(const AssetRegistry &registry,
   if (!field)
     throw std::invalid_argument("Cannot store an empty terrain preview");
   const auto &manifest = terrainManifest(registry, assetId);
-  if (isPrepared(manifest))
+  if (isPreparedTerrainAsset(manifest))
     throw std::invalid_argument("A shipped terrain payload cannot be edited");
   const auto proposed = runtime::TerrainRecipe::parse(recipe);
   const auto generation =
@@ -178,7 +179,7 @@ storeTerrainAssetPreview(const AssetRegistry &registry,
 void prepareTerrainAssets(const AssetRegistry &registry) {
   for (const auto &manifest : registry.assets)
     if (manifest.type == "Terrain" &&
-        manifest.importer == "terrain_heightfield" && !isPrepared(manifest))
+        manifest.importer == "terrain_heightfield" && !isPreparedTerrainAsset(manifest))
       (void)prepareTerrainAsset(registry, manifest.id);
 }
 

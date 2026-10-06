@@ -5,7 +5,7 @@ Select the terrain owner in the scene, then choose **Open Terrain Graph**
 in its Inspector. Generation settings and connected modules are edited there.
 The scene contains only an asset
 reference and its placement transform.
-The 128-by-128 world-unit landscape uses a 128-by-128-cell grid. Three seeded
+The 2000-by-2000 world-unit landscape uses a 500-by-500-cell grid. Three seeded
 noise sources form mountains, foothills and lowlands. Elevation masks soften
 their transitions; drainage feeds a 24-iteration erosion pass. A finite lake
 and its river outlet carve the basin before biome rules assign grass, exposed
@@ -15,11 +15,12 @@ Follow the graph from left to right. The river receives both the lake's field
 and its water data, and Terrain Output receives both the final biome field
 and the combined water data. This keeps both authored bodies in the cooked
 asset. River points are terrain-local XYZ bed positions; the water plane is
-authored separately at height 10. This is a finite, level-water authoring probe,
-not a downhill river simulation. The sediment rule uses elevation and slope;
+authored separately from the river bed. Both bodies use a fixed water level;
+downhill river flow is not simulated. Water-body coordinates are terrain-local.
+The sediment rule uses elevation and slope;
 graph water does not yet supply shoreline-distance context to biome rules.
 
-Use the **Modules** tab beside Inspector to drag modules onto the graph.
+Drag cards from **Terrain Nodes** onto the graph.
 Connect compatible pins, change parameters, then press **Generate**.
 Return to **Viewport** to inspect, paint biomes or sculpt the generated surface.
 Brush controls are on the Terrain component; manual layers remain separate
@@ -33,7 +34,11 @@ Run `demi run --project build/terrain-graph-cooked` to load the generated payloa
 without evaluating the source graph again.
 
 The example uses biome color tints without an external asset palette or proxy
-vegetation. Terrain PBR material blending and visible water rendering are not
-implemented: the lake and river currently expose their carved ground, while
-water surface/depth data is retained for later rendering integration. The graph
-demonstrates generation and editing, not finished landscape graphics.
+vegetation. Terrain PBR material blending and advanced water shading are not
+implemented. The connected lake and river outputs display native transparent
+water, including when loaded from cooked data. Reflection/refraction, waves,
+foam and swimming/buoyancy remain pending. Water nodes expose shallow/deep RGBA,
+absorption distance and roughness; shore geometry is clipped to terrain triangles.
+An uncontained bounded lake warns after Generate: lower the level, enlarge its
+boundary or sculpt banks. The engine does not simulate spilling or auto-clamp
+authored levels.

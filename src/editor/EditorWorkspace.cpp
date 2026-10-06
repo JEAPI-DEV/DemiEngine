@@ -1208,6 +1208,11 @@ bool EditorWorkspace::pinTerrainAuthoring(const std::string_view entityId,
     error = "Choose a configured Terrain3D owner for the graph.";
     return false;
   }
+  if (const auto *asset = findAsset(assetIndex_.registry(), terrain->asset);
+      asset && assets::isPreparedTerrainAsset(*asset)) {
+    error = "Cooked terrain is read-only. Open its authored source project to edit the graph.";
+    return false;
+  }
   const auto ownerDocument =
       activeDocument_ == EditorWorkspaceDocument::TerrainAsset &&
               terrainAssetDocument_
@@ -1331,6 +1336,13 @@ void EditorWorkspace::syncTerrainAuthoring() {
   }
   retainAssetDraft();
   if (!terrain->asset.empty()) {
+    if (const auto *asset = findAsset(assetIndex_.registry(), terrain->asset);
+        asset && assets::isPreparedTerrainAsset(*asset)) {
+      terrainAuthoring_->unbind();
+      terrainAssetBinding_ = false;
+      configureTerrainInputResolver();
+      return;
+    }
     std::string error;
     if (!bindTerrainAsset(terrain->asset, error)) {
       terrainAuthoring_->unbind();

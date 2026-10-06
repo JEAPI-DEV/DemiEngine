@@ -71,6 +71,13 @@ void validateParameters(const TerrainGraphNode &node) {
     case TerrainGraphParameterKind::Structured:
       require(value.is_object() || value.is_array(), error);
       break;
+    case TerrainGraphParameterKind::Color:
+      require(value.is_array() && value.size() == 4, error);
+      for (const auto &channel : value)
+        require(channel.is_number() && std::isfinite(channel.get<double>()) &&
+                    channel.get<double>() >= 0 && channel.get<double>() <= 1,
+                error + ": expected normalized RGBA");
+      break;
     }
     if (value.is_number()) {
       const double number = value.get<double>();

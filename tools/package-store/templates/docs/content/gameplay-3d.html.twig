@@ -63,6 +63,7 @@ Animation.clear_bone_segments(id)</code></pre>
 Entity.set_field("window", "MeshRenderer", "surface_mode", "transparent")
 Entity.set_field("window", "MeshRenderer", "opacity", 0.25)</code></pre>
 <p>This is direct metallic/roughness lighting and alpha blending. Glass refraction, reflected environments and general PBR texture maps are not provided by these controls. Arbitrary per-entity custom-shader uniform overrides are not covered by the built-in surface resolver.</p>
+<p>Inline meshes can supply <code>vertex_colors</code>: one normalized RGBA array per <code>vertices</code> entry, or an empty array for white. The GPU interpolates these colours and multiplies them by mesh tint, material base colour and texture; vertex alpha also multiplies opacity. This reusable field supports painted meshes and depth-graded water. In the Inspector it is an advanced geometry buffer. Changing vertex count requires clearing or replacing the matching colour buffer too. Native generators must call <code>markGeometryChanged()</code> after editing buffers; reflected edits invalidate them automatically.</p>
 
 <h2>Characters</h2>
 <pre><code>{

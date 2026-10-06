@@ -44,6 +44,8 @@ struct TerrainSampleChange {
 struct TerrainBiomePalette {
   std::vector<std::string> ids;
   std::vector<Color> colors;
+  std::vector<std::string> materials;
+  std::vector<float> textureScales;
 };
 
 struct TerrainDerivedState {

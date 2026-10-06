@@ -185,7 +185,7 @@ void checkReference(const World &world, const TerrainRecipe &recipe) {
                                  [](Vec3 x, Vec3 y) { return equal(x, y); }) &&
               std::ranges::equal(a->uvs, b->uvs,
                                  [](Vec2 x, Vec2 y) { return equal(x, y); }) &&
-              equal(a->color, b->color),
+              equal(a->color, b->color) && a->material == b->material,
           "Incremental geometry differs from full reference generation");
     const auto &triangles =
         actual.component<ModelCollider3DComponent>()->inlineGeometry->triangles;
@@ -350,6 +350,71 @@ void testTintAndExclusion() {
         "Exclusion undo did not restore samples");
 }
 
+void testMaterialAndTextureScaleAppearance() {
+  const auto before = flatRecipe();
+  auto world = makeWorld(before);
+  const auto original = resources(world);
+  const auto otherField = field(world, "other");
+  const auto initialField = field(world);
+  auto materialRecipe = before;
+  materialRecipe.biomes.at("default").material = "asset://ground/stone";
+  const auto materialUpdate = updateTerrain(before, materialRecipe, initialField);
+  check(materialUpdate && materialUpdate->invalidation.materialsChanged &&
+            !materialUpdate->invalidation.fullGeneration &&
+            materialUpdate->invalidation.geometrySamples().empty() &&
+            materialUpdate->stats.baseEvaluations == 0 &&
+            materialUpdate->stats.normalEvaluations == 0,
+        "Material-only edit regenerated terrain");
+  std::string error;
+  check(updateTerrainWorld(world, "land", materialRecipe.toJson(),
+                           *materialUpdate, error), error.c_str());
+  checkAllResources(world, original);
+  checkUnrelated(world, original, otherField);
+  for (const auto &entry : world.entities)
+    if (terrainSurfaceOwner(entry) == "land")
+      check(entry.component<MeshRendererComponent>()->material ==
+                "asset://ground/stone",
+            "Material-only edit did not bind ordinary Material");
+  checkReference(world, materialRecipe);
+
+  auto scaledRecipe = materialRecipe;
+  scaledRecipe.biomes.at("default").textureScale = 2.5F;
+  const auto scaleUpdate =
+      updateTerrain(materialRecipe, scaledRecipe, field(world));
+  check(scaleUpdate && scaleUpdate->invalidation.materialsChanged &&
+            scaleUpdate->stats.baseEvaluations == 0 &&
+            scaleUpdate->stats.normalEvaluations == 0 &&
+            scaleUpdate->invalidation.geometrySamples().empty(),
+        "Texture scale regenerated terrain");
+  const auto materialResources = resources(world);
+  check(updateTerrainWorld(world, "land", scaledRecipe.toJson(), *scaleUpdate,
+                           error), error.c_str());
+  for (const auto &[id, beforeResource] : materialResources) {
+    if (!id.starts_with("land/__terrain/")) {
+      checkResource(world, id, beforeResource);
+      continue;
+    }
+    const auto *mesh = entity(world, id).component<MeshRendererComponent>();
+    const auto *collider = entity(world, id).component<ModelCollider3DComponent>();
+    check(mesh->revision != beforeResource.revision &&
+              mesh->vertices.data() == beforeResource.vertices &&
+              mesh->normals.data() == beforeResource.normals &&
+              collider->inlineGeometry == beforeResource.collider,
+          "Texture scale replaced geometry or collision");
+    for (std::size_t vertex = 0; vertex < mesh->vertices.size(); ++vertex)
+      check(mesh->uvs[vertex].x == mesh->vertices[vertex].x * 2.5F &&
+                mesh->uvs[vertex].y == mesh->vertices[vertex].z * 2.5F,
+            "Texture UVs are not continuous terrain-local coordinates");
+  }
+  check(field(world) == scaleUpdate->field && field(world, "other") == otherField,
+        "Appearance edit lost retained field or changed another owner");
+  checkReference(world, scaledRecipe);
+  const auto undo = applyTerrainPatch(field(world), *scaleUpdate->patch, false);
+  check(updateTerrainWorld(world, "land", materialRecipe.toJson(), undo,
+                           error), error.c_str());
+  checkReference(world, materialRecipe);
+}
+
 void testBiomeGrouping() {
   auto before = flatRecipe();
   auto red = before.biomes.at("default");
@@ -462,6 +527,18 @@ void testFailureAndCancellationAreAtomic() {
   const auto after = raised(before, {2, 2});
   const auto update = updateTerrain(before, after, originalField);
   std::string error;
+  auto hugeScale = before;
+  hugeScale.biomes.at("default").textureScale = 1e38F;
+  const auto overflowingUvs = updateTerrain(before, hugeScale, originalField);
+  check(overflowingUvs && !overflowingUvs->invalidation.fullGeneration,
+        "Finite positive texture scale was rejected as a recipe");
+  check(!updateTerrainWorld(world, "land", hugeScale.toJson(),
+                            *overflowingUvs, error) &&
+            error.find("UV") != std::string::npos,
+        "Unrepresentable UVs were published");
+  checkAllResources(world, original);
+  check(field(world) == originalField,
+        "Failed UV preparation replaced retained terrain");
   auto invalid = *update;
   auto broken = std::make_shared<HeightField>(*update->field);
   broken->heights.set(broken->index(10, 10),
@@ -891,6 +968,60 @@ void testSharedAssetPublicationAndRollback() {
   checkAllResources(world, committed);
 }
 
+void testSharedAssetAppearancePublication() {
+  const auto before = flatRecipe();
+  auto world = makeWorld(before);
+  for (const auto &id : {"land", "other"}) {
+    auto *terrain = entity(world, id).component<Terrain3DComponent>();
+    terrain->asset = "asset://shared";
+    terrain->recipe = nullptr;
+  }
+  const auto original = resources(world);
+  auto after = before;
+  after.biomes.at("default").material = "asset://ground/sand";
+  after.biomes.at("default").textureScale = 3;
+  const auto update = updateTerrain(before, after, field(world));
+  check(update && update->invalidation.materialsChanged &&
+            update->invalidation.geometrySamples().empty() &&
+            update->stats.baseEvaluations == 0,
+        "Shared appearance edit regenerated terrain");
+  std::string error;
+  check(updateTerrainAssetWorld(world, "asset://shared", after.toJson(),
+                                *update, error), error.c_str());
+  for (const auto &owner : {"land", "other"}) {
+    check(field(world, owner) == update->field,
+          "Shared appearance publication did not retain one field");
+    for (const auto &[id, beforeResource] : original) {
+      if (!id.starts_with(std::string(owner) + "/__terrain/"))
+        continue;
+      const auto *mesh = entity(world, id).component<MeshRendererComponent>();
+      const auto *collider = entity(world, id).component<ModelCollider3DComponent>();
+      check(mesh->material == "asset://ground/sand" &&
+                mesh->revision != beforeResource.revision &&
+                mesh->vertices.data() == beforeResource.vertices &&
+                collider->inlineGeometry == beforeResource.collider,
+            "Shared appearance publication replaced native surface resources");
+      for (std::size_t vertex = 0; vertex < mesh->vertices.size(); ++vertex)
+        check(mesh->uvs[vertex].x == mesh->vertices[vertex].x * 3 &&
+                  mesh->uvs[vertex].y == mesh->vertices[vertex].z * 3,
+              "Shared appearance publication did not update UVs");
+    }
+  }
+  const auto undo = applyTerrainPatch(field(world), *update->patch, false);
+  check(updateTerrainAssetWorld(world, "asset://shared", before.toJson(), undo,
+                                error), error.c_str());
+  for (const auto &owner : {"land", "other"})
+    for (const auto &entry : world.entities)
+      if (terrainSurfaceOwner(entry) == owner) {
+        const auto *mesh = entry.component<MeshRendererComponent>();
+        check(mesh->material.empty(), "Shared Undo retained material");
+        for (std::size_t vertex = 0; vertex < mesh->vertices.size(); ++vertex)
+          check(mesh->uvs[vertex].x == mesh->vertices[vertex].x &&
+                    mesh->uvs[vertex].y == mesh->vertices[vertex].z,
+                "Shared Undo retained texture scale");
+      }
+}
+
 void testSharedAssetScatterReconciliation() {
   const auto recipe = flatRecipe();
   auto world = makeWorld(recipe);
@@ -972,6 +1103,7 @@ int main() {
     testLocalHeightAndNormalHalo();
     testSharedCornerAndUndoRedo();
     testTintAndExclusion();
+    testMaterialAndTextureScaleAppearance();
     testBiomeGrouping();
     testRenamedGroupRetainsCollision();
     testCoalescedPatchAndStalePreparation();
@@ -984,6 +1116,7 @@ int main() {
     testSerializedTerrainStalenessAndCancellation();
     testGlobalHistoryAfterLocalUndo();
     testSharedAssetPublicationAndRollback();
+    testSharedAssetAppearancePublication();
     testSharedAssetScatterReconciliation();
   } catch (const std::exception &exception) {
     std::cerr << exception.what() << '\n';

@@ -121,6 +121,7 @@ void cacheIgnoresAppearanceAndRetainsRuleBoundary() {
   auto appearance = before;
   appearance.biomes.at("high").color = {.7F, .2F, .1F, 1.F};
   appearance.biomes.at("high").material = "asset://materials/high";
+  appearance.biomes.at("high").textureScale = 4;
   appearance.paletteId = "asset://palettes/one";
   appearance.presetId = "asset://presets/one";
   appearance.presetVersion = 1;
@@ -132,6 +133,8 @@ void cacheIgnoresAppearanceAndRetainsRuleBoundary() {
   assert(wasCached(*refreshed, "rules"));
   assert(wasCached(*refreshed, "terrain_output"));
   assert(refreshed->biomeColors[1].r == .7F);
+  assert(refreshed->biomeMaterials[1] == "asset://materials/high");
+  assert(refreshed->biomeTextureScales[1] == 4);
   assert(refreshed->chunks.front().cellsX == 4);
 
   auto changedRule = appearance;
@@ -237,10 +240,9 @@ void executionOrderFollowsOnlyActiveOutput() {
   graph["nodes"].push_back({{"id", "unused"}, {"type", "constant"}});
   graph["nodes"].push_back({{"id", "offset"}, {"type", "offset"}});
   graph["links"][0]["from"]["node"] = "offset";
-  graph["links"].push_back(
-      {{"id", "landform_offset"},
-       {"from", {{"node", "landform"}, {"port", "field"}}},
-       {"to", {{"node", "offset"}, {"port", "field"}}}});
+  graph["links"].push_back({{"id", "landform_offset"},
+                            {"from", {{"node", "landform"}, {"port", "field"}}},
+                            {"to", {{"node", "offset"}, {"port", "field"}}}});
   const auto parsed = TerrainGraph::parse(graph);
   assert((parsed.executionOrder() ==
           std::vector<std::string>{"landform", "offset", "terrain_output"}));
@@ -386,7 +388,9 @@ void exampleLandscapeRetainsBiomesAndWater() {
   assert(field->heights.size() == authored.sampleCount());
   assert(field->biomeIndices.size() == authored.sampleCount());
   assert(field->graphArtifacts->nodes.size() == executionOrder.size());
-  assert(field->graphArtifacts->warnings.empty());
+  for (const auto &warning : field->graphArtifacts->warnings)
+    assert(warning.starts_with("Lake '") &&
+           warning.find("not contained") != std::string::npos);
 
   assert(field->biomeIds.size() == authored.biomes.size());
   for (const auto &id : field->biomeIds)
@@ -412,14 +416,12 @@ void exampleLandscapeRetainsBiomesAndWater() {
   assert(artifacts.water.bodies.size() == waterNodeIds.size());
   for (std::size_t i = 0; i < waterNodeIds.size(); ++i)
     assert(artifacts.water.bodies[i].id == waterNodeIds[i]);
-  assert(std::any_of(artifacts.water.bodies.begin(), artifacts.water.bodies.end(),
-                     [](const auto &body) {
-                       return body.kind == TerrainWaterBody::Lake;
-                     }));
-  assert(std::any_of(artifacts.water.bodies.begin(), artifacts.water.bodies.end(),
-                     [](const auto &body) {
-                       return body.kind == TerrainWaterBody::River;
-                     }));
+  assert(std::any_of(
+      artifacts.water.bodies.begin(), artifacts.water.bodies.end(),
+      [](const auto &body) { return body.kind == TerrainWaterBody::Lake; }));
+  assert(std::any_of(
+      artifacts.water.bodies.begin(), artifacts.water.bodies.end(),
+      [](const auto &body) { return body.kind == TerrainWaterBody::River; }));
   assert(artifacts.waterResult && artifacts.waterResult->dropped == 0);
   assert(artifacts.waterResult->surfaces.size() == waterNodeIds.size());
   for (std::size_t i = 0; i < waterNodeIds.size(); ++i)
@@ -484,6 +486,31 @@ void invalidParameterDomainsAreRejectedAtParse() {
 }
 } // namespace
 
+void graphWaterAppearanceValidation() {
+  const auto rejects = [](const nlohmann::json &graph) {
+    try {
+      (void)TerrainGraph::parse(graph);
+      return false;
+    } catch (const std::invalid_argument &) {
+      return true;
+    }
+  };
+  auto graph = defaultTerrainGraph();
+  graph["nodes"].push_back({{"id", "lake"},
+                            {"type", "water"},
+                            {"parameters",
+                             {{"shallow_color", {0.2, 0.5, 0.6, 0.1}},
+                              {"deep_color", {0.0, 0.1, 0.3, 0.9}},
+                              {"absorption_distance", 2.0},
+                              {"roughness", 0.4}}}});
+  assert(!rejects(graph));
+  graph["nodes"].back()["parameters"]["shallow_color"] = {2, 0, 0, 1};
+  assert(rejects(graph));
+  graph["nodes"].back()["parameters"]["shallow_color"] = {0, 0, 0, 1};
+  graph["nodes"].back()["parameters"]["absorption_distance"] = 0;
+  assert(rejects(graph));
+}
+
 int main() {
   paintedBiomesKeepGraphHeights();
   cacheIgnoresAppearanceAndRetainsRuleBoundary();
@@ -495,5 +522,6 @@ int main() {
   graphWaterResultSurvivesPipeline();
   exampleLandscapeRetainsBiomesAndWater();
   invalidParameterDomainsAreRejectedAtParse();
+  graphWaterAppearanceValidation();
   std::cout << "Terrain graph checks passed\n";
 }

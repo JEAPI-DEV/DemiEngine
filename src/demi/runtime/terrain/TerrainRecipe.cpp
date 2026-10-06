@@ -286,10 +286,9 @@ bool TerrainRecipe::sameGenerationInputs(const TerrainRecipe &other) const {
         shape.octaves != found->second.octaves)
       return false;
   }
-  // Only a biome's landform reference is a generation input. Its tint and its
-  // material are appearance, and re-tinting a biome must stay a local surface
-  // change rather than forcing the whole base to regenerate, which is the same
-  // rule Milestone 1 set for tint edits.
+  // Only a biome's landform reference is a generation input. Tint, material,
+  // and texture scale are appearance. Restyling a biome stays a local surface
+  // change rather than forcing the whole base to regenerate.
   for (const auto &[id, base] : biomes) {
     const auto found = other.biomes.find(id);
     if (found == other.biomes.end())
@@ -372,6 +371,8 @@ void TerrainRecipe::validate() const {
           "Terrain default_landform must reference an existing landform");
   for (const auto &[id, biome] : biomes) {
     require(!id.empty(), "Terrain biome id must not be empty");
+    require(finite(biome.textureScale) && biome.textureScale > 0,
+            "Terrain biome texture_scale must be finite and positive");
     // A biome points at a shape; it never carries one itself.
     requireMessage(biome.landform.empty() || landforms.contains(biome.landform),
                    "Terrain biome '" + id + "' references unknown landform '" +
@@ -529,11 +530,13 @@ TerrainRecipe TerrainRecipe::parse(const nlohmann::json &json) {
                              "'. Move it to a landform: declare a landform "
                              "with those values and point the biome at it with "
                              "\"landform\".");
-        checkKeys(entry, {"landform", "color", "material"});
+        checkKeys(entry, {"landform", "color", "material", "texture_scale"});
         TerrainBiome biome;
         biome.landform = entry.value("landform", std::string{});
         if (entry.contains("material"))
           biome.material = entry.at("material").get<std::string>();
+        if (entry.contains("texture_scale"))
+          biome.textureScale = entry.at("texture_scale").get<float>();
         if (entry.contains("color")) {
           const auto &channels = entry.at("color");
           require(channels.is_array() && channels.size() == 4,
@@ -708,6 +711,8 @@ nlohmann::json TerrainRecipe::toJson() const {
       entry["landform"] = biome.landform;
     if (!biome.material.empty())
       entry["material"] = biome.material;
+    if (biome.textureScale != 1)
+      entry["texture_scale"] = biome.textureScale;
     json["biomes"][id] = std::move(entry);
   }
   for (const auto &[id, shape] : landforms)
@@ -772,6 +777,15 @@ nlohmann::json TerrainRecipe::toJson() const {
   }
   if (!graph.is_null())
     json["graph"] = graph;
+  return json;
+}
+
+nlohmann::json TerrainRecipe::generationJson() const {
+  auto json = toJson();
+  for (auto &biome : json["biomes"]) {
+    biome.erase("material");
+    biome.erase("texture_scale");
+  }
   return json;
 }
 } // namespace demi::runtime

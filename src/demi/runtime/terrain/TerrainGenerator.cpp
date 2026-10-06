@@ -54,6 +54,8 @@ TerrainGenerator::generateBase(const TerrainRecipe &recipe,
   for (const auto &[id, biome] : recipe.biomes) {
     field.biomeIds.push_back(id);
     field.biomeColors.push_back(biome.color);
+    field.biomeMaterials.push_back(biome.material);
+    field.biomeTextureScales.push_back(biome.textureScale);
   }
   for (int z = 0;; ++z) {
     if (stop.stop_requested())

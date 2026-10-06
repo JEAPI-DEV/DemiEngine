@@ -18,7 +18,7 @@ struct TerrainGraphArtifacts;
 //
 // 2: biome noise moved from the raw world seed to the stable Landform sub-seed
 // (see TerrainSeed), which changes the sampled surface for existing recipes.
-inline constexpr int terrainGeneratorVersion = 2;
+inline constexpr int terrainGeneratorVersion = 4;
 
 struct TerrainChunk {
   int firstCellX = 0;
@@ -38,6 +38,15 @@ struct HeightField {
   TerrainSamples<float> exclusions;
   std::vector<std::string> biomeIds;
   std::vector<Color> biomeColors;
+  std::vector<std::string> biomeMaterials;
+  std::vector<float> biomeTextureScales;
+  const std::string &biomeMaterial(std::size_t index) const {
+    static const std::string defaultMaterial;
+    return biomeMaterials.empty() ? defaultMaterial : biomeMaterials.at(index);
+  }
+  float biomeTextureScale(std::size_t index) const {
+    return biomeTextureScales.empty() ? 1.F : biomeTextureScales.at(index);
+  }
   std::vector<TerrainChunk> chunks;
   // Resolved palette instances, populated only when the recipe names a palette.
   // Kept as descriptions rather than entities so generation stays testable

@@ -8,6 +8,7 @@
 #include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/Transform3DComponent.h"
 #include "demi/runtime/scene/components/gameplay/GameplayDataComponent.h"
+#include "demi/runtime/terrain/TerrainCook.h"
 #include "demi/runtime/terrain/TerrainRecipe.h"
 #include "demi/runtime/terrain/TerrainScatterRuntime.h"
 #include "demi/runtime/terrain/TerrainUpdate.h"
@@ -665,6 +666,59 @@ void verifyInlineExtraction() {
           "Extraction Undo did not restore the inline procedural recipe");
 }
 
+void verifyPreparedTerrainIsReadOnly() {
+  TemporaryProject temporary;
+  createProject(temporary.root);
+  runtime::TerrainRecipe recipe;
+  recipe.size = {4, 4};
+  recipe.cellsX = recipe.cellsZ = 4;
+  const auto field = runtime::TerrainGenerator::generate(recipe);
+  require(field.has_value(), "Could not generate prepared fixture");
+  const auto payload = assets::serializeTerrainAssetPayload(
+      *field, runtime::terrainCookRecipeDigest(recipe), "prepared-test");
+  const auto folder = temporary.root / "assets/terrain/prepared";
+  std::filesystem::create_directories(folder);
+  {
+    std::ofstream output(folder / "prepared.terrain.bin", std::ios::binary);
+    output.write(reinterpret_cast<const char *>(payload.data()),
+                 payload.size());
+    require(output.good(), "Could not write prepared terrain fixture");
+  }
+  const auto hash = assets::hashFiles({folder / "prepared.terrain.bin"});
+  require(hash.has_value(), "Could not hash prepared terrain fixture");
+  writeJson(folder / "prepared.asset.json",
+            {{"format_version", 1},
+             {"id", "asset://terrain/prepared"},
+             {"type", "Terrain"},
+             {"importer", "terrain_heightfield"},
+             {"importer_version", 1},
+             {"source", "prepared.terrain.bin"},
+             {"source_hash", *hash},
+             {"dependencies", Json::array()},
+             {"settings", Json::object()}});
+  writeJson(
+      temporary.root / "scenes/main.scene.json",
+      {{"format_version", 1},
+       {"id", "scene://terrain/main"},
+       {"entities",
+        Json::array(
+            {{{"id", "terrain"},
+              {"components",
+               {{"Transform3D", Json::object()},
+                {"Terrain3D", {{"asset", "asset://terrain/prepared"}}}}}}})}});
+  editor::EditorWorkspace workspace;
+  std::string error;
+  require(workspace.open(temporary.root, error), error);
+  workspace.selectEntity("terrain");
+  workspace.syncTerrainAuthoring();
+  require(!hasErrors(workspace.diagnostics()),
+          "Prepared terrain selection tried to parse binary authoring data");
+  require(workspace.terrainAuthoring().entityId().empty(),
+          "Prepared terrain was bound to editable brushes");
+  require(!workspace.pinTerrainAuthoring("terrain", error) &&
+              error.find("read-only") != std::string::npos,
+          "Prepared terrain graph opening lacked a read-only diagnostic");
+}
 } // namespace
 
 int main() {
@@ -681,6 +735,7 @@ int main() {
     run("prefab scatter in scene", verifyPrefabScatterInScene);
     run("standalone asset authoring", verifyTerrainAssetAuthoring);
     run("inline extraction", verifyInlineExtraction);
+    run("prepared terrain read-only", verifyPreparedTerrainIsReadOnly);
     std::cout << "Terrain asset editor authoring passed\n";
     return 0;
   } catch (const std::exception &failure) {

@@ -65,14 +65,21 @@ struct MeshRendererComponent {
       ComponentFieldDescriptor{"vertices", ComponentFieldType::Vec3Array}.asAdvanced().withHelp("Advanced inline triangle geometry: three XYZ vertices per triangle. Usually supplied by a model or the Shape primitive."),
       ComponentFieldDescriptor{"normals", ComponentFieldType::Vec3Array}.asAdvanced().withHelp("Lighting directions for inline vertices. Omit to calculate them from the triangles; otherwise provide one XYZ normal per vertex."),
       ComponentFieldDescriptor{"uvs", ComponentFieldType::Vec2Array}.asAdvanced().withHelp("Texture coordinates for inline vertices, one UV pair per vertex. 0..1 spans the image; larger values tile when texture Wrap is Repeat."),
+      ComponentFieldDescriptor{"vertex_colors", ComponentFieldType::ColorArray}.asAdvanced().withHelp("RGBA multipliers for inline vertices, with finite channels from 0 to 1. Omit or leave empty for white; otherwise supply one color per vertex."),
       ComponentFieldDescriptor{"wireframe", ComponentFieldType::Boolean}};
   static constexpr ComponentEditorMetadata editor{"3D", "Mesh Renderer",
       "Draws a model or built-in shape. With no model or texture, the default "
       "is a light-grey unit cube; a texture/material is optional. "
       "Hover field labels for help."};
   static void parse(const nlohmann::json &json, Entity &entity);
+  static bool validateAuthored(const nlohmann::json &json, std::string &error);
+  static nlohmann::json schemaConstraints();
   static bool serializeField(const MeshRendererComponent &component,
                              std::string_view field, nlohmann::json &out);
+  static void copyVertices(MeshRendererComponent &destination,
+                           const MeshRendererComponent &source);
+  static void copyVertexColors(MeshRendererComponent &destination,
+                               const MeshRendererComponent &source);
 
   std::string model;
   std::string mediumLodModel;
@@ -95,12 +102,14 @@ struct MeshRendererComponent {
   std::vector<Vec3> vertices;
   std::vector<Vec3> normals;
   std::vector<Vec2> uvs;
+  std::vector<Color> vertexColors;
   std::uint64_t revision = 0;
   Vec3 boundsMin;
   Vec3 boundsMax;
   bool hasBounds = false;
   bool wireframe = false;
   void markGeometryChanged();
+  [[nodiscard]] bool validateVertexColors(std::string &error) const;
   static void afterRuntimeFieldChange(MeshRendererComponent &mesh,
                                       std::string_view field);
   static constexpr std::array runtimeFields{
@@ -139,12 +148,18 @@ struct MeshRendererComponent {
           &MeshRendererComponent::materialColors>("material_properties"),
       RuntimeFieldBinding<MeshRendererComponent>::member<
           &MeshRendererComponent::renderLayer>("render_layer"),
-      RuntimeFieldBinding<MeshRendererComponent>::member<
-          &MeshRendererComponent::vertices>("vertices"),
+      RuntimeFieldBinding<MeshRendererComponent>{
+          "vertices", copyVertices,
+          RuntimeFieldBinding<MeshRendererComponent>::member<
+              &MeshRendererComponent::vertices>("vertices").read},
       RuntimeFieldBinding<MeshRendererComponent>::member<
           &MeshRendererComponent::normals>("normals"),
       RuntimeFieldBinding<MeshRendererComponent>::member<
           &MeshRendererComponent::uvs>("uvs"),
+      RuntimeFieldBinding<MeshRendererComponent>{
+          "vertex_colors", copyVertexColors,
+          RuntimeFieldBinding<MeshRendererComponent>::member<
+              &MeshRendererComponent::vertexColors>("vertex_colors").read},
       RuntimeFieldBinding<MeshRendererComponent>::member<
           &MeshRendererComponent::wireframe>("wireframe")};
 };

@@ -74,6 +74,26 @@ void localHistoryAndChannels() {
   assert(tinted->field->heights.pageIdentity(0) ==
          next->field->heights.pageIdentity(0));
   equal(*tinted->field, *next->field);
+  auto appearance = tint;
+  appearance.biomes.at("default").material = "asset://ground/stone";
+  appearance.biomes.at("default").textureScale = 3;
+  const auto restyled = updateTerrain(tint, appearance, tinted->field);
+  assert(restyled && restyled->invalidation.materialsChanged &&
+         !restyled->invalidation.fullGeneration &&
+         restyled->invalidation.geometrySamples().empty() &&
+         restyled->patch->samples.empty() &&
+         restyled->stats.baseEvaluations == 0 &&
+         restyled->stats.normalEvaluations == 0 &&
+         restyled->field->biomeMaterials.front() == "asset://ground/stone" &&
+         restyled->field->biomeTextureScales.front() == 3 &&
+         restyled->field->heights.pageIdentity(0) ==
+             tinted->field->heights.pageIdentity(0));
+  const auto restored = applyTerrainPatch(restyled->field, *restyled->patch, false);
+  assert(restored.field->biomeMaterials.front().empty() &&
+         restored.field->biomeTextureScales.front() == 1);
+  const auto redone = applyTerrainPatch(restored.field, *restyled->patch, true);
+  assert(redone.field->biomeMaterials.front() == "asset://ground/stone" &&
+         redone.field->biomeTextureScales.front() == 3);
   auto excluded = tint;
   TerrainExclusion exclusion;
   exclusion.center = {130, 130};

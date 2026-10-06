@@ -14,7 +14,8 @@ struct StructuredValueState {
   std::string error;
 };
 // Edits a local candidate only. The owning document performs validation,
-// persistence and undo. vectorWidth is 2/3 for reflected vector arrays.
+// persistence and undo. vectorWidth is 2/3 for reflected vector arrays and 4
+// for RGBA color arrays.
 [[nodiscard]] StructuredValueEdit
 drawStructuredValue(nlohmann::json &value, StructuredValueState &state,
                     int vectorWidth = 0, bool readOnly = false);

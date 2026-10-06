@@ -238,10 +238,10 @@
           ],
           "parameters": {
             "kind": "lake",
-            "level": 10,
-            "center_x": 70,
-            "center_z": 64,
-            "radius": 18
+            "level": 6,
+            "center_x": 991,
+            "center_z": 973,
+            "radius": 180
           }
         },
         {
@@ -253,28 +253,28 @@
           ],
           "parameters": {
             "kind": "river",
-            "level": 10,
-            "river_width": 6,
+            "level": 6,
+            "river_width": 12,
             "river_path": [
               [
-                70,
-                7,
-                64
+                991,
+                3,
+                973
               ],
               [
-                58,
-                7,
-                82
+                950,
+                3,
+                1010
               ],
               [
-                38,
-                7,
-                103
+                900,
+                2.5,
+                1050
               ],
               [
-                22,
-                7,
-                128
+                850,
+                2.5,
+                1100
               ]
             ]
           }

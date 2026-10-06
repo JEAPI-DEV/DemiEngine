@@ -7,6 +7,7 @@
 #include "demi/runtime/terrain/TerrainMeshBuilder.h"
 #include "demi/runtime/terrain/TerrainScatterRuntime.h"
 #include "demi/runtime/terrain/TerrainUpdate.h"
+#include "demi/runtime/terrain/TerrainWaterMesh.h"
 #include "demi/runtime/terrain/TerrainWorld.h"
 
 #include <algorithm>
@@ -18,6 +19,7 @@
 #include <unordered_set>
 
 namespace demi::runtime {
+using terrain_detail::TerrainGeneratedWaterSurface;
 namespace {
 struct OwnerPublication {
   std::size_t index;
@@ -30,6 +32,7 @@ struct AppearancePublication {
   Color color;
   std::string material;
   std::string texture;
+  std::optional<std::vector<Vec2>> uvs;
 };
 
 Entity ownerSnapshot(const Entity &owner) {
@@ -49,7 +52,7 @@ Entity ownerSnapshot(const Entity &owner) {
   return snapshot;
 }
 
-Entity appearanceSnapshot(const Entity &surface) {
+Entity appearanceSnapshot(const Entity &surface, bool includeUvGeometry) {
   Entity snapshot;
   snapshot.id = surface.id;
   snapshot.enabled = surface.enabled;
@@ -59,6 +62,10 @@ Entity appearanceSnapshot(const Entity &surface) {
     appearance.material = mesh->material;
     appearance.texture = mesh->texture;
     appearance.revision = mesh->revision;
+    if (includeUvGeometry) {
+      appearance.vertices = mesh->vertices;
+      appearance.uvs = mesh->uvs;
+    }
     snapshot.setComponent(std::move(appearance));
   }
   if (const auto *collider = surface.component<ModelCollider3DComponent>())
@@ -214,6 +221,21 @@ public:
       const bool appearanceOnly = dirty.empty() &&
                                   !native.invalidation.fullGeneration &&
                                   !native.invalidation.layoutChanged;
+      const bool waterChanged =
+          native.invalidation.fullGeneration ||
+          native.invalidation.layoutChanged ||
+          terrainWaterMeshesChanged(terrain->generated.get(), *native.field);
+      bool textureScaleChanged = false;
+      if (appearanceOnly && terrain->generated &&
+          terrain->generated->biomeIds == native.field->biomeIds) {
+        for (std::size_t biome = 0; biome < native.field->biomeIds.size();
+             ++biome)
+          if (terrain->generated->biomeTextureScale(biome) !=
+              native.field->biomeTextureScale(biome)) {
+            textureScaleChanged = true;
+            break;
+          }
+      }
       std::map<std::pair<int, int>, TerrainRect> retainedChunks;
       if (!allChunks && terrain->generated) {
         for (const auto &chunk : terrain->generated->chunks)
@@ -227,7 +249,10 @@ public:
         const auto &entity = world.entities[index];
         const auto *surface =
             entity.component<terrain_detail::TerrainGeneratedSurface>();
-        if (!allChunks) {
+        const bool water = entity.hasComponent<TerrainGeneratedWaterSurface>();
+        if (water && !waterChanged)
+          continue;
+        if (!water && !allChunks) {
           const auto chunk =
               retainedChunks.find({surface->firstCellX, surface->firstCellZ});
           if (chunk == retainedChunks.end())
@@ -237,8 +262,10 @@ public:
             continue;
         }
         touched.insert(index);
-        staged.entities.push_back(appearanceOnly ? appearanceSnapshot(entity)
-                                                 : entity);
+        staged.entities.push_back(
+            appearanceOnly && !water
+                ? appearanceSnapshot(entity, textureScaleChanged)
+                : entity);
       }
       auto prepared =
           prepareTerrainWorldUpdate(staged, owner.id, recipe, native, error);
@@ -270,10 +297,19 @@ public:
           const auto *mesh = entity.component<MeshRendererComponent>();
           const auto *collider = entity.component<ModelCollider3DComponent>();
           if (mesh && previousMesh && collider && previousCollider &&
-              mesh->revision == previousMesh->revision &&
-              collider->inlineGeometry == previousCollider->inlineGeometry) {
-            appearances.push_back(
-                {existing->second, mesh->color, mesh->material, mesh->texture});
+              collider->inlineGeometry == previousCollider->inlineGeometry &&
+              (mesh->revision == previousMesh->revision ||
+               (appearanceOnly && textureScaleChanged &&
+                std::ranges::equal(
+                    mesh->vertices, previousMesh->vertices, [](Vec3 a, Vec3 b) {
+                      return a.x == b.x && a.y == b.y && a.z == b.z;
+                    })))) {
+            AppearancePublication appearance{existing->second, mesh->color,
+                                             mesh->material, mesh->texture,
+                                             std::nullopt};
+            if (mesh->revision != previousMesh->revision)
+              appearance.uvs = std::move(mesh->uvs);
+            appearances.push_back(std::move(appearance));
           } else {
             replacements.emplace(existing->second, std::move(entity));
           }
@@ -349,6 +385,10 @@ public:
       mesh->color = appearance.color;
       mesh->material.swap(appearance.material);
       mesh->texture.swap(appearance.texture);
+      if (appearance.uvs) {
+        mesh->uvs.swap(*appearance.uvs);
+        mesh->markGeometryChanged();
+      }
     }
     for (auto &[index, entity] : replacements)
       world.entities[index] = std::move(entity);

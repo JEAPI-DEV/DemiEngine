@@ -54,9 +54,10 @@ float band(float value, float minimum, float maximum, float falloff) {
                     0.0F, 1.0F);
 }
 
-std::optional<GraphNodeResult>
-evaluateSource(const TerrainGraphNode &node, const nlohmann::json &values,
-               const TerrainRecipe &sourceRecipe, std::stop_token stop) {
+std::optional<GraphNodeResult> evaluateSource(const TerrainGraphNode &node,
+                                              const nlohmann::json &values,
+                                              const TerrainRecipe &sourceRecipe,
+                                              std::stop_token stop) {
   auto settings = sourceRecipe;
   if (node.type != "landform") {
     TerrainLandform shape;
@@ -69,8 +70,8 @@ evaluateSource(const TerrainGraphNode &node, const nlohmann::json &values,
       shape.featureSize = values.at("feature_size").get<float>();
       shape.roughness = values.at("roughness").get<float>();
       shape.octaves = values.at("octaves").get<int>();
-      const auto seed = std::int64_t(settings.seed) +
-                        values.at("seed_offset").get<int>();
+      const auto seed =
+          std::int64_t(settings.seed) + values.at("seed_offset").get<int>();
       if (seed < INT32_MIN || seed > INT32_MAX)
         throw std::invalid_argument("Seed offset overflows the seed range");
       settings.seed = static_cast<int>(seed);
@@ -92,9 +93,10 @@ evaluateSource(const TerrainGraphNode &node, const nlohmann::json &values,
   return result;
 }
 
-std::optional<GraphNodeResult>
-evaluateMask(const TerrainGraphNode &node, const nlohmann::json &values,
-             const GraphValues &connected, std::stop_token stop) {
+std::optional<GraphNodeResult> evaluateMask(const TerrainGraphNode &node,
+                                            const nlohmann::json &values,
+                                            const GraphValues &connected,
+                                            std::stop_token stop) {
   auto mask = std::make_shared<GraphMask>();
   mask->source = fieldInput(connected, "field");
   mask->samples.resize(mask->source->heights.size());
@@ -106,8 +108,8 @@ evaluateMask(const TerrainGraphNode &node, const nlohmann::json &values,
     const auto value =
         node.type == "elevation_mask"
             ? mask->source->heights[index]
-            : float(std::acos(std::clamp(mask->source->normals[index].y,
-                                         -1.0F, 1.0F)) *
+            : float(std::acos(std::clamp(mask->source->normals[index].y, -1.0F,
+                                         1.0F)) *
                     180 / 3.141592653589793);
     mask->samples.set(index, band(value, values.at("minimum"),
                                   values.at("maximum"), values.at("falloff")));
@@ -121,8 +123,8 @@ std::optional<GraphNodeResult>
 evaluateHeightModifier(const TerrainGraphNode &node,
                        const nlohmann::json &values,
                        const GraphValues &connected, std::stop_token stop) {
-  const auto a = fieldInput(connected,
-                            node.type == "height_blend" ? "a" : "field");
+  const auto a =
+      fieldInput(connected, node.type == "height_blend" ? "a" : "field");
   auto field = std::make_shared<HeightField>(*a);
   GraphField b;
   if (node.type == "height_blend") {
@@ -141,10 +143,10 @@ evaluateHeightModifier(const TerrainGraphNode &node,
     if ((index & 255) == 0 && stop.stop_requested())
       return std::nullopt;
     const double weight = amount * (mask ? mask->samples[index] : 1);
-    field->heights.set(
-        index, checkedHeight(b ? a->heights[index] * (1 - weight) +
-                                     b->heights[index] * weight
-                               : a->heights[index] + weight));
+    field->heights.set(index,
+                       checkedHeight(b ? a->heights[index] * (1 - weight) +
+                                             b->heights[index] * weight
+                                       : a->heights[index] + weight));
   }
   if (!TerrainGenerator::recomputeTerrainNormals(*field, stop))
     return std::nullopt;
@@ -161,8 +163,8 @@ evaluateDrainage(const nlohmann::json &values,
   drainage->source = fieldInput(connected, "field");
   TerrainDrainageSettings settings;
   settings.seaLevel = values.at("sea_level").get<float>();
-  auto computed = computeTerrainDrainage(*drainage->source, sourceRecipe,
-                                         settings, stop);
+  auto computed =
+      computeTerrainDrainage(*drainage->source, sourceRecipe, settings, stop);
   if (stop.stop_requested() || !computed)
     return std::nullopt;
   drainage->data = std::move(*computed);
@@ -173,8 +175,7 @@ evaluateDrainage(const nlohmann::json &values,
 }
 
 std::optional<GraphNodeResult>
-evaluateErosion(const nlohmann::json &values,
-                const TerrainRecipe &sourceRecipe,
+evaluateErosion(const nlohmann::json &values, const TerrainRecipe &sourceRecipe,
                 const TerrainRecipe &authoredRecipe,
                 const GraphValues &connected, std::stop_token stop) {
   const auto source = fieldInput(connected, "field");
@@ -228,9 +229,9 @@ evaluateBiomes(const TerrainRecipe &sourceRecipe,
                  field->size);
   if (stop.stop_requested())
     return std::nullopt;
-  const auto decisions = assignTerrainBiomes(
-      biomeRecipe, contexts.contexts(), field->cellsX, field->cellsZ,
-      field->size);
+  const auto decisions =
+      assignTerrainBiomes(biomeRecipe, contexts.contexts(), field->cellsX,
+                          field->cellsZ, field->size);
   if (stop.stop_requested())
     return std::nullopt;
   for (std::size_t index = 0; index < decisions.size(); ++index) {
@@ -243,14 +244,16 @@ evaluateBiomes(const TerrainRecipe &sourceRecipe,
   return result;
 }
 
-std::optional<GraphNodeResult>
-evaluateWater(const TerrainGraphNode &node, const nlohmann::json &values,
-              const GraphValues &connected, std::stop_token stop) {
+std::optional<GraphNodeResult> evaluateWater(const TerrainGraphNode &node,
+                                             const nlohmann::json &values,
+                                             const GraphValues &connected,
+                                             std::stop_token stop) {
   const auto source = fieldInput(connected, "field");
   auto water = std::make_shared<GraphWater>();
   water->authoring.authored = true;
   if (const auto *upstream = input(connected, "water")) {
-    const auto previous = std::get<std::shared_ptr<const GraphWater>>(*upstream);
+    const auto previous =
+        std::get<std::shared_ptr<const GraphWater>>(*upstream);
     if (previous->data.carvedHeights != source->heights)
       throw std::invalid_argument(
           "Connected water data does not match the input field");
@@ -271,6 +274,7 @@ evaluateWater(const TerrainGraphNode &node, const nlohmann::json &values,
                  values.at("center_z").get<float>()};
   body.radius = values.at("radius").get<float>();
   body.riverWidth = values.at("river_width").get<float>();
+  body.appearance = parseTerrainWaterAppearance(values);
   for (const auto &point : values.at("river_path")) {
     if (stop.stop_requested())
       return std::nullopt;
@@ -284,14 +288,15 @@ evaluateWater(const TerrainGraphNode &node, const nlohmann::json &values,
   if (stop.stop_requested())
     return std::nullopt;
   if (!carved || carved->dropped)
-    throw std::invalid_argument("Water body could not be placed on this surface");
+    throw std::invalid_argument(
+        "Water body could not be placed on this surface");
   auto field = std::make_shared<HeightField>(*source);
   field->heights = std::move(carved->carvedHeights);
   if (!TerrainGenerator::recomputeTerrainNormals(*field, stop))
     return std::nullopt;
   water->authoring.bodies.push_back(std::move(body));
-  auto resolved = refreshTerrainWaterResult(
-      *field, water->authoring, field->heights, stop);
+  auto resolved =
+      refreshTerrainWaterResult(*field, water->authoring, field->heights, stop);
   if (stop.stop_requested())
     return std::nullopt;
   if (!resolved || resolved->dropped)
@@ -305,8 +310,8 @@ evaluateWater(const TerrainGraphNode &node, const nlohmann::json &values,
 
 std::optional<GraphNodeResult>
 evaluateScatter(const TerrainRecipe &sourceRecipe,
-                const TerrainGraphInputs &inputs,
-                const GraphValues &connected, std::stop_token stop) {
+                const TerrainGraphInputs &inputs, const GraphValues &connected,
+                std::stop_token stop) {
   GraphNodeResult result;
   auto placements = std::make_shared<GraphInstances>();
   if (inputs.palette) {
@@ -319,8 +324,7 @@ evaluateScatter(const TerrainRecipe &sourceRecipe,
     placements->placements = std::move(scattered.placements);
     placements->truncated = scattered.truncated;
   } else {
-    result.warnings.push_back(
-        "Scatter Palette has no resolved asset palette.");
+    result.warnings.push_back("Scatter Palette has no resolved asset palette.");
   }
   result.outputs["instances"] =
       std::shared_ptr<const GraphInstances>(std::move(placements));
@@ -370,9 +374,9 @@ nlohmann::json terrainGraphNodeContext(const TerrainRecipe &recipe,
     context["default_landform"] = recipe.defaultLandform;
     context["landforms"] = nlohmann::json::object();
     for (const auto &[id, shape] : recipe.landforms)
-      context["landforms"][id] =
-          {shape.baseHeight, shape.heightVariation, shape.featureSize,
-           shape.roughness, shape.octaves};
+      context["landforms"][id] = {shape.baseHeight, shape.heightVariation,
+                                  shape.featureSize, shape.roughness,
+                                  shape.octaves};
     context["biome_landforms"] = nlohmann::json::object();
     for (const auto &[id, biome] : recipe.biomes)
       context["biome_landforms"][id] = biome.landform;

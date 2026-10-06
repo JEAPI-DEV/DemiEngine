@@ -1,7 +1,12 @@
 {
   "dependencies": [
     "asset://terrain/palettes/meadow",
-    "asset://terrain/presets/river_valley"
+    "asset://terrain/presets/river_valley",
+    "asset://terrain/surfaces/exposed_rock",
+    "asset://terrain/surfaces/grass",
+    "asset://terrain/surfaces/sand",
+    "asset://terrain/surfaces/soil",
+    "asset://terrain/surfaces/wet_ground"
   ],
   "format_version": 1,
   "id": "asset://terrain/landscape",
@@ -9,6 +14,6 @@
   "importer_version": 1,
   "settings": {},
   "source": "landscape.terrain.json",
-  "source_hash": "fnv1a64:4338c95588df8f59",
+  "source_hash": "fnv1a64:6be124b851815865",
   "type": "Terrain"
 }

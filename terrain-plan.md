@@ -2,7 +2,7 @@
 
 Status: finite-heightfield editing and the Modules/terrain-graph workspace are
 implemented. Seeds, presets, biome rules, scatter and native erosion/water data
-have qualification coverage. Blended landscape materials, rendered water and
+have qualification coverage. Blended landscape materials, advanced water and
 large-world vegetation/streaming still need their integration gates below.
 Evidence is recorded in [docs/terrain-qualification.md](docs/terrain-qualification.md).
 
@@ -23,7 +23,7 @@ Evidence is recorded in [docs/terrain-qualification.md](docs/terrain-qualificati
   scale, and collapsible floating recipe settings without a reserved column.
 - [x] Expand the graph example into a branched landscape with drainage-fed
   erosion, biome rules, and connected lake/river data. Keep missing terrain PBR
-  and visible-water rendering explicit.
+  and advanced-water rendering explicit.
 
 - [x] Put every generation setting in the Terrain Graph workspace: grid, seed,
   presets, landforms, biomes, rules, palette, layers and connected node parameters.
@@ -37,13 +37,14 @@ Evidence is recorded in [docs/terrain-qualification.md](docs/terrain-qualificati
 - [x] Verify asset Undo/Redo, applying/saving, scene history independence,
   selection changes, cancelled edits and shared placements.
 - [x] Update public documentation with the workflow and the actual rendering
-  gaps: biome material references currently do not reach terrain meshes; water
-  nodes produce carving/surface data, not a visible water renderer.
+  gaps: ordinary biome materials reach terrain meshes; typed terrain material
+  definitions and smooth blending are still pending. Native transparent water
+  publication is implemented; advanced water shading remains pending.
 
 The standalone Terrain asset stage remains useful for inspecting an asset in
 isolation, but must not be required for editing a placed terrain. The large
 `terrain_3d` probe uses a conventional recipe and prototype scattered geometry;
-it does not demonstrate blended landscape materials or rendered water.
+it does not demonstrate blended landscape materials or reflection/refraction.
 
 ## Target experience and visual quality
 
@@ -490,6 +491,14 @@ at wide and close views; watershed/chunk boundaries have no processing seams.
 
 ## Milestone 4: automatic high-quality surface materials
 
+- [x] Render ordinary Material asset references assigned to biomes through the
+  shared Mesh Renderer path. Store positive finite texture scale in terrain-local
+  units, with continuous UVs across chunks. Preserve geometry/collision on
+  material changes and only update UV resources for scale changes. Retain both
+  values in cooked fields so shipped loading does not need authored recipes.
+  Typed terrain material definitions and smooth layers remain unfinished.
+  See [binding qualification](docs/terrain-material-binding-qualification.md).
+
 Partly implemented. The PBR document model, its import and its validation are
 done and tested as `TerrainMaterialAsset` / `TerrainMaterialSet`, and
 `TerrainMaterialLayers` assigns a role to every cell by SCORING the generated
@@ -538,9 +547,18 @@ and remains readable under multiple lighting conditions.
 
 Partly implemented. River, lake and ocean authoring, non-destructive carving and
 render-ready water surfaces with per-vertex depth are done and tested, as are
-gameplay queries kept deliberately independent of render tessellation. The water
-rendering itself, the underwater appearance and the stage wiring are not
-started.
+gameplay queries kept deliberately independent of render tessellation. Graph
+water outputs now publish native transparent meshes in editor previews and
+runtime, including prepared assets. They inherit terrain transforms/visibility,
+never acquire solid collision, and reconcile atomically on Generate and history
+updates. Basic direct lighting uses the shared transparent mesh renderer.
+Graph-authored shallow/deep RGBA, absorption distance and roughness now produce
+depth-derived vertex colours through the shared mesh renderer. Shore geometry
+clips against terrain triangles; queries use the same interpolation without
+depending on rendered meshes. Uncontained bounded lakes warn rather than
+silently clamping an authored level or inventing banks.
+Reflection/refraction, waves, foam and underwater
+appearance remain pending; this is not completion of the water quality gate.
 
 Design water-body data and hydrology interfaces alongside milestones 2–3;
 complete rendering and gameplay integration against the material pipeline.
@@ -557,6 +575,15 @@ complete rendering and gameplay integration against the material pipeline.
   shoreline/flow foam. Correctly handle river-to-lake/ocean transitions and
   transparent ordering. Identify renderer prerequisites rather than faking
   equivalent behaviour with an opaque tinted plane.
+  - [x] Publish the connected water surface as native transparent geometry, with
+    stable body IDs, shared ownership, prepared-data loading and atomic updates.
+  - [x] Add configurable water appearance and per-vertex depth shading before
+    reflections/refraction. Preserve prepared bathymetry and gameplay queries.
+  - [x] Clip shore triangles to ground intersections and share the interpolation
+    with queries. Warn when bounded lake banks cannot contain the chosen level.
+  - [x] Restrict lake coverage to its centre-selected connected basin, preserving
+    authored river paths and ocean coverage. Retain connectivity in prepared
+    results for mesh/query parity and avoid frame-time flood-fill work.
 - [ ] Add underwater appearance and camera transitions, plus shared queries for
   surface height, depth, containment and flow. Expose gameplay APIs/components
   for water interaction; provide opt-in buoyancy/drag and swimming integration.

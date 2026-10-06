@@ -35,8 +35,27 @@ tools on the Terrain component. Terrain surface materials, material sets and
 scatter palettes now have native creation dialogs and typed asset controls,
 shared reference picking, Undo/Redo and validated dependency-aware reimport.
 See [asset authoring qualification](docs/editor-asset-authoring-qualification.md).
-Next: connect surface materials to terrain rendering, blended shading, rendered
-water, vegetation and landscape quality qualification.
+Ordinary biome Material references now reach terrain meshes with per-biome
+texture scale and source/cooked appearance metadata. Material edits retain
+geometry/collision and texture-scale edits update UVs only. Typed terrain PBR
+definitions, blended layers and advanced water shading remain rendering work.
+Fifteen scoped checks and source/cooked native Vulkan probes qualify this binding
+step; [evidence](docs/terrain-material-binding-qualification.md) records the
+new derived-data versions and the remaining renderer scope.
+Connected graph water outputs now publish transparent native surfaces in the
+scene preview and prepared runtime. Water follows its terrain owner, has no
+solid collider and updates transactionally across shared placements. The
+water stage now includes configurable appearance, depth-derived vertex colours
+and terrain-triangle shoreline clipping. Uncontained lakes warn rather than
+silently changing their level. Reflection/refraction, waves, foam and
+underwater/gameplay integration remain. See
+[water publication evidence](docs/terrain-water-publication-qualification.md).
+Nineteen focused checks pass, and source/cooked native Vulkan captures verify
+visible water. Both terrain examples validate without diagnostics.
+The subsequent shore/depth stage passes fourteen focused renderer, component,
+editor and terrain checks. Source/cooked native captures now use a contained
+basin and replace the earlier levitating probe; derived terrain requires recook
+for generator/envelope v3. No full water-quality or full-suite gate is claimed.
 The expanded visual-quality and performance milestones remain planned.
 
 Brush source now groups shared settings with ordered points, and full sculpt
