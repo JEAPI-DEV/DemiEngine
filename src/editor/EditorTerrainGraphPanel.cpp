@@ -182,6 +182,16 @@ void EditorTerrainGraphPanel::bind(const EditorWorkspace &workspace) {
   releaseUiResources();
 }
 
+void EditorTerrainGraphPanel::resetDraftHistory() {
+  showSettings_ = false;
+  document_.clearHistory();
+  shownPositions_.clear();
+  textEdits_.clear();
+  numericEdits_.clear();
+  selectNodes({});
+  frameSelectionRequested_ = true;
+}
+
 void EditorTerrainGraphPanel::open(const EditorWorkspace &workspace) {
   bind(workspace);
   open_ = true;
@@ -701,9 +711,25 @@ void EditorTerrainGraphPanel::drawParameter(
                                : value.is_string() ? value.get<std::string>()
                                                    : std::string{};
     std::string &buffer = textEdits_.try_emplace(key, source).first->second;
-    const bool submitted = ImGui::InputText(
-        "##value", &buffer, ImGuiInputTextFlags_EnterReturnsTrue);
-    if (submitted || ImGui::IsItemDeactivatedAfterEdit()) {
+    if (!structured) {
+      ImGui::PushTextWrapPos(ImGui::GetCursorPosX() +
+                             290.0F * canvasView_.zoom());
+      ImGui::TextUnformatted(source.c_str());
+      ImGui::PopTextWrapPos();
+      if (!ImGui::TreeNode("Edit note")) {
+        buffer = source;
+        break;
+      }
+    }
+    const bool submitted =
+        structured ? ImGui::InputText("##value", &buffer,
+                                      ImGuiInputTextFlags_EnterReturnsTrue)
+                   : ImGui::InputTextMultiline("##value", &buffer,
+                                               {290.0F * canvasView_.zoom(),
+                                                160.0F * canvasView_.zoom()});
+    if (!structured)
+      ImGui::TreePop();
+    if ((structured && submitted) || ImGui::IsItemDeactivatedAfterEdit()) {
       if (structured) {
         edited = Json::parse(buffer, nullptr, false);
         if (edited.is_discarded())

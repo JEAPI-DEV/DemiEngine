@@ -510,7 +510,37 @@ void addingTheFirstOutputIsOneTransaction() {
 
 } // namespace
 
+void commentEditingRoundTrips() {
+  EditorTerrainGraphDocument document;
+  document.bind("comments");
+  Json recipe{{"graph", demi::runtime::defaultTerrainGraph()}};
+  const auto initial = recipe;
+  std::string id, error;
+  assert(document.addNode(recipe, "comment", {{"text", "Start here"}}, 10, 20,
+                          id, error));
+  assert(document.setParameter(recipe, id, "text",
+                               "Explain the noise\nThen generate", error));
+  const auto edited = recipe;
+  assert(document.undo(recipe));
+  assert(document.redo(recipe));
+  assert(recipe == edited);
+  auto copied = document.copySelection(recipe, {id}, error);
+  assert(copied);
+  std::vector<std::string> pasted;
+  assert(document.pasteSelection(recipe, *copied, 30, 30, pasted, error));
+  assert(pasted.size() == 1 && pasted.front() != id);
+  assert(TerrainGraph::parse(recipe["graph"])
+             .node(pasted.front())
+             ->parameters["text"] == "Explain the noise\nThen generate");
+  assert(document.undo(recipe));
+  assert(recipe == edited);
+  assert(document.undo(recipe));
+  assert(document.undo(recipe));
+  assert(recipe == initial);
+}
+
 int main() {
+  commentEditingRoundTrips();
   incompleteDraftCanBeWired();
   nativeLinkRulesLeaveRejectedDraftUntouched();
   invalidParameterCanBeCorrectedBeforeWiring();

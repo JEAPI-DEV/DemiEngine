@@ -50,6 +50,13 @@ void EditorDockingWorkspace::drawDockspace(const ImVec2 position,
     if (explicitReset && ImGui::GetIO().IniFilename != nullptr)
       ImGui::SaveIniSettingsToDisk(ImGui::GetIO().IniFilename);
   }
+  // Introduce new panels into an existing layout without resetting user docks.
+  if (!ImGui::FindWindowByName("Terrain Presets") &&
+      !ImGui::FindWindowSettingsByID(ImHashStr("Terrain Presets"))) {
+    if (auto *inspector = ImGui::FindWindowByName("Inspector");
+        inspector && inspector->DockId)
+      ImGui::DockBuilderDockWindow("Terrain Presets", inspector->DockId);
+  }
   ImGui::DockSpace(dockspaceId, {0.0F, 0.0F},
                    ImGuiDockNodeFlags_PassthruCentralNode);
   ImGui::End();

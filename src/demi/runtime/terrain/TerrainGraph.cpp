@@ -239,7 +239,13 @@ nlohmann::json TerrainGraph::toJson() const {
 }
 std::string TerrainGraph::contentKey() const {
   auto semantic = toJson();
-  for (auto &node : semantic["nodes"]) {
+  auto &nodes = semantic["nodes"];
+  nodes.erase(std::remove_if(nodes.begin(), nodes.end(),
+                             [](const auto &node) {
+                               return node.at("type") == "comment";
+                             }),
+              nodes.end());
+  for (auto &node : nodes) {
     node.erase("position");
     for (const auto &parameter :
          terrainGraphNodeDefinition(node.at("type").get<std::string>())

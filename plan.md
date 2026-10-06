@@ -1,5 +1,9 @@
 # DemiEngine Roadmap
 
+Terrain Presets provides four built-in learning landscapes beside Inspector and
+Terrain Nodes. Versioned presets may include graphs; editable comment nodes
+explain generation without affecting terrain output or generation cache keys.
+
 Entity-reference Inspector controls share a picker and validated hierarchy-drop
 adapter for native fields and annotated Lua `entity` properties. Hierarchy drags
 preserve the inspected selection; assignment uses existing reversible document

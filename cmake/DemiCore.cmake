@@ -18,6 +18,7 @@ add_library(demi-core STATIC
   src/demi/runtime/terrain/TerrainGenerationCache.cpp
   src/demi/runtime/terrain/TerrainPalette.cpp
   src/demi/runtime/terrain/TerrainPreset.cpp
+  src/demi/runtime/terrain/TerrainPresetLibrary.cpp
   src/demi/runtime/terrain/TerrainGeneration.cpp
   src/demi/runtime/terrain/TerrainPipeline.cpp
   src/demi/runtime/terrain/TerrainDrainage.cpp

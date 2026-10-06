@@ -742,7 +742,7 @@ void presetsListProjectPresets(const std::filesystem::path &root) {
   assert(json.code == 0);
   const auto document = nlohmann::json::parse(json.out);
   assert(document.at("format_version") == 1);
-  assert(document.at("count") == 1);
+  assert(document.at("count") == 5);
   const auto &preset = document.at("presets").at(0);
   assert(preset.at("id") == PresetId);
   assert(preset.at("name") == "Test Ridge");
@@ -763,15 +763,15 @@ void presetsReportAnEmptyProject(const std::filesystem::path &root) {
   const auto text = invoke({"terrain", "presets", project.string()});
   assert(text.code == 0);
   assert(text.error.empty());
-  assert(contains(text.out, "(0)"));
-  assert(contains(text.out, "terrain_preset"));
+  assert(contains(text.out, "(4)"));
+  assert(contains(text.out, "builtin://terrain/desert-dunes"));
 
   const auto json =
       invoke({"terrain", "presets", project.string(), "--format", "json"});
   assert(json.code == 0);
   const auto document = nlohmann::json::parse(json.out);
-  assert(document.at("count") == 0);
-  assert(document.at("presets").empty());
+  assert(document.at("count") == 4);
+  assert(document.at("presets").size() == 4);
 }
 
 void presetsOutputIsDeterministic(const std::filesystem::path &root) {

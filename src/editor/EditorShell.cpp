@@ -537,6 +537,11 @@ void EditorShell::draw(const int width, const int height,
     if (!openDocument(*source, error))
       documentOpenError_ = error;
   }
+  if (!showGameView_ && showTerrainGraphView_ && graphWorkspace_ &&
+      panels.terrainPresets &&
+      terrainPresetsPanel_.draw(*graphWorkspace_, notice_,
+                                &panels.terrainPresets))
+    terrainGraphPanel_.resetDraftHistory();
   if (panels.assets)
     assetsPanel_.draw(workspace(), {consoleWidth, contentTop + upperHeight},
                       {assetsWidth, bottomHeight}, notice_, &panels.assets);

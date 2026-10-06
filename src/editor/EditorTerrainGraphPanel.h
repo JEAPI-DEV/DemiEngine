@@ -45,6 +45,7 @@ public:
     keyBindings_ = &bindings;
   }
   void draw(EditorWorkspace &workspace, std::string &notice);
+  void resetDraftHistory();
   void releaseUiResources() noexcept;
 
 private:

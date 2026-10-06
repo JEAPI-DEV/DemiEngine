@@ -129,6 +129,53 @@ void raiseTerrain(editor::EditorWorkspace &workspace) {
   awaitTerrain(workspace);
 }
 
+void verifyStarterPresetAndComments() {
+  TemporaryProject temporary;
+  createProject(temporary.root);
+  editor::EditorWorkspace workspace;
+  std::string error;
+  require(workspace.open(temporary.root, error), error);
+  std::filesystem::path manifest;
+  require(editor::createEditorSource(workspace,
+                                     editor::EditorSourceKind::Terrain,
+                                     "starter", manifest, error),
+          error);
+  require(workspace.placeTerrainAsset(manifest, runtime::Vec3{}, error), error);
+  const auto owner = std::string(workspace.selectedEntityId());
+  const auto before = workspace.terrainAuthoring().draft();
+  require(workspace.applyTerrainPreset("builtin://terrain/desert-dunes", error),
+          error);
+  awaitTerrain(workspace);
+  const auto applied = workspace.terrainAuthoring().draft();
+  require(applied.at("graph").at("nodes").size() == 6,
+          "Starter did not install its graph and comments");
+  require(workspace.undo(error), error);
+  require(workspace.terrainAuthoring().draft() == before,
+          "Preset Undo did not restore the previous recipe");
+  require(workspace.redo(error), error);
+  require(workspace.terrainAuthoring().draft() == applied,
+          "Preset Redo lost the introductory comments");
+  const auto heights =
+      terrainIn(workspace.project().world, owner).generated->heights;
+  auto &draft = workspace.terrainAuthoring().draft();
+  draft["graph"]["nodes"][3]["parameters"]["text"] =
+      "My colony notes\nKeep the landing site flat.";
+  require(workspace.terrainAuthoring().generate(std::nullopt, error), error);
+  awaitTerrain(workspace);
+  require(terrainIn(workspace.project().world, owner).generated->heights ==
+              heights,
+          "Editing a comment changed the terrain");
+  require(workspace.applyTerrainAssetChanges(error), error);
+  require(workspace.saveAll(error), error);
+  editor::EditorWorkspace reopened;
+  require(reopened.open(temporary.root, error), error);
+  reopened.selectEntity(owner);
+  require(reopened.terrainAuthoring()
+                  .draft()["graph"]["nodes"][3]["parameters"]["text"] ==
+              "My colony notes\nKeep the landing site flat.",
+          "Comment text did not survive terrain save and reopen");
+}
+
 void verifyPinnedAssetGraph() {
   TemporaryProject temporary;
   createProject(temporary.root);
@@ -754,6 +801,7 @@ int main() {
     run("standalone asset authoring", verifyTerrainAssetAuthoring);
     run("inline extraction", verifyInlineExtraction);
     run("prepared terrain read-only", verifyPreparedTerrainIsReadOnly);
+    run("starter presets and comments", verifyStarterPresetAndComments);
     std::cout << "Terrain asset editor authoring passed\n";
     return 0;
   } catch (const std::exception &failure) {

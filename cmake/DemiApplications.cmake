@@ -152,6 +152,7 @@ else()
     src/editor/EditorColorControl.cpp
     src/editor/EditorTerrainInspector.cpp
     src/editor/EditorTerrainGraphSettings.cpp
+    src/editor/EditorTerrainPresetsPanel.cpp
     src/editor/EditorTerrainGraphPanel.cpp
     src/editor/EditorTerrainGraphPorts.cpp
     src/editor/EditorGraphCanvasView.cpp

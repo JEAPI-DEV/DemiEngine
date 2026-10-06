@@ -937,22 +937,23 @@ Json presetToJson(const runtime::TerrainPreset &preset) {
   Json rules = Json::array();
   for (const runtime::TerrainBiomeRule &rule : preset.rules)
     rules.push_back(rule.id);
-  return {
-      {"id", preset.id},
-      {"name", preset.name},
-      {"label", preset.label},
-      {"description", preset.description},
-      {"preset_version", preset.version},
-      {"size", {preset.size.x, preset.size.y}},
-      {"resolution", {preset.cellsX, preset.cellsZ}},
-      {"chunk_cells", preset.chunkCells},
-      {"seed", preset.seed},
-      {"default_biome", preset.defaultBiome},
-      {"default_landform", preset.defaultLandform},
-      {"landform_count", preset.landforms.size()},
-      {"biome_count", preset.biomes.size()},
-      {"rule_count", preset.rules.size()},
-      {"rules", std::move(rules)}};
+  return {{"id", preset.id},
+          {"name", preset.name},
+          {"label", preset.label},
+          {"description", preset.description},
+          {"preset_version", preset.version},
+          {"size", {preset.size.x, preset.size.y}},
+          {"resolution", {preset.cellsX, preset.cellsZ}},
+          {"chunk_cells", preset.chunkCells},
+          {"seed", preset.seed},
+          {"default_biome", preset.defaultBiome},
+          {"default_landform", preset.defaultLandform},
+          {"landform_count", preset.landforms.size()},
+          {"biome_count", preset.biomes.size()},
+          {"graph_node_count",
+           preset.graph.is_null() ? 0 : preset.graph.at("nodes").size()},
+          {"rule_count", preset.rules.size()},
+          {"rules", std::move(rules)}};
 }
 
 void printPresetText(const runtime::TerrainPreset &preset, std::ostream &out) {
@@ -974,6 +975,8 @@ void printPresetText(const runtime::TerrainPreset &preset, std::ostream &out) {
   for (const runtime::TerrainBiomeRule &rule : preset.rules)
     out << ' ' << rule.id;
   out << '\n';
+  if (!preset.graph.is_null())
+    out << "    Graph nodes: " << preset.graph.at("nodes").size() << '\n';
   if (!preset.description.empty())
     out << "    Description: " << preset.description << '\n';
 }
@@ -999,7 +1002,7 @@ int runPresets(const std::vector<std::string> &args, std::ostream &out,
   }
   std::ranges::sort(presetIds);
 
-  std::vector<runtime::TerrainPreset> presets;
+  auto presets = runtime::builtinTerrainPresets();
   presets.reserve(presetIds.size());
   bool failed = false;
   for (const std::string &id : presetIds) {
@@ -1015,6 +1018,7 @@ int runPresets(const std::vector<std::string> &args, std::ostream &out,
     }
   }
 
+  std::ranges::sort(presets, {}, &runtime::TerrainPreset::id);
   if (options->format == "json") {
     Json documents = Json::array();
     for (const runtime::TerrainPreset &preset : presets)
@@ -1105,7 +1109,8 @@ int runApplyPreset(const std::vector<std::string> &args, std::ostream &out,
   if (!options)
     return ExitUsageError;
   if (options->preset.empty()) {
-    error << "terrain apply-preset requires --preset <asset://id>.\n";
+    error << "terrain apply-preset requires --preset "
+             "<asset://id|builtin://terrain/name>.\n";
     return ExitUsageError;
   }
   const auto context = loadProjectContext(options->project, error);
@@ -1283,7 +1288,8 @@ int runTerrainCommand(const std::vector<std::string> &args, std::ostream &out,
              "[--format text|json]\n"
              "       demi terrain seeds <seed> [--format text|json]\n"
           << "       demi terrain presets <project> [--format text|json]\n"
-          << "       demi terrain apply-preset <project> --preset <asset://id> "
+          << "       demi terrain apply-preset <project> --preset "
+             "<asset://id|builtin://terrain/name> "
              "[--entity <id>] [--format text|json]\n"
           << "       demi terrain validate <project> [--palette <asset://id>] "
              "[--materials <asset://id>] [--development] [--json]\n";

@@ -240,6 +240,13 @@ void checkFreshTerrainGraphStartupFocus() {
           << "\n  " << describeDockingWindow("Terrain Graph") << "\n  "
           << describeDockingWindow("Viewport");
   }
+  require(active("Terrain Presets") && active("Terrain Nodes"),
+          "Terrain graph did not expose its two palettes");
+  require(window("Terrain Presets").DockId == window("Inspector").DockId &&
+              window("Terrain Presets").ID != window("Terrain Nodes").ID,
+          "Terrain Presets is not an independent Inspector sibling");
+  require(workspace.terrainAuthoring().presets().size() >= 4,
+          "Fresh project has no starter presets");
   const auto &graph = window("Terrain Graph");
   const auto &viewport = window("Viewport");
   require(
@@ -267,7 +274,8 @@ void checkIndependentViews(ImGuiFixture &imgui, EditorShell &shell,
     imgui.frame(shell, "Viewport");
   require(active("Viewport") && active("HUD"),
           "Scene and its HUD did not create independent windows");
-  require(!active("UI Palette") && !active("Terrain Nodes"),
+  require(!active("UI Palette") && !active("Terrain Nodes") &&
+              !active("Terrain Presets"),
           "A scene opened a contextual palette without its editing context");
   for (const char *name : {"Viewport", "HUD"}) {
     const auto &view = window(name);
@@ -287,7 +295,8 @@ void checkIndependentViews(ImGuiFixture &imgui, EditorShell &shell,
   require(shell.openDocument(project / "scenes/main.hud.json", error), error);
   for (int frame = 0; frame < 3; ++frame)
     imgui.frame(shell, "HUD");
-  require(active("UI Palette") && !active("Terrain Nodes"),
+  require(active("UI Palette") && !active("Terrain Nodes") &&
+              !active("Terrain Presets"),
           "HUD context did not show only the UI Palette");
   const auto &palette = window("UI Palette");
   require((palette.ParentWindow == nullptr ||

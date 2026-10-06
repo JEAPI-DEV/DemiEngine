@@ -137,6 +137,28 @@ void renderFrame(EditorTerrainGraphPanel &panel, EditorWorkspace &workspace,
           "Terrain graph frame produced no ImGui draw data");
 }
 
+void checkIntroCommentLayout(EditorWorkspace &workspace) {
+  workspace.selectEntity("terrain");
+  workspace.syncTerrainAuthoring();
+  auto &draft = workspace.terrainAuthoring().draft();
+  draft["graph"] = demi::runtime::builtinTerrainPresets().front().graph;
+  EditorTerrainGraphPanel panel;
+  panel.open(workspace);
+  std::string notice, error;
+  renderFrame(panel, workspace, notice);
+  renderFrame(panel, workspace, notice);
+  require(panel.executeCommand(workspace, EditorCommand::SelectAll, error),
+          error);
+  renderFrame(panel, workspace, notice);
+  std::vector<int> ids(static_cast<std::size_t>(ImNodes::NumSelectedNodes()));
+  ImNodes::GetSelectedNodes(ids.data());
+  require(ids.size() == 6,
+          "Intro graph did not expose its comments and generators");
+  for (int id : ids)
+    require(ImNodes::GetNodeDimensions(id).x < 380.0F,
+            "Intro comment or edit control expanded across the graph canvas");
+}
+
 void checkShortcutInput() {
   using namespace demi::editor;
   EditorKeyBindings bindings;
@@ -718,6 +740,7 @@ int main() {
     EditorWorkspace pinnedWorkspace;
     require(pinnedWorkspace.open(pinned.root, error), error);
     checkPinnedGraphCanvas(pinnedWorkspace);
+    checkIntroCommentLayout(pinnedWorkspace);
     ImGui::DestroyContext();
     std::cout << "Editor terrain graph UI passed\n";
     return 0;

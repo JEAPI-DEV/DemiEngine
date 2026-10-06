@@ -51,13 +51,16 @@ struct TerrainPreset {
   std::string defaultLandform = "default";
   std::vector<TerrainLayer> layers;
   std::vector<TerrainBiomeRule> rules;
+  // Optional editable generation graph, including explanatory comment nodes.
+  nlohmann::json graph;
 };
 
 // The recipe keys a preset supplies, in canonical order.
 constexpr std::string_view terrainPresetGenerationKeys[]{
-    "size",     "resolution", "chunk_cells", "seed",     "default_biome",
-    "default_landform",       "biomes",      "landforms", "layers",
-    "rules"};
+    "size",   "resolution",    "chunk_cells",
+    "seed",   "default_biome", "default_landform",
+    "biomes", "landforms",     "layers",
+    "rules",  "graph"};
 
 // Merges a preset into an authored recipe and records provenance.
 //
@@ -76,9 +79,13 @@ nlohmann::json applyTerrainPreset(const nlohmann::json &authoredRecipe,
 // The recipe fragment a preset supplies, before merging.
 nlohmann::json terrainPresetFragment(const TerrainPreset &preset);
 
-// Loads a preset by asset id. Throws std::invalid_argument with an actionable
-// message if the asset is missing, is not a DataAsset, is not a terrain preset,
-// or the document is malformed.
+// Built-in starters are available without project assets. Their builtin://
+// identities record provenance; the applied recipe is fully self-contained.
+const std::vector<TerrainPreset> &builtinTerrainPresets();
+
+// Loads a preset by asset id or built-in identity. Throws std::invalid_argument
+// with an actionable message if the asset is missing, is not a DataAsset, is
+// not a terrain preset, or the document is malformed.
 std::optional<TerrainPreset> loadTerrainPreset(const AssetRegistry &registry,
                                                std::string_view id);
 

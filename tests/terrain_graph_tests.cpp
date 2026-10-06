@@ -511,7 +511,33 @@ void graphWaterAppearanceValidation() {
   assert(rejects(graph));
 }
 
+void commentNodesAreAuthoringOnly() {
+  const auto base = TerrainGraph::parse(defaultTerrainGraph());
+  auto annotated = base.toJson();
+  annotated["nodes"].push_back(
+      {{"id", "intro"},
+       {"type", "comment"},
+       {"parameters",
+        {{"text", "Noise shapes the ground.\nOutput publishes it."}}},
+       {"position", {10, -200}}});
+  const auto parsed = TerrainGraph::parse(annotated);
+  assert(parsed.toJson() == annotated);
+  assert(parsed.contentKey() == base.contentKey());
+  assert(parsed.executionOrder() == base.executionOrder());
+  annotated["nodes"].back()["parameters"]["text"] = "A revised explanation";
+  assert(TerrainGraph::parse(annotated).contentKey() == base.contentKey());
+  annotated["output"] = "intro";
+  bool rejected = false;
+  try {
+    (void)TerrainGraph::parse(annotated);
+  } catch (const std::invalid_argument &) {
+    rejected = true;
+  }
+  assert(rejected);
+}
+
 int main() {
+  commentNodesAreAuthoringOnly();
   paintedBiomesKeepGraphHeights();
   cacheIgnoresAppearanceAndRetainsRuleBoundary();
   paletteFingerprintOnlyInvalidatesScatter();

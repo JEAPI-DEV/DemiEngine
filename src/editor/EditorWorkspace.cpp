@@ -1589,7 +1589,7 @@ void EditorWorkspace::refreshTerrainPresets() {
   // re-deriving asset ids from source paths: the manifest's own id is the
   // identity loadTerrainPreset resolves, so a preset can never be listed under
   // an id the engine would then refuse to load.
-  std::vector<runtime::TerrainPreset> presets;
+  auto presets = runtime::builtinTerrainPresets();
   std::vector<std::string> failures;
   if (project_) {
     const AssetRegistry &registry = assetIndex_.registry();

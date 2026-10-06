@@ -36,6 +36,22 @@ TerrainGraphParameter integer(std::string name, std::string label, int value,
 }
 std::vector<TerrainGraphNodeDefinition> makeDefinitions() {
   std::vector<TerrainGraphNodeDefinition> definitions{
+      {"comment",
+       "Comment",
+       "Notes",
+       "Explain a graph step. Comments have no ports and do not affect "
+       "generation.",
+       {},
+       {},
+       {{"text",
+         "Note",
+         "Describe what this part of the graph does.",
+         Parameter::Text,
+         "Write a note here.",
+         {},
+         {},
+         {},
+         false}}},
       {"landform",
        "Landform",
        "Generators",
@@ -147,9 +163,9 @@ std::vector<TerrainGraphNodeDefinition> makeDefinitions() {
                "Surface elevation; independent of render detail."),
         number("center_x", "Center X", 64, "Terrain-local position."),
         number("center_z", "Center Z", 64, "Terrain-local position."),
-        number(
-            "radius", "Radius", 20,
-            "Maximum footprint radius. Zero removes the bound; lakes keep only the basin connected to their centre."),
+        number("radius", "Radius", 20,
+               "Maximum footprint radius. Zero removes the bound; lakes keep "
+               "only the basin connected to their centre."),
         number("river_width", "River width", 4,
                "Channel width in world units."),
         {"shallow_color",

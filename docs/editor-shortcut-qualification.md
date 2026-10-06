@@ -264,3 +264,28 @@ Focus is now requested only when the dialog appears. Failed commands leave the
 dialog open, and inherited entities initialize the field from their effective
 display name. Renaming changes the display name, not stable IDs or script
 references.
+
+
+## Terrain preset introduction (2026-10-06)
+
+Terrain Presets is an independent, contextual Properties dock alongside Inspector
+and Terrain Nodes. The four built-in starter landscapes are shared by the editor
+and CLI; project DataAsset presets remain available. Applying a preset uses the
+existing generation/history boundary and confirms replacement of graph settings.
+Existing sculpt and region compatibility checks still apply. Saved layouts acquire
+the new tab without a workspace reset.
+
+Graph comment nodes use the native graph registry and graph document commands.
+Their text and positions round-trip, but comments have no ports and are excluded
+from graph execution and generation cache identity. Preset documents may contain
+the same versioned graph as terrain recipes. Starter comments explain shape,
+appearance and output; the panel owns presentation, while the native preset library
+owns starter data and shared loading.
+
+Release checks cover terrain graph/preset/CLI, editor graph document/UI/settings,
+terrain authoring/workspace/assets, docking state/UI/shell, and authoring clipboard.
+The native Vulkan desktop probe applied Desert Dunes from the new tab, displayed
+its introductory graph, and confirmed the orange terrain preview. A graph UI
+regression bounds comment-card width; asset tests cover comment-only generation,
+preset Undo/Redo and saving/reopening notes. The two maintained terrain examples
+validate. This is focused Linux qualification, not a full-suite or Android gate.

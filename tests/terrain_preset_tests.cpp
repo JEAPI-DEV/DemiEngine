@@ -1,5 +1,6 @@
-#include "demi/runtime/terrain/TerrainPreset.h"
 #include "demi/runtime/terrain/TerrainGenerator.h"
+#include "demi/runtime/terrain/TerrainGraph.h"
+#include "demi/runtime/terrain/TerrainPreset.h"
 #include <cassert>
 #include <iostream>
 #include <string>
@@ -62,7 +63,7 @@ TerrainPreset mountainPreset() {
 void fragmentSuppliesOnlyGenerationKeys() {
   const auto fragment = terrainPresetFragment(mountainPreset());
   for (const auto key : terrainPresetGenerationKeys)
-    assert(fragment.contains(key));
+    assert(key == "graph" || fragment.contains(key));
   // The fragment carries the preset's shapes and nothing else: a leftover
   // default landform would be an unreferenced entry the author never wrote.
   assert(fragment.at("landforms").size() == mountainPreset().landforms.size());
@@ -277,7 +278,40 @@ void malformedStrokeIsRejected() {
 }
 } // namespace
 
+void startersNeedNoProjectAssets() {
+  assert(builtinTerrainPresets().size() == 4);
+  for (const auto &preset : builtinTerrainPresets()) {
+    assert(loadTerrainPreset({}, preset.id)->id == preset.id);
+    const auto applied = applyTerrainPreset(TerrainRecipe{}.toJson(), preset);
+    const auto graph = TerrainGraph::parse(applied.at("graph"));
+    assert(graph.node("shape_help")->type == "comment");
+    auto recipe = TerrainRecipe::parse(applied);
+    recipe.validate();
+    const auto generated = TerrainGenerator::generate(recipe);
+    assert(generated && generated->cellsX == preset.cellsX);
+    auto withoutComments = recipe;
+    auto &nodes = withoutComments.graph["nodes"];
+    for (auto it = nodes.begin(); it != nodes.end();) {
+      if (it->at("type") == "comment")
+        it = nodes.erase(it);
+      else
+        ++it;
+    }
+    assert(recipe.sameGenerationInputs(withoutComments));
+    const auto document = demi::assets::parseDataDocument(nlohmann::json{
+        {"format_version", 1},
+        {"name", "Custom"},
+        {"graph", preset.graph}}.dump());
+    assert(document.document);
+    const auto imported =
+        parseTerrainPreset(*document.document, "asset://custom/preset");
+    assert(imported && imported->graph == preset.graph);
+    assert(terrainPresetFragment(*imported)["graph"] == preset.graph);
+  }
+}
+
 int main() {
+  startersNeedNoProjectAssets();
   fragmentSuppliesOnlyGenerationKeys();
   applyingPreservesStrokes();
   applyingToBareRecipeOmitsEmptyStrokes();

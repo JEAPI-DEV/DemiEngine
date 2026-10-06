@@ -745,10 +745,11 @@ void testTerrainPresetApplyHistoryAndGridDecision() {
   // Discovery comes from the asset registry, so the manifest's own id is what
   // the picker lists and what the loader resolves.
   const auto &presets = workspace.terrainAuthoring().presets();
-  check(presets.size() == 3,
+  check(presets.size() == 3 + runtime::builtinTerrainPresets().size(),
         "Preset discovery did not list the three loadable presets");
   check(presets.front().id == "asset://terrain/presets/alpine" &&
-            presets.back().id == "asset://terrain/presets/valley",
+            workspace.terrainAuthoring().preset(
+                "asset://terrain/presets/valley") != nullptr,
         "Preset discovery did not use the manifest asset ids");
   check(workspace.terrainAuthoring().preset("asset://terrain/presets/rolling") !=
             nullptr,

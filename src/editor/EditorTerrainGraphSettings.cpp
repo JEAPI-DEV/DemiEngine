@@ -484,103 +484,6 @@ void drawRules(EditorTerrainAuthoring &authoring, std::string &notice) {
 
 } // namespace
 
-// A preset section stays outside every job-disabled scope: choosing a preset
-// must remain possible while a worker runs, and a refused apply reports why in
-// the notice instead of presenting a dead button.
-void drawTerrainPresets(EditorWorkspace &workspace, std::string &notice) {
-  auto &authoring = workspace.terrainAuthoring();
-  const auto &presets = authoring.presets();
-  if (presets.empty()) {
-    ImGui::TextDisabled("No terrain preset assets. Add a DataAsset whose "
-                        "settings.content_type is \"terrain_preset\".");
-  }
-  for (const std::string &failure : workspace.terrainPresetErrors())
-    ImGui::TextColored({1.0F, 0.45F, 0.45F, 1.0F}, "%s", failure.c_str());
-
-  static std::string selected;
-  const auto *chosen = authoring.preset(selected);
-  if (chosen == nullptr) {
-    selected.clear();
-    chosen = presets.empty() ? nullptr : &presets.front();
-  }
-  const auto &draft = authoring.draft();
-  if (!presets.empty()) {
-    std::vector<const char *> items;
-    items.reserve(presets.size());
-    for (const auto &preset : presets)
-      items.push_back(preset.label.empty() ? preset.name.c_str()
-                                           : preset.label.c_str());
-    const char *preview = "Choose a landscape preset";
-    for (std::size_t index = 0; index < presets.size(); ++index)
-      if (presets[index].id == selected)
-        preview = items[index];
-    if (ImGui::BeginCombo(terrainField("Read").c_str(), preview)) {
-      for (std::size_t index = 0; index < presets.size(); ++index) {
-        // Preset ids are the stable keys here; the row index is only a widget
-        // position, so a variable-keyed scope keeps the ids apart.
-        ImGui::PushID(presets[index].id.c_str());
-        if (ImGui::Selectable(items[index], presets[index].id == selected))
-          selected = presets[index].id;
-        ImGui::PopID();
-      }
-      ImGui::EndCombo();
-    }
-    chosen = authoring.preset(selected);
-  }
-
-  const auto stamped = draft.value("preset_id", std::string{});
-  const auto stampedVersion = draft.value("preset_version", 0);
-  if (stamped.empty())
-    ImGui::TextDisabled("No landscape preset applied.");
-  else
-    ImGui::TextWrapped("Applied: %s (version %d)", stamped.c_str(),
-                       stampedVersion);
-  if (chosen == nullptr)
-    return;
-
-  ImGui::TextWrapped("Name: %s", chosen->name.c_str());
-  ImGui::TextWrapped("Label: %s", chosen->label.c_str());
-  if (!chosen->description.empty())
-    ImGui::TextWrapped("%s", chosen->description.c_str());
-  ImGui::TextWrapped("Grid: %.1f x %.1f, %d x %d cells, seed %d",
-                     chosen->size.x, chosen->size.y, chosen->cellsX,
-                     chosen->cellsZ, chosen->seed);
-  // Protection snapshots belong to one grid, so the engine refuses a merge that
-  // would move it. Saying so before the click is what keeps a grid-changing
-  // preset from looking harmless.
-  bool protection = false;
-  if (const auto edits = draft.find("edits");
-      edits != draft.end() && edits->is_array())
-    for (const auto &edit : *edits)
-      protection = protection || edit.value("type", "") == "protect";
-  if (protection && authoring.presetChangesGrid(*chosen))
-    ImGui::TextColored(
-        {1.0F, 0.75F, 0.35F, 1.0F},
-        "This preset changes the grid, and protection snapshots require the "
-        "original grid. Applying it is refused until the protection is "
-        "cleared or recaptured.");
-
-  if (ImGui::Button("Apply")) {
-    std::string error;
-    if (!workspace.applyTerrainPreset(chosen->id, error)) {
-      // A grid-changing apply deliberately stops at the shared decision, so the
-      // existing popup answers it exactly as it does a hand-edited size.
-      if (authoring.needsResizeDecision())
-        ImGui::OpenPopup("Terrain grid changed");
-      else
-        notice = std::move(error);
-    }
-  }
-  ImGui::SameLine();
-  ImGui::BeginDisabled(stamped.empty() && stampedVersion == 0);
-  if (ImGui::Button("Clear")) {
-    std::string error;
-    if (!workspace.clearTerrainPreset(error))
-      notice = std::move(error);
-  }
-  ImGui::EndDisabled();
-}
-
 namespace {
 
 void drawGrid(EditorTerrainAuthoring &authoring) {
@@ -862,9 +765,6 @@ void drawTerrainGraphSettings(EditorWorkspace &workspace, std::string &notice) {
       workspace.terrainEditingAsset()
           ? "Apply changes to asset saves its source."
           : "Save persists the generated procedural recipe in its document.");
-  // A refused preset application reports its reason while a worker is running.
-  if (ImGui::CollapsingHeader("Landscape preset"))
-    drawTerrainPresets(workspace, notice);
   ImGui::BeginDisabled(authoring.busy() || authoring.stroking());
   if (ImGui::CollapsingHeader("Appearance - biome surfaces",
                               ImGuiTreeNodeFlags_DefaultOpen))

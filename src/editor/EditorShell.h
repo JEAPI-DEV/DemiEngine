@@ -19,6 +19,7 @@
 #include "editor/EditorShortcutSettings.h"
 #include "editor/EditorSpecializedPanel.h"
 #include "editor/EditorTerrainGraphPanel.h"
+#include "editor/EditorTerrainPresetsPanel.h"
 #include "editor/EditorUiHost.h"
 #include "editor/EditorViewportPanel.h"
 #include "editor/EditorWorkspace.h"
@@ -106,6 +107,7 @@ private:
   EditorAboutPanel aboutPanel_;
   EditorAnimationMachinePanel animationMachinePanel_;
   EditorTerrainGraphPanel terrainGraphPanel_;
+  EditorTerrainPresetsPanel terrainPresetsPanel_;
   EditorBuildPanel buildPanel_;
   EditorProjectPanel projectPanel_;
   EditorSpecializedPanel specializedPanel_;
