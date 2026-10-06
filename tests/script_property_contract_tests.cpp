@@ -36,6 +36,18 @@ int main() {
   assert(!resolved->contains("target"));
 
   error.clear();
+  const auto references = demi::runtime::resolveScriptProperties(
+      {{"target", {{"type", "entity"}, {"default", ""}}}},
+      {{"target", "door/handle"}}, error);
+  assert(references && (*references)["target"] == "door/handle");
+  const auto unassigned = demi::runtime::resolveScriptProperties(
+      {{"target", {{"type", "entity"}, {"default", ""}}}},
+      json::object(), error);
+  assert(unassigned && (*unassigned)["target"] == "");
+  assert(!demi::runtime::resolveScriptProperties(
+      {{"target", {{"type", "entity"}}}}, {{"target", 42}}, error));
+
+  error.clear();
   assert(!demi::runtime::resolveScriptProperties(
       schema, {{"texture", "asset://ok"}, {"speeed", 3.0}}, error));
   assert(error.find("Unknown script property 'speeed'") != std::string::npos);

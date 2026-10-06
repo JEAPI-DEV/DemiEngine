@@ -198,6 +198,7 @@ Destruction.retire_debris(id) -- retire detached physical groups</code></pre>
 <h2>Transforms</h2>
 <pre><code>local T = require("demi.transform3d")
 local x, y, z = T.get_position(id)     -- local-space scalars
+local wx, wy, wz = T.get_world_position(id) -- resolves parent transforms
 T.set_rotation(id, rx, ry, rz)         -- Euler radians
 T.set_scale(id, sx, sy, sz)
 local fx, fy, fz = T.forward(id)       -- world-space unit vector

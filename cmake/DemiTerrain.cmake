@@ -8,6 +8,7 @@ target_compile_features(demi-terrain-sampling PUBLIC cxx_std_20)
 
 add_library(demi-terrain-water STATIC
   src/demi/runtime/terrain/TerrainWater.cpp
+  src/demi/runtime/terrain/TerrainWaterTracker.cpp
   src/demi/runtime/terrain/TerrainWaterSurfaceBuilder.cpp
   src/demi/runtime/terrain/TerrainWaterConnectivity.cpp
   src/demi/runtime/terrain/TerrainWaterAppearance.cpp

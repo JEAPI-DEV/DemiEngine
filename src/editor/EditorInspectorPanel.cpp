@@ -2,6 +2,8 @@
 
 #include "editor/EditorColorControl.h"
 #include "editor/EditorInspectorModel.h"
+#include "editor/EditorReferenceControl.h"
+#include "editor/EditorDragDropPayloads.h"
 #include "editor/EditorHudNodeInspector.h"
 #include "editor/EditorIsoGridInspector.h"
 #include "editor/EditorTerrainInspector.h"
@@ -250,7 +252,7 @@ void drawScriptProperties(EditorWorkspace &workspace,
     }
     if (!collection)
       ImGui::TableSetColumnIndex(1);
-    if (!hasValue) {
+    if (!hasValue && type != "entity") {
       if (ImGui::Button("Add value")) {
         properties[name] = initialScriptPropertyValue(type, definition);
         (void)commit(workspace, propertiesTarget, properties, notice);
@@ -263,7 +265,13 @@ void drawScriptProperties(EditorWorkspace &workspace,
     ImGui::SetNextItemWidth(-1.0F);
     bool changed = false;
     std::optional<StructuredValueEdit> structured;
-    if (type == "boolean" && value.is_boolean()) {
+    if (type == "entity" && (!hasValue || value.is_string())) {
+      std::string edited = hasValue ? value.get<std::string>() : std::string{};
+      const auto choices = editorEntityReferenceChoices(workspace.project().world);
+      changed = drawEditorReferenceControl("##value", choices, edited, true,
+                                            EditorSceneEntityPayload);
+      value = std::move(edited);
+    } else if (type == "boolean" && value.is_boolean()) {
       bool edited = value.get<bool>();
       changed = ImGui::Checkbox("##value", &edited);
       value = edited;
@@ -279,7 +287,7 @@ void drawScriptProperties(EditorWorkspace &workspace,
       int edited = value.get<int>();
       changed = ImGui::InputInt("##value", &edited);
       value = edited;
-    } else if ((type == "string" || type == "asset" || type == "entity") &&
+    } else if ((type == "string" || type == "asset") &&
                value.is_string()) {
       std::string edited = value.get<std::string>();
       changed = inputString("##value", edited);
@@ -534,28 +542,16 @@ bool drawReferenceString(EditorWorkspace &workspace,
                          const nlohmann::json &value, std::string &notice,
                          const std::vector<SceneValueTarget> *targets) {
   std::string selected = value.get<std::string>();
-  bool changed = false;
-  if (ImGui::BeginCombo("##value",
-                        selected.empty() ? "None" : selected.c_str())) {
-    const auto choices = editorReferenceChoices(
+  const bool entityReference =
+      field.referenceKind == runtime::ComponentReferenceKind::Entity;
+  const auto choices = entityReference ? editorEntityReferenceChoices(workspace.project().world)
+                                      : editorReferenceChoices(
         field.referenceKind, workspace.project().project.projectDirectory,
         workspace.sceneDocument().path(), workspace.sceneDocument().json(),
         workspace.sources(), target.component);
-    if (field.nullable && ImGui::Selectable("None", selected.empty())) {
-      selected.clear();
-      changed = true;
-    }
-    for (const EditorReferenceChoice &choice : choices) {
-      const bool isSelected = selected == choice.id;
-      if (ImGui::Selectable(choice.label.c_str(), isSelected)) {
-        selected = choice.id;
-        changed = true;
-      }
-      if (isSelected)
-        ImGui::SetItemDefaultFocus();
-    }
-    ImGui::EndCombo();
-  }
+  const bool changed = drawEditorReferenceControl(
+      "##value", choices, selected, field.nullable,
+      entityReference ? EditorSceneEntityPayload : nullptr);
   return !changed || (targets == nullptr
                           ? commit(workspace, target, selected, notice)
                           : commitMany(workspace, *targets, selected, notice));

@@ -517,10 +517,12 @@ PropProbe.property_schema = {
   tags = { type = "array", default = {} },
   spawn = { type = "object", default = {} },
   lives = { type = "integer", default = 3 },
-  role = { type = "enum", values = { "runner", "builder" }, default = "runner" }
+  role = { type = "enum", values = { "runner", "builder" }, default = "runner" },
+  target = { type = "entity", default = "" }
 }
 function PropProbe:on_start()
-  if self.entity_id == "ent_prop" and self.speed == 12.5 and self.enabled == true and self.tags[1] == "runner" and self.spawn.x == 3.0 and self.lives == 3 and self.role == "runner" then
+  local Entity = require("demi.entity")
+  if self.entity_id == "ent_prop" and self.speed == 12.5 and self.enabled == true and self.tags[1] == "runner" and self.spawn.x == 3.0 and self.lives == 3 and self.role == "runner" and self.target == "ent_prop" and Entity.exists(self.target) then
     Save.set_string("test", "script_properties", "generic")
   end
 end
@@ -544,7 +546,7 @@ return PropProbe
   propEntity.setComponent<LuaScriptComponent>(runtime::LuaScriptComponent{
       .module = "script://scripts/prop_probe.lua",
       .propertiesJson =
-          R"json({ "enabled": true, "speed": 12.5, "tags": ["runner"], "spawn": { "x": 3.0, "y": 4.0 } })json",
+          R"json({ "enabled": true, "speed": 12.5, "tags": ["runner"], "spawn": { "x": 3.0, "y": 4.0 }, "target": "ent_prop" })json",
   });
   world.entities.push_back(std::move(propEntity));
   runtime::ui::UiNode buttonStart;

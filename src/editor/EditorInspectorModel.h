@@ -13,6 +13,7 @@
 #include <vector>
 
 namespace demi::assets { struct MaterialAsset; }
+namespace demi::runtime { struct World; }
 
 namespace demi::editor {
 
@@ -20,6 +21,14 @@ struct EditorReferenceChoice {
   std::string id;
   std::string label;
 };
+
+// Accept only a complete, null-terminated ID in the active choice set.
+[[nodiscard]] std::optional<std::string>
+editorReferenceFromPayload(std::span<const char> payload,
+                           std::span<const EditorReferenceChoice> choices);
+
+[[nodiscard]] std::vector<EditorReferenceChoice>
+editorEntityReferenceChoices(const runtime::World &world);
 
 struct EditorComponentChoice {
   const runtime::scene_loading::ComponentDescriptor *descriptor = nullptr;

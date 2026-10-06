@@ -26,6 +26,7 @@
 #include "demi/runtime/scene/WorldCommandBuffer.h"
 #include "demi/runtime/scene/model/ProjectData.h"
 #include "demi/runtime/scene/model/World.h"
+#include "demi/runtime/terrain/TerrainWaterRuntime.h"
 #include "demi/runtime/simulation/DeterministicRandom.h"
 #include "demi/runtime/tilemap/TilemapRuntime.h"
 #include "demi/runtime/ui/UiAccessibilityTree.h"
@@ -125,6 +126,8 @@ public:
   [[nodiscard]] float randomRange(float minimum, float maximum);
   [[nodiscard]] int randomInteger(int minimum, int maximum);
   [[nodiscard]] isometric::IsoGridApi &isoGridApi();
+  [[nodiscard]] std::optional<TerrainWaterSample>
+  sampleTerrainWater(Vec3 position, std::string_view terrainId = {});
   [[nodiscard]] navigation::NavigationGrid2D &navigationGrid2D();
   [[nodiscard]] const navigation::NavigationGrid2D &navigationGrid2D() const {
     return navigationGrid2D_;
@@ -151,6 +154,8 @@ public:
                                          float y, float z);
   [[nodiscard]] std::optional<Vec3>
   entityPosition3D(const std::string &entityId) const;
+  [[nodiscard]] std::optional<Vec3>
+  entityWorldPosition3D(const std::string &entityId) const;
   [[nodiscard]] std::optional<Vec3>
   entityRotation3D(const std::string &entityId) const;
   [[nodiscard]] bool setEntityRotation3D(const std::string &entityId, float x,
@@ -702,6 +707,7 @@ private:
   platform::ApplicationServices applicationServices_;
   simulation::DeterministicRandom random_;
   isometric::IsoGridApi isoGridApi_;
+  TerrainWaterRuntime terrainWaterRuntime_;
   navigation::NavigationGrid2D navigationGrid2D_;
   TilemapRuntime tilemapRuntime_;
   DataAssetStore dataAssetStore_;

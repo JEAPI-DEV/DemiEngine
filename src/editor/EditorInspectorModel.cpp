@@ -1,6 +1,8 @@
 #include "editor/EditorInspectorModel.h"
 
 #include "editor/EditorSceneJson.h"
+#include "editor/EditorScenePreview.h"
+#include "demi/runtime/scene/model/World.h"
 
 #include "demi/assets/AssetRegistry.h"
 #include "demi/assets/RenderAsset.h"
@@ -159,6 +161,33 @@ std::string_view editorPropertyOriginLabel(const EditorPropertyOrigin origin) {
     return "Not set";
   }
   return {};
+}
+
+std::optional<std::string>
+editorReferenceFromPayload(std::span<const char> payload,
+                           std::span<const EditorReferenceChoice> choices) {
+  if (payload.size() < 2 || payload.back() != '\0')
+    return std::nullopt;
+  const std::string_view id(payload.data(), payload.size() - 1);
+  if (id.find('\0') != std::string_view::npos)
+    return std::nullopt;
+  const auto found = std::ranges::find(choices, id,
+                                       &EditorReferenceChoice::id);
+  return found == choices.end() ? std::nullopt
+                                : std::make_optional(found->id);
+}
+
+std::vector<EditorReferenceChoice>
+editorEntityReferenceChoices(const runtime::World &world) {
+  std::vector<EditorReferenceChoice> choices;
+  for (const auto &entity : world.entities) {
+    const std::string generatedOwner = editorPlacementOwner(world, entity.id);
+    if (!generatedOwner.empty() && generatedOwner != entity.id)
+      continue;
+    choices.push_back({entity.id, entity.name + " (" + entity.id + ")"});
+  }
+  std::ranges::sort(choices, {}, &EditorReferenceChoice::label);
+  return choices;
 }
 
 std::vector<EditorReferenceChoice>

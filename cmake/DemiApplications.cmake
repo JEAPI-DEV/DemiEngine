@@ -190,6 +190,7 @@ else()
     src/editor/EditorShell.cpp
     src/editor/EditorSpecializedPanel.cpp
     src/editor/EditorAssetReferenceControl.cpp
+    src/editor/EditorReferenceControl.cpp
     src/editor/EditorDataAssetControls.cpp
     src/editor/EditorStbRectPack.cpp
     src/editor/EditorTheme.cpp

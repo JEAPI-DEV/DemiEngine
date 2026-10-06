@@ -568,8 +568,11 @@ complete rendering and gameplay integration against the material pipeline.
 - [x] Query contexts share prepared coverage and copy-on-write flow data.
   Native results report surface/bed elevation and point containment separately
   from the existence of a wet column; coordinates remain terrain-local.
-- [ ] Expose world-space gameplay queries through Lua, with terrain transforms,
+- [x] Expose world-space gameplay queries through Lua, with terrain transforms,
   cache invalidation and scene lifetime handled by a runtime service.
+- [x] Add explicit point trackers returning ordered enter/exit/stay records.
+  Game scripts choose cadence and mechanics; an optional Lua sensor emits
+  regular events without engine-wide automatic polling or collider scans.
 
 - [ ] Add distinct river, lake and ocean authoring with stable IDs, editable
   spline/boundary shapes, water level, depth/bathymetry and flow parameters.

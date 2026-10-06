@@ -122,6 +122,56 @@ demi run --project build/terrain-graph-cooked</code></pre>
 <p>Without a graph, a painted biome can also select its landform and change height. With a graph, painting overrides biome labels without replacing the graph's generated shape; use sculpting or graph modules to change height.</p>
 <p>A recipe with no rules behaves as it did before rules existed. A biome referenced by the default setting, a rule or a painted region cannot be removed until those references are removed, and a biome naming a landform that does not exist is rejected.</p>
 
+<h2>Query water from Lua</h2>
+<p>Import <code>local Water = require("demi.terrain.water")</code> to query prepared water data. <code>Water.sample(position, terrain_id)</code> takes a world-space <code>Vec3</code>: a dense, one-based numeric array of exactly three finite numbers, <code>{x, y, z}</code>. The optional <code>terrain_id</code> is the stable entity ID of a terrain placement; omit it to query loaded, enabled terrains. Dry or unavailable water returns <code>nil</code>. A wet column can return a sample even when the point is above its surface or below its bed; check <code>underwater</code> for immersion.</p>
+<p>A <code>WaterSample</code> contains:</p>
+<ul>
+  <li><code>terrain_id: string</code> and <code>body_id: string</code> identify the terrain placement and its water body.</li>
+  <li><code>kind: "lake" | "ocean" | "river"</code> identifies the body kind.</li>
+  <li><code>surface: Vec3</code> is a world-space surface point, and <code>normal: Vec3</code> is a world-space unit surface normal.</li>
+  <li><code>depth: number</code> is the bed-to-surface depth in world units along terrain-local up.</li>
+  <li><code>underwater: boolean</code> is true when the queried point lies at or above the bed and below the surface. Points on the surface or below the bed are not underwater.</li>
+</ul>
+<p>Queries follow translated, rotated and scaled terrain placements. The surface point projects the query along terrain-local up, which is not necessarily global vertical on tilted terrain. Sampling has no renderer dependency and does not generate terrain on demand.</p>
+
+<h3>Track point immersion</h3>
+<p><code>Water.tracker(terrain_id)</code> creates an opaque <code>WaterTracker</code> with the same optional terrain filter. Call <code>tracker:update(position)</code> with a world-space <code>Vec3</code> to receive an ordered array of <code>WaterEvent</code> values. Each event has <code>phase: "enter" | "exit" | "stay"</code> and <code>sample: WaterSample</code>. The tracker follows one point, not collider extents.</p>
+<ul>
+  <li>The first update inside water emits <code>enter</code>.</li>
+  <li>Remaining inside the same body emits <code>stay</code> on every explicit update.</li>
+  <li>Switching bodies emits <code>exit</code> for the old body, followed by <code>enter</code> for the new body.</li>
+  <li>Moving outside emits <code>exit</code> once; subsequent outside updates return an empty array.</li>
+</ul>
+<p><code>tracker:current()</code> returns the immersed sample retained by the latest update, or <code>nil</code>. <code>tracker:reset()</code> clears that state without an event. Terrain unload, disable and regeneration are reflected on the next update. Tracker identity includes the terrain placement, body and scene, so duplicate body IDs across placements or scenes do not mix. Scene identity remains private and is not returned in samples.</p>
+<p>Call <code>update</code> from <code>on_fixed_update</code> or <code>on_update</code> to choose the cadence and implement gameplay mechanics. Events are returned to that call; there are no interrupt callbacks or automatic global listeners. <code>Transform3D.get_world_position</code> resolves parent transforms for the tracked entity:</p>
+<pre><code class="language-lua">local Water = require("demi.terrain.water")
+local Transform3D = require("demi.transform3d")
+
+local script = {}
+
+function script:on_create()
+    self.water_tracker = Water.tracker()
+end
+
+function script:on_fixed_update(dt)
+    local x, y, z = Transform3D.get_world_position(self.entity_id)
+    if x == nil or y == nil or z == nil then
+        self.water_tracker:reset()
+        return
+    end
+
+    local position = {x, y, z}
+    for _, event in ipairs(self.water_tracker:update(position)) do
+        -- Handle enter, exit or stay here; event.sample describes the body.
+        self.last_water_phase = event.phase
+    end
+    self.underwater = self.water_tracker:current() ~= nil
+end
+
+return script</code></pre>
+<p>Use <code>Water.sample(position)</code> for a single query without tracking transitions. Animated waves and automatic buoyancy are not implemented; these queries provide point immersion and depth for script-controlled behavior.</p>
+<p>The graph example includes an optional <strong>Water Sensor</strong> script component in <code>scripts/water_sensor.lua</code>. Attach it to an entity to emit <code>water_enter</code>, <code>water_exit</code> and <code>water_stay</code> through <code>demi.events</code>, with <code>entity_id</code> and <code>water</code> in the payload. Configure <code>offset_y</code> for the sampled point and disable <code>emit_stay</code> when only transitions are needed.</p>
+
 <h2>Manual adjustments</h2>
 <ul>
   <li><strong>Raise / Lower:</strong> adds or subtracts height, weighted by the brush. Use a low strength for small adjustments.</li>

@@ -226,3 +226,41 @@ visually confirms the default cube on elevated terrain; it is published as
 qualification of every drag gesture, imported art, Android or the full test suite.
 Website templates were updated but not rendered or deployed. User scene edits
 and their existing prop positions were left untouched; `git diff --check` is clean.
+
+## Hierarchy-to-Inspector references
+
+Native entity-reference fields and annotated Lua `entity` properties share the
+reference presentation adapter. Drops accept only a null-terminated stable ID
+from the active choice set, including resolved prefab members. Assignment uses
+the existing document commands; the UI does not retain native object pointers.
+Hierarchy entity selection happens on click release below the drag threshold,
+so starting a drag does not replace the Inspector's target. Empty references use
+the existing empty-string property contract. Scripts must check target lifetime.
+
+The focused Inspector model, ImGui input, prefab components, Lua component
+metadata, Lua scripting and property-contract gates cover payload validation,
+actual ImGui drop delivery, wrong payload rejection, annotation defaults,
+Undo/Redo, Save/reload and passing the assigned ID to Lua entity services.
+No new public Lua service or generated stub is needed. Website property and
+workspace guides describe assignment; this change does not claim desktop
+gesture qualification, prefab-local script-reference rebasing, or automatic
+reference repair when an object is destroyed.
+
+The first qualification missed the Inspector's live-world choice construction:
+it tested the control with manually supplied choices. That construction wrongly
+excluded ordinary entities because `editorPlacementOwner` returns an empty
+string for them, not their own ID. Choice construction now lives in the UI-free
+Inspector model, excludes only a nonempty different generated owner, and has
+ordinary-entity, prefab-member and generated-water regressions. The prefab
+components gate also performs a real hierarchy press/drag/release into the
+actual annotated property row, checks selection retention, and verifies the
+assigned ID through Undo/Redo and save/reload.
+
+Hierarchy rename qualification now exercises real row selection, name-field
+editing, mouse submission and Enter submission, including repeated renames,
+Undo/Redo and save/reload. The prior per-frame name-field focus request steals
+focus from the Rename button; restoring it reproduces the failing mouse test.
+Focus is now requested only when the dialog appears. Failed commands leave the
+dialog open, and inherited entities initialize the field from their effective
+display name. Renaming changes the display name, not stable IDs or script
+references.

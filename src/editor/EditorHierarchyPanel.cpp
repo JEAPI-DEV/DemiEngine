@@ -440,7 +440,11 @@ void drawEntityNode(EditorWorkspace &workspace, const runtime::Entity &entity,
   if (overVisibility && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
     pending = HierarchyAction{.kind = HierarchyAction::Kind::ToggleVisibility,
                               .entityId = entity.id};
-  } else if (ImGui::IsItemClicked()) {
+  } else if (ImGui::IsItemHovered() &&
+             ImGui::IsMouseReleased(ImGuiMouseButton_Left) &&
+             ImGui::GetIO().MouseDragMaxDistanceSqr[ImGuiMouseButton_Left] <
+                 ImGui::GetIO().MouseDragThreshold *
+                     ImGui::GetIO().MouseDragThreshold) {
     if (ImGui::GetIO().KeyCtrl)
       workspace.toggleEntitySelection(entity.id);
     else
@@ -448,12 +452,13 @@ void drawEntityNode(EditorWorkspace &workspace, const runtime::Entity &entity,
   }
 
   const bool authored = workspace.sceneDocument().entity(entity.id) != nullptr;
-  if (authored && ImGui::BeginDragDropSource()) {
+  if ((authored || !entity.prefabInstance.empty()) &&
+      ImGui::BeginDragDropSource()) {
     ImGui::SetDragDropPayload(EditorSceneEntityPayload, entity.id.c_str(),
                               entity.id.size() + 1);
     ImGui::TextUnformatted(entity.name.c_str());
     ImGui::TextDisabled("Drop on an entity to parent, Scene for root,");
-    ImGui::TextDisabled("or Assets to create a prefab copy");
+    ImGui::TextDisabled("Assets for a prefab copy, or an Inspector reference");
     ImGui::EndDragDropSource();
   }
   acceptEntityDrop(pending, entity.id);
@@ -657,8 +662,10 @@ void EditorHierarchyPanel::draw(EditorWorkspace &workspace,
     const std::string selected = std::move(*pendingRename_);
     pendingRename_.reset();
     const nlohmann::json *entity = workspace.sceneDocument().entity(selected);
+    const auto *preview = runtime::findEntity(workspace.project().world, selected);
     const std::string name =
-        entity == nullptr ? selected : entity->value("name", selected);
+        entity ? entity->value("name", selected)
+               : preview ? preview->name : selected;
     rename_.fill('\0');
     std::copy_n(name.data(), std::min(name.size(), rename_.size() - 1),
                 rename_.data());
@@ -668,20 +675,23 @@ void EditorHierarchyPanel::draw(EditorWorkspace &workspace,
 
   if (ImGui::BeginPopupModal("Rename Entity", nullptr,
                              ImGuiWindowFlags_AlwaysAutoResize)) {
-    ImGui::SetKeyboardFocusHere();
+    if (ImGui::IsWindowAppearing())
+      ImGui::SetKeyboardFocusHere();
     const bool submitted =
         ImGui::InputText("Name", rename_.data(), rename_.size(),
                          ImGuiInputTextFlags_EnterReturnsTrue);
     if ((submitted || ImGui::Button("Rename")) &&
         renamingEntityId_.has_value()) {
       std::string error;
-      notice =
-          workspace.editValue({.entityId = *renamingEntityId_, .field = "name"},
-                              std::string(rename_.data()), false, error)
-              ? "Entity renamed"
-              : error;
-      renamingEntityId_.reset();
-      ImGui::CloseCurrentPopup();
+      if (workspace.editValue(
+              {.entityId = *renamingEntityId_, .field = "name"},
+              std::string(rename_.data()), false, error)) {
+        notice = "Entity renamed";
+        renamingEntityId_.reset();
+        ImGui::CloseCurrentPopup();
+      } else {
+        notice = error;
+      }
     }
     ImGui::SameLine();
     if (ImGui::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape)) {

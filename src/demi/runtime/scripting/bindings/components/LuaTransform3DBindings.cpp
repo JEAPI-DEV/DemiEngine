@@ -9,6 +9,10 @@ void LuaTransform3DBindingModule::install(LuaScriptHost &host,
   transform.set_function("get_position", [state, &host](const std::string &id) {
     return luaVec3Result(state, host.entityPosition3D(id));
   });
+  transform.set_function(
+      "get_world_position", [state, &host](const std::string &id) {
+        return luaVec3Result(state, host.entityWorldPosition3D(id));
+      });
   transform.set_function("set_position", [&host](const std::string &id, float x,
                                                  float y, float z) {
     return host.setEntityPosition3D(id, x, y, z);
@@ -41,8 +45,7 @@ void LuaTransform3DBindingModule::install(LuaScriptHost &host,
     return luaVec3Result(state, host.entityUp3D(id));
   });
   transform.set_function(
-      "look_at",
-      [&host](const std::string &id, float x, float y, float z) {
+      "look_at", [&host](const std::string &id, float x, float y, float z) {
         return host.lookAtEntity3D(id, x, y, z);
       });
 }

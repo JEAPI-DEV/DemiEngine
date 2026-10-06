@@ -10,6 +10,14 @@
         "Transform3D": {"position": [-64, 0, -64]},
         "Terrain3D": {
           "asset": "asset://terrain/landscape"
+        },
+        "LuaScript": {
+          "module": "script://scripts/water_sensor.lua",
+          "properties": {
+            "emit_stay": true,
+            "offset_y": 0.0,
+            "target": "cube_copy"
+          }
         }
       }
     },
@@ -46,7 +54,27 @@
         "BoxCollider3D": {"size": [5.0,5.0,5.0]},
         "MeshRenderer": {"color": [1.0,1.0,1.0,1.0], "metallic": 0.0, "opacity": 0.084, "roughness": 1.0, "surface_mode": "additive"}
       },
-      "name": "Cube"
+      "name": "mmi"
+    },
+    {
+      "id": "cube_copy",
+      "components": {
+        "Transform3D": {
+          "position": [
+            927.032,
+            7.35,
+            908.684
+          ],
+          "scale": [
+            5.0,
+            5.0,
+            5.0
+          ]
+        },
+        "BoxCollider3D": {"size": [5.0,5.0,5.0]},
+        "MeshRenderer": {"color": [1.0,1.0,1.0,1.0], "metallic": 0.0, "opacity": 0.084, "roughness": 1.0, "surface_mode": "additive"}
+      },
+      "name": "mmi2"
     }
   ]
 }

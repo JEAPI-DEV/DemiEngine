@@ -10,6 +10,12 @@ local Transform3D = {}
 ---@return number|nil y
 ---@return number|nil z
 function Transform3D.get_position(entity_id) end
+---Resolves parent transforms and returns world coordinates.
+---@param entity_id string
+---@return number|nil x
+---@return number|nil y
+---@return number|nil z
+function Transform3D.get_world_position(entity_id) end
 ---@param entity_id string
 ---@param x number
 ---@param y number

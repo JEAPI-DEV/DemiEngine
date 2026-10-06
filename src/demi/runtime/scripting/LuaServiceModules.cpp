@@ -48,6 +48,7 @@ constexpr LuaServiceModule serviceModules[] = {
     {"Shared", "demi.shared"},
     {"Sprite2D", "demi.sprite2d"},
     {"Test", "demi.test"},
+    {"TerrainWater", "demi.terrain.water"},
     {"Task", "demi.task"},
     {"Tcp", "demi.network.tcp"},
     {"Text", "demi.text"},

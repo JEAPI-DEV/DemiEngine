@@ -309,7 +309,10 @@ add_test(NAME demi-simulation-tests COMMAND demi-simulation-tests)
   add_test(NAME demi-lua-gc-telemetry-tests COMMAND demi-lua-gc-telemetry-tests)
   add_test(NAME demi-terrain-water-mesh-tests COMMAND demi-terrain-water-mesh-tests)
   add_test(NAME demi-terrain-water-world-tests COMMAND demi-terrain-water-world-tests)
+  add_test(NAME demi-terrain-water-runtime-tests COMMAND demi-terrain-water-runtime-tests)
+  add_test(NAME demi-lua-terrain-water-tests COMMAND demi-lua-terrain-water-tests)
   set_tests_properties(demi-terrain-water-mesh-tests demi-terrain-water-world-tests
+    demi-terrain-water-runtime-tests demi-lua-terrain-water-tests
     PROPERTIES TIMEOUT 30)
   foreach(async_test IN ITEMS terrain-patch terrain-locality terrain-seed terrain-rule terrain-preset terrain-palette terrain-scatter terrain-scatter-runtime terrain-lod terrain-lod-biomes terrain-streaming terrain-scatter-constraints terrain-material-layers terrain-material-blend terrain-texture-residency terrain-scatter-layout terrain-drainage terrain-erosion terrain-water terrain-water-queries terrain-cook terrain-cook-node terrain-pipeline terrain-graph material-asset material-set terrain-asset-validation terrain-cli terrain-update terrain-layers terrain-world-update editor-terrain-history editor-terrain-graph-document editor-terrain-workspace editor-terrain-authoring terrain-cache terrain-generator terrain-surface terrain-world lua-worker-tasks lua-worker-context lua-main-thread-calls lua-transfer lua-shared-map lua-task-host async-work-queue async-work-strand tcp-client database-service lua-tcp lua-database)
     add_test(NAME demi-${async_test}-tests COMMAND demi-${async_test}-tests)

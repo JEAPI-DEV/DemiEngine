@@ -42,3 +42,17 @@ absorption distance and roughness; shore geometry is clipped to terrain triangle
 An uncontained bounded lake warns after Generate: lower the level, enlarge its
 boundary or sculpt banks. The engine does not simulate spilling or auto-clamp
 authored levels.
+
+## Water mechanics in Lua
+
+Use `require("demi.terrain.water")` for world-space water queries and point
+immersion trackers. `sample({x, y, z})` returns the body, surface, depth and
+`underwater` state. A tracker returns ordered `enter`, `exit` and `stay` records
+each time its `update` method is called.
+
+Add the **Water Sensor** script component from `scripts/water_sensor.lua` to an
+entity to emit `water_enter`, `water_exit` and `water_stay` through `demi.events`.
+The payload contains `entity_id` and `water`. Set `offset_y` to sample feet or a
+head instead of the entity origin; disable `emit_stay` if only transitions are
+needed. The sensor follows parented transforms. It is optional and is not added
+to the scene automatically. Swimming, splashes and damage are game-defined.

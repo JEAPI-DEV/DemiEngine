@@ -1,11 +1,17 @@
 # DemiEngine Roadmap
 
+Entity-reference Inspector controls share a picker and validated hierarchy-drop
+adapter for native fields and annotated Lua `entity` properties. Hierarchy drags
+preserve the inspected selection; assignment uses existing reversible document
+commands and stable IDs rather than native object handles.
+
 Active feature plan: [terrain generation and editing](terrain-plan.md).
 Terrain sampling/hydrology now have small standalone build targets; generated
 field/mask data is separate from generation, and water tessellation has its own
 owner. Query contexts share immutable prepared coverage and flow snapshots and
 report native surface/bed heights and point containment. World-space Lua water
-queries remain the next gameplay boundary. See
+queries and explicit immersion trackers use a shared runtime cache. A Lua sensor
+can emit entry/exit/stay events while game code owns the mechanics. See
 [boundary and iteration evidence](docs/terrain-boundaries-qualification.md).
 Shared-authoring consolidation: dependency topology, value history, palette
 cards and color controls are reused across existing non-terrain consumers.

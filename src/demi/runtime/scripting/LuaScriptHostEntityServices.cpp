@@ -224,6 +224,14 @@ LuaScriptHost::entityScale3D(const std::string &entityId) const {
   return entity->component<Transform3DComponent>()->scale;
 }
 
+std::optional<Vec3>
+LuaScriptHost::entityWorldPosition3D(const std::string &entityId) const {
+  const auto *entity = world_ ? lookupServiceEntity(entityId) : nullptr;
+  const auto transform =
+      entity ? resolveWorldTransform3D(*world_, *entity) : std::nullopt;
+  return transform ? std::make_optional(transform->position) : std::nullopt;
+}
+
 bool LuaScriptHost::setEntityScale3D(const std::string &entityId, const float x,
                                      const float y, const float z) {
   if (world_ == nullptr) {

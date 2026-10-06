@@ -1,5 +1,6 @@
 #include "demi/runtime/scene/WorldQueries.h"
 #include "editor/EditorInspectorPanel.h"
+#include "editor/EditorHierarchyPanel.h"
 #include "editor/EditorLuaComponentMetadata.h"
 #include "editor/EditorWorkspace.h"
 
@@ -32,6 +33,178 @@ bool hasComponent(const demi::editor::EditorWorkspace &workspace,
   const auto *entity = demi::runtime::findEntity(workspace.project().world, id);
   require(entity != nullptr, "Missing entity: " + id);
   return entity->serializedComponents.contains(component);
+}
+
+void checkHierarchyReferenceDrop(const std::filesystem::path &root) {
+  using namespace demi::editor;
+  write(root / "demi.project.json", R"({
+    "format_version":1,"name":"Reference drop","main_scene":"scene://main",
+    "scenes":[{"id":"scene://main","path":"scenes/main.scene.json"}]
+  })");
+  write(root / "scenes/main.scene.json", R"({
+    "format_version":1,"id":"scene://main","entities":[
+      {"id":"sensor","name":"Sensor","components":{
+        "Transform3D":{},"LuaScript":{"module":"script://scripts/sensor.lua"}}},
+      {"id":"cube","name":"Cube","preset":"static_box_3d"}
+    ]
+  })");
+  write(root / "scripts/sensor.lua", R"(---@demi_component
+local Sensor = {}
+---@demi_property entity
+Sensor.target = ""
+return Sensor
+)");
+  EditorWorkspace workspace;
+  std::string error;
+  require(workspace.open(root, error), error);
+  workspace.selectEntity("sensor");
+
+  ImGui::SetAllocatorFunctions(
+      [](std::size_t size, void *) { return std::malloc(size); },
+      [](void *memory, void *) { std::free(memory); });
+  ImGui::CreateContext();
+  auto &io = ImGui::GetIO();
+  io.IniFilename = nullptr;
+  io.DisplaySize = {1200, 900};
+  io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+  io.DeltaTime = 1.0F / 60;
+  io.Fonts->AddFontDefault();
+  unsigned char *pixels;
+  int width, height;
+  io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
+  EditorHierarchyPanel hierarchy;
+  EditorInspectorPanelState inspector;
+  std::string notice;
+  ImVec2 source;
+  ImVec2 target;
+  const auto draw = [&] {
+    ImGui::NewFrame();
+    hierarchy.draw(workspace, {0, 0}, {300, 900}, false, notice);
+    // Cube is the last row. End() restores the parent window's LastItemData,
+    // so use the hierarchy's retained content bounds rather than that item.
+    auto *hierarchyWindow = ImGui::FindWindowByName("Hierarchy");
+    require(hierarchyWindow != nullptr, "Missing Hierarchy");
+    source = {hierarchyWindow->WorkRect.Min.x + 70,
+              hierarchyWindow->DC.CursorMaxPos.y - ImGui::GetTextLineHeight() / 2};
+    drawInspectorPanel(workspace, {700, 0}, {500, 900}, inspector, notice);
+    auto *window = ImGui::FindWindowByName("Inspector");
+    require(window != nullptr, "Missing Inspector");
+    const auto scriptId = ImHashStr("LuaScript", 0, window->ID);
+    const auto fieldId = ImHashStr("target", 0, scriptId);
+    const auto tableId = ImHashStr("##script-properties", 0, fieldId);
+    const auto *table = ImGui::GetCurrentContext()->Tables.GetByKey(tableId);
+    require(table != nullptr, "Missing target property table");
+    target = {table->Columns[1].WorkMinX + 30,
+              table->OuterRect.Min.y + ImGui::GetFrameHeight() / 2};
+    ImGui::Render();
+  };
+  draw();
+  draw();
+  io.AddMousePosEvent(source.x, source.y);
+  draw();
+  io.AddMouseButtonEvent(0, true);
+  draw();
+  require(workspace.selectedEntityId() == "sensor",
+          "Drag press changed inspected selection");
+  io.AddMousePosEvent(source.x + 30, source.y);
+  draw();
+  require(ImGui::GetDragDropPayload() != nullptr,
+          "Hierarchy did not start a real drag");
+  io.AddMousePosEvent(target.x, target.y);
+  draw();
+  draw();
+  io.AddMouseButtonEvent(0, false);
+  draw();
+  require(workspace.selectedEntityId() == "sensor",
+          "Drop changed inspected selection");
+  const auto *component = workspace.sceneDocument().component("sensor", "LuaScript");
+  require(component->at("properties").at("target") == "cube",
+          "Real hierarchy drop did not assign cube: " + notice);
+  require(workspace.undo(error), error);
+  component = workspace.sceneDocument().component("sensor", "LuaScript");
+  require(!component->contains("properties"), "Undo retained assignment");
+  require(workspace.redo(error), error);
+  require(workspace.save(error), error);
+  require(workspace.open(root, error), error);
+  component = workspace.sceneDocument().component("sensor", "LuaScript");
+  require(component->at("properties").at("target") == "cube",
+          "Reload lost assigned reference");
+
+  const auto renameFrame = [&] {
+    ImGui::NewFrame();
+    hierarchy.draw(workspace, {0, 0}, {300, 900}, false, notice);
+    ImGui::Render();
+  };
+  renameFrame();
+  io.AddMousePosEvent(source.x, source.y);
+  renameFrame();
+  io.AddMouseButtonEvent(0, true);
+  renameFrame();
+  io.AddMouseButtonEvent(0, false);
+  renameFrame();
+  require(workspace.selectedEntityId() == "cube",
+          "Hierarchy click did not select rename target");
+
+  const auto rename = [&](const char *name, bool clickButton) {
+    hierarchy.requestRename(std::string(workspace.selectedEntityId()));
+    renameFrame();
+    renameFrame();
+    require(!ImGui::GetCurrentContext()->OpenPopupStack.empty(),
+            "Rename dialog did not open");
+    auto *popup = ImGui::GetCurrentContext()->OpenPopupStack.back().Window;
+    require(popup != nullptr, "Missing rename popup window");
+    io.AddMousePosEvent(popup->WorkRect.Min.x + 40,
+                        popup->WorkRect.Min.y + ImGui::GetFrameHeight() / 2);
+    renameFrame();
+    io.AddMouseButtonEvent(0, true);
+    renameFrame();
+    io.AddMouseButtonEvent(0, false);
+    renameFrame();
+    io.AddKeyEvent(ImGuiMod_Ctrl, true);
+    io.AddKeyEvent(ImGuiKey_A, true);
+    renameFrame();
+    io.AddKeyEvent(ImGuiKey_A, false);
+    io.AddKeyEvent(ImGuiMod_Ctrl, false);
+    renameFrame();
+    io.AddInputCharactersUTF8(name);
+    for (int frame = 0; frame < 3; ++frame)
+      renameFrame();
+    if (clickButton) {
+      const ImVec2 button{popup->WorkRect.Min.x + 15,
+                          popup->DC.CursorMaxPos.y - ImGui::GetFrameHeight() / 2};
+      io.AddMousePosEvent(button.x, button.y);
+      renameFrame();
+      io.AddMouseButtonEvent(0, true);
+      renameFrame();
+      io.AddMouseButtonEvent(0, false);
+      renameFrame();
+    } else {
+      io.AddKeyEvent(ImGuiKey_Enter, true);
+      renameFrame();
+      io.AddKeyEvent(ImGuiKey_Enter, false);
+      renameFrame();
+    }
+    require(ImGui::GetCurrentContext()->OpenPopupStack.empty(),
+            "Rename dialog did not submit");
+    require(workspace.sceneDocument().entity("cube")->at("name") == name,
+            "Rename did not apply the entered name: " + notice + " / " +
+                workspace.sceneDocument().entity("cube")->at("name").get<std::string>());
+    renameFrame();
+  };
+  rename("Renamed by mouse", true);
+  require(workspace.undo(error), error);
+  require(workspace.sceneDocument().entity("cube")->at("name") == "Cube",
+          "Rename Undo did not restore previous name");
+  require(workspace.redo(error), error);
+  rename("Renamed by Enter", false);
+  require(workspace.save(error), error);
+  require(workspace.open(root, error), error);
+  require(workspace.sceneDocument().entity("cube")->at("name") == "Renamed by Enter",
+          "Reload lost renamed name");
+  require(workspace.sceneDocument().component("sensor", "LuaScript")
+              ->at("properties").at("target") == "cube",
+          "Rename changed the stable reference ID");
+  ImGui::DestroyContext();
 }
 
 void checkInspector(demi::editor::EditorWorkspace &workspace) {
@@ -145,6 +318,7 @@ int main() {
         std::chrono::steady_clock::now().time_since_epoch().count();
     const fs::path root = fs::temp_directory_path() /
                           ("demi-prefab-components-" + std::to_string(unique));
+    checkHierarchyReferenceDrop(root / "reference-drop");
     write(root / "demi.project.json", R"({
       "format_version":1,"name":"Prefab components",
       "main_scene":"scene://main","scenes":[{"id":"scene://main","path":"scenes/main.scene.json"}]

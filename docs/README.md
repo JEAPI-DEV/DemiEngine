@@ -36,6 +36,10 @@ This directory keeps material that has a different job:
   records the lightweight hydrology test targets, shared query snapshots and
   build-iteration investigation.
 
+- [Terrain water gameplay](terrain-water-gameplay-qualification.md) records
+  world-space Lua queries, explicit immersion tracking, cache ownership and
+  sensor lifecycle qualification.
+
 - [Lua task qualification](lua-task-qualification.md) records scheduler and
   asynchronous I/O ownership, overhead measurements, and validation boundaries.
 

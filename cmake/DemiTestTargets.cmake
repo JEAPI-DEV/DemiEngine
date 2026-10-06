@@ -667,6 +667,10 @@
   target_link_libraries(demi-terrain-water-mesh-tests PRIVATE demi-runtime-lib)
   add_executable(demi-terrain-water-world-tests tests/terrain_water_world_tests.cpp)
   target_link_libraries(demi-terrain-water-world-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-terrain-water-runtime-tests tests/terrain_water_runtime_tests.cpp)
+  target_link_libraries(demi-terrain-water-runtime-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-lua-terrain-water-tests tests/lua_terrain_water_tests.cpp)
+  target_link_libraries(demi-lua-terrain-water-tests PRIVATE demi-runtime-lib)
   add_executable(demi-terrain-water-queries-tests tests/terrain_water_queries_tests.cpp)
   add_executable(demi-terrain-scatter-constraints-tests
     tests/terrain_scatter_constraints_tests.cpp)

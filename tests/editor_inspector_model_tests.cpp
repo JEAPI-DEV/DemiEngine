@@ -1,6 +1,8 @@
 #include "editor/EditorInspectorModel.h"
 #include "editor/EditorSceneDocument.h"
 #include "demi/assets/RenderAsset.h"
+#include "demi/runtime/scene/model/World.h"
+#include "demi/runtime/terrain/TerrainWaterMesh.h"
 
 #ifdef NDEBUG
 #undef NDEBUG
@@ -28,6 +30,37 @@ int main() {
   assert(entities.size() == 2);
   assert(entities[0].id == "a");
   assert(entities[1].id == "b");
+
+  const char validReference[] = "a";
+  const char unknownReference[] = "missing";
+  const char unterminatedReference[] = {'a'};
+  const char embeddedNull[] = {'a', '\0', 'b', '\0'};
+  assert(editorReferenceFromPayload(validReference, entities) == "a");
+  assert(!editorReferenceFromPayload(unknownReference, entities));
+  assert(!editorReferenceFromPayload(unterminatedReference, entities));
+  assert(!editorReferenceFromPayload(embeddedNull, entities));
+  assert(!editorReferenceFromPayload({}, entities));
+
+  runtime::World referenceWorld;
+  runtime::Entity cube;
+  cube.id = "cube";
+  cube.name = "Cube";
+  referenceWorld.entities.push_back(cube);
+  runtime::Entity prefabMember;
+  prefabMember.id = "door/handle";
+  prefabMember.name = "Handle";
+  prefabMember.prefabInstance = "door";
+  referenceWorld.entities.push_back(prefabMember);
+  const auto resolvedChoices = editorEntityReferenceChoices(referenceWorld);
+  assert(resolvedChoices.size() == 2);
+  const char cubeReference[] = "cube";
+  assert(editorReferenceFromPayload(cubeReference, resolvedChoices) == "cube");
+  runtime::Entity generatedWater;
+  generatedWater.id = "cube/__water/lake";
+  generatedWater.setComponent<runtime::terrain_detail::TerrainGeneratedWaterSurface>(
+      {.owner = "cube"});
+  referenceWorld.entities.push_back(std::move(generatedWater));
+  assert(editorEntityReferenceChoices(referenceWorld).size() == 2);
 
   const auto project = std::filesystem::path(__FILE__).parent_path().parent_path() /
                        "examples/performance_3d_lab";

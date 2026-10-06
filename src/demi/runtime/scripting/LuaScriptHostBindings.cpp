@@ -38,6 +38,7 @@
 #include "demi/runtime/scripting/bindings/navigation/LuaNavigation2DBindings.h"
 #include "demi/runtime/scripting/bindings/persistence/LuaSaveBindings.h"
 #include "demi/runtime/scripting/bindings/test/LuaTestBindings.h"
+#include "demi/runtime/scripting/bindings/terrain/LuaTerrainWaterBindings.h"
 #include "demi/runtime/scripting/bindings/text/LuaRegexBindings.h"
 #include "demi/runtime/ui/UiModel.h"
 
@@ -102,6 +103,7 @@ void installBindingModules(LuaScriptHost &host, lua_State *state) {
   const LuaTilemap2DBindingModule tilemap2D;
   const LuaDataBindingModule data;
   const LuaTestBindingModule e2eTests;
+  const LuaTerrainWaterBindingModule terrainWater;
   const LuaBindingModule *modules[] = {
       &core,        &entity,      &prefab,          &meshConstruction,
       &transform2D, &transform3D,
@@ -111,7 +113,7 @@ void installBindingModules(LuaScriptHost &host, lua_State *state) {
       &cutscene,    &network,     &networkSession,  &tls, &http, &tcp, &database,
       &regex,       &random,      &isoGrid,         &vectorMath,
       &animation,   &assets,      &navigation2D,    &tilemap2D,
-      &data,        &e2eTests, &destruction3D};
+      &data,        &e2eTests, &destruction3D, &terrainWater};
   for (const LuaBindingModule *module : modules) {
     module->install(host, state);
   }
