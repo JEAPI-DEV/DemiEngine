@@ -1,4 +1,5 @@
 #include "demi/runtime/terrain/TerrainWaterDiagnostics.h"
+#include "demi/runtime/terrain/TerrainHeightField.h"
 
 #include <array>
 #include <cmath>

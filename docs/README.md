@@ -32,6 +32,10 @@ This directory keeps material that has a different job:
 - [Terrain water publication](terrain-water-publication-qualification.md)
   records transparent surface ownership, native publication and prepared loading.
 
+- [Terrain data and query boundaries](terrain-boundaries-qualification.md)
+  records the lightweight hydrology test targets, shared query snapshots and
+  build-iteration investigation.
+
 - [Lua task qualification](lua-task-qualification.md) records scheduler and
   asynchronous I/O ownership, overhead measurements, and validation boundaries.
 

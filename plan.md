@@ -1,6 +1,12 @@
 # DemiEngine Roadmap
 
 Active feature plan: [terrain generation and editing](terrain-plan.md).
+Terrain sampling/hydrology now have small standalone build targets; generated
+field/mask data is separate from generation, and water tessellation has its own
+owner. Query contexts share immutable prepared coverage and flow snapshots and
+report native surface/bed heights and point containment. World-space Lua water
+queries remain the next gameplay boundary. See
+[boundary and iteration evidence](docs/terrain-boundaries-qualification.md).
 Shared-authoring consolidation: dependency topology, value history, palette
 cards and color controls are reused across existing non-terrain consumers.
 Domain schemas and terrain evaluation stay with their owners. See

@@ -3,6 +3,7 @@
 #include "demi/runtime/terrain/TerrainGenerator.h"
 #include "demi/runtime/terrain/TerrainRecipe.h"
 #include "demi/runtime/terrain/TerrainWater.h"
+#include "demi/runtime/terrain/TerrainMasks.h"
 #include <array>
 #include <cstdint>
 #include <memory>
@@ -42,31 +43,6 @@ enum class TerrainQuality {
 };
 
 [[nodiscard]] std::string_view terrainQualityName(TerrainQuality quality);
-
-// Per-sample derived inputs, computed once and stored on the field.
-//
-// These are stored rather than recomputed on demand because several consumers
-// need the same values: rules match on them, scattering filters on them, water
-// carves from them, and the material system blends from them. A consumer that
-// recomputed them would have to duplicate the derivation and risk disagreeing
-// with the rules, which is the mistake the single-source rule exists to prevent.
-struct TerrainMasks {
-  // Degrees, 0 flat to 90 vertical, from the finished surface.
-  TerrainSamples<float> slope;
-  // 0 dry to 1 saturated.
-  TerrainSamples<float> moisture;
-  // World units to the nearest sample at or below sea level.
-  TerrainSamples<float> waterDistance;
-  // Normalised flow accumulation: 0 no upstream area, 1 the field's maximum.
-  TerrainSamples<float> flow;
-  // Signed transport balance after erosion: positive deposition, negative cut.
-  TerrainSamples<float> sediment;
-  // Derived material family, index into the field's substrate names.
-  TerrainSamples<std::size_t> substrate;
-
-  [[nodiscard]] std::size_t count() const { return slope.size(); }
-  [[nodiscard]] bool empty() const { return slope.size() == 0; }
-};
 
 // A world-unit height at which a sample is water. Authored rather than guessed,
 // because every downstream stage that needs a shoreline needs the same number.

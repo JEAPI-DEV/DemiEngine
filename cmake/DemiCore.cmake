@@ -1,4 +1,5 @@
 # Engine data, asset, scene, UI, input, physics, and navigation foundations.
+include(DemiTerrain)
 add_library(demi-core STATIC
   src/demi/graph/DependencyGraph.cpp
   src/demi/runtime/terrain/TerrainGraph.cpp
@@ -15,18 +16,13 @@ add_library(demi-core STATIC
   src/demi/runtime/terrain/TerrainUpdate.cpp
   src/demi/runtime/terrain/TerrainPatch.cpp
   src/demi/runtime/terrain/TerrainGenerationCache.cpp
-  src/demi/runtime/terrain/TerrainSurface.cpp
   src/demi/runtime/terrain/TerrainPalette.cpp
   src/demi/runtime/terrain/TerrainPreset.cpp
   src/demi/runtime/terrain/TerrainGeneration.cpp
   src/demi/runtime/terrain/TerrainPipeline.cpp
   src/demi/runtime/terrain/TerrainDrainage.cpp
   src/demi/runtime/terrain/TerrainErosion.cpp
-  src/demi/runtime/terrain/TerrainWater.cpp
-  src/demi/runtime/terrain/TerrainWaterConnectivity.cpp
-  src/demi/runtime/terrain/TerrainWaterAppearance.cpp
   src/demi/runtime/terrain/TerrainWaterDiagnostics.cpp
-  src/demi/runtime/terrain/TerrainWaterQueries.cpp
   src/demi/runtime/terrain/TerrainScatterConstraints.cpp
   src/demi/runtime/terrain/TerrainMaterialLayers.cpp
   src/demi/runtime/terrain/TerrainMaterialBlend.cpp
@@ -167,7 +163,7 @@ target_include_directories(demi-core PRIVATE
 
 target_compile_features(demi-core PUBLIC cxx_std_20)
 target_link_libraries(demi-core PRIVATE demi-fastnoise)
-target_link_libraries(demi-core PUBLIC nlohmann_json::nlohmann_json box2d
+target_link_libraries(demi-core PUBLIC demi-terrain-water nlohmann_json::nlohmann_json box2d
   utf8proc harfbuzz freetype SheenBidi::SheenBidi mbedcrypto bimg_decode bimg
   yaml-cpp::yaml-cpp)
 if(WIN32)

@@ -1,6 +1,7 @@
 #include "demi/runtime/terrain/TerrainWaterQueries.h"
 
-#include "demi/runtime/terrain/TerrainGeneration.h"
+#include "demi/runtime/terrain/TerrainHeightField.h"
+#include "demi/runtime/terrain/TerrainMasks.h"
 
 #include <cassert>
 #include <cmath>
@@ -500,6 +501,49 @@ void drainageUsesTheSameTriangleWeights() {
 }
 } // namespace
 
+void contextSharesPreparedDataAndReportsPointContainment() {
+  const auto field = rampField();
+  const auto authoring = authoringWith(ocean("sea", 0));
+  const auto result = *carveTerrainWater(field, authoring, nullptr);
+  assert(result.resolvedCoverage);
+  const auto references = result.resolvedCoverage.use_count();
+  auto context = TerrainWaterQueryContext::build(
+      authoring, result, nullptr, field.cellsX, field.cellsZ, field.size);
+  assert(context && result.resolvedCoverage.use_count() == references + 1);
+  const auto belowSurface = context->sample({16, -1, 28});
+  assert(belowSurface && belowSurface->submerged && belowSurface->underwater);
+  assert(belowSurface->surfaceHeight == 0);
+  assert(std::fabs(belowSurface->groundHeight + 3) < 1e-4F);
+  assert(!context->sample({16, 0, 28})->underwater);
+  assert(!context->sample({16, 100, 28})->underwater);
+  assert(!context->sample({16, -100, 28})->underwater);
+  context.reset();
+  assert(result.resolvedCoverage.use_count() == references);
+}
+
+void contextRetainsFlowSnapshotAfterCallerEdits() {
+  const auto field = rampField();
+  TerrainMasks masks;
+  masks.flow.resize(field.heights.size());
+  for (std::size_t sample = 0; sample < masks.flow.size(); ++sample)
+    masks.flow.set(sample, 0.25F);
+  auto river = ocean("river", 0);
+  river.kind = TerrainWaterBody::River;
+  river.riverPath = {{16, -4, 18}, {16, -4, 30}};
+  river.riverWidth = 16;
+  const auto authoring = authoringWith(river);
+  const auto result = *carveTerrainWater(field, authoring, &masks);
+  const auto context = TerrainWaterQueryContext::build(
+      authoring, result, &masks, field.cellsX, field.cellsZ, field.size);
+  assert(context);
+  const auto before = context->sample({16, 0, 24});
+  assert(before && before->submerged && before->bodyId == "river");
+  for (std::size_t sample = 0; sample < masks.flow.size(); ++sample)
+    masks.flow.set(sample, 1.F);
+  const auto after = context->sample({16, 0, 24});
+  assert(after && after->flowSpeed == before->flowSpeed);
+}
+
 int main() {
   dryPointIsNotSubmerged();
   submergedPointReportsDepthAndBody();
@@ -513,5 +557,7 @@ int main() {
   partialCellQueriesFollowGroundAndFootprintClips();
   ownershipSelectsOneAuthoredPlaneWithoutBlending();
   drainageUsesTheSameTriangleWeights();
+  contextSharesPreparedDataAndReportsPointContainment();
+  contextRetainsFlowSnapshotAfterCallerEdits();
   std::cout << "Terrain water query checks passed\n";
 }

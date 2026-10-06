@@ -1,9 +1,10 @@
 #pragma once
 
-#include "demi/runtime/terrain/TerrainGenerator.h"
+#include "demi/runtime/scene/model/SceneTypes.h"
 #include <optional>
 
 namespace demi::runtime {
+struct HeightField;
 // Queries use terrain-local coordinates and the same cell diagonal as the mesh.
 std::optional<float> sampleTerrainHeight(const HeightField &field,
                                          Vec2 position);

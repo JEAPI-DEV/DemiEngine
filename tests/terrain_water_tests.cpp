@@ -1,6 +1,7 @@
 #include "demi/runtime/terrain/TerrainWater.h"
 
-#include "demi/runtime/terrain/TerrainGeneration.h"
+#include "demi/runtime/terrain/TerrainHeightField.h"
+#include "demi/runtime/terrain/TerrainMasks.h"
 #include "demi/runtime/terrain/TerrainSurface.h"
 #include "demi/runtime/terrain/TerrainWaterGeometry.h"
 #include "demi/runtime/terrain/TerrainWaterQueries.h"

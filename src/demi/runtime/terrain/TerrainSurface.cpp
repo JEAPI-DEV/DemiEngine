@@ -1,4 +1,5 @@
 #include "demi/runtime/terrain/TerrainSurface.h"
+#include "demi/runtime/terrain/TerrainHeightField.h"
 
 #include <algorithm>
 #include <cmath>

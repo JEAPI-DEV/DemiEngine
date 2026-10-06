@@ -1,6 +1,5 @@
 #pragma once
 
-#include "demi/runtime/terrain/TerrainGenerator.h"
 #include "demi/runtime/terrain/TerrainSamples.h"
 #include "demi/runtime/terrain/TerrainWaterAppearance.h"
 
@@ -15,6 +14,7 @@
 namespace demi::runtime {
 
 struct TerrainMasks;
+struct HeightField;
 namespace terrain_water_detail {
 struct WaterLevelField;
 }

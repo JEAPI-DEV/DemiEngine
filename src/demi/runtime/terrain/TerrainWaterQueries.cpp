@@ -1,6 +1,6 @@
 #include "demi/runtime/terrain/TerrainWaterQueries.h"
 
-#include "demi/runtime/terrain/TerrainGeneration.h"
+#include "demi/runtime/terrain/TerrainMasks.h"
 #include "demi/runtime/terrain/TerrainWaterGeometry.h"
 
 #include <algorithm>
@@ -14,20 +14,6 @@ std::size_t sampleCount(int cellsX, int cellsZ) {
   return (std::size_t(cellsX) + 1) * (std::size_t(cellsZ) + 1);
 }
 
-// The drainage mask belongs to the generation grid and publishes no grid of its
-// own, so only a mask that matches the field can be addressed sample for
-// sample. A mask that does not match is refused by build() rather than
-// resampled: guessing which of its samples corresponds to which cell would be
-// inventing drainage, and inventing drainage here means inventing how fast a
-// river pushes a character downstream.
-void readFlow(const TerrainMasks *masks, std::size_t count,
-              std::vector<float> &flow) {
-  flow.assign(count, 0.F);
-  if (masks == nullptr)
-    return;
-  for (std::size_t sample = 0; sample < count; ++sample)
-    flow[sample] = std::clamp(masks->flow[sample], 0.F, 1.F);
-}
 } // namespace
 
 std::optional<TerrainWaterQueryContext> TerrainWaterQueryContext::build(
@@ -49,13 +35,12 @@ std::optional<TerrainWaterQueryContext> TerrainWaterQueryContext::build(
   if (masks != nullptr && masks->flow.size() != count) {
     return std::nullopt;
   }
-  const auto generated =
-      result.resolvedCoverage
-          ? terrain_water_detail::WaterLevelField{}
-          : terrain_water_detail::buildWaterGeometryField(
-                size, cellsX, cellsZ, result.carvedHeights, authoring);
-  const auto &field =
-      result.resolvedCoverage ? *result.resolvedCoverage : generated;
+  auto coverage = result.resolvedCoverage;
+  if (!coverage)
+    coverage = std::make_shared<const terrain_water_detail::WaterLevelField>(
+        terrain_water_detail::buildWaterGeometryField(
+            size, cellsX, cellsZ, result.carvedHeights, authoring));
+  const auto &field = *coverage;
   if (field.samples() != count || field.wet.size() != count ||
       field.body.size() != count || field.cellsX != cellsX ||
       field.cellsZ != cellsZ || field.size.x != size.x ||
@@ -73,10 +58,9 @@ std::optional<TerrainWaterQueryContext> TerrainWaterQueryContext::build(
   context.cellsX_ = cellsX;
   context.cellsZ_ = cellsZ;
   context.ground_ = result.carvedHeights;
-  context.level_ = field.level;
-  context.wet_ = field.wet;
-  context.body_ = field.body;
-  readFlow(masks, count, context.flow_);
+  context.coverage_ = std::move(coverage);
+  if (masks)
+    context.flow_ = masks->flow;
   context.ids_.reserve(authoring.bodies.size());
   for (const auto &body : authoring.bodies) {
     context.ids_.push_back(body.id);
@@ -86,20 +70,23 @@ std::optional<TerrainWaterQueryContext> TerrainWaterQueryContext::build(
 }
 
 std::optional<TerrainWaterQuery>
-TerrainWaterQueryContext::sample(Vec3 worldPosition) const {
-  if (level_.empty() || !std::isfinite(worldPosition.x) ||
-      !std::isfinite(worldPosition.y) || !std::isfinite(worldPosition.z)) {
+TerrainWaterQueryContext::sample(Vec3 localPosition) const {
+  if (!coverage_ || !std::isfinite(localPosition.x) ||
+      !std::isfinite(localPosition.y) || !std::isfinite(localPosition.z)) {
     return std::nullopt;
   }
-  if (worldPosition.x < 0 || worldPosition.z < 0 || worldPosition.x > size_.x ||
-      worldPosition.z > size_.y) {
+  const auto &level_ = coverage_->level;
+  const auto &wet_ = coverage_->wet;
+  const auto &body_ = coverage_->body;
+  if (localPosition.x < 0 || localPosition.z < 0 || localPosition.x > size_.x ||
+      localPosition.z > size_.y) {
     return std::nullopt;
   }
   auto cellX =
-      std::clamp(int(std::floor(double(worldPosition.x) / size_.x * cellsX_)),
+      std::clamp(int(std::floor(double(localPosition.x) / size_.x * cellsX_)),
                  0, cellsX_ - 1);
   auto cellZ =
-      std::clamp(int(std::floor(double(worldPosition.z) / size_.y * cellsZ_)),
+      std::clamp(int(std::floor(double(localPosition.z) / size_.y * cellsZ_)),
                  0, cellsZ_ - 1);
   // The same corner positions the field itself is built from, so a query lands
   // on the same cell the carve did instead of a float-shifted neighbour.
@@ -109,17 +96,17 @@ TerrainWaterQueryContext::sample(Vec3 worldPosition) const {
   const auto cornerZ = [&](int z) {
     return float(double(z) * size_.y / cellsZ_);
   };
-  while (cellX > 0 && worldPosition.x < cornerX(cellX))
+  while (cellX > 0 && localPosition.x < cornerX(cellX))
     --cellX;
-  while (cellX < cellsX_ - 1 && worldPosition.x >= cornerX(cellX + 1))
+  while (cellX < cellsX_ - 1 && localPosition.x >= cornerX(cellX + 1))
     ++cellX;
-  while (cellZ > 0 && worldPosition.z < cornerZ(cellZ))
+  while (cellZ > 0 && localPosition.z < cornerZ(cellZ))
     --cellZ;
-  while (cellZ < cellsZ_ - 1 && worldPosition.z >= cornerZ(cellZ + 1))
+  while (cellZ < cellsZ_ - 1 && localPosition.z >= cornerZ(cellZ + 1))
     ++cellZ;
-  const auto u = (double(worldPosition.x) - cornerX(cellX)) /
+  const auto u = (double(localPosition.x) - cornerX(cellX)) /
                  (double(cornerX(cellX + 1)) - double(cornerX(cellX)));
-  const auto v = (double(worldPosition.z) - cornerZ(cellZ)) /
+  const auto v = (double(localPosition.z) - cornerZ(cellZ)) /
                  (double(cornerZ(cellZ + 1)) - double(cornerZ(cellZ)));
 
   const auto columns = std::size_t(cellsX_) + 1;
@@ -141,7 +128,8 @@ TerrainWaterQueryContext::sample(Vec3 worldPosition) const {
     if (!std::isfinite(ground_[sample]))
       return TerrainWaterQuery{};
     ground += weights[corner] * double(ground_[sample]);
-    flow += weights[corner] * double(flow_[sample]);
+    if (!flow_.empty())
+      flow += weights[corner] * double(std::clamp(flow_[sample], 0.F, 1.F));
     if (!wet_[sample]) {
       continue;
     }
@@ -175,6 +163,8 @@ TerrainWaterQueryContext::sample(Vec3 worldPosition) const {
     return TerrainWaterQuery{};
 
   TerrainWaterQuery query;
+  query.surfaceHeight = float(level);
+  query.groundHeight = float(ground);
   query.depth = float(std::max(0.0, level - ground));
   query.submerged = query.depth > 0.F;
   if (!query.submerged) {
@@ -182,6 +172,8 @@ TerrainWaterQueryContext::sample(Vec3 worldPosition) const {
     // with no water in it would let a caller ask a dry question of a river.
     return query;
   }
+  query.underwater = localPosition.y >= query.groundHeight &&
+                     localPosition.y < query.surfaceHeight;
   if (owner < ids_.size()) {
     query.bodyId = ids_[owner];
     // Still water is still by definition. A lake or an ocean fed by a river has

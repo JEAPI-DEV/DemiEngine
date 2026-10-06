@@ -563,6 +563,14 @@ appearance remain pending; this is not completion of the water quality gate.
 Design water-body data and hydrology interfaces alongside milestones 2–3;
 complete rendering and gameplay integration against the material pipeline.
 
+- [x] Separate sampled field/mask data from generation and water tessellation.
+  Pure water tests link sampling/hydrology targets without the engine core.
+- [x] Query contexts share prepared coverage and copy-on-write flow data.
+  Native results report surface/bed elevation and point containment separately
+  from the existence of a wet column; coordinates remain terrain-local.
+- [ ] Expose world-space gameplay queries through Lua, with terrain transforms,
+  cache invalidation and scene lifetime handled by a runtime service.
+
 - [ ] Add distinct river, lake and ocean authoring with stable IDs, editable
   spline/boundary shapes, water level, depth/bathymetry and flow parameters.
   Automatically propose water bodies from drainage/basin data, with manual
