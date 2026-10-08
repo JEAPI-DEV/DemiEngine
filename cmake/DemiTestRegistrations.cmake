@@ -2,6 +2,7 @@
 add_test(NAME demi-prefab-origin-index-tests COMMAND demi-prefab-origin-index-tests)
 add_test(NAME demi-editor-game-authoring-tests COMMAND demi-editor-game-authoring-tests $<TARGET_FILE:demi-runtime>)
 set_tests_properties(demi-editor-game-authoring-tests PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1" TIMEOUT 60)
+add_test(NAME demi-editor-hierarchy-reveal-tests COMMAND demi-editor-hierarchy-reveal-tests)
 add_test(NAME demi-editor-hud-flow-placement-tests COMMAND demi-editor-hud-flow-placement-tests)
 add_test(NAME demi-editor-camera-alignment-tests COMMAND demi-editor-camera-alignment-tests)
 add_test(NAME demi-editor-prefab-conversion-tests COMMAND demi-editor-prefab-conversion-tests)

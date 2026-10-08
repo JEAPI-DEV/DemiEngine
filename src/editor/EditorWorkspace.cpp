@@ -844,12 +844,16 @@ bool EditorWorkspace::deleteEntities(std::vector<std::string> ids,
 bool EditorWorkspace::reparentEntity(const std::string_view id,
                                      std::optional<std::string> newParent,
                                      std::string &error) {
-  return mutateAndRebuild(
+  const bool revealSelection = isEntitySelected(id);
+  const bool changed = mutateAndRebuild(
       [id = std::string(id), newParent = std::move(newParent)](
           EditorSceneDocument &document, std::string &mutationError) mutable {
         return document.reparent(id, std::move(newParent), mutationError);
       },
       error);
+  if (changed && revealSelection)
+    ++selectionRevision_;
+  return changed;
 }
 
 bool EditorWorkspace::duplicateEntity(const std::string_view id,
@@ -2077,6 +2081,7 @@ void EditorWorkspace::syncHudPreview() {
 }
 
 void EditorWorkspace::selectEntity(std::string id) {
+  ++selectionRevision_;
   if (project_ && !sceneDocument_.entity(id))
     if (auto owner = editorPlacementOwner(project_->world, id); !owner.empty())
       id = std::move(owner);
@@ -2091,6 +2096,7 @@ void EditorWorkspace::selectEntity(std::string id) {
 }
 
 void EditorWorkspace::selectHudNode(std::string id) {
+  ++selectionRevision_;
   activeDocument_ = EditorWorkspaceDocument::Hud;
   selectedIsoGridCell_.reset();
   selectedEntityIds_.clear();
@@ -2102,6 +2108,7 @@ void EditorWorkspace::selectHudNode(std::string id) {
 }
 
 void EditorWorkspace::toggleHudNodeSelection(std::string id) {
+  ++selectionRevision_;
   activeDocument_ = EditorWorkspaceDocument::Hud;
   selectedIsoGridCell_.reset();
   selectedEntityIds_.clear();
@@ -2126,6 +2133,7 @@ void EditorWorkspace::selectIsoGridCell(EditorIsoGridCell cell) {
 }
 
 void EditorWorkspace::toggleEntitySelection(std::string id) {
+  ++selectionRevision_;
   if (project_ && !sceneDocument_.entity(id))
     if (auto owner = editorPlacementOwner(project_->world, id); !owner.empty())
       id = std::move(owner);

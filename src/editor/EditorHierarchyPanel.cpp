@@ -1,4 +1,6 @@
 #include "editor/EditorHierarchyPanel.h"
+#include <unordered_map>
+#include <unordered_set>
 
 #include "editor/EditorChrome.h"
 #include "editor/EditorDragDropPayloads.h"
@@ -74,6 +76,12 @@ bool hasChildren(const EditorWorkspace &workspace, const runtime::World &world,
                   !placementPreview(workspace, candidate);
          });
 }
+
+struct SelectionReveal {
+  bool hud = false;
+  std::string target;
+  std::unordered_set<std::string> ancestors;
+};
 
 struct HierarchyAction {
   enum class Kind {
@@ -249,7 +257,8 @@ void drawHudNode(const std::vector<EditorHudHierarchyNode> &nodes,
                  const EditorHudHierarchyNode &node,
                  const std::string_view filter, EditorWorkspace &workspace,
                  const std::string_view rootId,
-                 std::optional<HierarchyAction> &pending, std::string &notice) {
+                 std::optional<HierarchyAction> &pending, std::string &notice,
+                 const SelectionReveal &reveal) {
   if (!hudNodeMatches(nodes, node, filter))
     return;
   const bool hasChildren =
@@ -266,10 +275,14 @@ void drawHudNode(const std::vector<EditorHudHierarchyNode> &nodes,
     ImGui::PushStyleColor(ImGuiCol_Text,
                           ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
   const std::string widgetId = "##hud-node-" + node.id;
+  if (reveal.hud && reveal.ancestors.contains(node.id))
+    ImGui::SetNextItemOpen(true, ImGuiCond_Always);
   const bool open =
       ImGui::TreeNodeEx(widgetId.c_str(), flags, "   %s", node.label.c_str());
   if (!node.visible)
     ImGui::PopStyleColor();
+  if (reveal.hud && reveal.target == node.id && !ImGui::IsItemVisible())
+    ImGui::SetScrollHereY(0.5F);
   const ImVec2 rowMin = ImGui::GetItemRectMin();
   const ImVec2 rowMax = ImGui::GetItemRectMax();
   drawEditorGlyph(*ImGui::GetWindowDrawList(), EditorIcon::Hud,
@@ -335,14 +348,15 @@ void drawHudNode(const std::vector<EditorHudHierarchyNode> &nodes,
   if (hasChildren && open) {
     for (const EditorHudHierarchyNode &child : nodes)
       if (child.parent == node.id)
-        drawHudNode(nodes, child, filter, workspace, rootId, pending, notice);
+        drawHudNode(nodes, child, filter, workspace, rootId, pending, notice,
+                    reveal);
     ImGui::TreePop();
   }
 }
 
 void drawHudHierarchy(EditorWorkspace &workspace, const std::string_view filter,
                       std::optional<HierarchyAction> &pending,
-                      std::string &notice) {
+                      std::string &notice, const SelectionReveal &reveal) {
   const EditorHudDocument *hud = workspace.hudDocument();
   if (hud == nullptr)
     return;
@@ -355,6 +369,8 @@ void drawHudHierarchy(EditorWorkspace &workspace, const std::string_view filter,
   if (!hasMatch)
     return;
   const std::string label = "HUD (" + std::to_string(nodes.size()) + ")";
+  if (reveal.hud && !reveal.target.empty())
+    ImGui::SetNextItemOpen(true, ImGuiCond_Always);
   const bool open = ImGui::TreeNodeEx("##hud-root",
                                       ImGuiTreeNodeFlags_SpanAvailWidth |
                                           ImGuiTreeNodeFlags_DefaultOpen,
@@ -370,7 +386,8 @@ void drawHudHierarchy(EditorWorkspace &workspace, const std::string_view filter,
     const std::string rootId = root == nodes.end() ? std::string{} : root->id;
     for (const EditorHudHierarchyNode &node : nodes)
       if (node.parent.empty())
-        drawHudNode(nodes, node, filter, workspace, rootId, pending, notice);
+        drawHudNode(nodes, node, filter, workspace, rootId, pending, notice,
+                    reveal);
     if (nodes.empty())
       ImGui::TextDisabled("HUD contains no parsed nodes.");
     ImGui::TreePop();
@@ -380,7 +397,7 @@ void drawHudHierarchy(EditorWorkspace &workspace, const std::string_view filter,
 void drawEntityNode(EditorWorkspace &workspace, const runtime::Entity &entity,
                     const runtime::World &world, const std::string_view filter,
                     std::optional<HierarchyAction> &pending,
-                    std::string &notice) {
+                    std::string &notice, const SelectionReveal &reveal) {
   if (placementPreview(workspace, entity))
     return;
   const bool childMatch =
@@ -420,8 +437,12 @@ void drawEntityNode(EditorWorkspace &workspace, const runtime::Entity &entity,
   if (!entity.enabled)
     ImGui::PushStyleColor(ImGuiCol_Text,
                           ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+  if (!reveal.hud && reveal.ancestors.contains(entity.id))
+    ImGui::SetNextItemOpen(true, ImGuiCond_Always);
   const bool open =
       ImGui::TreeNodeEx(entity.id.c_str(), flags, "%s", entity.name.c_str());
+  if (!reveal.hud && reveal.target == entity.id && !ImGui::IsItemVisible())
+    ImGui::SetScrollHereY(0.5F);
   if (!entity.enabled)
     ImGui::PopStyleColor();
   const ImVec2 rowMin = ImGui::GetItemRectMin();
@@ -488,7 +509,8 @@ void drawEntityNode(EditorWorkspace &workspace, const runtime::Entity &entity,
   if (open) {
     for (const runtime::Entity &candidate : world.entities)
       if (entityParent(candidate) == entity.id)
-        drawEntityNode(workspace, candidate, world, filter, pending, notice);
+        drawEntityNode(workspace, candidate, world, filter, pending, notice,
+                       reveal);
     drawPaintedCells(workspace, entity, filter, pending);
     ImGui::TreePop();
   }
@@ -641,9 +663,62 @@ void EditorHierarchyPanel::draw(EditorWorkspace &workspace,
   }
   ImGui::Spacing();
 
+  SelectionReveal reveal;
+  const bool hudSelection =
+      workspace.activeDocument() == EditorWorkspaceDocument::Hud;
+  const auto &selection = hudSelection ? workspace.selectedHudNodeIds()
+                                       : workspace.selectedEntityIds();
+  const auto *hudDocument = workspace.hudDocument();
+  const auto identity = workspace.sceneDocument().path().string() + "#" +
+                        (hudDocument ? hudDocument->path().string() : "");
+  if (selectionWorkspace_ != &workspace || selectionDocument_ != identity ||
+      selectionIsHud_ != hudSelection || selectionIds_ != selection ||
+      selectionRevision_ != workspace.selectionRevision()) {
+    selectionWorkspace_ = &workspace;
+    selectionDocument_ = identity;
+    selectionIsHud_ = hudSelection;
+    selectionIds_ = selection;
+    selectionRevision_ = workspace.selectionRevision();
+    reveal.hud = hudSelection;
+    if (!selection.empty()) {
+      reveal.target = selection.back();
+      std::unordered_map<std::string, std::string> parents;
+      bool matchesFilter = false;
+      if (hudSelection && hudDocument) {
+        const auto nodes = editorHudHierarchy(hudDocument->preview());
+        for (const auto &node : nodes) {
+          parents.emplace(node.id, node.parent);
+          if (node.id == reveal.target)
+            matchesFilter = hudNodeMatches(nodes, node, filter_.data());
+        }
+      } else {
+        for (const auto &entity : workspace.project().world.entities) {
+          parents.emplace(entity.id, entityParent(entity));
+          if (entity.id == reveal.target)
+            matchesFilter =
+                containsCaseInsensitive(entity.name, filter_.data());
+        }
+      }
+      for (const auto &id : selection) {
+        auto current = parents.find(id);
+        while (current != parents.end() && !current->second.empty() &&
+               reveal.ancestors.insert(current->second).second)
+          current = parents.find(current->second);
+      }
+      // An external selection must not remain hidden behind a stale search.
+      // Typing into the search alone does not trigger a reveal or clear it.
+      if (filter_[0] &&
+          (!matchesFilter ||
+           !ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)))
+        filter_[0] = '\0';
+    }
+  }
+
   if (hudOnly) {
-    drawHudHierarchy(workspace, filter_.data(), pending, notice);
+    drawHudHierarchy(workspace, filter_.data(), pending, notice, reveal);
   } else {
+    if (!reveal.target.empty())
+      ImGui::SetNextItemOpen(true, ImGuiCond_Always);
     const bool sceneOpen =
         ImGui::TreeNodeEx("Scene", ImGuiTreeNodeFlags_DefaultOpen |
                                        ImGuiTreeNodeFlags_SpanAvailWidth);
@@ -652,8 +727,8 @@ void EditorHierarchyPanel::draw(EditorWorkspace &workspace,
       for (const runtime::Entity &entity : workspace.project().world.entities)
         if (entityParent(entity).empty())
           drawEntityNode(workspace, entity, workspace.project().world,
-                         filter_.data(), pending, notice);
-      drawHudHierarchy(workspace, filter_.data(), pending, notice);
+                         filter_.data(), pending, notice, reveal);
+      drawHudHierarchy(workspace, filter_.data(), pending, notice, reveal);
       ImGui::TreePop();
     }
   }

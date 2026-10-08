@@ -2,7 +2,6 @@
 
 #include "editor/EditorDragDropPayloads.h"
 #include "editor/EditorHudCanvas.h"
-#include "editor/EditorIsoGridCell.h"
 #include "editor/EditorModuleCatalog.h"
 #include "editor/EditorPanelStyle.h"
 #include "editor/EditorPrefabPlacement.h"
@@ -230,20 +229,6 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
     }
   }
   ImDrawList *draw = ImGui::GetWindowDrawList();
-  const char *viewLabel =
-      hudOnly ? "HUD"
-      : is2D  ? "2D"
-      : workspace.sceneView().projection() == EditorProjection::Perspective
-          ? "Perspective"
-          : "Orthographic";
-  const ImVec2 badgeMin{canvasMin.x + 9.0F, canvasMin.y + 9.0F};
-  const ImVec2 badgeText = ImGui::CalcTextSize(viewLabel);
-  const ImVec2 badgeMax{badgeMin.x + badgeText.x + 18.0F,
-                        badgeMin.y + badgeText.y + 10.0F};
-  draw->AddRectFilled(badgeMin, badgeMax, IM_COL32(50, 57, 69, 235), 3.0F);
-  draw->AddRect(badgeMin, badgeMax, IM_COL32(80, 88, 103, 255), 3.0F);
-  draw->AddText({badgeMin.x + 9.0F, badgeMin.y + 5.0F},
-                IM_COL32(224, 227, 235, 255), viewLabel);
   if (is2D && !hudOnly) {
     for (const EditorOverlayLine2D &line : buildEditorViewportOverlays2D(
              workspace.project().world, workspace.sceneView2D().camera(),
@@ -258,19 +243,6 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
     const ImVec2 orientation{canvasMax.x - 66.0F, canvasMin.y + 66.0F};
     drawOrientationGizmo(*draw, orientation, workspace.sceneView().camera());
   }
-  const runtime::Entity *selected = workspace.selectedEntity();
-  const runtime::ui::UiNode *selectedHudNode = workspace.selectedHudNode();
-  const std::string label =
-      hudOnly ? selectedHudNode == nullptr ? "No HUD element selected"
-                                           : "Selected: " + selectedHudNode->id
-      : workspace.selectedIsoGridCell()
-          ? "Selected: Cell " +
-                isoGridCellKey(workspace.selectedIsoGridCell()->x,
-                               workspace.selectedIsoGridCell()->y)
-      : selected == nullptr ? "No entity selected"
-                            : "Selected: " + selected->name;
-  draw->AddText({canvasMin.x + 14.0F, badgeMax.y + 10.0F},
-                IM_COL32(205, 209, 218, 255), label.c_str());
   if (canvasWidth >= 1.0F && canvasHeight >= 1.0F) {
     const bool hovered = canvasHovered;
     const bool focused = ImGui::IsWindowFocused();

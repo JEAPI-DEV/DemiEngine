@@ -361,3 +361,24 @@ free placement, invalid coordinates, Undo/Redo and save/reopen. The palette drag
 integration test exercises a real ImGui drop into a row. Native Vulkan testing
 on a copy of the colony HUD confirmed that a new label enters the first row slot
 at zero offset. Existing authored offsets are not migrated automatically.
+
+
+## Hierarchy reveal and canvas captions (2026-10-08)
+
+HUD/projection badges and selected/empty-selection captions no longer cover
+HUD or scene canvases. Dock tabs, toolbar projection controls and Inspector
+retain the corresponding context.
+
+Explicit selection events, document changes and changed selected-ID lists
+request a one-frame ancestor reveal. Hierarchy opens only the selected paths,
+scrolls an off-screen primary selection into view without taking focus, and
+clears a stale search for external selection. Re-selecting an already selected
+object reveals it again; idle frames respect manual collapse. Selected scene
+reparenting and HUD creation/reparenting use the same reveal path.
+
+Release hierarchy-reveal, HUD-hierarchy, drag-authoring and shell-docking tests
+pass. The UI regression covers collapsed wrappers/ancestors, same-ID reselection,
+prefab children, scrolling, filters, reparenting and palette placement while
+checking that reveal itself changes neither source documents nor Undo history.
+Native Vulkan checks confirmed clean HUD/Viewport canvases and automatic
+root/panel expansion and highlighting on HUD canvas clicks and palette drops.

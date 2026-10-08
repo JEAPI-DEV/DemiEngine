@@ -64,6 +64,13 @@
   target_link_libraries(demi-editor-authoring-clipboard-tests PRIVATE demi-editor-model)
   target_link_libraries(demi-editor-game-authoring-tests PRIVATE demi-editor-model demi-cli-support)
   target_compile_definitions(demi-editor-game-authoring-tests PRIVATE DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  add_executable(demi-editor-hierarchy-reveal-tests tests/editor_hierarchy_reveal_tests.cpp)
+  target_link_libraries(demi-editor-hierarchy-reveal-tests PRIVATE demi-editor-ui)
+  target_include_directories(demi-editor-hierarchy-reveal-tests PRIVATE
+    "${DEMI_IMGUI_DOCKING_OVERLAY}" "${imgui_docking_SOURCE_DIR}"
+    "${bgfx_SOURCE_DIR}/bgfx/3rdparty/dear-imgui" "${bgfx_SOURCE_DIR}/bgfx/3rdparty")
+  target_compile_definitions(demi-editor-hierarchy-reveal-tests PRIVATE
+    IMGUI_USER_CONFIG="${CMAKE_SOURCE_DIR}/src/editor/EditorImGuiConfig.h")
   add_executable(demi-editor-hud-flow-placement-tests tests/editor_hud_flow_placement_tests.cpp)
   target_link_libraries(demi-editor-hud-flow-placement-tests PRIVATE demi-editor-model)
   add_executable(demi-editor-camera-alignment-tests tests/editor_camera_alignment_tests.cpp)

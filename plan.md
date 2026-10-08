@@ -1,5 +1,10 @@
 # DemiEngine Roadmap
 
+Authored Hierarchy selection reveals ancestors and scrolls the selected scene
+entity or HUD control into view. Explicit reselection reveals collapsed paths;
+idle selection respects manual collapse. Redundant canvas badges and selection
+status captions have been removed.
+
 Selected 2D/3D cameras can align to the authored Viewport through the Scene menu
 and toolbar. Pose/projection edits share one validated Undo command and preserve
 parenting, camera scale, unrelated camera settings and prefab override history.

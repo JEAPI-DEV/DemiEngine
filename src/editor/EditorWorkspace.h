@@ -411,6 +411,11 @@ public:
 
   [[nodiscard]] bool canAlignSelectedCameraToView() const;
   [[nodiscard]] bool alignSelectedCameraToView(std::string &error);
+  // Explicit selection events include selecting the same object again, so
+  // presentation can reveal a collapsed hierarchy without changing documents.
+  [[nodiscard]] std::uint64_t selectionRevision() const {
+    return selectionRevision_;
+  }
   void selectEntity(std::string id);
   void selectHudNode(std::string id);
   void toggleHudNodeSelection(std::string id);
@@ -535,6 +540,7 @@ private:
   std::set<std::filesystem::path> sourceDirectories_;
   std::unordered_map<std::string, runtime::TilemapAsset2D> tilemaps2D_;
   Diagnostics diagnostics_;
+  std::uint64_t selectionRevision_ = 0;
   std::vector<std::string> selectedEntityIds_;
   std::string selectedHudNodeId_;
   std::vector<std::string> selectedHudNodeIds_;
