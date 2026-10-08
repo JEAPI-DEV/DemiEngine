@@ -380,6 +380,7 @@ bool EditorShell::openTerrainNodeSettings(std::string_view nodeId,
 void EditorShell::draw(const int width, const int height,
                        const std::string_view rendererName) {
   playSession_.poll();
+  workspace().pollScriptSources();
   std::string terrainError;
   if (!documents_.pollTerrain(terrainError))
     notice_ = std::move(terrainError);

@@ -88,3 +88,30 @@ clean. A twelve-frame native SDL3/Vulkan editor startup smoke passed on
 `minimal_3d` with isolated per-user state. Website templates were not rendered
 or deployed; no new Lua API,
 visual-scripting runtime or platform capability is claimed.
+
+## Shared source and script discovery
+
+`EditorSourceIndex` is shared by the scene workspace and its HUD, prefab and
+terrain document sessions. It owns the authored source list, directories and
+cached Lua annotation catalog; it does not own or reload their documents.
+Inspector reads the catalog without filesystem access. Editor script creation
+notifies the shared index synchronously. Existing explicit source rescans also
+refresh that same index.
+
+`runtime::platform::DirectoryChangeWatcher` is a UI-free notification boundary.
+Its interface carries paths and a rescan flag, without native OS types. Linux
+uses one nonblocking, close-on-exec inotify descriptor per index and a watch per
+authored directory. A future Windows backend can implement the same contract
+with ReadDirectoryChangesW; no Windows watcher is implemented yet. Unsupported
+platforms and watch failures expose a diagnostic and retain manual F5 refresh.
+The runtime's existing polling ProjectFileWatcher is unchanged.
+
+Idle editor frames only drain a bounded native event queue: no tree traversal,
+file timestamp polling or Lua parsing. Ordinary file events are filtered to Lua
+and deduplicated for 150 ms of quiet, with a 500 ms maximum batching delay.
+Only affected files are read; identical content reuses parsed metadata. A batch
+rebuilds the catalog once. Content is cached once per script for exact comparison.
+Directory topology changes and notification overflow request a full discovery
+and watch rebuild; existing unchanged script contents still reuse their metadata.
+Generated/internal directories and symlinks are excluded. Updates never write
+Lua property overrides into scenes or mutate runtime worlds.

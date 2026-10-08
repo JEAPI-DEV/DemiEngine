@@ -17,6 +17,7 @@
   <li>Attach a HUD with <strong>Scene → HUD</strong>. Set the built game's <strong>Start scene</strong> in Project Settings; the open editor scene does not choose it for you.</li>
   <li>Double-click a Lua behaviour to edit it in your configured external code editor. Use <strong>Ctrl+S</strong> or <strong>File → Save all</strong> for authored documents and project settings, then <strong>Build → Build Project</strong> for the saved game.</li>
 </ol>
+<p>Lua scripts created in the editor appear immediately in Assets and Add Component across all open scene, HUD and prefab documents. On Linux, external script saves, renames and deletions are detected automatically; annotation changes refresh Inspector metadata after a short debounce. These updates preserve unsaved documents and their Undo history and do not restart Play or reload running gameplay. Use <strong>F5</strong> for a full project refresh if needed. If native watching is unavailable, Console reports the fallback; automatic external discovery currently requires Linux.</p>
 <p>In the Inspector, changing an inherited default authors that field; <strong>Reset</strong> removes the authored value or instance override. Hover a property label to see its origin. <strong>Unpack preset</strong> turns preset-inherited components into editable independent components when you need to restructure them. An instance's <strong>Add Component</strong> affects only that instance; <strong>Open source prefab</strong> edits the shared source.</p>
 
 <h2>Building a scene</h2>

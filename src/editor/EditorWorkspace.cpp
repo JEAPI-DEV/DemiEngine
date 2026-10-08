@@ -62,9 +62,7 @@ bool EditorWorkspace::openProjectContext(const EditorWorkspace &source,
   project_.emplace(runtime::LoadedProject{.project = std::move(*metadata)});
   projectDocument_ = std::move(document);
   terrainPreviewPrefabs_.configure(project_->project.projectDirectory);
-  sources_ = source.sources_;
-  sourceDirectories_ = source.sourceDirectories_;
-  sourceIndexRevision_ = source.sourceIndexRevision_;
+  sourceIndex_ = source.sourceIndex_;
   assetIndex_ = source.assetIndex_;
   tilemaps2D_ = source.tilemaps2D_;
   configureTerrainInputResolver();
@@ -140,6 +138,8 @@ bool EditorWorkspace::open(std::filesystem::path projectPath,
   viewportTool_.cancelDrag();
   viewportTool2D_.cancelDrag();
   updateSceneDomain(true);
+  if (sourceIndex_->root() != project_->project.projectDirectory)
+    sourceIndex_ = std::make_shared<EditorSourceIndex>();
   discoverSources();
   refreshAssetIndex();
   refreshTerrainPresets();
@@ -1914,11 +1914,9 @@ void EditorWorkspace::updateSceneDomain(const bool openingProject) {
 void EditorWorkspace::refreshDiagnostics() {
   const ValidationSummary summary = validateProjectPath(projectPath_);
   diagnostics_ = summary.diagnostics;
-  EditorLuaComponentCatalog scripts =
-      discoverEditorLuaComponents(project_->project.projectDirectory, sources_);
-  diagnostics_.insert(diagnostics_.end(),
-                      std::make_move_iterator(scripts.diagnostics.begin()),
-                      std::make_move_iterator(scripts.diagnostics.end()));
+  const auto &scripts = scriptCatalog();
+  diagnostics_.insert(diagnostics_.end(), scripts.diagnostics.begin(),
+                      scripts.diagnostics.end());
   syncEditorDiagnostic();
 }
 

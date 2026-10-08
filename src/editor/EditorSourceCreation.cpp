@@ -461,7 +461,10 @@ bool createEditorSource(EditorWorkspace &workspace, EditorSourceKind kind,
       workspace.refreshAssetMetadata();
       return false;
     }
-    workspace.refreshAssetMetadata();
+    if (target.extension() == ".lua")
+      workspace.notifyScriptCreated(target);
+    else
+      workspace.refreshAssetMetadata();
     return true;
   } catch (const std::exception &failure) {
     error = failure.what();

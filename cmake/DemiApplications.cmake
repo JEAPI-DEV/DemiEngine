@@ -93,6 +93,7 @@ else()
     src/editor/EditorIsoGridCellDocument.cpp
     src/editor/EditorIsoScene2D.cpp
     src/editor/EditorJsonDocument.cpp
+    src/editor/EditorSourceIndex.cpp
     src/editor/EditorLuaComponentMetadata.cpp
     src/editor/EditorPlaySession.cpp
     src/editor/EditorProfilerModel.cpp

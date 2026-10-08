@@ -17,34 +17,20 @@
 namespace demi::editor {
 
 void EditorWorkspace::discoverSources() {
-  sources_.clear();
-  sourceDirectories_.clear();
-  std::error_code filesystemError;
-  std::filesystem::recursive_directory_iterator iterator(
-      project_->project.projectDirectory,
-      std::filesystem::directory_options::skip_permission_denied,
-      filesystemError);
-  const std::filesystem::recursive_directory_iterator end;
-  for (; !filesystemError && iterator != end;
-       iterator.increment(filesystemError)) {
-    std::error_code entryError;
-    if (iterator->is_directory(entryError)) {
-      const std::string name = iterator->path().filename().string();
-      if (isEditorInternalDirectory(name) || iterator->is_symlink(entryError)) {
-        iterator.disable_recursion_pending();
-      } else {
-        sourceDirectories_.insert(iterator->path().lexically_relative(
-            project_->project.projectDirectory));
-      }
-      continue;
-    }
-    if (!entryError && iterator->is_regular_file(entryError))
-      sources_.push_back(iterator->path());
-  }
-  std::ranges::sort(sources_);
-  // A rescan also acknowledges external edits to existing source files whose
-  // paths did not change, so source-derived editor catalogs can rebuild once.
-  ++sourceIndexRevision_;
+  sourceIndex_->rescan(project_->project.projectDirectory);
+}
+
+void EditorWorkspace::pollScriptSources() {
+  sourceIndex_->poll();
+  if (scriptDiagnosticsRevision_ == sourceIndex_->revision())
+    return;
+  scriptDiagnosticsRevision_ = sourceIndex_->revision();
+  std::erase_if(diagnostics_, [](const Diagnostic &diagnostic) {
+    return diagnostic.code.starts_with("EDITOR_LUA_COMPONENT_") ||
+           diagnostic.code == "EDITOR_SOURCE_WATCH_UNAVAILABLE";
+  });
+  const auto &issues = scriptCatalog().diagnostics;
+  diagnostics_.insert(diagnostics_.end(), issues.begin(), issues.end());
 }
 
 bool EditorWorkspace::createFolder(const std::filesystem::path &relativeParent,
@@ -61,7 +47,7 @@ bool EditorWorkspace::createFolder(const std::filesystem::path &relativeParent,
 }
 
 void EditorWorkspace::refreshAssetIndex() {
-  assetIndex_.refresh(project_->project.projectDirectory, sources_);
+  assetIndex_.refresh(project_->project.projectDirectory, sources());
   configureTerrainInputResolver();
 }
 

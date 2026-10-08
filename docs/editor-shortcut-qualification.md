@@ -409,3 +409,26 @@ Native Vulkan checks on a temporary copy of the colony project confirmed
 saving without Enter, saving after selecting another label, unchanged sibling
 text and one-step Undo. Game View shows only the game while running and is
 blank after Stop. The prototype source was kept separate from these checks.
+
+## Automatic shared script discovery (2026-10-08)
+
+The scene and secondary document sessions share one source index and cached Lua
+annotation catalog. Script creation notifies that index immediately. Linux
+native events update external script saves, atomic replacements, renames and
+deletions without an F5 refresh. Inspector drawing no longer discovers/parses
+all script sources. Platform event transport is isolated from editor policy;
+Windows native watching is not implemented and retains manual refresh.
+
+Release Lua metadata, document sessions, shell docking and source workflow
+suites pass. Regression checks cover 100 idle polls with unchanged revision and
+parse count, identical-content saves without reparsing, edits, rename/delete,
+nested directory creation/moves, ignored generated paths, invalid annotation
+recovery, explicit rescan, shared creation and preservation of dirty HUD source
+and Undo. The overflow recovery uses the same full-rescan path; kernel queue
+overflow itself was not forced in this qualification.
+
+Native Vulkan checks on a temporary colony-project copy created a Lua script
+from the HUD workspace and found it immediately in the scene's Assets list and
+Add Component menu. Editing its display-name annotation outside the editor
+updated the still-open component menu without F5. Test-only external-editor
+preferences prevented launching another application during this check.

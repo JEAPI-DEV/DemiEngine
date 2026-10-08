@@ -1109,8 +1109,7 @@ static void drawInspectorContents(EditorWorkspace &workspace,
       return;
     }
   }
-  const EditorLuaComponentCatalog luaComponents = discoverEditorLuaComponents(
-      workspace.project().project.projectDirectory, workspace.sources());
+  const auto &luaComponents = workspace.scriptCatalog();
 
   const auto components = entity->find("components");
   const auto hasAuthoredComponent = [&](const char *name) {

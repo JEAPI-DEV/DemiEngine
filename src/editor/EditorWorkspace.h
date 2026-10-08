@@ -1,5 +1,7 @@
 #pragma once
 
+#include "editor/EditorSourceIndex.h"
+
 #include "editor/EditorAssetIndex.h"
 #include "editor/EditorHudDocument.h"
 #include "editor/EditorLuaComponentMetadata.h"
@@ -120,11 +122,18 @@ public:
     return lastTerrainAssetPath_;
   }
   [[nodiscard]] bool refresh(std::string &error);
+  void pollScriptSources();
+  void notifyScriptCreated(const std::filesystem::path &path) {
+    sourceIndex_->changed(path);
+  }
+  const EditorLuaComponentCatalog &scriptCatalog() const {
+    return sourceIndex_->scripts();
+  }
   [[nodiscard]] bool createFolder(const std::filesystem::path &relativeParent,
                                   std::string_view name, std::string &error);
   [[nodiscard]] const std::set<std::filesystem::path> &
   sourceDirectories() const {
-    return sourceDirectories_;
+    return sourceIndex_->directories();
   }
   [[nodiscard]] bool save(std::string &error);
   [[nodiscard]] bool saveProject(std::string &error);
@@ -330,10 +339,10 @@ public:
     return projectPath_;
   }
   [[nodiscard]] const std::vector<std::filesystem::path> &sources() const {
-    return sources_;
+    return sourceIndex_->sources();
   }
   [[nodiscard]] std::uint64_t sourceIndexRevision() const noexcept {
-    return sourceIndexRevision_;
+    return sourceIndex_->revision();
   }
   [[nodiscard]] std::optional<std::filesystem::path> authoredHudPath() const;
   [[nodiscard]] const EditorHudDocument *hudDocument() const;
@@ -537,9 +546,9 @@ private:
   EditorSceneDomain sceneDomain_ = EditorSceneDomain::Empty;
   EditorSceneViewDimension viewDimension_ =
       EditorSceneViewDimension::ThreeDimensional;
-  std::vector<std::filesystem::path> sources_;
-  std::uint64_t sourceIndexRevision_ = 0;
-  std::set<std::filesystem::path> sourceDirectories_;
+  std::shared_ptr<EditorSourceIndex> sourceIndex_ =
+      std::make_shared<EditorSourceIndex>();
+  std::uint64_t scriptDiagnosticsRevision_ = 0;
   std::unordered_map<std::string, runtime::TilemapAsset2D> tilemaps2D_;
   Diagnostics diagnostics_;
   std::uint64_t selectionRevision_ = 0;
