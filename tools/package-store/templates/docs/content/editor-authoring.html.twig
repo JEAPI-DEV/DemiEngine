@@ -78,6 +78,7 @@
   <li>Keep readable and interactive content inside the safe area. Set <code>respect_safe_area: false</code> only for intentional edge-to-edge backgrounds, and keep controls clear of cutouts.</li>
   <li>Save — the same small-diff, atomic save as scenes.</li>
 </ol>
+<p><strong>Dock preset</strong> buttons replace custom anchors and old drag offsets in one undoable edit. Top, Left and Fill clear the position; Bottom, Right and Center calculate offsets from the control's current size and margins so it stays inside its parent. Size, minimum/maximum size, margins, padding and appearance remain authored as before. Reapply the preset after changing a fixed dimension if you want it realigned. Undo restores the exact previous layout, including <code>at</code> shorthand. This is an editor placement action; hand-written <code>dock</code> documents still accept explicit position offsets.</p>
 <p>Interactive nodes (buttons, toggles, sliders, text inputs, virtual controls) connect to named input actions. Those actions are declared in the project file; see <a href="{{ path('docs_page', {slug: 'input-bindings'}) }}">Input bindings</a> for how <code>virtual:</code> inputs fill them.</p>
 
 <h2>Mutations are commands</h2>

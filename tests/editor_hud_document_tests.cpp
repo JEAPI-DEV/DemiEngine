@@ -18,6 +18,77 @@ std::string read(const std::filesystem::path &path) {
           std::istreambuf_iterator<char>()};
 }
 
+void verifyDockPresets(const std::filesystem::path &root) {
+  using Json = nlohmann::json;
+  struct Expected {
+    const char *dock;
+    float x, y, width, height;
+  };
+  const Expected cases[]{
+      {"fill", 4, 6, 948, 524},     {"top", 4, 6, 948, 130},
+      {"bottom", 4, 400, 948, 130}, {"left", 4, 6, 250, 524},
+      {"right", 702, 6, 250, 524},  {"center", 353, 203, 250, 130}};
+  const auto path = root / "dock.hud.json";
+  for (const char *offset : {"position", "at"}) {
+    for (const auto &expected : cases) {
+      Json source =
+          Json::parse(R"({"format_version":1,"canvas_size":[960,540],"root":{
+        "id":"root","type":"container","dock":"fill","children":[{
+          "id":"panel","type":"panel","anchor_min":[0.2,0.1],"anchor_max":[0.2,0.1],
+          "size":[240,120],"min_size":[250,130],"margin":[4,6,8,10],"pad":5,
+          "background_color":"#224466FF"}]}})");
+      source["root"]["children"][0][offset] = {217.9, 79.8};
+      {
+        std::ofstream out(path);
+        out << source.dump(2);
+      }
+      demi::editor::EditorHudDocument document;
+      std::string error;
+      assert(document.open(path, error));
+      // Loading authored dock/offset data is unchanged; only choosing a preset
+      // realigns it.
+      assert(document.setNodeField("panel", "dock", expected.dock, error));
+      const auto &bounds = document.preview().nodes[1].resolved;
+      assert(bounds.x == expected.x && bounds.y == expected.y &&
+             bounds.width == expected.width &&
+             bounds.height == expected.height);
+      const auto *node = document.authoredNode("panel");
+      assert(!node->contains("at") && !node->contains("anchor_min") &&
+             !node->contains("anchor_max"));
+      for (const char *field :
+           {"size", "min_size", "margin", "pad", "background_color"})
+        assert(node->at(field) == source["root"]["children"][0][field]);
+      const auto aligned = document.json();
+      assert(document.setNodeField("panel", "dock", expected.dock, error));
+      assert(document.json() == aligned);
+      assert(document.undo(error));
+      assert(document.json() == source && !document.canUndo());
+      assert(document.redo(error));
+      assert(document.json() == aligned);
+      assert(!document.setNodeField("panel", "dock", "diagonal", error));
+      assert(document.json() == aligned);
+      assert(document.save(error));
+      demi::editor::EditorHudDocument reopened;
+      assert(reopened.open(path, error));
+      assert(reopened.json() == aligned);
+    }
+  }
+  // Reapplying an already-authored Top preset must remove its old drag offset.
+  {
+    std::ofstream out(path);
+    out << R"({"format_version":1,"canvas_size":[960,540],
+    "children":[{"id":"panel","type":"panel","dock":"top","position":[217.9,79.8],"size":[240,120]}]})";
+  }
+  demi::editor::EditorHudDocument implicit;
+  std::string error;
+  assert(implicit.open(path, error));
+  assert(implicit.preview().nodes[1].resolved.x == 217.9F);
+  assert(implicit.setNodeField("panel", "dock", "top", error));
+  assert(implicit.preview().nodes[1].resolved.x == 0 &&
+         implicit.preview().nodes[1].resolved.y == 0);
+  assert(implicit.preview().nodes[1].resolved.width == 960);
+}
+
 } // namespace
 
 int main() {
@@ -233,5 +304,6 @@ int main() {
   demi::editor::EditorHudDocument uiPrefab;
   assert(uiPrefab.open(root / "ui/card.ui.prefab.json", error));
   assert(!uiPrefab.setCanvasSize({640.0F, 360.0F}, error));
+  verifyDockPresets(root);
   fs::remove_all(root, ignored);
 }

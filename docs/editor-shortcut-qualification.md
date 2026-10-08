@@ -330,3 +330,17 @@ invalid selections, transaction rollback, no-op repetition, exact Undo/Redo and
 save/reopen. Native Vulkan desktop verification exercised the Scene menu action
 and a single Undo on the colony camera while the editor view stayed in place.
 This is scoped Linux qualification, not a full-suite or Android gate.
+
+## HUD dock preset placement (2026-10-08)
+
+Choosing a dock preset resets stale `position`/`at` and custom anchors in the
+HUD document's existing validated replacement command. Top/Left/Fill use zero
+offsets. Bottom/Right/Center derive placement from runtime-resolved dimensions
+and retained margins. Authored size constraints, padding and appearance remain
+unchanged. Runtime parsing of explicitly authored offsets is unchanged.
+
+Release HUD-document, HUD-hierarchy and drag-authoring checks pass. Coverage
+includes all six presets, both offset spellings, minimum sizes, margins,
+reapplying the same preset, invalid choices, exact Undo/Redo and save/reopen.
+A native Vulkan probe confirmed that the colony resource panel realigns from
+(217.9, 79.8) to the canvas top-left with full width after selecting Top.
