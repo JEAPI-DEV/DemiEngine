@@ -246,7 +246,9 @@ public:
   [[nodiscard]] bool deleteSelectedHudNode(std::string &error);
   [[nodiscard]] bool setHudNodeField(std::string_view id,
                                      std::string_view field,
-                                     nlohmann::json value, std::string &error);
+                                     nlohmann::json value, std::string &error,
+                                     bool continuous = false);
+  void endHudContinuousEdit();
   [[nodiscard]] bool saveHud(std::string &error);
   // Refresh a clean linked/open HUD after another document session saved its
   // source. This does not rebuild the scene or alter scene command history.

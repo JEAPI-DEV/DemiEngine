@@ -382,3 +382,30 @@ prefab children, scrolling, filters, reparenting and palette placement while
 checking that reveal itself changes neither source documents nor Undo history.
 Native Vulkan checks confirmed clean HUD/Viewport canvases and automatic
 root/panel expansion and highlighting on HUD canvas clicks and palette drops.
+
+
+## Game canvas and HUD text persistence (2026-10-08)
+
+Game View no longer draws status badges, input hints or stopped-placeholder
+text over its render target. Toolbar status and Console diagnostics remain.
+
+HUD Inspector string fields apply validated edits on each changed value.
+Shared JSON history coalesces consecutive edits for the same node/field until
+Enter, deactivation, selection change, Save, Undo or Redo. Returning to the
+original value drops the session entry without merging later typing into the
+command beneath it. Save all is available while authoring text has focus;
+other editing shortcuts remain owned by the text widget. String input widget
+IDs include their workspace and node so changing selection cannot transfer
+ImGui's previous edit buffer into another node.
+
+Seven focused Release suites pass: value history, HUD documents, specialized
+documents, document sessions, render views, shell docking and Play sessions.
+The shell regression types across frames, saves with Ctrl+S while input is
+active, reopens the source, switches directly to another label and checks one
+Undo and Redo. Document tests also cover save/session boundaries and cancelling
+an edit back to its original value over an unrelated command.
+
+Native Vulkan checks on a temporary copy of the colony project confirmed
+saving without Enter, saving after selecting another label, unchanged sibling
+text and one-step Undo. Game View shows only the game while running and is
+blank after Stop. The prototype source was kept separate from these checks.

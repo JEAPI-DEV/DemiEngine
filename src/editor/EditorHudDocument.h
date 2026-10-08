@@ -49,7 +49,9 @@ public:
                                  std::string &error);
   [[nodiscard]] bool setCanvasSize(runtime::Vec2 size, std::string &error);
   [[nodiscard]] bool setNodeField(std::string_view id, std::string_view field,
-                                  nlohmann::json value, std::string &error);
+                                  nlohmann::json value, std::string &error,
+                                  bool continuous = false);
+  void endContinuousEdit() { document_.endContinuousEdit(); }
   [[nodiscard]] bool setNodeAnchors(std::string_view id,
                                     runtime::Vec2 anchorMin,
                                     runtime::Vec2 anchorMax,
@@ -75,7 +77,8 @@ public:
 private:
   [[nodiscard]] bool rebuild(std::string &error);
   [[nodiscard]] bool replaceAndRebuild(nlohmann::json replacement,
-                                       std::string &error);
+                                       std::string &error,
+                                       std::string_view continuousKey = {});
 
   EditorJsonDocument document_;
   runtime::ui::UiDocument preview_;

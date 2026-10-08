@@ -104,12 +104,14 @@ void createProject(const fs::path &root) {
        {"entities",
         Json::array({{{"id", "player"},
                       {"components", {{"Transform2D", Json::object()}}}}})}});
-  writeJson(root / "scenes/main.hud.json",
-            {{"format_version", 1},
-             {"canvas_size", {800, 600}},
-             {"children", Json::array({{{"id", "status"},
-                                        {"type", "label"},
-                                        {"text", "Shell HUD probe"}}})}});
+  writeJson(
+      root / "scenes/main.hud.json",
+      {{"format_version", 1},
+       {"canvas_size", {800, 600}},
+       {"children",
+        Json::array(
+            {{{"id", "status"}, {"type", "label"}, {"text", "Shell HUD probe"}},
+             {{"id", "other"}, {"type", "label"}, {"text", "Other label"}}})}});
 }
 
 class ImGuiFixture {
@@ -358,6 +360,73 @@ void checkIndependentViews(ImGuiFixture &imgui, EditorShell &shell,
           "Returning to authored HUD properties hid its palette");
 }
 
+void checkHudTextEditing(ImGuiFixture &imgui, EditorShell &shell,
+                         const fs::path &project) {
+  auto *workspace =
+      shell.authoringViews()[static_cast<std::size_t>(EditorAuthoringView::Hud)]
+          .workspace;
+  require(workspace != nullptr, "Missing HUD workspace");
+  workspace->selectHudNode("status");
+  for (int frame = 0; frame < 3; ++frame)
+    imgui.frame(shell, "Inspector");
+  auto &inspector = window("Inspector");
+  inspector.StateStorage.SetInt(inspector.GetID("Layout"), 0);
+  inspector.StateStorage.SetInt(inspector.GetID("Appearance"), 0);
+  imgui.frame(shell, "Inspector");
+  const auto tableId = inspector.GetID("hud-content-properties");
+  const auto workspaceId = ImHashData(&workspace, sizeof(workspace), tableId);
+  const auto nodeId = ImHashStr("status", 0, workspaceId);
+  const auto textId = ImHashStr("##text", 0, nodeId);
+  ImGui::ActivateItemByID(textId);
+  ImGui::GetCurrentContext()->NavNextActivateFlags =
+      ImGuiActivateFlags_PreferInput;
+  imgui.frame(shell, "Inspector");
+  require(ImGui::GetCurrentContext()->InputTextState.ID == textId,
+          "Could not activate HUD Text input");
+  auto &input = ImGui::GetIO();
+  input.AddInputCharactersUTF8("Power: ");
+  imgui.frame(shell, "Inspector");
+  input.AddInputCharactersUTF8("12 kW");
+  imgui.frame(shell, "Inspector");
+  const auto edited =
+      workspace->hudDocument()->authoredNode("status")->at("text");
+  require(edited.get<std::string>().find("Power: 12 kW") != std::string::npos,
+          "Typing without Enter did not update HUD source");
+  require(input.WantTextInput, "Text field lost focus before Save all");
+  input.AddKeyEvent(ImGuiMod_Ctrl, true);
+  input.AddKeyEvent(ImGuiKey_S, true);
+  imgui.frame(shell, "Inspector");
+  input.AddKeyEvent(ImGuiKey_S, false);
+  input.AddKeyEvent(ImGuiMod_Ctrl, false);
+  imgui.frame(shell, "Inspector");
+  require(!workspace->hudDocument()->isDirty(),
+          "Ctrl+S while typing did not save HUD");
+  EditorHudDocument reopened;
+  std::string error;
+  require(reopened.open(project / "scenes/main.hud.json", error), error);
+  require(reopened.authoredNode("status")->at("text") == edited,
+          "Saved HUD omitted the active text edit");
+  const auto beforeSelection = workspace->hudDocument()->json();
+  workspace->selectHudNode("other");
+  imgui.frame(shell, "Hierarchy");
+  require(workspace->hudDocument()->json() == beforeSelection,
+          "Selection change rewrote HUD fields");
+  input.AddKeyEvent(ImGuiMod_Ctrl, true);
+  input.AddKeyEvent(ImGuiKey_Z, true);
+  imgui.frame(shell, "Hierarchy");
+  input.AddKeyEvent(ImGuiKey_Z, false);
+  input.AddKeyEvent(ImGuiMod_Ctrl, false);
+  imgui.frame(shell, "Hierarchy");
+  require(workspace->hudDocument()->authoredNode("status")->at("text") ==
+                  "Shell HUD probe" &&
+              !workspace->hudDocument()->canUndo(),
+          "A typing session did not undo in one step");
+  require(workspace->redo(error), error);
+  require(workspace->hudDocument()->authoredNode("status")->at("text") ==
+              edited,
+          "Redo lost the text edit");
+}
+
 void closeDockTab(ImGuiFixture &imgui, EditorShell &shell, const char *name) {
   auto &view = window(name);
   require(view.DockNode && view.HasCloseButton,
@@ -501,6 +570,7 @@ int main() {
     ImGuiFixture imgui;
     EditorShell shell(workspace);
     checkIndependentViews(imgui, shell, project);
+    checkHudTextEditing(imgui, shell, project);
     checkHideAndReopen(imgui, shell, project);
     checkRuntimePanelsRejectDelete(imgui, shell, workspace, project);
     require(workspace.sceneDocument().json() == originalScene &&

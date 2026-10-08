@@ -79,6 +79,8 @@
   <li>Save — the same small-diff, atomic save as scenes.</li>
 </ol>
 <p><strong>Dock preset</strong> buttons replace custom anchors and old drag offsets in one undoable edit. Top, Left and Fill clear the position; Bottom, Right and Center calculate offsets from the control's current size and margins so it stays inside its parent. Size, minimum/maximum size, margins, padding and appearance remain authored as before. Reapply the preset after changing a fixed dimension if you want it realigned. Undo restores the exact previous layout, including <code>at</code> shorthand. This is an editor placement action; hand-written <code>dock</code> documents still accept explicit position offsets.</p>
+<p>HUD Inspector string fields (including Text, font/texture references, style, action, accessibility text and string prefab parameters) apply valid edits as you type. Clicking another control or changing selection keeps the edit. <strong>Ctrl+S</strong> and <strong>File → Save all</strong> save the current value even while the field is focused. Each editing session is one document Undo step; Enter, leaving the field or saving ends that session. In multiline Text, use <strong>Ctrl+Enter</strong> for a newline.</p>
+
 <p>Interactive nodes (buttons, toggles, sliders, text inputs, virtual controls) connect to named input actions. Those actions are declared in the project file; see <a href="{{ path('docs_page', {slug: 'input-bindings'}) }}">Input bindings</a> for how <code>virtual:</code> inputs fill them.</p>
 
 <h2>Mutations are commands</h2>

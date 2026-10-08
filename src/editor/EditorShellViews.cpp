@@ -122,10 +122,8 @@ void EditorShell::drawDocumentViews(ImVec2 position, ImVec2 size) {
     if (beginEditorPanel("Game View", position, size, &panels.game,
                          ImGuiWindowFlags_NoScrollbar |
                              ImGuiWindowFlags_NoScrollWithMouse)) {
-      drawEditorGameView(
-          playSession_, {}, {}, gameTextureIndex_, gameArea_, gameViewFocused_,
-          true,
-          preferences_.keyBindings.label(EditorCommand::ReleaseGameInput));
+      drawEditorGameView({}, {}, gameTextureIndex_, gameArea_, gameViewFocused_,
+                         true);
       if (gameViewFocused_)
         showGameView_ = true;
       if (gameViewFocused_ && ImGui::IsMouseClicked(ImGuiMouseButton_Left) &&

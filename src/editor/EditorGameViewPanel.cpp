@@ -12,11 +12,10 @@
 
 namespace demi::editor {
 
-void drawEditorGameView(const EditorPlaySession &session, const ImVec2 position,
-                        const ImVec2 size, const std::uint16_t textureIndex,
+void drawEditorGameView(const ImVec2 position, const ImVec2 size,
+                        const std::uint16_t textureIndex,
                         EditorViewportArea &area, bool &focused,
-                        const bool embedded,
-                        const std::string_view releaseShortcut) {
+                        const bool embedded) {
   if (!embedded && !beginEditorPanel("Game View", position, size, nullptr,
                                      ImGuiWindowFlags_NoScrollbar |
                                          ImGuiWindowFlags_NoScrollWithMouse |
@@ -25,16 +24,6 @@ void drawEditorGameView(const EditorPlaySession &session, const ImVec2 position,
     focused = false;
     ImGui::End();
     return;
-  }
-  const ImVec4 stateColor = session.state() == EditorPlayState::Failed
-                                ? ImVec4{0.95F, 0.34F, 0.38F, 1.0F}
-                            : session.state() == EditorPlayState::Paused
-                                ? ImVec4{0.95F, 0.72F, 0.30F, 1.0F}
-                                : ImVec4{0.35F, 0.85F, 0.55F, 1.0F};
-  if (session.state() == EditorPlayState::Failed) {
-    ImGui::TextColored({0.95F, 0.34F, 0.38F, 1.0F}, "Runtime failed");
-    ImGui::TextWrapped("%.*s", static_cast<int>(session.failure().size()),
-                       session.failure().data());
   }
   const ImVec2 canvasMin = ImGui::GetCursorScreenPos();
   const ImVec2 available = ImGui::GetContentRegionAvail();
@@ -60,28 +49,6 @@ void drawEditorGameView(const EditorPlaySession &session, const ImVec2 position,
       ImGui::InvisibleButton("game-canvas", available);
     }
     focused = ImGui::IsWindowFocused();
-    ImDrawList *draw = ImGui::GetWindowDrawList();
-    const std::string_view state = editorPlayStateLabel(session.state());
-    const ImVec2 textSize =
-        ImGui::CalcTextSize(state.data(), state.data() + state.size());
-    const ImVec2 badgeMin{canvasMin.x + 9.0F, canvasMin.y + 9.0F};
-    const ImVec2 badgeMax{badgeMin.x + textSize.x + 18.0F,
-                          badgeMin.y + textSize.y + 10.0F};
-    draw->AddRectFilled(badgeMin, badgeMax, IM_COL32(36, 39, 47, 235), 3.0F);
-    draw->AddText({badgeMin.x + 9.0F, badgeMin.y + 5.0F},
-                  ImGui::ColorConvertFloat4ToU32(stateColor), state.data(),
-                  state.data() + state.size());
-    if (!session.isEmbedded()) {
-      draw->AddText({canvasMin.x + 18.0F, canvasMin.y + 52.0F},
-                    IM_COL32(145, 149, 162, 255),
-                    "Start embedded Play to render the game here.");
-    } else {
-      const std::string hint = "Click to focus | " +
-                               std::string(releaseShortcut) +
-                               " releases the cursor";
-      draw->AddText({canvasMin.x + 18.0F, canvasMin.y + 38.0F},
-                    IM_COL32(210, 214, 222, 255), hint.c_str());
-    }
   }
   if (!embedded)
     ImGui::End();

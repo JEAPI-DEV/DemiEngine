@@ -1106,17 +1106,22 @@ bool EditorWorkspace::duplicateHudNode(const std::string_view id,
 
 bool EditorWorkspace::setHudNodeField(const std::string_view id,
                                       const std::string_view field,
-                                      nlohmann::json value,
-                                      std::string &error) {
+                                      nlohmann::json value, std::string &error,
+                                      bool continuous) {
   EditorHudDocument *hud = activeHudDocument();
   if (hud == nullptr) {
     error = "The current scene has no authored HUD document.";
     return false;
   }
-  if (!hud->setNodeField(id, field, std::move(value), error))
+  if (!hud->setNodeField(id, field, std::move(value), error, continuous))
     return false;
   syncHudPreview();
   return true;
+}
+
+void EditorWorkspace::endHudContinuousEdit() {
+  if (auto *hud = activeHudDocument())
+    hud->endContinuousEdit();
 }
 
 bool EditorWorkspace::saveHud(std::string &error) {
@@ -2081,6 +2086,7 @@ void EditorWorkspace::syncHudPreview() {
 }
 
 void EditorWorkspace::selectEntity(std::string id) {
+  endHudContinuousEdit();
   ++selectionRevision_;
   if (project_ && !sceneDocument_.entity(id))
     if (auto owner = editorPlacementOwner(project_->world, id); !owner.empty())
@@ -2096,6 +2102,7 @@ void EditorWorkspace::selectEntity(std::string id) {
 }
 
 void EditorWorkspace::selectHudNode(std::string id) {
+  endHudContinuousEdit();
   ++selectionRevision_;
   activeDocument_ = EditorWorkspaceDocument::Hud;
   selectedIsoGridCell_.reset();
@@ -2108,6 +2115,7 @@ void EditorWorkspace::selectHudNode(std::string id) {
 }
 
 void EditorWorkspace::toggleHudNodeSelection(std::string id) {
+  endHudContinuousEdit();
   ++selectionRevision_;
   activeDocument_ = EditorWorkspaceDocument::Hud;
   selectedIsoGridCell_.reset();

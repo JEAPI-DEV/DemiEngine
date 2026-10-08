@@ -36,9 +36,10 @@ void syncBuffer(std::array<char, Size> &buffer, std::string &synced,
 
 bool setField(EditorWorkspace &workspace, const runtime::ui::UiNode &node,
               const char *field, Json value, std::string message,
-              std::string &notice) {
+              std::string &notice, bool continuous = false) {
   std::string error;
-  if (!workspace.setHudNodeField(node.id, field, std::move(value), error)) {
+  if (!workspace.setHudNodeField(node.id, field, std::move(value), error,
+                                 continuous)) {
     notice = std::move(error);
     return false;
   }
@@ -61,13 +62,32 @@ void setInsets(EditorWorkspace &workspace, const runtime::ui::UiNode &node,
                  std::move(message), notice);
 }
 
-void setOptionalString(EditorWorkspace &workspace,
-                       const runtime::ui::UiNode &node, const char *field,
-                       const std::string &value, std::string message,
-                       std::string &notice) {
-  (void)setField(workspace, node, field,
-                 value.empty() ? Json(nullptr) : Json(value),
-                 std::move(message), notice);
+template <std::size_t Size>
+void editHudString(EditorWorkspace &workspace, const runtime::ui::UiNode &node,
+                   const char *widgetId, const char *field,
+                   std::array<char, Size> &buffer, const char *message,
+                   std::string &notice, bool multiline = false) {
+  // Keep ImGui editing state with its document and node across selection
+  // changes.
+  ImGui::PushID(&workspace);
+  ImGui::PushID(node.id.c_str());
+  const bool submitted =
+      multiline ? ImGui::InputTextMultiline(
+                      widgetId, buffer.data(), buffer.size(), {0.0F, 54.0F},
+                      ImGuiInputTextFlags_EnterReturnsTrue |
+                          ImGuiInputTextFlags_CtrlEnterForNewLine)
+                : ImGui::InputText(widgetId, buffer.data(), buffer.size(),
+                                   ImGuiInputTextFlags_EnterReturnsTrue);
+  if (ImGui::IsItemActivated())
+    workspace.endHudContinuousEdit();
+  if (ImGui::IsItemEdited())
+    (void)setField(workspace, node, field,
+                   buffer[0] == '\0' ? Json(nullptr) : Json(buffer.data()),
+                   message, notice, true);
+  if (submitted || ImGui::IsItemDeactivated())
+    workspace.endHudContinuousEdit();
+  ImGui::PopID();
+  ImGui::PopID();
 }
 
 struct PropertyGrid {
@@ -462,20 +482,14 @@ void drawContentSection(EditorWorkspace &workspace,
   PropertyGrid grid("hud-content-properties");
   if (isTextNode(node.type)) {
     grid.row("Text", [&] {
-      if (ImGui::InputTextMultiline(
-              "##text", state.text.data(), state.text.size(), {0.0F, 54.0F},
-              ImGuiInputTextFlags_EnterReturnsTrue |
-                  ImGuiInputTextFlags_CtrlEnterForNewLine))
-        setOptionalString(workspace, node, "text", state.text.data(),
-                          "HUD text modified", notice);
+      editHudString(workspace, node, "##text", "text", state.text,
+                    "HUD text modified", notice, true);
     });
     grid.row(
         "Font asset",
         [&] {
-          if (ImGui::InputText("##font", state.font.data(), state.font.size(),
-                               ImGuiInputTextFlags_EnterReturnsTrue))
-            setOptionalString(workspace, node, "font", state.font.data(),
-                              "HUD font modified", notice);
+          editHudString(workspace, node, "##font", "font", state.font,
+                        "HUD font modified", notice);
         },
         "Optional asset:// Font2D ID. Empty uses the engine default.");
     float fontSize = node.fontSize;
@@ -535,23 +549,16 @@ void drawContentSection(EditorWorkspace &workspace,
   }
   if (node.type == "text_input") {
     grid.row("Placeholder", [&] {
-      if (ImGui::InputText("##placeholder", state.placeholder.data(),
-                           state.placeholder.size(),
-                           ImGuiInputTextFlags_EnterReturnsTrue))
-        setOptionalString(workspace, node, "placeholder",
-                          state.placeholder.data(), "HUD placeholder modified",
-                          notice);
+      editHudString(workspace, node, "##placeholder", "placeholder",
+                    state.placeholder, "HUD placeholder modified", notice);
     });
   }
   if (node.type == "image") {
     grid.row(
         "Texture asset",
         [&] {
-          if (ImGui::InputText("##texture", state.texture.data(),
-                               state.texture.size(),
-                               ImGuiInputTextFlags_EnterReturnsTrue))
-            setOptionalString(workspace, node, "texture", state.texture.data(),
-                              "HUD texture modified", notice);
+          editHudString(workspace, node, "##texture", "texture", state.texture,
+                        "HUD texture modified", notice);
         },
         "asset:// texture ID");
   }
@@ -569,10 +576,8 @@ void drawAppearanceSection(EditorWorkspace &workspace,
   grid.row(
       "Style",
       [&] {
-        if (ImGui::InputText("##style", state.style.data(), state.style.size(),
-                             ImGuiInputTextFlags_EnterReturnsTrue))
-          setOptionalString(workspace, node, "style", state.style.data(),
-                            "HUD style modified", notice);
+        editHudString(workspace, node, "##style", "style", state.style,
+                      "HUD style modified", notice);
       },
       "Optional named style from the HUD theme.");
   grid.row("Tint", [&] {
@@ -657,11 +662,8 @@ void drawInteractionSection(EditorWorkspace &workspace,
     grid.row(
         "Action",
         [&] {
-          if (ImGui::InputText("##action", state.action.data(),
-                               state.action.size(),
-                               ImGuiInputTextFlags_EnterReturnsTrue))
-            setOptionalString(workspace, node, "action", state.action.data(),
-                              "HUD action modified", notice);
+          editHudString(workspace, node, "##action", "action", state.action,
+                        "HUD action modified", notice);
         },
         "Action name emitted when the control is activated.");
   }
@@ -694,21 +696,14 @@ void drawInteractionSection(EditorWorkspace &workspace,
     });
   }
   grid.row("Accessible label", [&] {
-    if (ImGui::InputText("##accessible-label", state.accessibilityLabel.data(),
-                         state.accessibilityLabel.size(),
-                         ImGuiInputTextFlags_EnterReturnsTrue))
-      setOptionalString(workspace, node, "accessibility_label",
-                        state.accessibilityLabel.data(),
-                        "HUD accessibility label modified", notice);
+    editHudString(workspace, node, "##accessible-label", "accessibility_label",
+                  state.accessibilityLabel, "HUD accessibility label modified",
+                  notice);
   });
   grid.row("Description", [&] {
-    if (ImGui::InputText("##accessible-description",
-                         state.accessibilityDescription.data(),
-                         state.accessibilityDescription.size(),
-                         ImGuiInputTextFlags_EnterReturnsTrue))
-      setOptionalString(workspace, node, "accessibility_description",
-                        state.accessibilityDescription.data(),
-                        "HUD accessibility description modified", notice);
+    editHudString(workspace, node, "##accessible-description",
+                  "accessibility_description", state.accessibilityDescription,
+                  "HUD accessibility description modified", notice);
   });
   bool accessibilityHidden = node.accessibilityHidden;
   grid.row("Accessibility", [&] {
@@ -742,10 +737,24 @@ void drawPrefabArguments(EditorWorkspace &workspace,
         auto &buffer = state.prefabStrings[name];
         auto &synced = state.syncedPrefabStrings[name];
         syncBuffer(buffer, synced, value.get_ref<const std::string &>());
-        changed = ImGui::InputText("##value", buffer.data(), buffer.size(),
-                                   ImGuiInputTextFlags_EnterReturnsTrue);
-        if (changed)
+        ImGui::PushID(&workspace);
+        ImGui::PushID(node.id.c_str());
+        const bool submitted =
+            ImGui::InputText("##value", buffer.data(), buffer.size(),
+                             ImGuiInputTextFlags_EnterReturnsTrue);
+        if (ImGui::IsItemActivated())
+          workspace.endHudContinuousEdit();
+        changed = ImGui::IsItemEdited();
+        if (changed) {
           replacement[name] = std::string(buffer.data());
+          (void)setField(workspace, node, "arguments", std::move(replacement),
+                         "UI prefab parameters modified", notice, true);
+        }
+        if (submitted || ImGui::IsItemDeactivated())
+          workspace.endHudContinuousEdit();
+        ImGui::PopID();
+        ImGui::PopID();
+        return;
       } else if (value.is_boolean()) {
         bool edited = value.get<bool>();
         changed = ImGui::Checkbox("##value", &edited);

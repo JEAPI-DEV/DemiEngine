@@ -659,7 +659,7 @@ bool EditorHudDocument::setCanvasSize(const runtime::Vec2 size,
 
 bool EditorHudDocument::setNodeField(const std::string_view id,
                                      const std::string_view field, Json value,
-                                     std::string &error) {
+                                     std::string &error, bool continuous) {
   Json replacement = document_.json();
   if (!replacement.contains("root") && id == "ui_root") {
     error = "The implicit HUD root always fills the canvas. Select a child "
@@ -761,7 +761,9 @@ bool EditorHudDocument::setNodeField(const std::string_view id,
       (*node)["position"] = normalizeAuthoredValue(
           vec2Json(position), nullptr, authoredDecimalPlaces("position"));
   }
-  return replaceAndRebuild(std::move(replacement), error);
+  return replaceAndRebuild(std::move(replacement), error,
+                           continuous ? Json::array({id, field}).dump()
+                                      : std::string{});
 }
 
 bool EditorHudDocument::setNodeAnchors(const std::string_view id,
@@ -824,12 +826,13 @@ bool EditorHudDocument::rebuild(std::string &error) {
   return true;
 }
 
-bool EditorHudDocument::replaceAndRebuild(Json replacement,
-                                          std::string &error) {
+bool EditorHudDocument::replaceAndRebuild(Json replacement, std::string &error,
+                                          std::string_view continuousKey) {
   std::optional<runtime::ui::UiDocument> parsed =
       runtime::scene_loading::parseHudDocument(document_.path(), replacement,
                                                error);
-  if (!parsed || !document_.replace(std::move(replacement), error))
+  if (!parsed ||
+      !document_.replace(std::move(replacement), error, continuousKey))
     return false;
   preview_ = std::move(*parsed);
   return true;

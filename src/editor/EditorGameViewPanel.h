@@ -1,6 +1,5 @@
 #pragma once
 
-#include "editor/EditorPlaySession.h"
 #include "editor/EditorUiHost.h"
 
 #include <string>
@@ -13,11 +12,9 @@ struct World;
 
 namespace demi::editor {
 
-void drawEditorGameView(const EditorPlaySession &session, ImVec2 position,
-                        ImVec2 size, std::uint16_t textureIndex,
-                        EditorViewportArea &area, bool &focused,
-                        bool embedded = false,
-                        std::string_view releaseShortcut = "Ctrl+D");
+void drawEditorGameView(ImVec2 position, ImVec2 size,
+                        std::uint16_t textureIndex, EditorViewportArea &area,
+                        bool &focused, bool embedded = false);
 void drawRuntimeHierarchy(const runtime::World &world, ImVec2 position,
                           ImVec2 size, std::string &selectedEntityId,
                           bool *open = nullptr);

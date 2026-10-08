@@ -18,6 +18,46 @@ std::string read(const std::filesystem::path &path) {
           std::istreambuf_iterator<char>()};
 }
 
+void verifyTextEditSessions(const std::filesystem::path &root) {
+  const auto path = root / "text.hud.json";
+  {
+    std::ofstream output(path);
+    output
+        << R"({"format_version":1,"children":[{"id":"label","type":"label","text":"Label"}]})";
+  }
+  demi::editor::EditorHudDocument document;
+  std::string error;
+  assert(document.open(path, error));
+  const auto original = document.json();
+  assert(document.setNodeField("label", "text", "P", error, true));
+  assert(document.setNodeField("label", "text", "Power: 12 kW", error, true));
+  // Saving while the field is active includes the latest keystroke.
+  assert(document.save(error));
+  demi::editor::EditorHudDocument reopened;
+  assert(reopened.open(path, error));
+  assert(reopened.authoredNode("label")->at("text") == "Power: 12 kW");
+  document.endContinuousEdit();
+  document.endContinuousEdit(); // Enter followed by blur adds no history.
+  assert(document.undo(error));
+  assert(document.json() == original && !document.canUndo());
+  assert(document.redo(error));
+  assert(document.setNodeField("label", "text", "Power: 13 kW", error, true));
+  document.endContinuousEdit();
+  assert(document.undo(error));
+  assert(document.authoredNode("label")->at("text") == "Power: 12 kW");
+  // A cancelled session cannot absorb an unrelated command underneath it.
+  assert(document.setNodeField("label", "visible", false, error));
+  const auto beforeCancelled = document.json();
+  assert(document.setNodeField("label", "text", "draft", error, true));
+  assert(document.setNodeField("label", "text", "Power: 12 kW", error, true));
+  assert(document.json() == beforeCancelled);
+  assert(document.setNodeField("label", "text", "final", error, true));
+  assert(document.undo(error));
+  assert(document.json() == beforeCancelled);
+  assert(document.undo(error));
+  assert(!document.authoredNode("label")->contains("visible"));
+}
+
 void verifyDockPresets(const std::filesystem::path &root) {
   using Json = nlohmann::json;
   struct Expected {
@@ -304,6 +344,7 @@ int main() {
   demi::editor::EditorHudDocument uiPrefab;
   assert(uiPrefab.open(root / "ui/card.ui.prefab.json", error));
   assert(!uiPrefab.setCanvasSize({640.0F, 360.0F}, error));
+  verifyTextEditSessions(root);
   verifyDockPresets(root);
   fs::remove_all(root, ignored);
 }

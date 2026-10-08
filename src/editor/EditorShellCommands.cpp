@@ -180,6 +180,15 @@ void EditorShell::dispatchShortcuts() {
       executeCommand(EditorCommand::ReleaseGameInput, context);
     return;
   }
+  // HUD text updates are already in the document at this point in the frame.
+  // Save remains available while typing; editing shortcuts stay with the field.
+  if (!shortcutSettings_.recording &&
+      !ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId) &&
+      editorShortcutPressed(preferences_.keyBindings, EditorCommand::SaveAll,
+                            context)) {
+    executeCommand(EditorCommand::SaveAll, context);
+    return;
+  }
   if (input.WantTextInput || ImGui::IsAnyItemActive() ||
       shortcutSettings_.recording ||
       ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId) ||
