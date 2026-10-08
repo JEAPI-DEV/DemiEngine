@@ -444,6 +444,24 @@ void checkHudModuleDrop(EditorWorkspace &workspace, const fs::path &hudPath) {
               workspace.hudDocument()->json() == before &&
               !workspace.hudDocument()->canUndo(),
           "Unterminated module payload changed the HUD source");
+
+  require(workspace.setHudNodeField("root", "stack", "row", error), error);
+  workspace.selectHudNode("root");
+  const auto beforeFlow = workspace.hudDocument()->json();
+  renderFrame(drawHud);
+  renderExternalDragFrame(demi::editor::EditorModulePayload, button->id, drop,
+                          true, drawHud);
+  renderExternalDragFrame(demi::editor::EditorModulePayload, button->id, drop,
+                          false, drawHud);
+  const auto &flowChild =
+      workspace.hudDocument()->json().at("root").at("children").front();
+  require(!flowChild.contains("position") &&
+              workspace.displayedHud().nodes[1].layout.position.x == 0 &&
+              workspace.displayedHud().nodes[1].layout.position.y == 0,
+          "Palette drop into a row authored pointer offsets");
+  require(workspace.undo(error) &&
+              workspace.hudDocument()->json() == beforeFlow,
+          "Flow drop Undo did not restore the container");
 }
 
 } // namespace

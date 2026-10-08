@@ -344,3 +344,20 @@ includes all six presets, both offset spellings, minimum sizes, margins,
 reapplying the same preset, invalid choices, exact Undo/Redo and save/reopen.
 A native Vulkan probe confirmed that the colony resource panel realigns from
 (217.9, 79.8) to the canvas top-left with full width after selecting Top.
+
+
+## HUD drops into flow layouts (2026-10-08)
+
+HUD controls and UI prefab instances share flow-placement planning before the
+existing document creation command commits. Resolved parent layout chooses
+between free coordinates and Row/Column/Grid insertion order. Hidden siblings
+do not consume visual slots; authored child indices and stable IDs are retained.
+Prefab root position/anchors are local instance overrides, leaving the source
+and inner layout intact. Menu creation appends without the default drag offset.
+
+Focused Release checks cover row/column/grid insertions, hidden children,
+padding and translated parents, prefab roots with existing position/anchors,
+free placement, invalid coordinates, Undo/Redo and save/reopen. The palette drag
+integration test exercises a real ImGui drop into a row. Native Vulkan testing
+on a copy of the colony HUD confirmed that a new label enters the first row slot
+at zero offset. Existing authored offsets are not migrated automatically.

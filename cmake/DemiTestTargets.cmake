@@ -64,6 +64,8 @@
   target_link_libraries(demi-editor-authoring-clipboard-tests PRIVATE demi-editor-model)
   target_link_libraries(demi-editor-game-authoring-tests PRIVATE demi-editor-model demi-cli-support)
   target_compile_definitions(demi-editor-game-authoring-tests PRIVATE DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+  add_executable(demi-editor-hud-flow-placement-tests tests/editor_hud_flow_placement_tests.cpp)
+  target_link_libraries(demi-editor-hud-flow-placement-tests PRIVATE demi-editor-model)
   add_executable(demi-editor-camera-alignment-tests tests/editor_camera_alignment_tests.cpp)
   target_link_libraries(demi-editor-camera-alignment-tests PRIVATE demi-editor-model)
   add_executable(demi-editor-prefab-conversion-tests tests/editor_prefab_conversion_tests.cpp)

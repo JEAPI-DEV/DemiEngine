@@ -1,5 +1,6 @@
 #include "editor/EditorHudDocument.h"
 #include "editor/EditorAuthoringClipboard.h"
+#include "editor/EditorHudFlowPlacement.h"
 
 #include "demi/filesystem/AuthoredJsonPatch.h"
 #include "editor/EditorSpecializedDocument.h"
@@ -386,11 +387,18 @@ bool EditorHudDocument::createNode(const std::string_view type,
                        : "children";
   if (!parent->contains(key) || !(*parent)[key].is_array())
     (*parent)[key] = Json::array();
+  const auto placement = editorHudFlowPlacement(
+      preview_, parentId.empty() ? authoredRootId(replacement) : parentId,
+      (*parent)[key], position);
   Json node = defaultNode(type, createdId);
-  if (position)
+  if (placement.flow)
+    node.erase("position");
+  else if (position)
     node["position"] = normalizeAuthoredValue(
         Json::array({position->x, position->y}), nullptr, 1);
-  (*parent)[key].push_back(std::move(node));
+  (*parent)[key].insert((*parent)[key].begin() +
+                            static_cast<Json::difference_type>(placement.index),
+                        std::move(node));
   return replaceAndRebuild(std::move(replacement), error);
 }
 
@@ -426,15 +434,28 @@ bool EditorHudDocument::createPrefabInstance(
   Json instance{{"id", createdId}, {"prefab", prefabReference}};
   if (!arguments->empty())
     instance["arguments"] = *arguments;
-  if (position)
-    instance["overrides"] = {{"position", normalizeAuthoredValue(
-        Json::array({position->x, position->y}), nullptr, 1)}};
   const auto key = parent == &replacement && parent->contains("elements")
                        ? "elements"
                        : "children";
   if (!parent->contains(key) || !(*parent)[key].is_array())
     (*parent)[key] = Json::array();
-  (*parent)[key].push_back(std::move(instance));
+  const auto placement = editorHudFlowPlacement(
+      preview_, parentId.empty() ? authoredRootId(replacement) : parentId,
+      (*parent)[key], position);
+  if (placement.flow) {
+    // The container owns the root's slot, even if the source prefab uses an
+    // offset or stretch anchors for standalone placement. Its contents remain
+    // inherited.
+    instance["overrides"] = {
+        {"position", {0, 0}}, {"anchor_min", {0, 0}}, {"anchor_max", {0, 0}}};
+  } else if (position) {
+    instance["overrides"] = {
+        {"position", normalizeAuthoredValue(
+                         Json::array({position->x, position->y}), nullptr, 1)}};
+  }
+  (*parent)[key].insert((*parent)[key].begin() +
+                            static_cast<Json::difference_type>(placement.index),
+                        std::move(instance));
   return replaceAndRebuild(std::move(replacement), error);
 }
 

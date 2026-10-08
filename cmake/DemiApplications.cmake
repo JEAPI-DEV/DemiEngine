@@ -87,6 +87,7 @@ else()
     src/editor/EditorModuleCatalog.cpp
     src/editor/EditorHudHierarchy.cpp
     src/editor/EditorHudDocument.cpp
+    src/editor/EditorHudFlowPlacement.cpp
     src/editor/EditorHudCanvas.cpp
     src/editor/EditorIsoGridCell.cpp
     src/editor/EditorIsoGridCellDocument.cpp
