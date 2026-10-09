@@ -20,7 +20,7 @@ This directory keeps material that has a different job:
 
 - [NVIDIA HUD lifecycle investigation](editor-nvidia-hud-lifecycle-investigation.md)
   records the reduced Play/Stop reproducer, diagnostic comparisons and the
-  unresolved graphics lifetime/backend boundary.
+  qualified Vulkan program/pipeline lifetime correction.
 
 - [Editor commands, clipboard and docking](editor-shortcut-qualification.md)
   records shortcut ownership, clipboard identity/remapping, independent panel

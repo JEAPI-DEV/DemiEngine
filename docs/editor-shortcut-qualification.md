@@ -459,7 +459,8 @@ Play-session, render-view and shell-docking tests pass. Native testing still
 reproduced an intermittent NVIDIA Vulkan crash after five Play/Stop cycles;
 this change is not claimed to fix that crash. The same build survived 24 cycles
 with Khronos validation enabled and 12 cycles with AMD Vulkan selected locally.
-Detailed reproduction and remaining investigation are recorded in `tofix.md`.
+Subsequent isolation and the qualified correction are recorded in
+[the Vulkan lifecycle investigation](editor-nvidia-hud-lifecycle-investigation.md).
 
 ## Headless game E2E execution (2026-10-09)
 
@@ -473,3 +474,21 @@ returns failure. A completed failing suite also returns failure directly.
 The real CLI/runtime regression covers waits, scene timeout, an actual HUD toggle
 touch, success/failure exit codes, explicit frame cutoff, and `demi test linux`
 reporting. Headless-E2E, Lua-E2E and E2E-runner suites pass in Release.
+
+
+## Vulkan program and pipeline lifecycle correction (2026-10-09)
+
+The pinned bgfx backend now clears reused program binding metadata and scopes
+its graphics/compute pipeline cache entries to their originating program.
+Destroying that program evicts its pipelines through bgfx's deferred release
+before retiring the pipeline layout. Unrelated live pipeline entries remain.
+Both changes are maintained configure-time patches with fail-closed upstream
+shape checks. They contain no OS, GPU-vendor or MSAA-off condition.
+
+Seven focused Release suites pass. The final targeted build completed 60
+full-colony NVIDIA Play/Stop/Viewport cycles without validation, 12 fresh-process
+NVIDIA reproducer cycles with synchronization validation, and 12 AMD colony
+cycles. Normal MSAA, threading and resource release were retained. Windows and
+Android hardware qualification remains pending. The independent startup
+legacy-device-layer validation warning is documented in the investigation;
+it is not claimed fixed by these changes.

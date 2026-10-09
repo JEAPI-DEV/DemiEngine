@@ -1,5 +1,9 @@
 # NVIDIA HUD lifecycle investigation
 
+Status: corrected in the shared Vulkan backend on 2026-10-09. See the
+resolution and qualification below; the original investigation is retained
+as evidence. Windows device qualification remains pending.
+
 Investigated on 2026-10-09, after `0c6c354`, on an NVIDIA GeForce RTX 3070 Ti
 Laptop GPU with driver 615.71.09. Native editor: SDL3/XWayland, Vulkan, external
 5120x2880 display. The editor window was 5120x2806. NVIDIA was selected only for
@@ -79,7 +83,7 @@ Useful local evidence (not committed binaries): systemd cores for PIDs 50755,
 Temporary validation libraries were unpacked below `/tmp/demi-vulkan-validation`,
 not installed system-wide. The normal build should reproduce without them.
 
-## Next investigation boundary
+## Original investigation boundary
 
 Compare teardown of the complete 3D renderer, its HUD overlay and MSAA scratch
 target/resolve pass separately, then inspect bgfx descriptor/pipeline/render-pass
@@ -93,3 +97,52 @@ caches and release resources predictably. Prefer a shared lifecycle/cache fix
 that also applies on Windows. Any genuinely NVIDIA/Vulkan-specific correction
 belongs behind the graphics adapter and needs documented scope plus unaffected
 backend coverage. Do not change graphics API or driver defaults to hide the bug.
+
+
+## Resolution: program-owned Vulkan pipelines (2026-10-09)
+
+Two maintained patches apply to the pinned bgfx Vulkan backend at configure time:
+
+- `apply_bgfx_vk_program_bindings.cmake` clears every program binding slot before
+  copying bindings from the replacement shaders. Previously, unused stages could
+  retain descriptor information from an earlier program occupying the handle.
+- `apply_bgfx_vk_pipeline_ownership.cmake` includes the originating program handle
+  in graphics and compute pipeline cache keys, records that handle as the cache
+  entry's parent, and invalidates that parent's pipelines before destroying its
+  pipeline layout. It uses bgfx's existing parent-aware cache and deferred Vulkan
+  release, preserving unrelated programs' cached pipelines.
+
+Resetting bindings alone was insufficient: a full-colony run crashed after 28
+completed cycles. A symbolized follow-up caught a terrain indexed draw into a
+four-sample target. The fault is therefore not limited to HUD quads. Invalidating
+all cached pipelines on program destruction survived 56 cycles, but that broad
+flush was replaced with the targeted ownership correction above.
+
+This establishes a clear cache lifetime boundary rather than retaining whole
+renderers, leaking resources, disabling MSAA or switching graphics APIs. Both
+patches apply to Vulkan on every OS and vendor; they contain no Linux/NVIDIA
+condition. Direct3D/OpenGL backends are unchanged. Native Windows and Android
+qualification was not performed in this investigation.
+
+The final targeted build passed 60 consecutive full-colony NVIDIA
+Play/Stop/Viewport cycles with normal four-sample MSAA, normal renderer threading,
+normal resource destruction, and no validation layer. A fresh NVIDIA process
+passed 12 reduced-reproducer cycles with synchronization validation enabled.
+A fresh AMD Vulkan process also passed 12 full-colony cycles.
+The existing startup device-layer VUID remained; no frame-resource validation
+error was reported. The binding-only and broad-flush builds are diagnostic
+comparisons, not the final implementation.
+
+Seven focused Release tests cover the two dependency patches, GPU resource
+handles, render commands, editor render views, Play sessions and shell docking.
+The new regressions compile extracted pinned backend/cache code and demonstrate
+failure before each patch and success afterward. They cover binding reset and
+remapping, graphics/compute ownership integration, selective eviction before
+layout destruction, handle reuse, unrelated live cache entries, idempotent patch
+application and rejection of upstream source drift without partial writes.
+These tests build their fixtures through CMake so they do not require Unix
+compiler flags on a future Windows build.
+
+No temporary diagnostic cache flush, retained renderer, resource leak or debug
+compiler option remains. On a future bgfx update, review these patches against
+upstream changes and retain their behavioral regressions until superseded.

@@ -293,6 +293,12 @@ execute_process(COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${bgfx_SOURCE_DIR}
 execute_process(COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${bgfx_SOURCE_DIR}
   -P ${CMAKE_SOURCE_DIR}/cmake/patches/apply_bgfx_android_suboptimal.cmake
   COMMAND_ERROR_IS_FATAL ANY)
+execute_process(COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${bgfx_SOURCE_DIR}
+  -P ${CMAKE_SOURCE_DIR}/cmake/patches/apply_bgfx_vk_program_bindings.cmake
+  COMMAND_ERROR_IS_FATAL ANY)
+execute_process(COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${bgfx_SOURCE_DIR}
+  -P ${CMAKE_SOURCE_DIR}/cmake/patches/apply_bgfx_vk_pipeline_ownership.cmake
+  COMMAND_ERROR_IS_FATAL ANY)
 if(ANDROID AND CMAKE_CXX_FLAGS MATCHES "DEMI_ANDROID_PROFILE=1")
   target_compile_definitions(bgfx PRIVATE BGFX_CONFIG_PROFILER=1)
 endif()
