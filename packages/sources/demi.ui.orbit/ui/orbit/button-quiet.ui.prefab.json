@@ -1,0 +1,53 @@
+{
+  "format_version": 1,
+  "id": "ui-prefab://orbit/button-quiet",
+  "parameters": {
+    "accent": {
+      "type": "string",
+      "default": "#FFB66B"
+    },
+    "action": {
+      "type": "string",
+      "default": ""
+    },
+    "disabled": {
+      "type": "boolean",
+      "default": false
+    },
+    "label": {
+      "type": "string",
+      "default": "Continue"
+    },
+    "size": {
+      "type": "array",
+      "default": [
+        200,
+        44
+      ]
+    },
+    "stroke": {
+      "type": "string",
+      "default": "#3B5166"
+    },
+    "text": {
+      "type": "string",
+      "default": "#EEF4FA"
+    }
+  },
+  "root": {
+    "id": "control",
+    "type": "button",
+    "size": "${size}",
+    "text": "${label}",
+    "action": "${action}",
+    "disabled": "${disabled}",
+    "corner_radius": 9,
+    "font_size": 16,
+    "text_color": "${text}",
+    "background_color": "#00000000",
+    "hover_color": "${stroke}",
+    "border_color": "${stroke}",
+    "border_width": 0,
+    "color": "${accent}"
+  }
+}

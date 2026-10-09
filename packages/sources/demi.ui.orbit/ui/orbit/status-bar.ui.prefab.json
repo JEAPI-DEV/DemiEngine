@@ -1,0 +1,111 @@
+{
+  "format_version": 1,
+  "id": "ui-prefab://orbit/status-bar",
+  "parameters": {
+    "accent": {
+      "type": "string",
+      "default": "#FFB66B"
+    },
+    "oxygen": {
+      "type": "string",
+      "default": "OXYGEN  98%"
+    },
+    "positive": {
+      "type": "string",
+      "default": "#67D7BB"
+    },
+    "power": {
+      "type": "string",
+      "default": "POWER  84 kW"
+    },
+    "raised": {
+      "type": "string",
+      "default": "#263748"
+    },
+    "surface": {
+      "type": "string",
+      "default": "#1B2735"
+    },
+    "water": {
+      "type": "string",
+      "default": "WATER  120 L"
+    }
+  },
+  "root": {
+    "id": "status_bar",
+    "type": "panel",
+    "dock": "top",
+    "size": [
+      0,
+      68
+    ],
+    "pad": [
+      16,
+      12,
+      16,
+      12
+    ],
+    "stack": "row",
+    "gap": 12,
+    "background_color": "${surface}",
+    "children": [
+      {
+        "id": "power",
+        "prefab": "ui-prefab://orbit/badge",
+        "arguments": {
+          "accent": "${accent}",
+          "raised": "${raised}",
+          "label": "${power}",
+          "size": [
+            170,
+            40
+          ]
+        },
+        "overrides": {
+          "at": [
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "id": "water",
+        "prefab": "ui-prefab://orbit/badge",
+        "arguments": {
+          "accent": "${positive}",
+          "raised": "${raised}",
+          "label": "${water}",
+          "size": [
+            170,
+            40
+          ]
+        },
+        "overrides": {
+          "at": [
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "id": "oxygen",
+        "prefab": "ui-prefab://orbit/badge",
+        "arguments": {
+          "accent": "#7DCBFF",
+          "raised": "${raised}",
+          "label": "${oxygen}",
+          "size": [
+            170,
+            40
+          ]
+        },
+        "overrides": {
+          "at": [
+            0,
+            0
+          ]
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "format_version": 1,
+  "canvas_size": [
+    1160,
+    810
+  ],
+  "children": [
+    {
+      "id": "demo",
+      "prefab": "ui-prefab://orbit/showcase"
+    }
+  ]
+}

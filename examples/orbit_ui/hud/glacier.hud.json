@@ -1,0 +1,18 @@
+{
+  "format_version": 1,
+  "canvas_size": [
+    1160,
+    810
+  ],
+  "children": [
+    {
+      "id": "demo",
+      "prefab": "ui-prefab://orbit/showcase",
+      "arguments": {
+        "accent": "#7DCBFF",
+        "accent_hover": "#B4E3FF",
+        "palette_name": "GLACIER / COOL"
+      }
+    }
+  ]
+}

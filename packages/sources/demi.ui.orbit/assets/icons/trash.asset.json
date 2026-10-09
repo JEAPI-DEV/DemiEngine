@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://orbit/icons/trash",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {},
+  "source": "trash.svg",
+  "source_hash": "fnv1a64:fbe8d8a5e61cc21b",
+  "type": "Icon2D"
+}

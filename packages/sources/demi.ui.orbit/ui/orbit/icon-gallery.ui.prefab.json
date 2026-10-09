@@ -1,0 +1,1652 @@
+{
+  "format_version": 1,
+  "id": "ui-prefab://orbit/icon-gallery",
+  "parameters": {
+    "tint": {
+      "type": "string",
+      "default": "#FFB66B"
+    }
+  },
+  "root": {
+    "id": "icons",
+    "type": "container",
+    "dock": "fill",
+    "children": [
+      {
+        "id": "background",
+        "type": "panel",
+        "dock": "fill",
+        "background_color": "#101822"
+      },
+      {
+        "id": "title",
+        "type": "label",
+        "at": [
+          56,
+          38
+        ],
+        "size": [
+          1000,
+          50
+        ],
+        "text": "Orbit / Icons",
+        "font_size": 28,
+        "text_color": "#EEF4FA"
+      },
+      {
+        "id": "tile_arrow-right",
+        "type": "panel",
+        "at": [
+          56,
+          120
+        ],
+        "size": [
+          112,
+          105
+        ],
+        "background_color": "#1B2735",
+        "corner_radius": 12,
+        "children": [
+          {
+            "id": "tile_arrow-right.image",
+            "type": "image",
+            "at": [
+              38,
+              15
+            ],
+            "size": [
+              36,
+              36
+            ],
+            "texture": "asset://orbit/icons/arrow-right",
+            "color": "${tint}"
+          },
+          {
+            "id": "tile_arrow-right.label",
+            "type": "label",
+            "dock": "bottom",
+            "size": [
+              0,
+              30
+            ],
+            "margin": [
+              4,
+              0,
+              4,
+              4
+            ],
+            "text": "arrow-right",
+            "font_size": 12,
+            "text_color": "#A3B5C5",
+            "text_alignment": "center"
+          }
+        ]
+      },
+      {
+        "id": "tile_arrow-left",
+        "type": "panel",
+        "at": [
+          188,
+          120
+        ],
+        "size": [
+          112,
+          105
+        ],
+        "background_color": "#1B2735",
+        "corner_radius": 12,
+        "children": [
+          {
+            "id": "tile_arrow-left.image",
+            "type": "image",
+            "at": [
+              38,
+              15
+            ],
+            "size": [
+              36,
+              36
+            ],
+            "texture": "asset://orbit/icons/arrow-left",
+            "color": "${tint}"
+          },
+          {
+            "id": "tile_arrow-left.label",
+            "type": "label",
+            "dock": "bottom",
+            "size": [
+              0,
+              30
+            ],
+            "margin": [
+              4,
+              0,
+              4,
+              4
+            ],
+            "text": "arrow-left",
+            "font_size": 12,
+            "text_color": "#A3B5C5",
+            "text_alignment": "center"
+          }
+        ]
+      },
+      {
+        "id": "tile_chevron-down",
+        "type": "panel",
+        "at": [
+          320,
+          120
+        ],
+        "size": [
+          112,
+          105
+        ],
+        "background_color": "#1B2735",
+        "corner_radius": 12,
+        "children": [
+          {
+            "id": "tile_chevron-down.image",
+            "type": "image",
+            "at": [
+              38,
+              15
+            ],
+            "size": [
+              36,
+              36
+            ],
+            "texture": "asset://orbit/icons/chevron-down",
+            "color": "${tint}"
+          },
+          {
+            "id": "tile_chevron-down.label",
+            "type": "label",
+            "dock": "bottom",
+            "size": [
+              0,
+              30
+            ],
+            "margin": [
+              4,
+              0,
+              4,
+              4
+            ],
+            "text": "chevron-down",
+            "font_size": 12,
+            "text_color": "#A3B5C5",
+            "text_alignment": "center"
+          }
+        ]
+      },
+      {
+        "id": "tile_chevron-right",
+        "type": "panel",
+        "at": [
+          452,
+          120
+        ],
+        "size": [
+          112,
+          105
+        ],
+        "background_color": "#1B2735",
+        "corner_radius": 12,
+        "children": [
+          {
+            "id": "tile_chevron-right.image",
+            "type": "image",
+            "at": [
+              38,
+              15
+            ],
+            "size": [
+              36,
+              36
+            ],
+            "texture": "asset://orbit/icons/chevron-right",
+            "color": "${tint}"
+          },
+          {
+            "id": "tile_chevron-right.label",
+            "type": "label",
+            "dock": "bottom",
+            "size": [
+              0,
+              30
+            ],
+            "margin": [
+              4,
+              0,
+              4,
+              4
+            ],
+            "text": "chevron-right",
+            "font_size": 12,
+            "text_color": "#A3B5C5",
+            "text_alignment": "center"
+          }
+        ]
+      },
+      {
+        "id": "tile_check",
+        "type": "panel",
+        "at": [
+          584,
+          120
+        ],
+        "size": [
+          112,
+          105
+        ],
+        "background_color": "#1B2735",
+        "corner_radius": 12,
+        "children": [
+          {
+            "id": "tile_check.image",
+            "type": "image",
+            "at": [
+              38,
+              15
+            ],
+            "size": [
+              36,
+              36
+            ],
+            "texture": "asset://orbit/icons/check",
+            "color": "${tint}"
+          },
+          {
+            "id": "tile_check.label",
+            "type": "label",
+            "dock": "bottom",
+            "size": [
+              0,
+              30
+            ],
+            "margin": [
+              4,
+              0,
+              4,
+              4
+            ],
+            "text": "check",
+            "font_size": 12,
+            "text_color": "#A3B5C5",
+            "text_alignment": "center"
+          }
+        ]
+      },
+      {
+        "id": "tile_close",
+        "type": "panel",
+        "at": [
+          716,
+          120
+        ],
+        "size": [
+          112,
+          105
+        ],
+        "background_color": "#1B2735",
+        "corner_radius": 12,
+        "children": [
+          {
+            "id": "tile_close.image",
+            "type": "image",
+            "at": [
+              38,
+              15
+            ],
+            "size": [
+              36,
+              36
+            ],
+            "texture": "asset://orbit/icons/close",
+            "color": "${tint}"
+          },
+          {
+            "id": "tile_close.label",
+            "type": "label",
+            "dock": "bottom",
+            "size": [
+              0,
+              30
+            ],
+            "margin": [
+              4,
+              0,
+              4,
+              4
+            ],
+            "text": "close",
+            "font_size": 12,
+            "text_color": "#A3B5C5",
+            "text_alignment": "center"
+          }
+        ]
+      },
+      {
+        "id": "tile_plus",
+        "type": "panel",
+        "at": [
+          848,
+          120
+        ],
+        "size": [
+          112,
+          105
+        ],
+        "background_color": "#1B2735",
+        "corner_radius": 12,
+        "children": [
+          {
+            "id": "tile_plus.image",
+            "type": "image",
+            "at": [
+              38,
+              15
+            ],
+            "size": [
+              36,
+              36
+            ],
+            "texture": "asset://orbit/icons/plus",
+            "color": "${tint}"
+          },
+          {
+            "id": "tile_plus.label",
+            "type": "label",
+            "dock": "bottom",
+            "size": [
+              0,
+              30
+            ],
+            "margin": [
+              4,
+              0,
+              4,
+              4
+            ],
+            "text": "plus",
+            "font_size": 12,
+            "text_color": "#A3B5C5",
+            "text_alignment": "center"
+          }
+        ]
+      },
+      {
+        "id": "tile_minus",
+        "type": "panel",
+        "at": [
+          980,
+          120
+        ],
+        "size": [
+          112,
+          105
+        ],
+        "background_color": "#1B2735",
+        "corner_radius": 12,
+        "children": [
+          {
+            "id": "tile_minus.image",
+            "type": "image",
+            "at": [
+              38,
+              15
+            ],
+            "size": [
+              36,
+              36
+            ],
+            "texture": "asset://orbit/icons/minus",
+            "color": "${tint}"
+          },
+          {
+            "id": "tile_minus.label",
+            "type": "label",
+            "dock": "bottom",
+            "size": [
+              0,
+              30
+            ],
+            "margin": [
+              4,
+              0,
+              4,
+              4
+            ],
+            "text": "minus",
+            "font_size": 12,
+            "text_color": "#A3B5C5",
+            "text_alignment": "center"
+          }
+        ]
+      },
+      {
+        "id": "tile_search",
+        "type": "panel",
+        "at": [
+          56,
+          245
+        ],
+        "size": [
+          112,
+          105
+        ],
+        "background_color": "#1B2735",
+        "corner_radius": 12,
+        "children": [
+          {
+            "id": "tile_search.image",
+            "type": "image",
+            "at": [
+              38,
+              15
+            ],
+            "size": [
+              36,
+              36
+            ],
+            "texture": "asset://orbit/icons/search",
+            "color": "${tint}"
+          },
+          {
+            "id": "tile_search.label",
+            "type": "label",
+            "dock": "bottom",
+            "size": [
+              0,
+              30
+            ],
+            "margin": [
+              4,
+              0,
+              4,
+              4
+            ],
+            "text": "search",
+            "font_size": 12,
+            "text_color": "#A3B5C5",
+            "text_alignment": "center"
+          }
+        ]
+      },
+      {
+        "id": "tile_menu",
+        "type": "panel",
+        "at": [
+          188,
+          245
+        ],
+        "size": [
+          112,
+          105
+        ],
+        "background_color": "#1B2735",
+        "corner_radius": 12,
+        "children": [
+          {
+            "id": "tile_menu.image",
+            "type": "image",
+            "at": [
+              38,
+              15
+            ],
+            "size": [
+              36,
+              36
+            ],
+            "texture": "asset://orbit/icons/menu",
+            "color": "${tint}"
+          },
+          {
+            "id": "tile_menu.label",
+            "type": "label",
+            "dock": "bottom",
+            "size": [
+              0,
+              30
+            ],
+            "margin": [
+              4,
+              0,
+              4,
+              4
+            ],
+            "text": "menu",
+            "font_size": 12,
+            "text_color": "#A3B5C5",
+            "text_alignment": "center"
+          }
+        ]
+      },
+      {
+        "id": "tile_home",
+        "type": "panel",
+        "at": [
+          320,
+          245
+        ],
+        "size": [
+          112,
+          105
+        ],
+        "background_color": "#1B2735",
+        "corner_radius": 12,
+        "children": [
+          {
+            "id": "tile_home.image",
+            "type": "image",
+            "at": [
+              38,
+              15
+            ],
+            "size": [
+              36,
+              36
+            ],
+            "texture": "asset://orbit/icons/home",
+            "color": "${tint}"
+          },
+          {
+            "id": "tile_home.label",
+            "type": "label",
+            "dock": "bottom",
+            "size": [
+              0,
+              30
+            ],
+            "margin": [
+              4,
+              0,
+              4,
+              4
+            ],
+            "text": "home",
+            "font_size": 12,
+            "text_color": "#A3B5C5",
+            "text_alignment": "center"
+          }
+        ]
+      },
+      {
+        "id": "tile_settings",
+        "type": "panel",
+        "at": [
+          452,
+          245
+        ],
+        "size": [
+          112,
+          105
+        ],
+        "background_color": "#1B2735",
+        "corner_radius": 12,
+        "children": [
+          {
+            "id": "tile_settings.image",
+            "type": "image",
+            "at": [
+              38,
+              15
+            ],
+            "size": [
+              36,
+              36
+            ],
+            "texture": "asset://orbit/icons/settings",
+            "color": "${tint}"
+          },
+          {
+            "id": "tile_settings.label",
+            "type": "label",
+            "dock": "bottom",
+            "size": [
+              0,
+              30
+            ],
+            "margin": [
+              4,
+              0,
+              4,
+              4
+            ],
+            "text": "settings",
+            "font_size": 12,
+            "text_color": "#A3B5C5",
+            "text_alignment": "center"
+          }
+        ]
+      },
+      {
+        "id": "tile_user",
+        "type": "panel",
+        "at": [
+          584,
+          245
+        ],
+        "size": [
+          112,
+          105
+        ],
+        "background_color": "#1B2735",
+        "corner_radius": 12,
+        "children": [
+          {
+            "id": "tile_user.image",
+            "type": "image",
+            "at": [
+              38,
+              15
+            ],
+            "size": [
+              36,
+              36
+            ],
+            "texture": "asset://orbit/icons/user",
+            "color": "${tint}"
+          },
+          {
+            "id": "tile_user.label",
+            "type": "label",
+            "dock": "bottom",
+            "size": [
+              0,
+              30
+            ],
+            "margin": [
+              4,
+              0,
+              4,
+              4
+            ],
+            "text": "user",
+            "font_size": 12,
+            "text_color": "#A3B5C5",
+            "text_alignment": "center"
+          }
+        ]
+      },
+      {
+        "id": "tile_crew",
+        "type": "panel",
+        "at": [
+          716,
+          245
+        ],
+        "size": [
+          112,
+          105
+        ],
+        "background_color": "#1B2735",
+        "corner_radius": 12,
+        "children": [
+          {
+            "id": "tile_crew.image",
+            "type": "image",
+            "at": [
+              38,
+              15
+            ],
+            "size": [
+              36,
+              36
+            ],
+            "texture": "asset://orbit/icons/crew",
+            "color": "${tint}"
+          },
+          {
+            "id": "tile_crew.label",
+            "type": "label",
+            "dock": "bottom",
+            "size": [
+              0,
+              30
+            ],
+            "margin": [
+              4,
+              0,
+              4,
+              4
+            ],
+            "text": "crew",
+            "font_size": 12,
+            "text_color": "#A3B5C5",
+            "text_alignment": "center"
+          }
+        ]
+      },
+      {
+        "id": "tile_info",
+        "type": "panel",
+        "at": [
+          848,
+          245
+        ],
+        "size": [
+          112,
+          105
+        ],
+        "background_color": "#1B2735",
+        "corner_radius": 12,
+        "children": [
+          {
+            "id": "tile_info.image",
+            "type": "image",
+            "at": [
+              38,
+              15
+            ],
+            "size": [
+              36,
+              36
+            ],
+            "texture": "asset://orbit/icons/info",
+            "color": "${tint}"
+          },
+          {
+            "id": "tile_info.label",
+            "type": "label",
+            "dock": "bottom",
+            "size": [
+              0,
+              30
+            ],
+            "margin": [
+              4,
+              0,
+              4,
+              4
+            ],
+            "text": "info",
+            "font_size": 12,
+            "text_color": "#A3B5C5",
+            "text_alignment": "center"
+          }
+        ]
+      },
+      {
+        "id": "tile_warning",
+        "type": "panel",
+        "at": [
+          980,
+          245
+        ],
+        "size": [
+          112,
+          105
+        ],
+        "background_color": "#1B2735",
+        "corner_radius": 12,
+        "children": [
+          {
+            "id": "tile_warning.image",
+            "type": "image",
+            "at": [
+              38,
+              15
+            ],
+            "size": [
+              36,
+              36
+            ],
+            "texture": "asset://orbit/icons/warning",
+            "color": "${tint}"
+          },
+          {
+            "id": "tile_warning.label",
+            "type": "label",
+            "dock": "bottom",
+            "size": [
+              0,
+              30
+            ],
+            "margin": [
+              4,
+              0,
+              4,
+              4
+            ],
+            "text": "warning",
+            "font_size": 12,
+            "text_color": "#A3B5C5",
+            "text_alignment": "center"
+          }
+        ]
+      },
+      {
+        "id": "tile_bell",
+        "type": "panel",
+        "at": [
+          56,
+          370
+        ],
+        "size": [
+          112,
+          105
+        ],
+        "background_color": "#1B2735",
+        "corner_radius": 12,
+        "children": [
+          {
+            "id": "tile_bell.image",
+            "type": "image",
+            "at": [
+              38,
+              15
+            ],
+            "size": [
+              36,
+              36
+            ],
+            "texture": "asset://orbit/icons/bell",
+            "color": "${tint}"
+          },
+          {
+            "id": "tile_bell.label",
+            "type": "label",
+            "dock": "bottom",
+            "size": [
+              0,
+              30
+            ],
+            "margin": [
+              4,
+              0,
+              4,
+              4
+            ],
+            "text": "bell",
+            "font_size": 12,
+            "text_color": "#A3B5C5",
+            "text_alignment": "center"
+          }
+        ]
+      },
+      {
+        "id": "tile_power",
+        "type": "panel",
+        "at": [
+          188,
+          370
+        ],
+        "size": [
+          112,
+          105
+        ],
+        "background_color": "#1B2735",
+        "corner_radius": 12,
+        "children": [
+          {
+            "id": "tile_power.image",
+            "type": "image",
+            "at": [
+              38,
+              15
+            ],
+            "size": [
+              36,
+              36
+            ],
+            "texture": "asset://orbit/icons/power",
+            "color": "${tint}"
+          },
+          {
+            "id": "tile_power.label",
+            "type": "label",
+            "dock": "bottom",
+            "size": [
+              0,
+              30
+            ],
+            "margin": [
+              4,
+              0,
+              4,
+              4
+            ],
+            "text": "power",
+            "font_size": 12,
+            "text_color": "#A3B5C5",
+            "text_alignment": "center"
+          }
+        ]
+      },
+      {
+        "id": "tile_play",
+        "type": "panel",
+        "at": [
+          320,
+          370
+        ],
+        "size": [
+          112,
+          105
+        ],
+        "background_color": "#1B2735",
+        "corner_radius": 12,
+        "children": [
+          {
+            "id": "tile_play.image",
+            "type": "image",
+            "at": [
+              38,
+              15
+            ],
+            "size": [
+              36,
+              36
+            ],
+            "texture": "asset://orbit/icons/play",
+            "color": "${tint}"
+          },
+          {
+            "id": "tile_play.label",
+            "type": "label",
+            "dock": "bottom",
+            "size": [
+              0,
+              30
+            ],
+            "margin": [
+              4,
+              0,
+              4,
+              4
+            ],
+            "text": "play",
+            "font_size": 12,
+            "text_color": "#A3B5C5",
+            "text_alignment": "center"
+          }
+        ]
+      },
+      {
+        "id": "tile_pause",
+        "type": "panel",
+        "at": [
+          452,
+          370
+        ],
+        "size": [
+          112,
+          105
+        ],
+        "background_color": "#1B2735",
+        "corner_radius": 12,
+        "children": [
+          {
+            "id": "tile_pause.image",
+            "type": "image",
+            "at": [
+              38,
+              15
+            ],
+            "size": [
+              36,
+              36
+            ],
+            "texture": "asset://orbit/icons/pause",
+            "color": "${tint}"
+          },
+          {
+            "id": "tile_pause.label",
+            "type": "label",
+            "dock": "bottom",
+            "size": [
+              0,
+              30
+            ],
+            "margin": [
+              4,
+              0,
+              4,
+              4
+            ],
+            "text": "pause",
+            "font_size": 12,
+            "text_color": "#A3B5C5",
+            "text_alignment": "center"
+          }
+        ]
+      },
+      {
+        "id": "tile_save",
+        "type": "panel",
+        "at": [
+          584,
+          370
+        ],
+        "size": [
+          112,
+          105
+        ],
+        "background_color": "#1B2735",
+        "corner_radius": 12,
+        "children": [
+          {
+            "id": "tile_save.image",
+            "type": "image",
+            "at": [
+              38,
+              15
+            ],
+            "size": [
+              36,
+              36
+            ],
+            "texture": "asset://orbit/icons/save",
+            "color": "${tint}"
+          },
+          {
+            "id": "tile_save.label",
+            "type": "label",
+            "dock": "bottom",
+            "size": [
+              0,
+              30
+            ],
+            "margin": [
+              4,
+              0,
+              4,
+              4
+            ],
+            "text": "save",
+            "font_size": 12,
+            "text_color": "#A3B5C5",
+            "text_alignment": "center"
+          }
+        ]
+      },
+      {
+        "id": "tile_folder",
+        "type": "panel",
+        "at": [
+          716,
+          370
+        ],
+        "size": [
+          112,
+          105
+        ],
+        "background_color": "#1B2735",
+        "corner_radius": 12,
+        "children": [
+          {
+            "id": "tile_folder.image",
+            "type": "image",
+            "at": [
+              38,
+              15
+            ],
+            "size": [
+              36,
+              36
+            ],
+            "texture": "asset://orbit/icons/folder",
+            "color": "${tint}"
+          },
+          {
+            "id": "tile_folder.label",
+            "type": "label",
+            "dock": "bottom",
+            "size": [
+              0,
+              30
+            ],
+            "margin": [
+              4,
+              0,
+              4,
+              4
+            ],
+            "text": "folder",
+            "font_size": 12,
+            "text_color": "#A3B5C5",
+            "text_alignment": "center"
+          }
+        ]
+      },
+      {
+        "id": "tile_download",
+        "type": "panel",
+        "at": [
+          848,
+          370
+        ],
+        "size": [
+          112,
+          105
+        ],
+        "background_color": "#1B2735",
+        "corner_radius": 12,
+        "children": [
+          {
+            "id": "tile_download.image",
+            "type": "image",
+            "at": [
+              38,
+              15
+            ],
+            "size": [
+              36,
+              36
+            ],
+            "texture": "asset://orbit/icons/download",
+            "color": "${tint}"
+          },
+          {
+            "id": "tile_download.label",
+            "type": "label",
+            "dock": "bottom",
+            "size": [
+              0,
+              30
+            ],
+            "margin": [
+              4,
+              0,
+              4,
+              4
+            ],
+            "text": "download",
+            "font_size": 12,
+            "text_color": "#A3B5C5",
+            "text_alignment": "center"
+          }
+        ]
+      },
+      {
+        "id": "tile_upload",
+        "type": "panel",
+        "at": [
+          980,
+          370
+        ],
+        "size": [
+          112,
+          105
+        ],
+        "background_color": "#1B2735",
+        "corner_radius": 12,
+        "children": [
+          {
+            "id": "tile_upload.image",
+            "type": "image",
+            "at": [
+              38,
+              15
+            ],
+            "size": [
+              36,
+              36
+            ],
+            "texture": "asset://orbit/icons/upload",
+            "color": "${tint}"
+          },
+          {
+            "id": "tile_upload.label",
+            "type": "label",
+            "dock": "bottom",
+            "size": [
+              0,
+              30
+            ],
+            "margin": [
+              4,
+              0,
+              4,
+              4
+            ],
+            "text": "upload",
+            "font_size": 12,
+            "text_color": "#A3B5C5",
+            "text_alignment": "center"
+          }
+        ]
+      },
+      {
+        "id": "tile_trash",
+        "type": "panel",
+        "at": [
+          56,
+          495
+        ],
+        "size": [
+          112,
+          105
+        ],
+        "background_color": "#1B2735",
+        "corner_radius": 12,
+        "children": [
+          {
+            "id": "tile_trash.image",
+            "type": "image",
+            "at": [
+              38,
+              15
+            ],
+            "size": [
+              36,
+              36
+            ],
+            "texture": "asset://orbit/icons/trash",
+            "color": "${tint}"
+          },
+          {
+            "id": "tile_trash.label",
+            "type": "label",
+            "dock": "bottom",
+            "size": [
+              0,
+              30
+            ],
+            "margin": [
+              4,
+              0,
+              4,
+              4
+            ],
+            "text": "trash",
+            "font_size": 12,
+            "text_color": "#A3B5C5",
+            "text_alignment": "center"
+          }
+        ]
+      },
+      {
+        "id": "tile_lock",
+        "type": "panel",
+        "at": [
+          188,
+          495
+        ],
+        "size": [
+          112,
+          105
+        ],
+        "background_color": "#1B2735",
+        "corner_radius": 12,
+        "children": [
+          {
+            "id": "tile_lock.image",
+            "type": "image",
+            "at": [
+              38,
+              15
+            ],
+            "size": [
+              36,
+              36
+            ],
+            "texture": "asset://orbit/icons/lock",
+            "color": "${tint}"
+          },
+          {
+            "id": "tile_lock.label",
+            "type": "label",
+            "dock": "bottom",
+            "size": [
+              0,
+              30
+            ],
+            "margin": [
+              4,
+              0,
+              4,
+              4
+            ],
+            "text": "lock",
+            "font_size": 12,
+            "text_color": "#A3B5C5",
+            "text_alignment": "center"
+          }
+        ]
+      },
+      {
+        "id": "tile_heart",
+        "type": "panel",
+        "at": [
+          320,
+          495
+        ],
+        "size": [
+          112,
+          105
+        ],
+        "background_color": "#1B2735",
+        "corner_radius": 12,
+        "children": [
+          {
+            "id": "tile_heart.image",
+            "type": "image",
+            "at": [
+              38,
+              15
+            ],
+            "size": [
+              36,
+              36
+            ],
+            "texture": "asset://orbit/icons/heart",
+            "color": "${tint}"
+          },
+          {
+            "id": "tile_heart.label",
+            "type": "label",
+            "dock": "bottom",
+            "size": [
+              0,
+              30
+            ],
+            "margin": [
+              4,
+              0,
+              4,
+              4
+            ],
+            "text": "heart",
+            "font_size": 12,
+            "text_color": "#A3B5C5",
+            "text_alignment": "center"
+          }
+        ]
+      },
+      {
+        "id": "tile_water",
+        "type": "panel",
+        "at": [
+          452,
+          495
+        ],
+        "size": [
+          112,
+          105
+        ],
+        "background_color": "#1B2735",
+        "corner_radius": 12,
+        "children": [
+          {
+            "id": "tile_water.image",
+            "type": "image",
+            "at": [
+              38,
+              15
+            ],
+            "size": [
+              36,
+              36
+            ],
+            "texture": "asset://orbit/icons/water",
+            "color": "${tint}"
+          },
+          {
+            "id": "tile_water.label",
+            "type": "label",
+            "dock": "bottom",
+            "size": [
+              0,
+              30
+            ],
+            "margin": [
+              4,
+              0,
+              4,
+              4
+            ],
+            "text": "water",
+            "font_size": 12,
+            "text_color": "#A3B5C5",
+            "text_alignment": "center"
+          }
+        ]
+      },
+      {
+        "id": "tile_energy",
+        "type": "panel",
+        "at": [
+          584,
+          495
+        ],
+        "size": [
+          112,
+          105
+        ],
+        "background_color": "#1B2735",
+        "corner_radius": 12,
+        "children": [
+          {
+            "id": "tile_energy.image",
+            "type": "image",
+            "at": [
+              38,
+              15
+            ],
+            "size": [
+              36,
+              36
+            ],
+            "texture": "asset://orbit/icons/energy",
+            "color": "${tint}"
+          },
+          {
+            "id": "tile_energy.label",
+            "type": "label",
+            "dock": "bottom",
+            "size": [
+              0,
+              30
+            ],
+            "margin": [
+              4,
+              0,
+              4,
+              4
+            ],
+            "text": "energy",
+            "font_size": 12,
+            "text_color": "#A3B5C5",
+            "text_alignment": "center"
+          }
+        ]
+      },
+      {
+        "id": "tile_cargo",
+        "type": "panel",
+        "at": [
+          716,
+          495
+        ],
+        "size": [
+          112,
+          105
+        ],
+        "background_color": "#1B2735",
+        "corner_radius": 12,
+        "children": [
+          {
+            "id": "tile_cargo.image",
+            "type": "image",
+            "at": [
+              38,
+              15
+            ],
+            "size": [
+              36,
+              36
+            ],
+            "texture": "asset://orbit/icons/cargo",
+            "color": "${tint}"
+          },
+          {
+            "id": "tile_cargo.label",
+            "type": "label",
+            "dock": "bottom",
+            "size": [
+              0,
+              30
+            ],
+            "margin": [
+              4,
+              0,
+              4,
+              4
+            ],
+            "text": "cargo",
+            "font_size": 12,
+            "text_color": "#A3B5C5",
+            "text_alignment": "center"
+          }
+        ]
+      },
+      {
+        "id": "tile_globe",
+        "type": "panel",
+        "at": [
+          848,
+          495
+        ],
+        "size": [
+          112,
+          105
+        ],
+        "background_color": "#1B2735",
+        "corner_radius": 12,
+        "children": [
+          {
+            "id": "tile_globe.image",
+            "type": "image",
+            "at": [
+              38,
+              15
+            ],
+            "size": [
+              36,
+              36
+            ],
+            "texture": "asset://orbit/icons/globe",
+            "color": "${tint}"
+          },
+          {
+            "id": "tile_globe.label",
+            "type": "label",
+            "dock": "bottom",
+            "size": [
+              0,
+              30
+            ],
+            "margin": [
+              4,
+              0,
+              4,
+              4
+            ],
+            "text": "globe",
+            "font_size": 12,
+            "text_color": "#A3B5C5",
+            "text_alignment": "center"
+          }
+        ]
+      },
+      {
+        "id": "tile_rocket",
+        "type": "panel",
+        "at": [
+          980,
+          495
+        ],
+        "size": [
+          112,
+          105
+        ],
+        "background_color": "#1B2735",
+        "corner_radius": 12,
+        "children": [
+          {
+            "id": "tile_rocket.image",
+            "type": "image",
+            "at": [
+              38,
+              15
+            ],
+            "size": [
+              36,
+              36
+            ],
+            "texture": "asset://orbit/icons/rocket",
+            "color": "${tint}"
+          },
+          {
+            "id": "tile_rocket.label",
+            "type": "label",
+            "dock": "bottom",
+            "size": [
+              0,
+              30
+            ],
+            "margin": [
+              4,
+              0,
+              4,
+              4
+            ],
+            "text": "rocket",
+            "font_size": 12,
+            "text_color": "#A3B5C5",
+            "text_alignment": "center"
+          }
+        ]
+      },
+      {
+        "id": "icon_action",
+        "prefab": "ui-prefab://orbit/icon-button",
+        "arguments": {
+          "texture": "asset://orbit/icons/settings",
+          "label": "Settings"
+        },
+        "overrides": {
+          "at": [
+            56,
+            662
+          ]
+        }
+      },
+      {
+        "id": "save",
+        "prefab": "ui-prefab://orbit/button-with-icon",
+        "arguments": {
+          "texture": "asset://orbit/icons/save",
+          "label": "Save changes"
+        },
+        "overrides": {
+          "at": [
+            124,
+            662
+          ]
+        }
+      },
+      {
+        "id": "back",
+        "prefab": "ui-prefab://orbit/button-secondary",
+        "arguments": {
+          "label": "< Components",
+          "action": "orbit.components"
+        },
+        "overrides": {
+          "at": [
+            916,
+            752
+          ],
+          "size": [
+            188,
+            40
+          ]
+        }
+      }
+    ]
+  }
+}

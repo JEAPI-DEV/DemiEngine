@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://orbit/icons/plus",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {},
+  "source": "plus.svg",
+  "source_hash": "fnv1a64:8f5ee03a2067b3fb",
+  "type": "Icon2D"
+}

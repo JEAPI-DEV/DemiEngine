@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://orbit/icons/home",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {},
+  "source": "home.svg",
+  "source_hash": "fnv1a64:1b978434de859b28",
+  "type": "Icon2D"
+}

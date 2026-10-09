@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://orbit/icons/bell",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {},
+  "source": "bell.svg",
+  "source_hash": "fnv1a64:447022819676bcfd",
+  "type": "Icon2D"
+}

@@ -1,0 +1,35 @@
+{
+  "format_version": 1,
+  "name": "Orbit UI",
+  "main_scene": "scene://orbit/main",
+  "scenes": [
+    {
+      "id": "scene://orbit/main"
+    },
+    {
+      "id": "scene://orbit/components"
+    },
+    {
+      "id": "scene://orbit/glacier"
+    },
+    {
+      "id": "scene://orbit/main_menu"
+    },
+    {
+      "id": "scene://orbit/inventory"
+    },
+    {
+      "id": "scene://orbit/icons"
+    }
+  ],
+  "packages": {
+    "demi.ui.orbit": "^1.0.0"
+  },
+  "build": {
+    "application_id": "de.demiengine.orbit",
+    "window": {
+      "width": 1160,
+      "height": 810
+    }
+  }
+}

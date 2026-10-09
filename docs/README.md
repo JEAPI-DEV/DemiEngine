@@ -7,6 +7,9 @@ are registered in `tools/package-store/src/Docs.php`.
 
 This directory keeps material that has a different job:
 
+- [Orbit UI qualification](orbit-ui-qualification.md) records package UI reuse,
+  shared docking/rendering fixes, native captures and store publication evidence.
+
 - [Shared authoring foundations](shared-authoring-foundations.md) describes
   reusable graph, history, palette and color responsibilities and their adapters.
 

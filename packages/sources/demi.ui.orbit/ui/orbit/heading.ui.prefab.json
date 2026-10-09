@@ -1,0 +1,29 @@
+{
+  "format_version": 1,
+  "id": "ui-prefab://orbit/heading",
+  "parameters": {
+    "label": {
+      "type": "string",
+      "default": "Heading"
+    },
+    "size": {
+      "type": "array",
+      "default": [
+        320,
+        40
+      ]
+    },
+    "text": {
+      "type": "string",
+      "default": "#EEF4FA"
+    }
+  },
+  "root": {
+    "id": "heading",
+    "type": "label",
+    "text": "${label}",
+    "size": "${size}",
+    "font_size": 28,
+    "text_color": "${text}"
+  }
+}

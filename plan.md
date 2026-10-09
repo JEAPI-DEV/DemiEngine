@@ -1,5 +1,11 @@
 # DemiEngine Roadmap
 
+Orbit UI 1.0.0 is published with 39 native prefabs/compositions and 32 tintable
+SVG icons. Installed package prefabs and declarative HUD creation share the
+authoring loader; docking alignment and image/input rendering are corrected.
+See [qualification](docs/orbit-ui-qualification.md) for native captures, scoped
+tests, cooked-runtime checks and store deployment evidence.
+
 Authored Hierarchy selection reveals ancestors and scrolls the selected scene
 entity or HUD control into view. Explicit reselection reveals collapsed paths;
 idle selection respects manual collapse. Redundant canvas badges and selection

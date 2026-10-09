@@ -1,0 +1,61 @@
+{
+  "format_version": 1,
+  "id": "ui-prefab://orbit/button-danger",
+  "parameters": {
+    "accent": {
+      "type": "string",
+      "default": "#FFB66B"
+    },
+    "accent_hover": {
+      "type": "string",
+      "default": "#FFD09A"
+    },
+    "action": {
+      "type": "string",
+      "default": ""
+    },
+    "disabled": {
+      "type": "boolean",
+      "default": false
+    },
+    "label": {
+      "type": "string",
+      "default": "Continue"
+    },
+    "negative": {
+      "type": "string",
+      "default": "#FA8093"
+    },
+    "on_accent": {
+      "type": "string",
+      "default": "#19232F"
+    },
+    "size": {
+      "type": "array",
+      "default": [
+        200,
+        44
+      ]
+    },
+    "stroke": {
+      "type": "string",
+      "default": "#3B5166"
+    }
+  },
+  "root": {
+    "id": "control",
+    "type": "button",
+    "size": "${size}",
+    "text": "${label}",
+    "action": "${action}",
+    "disabled": "${disabled}",
+    "corner_radius": 9,
+    "font_size": 16,
+    "text_color": "${on_accent}",
+    "background_color": "${negative}",
+    "hover_color": "${accent_hover}",
+    "border_color": "${stroke}",
+    "border_width": 0,
+    "color": "${accent}"
+  }
+}

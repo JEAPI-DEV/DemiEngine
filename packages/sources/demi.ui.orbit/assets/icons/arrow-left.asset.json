@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://orbit/icons/arrow-left",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {},
+  "source": "arrow-left.svg",
+  "source_hash": "fnv1a64:5ea59569a207c5e8",
+  "type": "Icon2D"
+}

@@ -1,0 +1,95 @@
+{
+  "format_version": 1,
+  "id": "ui-prefab://orbit/stepper",
+  "parameters": {
+    "accent": {
+      "type": "string",
+      "default": "#FFB66B"
+    },
+    "raised": {
+      "type": "string",
+      "default": "#263748"
+    },
+    "stroke": {
+      "type": "string",
+      "default": "#3B5166"
+    },
+    "text": {
+      "type": "string",
+      "default": "#EEF4FA"
+    },
+    "value": {
+      "type": "string",
+      "default": "1"
+    }
+  },
+  "root": {
+    "id": "stepper",
+    "type": "container",
+    "size": [
+      212,
+      44
+    ],
+    "children": [
+      {
+        "id": "minus",
+        "prefab": "ui-prefab://orbit/button-secondary",
+        "arguments": {
+          "accent": "${accent}",
+          "raised": "${raised}",
+          "stroke": "${stroke}",
+          "text": "${text}",
+          "label": "-",
+          "size": [
+            44,
+            44
+          ]
+        },
+        "overrides": {
+          "at": [
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "id": "value",
+        "type": "label",
+        "text": "${value}",
+        "at": [
+          56,
+          0
+        ],
+        "size": [
+          100,
+          44
+        ],
+        "text_color": "${text}",
+        "font_size": 16,
+        "text_vertical_alignment": "center",
+        "text_alignment": "center"
+      },
+      {
+        "id": "plus",
+        "prefab": "ui-prefab://orbit/button-secondary",
+        "arguments": {
+          "accent": "${accent}",
+          "raised": "${raised}",
+          "stroke": "${stroke}",
+          "text": "${text}",
+          "label": "+",
+          "size": [
+            44,
+            44
+          ]
+        },
+        "overrides": {
+          "at": [
+            168,
+            0
+          ]
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://orbit/icons/rocket",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {},
+  "source": "rocket.svg",
+  "source_hash": "fnv1a64:99cceb0d7668b17d",
+  "type": "Icon2D"
+}

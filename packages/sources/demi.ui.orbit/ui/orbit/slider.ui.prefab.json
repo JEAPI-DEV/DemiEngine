@@ -1,0 +1,51 @@
+{
+  "format_version": 1,
+  "id": "ui-prefab://orbit/slider",
+  "parameters": {
+    "accent": {
+      "type": "string",
+      "default": "#FFB66B"
+    },
+    "action": {
+      "type": "string",
+      "default": ""
+    },
+    "muted": {
+      "type": "string",
+      "default": "#A3B5C5"
+    },
+    "raised": {
+      "type": "string",
+      "default": "#263748"
+    },
+    "size": {
+      "type": "array",
+      "default": [
+        280,
+        40
+      ]
+    },
+    "text": {
+      "type": "string",
+      "default": "#EEF4FA"
+    },
+    "value": {
+      "type": "number",
+      "default": 0.65
+    }
+  },
+  "root": {
+    "id": "slider",
+    "type": "slider",
+    "size": "${size}",
+    "value": "${value}",
+    "minimum": 0,
+    "maximum": 1,
+    "action": "${action}",
+    "color": "${accent}",
+    "background_color": "${raised}",
+    "text_color": "${text}",
+    "border_color": "${muted}",
+    "corner_radius": 4
+  }
+}

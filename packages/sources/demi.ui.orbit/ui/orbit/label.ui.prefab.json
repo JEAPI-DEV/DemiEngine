@@ -1,0 +1,29 @@
+{
+  "format_version": 1,
+  "id": "ui-prefab://orbit/label",
+  "parameters": {
+    "label": {
+      "type": "string",
+      "default": "Label"
+    },
+    "size": {
+      "type": "array",
+      "default": [
+        240,
+        24
+      ]
+    },
+    "text": {
+      "type": "string",
+      "default": "#EEF4FA"
+    }
+  },
+  "root": {
+    "id": "label",
+    "type": "label",
+    "text": "${label}",
+    "size": "${size}",
+    "font_size": 16,
+    "text_color": "${text}"
+  }
+}

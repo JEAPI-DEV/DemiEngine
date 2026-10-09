@@ -1,0 +1,205 @@
+{
+  "format_version": 1,
+  "id": "ui-prefab://orbit/main-menu",
+  "parameters": {
+    "accent": {
+      "type": "string",
+      "default": "#FFB66B"
+    },
+    "accent_hover": {
+      "type": "string",
+      "default": "#FFD09A"
+    },
+    "background": {
+      "type": "string",
+      "default": "#101822"
+    },
+    "muted": {
+      "type": "string",
+      "default": "#A3B5C5"
+    },
+    "on_accent": {
+      "type": "string",
+      "default": "#19232F"
+    },
+    "raised": {
+      "type": "string",
+      "default": "#263748"
+    },
+    "stroke": {
+      "type": "string",
+      "default": "#3B5166"
+    },
+    "subtitle": {
+      "type": "string",
+      "default": "Your next story starts here."
+    },
+    "surface": {
+      "type": "string",
+      "default": "#1B2735"
+    },
+    "text": {
+      "type": "string",
+      "default": "#EEF4FA"
+    },
+    "title": {
+      "type": "string",
+      "default": "Beyond the horizon"
+    }
+  },
+  "root": {
+    "id": "main_menu",
+    "type": "container",
+    "dock": "fill",
+    "children": [
+      {
+        "id": "background",
+        "type": "panel",
+        "dock": "fill",
+        "background_color": "${background}"
+      },
+      {
+        "id": "title",
+        "type": "label",
+        "text": "${title}",
+        "at": [
+          56,
+          64
+        ],
+        "size": [
+          700,
+          64
+        ],
+        "text_color": "${text}",
+        "font_size": 40,
+        "text_vertical_alignment": "center"
+      },
+      {
+        "id": "subtitle",
+        "type": "label",
+        "text": "${subtitle}",
+        "at": [
+          56,
+          136
+        ],
+        "size": [
+          700,
+          32
+        ],
+        "text_color": "${muted}",
+        "font_size": 18,
+        "text_vertical_alignment": "center"
+      },
+      {
+        "id": "menu",
+        "prefab": "ui-prefab://orbit/panel",
+        "arguments": {
+          "accent": "${accent}",
+          "stroke": "${stroke}",
+          "surface": "${surface}",
+          "text": "${text}",
+          "title": "Expedition",
+          "content": [
+            {
+              "id": "continue",
+              "prefab": "ui-prefab://orbit/button-primary",
+              "arguments": {
+                "accent": "${accent}",
+                "accent_hover": "${accent_hover}",
+                "on_accent": "${on_accent}",
+                "stroke": "${stroke}",
+                "label": "Continue",
+                "action": "menu.continue",
+                "size": [
+                  300,
+                  48
+                ]
+              },
+              "overrides": {
+                "at": [
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "id": "new_game",
+              "prefab": "ui-prefab://orbit/button-secondary",
+              "arguments": {
+                "accent": "${accent}",
+                "raised": "${raised}",
+                "stroke": "${stroke}",
+                "text": "${text}",
+                "label": "New expedition",
+                "action": "menu.new",
+                "size": [
+                  300,
+                  48
+                ]
+              },
+              "overrides": {
+                "at": [
+                  0,
+                  62
+                ]
+              }
+            },
+            {
+              "id": "settings",
+              "prefab": "ui-prefab://orbit/button-secondary",
+              "arguments": {
+                "accent": "${accent}",
+                "raised": "${raised}",
+                "stroke": "${stroke}",
+                "text": "${text}",
+                "label": "Settings",
+                "action": "menu.settings",
+                "size": [
+                  300,
+                  48
+                ]
+              },
+              "overrides": {
+                "at": [
+                  0,
+                  124
+                ]
+              }
+            },
+            {
+              "id": "quit",
+              "prefab": "ui-prefab://orbit/button-quiet",
+              "arguments": {
+                "accent": "${accent}",
+                "stroke": "${stroke}",
+                "text": "${text}",
+                "label": "Quit",
+                "action": "menu.quit",
+                "size": [
+                  300,
+                  44
+                ]
+              },
+              "overrides": {
+                "at": [
+                  0,
+                  186
+                ]
+              }
+            }
+          ],
+          "size": [
+            340,
+            322
+          ]
+        },
+        "overrides": {
+          "at": [
+            56,
+            224
+          ]
+        }
+      }
+    ]
+  }
+}

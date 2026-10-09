@@ -1,0 +1,718 @@
+{
+  "format_version": 1,
+  "id": "ui-prefab://orbit/showcase",
+  "parameters": {
+    "accent": {
+      "type": "string",
+      "default": "#FFB66B"
+    },
+    "accent_hover": {
+      "type": "string",
+      "default": "#FFD09A"
+    },
+    "background": {
+      "type": "string",
+      "default": "#101822"
+    },
+    "muted": {
+      "type": "string",
+      "default": "#A3B5C5"
+    },
+    "negative": {
+      "type": "string",
+      "default": "#FA8093"
+    },
+    "on_accent": {
+      "type": "string",
+      "default": "#19232F"
+    },
+    "palette_name": {
+      "type": "string",
+      "default": "EMBER / DEFAULT"
+    },
+    "positive": {
+      "type": "string",
+      "default": "#67D7BB"
+    },
+    "raised": {
+      "type": "string",
+      "default": "#263748"
+    },
+    "stroke": {
+      "type": "string",
+      "default": "#3B5166"
+    },
+    "surface": {
+      "type": "string",
+      "default": "#1B2735"
+    },
+    "text": {
+      "type": "string",
+      "default": "#EEF4FA"
+    }
+  },
+  "root": {
+    "id": "showcase",
+    "type": "container",
+    "size": [
+      1160,
+      810
+    ],
+    "children": [
+      {
+        "id": "background",
+        "type": "panel",
+        "dock": "fill",
+        "respect_safe_area": false,
+        "background_color": "${background}"
+      },
+      {
+        "id": "eyebrow",
+        "type": "label",
+        "at": [
+          56,
+          32
+        ],
+        "size": [
+          650,
+          24
+        ],
+        "text": "ORBIT  /  NATIVE INTERFACE KIT",
+        "font_size": 13,
+        "text_color": "${accent}"
+      },
+      {
+        "id": "title",
+        "prefab": "ui-prefab://orbit/heading",
+        "arguments": {
+          "text": "${text}",
+          "label": "A clear view of your next mission.",
+          "size": [
+            800,
+            52
+          ]
+        },
+        "overrides": {
+          "at": [
+            56,
+            63
+          ]
+        }
+      },
+      {
+        "id": "palette",
+        "prefab": "ui-prefab://orbit/badge",
+        "arguments": {
+          "accent": "${accent}",
+          "raised": "${raised}",
+          "label": "${palette_name}",
+          "size": [
+            188,
+            32
+          ]
+        },
+        "overrides": {
+          "at": [
+            916,
+            59
+          ]
+        }
+      },
+      {
+        "id": "crew",
+        "prefab": "ui-prefab://orbit/panel",
+        "arguments": {
+          "accent": "${accent}",
+          "stroke": "${stroke}",
+          "surface": "${surface}",
+          "text": "${text}",
+          "title": "Crew profile",
+          "content": [
+            {
+              "id": "role",
+              "prefab": "ui-prefab://orbit/badge",
+              "arguments": {
+                "accent": "${positive}",
+                "raised": "${raised}",
+                "label": "FIELD ENGINEER",
+                "size": [
+                  180,
+                  30
+                ]
+              },
+              "overrides": {
+                "at": [
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "id": "name",
+              "prefab": "ui-prefab://orbit/heading",
+              "arguments": {
+                "text": "${text}",
+                "label": "Mara Quinn",
+                "size": [
+                  260,
+                  40
+                ]
+              },
+              "overrides": {
+                "at": [
+                  0,
+                  48
+                ]
+              }
+            },
+            {
+              "id": "detail",
+              "prefab": "ui-prefab://orbit/label",
+              "arguments": {
+                "text": "${muted}",
+                "label": "Crew 07 / Surface team",
+                "size": [
+                  260,
+                  24
+                ]
+              },
+              "overrides": {
+                "at": [
+                  0,
+                  90
+                ]
+              }
+            },
+            {
+              "id": "health_label",
+              "prefab": "ui-prefab://orbit/label",
+              "arguments": {
+                "text": "${text}",
+                "label": "Health  /  86%",
+                "size": [
+                  260,
+                  24
+                ]
+              },
+              "overrides": {
+                "at": [
+                  0,
+                  144
+                ]
+              }
+            },
+            {
+              "id": "health",
+              "prefab": "ui-prefab://orbit/progress",
+              "arguments": {
+                "accent": "${positive}",
+                "muted": "${muted}",
+                "raised": "${raised}",
+                "text": "${text}",
+                "value": 0.86,
+                "size": [
+                  260,
+                  8
+                ]
+              },
+              "overrides": {
+                "at": [
+                  0,
+                  177
+                ]
+              }
+            },
+            {
+              "id": "oxygen_label",
+              "prefab": "ui-prefab://orbit/label",
+              "arguments": {
+                "text": "${text}",
+                "label": "Oxygen  /  64%",
+                "size": [
+                  260,
+                  24
+                ]
+              },
+              "overrides": {
+                "at": [
+                  0,
+                  209
+                ]
+              }
+            },
+            {
+              "id": "oxygen",
+              "prefab": "ui-prefab://orbit/progress",
+              "arguments": {
+                "accent": "#7EBDF5",
+                "muted": "${muted}",
+                "raised": "${raised}",
+                "text": "${text}",
+                "value": 0.64,
+                "size": [
+                  260,
+                  8
+                ]
+              },
+              "overrides": {
+                "at": [
+                  0,
+                  242
+                ]
+              }
+            },
+            {
+              "id": "energy_label",
+              "prefab": "ui-prefab://orbit/label",
+              "arguments": {
+                "text": "${text}",
+                "label": "Energy  /  72%",
+                "size": [
+                  260,
+                  24
+                ]
+              },
+              "overrides": {
+                "at": [
+                  0,
+                  274
+                ]
+              }
+            },
+            {
+              "id": "energy",
+              "prefab": "ui-prefab://orbit/progress",
+              "arguments": {
+                "accent": "${accent}",
+                "muted": "${muted}",
+                "raised": "${raised}",
+                "text": "${text}",
+                "value": 0.72,
+                "size": [
+                  260,
+                  8
+                ]
+              },
+              "overrides": {
+                "at": [
+                  0,
+                  307
+                ]
+              }
+            }
+          ],
+          "size": [
+            300,
+            416
+          ]
+        },
+        "overrides": {
+          "at": [
+            56,
+            148
+          ]
+        }
+      },
+      {
+        "id": "settings",
+        "prefab": "ui-prefab://orbit/settings",
+        "arguments": {
+          "accent": "${accent}",
+          "accent_hover": "${accent_hover}",
+          "background": "${background}",
+          "muted": "${muted}",
+          "on_accent": "${on_accent}",
+          "raised": "${raised}",
+          "stroke": "${stroke}",
+          "surface": "${surface}",
+          "text": "${text}",
+          "title": "System settings",
+          "volume": 0.72
+        },
+        "overrides": {
+          "at": [
+            380,
+            148
+          ]
+        }
+      },
+      {
+        "id": "actions",
+        "prefab": "ui-prefab://orbit/panel",
+        "arguments": {
+          "accent": "${accent}",
+          "stroke": "${stroke}",
+          "surface": "${surface}",
+          "text": "${text}",
+          "title": "Actions",
+          "content": [
+            {
+              "id": "primary",
+              "prefab": "ui-prefab://orbit/button-primary",
+              "arguments": {
+                "accent": "${accent}",
+                "accent_hover": "${accent_hover}",
+                "on_accent": "${on_accent}",
+                "stroke": "${stroke}",
+                "label": "Start expedition",
+                "action": "orbit.deploy",
+                "size": [
+                  260,
+                  44
+                ]
+              },
+              "overrides": {
+                "at": [
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "id": "secondary",
+              "prefab": "ui-prefab://orbit/button-secondary",
+              "arguments": {
+                "accent": "${accent}",
+                "raised": "${raised}",
+                "stroke": "${stroke}",
+                "text": "${text}",
+                "label": "View briefing",
+                "action": "orbit.briefing",
+                "size": [
+                  260,
+                  44
+                ]
+              },
+              "overrides": {
+                "at": [
+                  0,
+                  58
+                ]
+              }
+            },
+            {
+              "id": "danger",
+              "prefab": "ui-prefab://orbit/button-danger",
+              "arguments": {
+                "accent": "${accent}",
+                "accent_hover": "${accent_hover}",
+                "negative": "${negative}",
+                "on_accent": "${on_accent}",
+                "stroke": "${stroke}",
+                "label": "Abort mission",
+                "action": "orbit.abort",
+                "size": [
+                  260,
+                  44
+                ]
+              },
+              "overrides": {
+                "at": [
+                  0,
+                  116
+                ]
+              }
+            },
+            {
+              "id": "disabled",
+              "prefab": "ui-prefab://orbit/button-secondary",
+              "arguments": {
+                "accent": "${accent}",
+                "raised": "${raised}",
+                "stroke": "${stroke}",
+                "text": "${text}",
+                "label": "Dock unavailable",
+                "disabled": true,
+                "size": [
+                  260,
+                  44
+                ]
+              },
+              "overrides": {
+                "at": [
+                  0,
+                  174
+                ]
+              }
+            },
+            {
+              "id": "quiet",
+              "prefab": "ui-prefab://orbit/button-quiet",
+              "arguments": {
+                "accent": "${accent}",
+                "stroke": "${stroke}",
+                "text": "${text}",
+                "label": "Return to base",
+                "action": "orbit.back",
+                "size": [
+                  260,
+                  44
+                ]
+              },
+              "overrides": {
+                "at": [
+                  0,
+                  232
+                ]
+              }
+            }
+          ],
+          "size": [
+            300,
+            364
+          ]
+        },
+        "overrides": {
+          "at": [
+            804,
+            148
+          ]
+        }
+      },
+      {
+        "id": "cargo",
+        "prefab": "ui-prefab://orbit/panel",
+        "arguments": {
+          "accent": "${accent}",
+          "stroke": "${stroke}",
+          "surface": "${surface}",
+          "text": "${text}",
+          "title": "Cargo",
+          "content": [
+            {
+              "id": "ore",
+              "prefab": "ui-prefab://orbit/slot",
+              "arguments": {
+                "accent": "${accent}",
+                "raised": "${raised}",
+                "stroke": "${stroke}",
+                "text": "${text}",
+                "label": "Fe",
+                "action": "orbit.slot.ore",
+                "size": [
+                  60,
+                  60
+                ]
+              },
+              "overrides": {
+                "at": [
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "id": "water",
+              "prefab": "ui-prefab://orbit/slot",
+              "arguments": {
+                "accent": "${accent}",
+                "raised": "${raised}",
+                "stroke": "${stroke}",
+                "text": "${text}",
+                "label": "H2O",
+                "action": "orbit.slot.water",
+                "size": [
+                  60,
+                  60
+                ]
+              },
+              "overrides": {
+                "at": [
+                  70,
+                  0
+                ]
+              }
+            },
+            {
+              "id": "oxygen",
+              "prefab": "ui-prefab://orbit/slot",
+              "arguments": {
+                "accent": "${accent}",
+                "raised": "${raised}",
+                "stroke": "${stroke}",
+                "text": "${text}",
+                "label": "O2",
+                "action": "orbit.slot.oxygen",
+                "size": [
+                  60,
+                  60
+                ]
+              },
+              "overrides": {
+                "at": [
+                  140,
+                  0
+                ]
+              }
+            },
+            {
+              "id": "empty",
+              "prefab": "ui-prefab://orbit/slot",
+              "arguments": {
+                "accent": "${accent}",
+                "raised": "${raised}",
+                "stroke": "${stroke}",
+                "text": "${text}",
+                "label": "+",
+                "action": "orbit.slot.add",
+                "size": [
+                  50,
+                  60
+                ]
+              },
+              "overrides": {
+                "at": [
+                  210,
+                  0
+                ]
+              }
+            }
+          ],
+          "size": [
+            300,
+            144
+          ]
+        },
+        "overrides": {
+          "at": [
+            56,
+            588
+          ]
+        }
+      },
+      {
+        "id": "deployment",
+        "prefab": "ui-prefab://orbit/panel",
+        "arguments": {
+          "accent": "${accent}",
+          "stroke": "${stroke}",
+          "surface": "${surface}",
+          "text": "${text}",
+          "title": "Deployment",
+          "content": [
+            {
+              "id": "status",
+              "prefab": "ui-prefab://orbit/label",
+              "arguments": {
+                "text": "${positive}",
+                "label": "All systems nominal",
+                "size": [
+                  260,
+                  24
+                ]
+              },
+              "overrides": {
+                "at": [
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "id": "ready",
+              "prefab": "ui-prefab://orbit/progress",
+              "arguments": {
+                "accent": "${accent}",
+                "muted": "${muted}",
+                "raised": "${raised}",
+                "text": "${text}",
+                "value": 0.88,
+                "size": [
+                  260,
+                  8
+                ]
+              },
+              "overrides": {
+                "at": [
+                  0,
+                  44
+                ]
+              }
+            },
+            {
+              "id": "time",
+              "prefab": "ui-prefab://orbit/label",
+              "arguments": {
+                "text": "${muted}",
+                "label": "Launch window  /  04:32",
+                "size": [
+                  260,
+                  24
+                ]
+              },
+              "overrides": {
+                "at": [
+                  0,
+                  72
+                ]
+              }
+            }
+          ],
+          "size": [
+            300,
+            196
+          ]
+        },
+        "overrides": {
+          "at": [
+            804,
+            536
+          ]
+        }
+      },
+      {
+        "id": "feedback",
+        "type": "label",
+        "at": [
+          380,
+          650
+        ],
+        "size": [
+          400,
+          60
+        ],
+        "text": "Tweak your settings. Make it yours.",
+        "font_size": 16,
+        "text_color": "${muted}",
+        "text_wrap": "word"
+      },
+      {
+        "id": "footer",
+        "type": "label",
+        "at": [
+          56,
+          760
+        ],
+        "size": [
+          1100,
+          22
+        ],
+        "text": "ORIGINAL COMPONENTS  /  FLEXIBLE PALETTE  /  READY FOR YOUR GAME",
+        "font_size": 12,
+        "text_color": "${muted}"
+      },
+      {
+        "id": "browse_components",
+        "prefab": "ui-prefab://orbit/button-secondary",
+        "arguments": {
+          "accent": "${accent}",
+          "raised": "${raised}",
+          "stroke": "${stroke}",
+          "text": "${text}",
+          "label": "Explore components >",
+          "action": "orbit.components",
+          "size": [
+            244,
+            40
+          ]
+        },
+        "overrides": {
+          "at": [
+            860,
+            752
+          ]
+        }
+      }
+    ]
+  }
+}

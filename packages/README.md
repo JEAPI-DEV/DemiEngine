@@ -38,6 +38,7 @@ exports. See [core concepts](https://demiengine.de/docs/core-concepts) for the d
 
 | Package | Responsibility |
 |---|---|
+| [`demi.ui.orbit`](sources/demi.ui.orbit/README.md) | Native UI controls and compositions with configurable palettes and Lua bindings |
 | `kenney.textures.prototype` | 78 CC0 prototype textures with ready-to-use asset IDs (no Lua required) |
 | [`demi.gameplay.events`](sources/demi.gameplay.events/README.md) | Queued Lua events with ordered listeners and unsubscribe support; formerly `demi.gameplay.core` |
 | `demi.gameplay.health` | health, damage, invulnerability, defeat events |

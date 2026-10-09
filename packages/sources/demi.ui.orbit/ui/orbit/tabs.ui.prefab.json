@@ -1,0 +1,192 @@
+{
+  "format_version": 1,
+  "id": "ui-prefab://orbit/tabs",
+  "parameters": {
+    "accent": {
+      "type": "string",
+      "default": "#FFB66B"
+    },
+    "label1": {
+      "type": "string",
+      "default": "Overview"
+    },
+    "label2": {
+      "type": "string",
+      "default": "Details"
+    },
+    "label3": {
+      "type": "string",
+      "default": "History"
+    },
+    "raised": {
+      "type": "string",
+      "default": "#263748"
+    },
+    "size": {
+      "type": "array",
+      "default": [
+        360,
+        44
+      ]
+    },
+    "surface": {
+      "type": "string",
+      "default": "#1B2735"
+    },
+    "text": {
+      "type": "string",
+      "default": "#EEF4FA"
+    }
+  },
+  "root": {
+    "id": "tabs",
+    "type": "container",
+    "size": "${size}",
+    "stack": "grid",
+    "columns": 3,
+    "gap": 6,
+    "children": [
+      {
+        "id": "tab1",
+        "type": "button",
+        "size": [
+          0,
+          44
+        ],
+        "text": "${label1}",
+        "font_size": 15,
+        "background_color": "${surface}",
+        "hover_color": "${raised}",
+        "color": "${accent}",
+        "text_color": "${text}",
+        "corner_radius": 8,
+        "children": [
+          {
+            "id": "indicator1",
+            "type": "panel",
+            "anchor_min": [
+              0,
+              1
+            ],
+            "anchor_max": [
+              1,
+              1
+            ],
+            "size": [
+              0,
+              3
+            ],
+            "position": [
+              0,
+              -3
+            ],
+            "background_color": "${accent}",
+            "visible": true
+          }
+        ],
+        "anchor_min": [
+          0,
+          0
+        ],
+        "anchor_max": [
+          1,
+          0
+        ]
+      },
+      {
+        "id": "tab2",
+        "type": "button",
+        "size": [
+          0,
+          44
+        ],
+        "text": "${label2}",
+        "font_size": 15,
+        "background_color": "${surface}",
+        "hover_color": "${raised}",
+        "color": "${accent}",
+        "text_color": "${text}",
+        "corner_radius": 8,
+        "children": [
+          {
+            "id": "indicator2",
+            "type": "panel",
+            "anchor_min": [
+              0,
+              1
+            ],
+            "anchor_max": [
+              1,
+              1
+            ],
+            "size": [
+              0,
+              3
+            ],
+            "position": [
+              0,
+              -3
+            ],
+            "background_color": "${accent}",
+            "visible": false
+          }
+        ],
+        "anchor_min": [
+          0,
+          0
+        ],
+        "anchor_max": [
+          1,
+          0
+        ]
+      },
+      {
+        "id": "tab3",
+        "type": "button",
+        "size": [
+          0,
+          44
+        ],
+        "text": "${label3}",
+        "font_size": 15,
+        "background_color": "${surface}",
+        "hover_color": "${raised}",
+        "color": "${accent}",
+        "text_color": "${text}",
+        "corner_radius": 8,
+        "children": [
+          {
+            "id": "indicator3",
+            "type": "panel",
+            "anchor_min": [
+              0,
+              1
+            ],
+            "anchor_max": [
+              1,
+              1
+            ],
+            "size": [
+              0,
+              3
+            ],
+            "position": [
+              0,
+              -3
+            ],
+            "background_color": "${accent}",
+            "visible": false
+          }
+        ],
+        "anchor_min": [
+          0,
+          0
+        ],
+        "anchor_max": [
+          1,
+          0
+        ]
+      }
+    ]
+  }
+}

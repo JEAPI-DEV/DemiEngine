@@ -1,0 +1,523 @@
+{
+  "format_version": 1,
+  "id": "ui-prefab://orbit/settings",
+  "parameters": {
+    "accent": {
+      "type": "string",
+      "default": "#FFB66B"
+    },
+    "accent_hover": {
+      "type": "string",
+      "default": "#FFD09A"
+    },
+    "background": {
+      "type": "string",
+      "default": "#101822"
+    },
+    "muted": {
+      "type": "string",
+      "default": "#A3B5C5"
+    },
+    "on_accent": {
+      "type": "string",
+      "default": "#19232F"
+    },
+    "raised": {
+      "type": "string",
+      "default": "#263748"
+    },
+    "stroke": {
+      "type": "string",
+      "default": "#3B5166"
+    },
+    "surface": {
+      "type": "string",
+      "default": "#1B2735"
+    },
+    "text": {
+      "type": "string",
+      "default": "#EEF4FA"
+    },
+    "title": {
+      "type": "string",
+      "default": "System settings"
+    },
+    "volume": {
+      "type": "number",
+      "default": 0.72
+    }
+  },
+  "root": {
+    "id": "settings",
+    "type": "panel",
+    "size": [
+      400,
+      474
+    ],
+    "background_color": "${surface}",
+    "border_color": "${stroke}",
+    "border_width": 1,
+    "corner_radius": 14,
+    "children": [
+      {
+        "id": "header",
+        "type": "container",
+        "dock": "top",
+        "size": [
+          0,
+          32
+        ],
+        "margin": [
+          20,
+          16,
+          20,
+          0
+        ],
+        "children": [
+          {
+            "id": "rail",
+            "type": "panel",
+            "dock": "left",
+            "size": [
+              3,
+              0
+            ],
+            "margin": [
+              0,
+              7,
+              0,
+              7
+            ],
+            "background_color": "${accent}"
+          },
+          {
+            "id": "title",
+            "type": "label",
+            "dock": "fill",
+            "margin": [
+              16,
+              0,
+              0,
+              0
+            ],
+            "text": "${title}",
+            "font_size": 20,
+            "text_color": "${text}",
+            "text_vertical_alignment": "center"
+          }
+        ]
+      },
+      {
+        "id": "body",
+        "type": "container",
+        "dock": "fill",
+        "margin": [
+          20,
+          64,
+          20,
+          20
+        ],
+        "children": [
+          {
+            "id": "tabs",
+            "prefab": "ui-prefab://orbit/tabs",
+            "arguments": {
+              "accent": "${accent}",
+              "raised": "${raised}",
+              "surface": "${surface}",
+              "text": "${text}",
+              "label1": "Audio",
+              "label2": "Display",
+              "label3": "Controls",
+              "size": [
+                360,
+                44
+              ]
+            },
+            "overrides": {
+              "at": [
+                0,
+                0
+              ]
+            }
+          },
+          {
+            "id": "audio_page",
+            "type": "container",
+            "at": [
+              0,
+              56
+            ],
+            "size": [
+              360,
+              276
+            ],
+            "children": [
+              {
+                "id": "volume_label",
+                "prefab": "ui-prefab://orbit/label",
+                "arguments": {
+                  "text": "${text}",
+                  "label": "Master volume",
+                  "size": [
+                    300,
+                    24
+                  ]
+                },
+                "overrides": {
+                  "at": [
+                    0,
+                    0
+                  ]
+                }
+              },
+              {
+                "id": "volume",
+                "prefab": "ui-prefab://orbit/slider",
+                "arguments": {
+                  "accent": "${accent}",
+                  "muted": "${muted}",
+                  "raised": "${raised}",
+                  "text": "${text}",
+                  "value": "${volume}",
+                  "action": "orbit.volume",
+                  "size": [
+                    360,
+                    36
+                  ]
+                },
+                "overrides": {
+                  "at": [
+                    0,
+                    29
+                  ]
+                }
+              },
+              {
+                "id": "music_label",
+                "prefab": "ui-prefab://orbit/label",
+                "arguments": {
+                  "text": "${text}",
+                  "label": "Music",
+                  "size": [
+                    300,
+                    24
+                  ]
+                },
+                "overrides": {
+                  "at": [
+                    0,
+                    81
+                  ]
+                }
+              },
+              {
+                "id": "music",
+                "prefab": "ui-prefab://orbit/slider",
+                "arguments": {
+                  "accent": "${accent}",
+                  "muted": "${muted}",
+                  "raised": "${raised}",
+                  "text": "${text}",
+                  "value": 0.4,
+                  "action": "orbit.music",
+                  "size": [
+                    360,
+                    36
+                  ]
+                },
+                "overrides": {
+                  "at": [
+                    0,
+                    110
+                  ]
+                }
+              },
+              {
+                "id": "alerts",
+                "prefab": "ui-prefab://orbit/toggle",
+                "arguments": {
+                  "accent": "${accent}",
+                  "background": "${background}",
+                  "stroke": "${stroke}",
+                  "text": "${text}",
+                  "label": "Mission notifications",
+                  "checked": true,
+                  "action": "orbit.alerts",
+                  "size": [
+                    360,
+                    44
+                  ]
+                },
+                "overrides": {
+                  "at": [
+                    0,
+                    162
+                  ]
+                }
+              },
+              {
+                "id": "callsign",
+                "prefab": "ui-prefab://orbit/input",
+                "arguments": {
+                  "accent": "${accent}",
+                  "background": "${background}",
+                  "raised": "${raised}",
+                  "stroke": "${stroke}",
+                  "text": "${text}",
+                  "placeholder": "Your callsign",
+                  "action": "orbit.callsign",
+                  "size": [
+                    360,
+                    44
+                  ]
+                },
+                "overrides": {
+                  "at": [
+                    0,
+                    224
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "id": "display_page",
+            "type": "container",
+            "at": [
+              0,
+              56
+            ],
+            "size": [
+              360,
+              276
+            ],
+            "visible": false,
+            "children": [
+              {
+                "id": "display_label",
+                "prefab": "ui-prefab://orbit/label",
+                "arguments": {
+                  "text": "${text}",
+                  "label": "Display quality",
+                  "size": [
+                    360,
+                    24
+                  ]
+                },
+                "overrides": {
+                  "at": [
+                    0,
+                    0
+                  ]
+                }
+              },
+              {
+                "id": "quality",
+                "prefab": "ui-prefab://orbit/dropdown",
+                "arguments": {
+                  "accent": "${accent}",
+                  "background": "${background}",
+                  "muted": "${muted}",
+                  "raised": "${raised}",
+                  "stroke": "${stroke}",
+                  "surface": "${surface}",
+                  "text": "${text}",
+                  "size": [
+                    360,
+                    44
+                  ]
+                },
+                "overrides": {
+                  "at": [
+                    0,
+                    34
+                  ]
+                }
+              },
+              {
+                "id": "scale_label",
+                "prefab": "ui-prefab://orbit/label",
+                "arguments": {
+                  "text": "${text}",
+                  "label": "Interface scale",
+                  "size": [
+                    360,
+                    24
+                  ]
+                },
+                "overrides": {
+                  "at": [
+                    0,
+                    94
+                  ]
+                }
+              },
+              {
+                "id": "ui_scale",
+                "prefab": "ui-prefab://orbit/slider",
+                "arguments": {
+                  "accent": "${accent}",
+                  "muted": "${muted}",
+                  "raised": "${raised}",
+                  "text": "${text}",
+                  "value": 0.7,
+                  "size": [
+                    360,
+                    36
+                  ]
+                },
+                "overrides": {
+                  "at": [
+                    0,
+                    124
+                  ]
+                }
+              },
+              {
+                "id": "contrast",
+                "prefab": "ui-prefab://orbit/checkbox",
+                "arguments": {
+                  "accent": "${accent}",
+                  "background": "${background}",
+                  "stroke": "${stroke}",
+                  "text": "${text}",
+                  "label": "High contrast",
+                  "checked": false,
+                  "size": [
+                    360,
+                    44
+                  ]
+                },
+                "overrides": {
+                  "at": [
+                    0,
+                    182
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "id": "controls_page",
+            "type": "container",
+            "at": [
+              0,
+              56
+            ],
+            "size": [
+              360,
+              276
+            ],
+            "visible": false,
+            "children": [
+              {
+                "id": "controls_label",
+                "prefab": "ui-prefab://orbit/label",
+                "arguments": {
+                  "text": "${text}",
+                  "label": "Control preference",
+                  "size": [
+                    360,
+                    24
+                  ]
+                },
+                "overrides": {
+                  "at": [
+                    0,
+                    0
+                  ]
+                }
+              },
+              {
+                "id": "controls",
+                "prefab": "ui-prefab://orbit/radio-group",
+                "arguments": {
+                  "accent": "${accent}",
+                  "raised": "${raised}",
+                  "stroke": "${stroke}",
+                  "text": "${text}",
+                  "label1": "Keyboard + mouse",
+                  "label2": "Controller",
+                  "label3": "Touch",
+                  "size": [
+                    360,
+                    132
+                  ]
+                },
+                "overrides": {
+                  "at": [
+                    0,
+                    38
+                  ]
+                }
+              },
+              {
+                "id": "controls_hint",
+                "prefab": "ui-prefab://orbit/label",
+                "arguments": {
+                  "text": "${muted}",
+                  "label": "All controls support native HUD events.",
+                  "size": [
+                    360,
+                    44
+                  ]
+                },
+                "overrides": {
+                  "at": [
+                    0,
+                    192
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "id": "reset",
+            "prefab": "ui-prefab://orbit/button-secondary",
+            "arguments": {
+              "accent": "${accent}",
+              "raised": "${raised}",
+              "stroke": "${stroke}",
+              "text": "${text}",
+              "label": "Reset",
+              "action": "orbit.reset",
+              "size": [
+                164,
+                44
+              ]
+            },
+            "overrides": {
+              "at": [
+                0,
+                346
+              ]
+            }
+          },
+          {
+            "id": "apply",
+            "prefab": "ui-prefab://orbit/button-primary",
+            "arguments": {
+              "accent": "${accent}",
+              "accent_hover": "${accent_hover}",
+              "on_accent": "${on_accent}",
+              "stroke": "${stroke}",
+              "label": "Apply changes",
+              "action": "orbit.apply",
+              "size": [
+                184,
+                44
+              ]
+            },
+            "overrides": {
+              "at": [
+                176,
+                346
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

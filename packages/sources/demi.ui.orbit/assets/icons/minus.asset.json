@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://orbit/icons/minus",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {},
+  "source": "minus.svg",
+  "source_hash": "fnv1a64:09fe02dadf8615ef",
+  "type": "Icon2D"
+}

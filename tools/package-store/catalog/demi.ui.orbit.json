@@ -1,0 +1,24 @@
+{
+  "format_version": 1,
+  "title": "Orbit UI Kit",
+  "description": "39 original native UI prefabs and compositions, 32 tintable SVG icons, editable colors, three palettes and Lua bindings for tabs, dropdowns, dialogs and more. Use the same controls in the editor and at runtime.",
+  "publisher": "DemiEngine",
+  "license": "BSD-3-Clause",
+  "kind": "code",
+  "category": "UI",
+  "price": 0,
+  "images": [
+    "../public/images/orbit/showcase.webp",
+    "../public/images/orbit/components.webp",
+    "../public/images/orbit/modal.webp",
+    "../public/images/orbit/icons.webp",
+    "../public/images/orbit/editor.webp"
+  ],
+  "tags": [
+    "ui",
+    "hud",
+    "templates",
+    "controls",
+    "themes"
+  ]
+}

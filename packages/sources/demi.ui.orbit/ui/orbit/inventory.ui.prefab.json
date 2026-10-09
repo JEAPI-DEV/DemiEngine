@@ -1,0 +1,359 @@
+{
+  "format_version": 1,
+  "id": "ui-prefab://orbit/inventory",
+  "parameters": {
+    "accent": {
+      "type": "string",
+      "default": "#FFB66B"
+    },
+    "background": {
+      "type": "string",
+      "default": "#101822"
+    },
+    "raised": {
+      "type": "string",
+      "default": "#263748"
+    },
+    "stroke": {
+      "type": "string",
+      "default": "#3B5166"
+    },
+    "surface": {
+      "type": "string",
+      "default": "#1B2735"
+    },
+    "text": {
+      "type": "string",
+      "default": "#EEF4FA"
+    },
+    "title": {
+      "type": "string",
+      "default": "Cargo hold"
+    }
+  },
+  "root": {
+    "id": "inventory",
+    "type": "panel",
+    "size": [
+      500,
+      456
+    ],
+    "background_color": "${surface}",
+    "border_color": "${stroke}",
+    "border_width": 1,
+    "corner_radius": 14,
+    "children": [
+      {
+        "id": "header",
+        "type": "container",
+        "dock": "top",
+        "size": [
+          0,
+          32
+        ],
+        "margin": [
+          20,
+          16,
+          20,
+          0
+        ],
+        "children": [
+          {
+            "id": "rail",
+            "type": "panel",
+            "dock": "left",
+            "size": [
+              3,
+              0
+            ],
+            "margin": [
+              0,
+              7,
+              0,
+              7
+            ],
+            "background_color": "${accent}"
+          },
+          {
+            "id": "title",
+            "type": "label",
+            "dock": "fill",
+            "margin": [
+              16,
+              0,
+              0,
+              0
+            ],
+            "text": "${title}",
+            "font_size": 20,
+            "text_color": "${text}",
+            "text_vertical_alignment": "center"
+          }
+        ]
+      },
+      {
+        "id": "body",
+        "type": "container",
+        "dock": "fill",
+        "margin": [
+          20,
+          64,
+          20,
+          20
+        ],
+        "children": [
+          {
+            "id": "search",
+            "prefab": "ui-prefab://orbit/search",
+            "arguments": {
+              "accent": "${accent}",
+              "background": "${background}",
+              "raised": "${raised}",
+              "stroke": "${stroke}",
+              "text": "${text}",
+              "size": [
+                460,
+                44
+              ]
+            },
+            "overrides": {
+              "at": [
+                0,
+                0
+              ]
+            }
+          },
+          {
+            "id": "grid",
+            "type": "container",
+            "at": [
+              0,
+              62
+            ],
+            "size": [
+              460,
+              240
+            ],
+            "stack": "grid",
+            "columns": 6,
+            "gap": 6,
+            "children": [
+              {
+                "id": "slot1",
+                "prefab": "ui-prefab://orbit/inventory-slot",
+                "arguments": {
+                  "accent": "${accent}",
+                  "raised": "${raised}",
+                  "stroke": "${stroke}",
+                  "text": "${text}",
+                  "label": "Fe",
+                  "count": "3",
+                  "size": [
+                    72,
+                    72
+                  ]
+                }
+              },
+              {
+                "id": "slot2",
+                "prefab": "ui-prefab://orbit/inventory-slot",
+                "arguments": {
+                  "accent": "${accent}",
+                  "raised": "${raised}",
+                  "stroke": "${stroke}",
+                  "text": "${text}",
+                  "label": "H2O",
+                  "count": "6",
+                  "size": [
+                    72,
+                    72
+                  ]
+                }
+              },
+              {
+                "id": "slot3",
+                "prefab": "ui-prefab://orbit/inventory-slot",
+                "arguments": {
+                  "accent": "${accent}",
+                  "raised": "${raised}",
+                  "stroke": "${stroke}",
+                  "text": "${text}",
+                  "label": "O2",
+                  "count": "9",
+                  "size": [
+                    72,
+                    72
+                  ]
+                }
+              },
+              {
+                "id": "slot4",
+                "prefab": "ui-prefab://orbit/inventory-slot",
+                "arguments": {
+                  "accent": "${accent}",
+                  "raised": "${raised}",
+                  "stroke": "${stroke}",
+                  "text": "${text}",
+                  "label": "Cu",
+                  "count": "12",
+                  "size": [
+                    72,
+                    72
+                  ]
+                }
+              },
+              {
+                "id": "slot5",
+                "prefab": "ui-prefab://orbit/inventory-slot",
+                "arguments": {
+                  "accent": "${accent}",
+                  "raised": "${raised}",
+                  "stroke": "${stroke}",
+                  "text": "${text}",
+                  "label": "Si",
+                  "count": "15",
+                  "size": [
+                    72,
+                    72
+                  ]
+                }
+              },
+              {
+                "id": "slot6",
+                "prefab": "ui-prefab://orbit/inventory-slot",
+                "arguments": {
+                  "accent": "${accent}",
+                  "raised": "${raised}",
+                  "stroke": "${stroke}",
+                  "text": "${text}",
+                  "label": "MED",
+                  "count": "18",
+                  "size": [
+                    72,
+                    72
+                  ]
+                }
+              },
+              {
+                "id": "slot7",
+                "prefab": "ui-prefab://orbit/inventory-slot",
+                "arguments": {
+                  "accent": "${accent}",
+                  "raised": "${raised}",
+                  "stroke": "${stroke}",
+                  "text": "${text}",
+                  "label": "KIT",
+                  "count": "21",
+                  "size": [
+                    72,
+                    72
+                  ]
+                }
+              },
+              {
+                "id": "slot8",
+                "prefab": "ui-prefab://orbit/inventory-slot",
+                "arguments": {
+                  "accent": "${accent}",
+                  "raised": "${raised}",
+                  "stroke": "${stroke}",
+                  "text": "${text}",
+                  "label": "SEED",
+                  "count": "24",
+                  "size": [
+                    72,
+                    72
+                  ]
+                }
+              },
+              {
+                "id": "slot9",
+                "prefab": "ui-prefab://orbit/inventory-slot",
+                "arguments": {
+                  "accent": "${accent}",
+                  "raised": "${raised}",
+                  "stroke": "${stroke}",
+                  "text": "${text}",
+                  "label": "CELL",
+                  "count": "27",
+                  "size": [
+                    72,
+                    72
+                  ]
+                }
+              },
+              {
+                "id": "slot10",
+                "prefab": "ui-prefab://orbit/inventory-slot",
+                "arguments": {
+                  "accent": "${accent}",
+                  "raised": "${raised}",
+                  "stroke": "${stroke}",
+                  "text": "${text}",
+                  "label": "ORE",
+                  "count": "30",
+                  "size": [
+                    72,
+                    72
+                  ]
+                }
+              },
+              {
+                "id": "slot11",
+                "prefab": "ui-prefab://orbit/inventory-slot",
+                "arguments": {
+                  "accent": "${accent}",
+                  "raised": "${raised}",
+                  "stroke": "${stroke}",
+                  "text": "${text}",
+                  "label": "FOOD",
+                  "count": "33",
+                  "size": [
+                    72,
+                    72
+                  ]
+                }
+              },
+              {
+                "id": "slot12",
+                "prefab": "ui-prefab://orbit/inventory-slot",
+                "arguments": {
+                  "accent": "${accent}",
+                  "raised": "${raised}",
+                  "stroke": "${stroke}",
+                  "text": "${text}",
+                  "label": "FUEL",
+                  "count": "36",
+                  "size": [
+                    72,
+                    72
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "id": "pages",
+            "prefab": "ui-prefab://orbit/pagination",
+            "arguments": {
+              "accent": "${accent}",
+              "raised": "${raised}",
+              "stroke": "${stroke}",
+              "text": "${text}",
+              "size": [
+                460,
+                40
+              ]
+            },
+            "overrides": {
+              "at": [
+                0,
+                328
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

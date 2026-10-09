@@ -83,6 +83,7 @@ final class StoreController extends AbstractController
         usort($related, fn ($a, $b) =>
             count(array_intersect($b['tags'], $package['tags'])) <=> count(array_intersect($a['tags'], $package['tags'])));
         return $this->render('package.html.twig', [
+            'replacement' => $this->catalog->replacementFor($name),
             'package' => $package, 'releases' => $this->catalog->releases($name),
             'dependencies' => (array) $package['manifest']['dependencies'],
             'tab' => $tab, 'tree' => $tree, 'related' => array_slice($related, 0, 3),

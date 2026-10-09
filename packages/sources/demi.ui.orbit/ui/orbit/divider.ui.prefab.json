@@ -1,0 +1,23 @@
+{
+  "format_version": 1,
+  "id": "ui-prefab://orbit/divider",
+  "parameters": {
+    "size": {
+      "type": "array",
+      "default": [
+        280,
+        1
+      ]
+    },
+    "stroke": {
+      "type": "string",
+      "default": "#3B5166"
+    }
+  },
+  "root": {
+    "id": "divider",
+    "type": "panel",
+    "size": "${size}",
+    "background_color": "${stroke}"
+  }
+}

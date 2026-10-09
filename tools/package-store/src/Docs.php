@@ -72,6 +72,7 @@ final class Docs
                 ['slug' => 'hud-layout', 'title' => 'Layout', 'summary' => 'Dock, stack, anchors, margins, padding, and safe areas.'],
                 ['slug' => 'hud-text-and-theme', 'title' => 'Text, theme & locale', 'summary' => 'Fonts, variables, localization, and styles.'],
                 ['slug' => 'hud-from-lua', 'title' => 'HUD from Lua', 'summary' => 'Setters, events, tweens, and runtime-created nodes.'],
+                ['slug' => 'orbit-ui', 'title' => 'Orbit UI kit', 'summary' => 'Native controls, configurable palettes and compound-control bindings.'],
                 ['slug' => 'ui-prefabs', 'title' => 'UI prefabs', 'summary' => 'Parameterized reusable subtrees.'],
             ]],
         ]],

@@ -1,0 +1,595 @@
+{
+  "format_version": 1,
+  "id": "ui-prefab://orbit/components",
+  "parameters": {
+    "accent": {
+      "type": "string",
+      "default": "#FFB66B"
+    },
+    "accent_hover": {
+      "type": "string",
+      "default": "#FFD09A"
+    },
+    "background": {
+      "type": "string",
+      "default": "#101822"
+    },
+    "muted": {
+      "type": "string",
+      "default": "#A3B5C5"
+    },
+    "on_accent": {
+      "type": "string",
+      "default": "#19232F"
+    },
+    "raised": {
+      "type": "string",
+      "default": "#263748"
+    },
+    "stroke": {
+      "type": "string",
+      "default": "#3B5166"
+    },
+    "surface": {
+      "type": "string",
+      "default": "#1B2735"
+    },
+    "text": {
+      "type": "string",
+      "default": "#EEF4FA"
+    }
+  },
+  "root": {
+    "id": "components",
+    "type": "container",
+    "size": [
+      1160,
+      810
+    ],
+    "children": [
+      {
+        "id": "background",
+        "type": "panel",
+        "dock": "fill",
+        "background_color": "${background}"
+      },
+      {
+        "id": "eyebrow",
+        "type": "label",
+        "text": "ORBIT  /  COMPONENT LIBRARY",
+        "at": [
+          56,
+          32
+        ],
+        "size": [
+          800,
+          24
+        ],
+        "text_color": "${accent}",
+        "font_size": 13,
+        "text_vertical_alignment": "center"
+      },
+      {
+        "id": "title",
+        "type": "label",
+        "text": "Patterns for the whole game.",
+        "at": [
+          56,
+          64
+        ],
+        "size": [
+          950,
+          52
+        ],
+        "text_color": "${text}",
+        "font_size": 32,
+        "text_vertical_alignment": "center"
+      },
+      {
+        "id": "navigation",
+        "prefab": "ui-prefab://orbit/panel",
+        "arguments": {
+          "accent": "${accent}",
+          "stroke": "${stroke}",
+          "surface": "${surface}",
+          "text": "${text}",
+          "title": "Navigation",
+          "content": [
+            {
+              "id": "tabs",
+              "prefab": "ui-prefab://orbit/tabs",
+              "arguments": {
+                "accent": "${accent}",
+                "raised": "${raised}",
+                "surface": "${surface}",
+                "text": "${text}",
+                "size": [
+                  460,
+                  44
+                ]
+              },
+              "overrides": {
+                "at": [
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "id": "segment",
+              "prefab": "ui-prefab://orbit/segmented",
+              "arguments": {
+                "accent": "${accent}",
+                "background": "${background}",
+                "raised": "${raised}",
+                "surface": "${surface}",
+                "text": "${text}",
+                "size": [
+                  460,
+                  52
+                ]
+              },
+              "overrides": {
+                "at": [
+                  0,
+                  60
+                ]
+              }
+            },
+            {
+              "id": "pages",
+              "prefab": "ui-prefab://orbit/pagination",
+              "arguments": {
+                "accent": "${accent}",
+                "raised": "${raised}",
+                "stroke": "${stroke}",
+                "text": "${text}",
+                "size": [
+                  460,
+                  40
+                ]
+              },
+              "overrides": {
+                "at": [
+                  0,
+                  130
+                ]
+              }
+            }
+          ],
+          "size": [
+            500,
+            240
+          ]
+        },
+        "overrides": {
+          "at": [
+            56,
+            148
+          ]
+        }
+      },
+      {
+        "id": "forms",
+        "prefab": "ui-prefab://orbit/panel",
+        "arguments": {
+          "accent": "${accent}",
+          "stroke": "${stroke}",
+          "surface": "${surface}",
+          "text": "${text}",
+          "title": "Forms and choices",
+          "content": [
+            {
+              "id": "quality",
+              "prefab": "ui-prefab://orbit/dropdown",
+              "arguments": {
+                "accent": "${accent}",
+                "background": "${background}",
+                "muted": "${muted}",
+                "raised": "${raised}",
+                "stroke": "${stroke}",
+                "surface": "${surface}",
+                "text": "${text}",
+                "size": [
+                  280,
+                  44
+                ]
+              },
+              "overrides": {
+                "at": [
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "id": "quantity",
+              "prefab": "ui-prefab://orbit/stepper",
+              "arguments": {
+                "accent": "${accent}",
+                "raised": "${raised}",
+                "stroke": "${stroke}",
+                "text": "${text}"
+              },
+              "overrides": {
+                "at": [
+                  0,
+                  64
+                ]
+              }
+            },
+            {
+              "id": "remember",
+              "prefab": "ui-prefab://orbit/checkbox",
+              "arguments": {
+                "accent": "${accent}",
+                "background": "${background}",
+                "stroke": "${stroke}",
+                "text": "${text}",
+                "label": "Remember my choice",
+                "size": [
+                  300,
+                  44
+                ]
+              },
+              "overrides": {
+                "at": [
+                  0,
+                  126
+                ]
+              }
+            },
+            {
+              "id": "help",
+              "prefab": "ui-prefab://orbit/button-secondary",
+              "arguments": {
+                "accent": "${accent}",
+                "raised": "${raised}",
+                "stroke": "${stroke}",
+                "text": "${text}",
+                "label": "Help ?",
+                "size": [
+                  120,
+                  44
+                ]
+              },
+              "overrides": {
+                "at": [
+                  340,
+                  0
+                ]
+              }
+            },
+            {
+              "id": "tip",
+              "prefab": "ui-prefab://orbit/tooltip",
+              "arguments": {
+                "raised": "${raised}",
+                "stroke": "${stroke}",
+                "text": "${text}",
+                "message": "Use this control to select a quality preset.",
+                "size": [
+                  280,
+                  84
+                ]
+              },
+              "overrides": {
+                "at": [
+                  190,
+                  50
+                ]
+              }
+            }
+          ],
+          "size": [
+            524,
+            310
+          ]
+        },
+        "overrides": {
+          "at": [
+            580,
+            148
+          ]
+        }
+      },
+      {
+        "id": "list",
+        "prefab": "ui-prefab://orbit/panel",
+        "arguments": {
+          "accent": "${accent}",
+          "stroke": "${stroke}",
+          "surface": "${surface}",
+          "text": "${text}",
+          "title": "Lists and inventory",
+          "content": [
+            {
+              "id": "row1",
+              "prefab": "ui-prefab://orbit/list-row",
+              "arguments": {
+                "accent": "${accent}",
+                "muted": "${muted}",
+                "raised": "${raised}",
+                "stroke": "${stroke}",
+                "surface": "${surface}",
+                "text": "${text}",
+                "title": "Surface operations",
+                "detail": "3 active assignments",
+                "symbol": "01",
+                "size": [
+                  460,
+                  64
+                ]
+              },
+              "overrides": {
+                "at": [
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "id": "row2",
+              "prefab": "ui-prefab://orbit/list-row",
+              "arguments": {
+                "accent": "${accent}",
+                "muted": "${muted}",
+                "raised": "${raised}",
+                "stroke": "${stroke}",
+                "surface": "${surface}",
+                "text": "${text}",
+                "title": "Research division",
+                "detail": "New technology available",
+                "symbol": "02",
+                "size": [
+                  460,
+                  64
+                ]
+              },
+              "overrides": {
+                "at": [
+                  0,
+                  76
+                ]
+              }
+            },
+            {
+              "id": "slots",
+              "type": "container",
+              "at": [
+                0,
+                160
+              ],
+              "size": [
+                460,
+                76
+              ],
+              "stack": "row",
+              "gap": 12,
+              "children": [
+                {
+                  "id": "ore",
+                  "prefab": "ui-prefab://orbit/inventory-slot",
+                  "arguments": {
+                    "accent": "${accent}",
+                    "raised": "${raised}",
+                    "stroke": "${stroke}",
+                    "text": "${text}",
+                    "label": "ORE",
+                    "count": "24",
+                    "size": [
+                      76,
+                      76
+                    ]
+                  },
+                  "overrides": {
+                    "at": [
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "id": "water",
+                  "prefab": "ui-prefab://orbit/inventory-slot",
+                  "arguments": {
+                    "accent": "${accent}",
+                    "raised": "${raised}",
+                    "stroke": "${stroke}",
+                    "text": "${text}",
+                    "label": "H2O",
+                    "count": "08",
+                    "size": [
+                      76,
+                      76
+                    ]
+                  },
+                  "overrides": {
+                    "at": [
+                      0,
+                      0
+                    ]
+                  }
+                },
+                {
+                  "id": "med",
+                  "prefab": "ui-prefab://orbit/inventory-slot",
+                  "arguments": {
+                    "accent": "${accent}",
+                    "raised": "${raised}",
+                    "stroke": "${stroke}",
+                    "text": "${text}",
+                    "label": "MED",
+                    "count": "03",
+                    "size": [
+                      76,
+                      76
+                    ]
+                  },
+                  "overrides": {
+                    "at": [
+                      0,
+                      0
+                    ]
+                  }
+                }
+              ]
+            }
+          ],
+          "size": [
+            500,
+            320
+          ]
+        },
+        "overrides": {
+          "at": [
+            56,
+            412
+          ]
+        }
+      },
+      {
+        "id": "notice",
+        "prefab": "ui-prefab://orbit/notification",
+        "arguments": {
+          "accent": "${accent}",
+          "muted": "${muted}",
+          "stroke": "${stroke}",
+          "surface": "${surface}",
+          "text": "${text}",
+          "title": "Deployment ready",
+          "message": "Your crew has reached the landing site."
+        },
+        "overrides": {
+          "at": [
+            580,
+            482
+          ]
+        }
+      },
+      {
+        "id": "open_dialog",
+        "prefab": "ui-prefab://orbit/button-primary",
+        "arguments": {
+          "accent": "${accent}",
+          "accent_hover": "${accent_hover}",
+          "on_accent": "${on_accent}",
+          "stroke": "${stroke}",
+          "label": "Open confirmation",
+          "action": "orbit.modal",
+          "size": [
+            248,
+            44
+          ]
+        },
+        "overrides": {
+          "at": [
+            580,
+            644
+          ]
+        }
+      },
+      {
+        "id": "metric",
+        "prefab": "ui-prefab://orbit/metric",
+        "arguments": {
+          "accent": "${accent}",
+          "muted": "${muted}",
+          "stroke": "${stroke}",
+          "surface": "${surface}",
+          "label": "EXPEDITION SCORE",
+          "value": "12,480",
+          "size": [
+            252,
+            106
+          ]
+        },
+        "overrides": {
+          "at": [
+            852,
+            626
+          ]
+        }
+      },
+      {
+        "id": "confirm",
+        "prefab": "ui-prefab://orbit/modal",
+        "arguments": {
+          "accent": "${accent}",
+          "accent_hover": "${accent_hover}",
+          "muted": "${muted}",
+          "on_accent": "${on_accent}",
+          "raised": "${raised}",
+          "stroke": "${stroke}",
+          "surface": "${surface}",
+          "text": "${text}",
+          "title": "Begin the expedition?",
+          "message": "Your crew is ready. Confirm to continue."
+        },
+        "overrides": {
+          "at": [
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "id": "feedback",
+        "type": "label",
+        "text": "Explore the controls. Make them yours.",
+        "at": [
+          56,
+          760
+        ],
+        "size": [
+          950,
+          24
+        ],
+        "text_color": "${muted}",
+        "font_size": 14,
+        "text_vertical_alignment": "center"
+      },
+      {
+        "id": "back",
+        "prefab": "ui-prefab://orbit/button-secondary",
+        "arguments": {
+          "accent": "${accent}",
+          "raised": "${raised}",
+          "stroke": "${stroke}",
+          "text": "${text}",
+          "label": "< Back to showcase",
+          "action": "orbit.showcase",
+          "size": [
+            244,
+            40
+          ]
+        },
+        "overrides": {
+          "at": [
+            860,
+            752
+          ]
+        }
+      },
+      {
+        "id": "browse_icons",
+        "prefab": "ui-prefab://orbit/button-with-icon",
+        "arguments": {
+          "texture": "asset://orbit/icons/search",
+          "label": "Browse icons",
+          "action": "orbit.icons"
+        },
+        "overrides": {
+          "at": [
+            760,
+            30
+          ],
+          "size": [
+            344,
+            44
+          ]
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://orbit/icons/arrow-right",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {},
+  "source": "arrow-right.svg",
+  "source_hash": "fnv1a64:d426fd303c2adb65",
+  "type": "Icon2D"
+}

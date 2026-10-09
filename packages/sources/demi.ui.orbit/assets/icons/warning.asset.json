@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://orbit/icons/warning",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {},
+  "source": "warning.svg",
+  "source_hash": "fnv1a64:991a0113a6a0b230",
+  "type": "Icon2D"
+}

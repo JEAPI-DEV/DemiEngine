@@ -187,6 +187,10 @@ add_test(NAME demi-ui-localization-package
     ${CMAKE_SOURCE_DIR}/packages/sources/demi.ui.localization)
 set_tests_properties(demi-ui-localization-package
   PROPERTIES LABELS "packages;ui;localization")
+add_test(NAME demi-ui-orbit-package
+  COMMAND demi package test
+    ${CMAKE_SOURCE_DIR}/packages/sources/demi.ui.orbit)
+set_tests_properties(demi-ui-orbit-package PROPERTIES LABELS "packages;ui")
 add_test(NAME demi-project-watch-reload-tests
   COMMAND demi-project-watch-reload-tests)
 add_test(NAME demi-capability-manifest-tests

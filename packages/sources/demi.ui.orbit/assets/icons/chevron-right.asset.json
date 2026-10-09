@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://orbit/icons/chevron-right",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {},
+  "source": "chevron-right.svg",
+  "source_hash": "fnv1a64:646f07ecb53722a0",
+  "type": "Icon2D"
+}
