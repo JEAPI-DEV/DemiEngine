@@ -147,3 +147,4 @@ return { tests = tests }</code></pre>
   <li>The run ends with <code>[test] SUMMARY passed=N failed=M</code> and the matching exit code.</li>
 </ul>
 <p>When a test fails in the field, capture it as an input recording and replay it locally — see <a href="{{ path('docs_page', {slug: 'replay-and-profiler'}) }}">Replay &amp; profiler</a>.</p>
+<p>Headless E2E runs advance the test runner and synthetic HUD input using the fixed simulation step. They finish with a pass/fail summary and a failing exit status for failed or unfinished tests. Without <code>--max-frames</code>, the suite has a 120-second simulated-time budget; ordinary headless smoke runs still default to one frame. An explicit frame limit that interrupts a test reports failure rather than silently skipping it.</p>

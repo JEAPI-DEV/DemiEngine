@@ -460,3 +460,16 @@ reproduced an intermittent NVIDIA Vulkan crash after five Play/Stop cycles;
 this change is not claimed to fix that crash. The same build survived 24 cycles
 with Khronos validation enabled and 12 cycles with AMD Vulkan selected locally.
 Detailed reproduction and remaining investigation are recorded in `tofix.md`.
+
+## Headless game E2E execution (2026-10-09)
+
+The colony resource probe exposed that headless execution loaded the E2E suite
+but neither advanced its coroutine nor drained synthetic touches, then returned
+after the ordinary one-frame smoke budget. Headless E2E now uses the fixed step
+for both, with a default 120-second simulated budget. Explicit frame limits
+remain authoritative; an interrupted suite emits one failure summary and
+returns failure. A completed failing suite also returns failure directly.
+
+The real CLI/runtime regression covers waits, scene timeout, an actual HUD toggle
+touch, success/failure exit codes, explicit frame cutoff, and `demi test linux`
+reporting. Headless-E2E, Lua-E2E and E2E-runner suites pass in Release.

@@ -32,6 +32,10 @@ add_test(NAME demi-prefab-template-cache-tests COMMAND demi-prefab-template-cach
 add_test(NAME demi-variable-font-tests COMMAND demi-variable-font-tests)
 add_test(NAME demi-cosmetic-debris3d-tests COMMAND demi-cosmetic-debris3d-tests)
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
+add_test(NAME demi-headless-e2e-tests
+  COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/headless_e2e_tests.py" $<TARGET_FILE:demi>)
+set_tests_properties(demi-headless-e2e-tests PROPERTIES TIMEOUT 60)
+
 add_test(NAME demi-doc-prefab-examples
   COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/docs_prefab_examples_tests.py"
     --binary $<TARGET_FILE:demi>)
