@@ -104,16 +104,32 @@ void drawRuntimeInspector(const runtime::World &world, const ImVec2 position,
             std::string(descriptor.editor.displayName).c_str(),
             ImGuiTreeNodeFlags_DefaultOpen))
       continue;
-    const nlohmann::json value = descriptor.serialize(*entity);
+    const nlohmann::json value = descriptor.inspect(*entity);
     if (value.empty()) {
-      ImGui::TextDisabled("Runtime-owned component");
+      ImGui::TextDisabled("Live fields are not exposed for this component.");
       continue;
     }
-    for (const auto &[name, field] : value.items()) {
-      ImGui::TextDisabled("%s", name.c_str());
-      ImGui::SameLine(118.0F);
-      ImGui::TextWrapped("%s", field.dump().c_str());
+    ImGui::PushID(descriptor.name.data());
+    if (ImGui::BeginTable("live-fields", 2,
+                          ImGuiTableFlags_SizingStretchProp)) {
+      ImGui::TableSetupColumn("Field", ImGuiTableColumnFlags_WidthStretch,
+                              0.42F);
+      ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch,
+                              0.58F);
+      for (const auto &field : descriptor.fields) {
+        ImGui::TableNextRow();
+        ImGui::TableSetColumnIndex(0);
+        ImGui::TextWrapped("%s", std::string(field.name).c_str());
+        ImGui::TableSetColumnIndex(1);
+        const auto found = value.find(std::string(field.name));
+        if (found != value.end())
+          ImGui::TextWrapped("%s", found->dump().c_str());
+        else
+          ImGui::TextDisabled("Live value unavailable");
+      }
+      ImGui::EndTable();
     }
+    ImGui::PopID();
   }
   ImGui::End();
 }

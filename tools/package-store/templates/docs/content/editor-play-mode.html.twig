@@ -73,3 +73,5 @@
   <li>Stop play, adjust, repeat.</li>
   <li>When the behavior is right, lock it in with <a href="{{ path('docs_page', {slug: 'e2e-tests'}) }}">E2E tests</a> so it cannot regress silently.</li>
 </ol>
+
+<p>The read-only Runtime Inspector reads current native component fields, including transforms changed by scripts or physics. These are local transform values when an entity has a parent. Fields without a live inspection codec are explicitly marked unavailable; they are not substituted with saved values. This view does not expose arbitrary Lua instance variables or renderer/physics internals.</p>

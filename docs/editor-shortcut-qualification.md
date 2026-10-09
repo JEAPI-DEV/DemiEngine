@@ -432,3 +432,18 @@ from the HUD workspace and found it immediately in the scene's Assets list and
 Add Component menu. Editing its display-name annotation outside the editor
 updated the still-open component menu without F5. Test-only external-editor
 preferences prevented launching another application during this check.
+
+## Live Runtime Inspector (2026-10-09)
+
+The Runtime Inspector uses a read-only component descriptor projection over
+native runtime field bindings and component-owned wire codecs. Authored
+serialization remains separate. Unsupported live fields are marked unavailable,
+without falling back to cached source values; Lua instance-local variables and
+unreflected simulation internals are outside this view. Field/value columns wrap
+within the available Inspector width.
+
+Component schema regression checks verify live transform and rigidbody values,
+omitted defaults, successive snapshots, absent components and unchanged authored
+serialization. Component schema, shell docking and Play session tests pass.
+Native Vulkan testing moved the colony camera in embedded Play: the Inspector
+reported its changed position while its authored scene retained the original.
