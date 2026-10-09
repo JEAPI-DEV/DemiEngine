@@ -110,3 +110,7 @@ Hud.set_disabled("back.button", false)</code></pre>
   <li><a href="{{ path('docs_page', {slug: 'hud-from-lua'}) }}">HUD from Lua</a> — addressing nodes and runtime creation.</li>
   <li><a href="{{ path('docs_page', {slug: 'ui'}) }}">UI &amp; HUD</a> — the overview page.</li>
 </ul>
+
+<h2>Installed package prefabs</h2>
+<p>A package can declare <code>*.ui.prefab.json</code> files in its manifest's <code>files</code> list. Install it through the package manager; the runtime, validator and editor UI Palette resolve its stable <code>ui-prefab://</code> IDs through verified locked package content. Nested prefabs resolve relative to their owning package's <code>ui/</code> directory and must also be declared. Local project prefabs take precedence; conflicting IDs from multiple installed packages are rejected. Never author an installed cache path into a HUD.</p>
+<p>The <a href="{{ path('docs_page', {slug: 'orbit-ui'}) }}">Orbit UI kit</a> provides a complete example with configurable colors and compound-control bindings.</p>

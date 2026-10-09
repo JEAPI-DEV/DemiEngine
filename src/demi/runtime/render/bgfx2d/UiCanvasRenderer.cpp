@@ -86,6 +86,18 @@ Rect2D uiTextBounds(Rect2D authored, const float measuredWidth,
   return authored;
 }
 
+Rect2D uiImageBounds(Rect2D bounds, const float sourceWidth,
+                     const float sourceHeight) {
+  if (sourceWidth <= 0 || sourceHeight <= 0 || bounds.width <= 0 ||
+      bounds.height <= 0)
+    return bounds;
+  const float scale =
+      std::min(bounds.width / sourceWidth, bounds.height / sourceHeight);
+  const float width = sourceWidth * scale, height = sourceHeight * scale;
+  return {bounds.x + (bounds.width - width) * 0.5F,
+          bounds.y + (bounds.height - height) * 0.5F, width, height};
+}
+
 bool uiCaretVisible(const float animationTime) {
   constexpr float BlinkPeriod = 1.0F;
   constexpr float VisibleDuration = 0.55F;
@@ -143,8 +155,9 @@ bool UiCanvasRenderer::drawNode(const ui::UiNode &node, const float scaleX,
   const Rect2D rect = scaledRect(node, scaleX, scaleY);
   const float scale = std::min(scaleX, scaleY) * node.scale;
   const auto solid = [&](const Color &color) {
-    return color.a <= 0.0F || canvas_.solid(rect, packVertexColorRgba8(color),
-                                            BlendMode::Alpha, scissor);
+    return color.a <= 0.0F ||
+           canvas_.roundedRect(rect, node.cornerRadius * scale,
+                               packVertexColorRgba8(color), scissor);
   };
   const bool panel = node.type == "panel" || node.type == "container" ||
                      node.type == "scroll" || node.type == "list" ||
@@ -169,18 +182,35 @@ bool UiCanvasRenderer::drawNode(const ui::UiNode &node, const float scaleX,
                         32, BlendMode::Alpha, scissor))
       return false;
   } else if (node.type == "progress" || node.type == "slider") {
-    if (!solid(node.backgroundColor))
+    const bool slider = node.type == "slider";
+    const Rect2D track =
+        slider ? Rect2D{rect.x, rect.y + rect.height * 0.5F - 3.0F * scale,
+                        rect.width, 6.0F * scale}
+               : rect;
+    if (!canvas_.roundedRect(
+            track, slider ? 3.0F * scale : node.cornerRadius * scale,
+            packVertexColorRgba8(node.backgroundColor), scissor))
       return false;
     const float range = std::max(node.maximum - node.minimum, 0.0001F);
     const float fraction =
         std::clamp((node.value - node.minimum) / range, 0.0F, 1.0F);
-    if (fraction > 0.0F && !canvas_.solid(Rect2D{.x = rect.x,
-                                                 .y = rect.y,
-                                                 .width = rect.width * fraction,
-                                                 .height = rect.height},
-                                          packVertexColorRgba8(node.color),
-                                          BlendMode::Alpha, scissor))
+    if (fraction > 0.0F &&
+        !canvas_.roundedRect(
+            {track.x, track.y, track.width * fraction, track.height},
+            slider ? 3.0F * scale : node.cornerRadius * scale,
+            packVertexColorRgba8(node.color), scissor))
       return false;
+    if (slider) {
+      const float radius =
+          std::min(8.0F * scale, std::min(rect.width, rect.height) * 0.5F);
+      if (!canvas_.circle(rect.x + radius +
+                              fraction * (rect.width - 2 * radius),
+                          rect.y + rect.height * 0.5F, radius,
+                          packVertexColorRgba8(node.disabled ? node.borderColor
+                                                             : node.textColor),
+                          24, BlendMode::Alpha, scissor))
+        return false;
+    }
   } else if (node.type == "image" && textureLookup_) {
     const TextureView2D texture = imageTexture(node);
     if (texture.handle && texture.width > 0 && texture.height > 0) {
@@ -189,7 +219,7 @@ bool UiCanvasRenderer::drawNode(const ui::UiNode &node, const float scaleX,
       const float sourceHeight =
           node.sourceSize.y > 0.0F ? node.sourceSize.y : texture.height;
       if (!canvas_.image(
-              texture.handle, rect,
+              texture.handle, uiImageBounds(rect, sourceWidth, sourceHeight),
               TextureRegion2D{
                   .u0 = node.sourcePosition.x / texture.width,
                   .v0 = node.sourcePosition.y / texture.height,
@@ -201,60 +231,78 @@ bool UiCanvasRenderer::drawNode(const ui::UiNode &node, const float scaleX,
     }
   }
 
-  if (node.borderWidth > 0.0F && node.borderColor.a > 0.0F) {
-    const float border = node.borderWidth * scale;
-    const std::uint32_t color = packVertexColorRgba8(node.borderColor);
-    if (!canvas_.solid({rect.x, rect.y, rect.width, border}, color,
-                       BlendMode::Alpha, scissor) ||
-        !canvas_.solid(
-            {rect.x, rect.y + rect.height - border, rect.width, border}, color,
-            BlendMode::Alpha, scissor) ||
-        !canvas_.solid({rect.x, rect.y, border, rect.height}, color,
-                       BlendMode::Alpha, scissor) ||
-        !canvas_.solid(
-            {rect.x + rect.width - border, rect.y, border, rect.height}, color,
-            BlendMode::Alpha, scissor))
+  if ((node.borderWidth > 0.0F && node.borderColor.a > 0.0F) ||
+      (focused && button)) {
+    const Color color = focused && button ? node.color : node.borderColor;
+    if (!canvas_.roundedRect(
+            rect, node.cornerRadius * scale, packVertexColorRgba8(color),
+            scissor, std::max(node.borderWidth, focused ? 2.0F : 0.0F) * scale))
+      return false;
+  }
+  if (node.type == "toggle") {
+    const float radius = std::min(6.0F * scale, rect.height * 0.25F);
+    const float x = rect.x + 16.0F * scale, y = rect.y + rect.height * 0.5F;
+    const auto color =
+        packVertexColorRgba8(node.checked ? node.color : node.borderColor);
+    if (!canvas_.roundedRect({x - radius, y - radius, radius * 2, radius * 2},
+                             node.cornerRadius * scale, color, scissor,
+                             node.checked ? 0.0F : std::max(scale, 1.0F)))
       return false;
   }
 
   const bool textNode = node.type == "label" || node.type == "text" || button;
   const bool textInput = node.type == "text_input";
+  const bool placeholder =
+      textInput && node.text.empty() && node.textEdit.composition.empty();
   const std::string displayedText =
-      textInput ? ui::TextEditingEngine::displayText(node.text, node.textEdit)
-                : node.text;
+      placeholder ? node.placeholder
+      : textInput ? ui::TextEditingEngine::displayText(node.text, node.textEdit)
+                  : node.text;
+  Rect2D textRect = rect;
+  if (textInput) {
+    const auto &pad = node.layout.padding;
+    textRect.x += pad.left * scaleX;
+    textRect.y += pad.top * scaleY;
+    textRect.width -= (pad.left + pad.right) * scaleX;
+    textRect.height -= (pad.top + pad.bottom) * scaleY;
+    if (textRect.width <= 0 || textRect.height <= 0)
+      return true;
+  }
   if (textNode && (!displayedText.empty() || (textInput && focused))) {
     const float authored = node.fontSize > 0.0F ? node.fontSize : 20.0F;
     const float fontScale = authored * scale / 48.0F;
     const bool centeredControl = button && !textInput;
-    ui::TextLayoutRequest request{.text = displayedText,
-                                  .width = rect.width,
-                                  .height = rect.height,
-                                  .fontSize = authored * scale,
-                                  .lineSpacing = node.lineSpacing * scale,
-                                  .wrap = node.textWrap == ui::TextWrapMode::Word
-                                              ? ui::TextWrap::Word
-                                          : node.textWrap == ui::TextWrapMode::Grapheme
-                                              ? ui::TextWrap::Grapheme
-                                              : ui::TextWrap::None,
-                                  .horizontal = (centeredControl || node.textHorizontalAlignment == ui::Alignment::Center)
-                                                    ? ui::TextHorizontalAlignment::Center
-                                                : node.textHorizontalAlignment == ui::Alignment::End
-                                                    ? ui::TextHorizontalAlignment::End
-                                                    : ui::TextHorizontalAlignment::Start,
-                                  .vertical = (centeredControl || node.textVerticalAlignment == ui::Alignment::Center)
-                                                  ? ui::TextVerticalAlignment::Center
-                                              : node.textVerticalAlignment == ui::Alignment::End
-                                                  ? ui::TextVerticalAlignment::End
-                                                  : ui::TextVerticalAlignment::Start,
-                                  .overflow = node.textOverflow == ui::TextOverflowMode::Ellipsis
-                                                  ? ui::TextOverflow::Ellipsis
-                                              : node.textOverflow == ui::TextOverflowMode::Visible
-                                                  ? ui::TextOverflow::Visible
-                                                  : ui::TextOverflow::Clip,
-                                  .maxLines = node.maxLines,
-                                  .locale = std::string(locale_),
-                                  .font = node.font,
-                                  .fontRevision = font_.fonts().revision()};
+    ui::TextLayoutRequest request{
+        .text = displayedText,
+        .width = textRect.width,
+        .height = textRect.height,
+        .fontSize = authored * scale,
+        .lineSpacing = node.lineSpacing * scale,
+        .wrap = node.textWrap == ui::TextWrapMode::Word ? ui::TextWrap::Word
+                : node.textWrap == ui::TextWrapMode::Grapheme
+                    ? ui::TextWrap::Grapheme
+                    : ui::TextWrap::None,
+        .horizontal = (centeredControl ||
+                       node.textHorizontalAlignment == ui::Alignment::Center)
+                          ? ui::TextHorizontalAlignment::Center
+                      : node.textHorizontalAlignment == ui::Alignment::End
+                          ? ui::TextHorizontalAlignment::End
+                          : ui::TextHorizontalAlignment::Start,
+        .vertical = (centeredControl ||
+                     node.textVerticalAlignment == ui::Alignment::Center)
+                        ? ui::TextVerticalAlignment::Center
+                    : node.textVerticalAlignment == ui::Alignment::End
+                        ? ui::TextVerticalAlignment::End
+                        : ui::TextVerticalAlignment::Start,
+        .overflow = node.textOverflow == ui::TextOverflowMode::Ellipsis
+                        ? ui::TextOverflow::Ellipsis
+                    : node.textOverflow == ui::TextOverflowMode::Visible
+                        ? ui::TextOverflow::Visible
+                        : ui::TextOverflow::Clip,
+        .maxLines = node.maxLines,
+        .locale = std::string(locale_),
+        .font = node.font,
+        .fontRevision = font_.fonts().revision()};
     const ui::TextLayoutResult layout = ui::TextLayoutEngine{}.layout(
         request, [&](const std::string_view value) {
           return font_.measure(value, fontScale, node.font).width;
@@ -263,8 +311,10 @@ bool UiCanvasRenderer::drawNode(const ui::UiNode &node, const float scaleX,
                              request.locale, node.font);
         });
     const Rect2D textBounds =
-        uiTextBounds(rect, layout.width, layout.height);
-    const Color color = node.textColor.a > 0.0F ? node.textColor : node.color;
+        uiTextBounds(textRect, layout.width, layout.height);
+    Color color = node.textColor.a > 0.0F ? node.textColor : node.color;
+    if (placeholder || node.disabled)
+      color.a *= 0.55F;
     const ScissorRect textScissor =
         node.textOverflow == ui::TextOverflowMode::Visible
             ? scissor
@@ -282,14 +332,13 @@ bool UiCanvasRenderer::drawNode(const ui::UiNode &node, const float scaleX,
       for (const ui::Rect &selectionRect :
            ui::TextLayoutEngine::selectionRects(
                layout, selectionFirst, selectionCount)) {
-        if (!canvas_.solid(
-                {.x = rect.x + selectionRect.x,
-                 .y = rect.y + selectionRect.y,
-                 .width = selectionRect.width,
-                 .height = selectionRect.height},
-                packVertexColorRgba8(
-                    {.r = 0.2F, .g = 0.45F, .b = 0.9F, .a = 0.4F}),
-                BlendMode::Alpha, textScissor))
+        if (!canvas_.solid({.x = textRect.x + selectionRect.x,
+                            .y = textRect.y + selectionRect.y,
+                            .width = selectionRect.width,
+                            .height = selectionRect.height},
+                           packVertexColorRgba8(
+                               {.r = 0.2F, .g = 0.45F, .b = 0.9F, .a = 0.4F}),
+                           BlendMode::Alpha, textScissor))
           return false;
       }
     }
@@ -297,8 +346,8 @@ bool UiCanvasRenderer::drawNode(const ui::UiNode &node, const float scaleX,
       const float baseline = line.shaped.baseline > 0.0F
                                  ? line.shaped.baseline
                                  : authored * scale * 0.8F;
-      if (!font_.draw(canvas_, line.shaped, rect.x + line.x,
-                      rect.y + line.y + baseline,
+      if (!font_.draw(canvas_, line.shaped, textRect.x + line.x,
+                      textRect.y + line.y + baseline,
                       packVertexColorRgba8(color), 1.0F, textScissor))
         return false;
     }
@@ -312,13 +361,12 @@ bool UiCanvasRenderer::drawNode(const ui::UiNode &node, const float scaleX,
              ui::TextLayoutEngine::selectionRects(
                  layout, selected.first, compositionCount)) {
           if (!canvas_.solid(
-                  {.x = rect.x + compositionRect.x,
-                   .y = rect.y + compositionRect.y +
+                  {.x = textRect.x + compositionRect.x,
+                   .y = textRect.y + compositionRect.y +
                         compositionRect.height - std::max(scale, 1.0F),
                    .width = std::max(compositionRect.width, 1.0F),
                    .height = std::max(scale, 1.0F)},
-                  packVertexColorRgba8(color), BlendMode::Alpha,
-                  textScissor))
+                  packVertexColorRgba8(color), BlendMode::Alpha, textScissor))
             return false;
         }
       }
@@ -328,12 +376,12 @@ bool UiCanvasRenderer::drawNode(const ui::UiNode &node, const float scaleX,
           layout.carets, caret, &ui::TextLayoutResult::Caret::grapheme);
       if (caretGeometry != layout.carets.end() &&
           uiCaretVisible(animationTime_) &&
-          !canvas_.solid(
-              {.x = rect.x + caretGeometry->x,
-               .y = rect.y + caretGeometry->y,
-               .width = std::max(scale, 1.0F),
-               .height = caretGeometry->height},
-              packVertexColorRgba8(color), BlendMode::Alpha, textScissor))
+          !canvas_.solid({.x = textRect.x + caretGeometry->x,
+                          .y = textRect.y + caretGeometry->y,
+                          .width = std::max(scale, 1.0F),
+                          .height = caretGeometry->height},
+                         packVertexColorRgba8(color), BlendMode::Alpha,
+                         textScissor))
         return false;
     }
   }

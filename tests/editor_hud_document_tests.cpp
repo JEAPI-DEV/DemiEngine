@@ -85,14 +85,14 @@ void verifyDockPresets(const std::filesystem::path &root) {
       demi::editor::EditorHudDocument document;
       std::string error;
       assert(document.open(path, error));
-      // Loading authored dock/offset data is unchanged; only choosing a preset
-      // realigns it.
+      // Choosing a preset clears manual placement; the runtime owns alignment.
       assert(document.setNodeField("panel", "dock", expected.dock, error));
       const auto &bounds = document.preview().nodes[1].resolved;
       assert(bounds.x == expected.x && bounds.y == expected.y &&
              bounds.width == expected.width &&
              bounds.height == expected.height);
       const auto *node = document.authoredNode("panel");
+      assert(!node->contains("position"));
       assert(!node->contains("at") && !node->contains("anchor_min") &&
              !node->contains("anchor_max"));
       for (const char *field :
@@ -111,6 +111,12 @@ void verifyDockPresets(const std::filesystem::path &root) {
       demi::editor::EditorHudDocument reopened;
       assert(reopened.open(path, error));
       assert(reopened.json() == aligned);
+      const auto dockBounds = reopened.preview().nodes[1].resolved;
+      assert(reopened.setNodeField("panel", "dock", nullptr, error));
+      const auto freeBounds = reopened.preview().nodes[1].resolved;
+      assert(dockBounds.x == freeBounds.x && dockBounds.y == freeBounds.y &&
+             dockBounds.width == freeBounds.width &&
+             dockBounds.height == freeBounds.height);
     }
   }
   // Reapplying an already-authored Top preset must remove its old drag offset.

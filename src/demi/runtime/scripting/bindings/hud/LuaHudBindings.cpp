@@ -1,4 +1,5 @@
 #include "demi/runtime/scripting/bindings/hud/LuaHudBindings.h"
+#include "demi/runtime/scripting/bindings/LuaJsonBridge.h"
 #include "demi/runtime/ui/RichTextParser.h"
 #include "demi/runtime/ui/TextLayoutEngine.h"
 #include "demi/runtime/ui/UiAccessibilityTree.h"
@@ -50,32 +51,9 @@ void LuaHudBindingModule::install(LuaScriptHost &host, lua_State *state) const {
   });
   hud.set_function("create", [&host](const std::string &parent,
                                      const sol::table &definition) {
-    ui::UiNode node;
-    node.id = definition.get_or("id", std::string{});
-    node.type = definition.get_or("type", std::string{"container"});
-    node.text = definition.get_or("text", std::string{});
-    node.action = definition.get_or("action", std::string{});
-    node.style = definition.get_or("style", std::string{});
-    node.font = definition.get_or("font", std::string{});
-    node.texture = definition.get_or("texture", std::string{});
-    node.accessibilityLabel =
-        definition.get_or("accessibility_label", std::string{});
-    node.accessibilityDescription =
-        definition.get_or("accessibility_description", std::string{});
-    node.accessibilityHidden = definition.get_or("accessibility_hidden", false);
-    node.respectsSafeArea = definition.get_or("respect_safe_area", true);
-    node.visible = definition.get_or("visible", true);
-    node.disabled = definition.get_or("disabled", false);
-    node.focusable = definition.get_or(
-        "focusable", node.type == "button" || node.type == "toggle" ||
-                         node.type == "slider" || node.type == "text_input");
-    node.fontSize = definition.get_or("font_size", 20.0F);
-    node.layout.position = {definition.get_or("x", 0.0F),
-                            definition.get_or("y", 0.0F)};
-    node.layout.size = {definition.get_or("width", 0.0F),
-                        definition.get_or("height", 0.0F)};
     std::string error;
-    auto handle = host.createHudNode(parent, std::move(node), error);
+    auto handle =
+        host.createHudDefinition(parent, luaObjectToJson(definition), error);
     return std::tuple{std::move(handle), error};
   });
   hud.set_function("clone", [&host](const ui::UiNodeHandle &source,

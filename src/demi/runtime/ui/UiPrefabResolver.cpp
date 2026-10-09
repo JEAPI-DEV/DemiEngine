@@ -1,4 +1,7 @@
 #include "demi/runtime/ui/UiPrefabResolver.h"
+#include "demi/assets/PackageContent.h"
+#include "demi/filesystem/ProjectPaths.h"
+#include "demi/packages/PackageManifest.h"
 
 #include <algorithm>
 #include <fstream>
@@ -15,10 +18,13 @@ namespace {
 using Json = nlohmann::json;
 
 std::optional<std::filesystem::path>
-findProjectRoot(const std::filesystem::path &sourcePath) {
+findProjectRoot(const std::filesystem::path &sourcePath,
+                bool includePackage = false) {
   std::filesystem::path cursor = sourcePath.parent_path();
   while (!cursor.empty()) {
-    if (std::filesystem::exists(cursor / "demi.project.json"))
+    if (std::filesystem::exists(cursor / "demi.project.json") ||
+        (includePackage &&
+         std::filesystem::exists(cursor / "demi.package.json")))
       return cursor;
     const std::filesystem::path parent = cursor.parent_path();
     if (parent == cursor)
@@ -388,7 +394,7 @@ resolveUiPrefabReference(const std::filesystem::path &sourcePath,
   constexpr std::string_view Prefix = "ui-prefab://";
   if (!reference.starts_with(Prefix) || reference.size() == Prefix.size())
     return std::nullopt;
-  const auto projectRoot = findProjectRoot(sourcePath);
+  const auto projectRoot = findProjectRoot(sourcePath, true);
   if (!projectRoot.has_value())
     return std::nullopt;
   std::filesystem::path relative(reference.substr(Prefix.size()));
@@ -397,7 +403,45 @@ resolveUiPrefabReference(const std::filesystem::path &sourcePath,
                           [](const auto &part) { return part == ".."; }))
     return std::nullopt;
   relative += ".ui.prefab.json";
-  return *projectRoot / "ui" / relative;
+  const auto local = *projectRoot / "ui" / relative;
+  if (std::filesystem::is_regular_file(local)) {
+    const auto manifestPath = *projectRoot / "demi.package.json";
+    if (std::filesystem::is_regular_file(manifestPath)) {
+      const auto loaded = packages::loadPackageManifest(manifestPath);
+      const auto declaredPath =
+          local.lexically_relative(*projectRoot).generic_string();
+      if (!loaded.manifest ||
+          std::ranges::find(loaded.manifest->files, declaredPath) ==
+              loaded.manifest->files.end())
+        return std::nullopt;
+    }
+    return local;
+  }
+  // Package sources resolve their own nested prefabs conventionally. A project
+  // can additionally consume declared, verified content from its installed
+  // lock.
+  const auto hostRoot = findProjectRoot(sourcePath);
+  if (!hostRoot)
+    return local;
+  const auto content = assets::loadLockedPackageContent(*hostRoot, "");
+  if (hasErrors(content.diagnostics))
+    return std::nullopt;
+  std::optional<std::filesystem::path> match;
+  for (const auto &file : content.files) {
+    if (!isUiPrefabFile(file))
+      continue;
+    std::ifstream input(file);
+    const auto document = Json::parse(input, nullptr, false);
+    if (!document.is_object() || !document.contains("id") ||
+        !document["id"].is_string() ||
+        document["id"].get<std::string>() != reference)
+      continue;
+    if (match && *match != file)
+      return std::nullopt; // Ambiguous package identities must not depend on
+                           // order.
+    match = file;
+  }
+  return match ? match : std::optional<std::filesystem::path>(local);
 }
 
 UiPrefabExpansionResult expandUiDocument(const std::filesystem::path &hudPath,
@@ -405,8 +449,11 @@ UiPrefabExpansionResult expandUiDocument(const std::filesystem::path &hudPath,
   UiPrefabExpansionResult result{.document = hudDocument, .diagnostics = {}};
   if (hudDocument.is_object() && !hudDocument.contains("root") &&
       hudDocument.contains("children") && hudDocument["children"].is_array()) {
-    (*result.document)["root"] = {{"id", "ui_root"}, {"type", "container"},
-        {"anchor_min", {0,0}}, {"anchor_max", {1,1}}, {"children", hudDocument["children"]}};
+    (*result.document)["root"] = {{"id", "ui_root"},
+                                  {"type", "container"},
+                                  {"anchor_min", {0, 0}},
+                                  {"anchor_max", {1, 1}},
+                                  {"children", hudDocument["children"]}};
     result.document->erase("children");
   }
   if (!result.document->is_object() || !result.document->contains("root")) {

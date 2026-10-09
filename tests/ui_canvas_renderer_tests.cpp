@@ -50,6 +50,12 @@ int main() {
          intrinsic.width == 214.0F && intrinsic.height == 18.0F);
   assert(widthOnly.width == 160.0F && widthOnly.height == 22.0F);
   assert(explicitBounds.width == 80.0F && explicitBounds.height == 30.0F);
+  const auto fittedSquare = uiImageBounds({10, 20, 80, 40}, 256, 256);
+  assert(fittedSquare.x == 30 && fittedSquare.y == 20 &&
+         fittedSquare.width == 40 && fittedSquare.height == 40);
+  const auto fittedWide = uiImageBounds({10, 20, 40, 80}, 200, 100);
+  assert(fittedWide.x == 10 && fittedWide.y == 50 && fittedWide.width == 40 &&
+         fittedWide.height == 20);
   assert(uiCaretVisible(0.0F));
   assert(uiCaretVisible(0.54F));
   assert(!uiCaretVisible(0.55F));
@@ -183,6 +189,40 @@ int main() {
     assert(vertex.y >= 40.0F - 0.01F);
     assert(vertex.y <= 52.0F + 0.01F);
   }
+  capturingCommands.vertices.clear();
+  ui::UiDocument rounded;
+  rounded.canvasSize = {320, 180};
+  ui::UiNode panel;
+  panel.id = "rounded";
+  panel.type = "panel";
+  panel.resolved = {10, 10, 80, 40};
+  panel.cornerRadius = 10;
+  panel.backgroundColor = {1, 1, 1, 1};
+  rounded.nodes = {panel};
+  assert(capturedCanvas.begin(0, 320, 180, 0, error));
+  assert(capturedRenderer.draw(rounded, 320, 180));
+  assert(capturedCanvas.flush(error));
+  assert(capturingCommands.vertices.size() > 4);
+  for (const auto &v : capturingCommands.vertices) {
+    assert(v.x >= 9.99F && v.x <= 90.01F && v.y >= 9.99F && v.y <= 50.01F);
+    assert(!(v.x < 10.01F && v.y < 10.01F));
+  }
+  capturingCommands.vertices.clear();
+  ui::UiNode input;
+  input.id = "padded_input";
+  input.type = "text_input";
+  input.resolved = {20, 40, 200, 44};
+  input.placeholder = "Name";
+  input.fontSize = 16;
+  input.layout.padding = {12, 8, 12, 8};
+  input.textVerticalAlignment = ui::Alignment::Center;
+  rounded.nodes = {input};
+  assert(capturedCanvas.begin(0, 320, 180, 0, error));
+  assert(capturedRenderer.draw(rounded, 320, 180));
+  assert(capturedCanvas.flush(error));
+  assert(!capturingCommands.vertices.empty());
+  for (const auto &v : capturingCommands.vertices)
+    assert(v.x >= 31.99F && v.x <= 208.01F && v.y >= 47.99F && v.y <= 76.01F);
   capturedCanvas.shutdown();
 
   const ImageData2D pixel{.width = 1,

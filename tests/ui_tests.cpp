@@ -45,6 +45,36 @@ int main() {
   }
 
   using nlohmann::json;
+  // Dock alignment uses the final constrained size and follows parent resizing.
+  for (const auto viewport :
+       {demi::runtime::Vec2{960, 540}, demi::runtime::Vec2{1920, 1080}}) {
+    auto docked = demi::runtime::ui::parseUiDocument(json::parse(R"({
+      "format_version":1,"children":[
+        {"id":"right","type":"panel","dock":"right","size":[100,50],"min_size":[120,60],"margin":[4,6,8,10]},
+        {"id":"bottom","type":"panel","dock":"bottom","size":[100,50],"min_size":[120,60],"margin":[4,6,8,10]},
+        {"id":"center","type":"panel","dock":"center","size":[100,50],"min_size":[120,60],"margin":[4,6,8,10]},
+        {"id":"explicit","type":"panel","dock":"right","anchor_min":[1,0],"anchor_max":[1,0],"size":[100,50]},
+        {"id":"modal","type":"modal","dock":"center","size":[200,100]}
+      ]})"));
+    demi::runtime::ui::UiLayoutEngine{}.layout(docked, viewport);
+    const auto &right = docked.nodes[1].resolved;
+    const auto &bottom = docked.nodes[2].resolved;
+    const auto &center = docked.nodes[3].resolved;
+    const auto &explicitAnchor = docked.nodes[4].resolved;
+    const auto &modal = docked.nodes[5].resolved;
+    if (!near(right.x, viewport.x - 128) || !near(right.y, 6) ||
+        !near(bottom.y, viewport.y - 70) || !near(bottom.x, 4) ||
+        !near(center.x, (viewport.x - 120) / 2 - 2) ||
+        !near(center.y, (viewport.y - 60) / 2 - 2) ||
+        !near(explicitAnchor.x, viewport.x) ||
+        !near(modal.x, (viewport.x - 200) / 2) ||
+        !near(modal.y, (viewport.y - 100) / 2)) {
+      std::cerr
+          << "Docked controls did not align inside their resized parent.\n";
+      return 1;
+    }
+  }
+
   const demi::runtime::ui::UiNode defaultContainer{.type = "container"};
   const demi::runtime::ui::UiNode defaultPanel{.type = "panel"};
   const demi::runtime::ui::UiNode coloredContainer{
@@ -269,6 +299,57 @@ int main() {
     std::cerr << "UI presentation did not resolve inherited visibility and "
                  "effective layers deterministically.\n";
     return 1;
+  }
+
+  {
+    using namespace demi::runtime::ui;
+    UiDocument popup;
+    popup.nodes = {
+        {.id = "popup",
+         .type = "button",
+         .resolved = {0, 0, 100, 100},
+         .layer = 20,
+         .focusable = true},
+        {.id = "under",
+         .type = "button",
+         .resolved = {0, 0, 100, 100},
+         .focusable = true},
+        {.id = "hidden", .type = "container", .visible = false},
+        {.id = "modal", .parent = "hidden", .type = "modal", .layer = 1000},
+    };
+    UiInteractionController interaction;
+    if (!interaction.capturePointer(popup, 0, {10, 10}, "mouse") ||
+        popup.pointerCaptures[0] != "popup") {
+      std::cerr
+          << "Pointer layer order or hidden modal selection is incorrect.\n";
+      return 1;
+    }
+    popup.nodes[0].focusable = false;
+    popup.focusedId = "under";
+    if (!interaction.capturePointer(popup, 0, {10, 10}, "mouse") ||
+        popup.pointerCaptures[0] != "popup" || popup.focusedId != "under") {
+      std::cerr << "Non-focusable button failed pointer/focus separation.\n";
+      return 1;
+    }
+    UiDocument clipped;
+    clipped.nodes = {
+        {.id = "under",
+         .type = "button",
+         .resolved = {0, 0, 100, 100},
+         .focusable = true},
+        {.id = "scroll", .type = "scroll", .resolved = {0, 0, 20, 20}},
+        {.id = "outside",
+         .parent = "scroll",
+         .type = "button",
+         .resolved = {40, 0, 20, 20},
+         .layer = 100,
+         .focusable = true},
+    };
+    if (!interaction.capturePointer(clipped, 0, {50, 10}, "mouse") ||
+        clipped.pointerCaptures[0] != "under") {
+      std::cerr << "Clipped scroll child intercepted a pointer.\n";
+      return 1;
+    }
   }
 
   const nlohmann::json hudDocument = nlohmann::json::parse(R"({

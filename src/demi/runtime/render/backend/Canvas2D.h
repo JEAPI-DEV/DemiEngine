@@ -70,6 +70,9 @@ public:
                            BlendMode blend = BlendMode::Alpha,
                            ScissorRect scissor = {}, ProgramHandle program = {},
                            std::uint32_t uniformSet = 0);
+  [[nodiscard]] bool roundedRect(const Rect2D &rect, float radius,
+                                 std::uint32_t rgba, ScissorRect scissor = {},
+                                 float strokeWidth = 0.0F);
   [[nodiscard]] bool image(TextureHandle texture, const Rect2D &destination,
                            const TextureRegion2D &source = {},
                            std::uint32_t rgba = 0xffffffffU,

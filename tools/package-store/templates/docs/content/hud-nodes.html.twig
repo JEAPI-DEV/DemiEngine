@@ -66,7 +66,7 @@
 }</code></pre>
 <ul>
   <li><code>texture</code> — an <code>asset://</code> URI pointing at an imported image asset. Required for the image to show.</li>
-  <li><code>size</code> — canvas units. The texture is fitted inside this box.</li>
+  <li><code>size</code> — canvas units. The texture is centered inside this box with its source aspect ratio preserved, including when the canvas and window have different proportions.</li>
 </ul>
 <p>Renders the referenced texture. Swap it at runtime with <code>Hud.set_image(id, texture, source_x, source_y, source_width, source_height)</code>.</p>
 

@@ -31,6 +31,43 @@ function HudVirtualLayout:item_offset(index) end
 ---@class HudNodeDefinition
 ---@field id string
 ---@field type? string
+---@field prefab? string ui-prefab:// URI instead of type; includes installed package prefabs.
+---@field arguments? table Prefab parameter values.
+---@field overrides? table Prefab root overrides.
+---@field children? HudNodeDefinition[] Atomically creates the complete child tree.
+---@field position? number[]
+---@field anchor_min? number[]
+---@field anchor_max? number[]
+---@field margin? number|number[]
+---@field min_size? number[]
+---@field max_size? number[]
+---@field padding? number|number[]
+---@field alignment? string
+---@field gap? number
+---@field columns? integer
+---@field layer? integer
+---@field respect_safe_area? boolean
+---@field color? string|number[]
+---@field text_alignment? string
+---@field text_vertical_alignment? string
+---@field text_wrap? string
+---@field text_overflow? string
+---@field minimum? number
+---@field maximum? number
+---@field at? number[]
+---@field size? number[]
+---@field dock? string
+---@field stack? string
+---@field pad? number|number[]
+---@field background_color? string|number[]
+---@field text_color? string|number[]
+---@field hover_color? string|number[]
+---@field border_color? string|number[]
+---@field border_width? number
+---@field corner_radius? number
+---@field value? number
+---@field checked? boolean
+---@field placeholder? string
 ---@field text? string
 ---@field font? string Font2D asset ID; missing glyphs fall back to other loaded fonts.
 ---@field action? string
@@ -51,6 +88,8 @@ function HudVirtualLayout:item_offset(index) end
 ---@return HudNodeHandle|nil
 function Hud.find(id) end
 ---@param parent string
+---Uses the shared HUD parser for native fields, layout, colors, nested children and prefabs.
+---Failure leaves the existing tree intact. Legacy x/y/width/height remain supported.
 ---@param definition HudNodeDefinition
 ---@return HudNodeHandle|nil handle
 ---@return string error

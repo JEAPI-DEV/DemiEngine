@@ -176,3 +176,15 @@ Hud.clear_recycled_rows("inventory")  -- release the pool</code></pre>
   <li><a href="{{ path('docs_page', {slug: 'hud-text-and-theme'}) }}">Text, theme &amp; locale</a> — variables and styles.</li>
   <li><a href="{{ path('docs_page', {slug: 'ui'}) }}">UI &amp; HUD</a> — the overview page.</li>
 </ul>
+
+<h2>Create a declarative subtree</h2>
+<p><code>Hud.create(parentId, definition)</code> accepts the same node fields as authored HUD JSON, including nested <code>children</code>, docking, anchors, padding, colors, borders and a UI-prefab instance. It returns a root handle or <code>nil, error</code>. Creation validates and inserts the whole subtree atomically; an invalid or duplicate child leaves no partial root behind. Use an empty parent ID for a top-level node.</p>
+<pre><code>local Hud = require("demi.hud")
+local handle, error = Hud.create("ui_root", {
+    id = "launch",
+    prefab = "ui-prefab://orbit/button-primary",
+    arguments = {label = "Launch", accent = "#7DCBFF"},
+    overrides = {dock = "bottom", margin = {24, 0, 24, 24}},
+})
+assert(handle, error)</code></pre>
+<p>Install the referenced package first. Runtime node creation also accepts the older <code>x</code>, <code>y</code>, <code>width</code> and <code>height</code> fields; canonical <code>position</code> and <code>size</code> take precedence. Scripts can use a package factory to construct these ordinary definitions without maintaining a second layout implementation.</p>

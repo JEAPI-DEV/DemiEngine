@@ -41,7 +41,7 @@
   "type": "panel",
   "dock": "right",
   "size": [320, 720],
-  "margin": [-320, 0, 0, 0],
+  "margin": [0, 16, 16, 16],
   "stack": "column",
   "pad": 16,
   "gap": 8,
@@ -50,6 +50,8 @@
 <p><code>dock: "right"</code> anchors the panel's left edge to the parent's right edge. The negative left margin moves its 320-unit width back inside. <code>bottom</code> likewise needs a negative top offset for a fixed-height node. <code>dock: "center"</code> anchors the node's top-left at the parent's center; offset by half its size to center the rectangle.</p>
 <p>Each dock shorthand sets anchor points for that node. A <code>fill</code> node spans its parent and can overlap docked siblings; use a layout container or explicit offsets where nodes must not overlap.</p>
 
+<p>Right and bottom docking align the control's outer edge inside its parent; positive right/bottom margins inset it. Center docking centers the whole control in the margin-adjusted parent. Alignment uses the final size, including min/max constraints, and follows resizing. <code>position</code> or <code>at</code> adds an optional offset. Explicit anchors override docking and retain top-left-origin semantics.</p>
+<p><strong>Development migration:</strong> remove negative offsets previously used only to compensate for right, bottom or center docking. The editor now writes the dock value without baking a size-dependent position. Undocking preserves the visible position.</p>
 <h2>stack</h2>
 <p><code>stack</code> lays children in a run. Values: <code>row</code>, <code>column</code>, <code>grid</code>.</p>
 <h3>row and column</h3>
@@ -89,6 +91,7 @@
   <li><code>columns</code> — how many cells per row before wrapping. Required for <code>grid</code>.</li>
   <li><code>gap</code> applies between both rows and columns.</li>
 </ul>
+<p>To fill each grid cell horizontally, give its child <code>anchor_min: [0, 0]</code>, <code>anchor_max: [1, 0]</code> and a fixed height. A column additionally needs <code>alignment: "stretch"</code>. A zero width alone does not mean stretch.</p>
 <p>The grid fills cells left to right, top to bottom. Skyforge’s skill bar is a 4-column grid of 64-unit icons.</p>
 
 <h2>anchors and margin for corners</h2>
@@ -180,3 +183,7 @@
   <li><a href="{{ path('docs_page', {slug: 'hud-text-and-theme'}) }}">Text, theme &amp; locale</a> — fonts, wrapping, styles.</li>
   <li><a href="{{ path('docs_page', {slug: 'ui'}) }}">UI &amp; HUD</a> — the overview page.</li>
 </ul>
+
+<h2>Control rendering and input order</h2>
+<p><code>corner_radius</code> rounds native panel/control fills and borders. Text inputs apply their padding to placeholder text, entered text, selection, composition and caret, and honor vertical text alignment. Sliders render a narrow track with a thumb; progress controls fill their authored bounds.</p>
+<p>Pointer hit testing follows the same effective layer order as rendering, including inherited visibility and scroll clipping. <code>focusable: false</code> removes a control from keyboard focus traversal while retaining pointer activation. This is useful for a transparent outside-click target behind a popup; set both its background and hover colors transparent.</p>

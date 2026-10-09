@@ -681,7 +681,25 @@ bool EditorHudDocument::setNodeField(const std::string_view id,
   }
 
   const runtime::ui::UiNode *parsed = previewNode(preview_, id);
+  const auto preserveDockPosition = [&] {
+    if (!parsed)
+      return;
+    const auto &layout = parsed->layout;
+    if (layout.dockPivot.x == 0 && layout.dockPivot.y == 0)
+      return;
+    const runtime::Vec2 position{
+        layout.position.x -
+            layout.dockPivot.x * (parsed->resolved.width + layout.margin.left +
+                                  layout.margin.right),
+        layout.position.y -
+            layout.dockPivot.y * (parsed->resolved.height + layout.margin.top +
+                                  layout.margin.bottom)};
+    node->erase("at");
+    (*node)["position"] =
+        normalizeAuthoredValue(vec2Json(position), nullptr, 1);
+  };
   if (field == "dock" && value.is_null() && node->contains("dock") && parsed) {
+    preserveDockPosition();
     node->erase("dock");
     (*node)["anchor_min"] = normalizeAuthoredValue(
         vec2Json(parsed->layout.anchorMin), nullptr, 2);
@@ -702,6 +720,7 @@ bool EditorHudDocument::setNodeField(const std::string_view id,
       node->erase("at");
     } else if ((field == "anchor_min" || field == "anchor_max") &&
                !value.is_null() && node->contains("dock") && parsed) {
+      preserveDockPosition();
       const char *other = field == "anchor_min" ? "anchor_max" : "anchor_min";
       const runtime::Vec2 otherValue = field == "anchor_min"
                                            ? parsed->layout.anchorMax
@@ -733,33 +752,6 @@ bool EditorHudDocument::setNodeField(const std::string_view id,
           authoredDecimalPlaces(field));
       (*node)[std::string(field)] = std::move(value);
     }
-  }
-  if (field == "dock" && node->contains("dock")) {
-    // Resolve dimensions through the runtime parser, including defaults and
-    // min/max constraints. Far-edge and centre anchors name the control's
-    // origin, so compensate for its size and retained margins.
-    const auto preview = runtime::scene_loading::parseHudDocument(
-        document_.path(), replacement, error);
-    if (!preview)
-      return false;
-    const auto *docked = previewNode(*preview, id);
-    if (!docked) {
-      error = "The docked control could not be resolved.";
-      return false;
-    }
-    const std::string dock = node->at("dock").get<std::string>();
-    const auto &margin = docked->layout.margin;
-    runtime::Vec2 position{};
-    if (dock == "right" || dock == "center")
-      position.x = -(docked->resolved.width + margin.left + margin.right) *
-                   (dock == "center" ? 0.5F : 1.0F);
-    if (dock == "bottom" || dock == "center")
-      position.y = -(docked->resolved.height + margin.top + margin.bottom) *
-                   (dock == "center" ? 0.5F : 1.0F);
-    if (position.x != 0 || position.y != 0 || docked->layout.position.x != 0 ||
-        docked->layout.position.y != 0)
-      (*node)["position"] = normalizeAuthoredValue(
-          vec2Json(position), nullptr, authoredDecimalPlaces("position"));
   }
   return replaceAndRebuild(std::move(replacement), error,
                            continuous ? Json::array({id, field}).dump()

@@ -769,6 +769,22 @@ int main() {
     std::cerr << "UI prefab parameters or stable nested ids were incorrect.\n";
     return 1;
   }
+  const auto packageRoot = prefabRoot / "package";
+  std::filesystem::create_directories(packageRoot / "ui");
+  write(packageRoot / "demi.package.json", R"({
+    "format_version":1,"name":"test.ui","version":"1.0.0","engine":"^0.1.0",
+    "files":["ui/declared.ui.prefab.json"],"public_modules":[]})");
+  write(packageRoot / "ui/declared.ui.prefab.json", R"({"format_version":1,
+    "id":"ui-prefab://declared","root":{"id":"label","type":"label","text":"OK"}})");
+  write(packageRoot / "ui/private.ui.prefab.json", R"({"format_version":1,
+    "id":"ui-prefab://private","root":{"id":"label","type":"label"}})");
+  if (!resolveUiPrefabReference(packageRoot / "ui/owner.ui.prefab.json",
+                                "ui-prefab://declared") ||
+      resolveUiPrefabReference(packageRoot / "ui/owner.ui.prefab.json",
+                               "ui-prefab://private")) {
+    std::cerr << "Package-local prefab lookup ignored declared content.\n";
+    return 1;
+  }
   nlohmann::json invalidArguments = prefabHud;
   invalidArguments["root"]["children"][0]["arguments"] = {{"label", 7},
                                                           {"unknown", true}};

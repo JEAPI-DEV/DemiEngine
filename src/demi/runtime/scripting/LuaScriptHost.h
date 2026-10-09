@@ -425,6 +425,9 @@ public:
   [[nodiscard]] std::optional<ui::UiNodeHandle>
   createHudNode(const std::string &parent, ui::UiNode node, std::string &error);
   [[nodiscard]] std::optional<ui::UiNodeHandle>
+  createHudDefinition(const std::string &parent,
+                      const nlohmann::json &definition, std::string &error);
+  [[nodiscard]] std::optional<ui::UiNodeHandle>
   hudNodeHandle(const std::string &id) const;
   [[nodiscard]] std::optional<ui::UiNodeHandle>
   cloneHudNode(const ui::UiNodeHandle &source, const std::string &newRootId,

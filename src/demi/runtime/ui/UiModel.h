@@ -36,6 +36,9 @@ struct LayoutSpec {
   Vec2 size{};
   Vec2 anchorMin{};
   Vec2 anchorMax{};
+  // Derived from dock shorthand; explicit anchors retain their origin
+  // semantics.
+  Vec2 dockPivot{};
   Vec2 minSize{};
   Vec2 maxSize{};
   Insets margin{};

@@ -1,6 +1,8 @@
 #include "demi/runtime/ui/UiInteractionController.h"
 
 #include "demi/runtime/ui/UiEventQueue.h"
+#include "demi/runtime/ui/UiPresentation.h"
+#include <span>
 
 #include <algorithm>
 #include <cmath>
@@ -24,6 +26,14 @@ bool available(const UiDocument &document, const UiNode &node) {
 
 bool interactive(const UiDocument &document, const UiNode &node) {
   return node.focusable && available(document, node);
+}
+
+bool pointerInteractive(const UiDocument &document, const UiNode &node) {
+  const bool control = node.type == "button" || node.type == "toggle" ||
+                       node.type == "slider" || node.type == "text_input" ||
+                       node.type == "virtual_button" ||
+                       node.type == "virtual_stick";
+  return (control || node.focusable) && available(document, node);
 }
 
 bool hoveredByAnotherPointer(const UiDocument &document,
@@ -55,12 +65,30 @@ bool belongsTo(const UiDocument &document, const UiNode &node,
   return false;
 }
 
-std::string activeModal(const UiDocument &document) {
-  for (auto node = document.nodes.rbegin(); node != document.nodes.rend();
-       ++node)
-    if (node->type == "modal" && node->visible && !node->disabled)
-      return node->id;
+std::string activeModal(const UiDocument &document,
+                        std::span<const UiPresentationNode> presentation) {
+  for (auto item = presentation.rbegin(); item != presentation.rend(); ++item)
+    if (item->visible && item->node->type == "modal" &&
+        available(document, *item->node))
+      return item->node->id;
   return {};
+}
+
+std::string activeModal(const UiDocument &document) {
+  return activeModal(document, buildUiPresentation(document));
+}
+
+bool insideClip(const UiDocument &document, const UiNode &node, Vec2 position) {
+  std::string parent = node.parent;
+  while (!parent.empty()) {
+    const auto found = std::ranges::find(document.nodes, parent, &UiNode::id);
+    if (found == document.nodes.end())
+      return false;
+    if (found->type == "scroll" && !contains(found->resolved, position))
+      return false;
+    parent = found->parent;
+  }
+  return true;
 }
 
 UiNode *find(UiDocument &document, const std::string_view id) {
@@ -69,24 +97,29 @@ UiNode *find(UiDocument &document, const std::string_view id) {
 }
 
 UiNode *hitTest(UiDocument &document, const Vec2 position) {
-  const std::string modal = activeModal(document);
-  for (auto node = document.nodes.rbegin(); node != document.nodes.rend();
-       ++node) {
-    if (interactive(document, *node) && belongsTo(document, *node, modal) &&
-        contains(node->resolved, position))
-      return &*node;
+  const auto presentation = buildUiPresentation(document);
+  const std::string modal = activeModal(document, presentation);
+  for (auto item = presentation.rbegin(); item != presentation.rend(); ++item) {
+    const auto &node = *item->node;
+    if (item->visible && pointerInteractive(document, node) &&
+        belongsTo(document, node, modal) && contains(node.resolved, position) &&
+        insideClip(document, node, position))
+      return find(document, node.id);
   }
   return nullptr;
 }
 
 UiNode *scrollTarget(UiDocument &document, const Vec2 position) {
-  const std::string modal = activeModal(document);
-  for (auto node = document.nodes.rbegin(); node != document.nodes.rend();
-       ++node) {
-    if (!available(document, *node) || !belongsTo(document, *node, modal) ||
-        !contains(node->resolved, position))
+  const auto presentation = buildUiPresentation(document);
+  const std::string modal = activeModal(document, presentation);
+  for (auto item = presentation.rbegin(); item != presentation.rend(); ++item) {
+    const auto &node = *item->node;
+    if (!item->visible || !available(document, node) ||
+        !belongsTo(document, node, modal) ||
+        !contains(node.resolved, position) ||
+        !insideClip(document, node, position))
       continue;
-    UiNode *candidate = &*node;
+    UiNode *candidate = find(document, node.id);
     while (candidate != nullptr) {
       if (candidate->type == "scroll")
         return candidate;
@@ -202,7 +235,8 @@ bool UiInteractionController::capturePointer(
   document.pointerCaptures[pointerId] = target->id;
   document.pointerPressPositions[pointerId] = position;
   document.draggingPointers.erase(pointerId);
-  setFocus(document, target->id, source);
+  if (target->focusable)
+    setFocus(document, target->id, source);
   UiEvent event = eventFor(*target, UiEventType::Press, source);
   event.pointerId = pointerId;
   event.position = position;
