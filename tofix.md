@@ -33,3 +33,16 @@ The validation layer was unpacked below `/tmp`, not installed system-wide.
 Needs deeper NVIDIA/bgfx investigation, including resource reuse and timing.
 Do not mark fixed based only on the AMD or validation-enabled runs, and do not
 silently change the production backend or GPU to hide it.
+
+Follow-up isolation and a portable four-file reproducer are recorded in
+[the NVIDIA HUD lifecycle investigation](docs/editor-nvidia-hud-lifecycle-investigation.md).
+The normal editor reproduces with only a camera and one solid HUD panel;
+terrain, text and gameplay are not required. Single-thread rendering and
+individual resource-retention experiments did not resolve it. Retaining the
+whole renderer survived 16 cycles but is not a qualified production fix.
+All diagnostic code edits were removed.
+
+The reduced 2D-camera comparison survived 12 cycles, and the 3D camera with
+`Environment3D.msaa_samples: 0` survived 16. Focus further investigation on the
+3D HUD multisampled render/resolve path across renderer recreation. No default
+MSAA setting or platform-specific code was changed.

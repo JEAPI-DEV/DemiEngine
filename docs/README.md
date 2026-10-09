@@ -18,6 +18,10 @@ This directory keeps material that has a different job:
   inheritance, direct metallic/roughness lighting, transparent ordering and
   near-camera picking coverage.
 
+- [NVIDIA HUD lifecycle investigation](editor-nvidia-hud-lifecycle-investigation.md)
+  records the reduced Play/Stop reproducer, diagnostic comparisons and the
+  unresolved graphics lifetime/backend boundary.
+
 - [Editor commands, clipboard and docking](editor-shortcut-qualification.md)
   records shortcut ownership, clipboard identity/remapping, independent panel
   identities, contextual palettes and scoped verification.

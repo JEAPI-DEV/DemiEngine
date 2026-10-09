@@ -1,0 +1,9 @@
+{
+  "format_version": 1,
+  "name": "HUD lifecycle probe",
+  "main_scene": "scene://hud-lifecycle/main",
+  "scenes": [
+    {"id": "scene://hud-lifecycle/main"},
+    {"id": "scene://hud-lifecycle/control"}
+  ]
+}
