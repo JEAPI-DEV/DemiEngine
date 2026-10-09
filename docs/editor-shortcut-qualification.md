@@ -447,3 +447,16 @@ omitted defaults, successive snapshots, absent components and unchanged authored
 serialization. Component schema, shell docking and Play session tests pass.
 Native Vulkan testing moved the colony camera in embedded Play: the Inspector
 reported its changed position while its authored scene retained the original.
+
+## Embedded Play resource lifetime and open GPU issue (2026-10-09)
+
+Game-renderer release after Stop or a render failure now occurs after the UI
+frame is submitted. The frame may contain an ImGui Image referencing the Game
+texture; queuing resource destruction before that submission violated the
+intended lifetime ordering.
+
+Play-session, render-view and shell-docking tests pass. Native testing still
+reproduced an intermittent NVIDIA Vulkan crash after five Play/Stop cycles;
+this change is not claimed to fix that crash. The same build survived 24 cycles
+with Khronos validation enabled and 12 cycles with AMD Vulkan selected locally.
+Detailed reproduction and remaining investigation are recorded in `tofix.md`.

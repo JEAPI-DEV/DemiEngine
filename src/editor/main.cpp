@@ -189,9 +189,6 @@ int main(const int argc, char **argv) {
         shell.playSession().reportFailure(error);
         shell.setNotice("Game view unavailable: " + error);
       }
-    } else if (!shell.playSession().isEmbedded() && gameRendererReady) {
-      ui->releaseGameRenderer();
-      gameRendererReady = false;
     }
     if (shell.playSession().isEmbedded()) {
       const demi::editor::EditorViewportArea area = shell.gameArea();
@@ -225,8 +222,6 @@ int main(const int argc, char **argv) {
         !ui->renderGame(*shell.playSession().runtimeWorld(), shell.gameArea(),
                         shell.playSession().interpolationAlpha(), error)) {
       shell.playSession().reportFailure(error);
-      ui->releaseGameRenderer();
-      gameRendererReady = false;
       shell.setNotice("Game view stopped: " + error);
     }
     for (const auto view : demi::editor::EditorAuthoringViews) {
@@ -259,6 +254,13 @@ int main(const int argc, char **argv) {
         shell.setNotice("Authored view unavailable: " + error);
     }
     ui->endFrame();
+    // shell.draw() may stop Play after emitting an Image of the game texture.
+    // Submit that UI frame before queuing destruction of its GPU resources.
+    // Runtime/render failures follow the same lifetime rule.
+    if (!shell.playSession().isEmbedded() && gameRendererReady) {
+      ui->releaseGameRenderer();
+      gameRendererReady = false;
+    }
     ++frame;
   }
   shell.playSession().stop();
