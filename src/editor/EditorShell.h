@@ -48,6 +48,8 @@ public:
     terrainGraphPanel_.releaseUiResources();
   }
   [[nodiscard]] float uiScale() const { return uiScale_; }
+  [[nodiscard]] bool pollBackgroundChanges();
+  [[nodiscard]] bool needsContinuousFrames() const;
   [[nodiscard]] bool wantsExit() const { return wantsExit_; }
   void requestExit() { exitRequested_ = true; }
   [[nodiscard]] const auto &authoringViews() const { return authoringViews_; }

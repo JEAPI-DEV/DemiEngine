@@ -133,3 +133,79 @@ The Release editor rebuilt successfully; imgui-input, shell-docking and
 drag-authoring tests all passed. Full-resolution native captures:
 `/tmp/right-capture-probe-0.png`, `/tmp/right-capture-probe-1.png`,
 `/tmp/editor-followup-create.png`, `/tmp/editor-followup-presets-open.png`.
+
+## Editor power use follow-up
+
+The editor already requested VSync, but had no additional frame budget. On the
+NVIDIA RTX 3070 Ti laptop at a 5120×2806 client size, a small scene ran at about
+143 FPS while idle. The SDL/X11 display refresh query returned zero, so the
+measurement does not assume an advertised monitor refresh rate.
+
+A 60 FPS focused / 15 FPS background cap was first prototyped and measured.
+It reduced load but did not address unnecessary idle redraws. That cap and its
+settings were removed before committing the final change.
+
+`demi-editor --profile-frames <csv> --max-frames <count>` captures authoring
+frames through RuntimeProfiler. The same 1,200-frame workload was measured before
+and after, excluding the first 120 frames from frame statistics. No build was
+running during either capture. GPU utilization/power were sampled every half
+second after the first two seconds; they are whole-device readings.
+
+| Metric | Before | 60 FPS limit |
+| --- | ---: | ---: |
+| Frame interval median / p95 ms | 6.991 / 7.797 | 16.810 / 16.898 |
+| UI CPU median / p95 ms | 2.305 / 2.689 | 2.323 / 2.865 |
+| GPU frame median / p95 ms | 0.849 / 0.903 | 0.833 / 0.853 |
+| Median device GPU utilization | 88% | 43% |
+| Median device GPU power | 54.4 W | 44.0 W |
+| Process CPU seconds / wall seconds (including startup) | 7.04 / 12.12 | 6.77 / 23.55 |
+
+Per-frame work is similar; less frequent rendering reduces work per second.
+This is not a fan-noise or battery-runtime measurement. The same-scene captures
+are `/tmp/editor-pacing-baseline.csv` and `/tmp/editor-pacing-capped.csv`, with
+companion `.gpu.json`, `.time` and `.log` evidence. Frame-budget, preference
+round-trip/validation and settings-layout tests pass.
+
+### Final event-driven implementation
+
+Unchanged authoring now waits on SDL events, leaving the last rendered window
+and viewport images intact. The 250 ms maintenance timeout polls source watches
+without rendering. Input, exposed/resized windows and discovered source changes
+resume drawing. A 0.75-second settling interval preserves delayed hover feedback
+and dock-target initialization. Text input schedules caret updates. Held input,
+embedded Play, visible animation previews, terrain jobs and build/run operations
+remain active. Paused Play can sleep. VSync is retained; no active-view FPS cap
+is imposed.
+
+In a 20-second idle-loop run of the same scene, only 103 settling frames were
+rendered, with no subsequent idle submissions. Median whole-device GPU use was
+0%, power 20.5 W and graphics clock 210 MHz. Total process CPU was 3.59 seconds
+over 23.29 seconds including project/graphics startup. See
+`/tmp/editor-pacing-idle.csv`, `.gpu.json`, `.time` and `.log`.
+
+SDL event-wait tests verify that waiting does not consume the keyboard event
+before normal dispatch. Activity tests verify settling, waking and continuous
+work, and shell tests verify that running Play stays active while paused Play
+can sleep. Windows hardware remains untested; waiting uses the common SDL
+platform owner without Linux-specific pacing code.
+
+The original combined file/input wake-up probe was interrupted by manual cube
+movement and is not used as independent wake-up evidence. A separate file-only
+repeat (`/tmp/editor-file-wake-only.csv`, `.log`) issued no mouse or keyboard
+commands. It rendered 102 settling frames, slept for 6.765 seconds, rendered
+76 frames after the external Lua-file write, and returned to idle. Exit status 0.
+
+GNOME may revoke remote input permission after a long inactive period. The first
+input command is therefore an access check, verified by a visible selection
+change before measured input begins. An unregistered access-check click is not
+classified as an editor input regression.
+
+The separate mouse-only repeat first confirmed Sun selection, waited four seconds,
+then selected Camera; screenshots verify both Hierarchy and Inspector changes.
+It performed no file writes during the run and exited normally. Evidence:
+`/tmp/editor-mouse-confirmed.csv`, `/tmp/editor-mouse-confirmed-before.png` and
+`/tmp/editor-mouse-confirmed-after.png`. The final combined focused gate passed
+17/17 terrain/editor/platform tests (5.80 seconds).
+
+Terrain and idle-rendering website guidance was checked with Composer tests,
+Twig lint and production cache warmup before release activation.

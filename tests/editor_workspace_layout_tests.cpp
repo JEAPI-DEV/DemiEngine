@@ -1,3 +1,4 @@
+#include "editor/EditorActivity.h"
 #include "editor/EditorWorkspaceLayout.h"
 
 #include <cassert>
@@ -20,6 +21,16 @@ void verify(const float width, const float height) {
 } // namespace
 
 int main() {
+  demi::editor::EditorActivity activity;
+  assert(activity.needsFrame(10, false));
+  assert(activity.needsFrame(10.5, false));
+  assert(!activity.needsFrame(11, false));
+  activity.notify(12);
+  assert(activity.needsFrame(12, false));
+  assert(!activity.needsFrame(13, false));
+  assert(activity.needsFrame(20, true));
+  assert(activity.needsFrame(21, true));
+  assert(!activity.needsFrame(22, false));
   verify(1680, 945);
   verify(960, 600);
   verify(640, 480);

@@ -17,6 +17,9 @@ public:
   [[nodiscard]] bool open(const std::filesystem::path &source,
                           const EditorAssetIndex &assets, std::string &error);
   void draw(EditorWorkspace &workspace, std::string &notice);
+  [[nodiscard]] bool needsContinuousFrames() const {
+    return animatedPreviewVisible_;
+  }
   [[nodiscard]] bool isDirty() const {
     return active_ && (active_->document().isDirty() || assetReimportPending_);
   }
@@ -32,6 +35,7 @@ public:
 private:
   std::optional<EditorSpecializedDocument> active_;
   bool assetReimportPending_ = false;
+  bool animatedPreviewVisible_ = false;
   std::string selectedPointer_;
   std::array<char, 1024> editBuffer_{};
   std::string editBufferPointer_;

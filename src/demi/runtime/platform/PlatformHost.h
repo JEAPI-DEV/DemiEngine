@@ -56,6 +56,8 @@ public:
                                         std::string &error) = 0;
   virtual void shutdown() = 0;
   virtual void poll(InputState &input) = 0;
+  // Wait on the main thread without consuming the event; poll owns dispatch.
+  [[nodiscard]] virtual bool waitForEvent(int timeoutMilliseconds) = 0;
   virtual void clearQuitRequest() = 0;
   [[nodiscard]] virtual std::vector<std::filesystem::path>
   takeDroppedFiles() = 0;

@@ -546,6 +546,12 @@ void checkRuntimePanelsRejectDelete(ImGuiFixture &imgui, EditorShell &shell,
   require(
       shell.playSession().startEmbedded(project / "demi.project.json", error),
       error);
+  require(shell.needsContinuousFrames(),
+          "Embedded Play was allowed to fall asleep");
+  require(shell.playSession().togglePause(error), error);
+  require(!shell.needsContinuousFrames(),
+          "Paused Play unnecessarily requests frames");
+  require(shell.playSession().togglePause(error), error);
   require(shell.playSession().runtimeWorld() != nullptr &&
               shell.playSession().runtimeWorld() != &workspace.project().world,
           "Embedded Play did not create an isolated runtime world");

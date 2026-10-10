@@ -1,5 +1,10 @@
 # DemiEngine Roadmap
 
+The editor now waits for events when authoring is unchanged, retaining its last
+frame while source-watch maintenance continues. Play and active work keep
+updating without a default interaction FPS cap; see
+[editor qualification](docs/editor-usability-redesign.md).
+
 Terrain palettes now separate surface material sets from named object placement
 rules. Format-2 migration removes ground proxy objects and preserves explicit
 model/prefab ownership; automatic surface shading remains the next integration

@@ -1,12 +1,14 @@
+#include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/render/backend/DefaultFont.h"
+#include "editor/EditorActivity.h"
 #include "editor/EditorDockingState.h"
+#include "editor/EditorDockingWorkspace.h"
 #include "editor/EditorFontLoader.h"
 #include "editor/EditorGameRenderer.h"
 #include "editor/EditorImGuiInput.h"
 #include "editor/EditorInputOwnership.h"
 #include "editor/EditorRecoveryStore.h"
 #include "editor/EditorUiHost.h"
-#include "editor/EditorDockingWorkspace.h"
 #include "editor/EditorViewportRenderer.h"
 #include "editor/EditorWorkspaceLayout.h"
 
@@ -79,7 +81,8 @@ public:
              .width = static_cast<std::uint32_t>(frame.width),
              .height = static_cast<std::uint32_t>(frame.height),
              .vsync = true,
-             .debug = false},
+             .debug = false,
+             .profile = runtime::RuntimeProfiler::enabled()},
             error)) {
       platform_->shutdown();
       return false;
@@ -190,9 +193,45 @@ public:
     userZoom_ = std::clamp(scale, 1.0F, 2.5F);
   }
 
+  static double activityTime() {
+    return std::chrono::duration<double>(
+               std::chrono::steady_clock::now().time_since_epoch())
+        .count();
+  }
+
+  bool awaitFrame(bool continuous) override {
+    const bool heldInput = mouseCaptured_ || !input_.keysDown.empty() ||
+                           !input_.mouseButtonsDown.empty();
+    if (activity_.needsFrame(activityTime(), continuous || heldInput))
+      return true;
+    // Timeouts permit cheap source-watch maintenance without drawing. Text
+    // input has a blinking caret, so it schedules a UI update on timeout too.
+    if (platform_->waitForEvent(250)) {
+      activity_.notify(activityTime());
+      return true;
+    }
+    return ImGui::GetIO().WantTextInput;
+  }
+
   bool beginFrame(std::string &error) override {
+    const auto previousPosition = input_.mousePosition;
+    const auto previousWindow = platform_->frameState();
     platform_->poll(input_);
     const auto &frame = platform_->frameState();
+    const bool inputChanged =
+        input_.mousePosition.x != previousPosition.x ||
+        input_.mousePosition.y != previousPosition.y ||
+        input_.mouseDelta.x != 0 || input_.mouseDelta.y != 0 ||
+        !input_.keysPressed.empty() || !input_.keysReleased.empty() ||
+        !input_.mouseButtonsPressed.empty() ||
+        !input_.mouseButtonsReleased.empty() || !input_.textEntered.empty() ||
+        input_.mouseScroll.x != 0 || input_.mouseScroll.y != 0;
+    if (inputChanged || frame.width != previousWindow.width ||
+        frame.height != previousWindow.height ||
+        frame.focused != previousWindow.focused)
+      activity_.notify(activityTime());
+    runtime::RuntimeProfiler::record("Editor.interval",
+                                     frame.wallDeltaSeconds * 1000.0);
     uiScale_ = editorDisplayScale(frame.logicalDpi, userZoom_);
     if (!frame.minimized && frame.width > 0 && frame.height > 0 &&
         !graphics_.resize(static_cast<std::uint32_t>(frame.width),
@@ -419,6 +458,19 @@ public:
         static_cast<std::uint16_t>(std::clamp(frame.width, 1, 65535)),
         static_cast<std::uint16_t>(std::clamp(frame.height, 1, 65535)));
     (void)graphics_.endFrame();
+    if (runtime::RuntimeProfiler::enabled()) {
+      const auto timings = graphics_.frameTimings();
+      runtime::RuntimeProfiler::record("Graphics.frame_advance",
+                                       timings.advanceMilliseconds);
+      if (timings.renderThreadMilliseconds)
+        runtime::RuntimeProfiler::record("Graphics.render_thread",
+                                         *timings.renderThreadMilliseconds);
+      if (timings.gpuMilliseconds)
+        runtime::RuntimeProfiler::record("Graphics.gpu",
+                                         *timings.gpuMilliseconds);
+      runtime::RuntimeProfiler::setGauge(
+          "Editor.refresh_hz", platform_->frameState().displayRefreshHz);
+    }
     const bgfx::Stats *stats = bgfx::getStats();
     std::vector<EditorGpuViewCounters> views;
     if (stats != nullptr && stats->viewStats != nullptr) {
@@ -514,6 +566,7 @@ private:
   std::string workspaceDiagnostic_;
   bool initialized_ = false;
   bool mouseCaptured_ = false;
+  EditorActivity activity_;
   bool exclusiveGame_ = false;
   EditorInputOwnership inputOwnership_;
 };

@@ -41,6 +41,8 @@ public:
   virtual void shutdown() = 0;
   [[nodiscard]] virtual bool beginFrame(std::string &error) = 0;
   virtual void setUiScale(float scale) = 0;
+  // Wait without drawing; false means only background maintenance is due.
+  [[nodiscard]] virtual bool awaitFrame(bool) { return true; }
   [[nodiscard]] virtual std::vector<std::filesystem::path>
   takeDroppedFiles() = 0;
   [[nodiscard]] virtual std::string takeWorkspaceDiagnostic() = 0;

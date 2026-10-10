@@ -4,6 +4,8 @@
 #include "editor/EditorWorkspace.h"
 
 #include "demi/filesystem/ProjectDiscovery.h"
+#include "demi/runtime/profiling/RuntimeProfiler.h"
+#include <fstream>
 
 #include <algorithm>
 #include <array>
@@ -19,6 +21,8 @@ struct EditorOptions {
   std::filesystem::path projectPath;
   std::filesystem::path openSource;
   int maximumFrames = 0;
+  std::filesystem::path profileFrames;
+  int maximumSeconds = 0;
   bool showHelp = false;
   bool terrainGraph = false;
   std::optional<std::string> terrainSettingsNode;
@@ -37,6 +41,19 @@ EditorOptions parseOptions(const int argc, char **argv) {
       } catch (const std::exception &) {
         options.maximumFrames = 0;
       }
+    } else if (argument == "--max-seconds" && index + 1 < argc) {
+      try {
+        options.maximumSeconds = std::max(0, std::stoi(argv[++index]));
+      } catch (const std::exception &) {
+        options.optionError = "--max-seconds requires a number.";
+      }
+    } else if (argument == "--profile-frames") {
+      if (index + 1 >= argc ||
+          std::string_view(argv[index + 1]).starts_with("--")) {
+        options.optionError = "--profile-frames requires a CSV path.";
+        return options;
+      }
+      options.profileFrames = argv[++index];
     } else if (argument == "--open" && index + 1 < argc) {
       options.openSource = argv[++index];
     } else if (argument == "--terrain-graph") {
@@ -64,7 +81,9 @@ void printHelp() {
                "                   [--open <authored-source>]\n"
                "                   [--terrain-graph]\n"
                "                   [--terrain-settings-node <stable-node-id>]\n"
-               "                   [--max-frames <count>]\n\n"
+               "                   [--max-frames <count>]\n"
+               "                   [--profile-frames <csv>] [--max-seconds "
+               "<seconds>]\n\n"
                "Without --project, the nearest parent demi.project.json is "
                "opened.\n"
                "--terrain-graph opens the graph for the selected terrain "
@@ -101,6 +120,17 @@ int main(const int argc, char **argv) {
     return 1;
   }
 
+  std::ofstream profile;
+  if (!options.profileFrames.empty()) {
+    profile.open(options.profileFrames);
+    if (!profile) {
+      std::cerr << "Cannot open editor frame profile: " << options.profileFrames
+                << '\n';
+      return 1;
+    }
+    demi::runtime::RuntimeProfiler::setEnabled(true);
+    demi::runtime::RuntimeProfiler::resetSession();
+  }
   auto ui = demi::editor::createEditorUiHost();
   const std::string title =
       "Demi Engine Editor - " + workspace.project().project.name;
@@ -143,11 +173,28 @@ int main(const int argc, char **argv) {
       shell.setNotice("Authored view unavailable: " + error);
   bool gameRendererReady = false;
   int frame = 0;
+  bool profileFailed = false;
+  const auto loopStarted = std::chrono::steady_clock::now();
   while (!shell.wantsExit() &&
          (options.maximumFrames <= 0 || frame < options.maximumFrames)) {
+    if (options.maximumSeconds > 0 &&
+        std::chrono::steady_clock::now() - loopStarted >=
+            std::chrono::seconds(options.maximumSeconds))
+      break;
+    const bool changed = shell.pollBackgroundChanges();
+    if (!ui->awaitFrame(changed || shell.needsContinuousFrames() ||
+                        ui->shouldClose()))
+      continue;
     if (ui->shouldClose()) {
       shell.requestExit();
       ui->acknowledgeCloseRequest();
+    }
+    const auto frameStarted = std::chrono::steady_clock::now();
+    const bool profileAuthoring =
+        profile.is_open() && !shell.playSession().isEmbedded();
+    if (profileAuthoring) {
+      demi::runtime::RuntimeProfiler::setEnabled(true);
+      demi::runtime::RuntimeProfiler::beginFrame();
     }
     ui->setUiScale(shell.uiScale());
     if (!ui->beginFrame(error)) {
@@ -181,7 +228,10 @@ int main(const int argc, char **argv) {
     }
     shell.setGameTextureIndex(ui->gameTextureIndex());
     shell.playSession().setGpuTiming(ui->gpuTimingSample());
-    shell.draw(ui->width(), ui->height(), ui->rendererName());
+    {
+      demi::runtime::ProfileScope scope("Editor.ui");
+      shell.draw(ui->width(), ui->height(), ui->rendererName());
+    }
     if (shell.playSession().isEmbedded() && !gameRendererReady) {
       gameRendererReady = ui->configureGameRenderer(
           workspace.project().project.projectDirectory, error);
@@ -261,6 +311,16 @@ int main(const int argc, char **argv) {
       ui->releaseGameRenderer();
       gameRendererReady = false;
     }
+    if (profileAuthoring && !shell.playSession().isEmbedded()) {
+      demi::runtime::RuntimeProfiler::record(
+          "Editor.frame", std::chrono::duration<double, std::milli>(
+                              std::chrono::steady_clock::now() - frameStarted)
+                              .count());
+      if (!demi::runtime::RuntimeProfiler::writeFrame(profile, frame)) {
+        profileFailed = true;
+        break;
+      }
+    }
     ++frame;
   }
   shell.playSession().stop();
@@ -268,5 +328,14 @@ int main(const int argc, char **argv) {
     ui->releaseGameRenderer();
   shell.releaseUiResources();
   ui->shutdown();
+  if (profile.is_open()) {
+    profile.flush();
+    profileFailed |= !profile;
+  }
+  if (profileFailed) {
+    std::cerr << "Could not write editor frame profile: "
+              << options.profileFrames << '\n';
+    return 1;
+  }
   return 0;
 }

@@ -387,6 +387,34 @@ bool EditorShell::openTerrainNodeSettings(std::string_view nodeId,
   return terrainGraphPanel_.openNodeSettings(workspace(), nodeId, error);
 }
 
+bool EditorShell::pollBackgroundChanges() {
+  bool changed = false;
+  for (auto session :
+       {EditorDocumentSession::Scene, EditorDocumentSession::Prefab,
+        EditorDocumentSession::TerrainAsset, EditorDocumentSession::Hud}) {
+    if (auto *document = documents_.workspace(session)) {
+      const auto previous = document->sourceIndexRevision();
+      document->pollScriptSources();
+      changed |= previous != document->sourceIndexRevision();
+    }
+  }
+  return changed;
+}
+
+bool EditorShell::needsContinuousFrames() const {
+  if ((playSession_.isRunning() && !playSession_.isPaused()) ||
+      runPanel_.running() || buildPanel_.operation().running ||
+      specializedPanel_.needsContinuousFrames())
+    return true;
+  for (auto session :
+       {EditorDocumentSession::Scene, EditorDocumentSession::Prefab,
+        EditorDocumentSession::TerrainAsset, EditorDocumentSession::Hud})
+    if (const auto *document = documents_.workspace(session);
+        document && document->terrainAuthoring().busy())
+      return true;
+  return false;
+}
+
 void EditorShell::draw(const int width, const int height,
                        const std::string_view rendererName) {
   workspace().pollScriptSources();
