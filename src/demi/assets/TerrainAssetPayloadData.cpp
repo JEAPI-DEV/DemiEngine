@@ -61,8 +61,8 @@ Vec3 readVec3(const Json &value, std::string_view name) {
 
 Json placement(const TerrainScatterPlacement &value) {
   return {
-      {"role", std::string(terrainPaletteRoleName(value.role))},
-      {"asset", value.asset},
+      {"rule_id", std::string(value.ruleId)},
+      {"model", value.model},
       {"prefab", value.prefab},
       {"biome", value.biome},
       {"biome_name", value.biomeName},
@@ -91,13 +91,14 @@ TerrainScatterPlacement readPlacement(const Json &value,
                                       const HeightField &field) {
   require(value.is_object(), "placement must be an object");
   TerrainScatterPlacement result;
-  require(value.at("role").is_string(), "placement role must be a string");
-  const auto role =
-      terrainPaletteRoleFromName(value.at("role").get<std::string>());
-  require(role.has_value(), "placement has an unknown role");
-  result.role = *role;
-  result.asset = value.at("asset").get<std::string>();
+  require(value.at("rule_id").is_string(), "placement ruleId must be a string");
+  result.ruleId = value.at("rule_id").get<std::string>();
+  require(validTerrainPlacementRuleId(result.ruleId),
+          "placement has an invalid rule ID");
+  result.model = value.at("model").get<std::string>();
   result.prefab = value.at("prefab").get<std::string>();
+  require(result.model.empty() != result.prefab.empty(),
+          "placement requires exactly one model or prefab");
   result.biome = checkedSize(value.at("biome"), "placement biome");
   result.biomeName = value.at("biome_name").get<std::string>();
   result.cell = checkedSize(value.at("cell"), "placement cell");
@@ -134,9 +135,9 @@ std::vector<TerrainScatterPlacement> readPlacements(const Json &value,
 
 Json palette(const TerrainPalette &value) {
   Json roles = Json::object();
-  for (const auto &[name, entry] : value.roles) {
+  for (const auto &[name, entry] : value.placements) {
     roles[name] = {
-        {"asset", entry.asset},
+        {"model", entry.model},
         {"prefab", entry.prefab},
         {"weight", entry.weight},
         {"scale_min", entry.scaleMin},
@@ -149,28 +150,29 @@ Json palette(const TerrainPalette &value) {
   return {{"format_version", value.formatVersion},
           {"id", value.id},
           {"name", value.name},
-          {"roles", std::move(roles)},
-          {"required_roles", value.requiredRoles}};
+          {"placements", std::move(roles)},
+          {"material_set", value.materialSet}};
 }
 
 TerrainPalette readPalette(const Json &value) {
   require(value.is_object(), "palette must be an object");
   TerrainPalette result;
   result.formatVersion = value.at("format_version").get<int>();
-  require(result.formatVersion == 1, "palette format is unsupported");
+  require(result.formatVersion == TerrainPalette::CurrentFormatVersion,
+          "palette format is unsupported");
   result.id = value.at("id").get<std::string>();
   result.name = value.at("name").get<std::string>();
-  result.requiredRoles =
-      value.at("required_roles").get<std::vector<std::string>>();
-  const auto &roles = value.at("roles");
+  result.materialSet = value.at("material_set").get<std::string>();
+  const auto &roles = value.at("placements");
   require(roles.is_object(), "palette roles must be an object");
   for (const auto &[name, item] : roles.items()) {
-    const auto role = terrainPaletteRoleFromName(name);
-    require(role.has_value(), "palette has an unknown role");
+    require(validTerrainPlacementRuleId(name),
+            "palette has an invalid rule ID");
     TerrainPaletteEntry entry;
-    entry.role = *role;
-    entry.asset = item.at("asset").get<std::string>();
+    entry.model = item.at("model").get<std::string>();
     entry.prefab = item.at("prefab").get<std::string>();
+    require(entry.model.empty() != entry.prefab.empty(),
+            "palette placement requires exactly one model or prefab");
     entry.weight = finiteFloat(item.at("weight"), "palette weight");
     entry.scaleMin = finiteFloat(item.at("scale_min"), "palette minimum scale");
     entry.scaleMax = finiteFloat(item.at("scale_max"), "palette maximum scale");
@@ -181,7 +183,7 @@ TerrainPalette readPalette(const Json &value) {
     require(entry.weight >= 0 && entry.scaleMin > 0 &&
                 entry.scaleMin <= entry.scaleMax && entry.spacing >= 0,
             "palette contains invalid placement dimensions");
-    result.roles.emplace(name, std::move(entry));
+    result.placements.emplace(name, std::move(entry));
   }
   return result;
 }

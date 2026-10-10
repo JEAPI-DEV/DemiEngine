@@ -147,6 +147,15 @@ void EditorAssetDialogs::draw(EditorWorkspace &workspace, std::string &notice) {
         if (!sourceAssetChoices_)
           sourceAssetChoices_ = editorSourceAssetChoices(workspace);
         if (sourceKind_ == EditorSourceKind::TerrainPalette) {
+          std::vector<std::string> sets{"(No material set)"};
+          sets.insert(sets.end(), sourceAssetChoices_->materialSets.begin(),
+                      sourceAssetChoices_->materialSets.end());
+          auto selectedSet = sourceAssetOptions_.initialMaterialSet.empty()
+                                 ? std::string("(No material set)")
+                                 : sourceAssetOptions_.initialMaterialSet;
+          drawAssetChoice("Surface material set", sets, selectedSet);
+          sourceAssetOptions_.initialMaterialSet =
+              selectedSet == "(No material set)" ? "" : selectedSet;
           std::vector<std::string> prefabs{"(No prefab)"};
           prefabs.insert(prefabs.end(), sourceAssetChoices_->prefabs.begin(),
                          sourceAssetChoices_->prefabs.end());
@@ -160,18 +169,13 @@ void EditorAssetDialogs::draw(EditorWorkspace &workspace, std::string &notice) {
             sourceAssetOptions_.initialPrefab = newPrefab;
             sourceAssetOptions_.initialAsset.clear();
           }
-          std::vector<std::string> candidates = sourceAssetChoices_->models;
-          if (!sourceAssetOptions_.initialPrefab.empty()) {
-            candidates.insert(candidates.end(),
-                              sourceAssetChoices_->materials.begin(),
-                              sourceAssetChoices_->materials.end());
-            std::ranges::sort(candidates);
+          if (sourceAssetOptions_.initialPrefab.empty()) {
+            drawAssetChoice("Model", sourceAssetChoices_->models,
+                            sourceAssetOptions_.initialAsset);
+            if (sourceAssetChoices_->models.empty())
+              ImGui::TextDisabled(
+                  "Import a Model3D asset or select an entity prefab.");
           }
-          drawAssetChoice("Soil role asset", candidates,
-                          sourceAssetOptions_.initialAsset);
-          if (candidates.empty())
-            ImGui::TextDisabled("Import a Model3D asset, or create a terrain "
-                                "material and an entity prefab first.");
         } else {
           drawAssetChoice("Ground material", sourceAssetChoices_->materials,
                           sourceAssetOptions_.initialAsset);
@@ -182,7 +186,10 @@ void EditorAssetDialogs::draw(EditorWorkspace &workspace, std::string &notice) {
       ImGui::Spacing();
       const bool canCreate =
           sourceName_[0] != '\0' &&
-          (!needsReference || !sourceAssetOptions_.initialAsset.empty());
+          (!needsReference || !sourceAssetOptions_.initialAsset.empty() ||
+           (sourceKind_ == EditorSourceKind::TerrainPalette &&
+            (!sourceAssetOptions_.initialPrefab.empty() ||
+             !sourceAssetOptions_.initialMaterialSet.empty())));
       ImGui::BeginDisabled(!canCreate);
       ImGui::PushStyleColor(ImGuiCol_Button,
                             ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive));

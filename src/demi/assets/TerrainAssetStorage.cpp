@@ -158,7 +158,8 @@ std::string assetInputFingerprint(
     references.insert(id);
   if (generationInputs.palette) {
     for (const auto &id : generationInputs.palette->assetDependencies())
-      if (id.starts_with("asset://"))
+      if (id.starts_with("asset://") &&
+          id != generationInputs.palette->materialSet)
         references.insert(id);
   }
   for (const auto &id : references) {

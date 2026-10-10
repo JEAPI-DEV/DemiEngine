@@ -31,9 +31,18 @@ material and texture scale in Terrain Graph biome properties; a scale of 0.5
 repeats albedo every two terrain-local units. Use Repeat wrapping on its texture.
 Material and scale changes preserve heights and collision. These prototype
 materials are not production landscape art or blended terrain PBR layers.
-Blended materials, visible water, production foliage, integrated LOD and
+Blended materials, advanced water shading, production foliage, integrated LOD and
 large-world streaming remain follow-up work. This example uses a conventional
 recipe (no connected graph) and prototype geometry for its scattered palette.
 
 See the maintained [terrain guide](https://demiengine.de/docs/terrain) and
 [implementation plan](../../terrain-plan.md).
+
+The meadow palette uses format 2: `material_set` holds ground bindings and
+`placements` contains six independently named vegetation/prop rules. Surface
+bindings create no objects. The set is ready for the later automatic surface
+assignment stage; explicit biome materials remain the rendered surface today.
+Object rules preserve the original weights and spacing, but the new object-only
+weight normalizer and stable named-rule random streams change placement counts.
+Full-density output remains heavy (323,984 placements in the migration probe);
+this is not a vegetation performance or production-art qualification.

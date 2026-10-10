@@ -100,11 +100,10 @@ bool sameBiomePalette(const TerrainBiomePalette &a,
 }
 bool samePlacement(const TerrainScatterPlacement &a,
                    const TerrainScatterPlacement &b) {
-  return a.role == b.role && a.asset == b.asset && a.prefab == b.prefab &&
-         a.biome == b.biome && a.biomeName == b.biomeName &&
-         a.cell == b.cell && a.position.x == b.position.x &&
-         a.position.y == b.position.y && a.position.z == b.position.z &&
-         a.yaw == b.yaw && a.scale == b.scale &&
+  return a.ruleId == b.ruleId && a.model == b.model && a.prefab == b.prefab &&
+         a.biome == b.biome && a.biomeName == b.biomeName && a.cell == b.cell &&
+         a.position.x == b.position.x && a.position.y == b.position.y &&
+         a.position.z == b.position.z && a.yaw == b.yaw && a.scale == b.scale &&
          a.collision == b.collision && a.lod == b.lod;
 }
 bool sameDerived(const TerrainDerivedState &a, const TerrainDerivedState &b) {

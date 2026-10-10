@@ -41,17 +41,21 @@ std::string paletteFingerprint(const TerrainPalette &palette,
                                const AssetRegistry &registry) {
   nlohmann::json semantic{{"format_version", palette.formatVersion},
                           {"id", palette.id},
-                          {"roles", nlohmann::json::object()},
+                          {"material_set", palette.materialSet},
+                          {"placements", nlohmann::json::object()},
                           {"assets", nlohmann::json::object()}};
-  for (const auto &[name, entry] : palette.roles)
-    semantic["roles"][name] = {
-        {"asset", entry.asset}, {"prefab", entry.prefab},
-        {"weight", entry.weight}, {"scale", {entry.scaleMin, entry.scaleMax}},
+  for (const auto &[name, entry] : palette.placements)
+    semantic["placements"][name] = {
+        {"model", entry.model},
+        {"prefab", entry.prefab},
+        {"weight", entry.weight},
+        {"scale", {entry.scaleMin, entry.scaleMax}},
         {"spacing", entry.spacing},
         {"collision", std::string(terrainCollisionPolicyName(entry.collision))},
-        {"lod", entry.lod}, {"biomes", entry.biomes}};
+        {"lod", entry.lod},
+        {"biomes", entry.biomes}};
   for (const auto &id : palette.assetDependencies()) {
-    if (!id.starts_with("asset://"))
+    if (!id.starts_with("asset://") || id == palette.materialSet)
       continue;
     const auto *asset = findAsset(registry, id);
     if (asset == nullptr || asset->sourceHash.empty())

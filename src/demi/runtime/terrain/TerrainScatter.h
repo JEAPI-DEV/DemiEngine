@@ -17,7 +17,7 @@ struct TerrainScatterSettings {
   // Global multiplier on the palette's weights. 0 scatters nothing, which is how
   // a recipe opts out without editing the shared palette.
   float density = 1;
-  // Global multiplier on every role's spacing. Larger is sparser.
+  // Global multiplier on every rule's spacing. Larger is sparser.
   float spacingScale = 1;
   // Hard ceiling on returned placements, so a large field cannot exhaust memory.
   // Reaching it is reported through TerrainScatterResult::truncated rather than
@@ -54,7 +54,7 @@ scatterTerrain(const HeightField &field, const TerrainRecipe &recipe,
 
 // The palette roles that would place on this field at all, sorted. Used to
 // report a palette that cannot contribute rather than failing generation.
-[[nodiscard]] std::vector<TerrainPaletteRole>
+[[nodiscard]] std::vector<std::string>
 scatterableRoles(const HeightField &field, const TerrainRecipe &recipe,
                  const TerrainPalette &palette);
 

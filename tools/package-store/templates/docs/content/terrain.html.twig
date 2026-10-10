@@ -240,27 +240,35 @@ return script</code></pre>
 <p>The reason a preset is applied rather than referenced is worth stating plainly: the recipe stays the single source of truth for generation. Incremental editing, the rebuild-versus-replay decision and undo/redo all operate on the recipe, so a runtime override would make each of those three answer a different question from the one the author asked. A preset applied once cannot also disagree with the terrain it was applied to.</p>
 
 <h2>Asset palettes</h2>
-<p>An asset palette maps semantic roles to existing material, mesh and prefab assets, so automatic selection can be described without naming art. Like presets, a palette is a data asset with its own <code>settings.content_type</code> of <code>terrain_palette</code> rather than a new document kind, so it inherits cooking, packaging, dependency closure, <code>demi validate</code> coverage and hot reload from the existing data-asset pipeline.</p>
-<p>A palette document has a <code>format_version</code> of 1, a required <code>name</code>, a <code>roles</code> object keyed by role name, and an optional <code>required_roles</code> array naming roles a consumer must find. Roles are keyed rather than listed because the object is key-sorted: a duplicate role is then structurally impossible and iteration order does not depend on how the file was written. The eleven role names are <code>exposed_rock</code>, <code>soil</code>, <code>sand</code>, <code>snow</code>, <code>wet_ground</code>, <code>tree</code>, <code>bush</code>, <code>grass</code>, <code>reed</code>, <code>cliff_piece</code> and <code>debris</code>. An unknown role name is a load error, not a role that silently never scatters.</p>
-<p>Each role entry accepts:</p>
-<ul>
-  <li><code>asset</code> &mdash; required. An <code>asset://</code> reference that must resolve to a real asset.</li>
-  <li><code>prefab</code> &mdash; optional. A <code>prefab://</code> reference.</li>
-  <li><code>weight</code> &mdash; relative selection weight, at least 0. At least one role must have a weight above 0, otherwise nothing would ever be chosen.</li>
-  <li><code>scale</code> &mdash; <code>[minimum, maximum]</code> with <code>0 &lt; minimum &le; maximum</code>.</li>
-  <li><code>spacing</code> &mdash; world units between instances, at least 0. Zero means unconstrained, which is what continuous ground cover needs.</li>
-  <li><code>collision</code> &mdash; <code>none</code>, <code>static</code> or <code>trigger</code>.</li>
-  <li><code>lod</code> &mdash; level, at least 0.</li>
-  <li><code>biomes</code> &mdash; optional. Biome names this role may appear in. Omit it, or leave it empty, to allow every biome. Keep it narrow for ground cover, where grass belongs on meadow and rock on rock, and deliberately omit it for a global role such as debris.</li>
-</ul>
-<p><strong>Every <code>asset://</code> reference must also appear in the palette manifest's <code>dependencies</code> array.</strong> This is the most common authoring mistake. Cooking and packaging follow the manifest, so an undeclared reference produces a palette that validates, loads and then ships without its art. Removing an entry from <code>dependencies</code> fails validation with <code>DATA_DEPENDENCY_UNDECLARED</code>.</p>
+<p>A <code>terrain_palette</code> DataAsset separates surface material bindings from object placement rules. Palettes use <code>format_version: 2</code>; manifests and material sets retain their own format versions.</p>
+<pre><code>{
+  "format_version": 2,
+  "name": "Meadow",
+  "material_set": "asset://terrain/material_sets/meadow",
+  "placements": {
+    "pine_sparse": {
+      "prefab": "prefab://vegetation/pine",
+      "weight": 0.15,
+      "spacing": 12,
+      "scale": [0.9, 1.3],
+      "biomes": ["meadow"],
+      "collision": "static"
+    }
+  }
+}</code></pre>
+<p>The IDs above illustrate the format; choose assets installed in your project. <code>material_set</code> is optional and references a <code>terrain_material_set</code>. Its surface bindings never produce scattered entities. <code>placements</code> is optional; a palette must supply a material set or at least one placement.</p>
+<p>Each placement has an author-chosen stable ID using letters, digits, underscores or hyphens, and exactly one geometry reference: <code>model</code> to a Model3D asset, or <code>prefab</code> to an entity prefab. Prefabs own their materials and need no dummy asset reference. Multiple rules can reuse the same geometry with different settings. Renaming a rule changes its generated object identities.</p>
+<p>Rules retain <code>weight</code> (default 1, zero disables selection), <code>spacing</code> (default 1, zero disables spacing rejection), <code>scale</code> (default [1,1]), <code>collision</code> (none/static/trigger, default static), <code>lod</code> metadata (default 0), and an optional <code>biomes</code> filter. These fields do not imply implemented vegetation LOD. Import/reimport records model and material-set dependencies; prefab source traversal owns prefab dependencies.</p>
+<p>Use the palette editor's <strong>Surface Materials</strong> and <strong>Object Placements</strong> sections. Add a model or prefab placement, then edit its rule ID and settings. Rule edits, removal and material-set changes use normal Undo/Redo and Save.</p>
+<p><strong>Migration:</strong> version-1 palettes are rejected explicitly. Move ground bindings into a material set; move object entries from <code>roles</code> to <code>placements</code>. Replace a model entry's <code>asset</code> with <code>model</code>; for prefab entries retain <code>prefab</code> and remove the dummy asset. Keep required surface roles on the material set. Reimport manifests and recook derived terrain payloads. The repository meadow palette is a migrated example.</p>
+<p><strong>Rendering boundary:</strong> the palette's material-set reference organizes surface bindings; automatic mask-based surface assignment and blended PBR terrain shading remain unfinished. Ordinary explicit biome material bindings continue to render. Surface-only palettes do not generate proxy objects to imitate shading.</p>
 <h3>Scattering a palette onto terrain</h3>
 <p>Name the palette on the recipe with a <code>palette</code> field holding an <code>asset://</code> id. A recipe without one scatters nothing, so the feature is opt-in. In the conventional pipeline, a palette change takes the full generation path rather than a local brush replay. In a terrain graph, a palette change invalidates the Scatter Palette branch and its downstream output; unchanged upstream nodes can be reused from a previous graph result.</p>
 <p>In the conventional pipeline, scattering reads the finished surface after sculpting and uses the final biome, water and exclusion constraints. In a graph, Scatter Palette reads the heightfield connected to its input before the final authored region, sculpt and exclusion overlays. After graph output, placements snap to edited heights and placements on excluded samples are removed. A newly painted biome region therefore does not guarantee that graph scatter will choose different biome-specific roles; connect a Biome Rules node upstream when rule-based biomes should inform candidate selection.</p>
 <p><code>weight</code> is a relative share of eligible ground, so weight 0 keeps a role available but never selects it. <code>spacing</code> is a minimum distance enforced per role, so one role's spacing never rejects another's, and <code>spacing</code> of 0 is continuous, unconstrained cover. The resulting placements are recorded against the terrain, and reaching the placement ceiling is reported rather than silently accepted.</p>
 <p>Placement is deterministic in the same way generation is: a candidate draws from the scatter sub-seed combined with its own cell and role, so the result does not depend on the order cells are visited, on how many workers ran, or on how many times the terrain is scattered.</p>
-<p>Placements become real objects. When a scene loads and after every terrain update, each placement is reconciled into an object under its terrain owner, and a placement is identified by the cell that owns it rather than by its position. A stroke that moves the ground under an object moves that object instead of destroying and rebuilding it, so per-instance state survives. Placements the new terrain no longer produces are removed, and two roles landing in one cell stay distinct.</p>
-<p>A role without a prefab must reference a <code>Model3D</code> asset, because its asset becomes <code>MeshRenderer.model</code>. A material can be named when a prefab supplies the geometry. The <code>examples/terrain_3d</code> palette uses a clearly labeled cube prefab as prototype geometry for every role; replace it with role-specific art for a game. A failed or unresolved prefab placement prevents the scene from becoming ready.</p>
+<p>Placements become real objects. When a scene loads and after every terrain update, each placement is reconciled into an object under its terrain owner, and a placement is identified by the cell that owns it rather than by its position. A stroke that moves the ground under an object moves that object instead of destroying and rebuilding it, so per-instance state survives. Placements the new terrain no longer produces are removed, and two placement rules landing in one cell stay distinct.</p>
+<p>The <code>examples/terrain_3d</code> palette uses a clearly labelled cube prefab for its six vegetation/prop rules. Soil, sand, snow, wet ground and exposed-rock surface bindings live in its material set and create no proxy entities. Replace the remaining prototype prefab with role-specific art for a game. Failed prefab composition prevents the scene from becoming ready.</p>
 
 <h2>Inspecting terrain from the command line</h2>
 <pre><code>demi terrain inspect &lt;recipe.json&gt; [--format text|json]

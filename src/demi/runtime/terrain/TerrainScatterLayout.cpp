@@ -67,16 +67,16 @@ std::string escapeSegment(std::string_view text) {
 }
 
 std::string drawableOf(const TerrainScatterInstance &instance) {
-  // A prefab-only role still draws something, and grouping it under an empty
-  // asset would batch every prefab role together with every other.
-  return instance.asset.empty() ? instance.prefab : instance.asset;
+  // A prefab-only rule still draws something, and grouping it under an empty
+  // asset would batch every prefab rule together with every other.
+  return instance.model.empty() ? instance.prefab : instance.model;
 }
 
 } // namespace
 
 std::string terrainScatterInstanceKey(std::string_view paletteId,
-                                      TerrainPaletteRole role,
-                                      std::size_t cell, std::string_view regionId,
+                                      std::string_view ruleId, std::size_t cell,
+                                      std::string_view regionId,
                                       std::string_view layerId) {
   std::string key;
   key.reserve(paletteId.size() + regionId.size() + layerId.size() + 32);
@@ -84,9 +84,9 @@ std::string terrainScatterInstanceKey(std::string_view paletteId,
   key += keySeparator;
   key += escapeSegment(paletteId);
   key += keySeparator;
-  // Names, never ordinals: adding a role must not change any existing role's
+  // Names, never ordinals: adding a rule must not change any existing rule's
   // identity, which is the same rule TerrainSeed follows for channels.
-  key += escapeSegment(terrainPaletteRoleName(role));
+  key += escapeSegment(ruleId);
   key += keySeparator;
   key += escapeSegment(regionId);
   key += keySeparator;
@@ -96,7 +96,7 @@ std::string terrainScatterInstanceKey(std::string_view paletteId,
   return key;
 }
 
-std::uint64_t terrainScatterInstanceSeed(int worldSeed, TerrainPaletteRole role,
+std::uint64_t terrainScatterInstanceSeed(int worldSeed, std::string_view ruleId,
                                          std::size_t cell) {
   const auto channel =
       deriveTerrainSubSeed(worldSeed, TerrainSeedChannel::Scatter);
@@ -106,7 +106,7 @@ std::uint64_t terrainScatterInstanceSeed(int worldSeed, TerrainPaletteRole role,
   // moves this single definition into scatterTerrain is in the change report.
   std::uint64_t state = static_cast<std::uint64_t>(std::uint32_t(channel));
   state ^= static_cast<std::uint64_t>(cell) * 0x9E3779B97F4A7C15ull;
-  state ^= static_cast<std::uint64_t>(role) * 0xC2B2AE3D27D4EB4Full;
+  state ^= terrainPlacementRuleHash(ruleId) * 0xC2B2AE3D27D4EB4Full;
   state ^= static_cast<std::uint64_t>(1) * 0x165667B19E3779F9ull;
   return state;
 }
@@ -116,14 +116,14 @@ terrainScatterInstanceFrom(const TerrainScatterPlacement &placement,
                            std::string_view paletteId, int worldSeed,
                            std::string_view regionId, std::string_view layerId) {
   TerrainScatterInstance instance;
-  instance.id = terrainScatterInstanceKey(paletteId, placement.role,
+  instance.id = terrainScatterInstanceKey(paletteId, placement.ruleId,
                                           placement.cell, regionId, layerId);
   instance.seed =
-      terrainScatterInstanceSeed(worldSeed, placement.role, placement.cell);
+      terrainScatterInstanceSeed(worldSeed, placement.ruleId, placement.cell);
   instance.cell = placement.cell;
-  instance.role = placement.role;
+  instance.ruleId = placement.ruleId;
   instance.biome = placement.biome;
-  instance.asset = placement.asset;
+  instance.model = placement.model;
   instance.prefab = placement.prefab;
   instance.position = placement.position;
   instance.yaw = placement.yaw;
@@ -139,9 +139,9 @@ std::uint64_t terrainScatterInstanceHash(const TerrainScatterInstance &instance)
   absorb(hash, instance.seed);
   absorb(hash, instance.cell);
   // Enum names rather than ordinals, for the reason given on the key.
-  absorbText(hash, terrainPaletteRoleName(instance.role));
+  absorbText(hash, instance.ruleId);
   absorb(hash, instance.biome);
-  absorbText(hash, instance.asset);
+  absorbText(hash, instance.model);
   absorbText(hash, instance.prefab);
   absorbFloat(hash, instance.position.x);
   absorbFloat(hash, instance.position.y);

@@ -54,10 +54,10 @@ std::size_t scatterChildren(const World &world) {
 }
 
 TerrainScatterPlacement placementAt(std::size_t cell, float height,
-                                    TerrainPaletteRole role, float yaw) {
+                                    std::string ruleId, float yaw) {
   TerrainScatterPlacement placement;
-  placement.role = role;
-  placement.asset = "asset://terrain/props/tree";
+  placement.ruleId = ruleId;
+  placement.model = "asset://terrain/props/tree";
   placement.cell = cell;
   placement.position = {float(cell), height, 0};
   placement.yaw = yaw;
@@ -72,19 +72,14 @@ void flush(WorldCommandBuffer &commands, World &world) {
 // The key must be stable for a cell and must separate roles and palettes,
 // otherwise two roles landing in one cell would overwrite each other.
 void instanceIdIsStableAndSeparating() {
-  const auto a = terrainScatterInstanceId(OwnerId, PaletteId,
-                                           TerrainPaletteRole::Tree, 42);
-  const auto b = terrainScatterInstanceId(OwnerId, PaletteId,
-                                           TerrainPaletteRole::Tree, 42);
+  const auto a = terrainScatterInstanceId(OwnerId, PaletteId, "tree", 42);
+  const auto b = terrainScatterInstanceId(OwnerId, PaletteId, "tree", 42);
   assert(a == b);
-  assert(a != terrainScatterInstanceId(OwnerId, PaletteId,
-                                       TerrainPaletteRole::Bush, 42));
-  assert(a != terrainScatterInstanceId(OwnerId, PaletteId,
-                                       TerrainPaletteRole::Tree, 43));
-  assert(a != terrainScatterInstanceId("other", PaletteId,
-                                       TerrainPaletteRole::Tree, 42));
-  assert(a != terrainScatterInstanceId(OwnerId, "asset://other/palette",
-                                       TerrainPaletteRole::Tree, 42));
+  assert(a != terrainScatterInstanceId(OwnerId, PaletteId, "bush", 42));
+  assert(a != terrainScatterInstanceId(OwnerId, PaletteId, "tree", 43));
+  assert(a != terrainScatterInstanceId("other", PaletteId, "tree", 42));
+  assert(a != terrainScatterInstanceId(OwnerId, "asset://other/palette", "tree",
+                                       42));
   assert(a.find(OwnerId) == 0);
 }
 
@@ -96,8 +91,8 @@ void repeatSyncIsIdempotent() {
   RuntimePrefabService prefabs;
   HeightField field;
   field.paletteId = PaletteId;
-  field.scatterPlacements = {placementAt(1, 2.F, TerrainPaletteRole::Tree, 0.5F),
-                             placementAt(2, 3.F, TerrainPaletteRole::Tree, 1.5F)};
+  field.scatterPlacements = {placementAt(1, 2.F, "tree", 0.5F),
+                             placementAt(2, 3.F, "tree", 1.5F)};
 
   std::string error;
   const auto first = syncTerrainScatter(world, commands, OwnerId, field, &prefabs, error);
@@ -122,18 +117,17 @@ void movementUpdatesInPlace() {
   RuntimePrefabService prefabs;
   HeightField field;
   field.paletteId = PaletteId;
-  field.scatterPlacements = {placementAt(1, 2.F, TerrainPaletteRole::Tree, 0.5F)};
+  field.scatterPlacements = {placementAt(1, 2.F, "tree", 0.5F)};
   std::string error;
   (void)syncTerrainScatter(world, commands, OwnerId, field, &prefabs, error);
   flush(commands, world);
-  const auto id = terrainScatterInstanceId(OwnerId, PaletteId,
-                                           TerrainPaletteRole::Tree, 1);
+  const auto id = terrainScatterInstanceId(OwnerId, PaletteId, "tree", 1);
   const auto *before = findEntity(world, id);
   assert(before != nullptr);
   assert(before->component<Transform3DComponent>()->position.y == 2.F);
 
   // Same cell, new height and yaw: a sculpt moved the ground under it.
-  field.scatterPlacements = {placementAt(1, 7.F, TerrainPaletteRole::Tree, 2.5F)};
+  field.scatterPlacements = {placementAt(1, 7.F, "tree", 2.5F)};
   const auto stats = syncTerrainScatter(world, commands, OwnerId, field, &prefabs, error);
   assert(error.empty());
   assert(stats.updated == 1 && stats.created == 0 && stats.removed == 0);
@@ -153,24 +147,23 @@ void removedCellsAreCleanedUp() {
   RuntimePrefabService prefabs;
   HeightField field;
   field.paletteId = PaletteId;
-  field.scatterPlacements = {placementAt(1, 2.F, TerrainPaletteRole::Tree, 0.F),
-                             placementAt(2, 3.F, TerrainPaletteRole::Tree, 0.F),
-                             placementAt(3, 4.F, TerrainPaletteRole::Bush, 0.F)};
+  field.scatterPlacements = {placementAt(1, 2.F, "tree", 0.F),
+                             placementAt(2, 3.F, "tree", 0.F),
+                             placementAt(3, 4.F, "bush", 0.F)};
   std::string error;
   (void)syncTerrainScatter(world, commands, OwnerId, field, &prefabs, error);
   flush(commands, world);
   assert(scatterChildren(world) == 3);
 
-  // A role's weight dropped to zero, or its biome no longer matches.
-  field.scatterPlacements = {placementAt(1, 2.F, TerrainPaletteRole::Tree, 0.F)};
+  // A ruleId's weight dropped to zero, or its biome no longer matches.
+  field.scatterPlacements = {placementAt(1, 2.F, "tree", 0.F)};
   const auto stats = syncTerrainScatter(world, commands, OwnerId, field, &prefabs, error);
   assert(error.empty());
   assert(stats.removed == 2 && stats.retained == 1);
   flush(commands, world);
   assert(scatterChildren(world) == 1);
-  assert(findEntity(world, terrainScatterInstanceId(OwnerId, PaletteId,
-                                                    TerrainPaletteRole::Tree, 1)) !=
-         nullptr);
+  assert(findEntity(world, terrainScatterInstanceId(OwnerId, PaletteId, "tree",
+                                                    1)) != nullptr);
 }
 
 // Two roles in the same cell are two instances, not one overwriting the other.
@@ -180,19 +173,17 @@ void sameCellDifferentRolesCoexist() {
   RuntimePrefabService prefabs;
   HeightField field;
   field.paletteId = PaletteId;
-  field.scatterPlacements = {placementAt(9, 5.F, TerrainPaletteRole::Tree, 0.F),
-                             placementAt(9, 5.F, TerrainPaletteRole::Grass, 0.F)};
+  field.scatterPlacements = {placementAt(9, 5.F, "tree", 0.F),
+                             placementAt(9, 5.F, "grass", 0.F)};
   std::string error;
   const auto stats = syncTerrainScatter(world, commands, OwnerId, field, &prefabs, error);
   assert(stats.created == 2);
   flush(commands, world);
   assert(scatterChildren(world) == 2);
-  assert(findEntity(world, terrainScatterInstanceId(OwnerId, PaletteId,
-                                                    TerrainPaletteRole::Tree, 9)) !=
-         nullptr);
-  assert(findEntity(world, terrainScatterInstanceId(OwnerId, PaletteId,
-                                                    TerrainPaletteRole::Grass, 9)) !=
-         nullptr);
+  assert(findEntity(world, terrainScatterInstanceId(OwnerId, PaletteId, "tree",
+                                                    9)) != nullptr);
+  assert(findEntity(world, terrainScatterInstanceId(OwnerId, PaletteId, "grass",
+                                                    9)) != nullptr);
 }
 
 // A missing owner is an error, never a silent no-op that looks like a success.
@@ -202,7 +193,7 @@ void missingOwnerIsReported() {
   RuntimePrefabService prefabs;
   HeightField field;
   field.paletteId = PaletteId;
-  field.scatterPlacements = {placementAt(1, 2.F, TerrainPaletteRole::Tree, 0.F)};
+  field.scatterPlacements = {placementAt(1, 2.F, "tree", 0.F)};
   std::string error;
   const auto stats = syncTerrainScatter(world, commands, "no_such_terrain", field,
                                         &prefabs, error);
@@ -218,8 +209,8 @@ void unresolvablePrefabIsCounted() {
   RuntimePrefabService prefabs;
   HeightField field;
   field.paletteId = PaletteId;
-  field.scatterPlacements = {placementAt(1, 2.F, TerrainPaletteRole::Tree, 0.F),
-                             placementAt(2, 2.F, TerrainPaletteRole::Tree, 0.F)};
+  field.scatterPlacements = {placementAt(1, 2.F, "tree", 0.F),
+                             placementAt(2, 2.F, "tree", 0.F)};
   field.scatterPlacements[0].prefab = "prefab://does/not/exist";
   std::string error;
   const auto stats = syncTerrainScatter(world, commands, OwnerId, field, &prefabs, error);
@@ -244,8 +235,8 @@ void releaseClearsOnlyItsOwner() {
   RuntimePrefabService prefabs;
   HeightField field;
   field.paletteId = PaletteId;
-  field.scatterPlacements = {placementAt(1, 2.F, TerrainPaletteRole::Tree, 0.F),
-                             placementAt(2, 2.F, TerrainPaletteRole::Tree, 0.F)};
+  field.scatterPlacements = {placementAt(1, 2.F, "tree", 0.F),
+                             placementAt(2, 2.F, "tree", 0.F)};
   std::string error;
   (void)syncTerrainScatter(world, commands, OwnerId, field, &prefabs, error);
   flush(commands, world);
@@ -297,7 +288,7 @@ void noServiceSkipsPrefabRoles() {
   WorldCommandBuffer commands;
   HeightField field;
   field.paletteId = PaletteId;
-  field.scatterPlacements = {placementAt(1, 2.F, TerrainPaletteRole::Tree, 0.F)};
+  field.scatterPlacements = {placementAt(1, 2.F, "tree", 0.F)};
   field.scatterPlacements[0].prefab = "prefab://tree";
   std::string error;
   const auto stats = syncTerrainScatter(world, commands, OwnerId, field,
@@ -312,9 +303,8 @@ void unresolvedSceneScatterDoesNotCommitPartialEntities() {
   auto world = worldWithTerrain();
   auto field = std::make_shared<HeightField>();
   field->paletteId = PaletteId;
-  field->scatterPlacements = {
-      placementAt(1, 2.F, TerrainPaletteRole::Tree, 0.F),
-      placementAt(2, 3.F, TerrainPaletteRole::Grass, 0.F)};
+  field->scatterPlacements = {placementAt(1, 2.F, "tree", 0.F),
+                              placementAt(2, 3.F, "grass", 0.F)};
   field->scatterPlacements.back().prefab = "prefab://missing";
   Terrain3DComponent terrain;
   terrain.generated = field;
@@ -344,11 +334,10 @@ void prefabPrototypeKeepsGeometryAndStableCellId() {
   WorldCommandBuffer commands;
   HeightField field;
   field.paletteId = PaletteId;
-  field.scatterPlacements = {placementAt(7, 2.F, TerrainPaletteRole::Grass, 0.5F)};
-  field.scatterPlacements.front().asset = "asset://terrain/surfaces/grass";
+  field.scatterPlacements = {placementAt(7, 2.F, "grass", 0.5F)};
+  field.scatterPlacements.front().model = "asset://terrain/surfaces/grass";
   field.scatterPlacements.front().prefab = "prefab://scatter_prototype";
-  const auto id = terrainScatterInstanceId(OwnerId, PaletteId,
-                                            TerrainPaletteRole::Grass, 7);
+  const auto id = terrainScatterInstanceId(OwnerId, PaletteId, "grass", 7);
   std::string error;
   const auto created = syncTerrainScatter(world, commands, OwnerId, field,
                                            &prefabs, error);
@@ -378,10 +367,9 @@ void prefabPrototypeKeepsGeometryAndStableCellId() {
   flush(commands, world);
   assert(findEntity(world, id + "/body") == nullptr);
 
-  field.scatterPlacements = {placementAt(8, 1.F, TerrainPaletteRole::Grass, 0.F)};
+  field.scatterPlacements = {placementAt(8, 1.F, "grass", 0.F)};
   field.scatterPlacements.front().prefab = "prefab://scatter_prototype";
-  const auto nextId = terrainScatterInstanceId(OwnerId, PaletteId,
-                                                TerrainPaletteRole::Grass, 8);
+  const auto nextId = terrainScatterInstanceId(OwnerId, PaletteId, "grass", 8);
   const auto next = syncTerrainScatter(world, commands, OwnerId, field,
                                        &prefabs, error);
   assert(error.empty() && next.created == 1);
@@ -429,7 +417,7 @@ void paletteSwapDoesNotCrossRemove() {
   std::string error;
   HeightField first;
   first.paletteId = PaletteId;
-  first.scatterPlacements = {placementAt(1, 2.F, TerrainPaletteRole::Tree, 0.F)};
+  first.scatterPlacements = {placementAt(1, 2.F, "tree", 0.F)};
   (void)syncTerrainScatter(world, commands, OwnerId, first, &prefabs, error);
   flush(commands, world);
   assert(scatterChildren(world) == 1);
@@ -442,9 +430,8 @@ void paletteSwapDoesNotCrossRemove() {
   flush(commands, world);
   // The previous palette's instance is still there, and now unreachable by a
   // later sync, which is why releaseTerrainScatter is the explicit teardown.
-  assert(findEntity(world, terrainScatterInstanceId(OwnerId, PaletteId,
-                                                    TerrainPaletteRole::Tree, 1)) !=
-         nullptr);
+  assert(findEntity(world, terrainScatterInstanceId(OwnerId, PaletteId, "tree",
+                                                    1)) != nullptr);
 }
 } // namespace
 

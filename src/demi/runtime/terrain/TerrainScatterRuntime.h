@@ -18,12 +18,12 @@ struct HeightField;
 //
 // Reconciliation keys on the cell that owns the placement, not on its
 // position, so a sculpt stroke that moves the ground under an instance updates
-// that instance instead of destroying and rebuilding it. The role and palette
+// that instance instead of destroying and rebuilding it. The rule and palette
 // are part of the key so two roles landing in the same cell, or a palette swap,
 // never collide.
 [[nodiscard]] std::string terrainScatterInstanceId(std::string_view ownerId,
                                                    std::string_view paletteId,
-                                                   TerrainPaletteRole role,
+                                                   std::string_view ruleId,
                                                    std::size_t cell);
 
 struct TerrainScatterSyncStats {

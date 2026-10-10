@@ -5,6 +5,7 @@
 #include "demi/assets/DataAssetContent.h"
 #include "demi/assets/DataDocument.h"
 #include "demi/assets/MaterialAsset.h"
+#include "demi/assets/MaterialSet.h"
 #include "demi/assets/RenderAsset.h"
 #include "editor/EditorDocumentStore.h"
 #include "editor/EditorPrefabAuthoring.h"
@@ -56,16 +57,19 @@ bool validateTypedSource(const EditorSourceKind kind,
       path.parent_path() / (path.stem().string() + ".asset.json");
   proposed.settingsJson =
       nlohmann::json{{"content_type", std::string(contentType(kind))}}.dump();
-  const Diagnostics diagnostics =
-      assets::validateDataAssetDocument(proposed, *parsed.document, registry);
-  if (hasErrors(diagnostics)) {
-    error = diagnostics.front().message;
-    return false;
-  }
   const auto inspected = assets::inspectDataAssetContent(
       contentType(kind), *parsed.document, registry, id);
   if (hasErrors(inspected.diagnostics)) {
     error = inspected.diagnostics.front().message;
+    return false;
+  }
+  // Import will write these dependencies; validate the same prospective
+  // manifest.
+  proposed.dependencies = inspected.dependencies;
+  const auto diagnostics =
+      assets::validateDataAssetDocument(proposed, *parsed.document, registry);
+  if (hasErrors(diagnostics)) {
+    error = diagnostics.front().message;
     return false;
   }
   return true;
@@ -91,6 +95,14 @@ editorSourceAssetChoices(const EditorWorkspace &workspace) {
     if (manifest.type != "DataAsset")
       continue;
     const auto metadata = assets::dataAssetMetadata(manifest);
+    if (metadata && metadata->contentType == "terrain_material_set") {
+      try {
+        if (assets::loadTerrainMaterialSet(registry, manifest.id))
+          choices.materialSets.push_back(manifest.id);
+      } catch (const std::exception &) {
+        // Invalid sources remain visible through diagnostics.
+      }
+    }
     if (!metadata || metadata->contentType != "terrain_material")
       continue;
     try {
@@ -296,9 +308,12 @@ bool createEditorSource(EditorWorkspace &workspace, EditorSourceKind kind,
         const std::string role =
             assetOptions.initialRole.empty()
                 ? kind == EditorSourceKind::TerrainMaterialSet ? "ground"
-                                                               : "soil"
+                                                               : "placement"
                 : assetOptions.initialRole;
-        if (assetOptions.initialAsset.empty()) {
+        if (assetOptions.initialAsset.empty() &&
+            assetOptions.initialPrefab.empty() &&
+            (kind != EditorSourceKind::TerrainPalette ||
+             assetOptions.initialMaterialSet.empty())) {
           error = "Choose an existing asset for the first role.";
           return false;
         }
@@ -311,29 +326,35 @@ bool createEditorSource(EditorWorkspace &workspace, EditorSourceKind kind,
           }
           document["roles"] = {{role, assetOptions.initialAsset}};
         } else {
-          const bool isModel =
-              std::ranges::find(choices.models, assetOptions.initialAsset) !=
-              choices.models.end();
-          const bool isMaterial =
-              std::ranges::find(choices.materials, assetOptions.initialAsset) !=
-              choices.materials.end();
-          if (!isModel && (!isMaterial || assetOptions.initialPrefab.empty())) {
-            error = "Choose a Model3D asset, or a terrain material with an "
-                    "entity prefab.";
-            return false;
-          }
-          nlohmann::json entry{{"asset", assetOptions.initialAsset}};
-          if (!assetOptions.initialPrefab.empty()) {
-            if (!assetOptions.initialPrefab.starts_with("prefab://") ||
-                std::ranges::find(choices.prefabs,
-                                  assetOptions.initialPrefab) ==
-                    choices.prefabs.end()) {
-              error = "Choose an existing entity prefab for the first role.";
+          document["format_version"] = 2;
+          if (!assetOptions.initialMaterialSet.empty()) {
+            if (std::ranges::find(choices.materialSets,
+                                  assetOptions.initialMaterialSet) ==
+                choices.materialSets.end()) {
+              error = "Choose an existing terrain material set.";
               return false;
             }
-            entry["prefab"] = assetOptions.initialPrefab;
+            document["material_set"] = assetOptions.initialMaterialSet;
           }
-          document["roles"] = {{role, std::move(entry)}};
+          nlohmann::json entry;
+          if (!assetOptions.initialPrefab.empty()) {
+            if (std::ranges::find(choices.prefabs,
+                                  assetOptions.initialPrefab) ==
+                choices.prefabs.end()) {
+              error = "Choose an existing entity prefab.";
+              return false;
+            }
+            entry = {{"prefab", assetOptions.initialPrefab}};
+          } else if (!assetOptions.initialAsset.empty()) {
+            if (std::ranges::find(choices.models, assetOptions.initialAsset) ==
+                choices.models.end()) {
+              error = "Choose a Model3D asset or an entity prefab.";
+              return false;
+            }
+            entry = {{"model", assetOptions.initialAsset}};
+          }
+          if (!entry.is_null())
+            document["placements"] = {{role, std::move(entry)}};
         }
       }
       const auto registry = loadAssetRegistry(root);

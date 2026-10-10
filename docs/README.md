@@ -7,6 +7,12 @@ are registered in `tools/package-store/src/Docs.php`.
 
 This directory keeps material that has a different job:
 
+- [Terrain palette qualification](terrain-palette-qualification.md) records
+  format-2 migration, native editing, cooked loading and remaining rendering gates.
+
+- [Terrain palette separation proposal](terrain-palette-proposal.md) defines
+  the accepted surface-material versus object-placement format checkpoint.
+
 - [Editor usability redesign](editor-usability-redesign.md) records Inspector,
   viewport, creation, execution and dynamic-lighting changes and qualification.
 

@@ -175,9 +175,9 @@ int main() {
        "terrain_palette");
   imgui.draw(workspace, palette, "terrain_palette", notice);
   nlohmann::json singleRolePalette = palette.json();
-  singleRolePalette["roles"] = {
-      {"soil", palette.json().at("roles").at("soil")}};
-  singleRolePalette.erase("required_roles");
+  singleRolePalette["placements"] = {
+      {"tree", palette.json().at("placements").at("tree")}};
+  singleRolePalette.erase("material_set");
   require(palette.replace(singleRolePalette, error), error);
   imgui.draw(workspace, palette, "terrain_palette", notice);
 

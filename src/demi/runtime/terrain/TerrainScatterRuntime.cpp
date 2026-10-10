@@ -53,7 +53,7 @@ void applyRenderer(Entity &entity, const TerrainScatterPlacement &placement) {
   auto *renderer = entity.component<MeshRendererComponent>();
   if (renderer == nullptr)
     return;
-  renderer->model = placement.asset;
+  renderer->model = placement.model;
 }
 
 bool sameInstance(const Entity &entity, const TerrainScatterPlacement &placement,
@@ -76,16 +76,17 @@ bool sameInstance(const Entity &entity, const TerrainScatterPlacement &placement
   const auto *renderer = entity.component<MeshRendererComponent>();
   if (renderer == nullptr)
     return false;
-  return renderer->model == placement.asset;
+  return renderer->model == placement.model;
 }
 
 } // namespace
 
 std::string terrainScatterInstanceId(std::string_view ownerId,
                                      std::string_view paletteId,
-                                     TerrainPaletteRole role, std::size_t cell) {
-  return instancePrefix(ownerId, paletteId) +
-         std::string(terrainPaletteRoleName(role)) + "_" + std::to_string(cell);
+                                     std::string_view ruleId,
+                                     std::size_t cell) {
+  return instancePrefix(ownerId, paletteId) + std::string(ruleId) + "_" +
+         std::to_string(cell);
 }
 
 TerrainScatterSyncStats
@@ -121,9 +122,8 @@ syncTerrainScatter(World &world, WorldCommandBuffer &commands,
   std::unordered_set<std::string> wanted;
   wanted.reserve(field.scatterPlacements.size());
   for (const auto &placement : field.scatterPlacements) {
-    const auto id =
-        terrainScatterInstanceId(ownerId, field.paletteId, placement.role,
-                                 placement.cell);
+    const auto id = terrainScatterInstanceId(ownerId, field.paletteId,
+                                             placement.ruleId, placement.cell);
     wanted.insert(id);
 
     const auto found = existing.find(id);
@@ -161,7 +161,7 @@ syncTerrainScatter(World &world, WorldCommandBuffer &commands,
       // the mesh reference. The palette decides which this is.
       Entity instance;
       instance.id = id;
-      instance.name = "scatter_" + std::string(terrainPaletteRoleName(placement.role));
+      instance.name = "scatter_" + std::string(placement.ruleId);
       instance.layer = owner->layer;
       instance.enabled = true;
       Entity staged = instance;

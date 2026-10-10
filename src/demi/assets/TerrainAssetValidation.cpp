@@ -401,16 +401,11 @@ void inspectPaletteTarget(Findings &findings, const std::string &paletteId,
                      "point the role at existing art.");
     return;
   }
-  const DataValue *prefab = entry.find("prefab");
-  const bool hasPrefab = prefab != nullptr && prefab->isString() &&
-                         !std::get<std::string>(prefab->value).empty();
-  if (target->type != "Model3D" &&
-      (!hasPrefab || (target->type != "Material" &&
-                      !declaresContentType(*target, MaterialContentType))))
+  if (target->type != "Model3D")
     findings.add(TerrainAssetFindingKind::WrongAssetType, role, assetId,
                  "terrain palette " + paletteId + " role \"" + role +
-                     "\" needs Model3D geometry when no prefab is set; " +
-                     assetId + " is " + describeType(*target) +
+                     "\" needs Model3D geometry; " + assetId + " is " +
+                     describeType(*target) +
                      ". Point the role at a model or add a geometry prefab.");
   inspectScale(findings, paletteId, role, assetId, entry);
   inspectLicence(findings, role, assetId, *target);
@@ -548,66 +543,52 @@ void inspectMaterialSetTarget(Findings &findings, const std::string &setId,
                          material.document->root());
 }
 
+void inspectMaterialSet(Findings &findings, const std::string &setId);
+
 void inspectPalette(Findings &findings, const std::string &paletteId) {
-  const DocumentRead palette =
-      readDocument(findings.registry(), paletteId, PaletteKind,
-                   PaletteContentType, {}, findings);
+  const auto palette = readDocument(findings.registry(), paletteId, PaletteKind,
+                                    PaletteContentType, {}, findings);
   if (!palette.document)
     return;
   findings.countReference();
-  const DataValue &root = palette.document->root();
-  const DataValue *roles = root.find("roles");
-  const DataValue::Object *roleMap =
-      roles != nullptr ? roles->object() : nullptr;
-  if (roleMap == nullptr) {
-    findings.add(TerrainAssetFindingKind::UnresolvedAsset, {}, paletteId,
-                 "terrain palette " + paletteId +
-                     " cannot be inspected: \"roles\" must be an object keyed "
-                     "by role name, so no role could be checked. Fix the "
-                     "document; demi validate reports the shape error.");
+  const auto &root = palette.document->root();
+  std::set<std::string, std::less<>> references;
+  const auto materialSet = stringValue(root.find("material_set"));
+  if (!materialSet.empty()) {
+    references.insert(materialSet);
+    inspectMaterialSet(findings, materialSet);
+  }
+  const auto *placements = root.find("placements");
+  if (placements && !placements->isObject()) {
+    findings.add(
+        TerrainAssetFindingKind::UnresolvedAsset, {}, paletteId,
+        "terrain palette placements must be an object keyed by rule ID.");
     return;
   }
-
-  std::set<std::string, std::less<>> references;
-  for (const auto &[roleName, entry] : *roleMap) {
-    // The role vocabulary belongs to the palette loader, so an unknown role
-    // here is not this validator's finding; its reference still has to resolve
-    // and be declared.
-    const std::string reference = stringValue(entry.find("asset"));
-    if (reference.empty()) {
-      findings.add(TerrainAssetFindingKind::UnresolvedAsset, roleName, {},
-                   "terrain palette " + paletteId + " role \"" + roleName +
-                       "\" binds no usable asset:// reference. Point roles/" +
-                       roleName + "/asset at an existing asset manifest.");
-      continue;
-    }
-    if (!reference.starts_with(AssetPrefix)) {
-      findings.add(TerrainAssetFindingKind::UnresolvedAsset, roleName,
-                   reference, "terrain palette " + paletteId + " roles/" +
-                                   roleName +
-                       "/asset must be an asset:// reference, but is \"" +
-                       reference + "\". Use the asset id of existing terrain "
-                       "art.");
-      continue;
-    }
-    references.insert(reference);
-    findings.countReference();
-    inspectPaletteTarget(findings, paletteId, roleName, reference, entry);
-  }
-
-  if (const DataValue *required = root.find("required_roles");
-      required != nullptr && required->isArray())
-    for (const DataValue &roleName : *required->array()) {
-      const std::string name = stringValue(&roleName);
-      if (name.empty() || roleMap->contains(name))
+  if (placements) {
+    for (const auto &[ruleId, entry] : *placements->object()) {
+      const auto model = stringValue(entry.find("model"));
+      const auto prefab = stringValue(entry.find("prefab"));
+      if (model.empty()) {
+        if (prefab.empty())
+          findings.add(TerrainAssetFindingKind::UnresolvedAsset, ruleId, {},
+                       "placements/" + ruleId +
+                           "/model requires model or prefab.");
+        else
+          inspectScale(findings, paletteId, ruleId, prefab, entry);
         continue;
-      findings.add(TerrainAssetFindingKind::MissingRole, name, {},
-                   "terrain palette " + paletteId + " requires role \"" + name +
-                       "\", which it does not bind, so generation would leave "
-                       "that role empty. Add roles/" + name + " or drop it from "
-                       "required_roles.");
+      }
+      if (!model.starts_with(AssetPrefix)) {
+        findings.add(TerrainAssetFindingKind::UnresolvedAsset, ruleId, model,
+                     "placements/" + ruleId +
+                         "/model must be an asset:// reference.");
+        continue;
+      }
+      references.insert(model);
+      findings.countReference();
+      inspectPaletteTarget(findings, paletteId, ruleId, model, entry);
     }
-
+  }
   inspectDeclaredDependencies(findings, paletteId, {}, *palette.manifest,
                               references);
 }

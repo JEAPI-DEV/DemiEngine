@@ -63,10 +63,11 @@ bool EditorSpecializedDocument::open(
   if (kind == EditorSpecializedKind::Data && stagedDataManifest) {
     const AssetManifest manifest = *stagedDataManifest;
     const AssetRegistry registry = assetIndex.registry();
-    validator = [kind, manifest, registry](const std::filesystem::path &source,
-                                           const nlohmann::json &document) {
+    validator = [kind, manifest, registry, contentType = dataContentType_](
+                    const std::filesystem::path &source,
+                    const nlohmann::json &document) {
       Diagnostics diagnostics =
-          validateSpecializedDocument(kind, source, document);
+          validateSpecializedDocument(kind, source, document, contentType);
       const auto parsed = assets::parseDataDocument(document.dump(), source);
       if (parsed.document) {
         AssetManifest proposed = manifest;

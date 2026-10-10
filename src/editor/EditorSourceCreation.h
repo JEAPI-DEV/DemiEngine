@@ -42,9 +42,11 @@ struct EditorSourceAssetOptions {
   std::string initialRole;
   std::string initialAsset;
   std::string initialPrefab;
+  std::string initialMaterialSet;
 };
 struct EditorSourceAssetChoices {
   std::vector<std::string> materials;
+  std::vector<std::string> materialSets;
   std::vector<std::string> models;
   std::vector<std::string> prefabs;
 };

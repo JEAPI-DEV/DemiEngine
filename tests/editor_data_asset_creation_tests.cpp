@@ -237,10 +237,10 @@ int main() {
             "Palette import did not register its content and dependency");
     require(
         readJson(project.root / "assets/terrain_palettes/forest/forest.json") ==
-            Json({{"format_version", 1},
+            Json({{"format_version", 2},
                   {"name", "forest"},
-                  {"roles",
-                   {{"soil", {{"asset", paletteOptions.initialAsset}}}}}}),
+                  {"placements",
+                   {{"placement", {{"model", paletteOptions.initialAsset}}}}}}),
         "Palette did not author one valid soil role");
     registry = loadAssetRegistry(project.root);
     require(
@@ -262,7 +262,6 @@ int main() {
                 std::vector<std::string>{"prefab://rock"},
             "Palette choices did not discover the valid entity prefab");
     const EditorSourceAssetOptions prefabPaletteOptions{
-        .initialAsset = setOptions.initialAsset,
         .initialPrefab = "prefab://rock"};
     require(createEditorSource(workspace, EditorSourceKind::TerrainPalette,
                                "prefab_surface", created, error, {}, {},
@@ -271,13 +270,23 @@ int main() {
     const auto prefabPalette =
         readJson(project.root /
                  "assets/terrain_palettes/prefab_surface/prefab_surface.json");
-    require(prefabPalette.at("roles").at("soil") ==
-                Json({{"asset", setOptions.initialAsset},
-                      {"prefab", "prefab://rock"}}),
+    require(prefabPalette.at("placements").at("placement") ==
+                Json({{"prefab", "prefab://rock"}}),
             "Palette omitted the selected prefab or material");
-    require(readJson(created).at("dependencies") ==
-                Json::array({setOptions.initialAsset}),
+    require(readJson(created).at("dependencies") == Json::array(),
             "Palette manifest includes a non-asset prefab dependency");
+    require(createEditorSource(workspace, EditorSourceKind::TerrainPalette,
+                               "surfaces_only", created, error, {}, {},
+                               {.initialMaterialSet =
+                                    "asset://terrain_material_sets/starter"}),
+            error);
+    const auto surfaceManifest = loadAssetManifest(created);
+    const auto surfaces = readJson(surfaceManifest->sourcePath);
+    require(surfaces.at("format_version") == 2 &&
+                surfaces.at("material_set") ==
+                    "asset://terrain_material_sets/starter" &&
+                !surfaces.contains("placements"),
+            "Surface-only palette invented a placement");
     return 0;
   } catch (const std::exception &failure) {
     std::cerr << failure.what() << '\n';

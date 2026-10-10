@@ -163,20 +163,25 @@ editing, HUD drops, generated preview/runtime parity and preservation of manual
 work. The existing terrain example is retained; `examples/terrain_graph_3d`
 is the focused branching-graph probe.
 
-### Next design checkpoint: palette materials versus placements
+### Palette materials versus placements
 
-The current palette conflates surface-material roles with geometry placements.
-The prototype palette consequently produces soil/sand/snow proxy objects as
-well as vegetation and props. The full-density terrain example produces roughly
-295,000 renderables; removing quadratic queue/prune work improves startup but
-does not resolve that authoring model or qualify its visible performance.
+- [x] Separate surface bindings from object placement rules in palette format 2,
+  using a reusable `material_set` reference and named `placements` with exactly
+  one `model` or `prefab`. Surface bindings never create proxy entities.
+- [x] Migrate parsers, native validation/dependencies, editor creation/controls,
+  stable rule identity, cache keys, cooked data and the meadow example together.
+- [ ] Connect the material set to automatic mask-based terrain surface rendering.
+  Explicit biome Material bindings continue to render; this format migration
+  does not complete milestone 4 or implement smooth PBR blending.
 
-Proposed next contract: keep one reusable palette asset, with separate surface
-material bindings and named placement rules. Material bindings should not create
-entities; placements should explicitly name a model or prefab. Do not fix this
-by imposing another content cap or quietly reducing authored density. Agree the
-public format before migrating examples and schemas; alpha migrations are
-allowed, but the new format must remain usable for arbitrary materials and props.
+The agreed contract is recorded in
+[terrain palette separation](docs/terrain-palette-proposal.md).
+The full-density example retains the six vegetation/prop rules' authored weights
+and spacing. Its cooked output has 323,984 placements (324,330 renderables in a
+three-frame headless run). Removing ground entries changes the relative-weight
+normalizer; it does not guarantee fewer object placements. Editor startup at
+this density remains expensive and vegetation instancing/streaming is still
+an integration gate. No new content cap or density reduction was introduced.
 
 ## First delivery: usable finite heightfield terrain
 
@@ -268,17 +273,19 @@ are deliberate: a box is only ticked when the item's own wording is satisfied.
   because it is not stored on the field.
 - Asset palettes: definition, validation, biome filtering, generation-time
   scattering and instantiation are implemented. The example still points at
-  placeholder material assets because authoring mesh art was out of scope.
+  clearly identified prototype geometry. Format 2 separates surface material
+  sets from named object placement rules. Production art remains unfinished.
 - Palette dependencies: manifest declaration is enforced by the existing
   data-asset validator and covered by `demi validate`. Role requirements are
-  checked at load. Asset map, licence and compatibility validation is not
-  implemented, and the plan's instruction not to redistribute third-party art
-  silently is honoured only by documentation.
+  checked on material sets. Native terrain-asset validation also reports map,
+  compatibility and declared-licence findings; these are not a substitute for
+  checking the actual terms of third-party art.
 
 In progress. Sub-seeds, the generator-versioned cache, biome rules, the preset
 document and the palette document are implemented and tested, and the editor and
-CLI can author, apply and explain rules and presets. What is missing is anything
-that consumes a palette at generation time, and the drainage condition.
+CLI can author, apply and explain rules and presets. Palettes are consumed during
+generation and published as scene objects. Automatic surface material rendering
+and the remaining biome-rule integration are separate unfinished work.
 
 - [x] Add reusable versioned landscape presets with readable controls and
   previews. Initial targets: mountain range, river valley, rolling hills and
@@ -413,34 +420,25 @@ that consumes a palette at generation time, and the drainage condition.
   bushes, grass, reeds, cliff pieces and debris. Include variation weights,
   physical scale, spacing, collision policy and LOD metadata.
 
-  The document, loader and validation are implemented; placement is not. A
-  palette is a `DataAsset` with `settings.content_type: "terrain_palette"`, so
-  it inherits cook, packaging, dependency closure, `demi validate` coverage and
-  hot reload from the existing data-asset pipeline rather than needing a new
-  document kind. `TerrainPalette` covers all eleven roles with an
-  `asset://` reference, an optional `prefab://` prefab, a variation weight, a
-  physical scale range, spacing, a collision policy and a LOD level, and
-  rejects an unknown role, an inverted scale, a non-positive weight floor, a
-  negative spacing, an unknown collision policy, a negative LOD and an
-  unresolvable reference. The example palette in
-  `examples/terrain_3d` references material assets, because authoring real mesh
-  art is outside this milestone; the loader resolves references without checking
-  asset type, so meshes can replace them one for one without touching the
-  palette, its schema or the loader. Scattering and instancing those roles onto
-  the terrain is follow-up work and is why the item stays open.
+  Format-2 documents, native validation, source/cooked loading, editor authoring,
+  biome-filtered scatter and scene publication are implemented. The palette's
+  `material_set` references the existing surface-role contract; its independently
+  named object rules require a Model3D or prefab. Rules may reuse geometry with
+  different settings. Local sculpting retains cell/rule identity. LOD metadata
+  remains distinct from implemented vegetation LOD, and prototype art does not
+  satisfy the starter-art/visual-quality gates.
 - [ ] Resolve palette/package dependencies through normal asset discovery,
   cooking and packaging. Validate missing roles, maps, licenses and incompatible
   assets before generation. Do not download or redistribute third-party art
   silently; use developer-selected assets or explicitly installed licensed packs.
 
-  Half of this is done. A palette's `asset://` and `prefab://` references are
+  A palette's model/material-set `asset://` and `prefab://` references are
   retained by `TerrainPalette`. Typed import/reimport derives asset references
   into manifest dependencies, while prefab references remain in the native
   source-level prefab traversal rather than masquerading as asset IDs.
   Schema-declared references also receive `DATA_DEPENDENCY_UNDECLARED` checks.
-  Missing roles, map
-  compatibility and licence validation are not implemented, and the example
-  palette deliberately points at placeholder material assets. All four example
+  Native terrain-asset validation checks material-set roles, map compatibility
+  and declared licence metadata. The example still uses prototype object art. All four example
   presets declare their own dependencies and `demi validate` covers them, so the
   declaration path is exercised by real content rather than only by a fixture.
 
@@ -453,9 +451,9 @@ The acceptance line is met on the generation side and unmet on the asset side.
 band as inside or outside, which answers the "why is my terrain one biome"
 question; `demi terrain presets` and `demi terrain apply-preset` make presets
 reachable and prove that strokes survive; and `scatterableRoles` reports a
-palette that cannot contribute rather than failing generation silently. What is
-missing is that a selected asset is still only recorded, not spawned, so no
-developer can yet override an asset choice in a running world.
+palette that cannot contribute rather than failing generation silently. Generated placements are published as scene objects with stable cell/rule
+identities. Automatic surface shading, production art and vegetation rendering
+remain separate gates.
 
 ## Milestone 3: landforms, erosion and drainage
 

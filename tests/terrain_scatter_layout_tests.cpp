@@ -17,11 +17,11 @@ constexpr std::string_view PaletteId = "asset://terrain/palettes/meadow";
 // this are two runs of the same generation, which is the comparison the identity
 // contract is about.
 TerrainScatterPlacement placementAt(std::size_t cell, float height,
-                                    TerrainPaletteRole role,
+                                    std::string ruleId,
                                     std::string_view asset) {
   TerrainScatterPlacement placement;
-  placement.role = role;
-  placement.asset = std::string(asset);
+  placement.ruleId = ruleId;
+  placement.model = std::string(asset);
   placement.biome = 2;
   placement.cell = cell;
   placement.position = {12.5F, height, 30.25F};
@@ -32,30 +32,26 @@ TerrainScatterPlacement placementAt(std::size_t cell, float height,
   return placement;
 }
 
-TerrainScatterInstance instanceAt(std::size_t cell, TerrainPaletteRole role,
+TerrainScatterInstance instanceAt(std::size_t cell, std::string ruleId,
                                   std::string_view asset) {
-  return terrainScatterInstanceFrom(placementAt(cell, 4.F, role, asset),
+  return terrainScatterInstanceFrom(placementAt(cell, 4.F, ruleId, asset),
                                     PaletteId, 1337);
 }
 
 // The key is a pure function of its inputs, so calling it twice cannot differ,
 // and nothing about the order two calls happen in can reach it.
 void keyIsDeterministic() {
-  const auto first = terrainScatterInstanceKey(PaletteId,
-                                               TerrainPaletteRole::Tree, 42);
-  const auto second = terrainScatterInstanceKey(PaletteId,
-                                                TerrainPaletteRole::Tree, 42);
+  const auto first = terrainScatterInstanceKey(PaletteId, "tree", 42);
+  const auto second = terrainScatterInstanceKey(PaletteId, "tree", 42);
   assert(first == second);
   // Order independence, expressed by building the same key through a different
   // route and by making sure a fresh call after other work is unchanged.
-  const auto third = terrainScatterInstanceKey(
-      PaletteId, TerrainPaletteRole::Tree, 42, {}, {});
+  const auto third = terrainScatterInstanceKey(PaletteId, "tree", 42, {}, {});
   assert(first == third);
-  (void)terrainScatterInstanceKey(PaletteId, TerrainPaletteRole::Grass, 7);
-  assert(terrainScatterInstanceKey(PaletteId, TerrainPaletteRole::Tree, 42) ==
-         first);
-  // Readable, and built from names rather than ordinals, so adding a role to the
-  // enum cannot renumber every existing instance's identity.
+  (void)terrainScatterInstanceKey(PaletteId, "grass", 7);
+  assert(terrainScatterInstanceKey(PaletteId, "tree", 42) == first);
+  // Readable, and built from names rather than ordinals, so adding a ruleId to
+  // the enum cannot renumber every existing instance's identity.
   assert(first.rfind("scatter|", 0) == 0);
   assert(first.find("tree") != std::string::npos);
   assert(first.find(PaletteId) != std::string::npos);
@@ -65,30 +61,21 @@ void keyIsDeterministic() {
 // Every input has to separate, or two different placements would reconcile onto
 // one instance and one of them would silently vanish.
 void keySeparatesEveryInput() {
-  const auto base = terrainScatterInstanceKey(PaletteId,
-                                              TerrainPaletteRole::Tree, 42);
+  const auto base = terrainScatterInstanceKey(PaletteId, "tree", 42);
   assert(base != terrainScatterInstanceKey("asset://terrain/palettes/other",
-                                           TerrainPaletteRole::Tree, 42));
-  assert(base != terrainScatterInstanceKey(PaletteId,
-                                           TerrainPaletteRole::Bush, 42));
-  assert(base != terrainScatterInstanceKey(PaletteId,
-                                           TerrainPaletteRole::Tree, 43));
-  assert(base != terrainScatterInstanceKey(PaletteId,
-                                           TerrainPaletteRole::Tree, 42,
-                                           "region"));
-  assert(base != terrainScatterInstanceKey(PaletteId,
-                                           TerrainPaletteRole::Tree, 42,
-                                           {}, "decor"));
+                                           "tree", 42));
+  assert(base != terrainScatterInstanceKey(PaletteId, "bush", 42));
+  assert(base != terrainScatterInstanceKey(PaletteId, "tree", 43));
+  assert(base != terrainScatterInstanceKey(PaletteId, "tree", 42, "region"));
+  assert(base != terrainScatterInstanceKey(PaletteId, "tree", 42, {}, "decor"));
   // A region and a layer are separate identities, not one combined slot.
-  assert(terrainScatterInstanceKey(PaletteId, TerrainPaletteRole::Tree, 42,
-                                   "a", "b") !=
-         terrainScatterInstanceKey(PaletteId, TerrainPaletteRole::Tree, 42,
-                                   "b", "a"));
+  assert(terrainScatterInstanceKey(PaletteId, "tree", 42, "a", "b") !=
+         terrainScatterInstanceKey(PaletteId, "tree", 42, "b", "a"));
   // An id containing the separator must not be able to forge another input set.
-  assert(terrainScatterInstanceKey("a|b", TerrainPaletteRole::Tree, 42) !=
-         terrainScatterInstanceKey("a", TerrainPaletteRole::Tree, 42, "b"));
-  assert(terrainScatterInstanceKey("a\\b", TerrainPaletteRole::Tree, 42) !=
-         terrainScatterInstanceKey("a", TerrainPaletteRole::Tree, 42, "\\b"));
+  assert(terrainScatterInstanceKey("a|b", "tree", 42) !=
+         terrainScatterInstanceKey("a", "tree", 42, "b"));
+  assert(terrainScatterInstanceKey("a\\b", "tree", 42) !=
+         terrainScatterInstanceKey("a", "tree", 42, "\\b"));
 }
 
 // The whole contract in one assertion: the same placement resolves to the same
@@ -96,18 +83,16 @@ void keySeparatesEveryInput() {
 // appears or disappears next to it.
 void identitySurvivesRegeneration() {
   const auto first = terrainScatterInstanceFrom(
-      placementAt(11, 4.F, TerrainPaletteRole::Tree, "asset://t/pine"),
-      PaletteId, 1337);
+      placementAt(11, 4.F, "tree", "asset://t/pine"), PaletteId, 1337);
   const auto second = terrainScatterInstanceFrom(
-      placementAt(11, 4.F, TerrainPaletteRole::Tree, "asset://t/pine"),
-      PaletteId, 1337);
+      placementAt(11, 4.F, "tree", "asset://t/pine"), PaletteId, 1337);
   assert(first.id == second.id);
   assert(terrainScatterInstanceHash(first) == terrainScatterInstanceHash(second));
   assert(first.seed == second.seed);
 
   // A neighbour being added, and another neighbour being removed, are what a
   // single region re-scatter looks like from outside that region.
-  const auto unrelated = instanceAt(12, TerrainPaletteRole::Tree, "asset://t/pine");
+  const auto unrelated = instanceAt(12, "tree", "asset://t/pine");
   std::vector<TerrainScatterInstance> instances{first, unrelated};
   auto groups = terrainScatterGroupInstances(instances);
   assert(instances[0].id == first.id);
@@ -127,7 +112,7 @@ void identitySurvivesRegeneration() {
 // The identity has to follow every input, or a renderer would keep an uploaded
 // instance that no longer matches what the palette asks for.
 void hashFollowsEveryInput() {
-  const auto base = instanceAt(11, TerrainPaletteRole::Tree, "asset://t/pine");
+  const auto base = instanceAt(11, "tree", "asset://t/pine");
   const auto reference = terrainScatterInstanceHash(base);
   auto differs = [&](TerrainScatterInstance changed) {
     assert(terrainScatterInstanceHash(changed) != reference);
@@ -143,7 +128,7 @@ void hashFollowsEveryInput() {
   resized.scale *= 2.F;
   differs(resized);
   auto otherAsset = base;
-  otherAsset.asset = "asset://t/birch";
+  otherAsset.model = "asset://t/birch";
   differs(otherAsset);
   auto prefabbed = base;
   prefabbed.prefab = "prefab://tree";
@@ -161,8 +146,7 @@ void hashFollowsEveryInput() {
   relodded.lod = 3;
   differs(relodded);
   auto rekeyed = base;
-  rekeyed.id = terrainScatterInstanceKey(PaletteId,
-                                          TerrainPaletteRole::Bush, 11);
+  rekeyed.id = terrainScatterInstanceKey(PaletteId, "bush", 11);
   differs(rekeyed);
 }
 
@@ -170,10 +154,10 @@ void hashFollowsEveryInput() {
 // are the ones that would cost a physics body each if they were treated as a
 // single group.
 void collisionFollowsThePalette() {
-  auto tree = instanceAt(11, TerrainPaletteRole::Tree, "asset://t/pine");
+  auto tree = instanceAt(11, "tree", "asset://t/pine");
   assert(tree.collision == TerrainCollisionPolicy::Static);
   assert(terrainScatterWantsCollision(tree));
-  // A role that collides explains nothing, because nothing was skipped.
+  // A ruleId that collides explains nothing, because nothing was skipped.
   assert(terrainScatterCollisionSkipReason(tree).empty());
 
   auto trigger = tree;
@@ -184,8 +168,8 @@ void collisionFollowsThePalette() {
   auto grass = tree;
   grass.collision = TerrainCollisionPolicy::None;
   assert(!terrainScatterWantsCollision(grass));
-  // A decorative role that produces no collider is a decision, and a report that
-  // cannot name it is indistinguishable from a bug.
+  // A decorative ruleId that produces no collider is a decision, and a report
+  // that cannot name it is indistinguishable from a bug.
   assert(!terrainScatterCollisionSkipReason(grass).empty());
 
   // Per instance, not per placement: the two roles differ even though they came
@@ -198,9 +182,9 @@ void collisionFollowsThePalette() {
 // the only question an instancer asks.
 void groupingBatchesByDrawable() {
   std::vector<TerrainScatterInstance> instances{
-      instanceAt(1, TerrainPaletteRole::Tree, "asset://t/pine"),
-      instanceAt(2, TerrainPaletteRole::Grass, "asset://t/pine"),
-      instanceAt(3, TerrainPaletteRole::Bush, "asset://t/birch"),
+      instanceAt(1, "tree", "asset://t/pine"),
+      instanceAt(2, "grass", "asset://t/pine"),
+      instanceAt(3, "bush", "asset://t/birch"),
   };
   const auto groups = terrainScatterGroupInstances(instances);
   assert(groups.size() == 2);
@@ -211,7 +195,7 @@ void groupingBatchesByDrawable() {
   for (const auto &group : groups) {
     assert(group.instances == group.members.size());
     batched += group.instances;
-    if (group.asset == "asset://t/pine") {
+    if (group.model == "asset://t/pine") {
       assert(group.instances == 2);
       // Members are ordered by instance id, not by position in the vector: the
       // vector order is however the solver happened to produce them, and a
@@ -221,7 +205,7 @@ void groupingBatchesByDrawable() {
       assert(instances[group.members[0]].id < instances[group.members[1]].id);
     } else {
       assert(group.instances == 1);
-      assert(group.asset == "asset://t/birch");
+      assert(group.model == "asset://t/birch");
     }
   }
   assert(batched == instances.size());
@@ -233,7 +217,7 @@ void groupingBatchesByDrawable() {
   const auto again = terrainScatterGroupInstances(shuffled);
   assert(again.size() == groups.size());
   for (std::size_t i = 0; i < groups.size(); ++i)
-    assert(again[i].asset == groups[i].asset);
+    assert(again[i].model == groups[i].model);
   for (const auto &instance : shuffled) {
     const auto original = std::find_if(
         instances.begin(), instances.end(),
@@ -244,20 +228,20 @@ void groupingBatchesByDrawable() {
     assert(instance.instanceGroup == original->instanceGroup);
   }
 
-  // A prefab-only role still draws something, and batching it under an empty
-  // asset would merge every prefab role into one batch.
-  auto prefabOnly = instanceAt(4, TerrainPaletteRole::Debris, "");
+  // A prefab-only ruleId still draws something, and batching it under an empty
+  // asset would merge every prefab ruleId into one batch.
+  auto prefabOnly = instanceAt(4, "debris", "");
   prefabOnly.prefab = "prefab://rock";
   std::vector<TerrainScatterInstance> mixed{prefabOnly};
   const auto prefabGroups = terrainScatterGroupInstances(mixed);
   assert(prefabGroups.size() == 1);
-  assert(prefabGroups[0].asset == "prefab://rock");
+  assert(prefabGroups[0].model == "prefab://rock");
 }
 
 // LOD is a pure function of the instance and the camera distance, always inside
 // the range the palette declared.
 void lodStaysInsideTheDeclaredRange() {
-  auto instance = instanceAt(11, TerrainPaletteRole::Tree, "asset://t/pine");
+  auto instance = instanceAt(11, "tree", "asset://t/pine");
   instance.lod = 3; // four levels, 0 through 3
 
   // Up to the LOD distance the finest level holds.
@@ -307,25 +291,24 @@ void lodStaysInsideTheDeclaredRange() {
 // The seed is part of the identity, so it must be derived from the placement's
 // own inputs and separate roles and cells that would otherwise share a stream.
 void seedIsPerPlacement() {
-  const auto tree = terrainScatterInstanceSeed(1337, TerrainPaletteRole::Tree, 11);
-  assert(tree == terrainScatterInstanceSeed(1337, TerrainPaletteRole::Tree, 11));
-  assert(tree != terrainScatterInstanceSeed(1337, TerrainPaletteRole::Bush, 11));
-  assert(tree != terrainScatterInstanceSeed(1337, TerrainPaletteRole::Tree, 12));
+  const auto tree = terrainScatterInstanceSeed(1337, "tree", 11);
+  assert(tree == terrainScatterInstanceSeed(1337, "tree", 11));
+  assert(tree != terrainScatterInstanceSeed(1337, "bush", 11));
+  assert(tree != terrainScatterInstanceSeed(1337, "tree", 12));
   // A different world seed reshuffles, which is what a new terrain is for.
-  assert(tree != terrainScatterInstanceSeed(4242, TerrainPaletteRole::Tree, 11));
+  assert(tree != terrainScatterInstanceSeed(4242, "tree", 11));
   // Never zero: a derived seed has to be distinguishable from an unset one.
   assert(tree != 0);
 
   const auto instance = terrainScatterInstanceFrom(
-      placementAt(11, 4.F, TerrainPaletteRole::Tree, "asset://t/pine"),
-      PaletteId, 1337);
+      placementAt(11, 4.F, "tree", "asset://t/pine"), PaletteId, 1337);
   assert(instance.seed == tree);
 }
 
 // Two equal reals must hash equally and two non-finite values must not depend on
 // their payloads, or an instance would look changed while nothing about it was.
 void hashCanonicalisesFloats() {
-  auto reference = instanceAt(11, TerrainPaletteRole::Tree, "asset://t/pine");
+  auto reference = instanceAt(11, "tree", "asset://t/pine");
   const auto digest = terrainScatterInstanceHash(reference);
 
   // A sculpted ground can land an instance at exactly zero, and the arithmetic

@@ -1,4 +1,5 @@
 #include "demi/assets/DataAsset.h"
+#include "demi/assets/DataAssetContent.h"
 
 #include <nlohmann/json.hpp>
 
@@ -217,11 +218,18 @@ std::optional<LoadedDataAsset> loadDataAsset(const AssetManifest &manifest,
   const DataValue *version =
       parsed.document ? parsed.document->root().find("format_version")
                       : nullptr;
-  if (parsed.document && (version == nullptr || !version->isInteger() ||
-                          std::get<std::int64_t>(version->value) != 1))
+  const int expectedVersion =
+      dataAssetContentFormatVersion(metadata ? metadata->contentType : "");
+  if (parsed.document &&
+      (version == nullptr || !version->isInteger() ||
+       std::get<std::int64_t>(version->value) != expectedVersion))
     error(local, "DATA_FORMAT_VERSION_UNSUPPORTED",
-          "Data documents require format_version 1.", manifest.sourcePath,
-          "/format_version");
+          "This data content requires format_version " +
+              std::to_string(expectedVersion) +
+              (expectedVersion == 2 ? ". Migrate terrain palette roles to "
+                                      "material_set and placements."
+                                    : "."),
+          manifest.sourcePath, "/format_version");
   if (diagnostics != nullptr)
     diagnostics->insert(diagnostics->end(), local.begin(), local.end());
   if (!metadata || !parsed.document || hasErrors(local))
@@ -254,6 +262,17 @@ Diagnostics validateDataAssetDocument(const AssetManifest &manifest,
   const auto metadata = dataAssetMetadata(manifest, &diagnostics);
   if (!metadata)
     return diagnostics;
+  const auto content = inspectDataAssetContent(metadata->contentType, document,
+                                               registry, manifest.id);
+  diagnostics.insert(diagnostics.end(), content.diagnostics.begin(),
+                     content.diagnostics.end());
+  for (const auto &reference : content.dependencies)
+    if (std::ranges::find(manifest.dependencies, reference) ==
+        manifest.dependencies.end())
+      error(diagnostics, "DATA_DEPENDENCY_UNDECLARED",
+            "Native content reference must appear in dependencies: " +
+                reference,
+            manifest.manifestPath, "/dependencies");
   if (metadata->contentType.empty())
     error(diagnostics, "DATA_CONTENT_TYPE_MISSING",
           "DataAsset settings require content_type.", manifest.manifestPath,
@@ -287,6 +306,8 @@ Diagnostics validateDataAssetDocument(const AssetManifest &manifest,
                 "", diagnostics, references);
   for (const std::string &reference : references)
     if (reference.starts_with("asset://") &&
+        std::ranges::find(content.dependencies, reference) ==
+            content.dependencies.end() &&
         std::ranges::find(manifest.dependencies, reference) ==
             manifest.dependencies.end())
       error(diagnostics, "DATA_DEPENDENCY_UNDECLARED",

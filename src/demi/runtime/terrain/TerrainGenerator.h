@@ -16,7 +16,7 @@ struct TerrainGraphArtifacts;
 //
 // 2: biome noise moved from the raw world seed to the stable Landform sub-seed
 // (see TerrainSeed), which changes the sampled surface for existing recipes.
-inline constexpr int terrainGeneratorVersion = 4;
+inline constexpr int terrainGeneratorVersion = 5;
 
 class TerrainGenerator {
 public:

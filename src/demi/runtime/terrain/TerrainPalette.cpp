@@ -4,6 +4,7 @@
 #include "demi/assets/DataAsset.h"
 #include "demi/assets/DataDocument.h"
 #include "demi/assets/DataValueRead.h"
+#include "demi/assets/MaterialSet.h"
 #include "demi/diagnostics/Diagnostic.h"
 
 #include <algorithm>
@@ -24,28 +25,9 @@ constexpr std::string_view Kind = "terrain palette";
 constexpr std::string_view AssetPrefix = "asset://";
 constexpr std::string_view PrefabPrefix = "prefab://";
 
-struct RoleName {
-  TerrainPaletteRole role;
-  std::string_view name;
-};
-
 struct PolicyName {
   TerrainCollisionPolicy policy;
   std::string_view name;
-};
-
-constexpr RoleName PaletteRoles[]{
-    {TerrainPaletteRole::ExposedRock, "exposed_rock"},
-    {TerrainPaletteRole::Soil, "soil"},
-    {TerrainPaletteRole::Sand, "sand"},
-    {TerrainPaletteRole::Snow, "snow"},
-    {TerrainPaletteRole::WetGround, "wet_ground"},
-    {TerrainPaletteRole::Tree, "tree"},
-    {TerrainPaletteRole::Bush, "bush"},
-    {TerrainPaletteRole::Grass, "grass"},
-    {TerrainPaletteRole::Reed, "reed"},
-    {TerrainPaletteRole::CliffPiece, "cliff_piece"},
-    {TerrainPaletteRole::Debris, "debris"},
 };
 
 constexpr PolicyName CollisionPolicies[]{
@@ -77,15 +59,6 @@ std::string join(const std::vector<std::string_view> &names) {
     joined += name;
   }
   return joined;
-}
-
-// Derived from the vocabulary table rather than repeated, so a new role can
-// never be accepted by the loader but missing from its own error message.
-std::string knownRoles() {
-  std::vector<std::string_view> names;
-  for (const RoleName &entry : PaletteRoles)
-    names.push_back(entry.name);
-  return join(names);
 }
 
 void checkFields(const DataValue &value, const std::string_view where,
@@ -138,44 +111,28 @@ std::string summarize(const Diagnostics &diagnostics) {
   return summary.empty() ? "unknown reason" : summary;
 }
 
-bool sameMetadata(const TerrainPaletteEntry &left,
-                  const TerrainPaletteEntry &right) {
-  return left.prefab == right.prefab && left.weight == right.weight &&
-         left.scaleMin == right.scaleMin && left.scaleMax == right.scaleMax &&
-         left.spacing == right.spacing && left.collision == right.collision &&
-         left.lod == right.lod;
-}
-
 void readEntry(const DataValue &value, const std::string_view roleName,
-               const TerrainPaletteRole role, const AssetRegistry &registry,
-               TerrainPaletteEntry &entry) {
-  const std::string where = "roles/" + std::string(roleName);
+               const AssetRegistry &registry, TerrainPaletteEntry &entry) {
+  const std::string where = "placements/" + std::string(roleName);
   checkFields(value, where,
-              {"asset", "prefab", "weight", "scale", "spacing", "collision",
+              {"model", "prefab", "weight", "scale", "spacing", "collision",
                "lod", "biomes"});
-  entry.role = role;
-  const DataValue *asset = assets::data_read::field(value, "asset");
-  require(asset != nullptr, at(where + "/asset") + "is required.");
-  entry.asset = assets::data_read::text(*asset, Kind, where + "/asset");
-  require(!entry.asset.empty(), at(where) + "asset must not be empty.");
-  require(entry.asset.starts_with(AssetPrefix),
-          at(where) + "asset must be an asset:// reference, but is \"" +
-              entry.asset + "\".");
-  const AssetManifest *target = findAsset(registry, entry.asset);
-  require(target != nullptr,
-          at(where) + "asset does not resolve: " + entry.asset +
-              ". Add the asset manifest or fix the reference.");
-  if (const DataValue *prefab = value.find("prefab"); prefab != nullptr) {
-    const std::string prefabWhere = where + "/prefab";
-    entry.prefab = assets::data_read::text(*prefab, Kind, prefabWhere);
-    require(!entry.prefab.empty(), at(prefabWhere) + "must not be empty.");
-    require(entry.prefab.starts_with(PrefabPrefix),
-            at(prefabWhere) + "must be a prefab:// reference, but is \"" +
-                entry.prefab + "\".");
+  const auto *model = value.find("model");
+  const auto *prefab = value.find("prefab");
+  require((model != nullptr) != (prefab != nullptr),
+          at(where) + "requires exactly one of model or prefab.");
+  if (model) {
+    entry.model = assets::data_read::text(*model, Kind, where + "/model");
+    const auto *target = findAsset(registry, entry.model);
+    require(entry.model.starts_with(AssetPrefix) && target &&
+                target->type == "Model3D",
+            at(where + "/model") + "must resolve to a Model3D asset.");
+  } else {
+    entry.prefab = assets::data_read::text(*prefab, Kind, where + "/prefab");
+    require(entry.prefab.starts_with(PrefabPrefix) &&
+                entry.prefab.size() > PrefabPrefix.size(),
+            at(where + "/prefab") + "must be a prefab:// reference.");
   }
-  require(!entry.prefab.empty() || target->type == "Model3D",
-          at(where + "/asset") + "must be a Model3D when no prefab supplies "
-          "geometry; " + entry.asset + " is " + target->type + ".");
   if (const DataValue *weight = value.find("weight"); weight != nullptr) {
     const std::string weightWhere = where + "/weight";
     entry.weight = number(*weight, weightWhere);
@@ -252,29 +209,35 @@ void readEntry(const DataValue &value, const std::string_view roleName,
 
 std::vector<std::string> TerrainPalette::assetDependencies() const {
   std::set<std::string, std::less<>> unique;
-  for (const auto &[role, entry] : roles) {
+  if (!materialSet.empty())
+    unique.insert(materialSet);
+  for (const auto &[role, entry] : placements) {
     (void)role;
-    if (!entry.asset.empty())
-      unique.insert(entry.asset);
+    if (!entry.model.empty())
+      unique.insert(entry.model);
     if (!entry.prefab.empty())
       unique.insert(entry.prefab);
   }
   return {unique.begin(), unique.end()};
 }
 
-std::string_view terrainPaletteRoleName(const TerrainPaletteRole role) {
-  for (const RoleName &entry : PaletteRoles)
-    if (entry.role == role)
-      return entry.name;
-  return "soil";
+bool validTerrainPlacementRuleId(std::string_view id) {
+  return !id.empty() && std::ranges::all_of(id, [](unsigned char character) {
+    return (character >= 'a' && character <= 'z') ||
+           (character >= 'A' && character <= 'Z') ||
+           (character >= '0' && character <= '9') || character == '_' ||
+           character == '-';
+  });
 }
 
-std::optional<TerrainPaletteRole>
-terrainPaletteRoleFromName(const std::string_view name) {
-  for (const RoleName &entry : PaletteRoles)
-    if (entry.name == name)
-      return entry.role;
-  return std::nullopt;
+std::uint64_t terrainPlacementRuleHash(std::string_view id) {
+  // FNV-1a over UTF-8 bytes; stable across platforms and library versions.
+  std::uint64_t hash = 14695981039346656037ULL;
+  for (unsigned char byte : id) {
+    hash ^= byte;
+    hash *= 1099511628211ULL;
+  }
+  return hash;
 }
 
 std::string_view terrainCollisionPolicyName(
@@ -314,75 +277,45 @@ TerrainPalette parseTerrainPalette(const assets::DataDocument &document,
   palette.id = std::string(id);
 
   const DataValue &root = document.root();
+  const auto *version = root.find("format_version");
+  require(version && version->isInteger() &&
+              std::get<std::int64_t>(version->value) ==
+                  TerrainPalette::CurrentFormatVersion,
+          at("format_version") +
+              "must be 2. Migrate surface roles to a material_set and object "
+              "roles to named placements.");
   checkFields(root, "document",
-              {"format_version", "name", "roles", "required_roles"});
-  const DataValue *version = assets::data_read::field(root, "format_version");
-  require(version != nullptr, at("format_version") + "is required.");
-  require(version->isInteger() && std::get<std::int64_t>(version->value) == 1,
-          at("format_version") + "must be 1.");
-  palette.formatVersion = static_cast<int>(std::get<std::int64_t>(version->value));
+              {"format_version", "name", "material_set", "placements"});
   const DataValue *name = assets::data_read::field(root, "name");
   require(name != nullptr, at("name") + "is required.");
   require(name->isString() && !std::get<std::string>(name->value).empty(),
           at("name") + "must be a non-empty string.");
   palette.name = std::get<std::string>(name->value);
 
-  const DataValue *roles = assets::data_read::field(root, "roles");
-  require(roles != nullptr, at("roles") + "is required.");
-  const auto *roleMap = roles->object();
-  require(roleMap != nullptr && !roleMap->empty(),
-          at("roles") +
-              "must be a non-empty object keyed by role name. Known roles: " +
-              knownRoles() + ".");
-
-  // A shared asset is legal, but only when the two roles place it identically;
-  // otherwise a scatter pass cannot tell which placement metadata to honour.
-  std::map<std::string, std::string, std::less<>> assetOwners;
-  bool weighted = false;
-  for (const auto &[roleName, value] : *roleMap) {
-    const auto role = terrainPaletteRoleFromName(roleName);
-    require(role.has_value(), at("roles/" + roleName) +
-                                  "is not a known role. Known roles: " +
-                                  knownRoles() + ".");
-    TerrainPaletteEntry entry;
-    readEntry(value, roleName, *role, registry, entry);
-    weighted = weighted || entry.weight > 0.F;
-    if (const auto owner = assetOwners.find(entry.asset);
-        owner != assetOwners.end())
-      require(sameMetadata(entry, palette.roles.at(owner->second)),
-              at("roles/" + roleName) + "reuses asset " + entry.asset +
-                  " already claimed by roles/" + owner->second +
-                  " with different placement metadata. Give each role its own "
-                  "asset or make the metadata identical.");
-    else
-      assetOwners.emplace(entry.asset, roleName);
-    palette.roles.emplace(roleName, std::move(entry));
+  if (const auto *set = root.find("material_set")) {
+    palette.materialSet = assets::data_read::text(*set, Kind, "material_set");
+    require(palette.materialSet.starts_with(AssetPrefix),
+            at("material_set") + "must be an asset:// reference.");
+    require(assets::loadTerrainMaterialSet(registry, palette.materialSet)
+                .has_value(),
+            at("material_set") + "must resolve to a terrain_material_set.");
   }
-  require(weighted,
-          at("roles") +
-              "must select at least one role: every entry has weight 0, so "
-              "nothing would ever be scattered.");
-
-  if (const DataValue *required = root.find("required_roles");
-      required != nullptr) {
-    const auto *list = required->array();
-    require(list != nullptr,
-            at("required_roles") + "must be an array of role names.");
-    std::set<std::string, std::less<>> unique;
-    for (std::size_t index = 0; index < list->size(); ++index) {
-      const std::string where = "required_roles[" + std::to_string(index) + "]";
-      const std::string roleName =
-          assets::data_read::text((*list)[index], Kind, where);
-      require(terrainPaletteRoleFromName(roleName).has_value(),
-              at(where) + "is not a known role. Known roles: " + knownRoles() +
-                  ".");
-      require(palette.roles.contains(roleName),
-              at(where) + "requires role \"" + roleName +
-                  "\", which the palette does not define.");
-      unique.insert(roleName);
+  if (const auto *placements = root.find("placements")) {
+    const auto *entries = placements->object();
+    require(entries != nullptr,
+            at("placements") + "must be an object keyed by stable rule ID.");
+    for (const auto &[ruleId, value] : *entries) {
+      require(validTerrainPlacementRuleId(ruleId),
+              at("placements/" + ruleId) +
+                  "rule IDs use letters, digits, underscores or hyphens.");
+      TerrainPaletteEntry entry;
+      readEntry(value, ruleId, registry, entry);
+      palette.placements.emplace(ruleId, std::move(entry));
     }
-    palette.requiredRoles.assign(unique.begin(), unique.end());
   }
+  require(!palette.materialSet.empty() || !palette.placements.empty(),
+          at("document") +
+              "must supply a material_set or at least one placement.");
   return palette;
 }
 

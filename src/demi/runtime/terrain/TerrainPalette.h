@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <map>
 #include <optional>
 #include <string>
@@ -21,27 +22,10 @@ namespace demi::runtime {
 // full blocker.
 enum class TerrainCollisionPolicy { None, Static, Trigger };
 
-// The closed set of semantic roles a palette may fill. The vocabulary is fixed
-// so a typo is a load error instead of a role that silently never scatters.
-enum class TerrainPaletteRole {
-  ExposedRock,
-  Soil,
-  Sand,
-  Snow,
-  WetGround,
-  Tree,
-  Bush,
-  Grass,
-  Reed,
-  CliffPiece,
-  Debris,
-};
-
 struct TerrainPaletteEntry {
-  TerrainPaletteRole role = TerrainPaletteRole::Soil;
-  std::string asset;
+  std::string model;
   std::string prefab;
-  // Relative selection weight against the other roles. 0 keeps the role
+  // Relative selection weight against the other rules. 0 keeps the role
   // available but never selected.
   float weight = 1;
   float scaleMin = 1;
@@ -51,39 +35,32 @@ struct TerrainPaletteEntry {
   float spacing = 1;
   TerrainCollisionPolicy collision = TerrainCollisionPolicy::Static;
   int lod = 0;
-  // Biomes this role may appear in, by biome name. Empty means every biome.
+  // Biomes this rule may appear in, by biome name. Empty means every biome.
   // Ground cover wants this narrow (grass on meadow, rock on rock) while a
   // global prop such as debris may deliberately span everything. Sorted and
   // deduplicated so placement never depends on the authored array order.
   std::vector<std::string> biomes;
 };
 
-// A reusable map from semantic roles to mesh assets or geometry prefabs. A
-// material may be named when a prefab supplies geometry. It is a DataAsset
-// document, so cook,
-// packaging, dependency closure, demi validate, Lua Data.load and hot reload
-// all apply without a second implementation.
-//
-// The document stores roles as an object keyed by role name rather than as an
-// array of entries, because DataValue::Object is key-sorted: duplicate roles are
-// then structurally impossible and iteration order is deterministic.
+// One reusable palette separates material-set bindings from named object rules.
+// Only placements produce entities. Surface roles are owned by MaterialSet.
+// Rules are key-sorted so iteration is independent of source ordering.
 struct TerrainPalette {
-  int formatVersion = 1;
+  static constexpr int CurrentFormatVersion = 2;
+  int formatVersion = CurrentFormatVersion;
   // The asset:// id the palette was loaded from.
   std::string id;
   std::string name;
-  std::map<std::string, TerrainPaletteEntry, std::less<>> roles;
-  // Roles a consumer must find to treat the palette as usable. Sorted and
-  // deduplicated so the order never depends on the authored array.
-  std::vector<std::string> requiredRoles;
+  std::map<std::string, TerrainPaletteEntry, std::less<>> placements;
+  std::string materialSet;
 
   // Every asset:// and prefab:// this palette depends on, sorted and deduped.
   [[nodiscard]] std::vector<std::string> assetDependencies() const;
 };
 
-[[nodiscard]] std::string_view terrainPaletteRoleName(TerrainPaletteRole role);
-[[nodiscard]] std::optional<TerrainPaletteRole>
-terrainPaletteRoleFromName(std::string_view name);
+// Rule IDs are durable, author-chosen names, independent of surface roles.
+[[nodiscard]] bool validTerrainPlacementRuleId(std::string_view id);
+[[nodiscard]] std::uint64_t terrainPlacementRuleHash(std::string_view id);
 [[nodiscard]] std::string_view
 terrainCollisionPolicyName(TerrainCollisionPolicy policy);
 

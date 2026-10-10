@@ -141,10 +141,9 @@ int main() {
   paletteRecipe.paletteId = "asset://terrain/palettes/editor_test";
   auto palette = std::make_shared<runtime::TerrainPalette>();
   palette->id = paletteRecipe.paletteId;
-  palette->roles.emplace(
+  palette->placements.emplace(
       "grass",
-      runtime::TerrainPaletteEntry{.role = runtime::TerrainPaletteRole::Grass,
-                                   .asset = "asset://terrain/props/grass"});
+      runtime::TerrainPaletteEntry{.model = "asset://terrain/props/grass"});
   int resolutions = 0;
   editor::EditorTerrainAuthoring resolved;
   resolved.setInputResolver([&](const runtime::TerrainRecipe &requested) {

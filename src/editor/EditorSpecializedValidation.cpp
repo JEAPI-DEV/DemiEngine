@@ -1,3 +1,4 @@
+#include "demi/assets/DataAssetContent.h"
 #include "editor/EditorSpecializedDocument.h"
 
 #include "demi/assets/DataDocument.h"
@@ -128,12 +129,15 @@ Diagnostics validateAudio(const std::filesystem::path &path,
 }
 
 Diagnostics validateData(const std::filesystem::path &path,
-                         const nlohmann::json &document) {
+                         const nlohmann::json &document,
+                         std::string_view contentType) {
   Diagnostics diagnostics =
       assets::parseDataDocument(document.dump(), path).diagnostics;
-  if (document.value("format_version", 0) != 1)
+  const int version = assets::dataAssetContentFormatVersion(contentType);
+  if (document.value("format_version", 0) != version)
     issue(diagnostics, path, "DATA_FORMAT_VERSION_UNSUPPORTED",
-          "Data documents require format_version 1.");
+          "This data content requires format_version " +
+              std::to_string(version) + ".");
   return diagnostics;
 }
 
@@ -141,7 +145,8 @@ Diagnostics validateData(const std::filesystem::path &path,
 
 Diagnostics validateSpecializedDocument(const EditorSpecializedKind kind,
                                         const std::filesystem::path &path,
-                                        const nlohmann::json &document) {
+                                        const nlohmann::json &document,
+                                        std::string_view contentType) {
   switch (kind) {
   case EditorSpecializedKind::Prefab:
     return validatePrefab(path, document);
@@ -152,7 +157,7 @@ Diagnostics validateSpecializedDocument(const EditorSpecializedKind kind,
   case EditorSpecializedKind::Animation:
     return validateAnimation(path, document);
   case EditorSpecializedKind::Data:
-    return validateData(path, document);
+    return validateData(path, document, contentType);
   case EditorSpecializedKind::Audio:
     return validateAudio(path, document);
   }

@@ -14,7 +14,7 @@ namespace demi::assets {
 
 // Bump when the complete prepared payload envelope or derived-data contract
 // changes. Cook settings and the persistent cache key use this version.
-inline constexpr int terrainAssetPayloadVersion = 4;
+inline constexpr int terrainAssetPayloadVersion = 5;
 
 struct TerrainAssetSource {
   int formatVersion = 1;

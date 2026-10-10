@@ -156,14 +156,14 @@ void completePayloadRoundTrip() {
   auto palette = std::make_shared<TerrainPalette>();
   palette->id = field.paletteId;
   palette->name = "Test palette";
-  TerrainPaletteEntry role;
-  role.role = TerrainPaletteRole::Tree;
-  role.asset = "asset://tree";
-  palette->roles.emplace("tree", role);
+  palette->materialSet = "asset://surface_set";
+  TerrainPaletteEntry ruleId;
+  ruleId.model = "asset://tree";
+  palette->placements.emplace("tree", ruleId);
   field.resolvedPalette = palette;
   TerrainScatterPlacement tree;
-  tree.role = TerrainPaletteRole::Tree;
-  tree.asset = role.asset;
+  tree.ruleId = "tree";
+  tree.model = ruleId.model;
   tree.biome = 0;
   tree.biomeName = field.biomeIds[0];
   tree.cell = 1;
@@ -211,7 +211,8 @@ void completePayloadRoundTrip() {
   assert(restored->chunks.size() == field.chunks.size());
   assert(restored->scatterPlacements.size() == 1);
   assert(restored->resolvedPalette &&
-         restored->resolvedPalette->roles.size() == 1);
+         restored->resolvedPalette->placements.size() == 1);
+  assert(restored->resolvedPalette->materialSet == "asset://surface_set");
   assert(restored->graphArtifacts && restored->graphArtifacts->baseField);
   assert(restored->graphArtifacts->basePlacements->size() == 1);
   assert(restored->graphArtifacts->water.bodies.size() == 1);
@@ -271,7 +272,7 @@ void waterCoverageRoundTrip() {
   assert(encoded["body"][0] == 0 && encoded["body"][1] == 2 &&
          encoded["body"][2] == -1);
   const auto payload = serializeTerrainAssetPayload(field, "recipe", "inputs");
-  assert(terrainAssetPayloadVersion == 4 && payload[7] == std::byte{'4'});
+  assert(terrainAssetPayloadVersion == 5 && payload[7] == std::byte{'5'});
   const auto restored = deserializeTerrainAssetPayload(payload);
   const auto &before = *field.graphArtifacts->waterResult;
   const auto &after = *restored->graphArtifacts->waterResult;

@@ -19,6 +19,8 @@ struct DataAssetContentResult {
   std::vector<std::string> dependencies;
 };
 
+[[nodiscard]] int dataAssetContentFormatVersion(std::string_view contentType);
+
 // Inspect native DataAsset content using the same parsers as runtime loading.
 // Unrecognized content types are ordinary data; their string values do not
 // imply dependencies. Schema-declared references are handled by DataAsset.
