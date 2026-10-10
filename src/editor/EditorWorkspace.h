@@ -75,6 +75,9 @@ public:
                                           std::string &error);
   [[nodiscard]] bool duplicatePrefabInstance(std::string_view expandedEntityId,
                                              std::string &error);
+  // Recompose saved prefab dependencies against the current authored draft.
+  // Keep scene source, overrides, history and surviving selection intact.
+  [[nodiscard]] bool refreshPrefabInstances(std::string &error);
   [[nodiscard]] bool isPrefabDocument() const { return editingPrefab_; }
   [[nodiscard]] const std::filesystem::path &lastScenePath() const {
     return lastScenePath_;

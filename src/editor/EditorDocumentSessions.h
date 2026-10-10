@@ -27,6 +27,7 @@ public:
   // Use after an individual HUD Save as well as the manager's Save All path.
   bool refreshHudReferences(const std::filesystem::path &path,
                             std::string &error);
+  bool refreshPrefabReferences(std::string &error);
   bool hasUnsavedChanges() const;
   std::vector<EditorRecoveryDocument> dirtyDocuments() const;
   bool applyRecovery(const EditorRecoverySnapshot &snapshot,

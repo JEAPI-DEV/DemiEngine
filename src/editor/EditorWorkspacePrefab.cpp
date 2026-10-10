@@ -253,4 +253,25 @@ EditorWorkspace::loadEntityPreview(const EditorSceneDocument &document,
                                     false, prefabs);
 }
 
+bool EditorWorkspace::refreshPrefabInstances(std::string &error) {
+  if (!project_ || sceneDocument_.path().empty())
+    return true;
+  if (parkedSceneWorld_)
+    return rebuildParkedSceneWorld(error);
+  if (!std::ranges::any_of(project_->world.entities, [](const auto &entity) {
+        return !entity.prefabInstance.empty();
+      }))
+    return true;
+  // rebuildWorld publishes only a successfully composed replacement world.
+  // Unlike refresh(), it does not reload the document or clear its history.
+  if (!rebuildWorld(error))
+    return false;
+  std::erase_if(selectedEntityIds_, [this](const std::string &id) {
+    return std::ranges::find(project_->world.entities, id, &runtime::Entity::id) ==
+           project_->world.entities.end();
+  });
+  refreshDiagnostics();
+  return true;
+}
+
 } // namespace demi::editor

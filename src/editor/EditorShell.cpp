@@ -81,6 +81,9 @@ void drawMenu(EditorWorkspace &workspace, EditorDocumentSessions &documents,
             workspace.hudDocument())
           saved = documents.refreshHudReferences(
               workspace.hudDocument()->path(), error);
+        if (saved && workspace.isPrefabDocument() &&
+            workspace.activeDocument() == EditorWorkspaceDocument::Scene)
+          saved = documents.refreshPrefabReferences(error);
         notice = saved ? "Document saved" : error;
       }
       if (ImGui::MenuItem("Save project", nullptr, false,

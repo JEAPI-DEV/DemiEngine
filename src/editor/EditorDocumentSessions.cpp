@@ -207,6 +207,7 @@ bool EditorDocumentSessions::saveAll(std::string &error) {
   std::map<std::filesystem::path, const EditorWorkspace *> dirtyOwners;
   std::vector<std::filesystem::path> changedHudSources;
   bool projectWasDirty = false;
+  bool prefabWasDirty = false;
   // Preflight all workspaces before the first write. Never publish one draft
   // then discover another unsaved session owns the same source.
   for (const auto *workspace : workspaces) {
@@ -221,6 +222,7 @@ bool EditorDocumentSessions::saveAll(std::string &error) {
       return false;
     }
     for (const auto &document : workspace->dirtyDocuments()) {
+      prefabWasDirty |= document.kind == "prefab";
       if (document.kind == "hud")
         changedHudSources.push_back(document.path);
       const auto [found, inserted] =
@@ -239,6 +241,8 @@ bool EditorDocumentSessions::saveAll(std::string &error) {
   for (const auto &path : changedHudSources)
     if (!refreshHudReferences(path, error))
       return false;
+  if (prefabWasDirty && !refreshPrefabReferences(error))
+    return false;
   if (projectWasDirty && !refreshProjectReferences(error))
     return false;
   return true;
@@ -250,6 +254,15 @@ bool EditorDocumentSessions::refreshHudReferences(
     return false;
   for (auto *workspace : {&scene_, prefab_.get(), terrain_.get(), hud_.get()})
     if (workspace && !workspace->refreshCleanHudDocument(path, error))
+      return false;
+  return true;
+}
+
+bool EditorDocumentSessions::refreshPrefabReferences(std::string &error) {
+  if (!synchronizeProject(error))
+    return false;
+  for (auto *workspace : {&scene_, prefab_.get(), terrain_.get(), hud_.get()})
+    if (workspace && !workspace->refreshPrefabInstances(error))
       return false;
   return true;
 }
