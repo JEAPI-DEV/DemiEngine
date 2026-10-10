@@ -15,7 +15,9 @@ function ColonyCamera:on_update(dt)
   local horizontal = Input.value("move_x")
   local forward = Input.value("move_z")
   local length = math.sqrt(horizontal * horizontal + forward * forward)
-  if length == 0 then return end
+  if length == 0 then
+    return
+  end
   if length > 1 then
     horizontal, forward = horizontal / length, forward / length
   end
@@ -24,13 +26,17 @@ function ColonyCamera:on_update(dt)
   -- so panning follows the screen without changing the camera's height.
   local fx, _, fz = Transform3D.forward(self.entity_id)
   local ground_length = math.sqrt(fx * fx + fz * fz)
-  if ground_length < 0.001 then return end
+  if ground_length < 0.001 then
+    return
+  end
   fx, fz = fx / ground_length, fz / ground_length
   local distance = self.pan_speed * dt
-  Transform3D.add_position(self.entity_id,
+  Transform3D.add_position(
+    self.entity_id,
     (-fz * horizontal + fx * forward) * distance,
     0,
-    (fx * horizontal + fz * forward) * distance)
+    (fx * horizontal + fz * forward) * distance
+  )
 end
 
 return ColonyCamera

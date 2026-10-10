@@ -1,0 +1,12 @@
+{
+  "format_version": 1,
+  "title": "Character Needs",
+  "description": "Named stamina, nutrition and other bounded needs with time-based rates, separate low/recovery thresholds and validated updates. Game-independent Lua policy for survival games and NPC routines.",
+  "publisher": "DemiEngine",
+  "license": "BSD-3-Clause",
+  "kind": "code",
+  "category": "Gameplay",
+  "price": 0,
+  "images": [],
+  "tags": ["survival", "npc", "simulation", "gameplay"]
+}

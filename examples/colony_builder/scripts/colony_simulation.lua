@@ -58,34 +58,47 @@ Colony.build_seconds = 5
 ---@range 1 256
 Colony.navigation_cells = 64
 function Colony:on_start()
-  self.terrain_service=Terrain.new(self.terrain,self.engineer)
-  self.network=Network.new(self,self.terrain_service)
-  self.resources=Resources.new(self,self.network)
-  self.jobs=Jobs.new(self,self.network,self.terrain_service,self.resources)
-  self.controls=Construction.new(self,self.network,self.jobs,self.terrain_service)
+  self.terrain_service = Terrain.new(self.terrain, self.engineer)
+  self.network = Network.new(self, self.terrain_service)
+  self.resources = Resources.new(self, self.network)
+  self.jobs = Jobs.new(self, self.network, self.terrain_service, self.resources)
+  self.controls = Construction.new(self, self.network, self.jobs, self.terrain_service)
 end
-function Colony:on_update() self.controls:update() end
+
+function Colony:on_update()
+  self.controls:update()
+end
+
 function Colony:on_fixed_update(dt)
   if not self.initial_links then
-    local routes={}
-    for _,id in ipairs({self.solar_array,self.water_extractor}) do
-      local route=self.network:route(self.habitat,id)
-      if not route then return end
-      routes[#routes+1]={id=id,points=route}
+    local routes = {}
+    for _, id in ipairs({ self.solar_array, self.water_extractor }) do
+      local route = self.network:route(self.habitat, id)
+      if not route then
+        return
+      end
+      routes[#routes + 1] = { id = id, points = route }
     end
-    for i,route in ipairs(routes) do
-      local id="starter_link_"..i
-      assert(self.network:draw_link(id,route.points,false))
-      self.network.edges[#self.network.edges+1]={id=id,a=self.habitat,b=route.id,complete=true}
+    for i, route in ipairs(routes) do
+      local id = "starter_link_" .. i
+      assert(self.network:draw_link(id, route.points, false))
+      self.network.edges[#self.network.edges + 1] =
+        { id = id, a = self.habitat, b = route.id, complete = true }
     end
-    self.initial_links=true
+    self.initial_links = true
   end
   self.network:refresh()
   self.resources:update(dt)
   self.jobs:update(dt)
 end
+
 function Colony:on_destroy()
-  if self.jobs then self.jobs.worker:interrupt() end
-  if self.controls then self.controls:destroy() end
+  if self.jobs then
+    self.jobs.worker:interrupt()
+  end
+  if self.controls then
+    self.controls:destroy()
+  end
 end
+
 return Colony

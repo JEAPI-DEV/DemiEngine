@@ -54,3 +54,19 @@ Run isolated package policy tests with `demi package test packages/sources/demi.
 Version 0.2 starts routes at the actor’s exact position, including when it is
 leaving a blocked start cell. Set `face_movement=true` in agent options to turn
 the actor toward its movement without tilting it; the default preserves rotation.
+
+Version 0.3 removes unnecessary grid waypoints by taking clear straight segments
+through the route. Movement can use arbitrary angles; the grid remains an
+internal search and terrain-survey representation. Shortcut checks traverse every
+touched survey cell (including corner neighbours) and test footprint boxes expanded
+by agent radius. They use cached data and run when planning, not every frame.
+Intermediate corners are reached precisely, without a frame of stale velocity.
+With a zero goal radius, the endpoint is the requested world position rather than
+a cell centre; blocked exact endpoints return `PATH_GOAL_BLOCKED`.
+
+This is conservative route simplification, not a navmesh or curved steering.
+Turns remain at obstacle corners, and terrain sampling resolution still matters.
+The character controller remains responsible for collision between samples.
+
+When an actor starts inside footprint clearance, simplification keeps the original
+first escape edge instead of taking a long shortcut through that footprint.

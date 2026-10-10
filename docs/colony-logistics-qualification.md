@@ -65,3 +65,26 @@ from the previous operator import lacked group-write permission; restoring it
 allowed the HTTP publisher to create the new version. The store release
 `20261010-131901-colony-logistics` passed Composer tests, Twig lint and cache warmup;
 its health endpoint returned OK after the atomic switch.
+
+## Readable gameplay modules and reusable needs (2026-10-10)
+
+The colony scripts, Ground Navigation, Inventory and their tests now use expanded
+Lua statements and control flow with a checked-in StyLua configuration. Worker
+arrival actions are separate from travel/interrupt orchestration. The example
+README maps the modules and explains which policies remain game-specific.
+Inherited starter controller scripts were not reformatted.
+
+Character Needs 0.1.0 extracts named bounded values, time-based rates and separate
+low/recovery thresholds. It has no engine, HUD, inventory or scene dependency;
+the colony adapter retains food transactions, water consumption, habitat checks
+and manual rest. Ground Navigation 0.3.1 and Inventory 1.2.1 also ship readable
+sources. All five locked dependencies are installed from the public registry,
+and published archives match the staging registry.
+
+Package tests passed: Ground Navigation 12, Inventory 4, Character Needs 4.
+The source and cooked headless hauling/needs/connections scenario passed after
+the extraction and formatting. The public packages guide and package READMEs
+explain usage. Store deployment `20261010-134223-readable-gameplay` passed its
+Composer checks, Twig lint and cache warmup; health returned OK after switching.
+Native prefab-stage checks found and qualified the dependent-preview fix in
+`editor-asset-authoring-qualification.md`.

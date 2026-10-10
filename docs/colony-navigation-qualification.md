@@ -89,3 +89,32 @@ which did not forward that option. Those passes establish gameplay behavior,
 but do not establish the claimed standalone resolution. The maximized editor
 captures remain valid. The wrapper now forwards the option and has a focused
 child-process argument regression test.
+
+## Continuous-direction ground routes (0.3.1)
+
+The visible stair-step movement came from following every point of four-way A*.
+The Ground package now owns a private route-geometry module that simplifies those
+routes with cached supercover cell traversal and segment/expanded-footprint tests.
+Corner neighbours are included so a shortcut cannot pass diagonally between
+blocked cells. Geometry is independent of terrain sampling and character movement;
+no new native API or platform-specific code was needed.
+
+Zero-radius goals retain exact requested world coordinates after checking their
+terrain sample and approach. Intermediate waypoints are consumed in the current
+update instead of carrying the preceding velocity into the next frame. A one-mm
+solver tolerance prevents a controller's sub-mm resting displacement from leaving
+it stuck at a corner. The first integration run exposed this; the corrected
+source hauling/needs/connections E2E passes.
+
+Twelve package tests cover survey budgets, replanning, stalled/disabled actors,
+open-space arbitrary angles, exact endpoints, blocked corners, narrow footprints,
+grid-boundary endpoints in both directions and controller contact noise. The
+colony validates against the published 0.3.1 package, whose archive matches local
+staging. This is conservative route simplification, not a navmesh or curved
+steering. Terrain survey resolution and physical collision still bound movement.
+
+Source and cooked headless gameplay checks passed after route simplification;
+the visible source scenario passed at measured 5120 x 2806. The later 0.3.1
+patch conservatively retains the first escape edge when an actor starts inside
+footprint clearance. Its full headless scenario also passed. The Lua sources
+were then expanded for readability without changing the routing algorithm.

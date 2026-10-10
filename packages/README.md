@@ -47,7 +47,9 @@ exports. See [core concepts](https://demiengine.de/docs/core-concepts) for the d
 | `demi.gameplay.interactions` | deterministic interactions and pickups |
 | `demi.gameplay.checkpoints` | checkpoints, entrances, respawn data |
 | `demi.gameplay.camera` | follow, bounds, zones, shake, look-ahead |
-| `demi.gameplay.inventory` | stacks and equipment state |
+| `demi.gameplay.inventory` | stacks, capacity-aware transfers and equipment state |
+| `demi.gameplay.needs` | bounded needs, drain/recovery rates and thresholds |
+| `demi.navigation.ground` | terrain surveys, obstacle-aware routes and continuous-direction movement |
 | `demi.gameplay.encounters` | waves, spawn failures, objectives |
 | `demi.gameplay.controllers` | platform/top-down/click/isometric intents |
 | `demi.gameplay.third_person` | 3D orbit camera, movement/rolls, melee attack phases |

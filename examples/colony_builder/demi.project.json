@@ -45,8 +45,9 @@
   "main_scene": "scene://colony",
   "name": "Colony Builder",
   "packages": {
-    "demi.gameplay.inventory": "^1.2.0",
-    "demi.navigation.ground": "^0.2.0",
+    "demi.gameplay.inventory": "^1.2.1",
+    "demi.gameplay.needs": "^0.1.0",
+    "demi.navigation.ground": "^0.3.1",
     "demi.ui.orbit": "^1.1.0"
   },
   "performance_budgets": {

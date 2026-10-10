@@ -46,7 +46,7 @@ print(health:get("player").current)</code></pre>
 <table>
   <thead><tr><th>Family</th><th>Modules</th></tr></thead>
   <tbody>
-    <tr><td>Gameplay</td><td><code>demi.gameplay.events</code>, <code>health</code>, <code>controllers</code>, <code>projectiles</code>, <code>interactions</code>, <code>inventory</code>, <code>encounters</code>, <code>camera</code>, <code>checkpoints</code>, <code>third_person</code>, <code>destruction</code></td></tr>
+    <tr><td>Gameplay</td><td><code>demi.gameplay.events</code>, <code>health</code>, <code>controllers</code>, <code>projectiles</code>, <code>interactions</code>, <code>inventory</code>, <code>needs</code>, <code>encounters</code>, <code>camera</code>, <code>checkpoints</code>, <code>third_person</code>, <code>destruction</code></td></tr>
     <tr><td>UI</td><td><code>demi.ui.localization</code></td></tr>
     <tr><td>Networking</td><td><code>demi.network.lobby</code></td></tr>
     <tr><td>Assets</td><td><code>kenney.textures.prototype</code> — 78 CC0 prototype textures</td></tr>
@@ -75,3 +75,14 @@ demi package test packages/my_package --format json</code></pre>
   <li>Keep module names stable across releases so games do not need rewrites on every update.</li>
   <li>When a public API changes, update examples, docs, tests, and stubs together.</li>
 </ul>
+
+<h2>Reusable character needs</h2>
+<p><a href="/packages/demi.gameplay.needs">Character Needs</a> supplies named bounded values, time-based drain/recovery rates and separate low/recovery thresholds. It works without scene, physics or HUD dependencies. Games decide when to rest, what food costs and what happens on depletion. The Colony Builder example uses it for stamina, nutrition and suit oxygen.</p>
+<pre><code>local Needs = require("demi.gameplay.needs")
+local needs = Needs.new({
+  stamina = { value = 80, low = 25, recovered = 90 },
+})
+needs:update(dt, { stamina = -0.4 })
+if needs:urgent() then
+  -- Ask your game's task scheduler for a break.
+end</code></pre>

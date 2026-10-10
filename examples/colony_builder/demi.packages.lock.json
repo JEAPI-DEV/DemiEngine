@@ -24,8 +24,8 @@
       "yanked": false
     },
     {
-      "archive_hash": "sha256:f8785a29fcf49f2f9e95a6101c4294c7a6b52e16b28adc412622b3e3fa16d9bc",
-      "archive_uri": "https://demiengine.de/v1/packages/demi.gameplay.inventory/1.2.0/archive",
+      "archive_hash": "sha256:9aa0b9c90d21ef1e17a052d1b9e60924131fe16561ecb3605dd1004c52c22a0d",
+      "archive_uri": "https://demiengine.de/v1/packages/demi.gameplay.inventory/1.2.1/archive",
       "manifest": {
         "dependencies": {
           "demi.gameplay.events": "^1.0.0"
@@ -45,14 +45,37 @@
         "public_modules": [
           "demi.gameplay.inventory"
         ],
-        "version": "1.2.0"
+        "version": "1.2.1"
       },
-      "manifest_hash": "sha256:b8d55c145f771c9d97404b9261b91e7c35f2f5b0c0c95dcf9909b614c95b5689",
+      "manifest_hash": "sha256:989ffa9e9e162712c251282814c15a05e8c83978273ad5c8dfda7495bc9aa362",
       "yanked": false
     },
     {
-      "archive_hash": "sha256:d6cecd42dd9215b7c9a8f1587db42e7ae358f5e5dc89ebaa820f6fda194ac6ca",
-      "archive_uri": "https://demiengine.de/v1/packages/demi.navigation.ground/0.2.0/archive",
+      "archive_hash": "sha256:2c606633caded8179ecc4a14da3cedc43bea0b657bcaa404c8744d6bd717b2d8",
+      "archive_uri": "https://demiengine.de/v1/packages/demi.gameplay.needs/0.1.0/archive",
+      "manifest": {
+        "dependencies": {},
+        "engine": "^0.1.0",
+        "exported_events": [],
+        "files": [
+          "LICENSE",
+          "README.md",
+          "scripts/demi/gameplay/needs.lua",
+          "tests/needs_test.lua"
+        ],
+        "format_version": 1,
+        "name": "demi.gameplay.needs",
+        "public_modules": [
+          "demi.gameplay.needs"
+        ],
+        "version": "0.1.0"
+      },
+      "manifest_hash": "sha256:ad45933f7d022b1a9260d5012cff39539ec5a6ec4487bc253576dee75144e770",
+      "yanked": false
+    },
+    {
+      "archive_hash": "sha256:6709af78fbe1a643909c89794f33721accb3ae9e5110c5a9a912ff73ca3f9ae7",
+      "archive_uri": "https://demiengine.de/v1/packages/demi.navigation.ground/0.3.1/archive",
       "manifest": {
         "dependencies": {},
         "engine": "^0.1.0",
@@ -61,6 +84,7 @@
           "LICENSE",
           "README.md",
           "scripts/demi/navigation/ground.lua",
+          "scripts/demi/navigation/ground_route.lua",
           "tests/ground_test.lua"
         ],
         "format_version": 1,
@@ -68,9 +92,9 @@
         "public_modules": [
           "demi.navigation.ground"
         ],
-        "version": "0.2.0"
+        "version": "0.3.1"
       },
-      "manifest_hash": "sha256:524ae8f7cd6a39a78bb7dedea3c1ecda858df67bcb58cf9b7e1ab52ebbe2f5e0",
+      "manifest_hash": "sha256:459ab4af96f17e1e24c14be78ee6b5b6a7a6f80077065f2d215a4746cdee652b",
       "yanked": false
     },
     {

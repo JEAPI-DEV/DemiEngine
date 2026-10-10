@@ -1,5 +1,12 @@
 # DemiEngine Roadmap
 
+Colony Lua is expanded for readability, with a module-reading guide. Reusable
+Character Needs 0.1.0 is published; prefab source saves now refresh open
+instances without discarding scene history.
+
+Ground Navigation 0.3.1 simplifies routes into clear straight segments, preserving
+obstacle clearance while removing visible grid stepping.
+
 The colony now exercises depot hauling, recoverable construction materials,
 basic habitat breaks and pause/1x/3x controls. See
 [logistics qualification](docs/colony-logistics-qualification.md).

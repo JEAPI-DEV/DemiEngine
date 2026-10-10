@@ -42,7 +42,7 @@ The project does not select a GPU or disable MSAA.
 
 ## Connected construction milestone
 
-The project installs Orbit UI 1.1.0 and Ground Navigation 0.2.0 and Inventory 1.2.0 from the package
+The project installs Orbit UI 1.1.0 and Ground Navigation 0.3.1, Inventory 1.2.1 and Character Needs 0.1.0 from the package
 manager. Press Play: WASD pans, Solar array / Water extractor selects a plan,
 and clicking a green footprint reserves metal and creates a construction site.
 Engineer Mara walks around building footprints to an adjacent reachable cell,
@@ -111,3 +111,25 @@ Pause, 1x and 3x affect the simulation together. Camera panning remains availabl
 while paused. The E2E test checks hauling capacity, pause, forced rest, partial
 site cancellation, carried-metal cancellation and conservation throughout the
 construction/connection sequence.
+
+Ground routes now skip unnecessary grid waypoints along clear straight segments.
+The survey grid is internal: Mara moves at arbitrary angles through open ground,
+retaining required corners around blocked terrain and expanded building footprints.
+
+## Reading the gameplay code
+
+Start with `colony_simulation.lua`: it creates the services and orders their updates.
+Then follow these modules by responsibility:
+
+- `colony_construction.lua`: HUD actions, picking and construction commands.
+- `colony/jobs.lua`: the FIFO construction queue and final prefab creation.
+- `colony/worker.lua`: choosing tasks, travelling and performing arrived tasks.
+- `colony/logistics.lua`: reservations, carried/site stock and cancellation recovery.
+- `colony/needs.lua`: habitat and meal rules over the reusable needs meters.
+- `colony/network.lua` and `colony_resources.lua`: utility links and production.
+
+Reusable code lives in installed packages: Ground Navigation handles movement,
+Inventory handles stock transfers, and Character Needs handles bounded meters and
+thresholds. The example owns the colony rules. It does not import package-private
+modules. Lua uses two-space indentation, separate statements and expanded control
+flow; `.stylua.toml` records the format. Run StyLua on these modules when editing.
