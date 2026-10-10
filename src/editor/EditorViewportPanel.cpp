@@ -214,7 +214,8 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
                     canvasWidth,
                 (ImGui::GetIO().MousePos.y - canvasMin.y) * hud.canvasSize.y /
                     canvasHeight};
-            const runtime::ui::UiNode *picked = pickEditorHudNode(hud, point);
+            const runtime::ui::UiNode *picked =
+                pickEditorHudDropParent(hud, point);
             std::string target(workspace.selectedHudNodeId());
             if (picked)
               target = picked->id;
@@ -298,12 +299,19 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
                                 std::max(hudState.startSize.y + delta.y, 1.0F)}
                 : runtime::Vec2{hudState.startPosition.x + delta.x,
                                 hudState.startPosition.y + delta.y};
-        std::string error;
-        notice = workspace.setHudNodeField(
-                     hudState.nodeId, resize ? "size" : "position",
-                     nlohmann::json::array({value.x, value.y}), error)
-                     ? resize ? "HUD element resized" : "HUD element moved"
-                     : error;
+        // Selection clicks must not materialize inherited position/size values.
+        const float screenDistance =
+            std::hypot(delta.x * hudScaleX, delta.y * hudScaleY);
+        if (screenDistance >= io.MouseDragThreshold) {
+          std::string error;
+          notice = workspace.setHudNodeField(
+                       hudState.nodeId, resize ? "size" : "position",
+                       nlohmann::json::array({value.x, value.y}), error)
+                       ? resize ? "HUD element resized" : "HUD element moved"
+                       : error;
+        } else if (workspace.previewHudAction(hudState.nodeId)) {
+          notice = "HUD action previewed; authored defaults are unchanged";
+        }
         hudState = {};
       } else if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
         hudState = {};

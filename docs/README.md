@@ -7,6 +7,9 @@ are registered in `tools/package-store/src/Docs.php`.
 
 This directory keeps material that has a different job:
 
+- [UI prefab authoring qualification](ui-prefab-authoring-qualification.md) records
+  target-based overrides, reparenting, Unpack, tab previews and native verification.
+
 - [Orbit UI qualification](orbit-ui-qualification.md) records package UI reuse,
   shared docking/rendering fixes, native captures and store publication evidence.
 

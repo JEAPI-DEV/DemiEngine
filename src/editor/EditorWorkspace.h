@@ -207,6 +207,8 @@ public:
                                   std::optional<runtime::Vec3> worldPosition = {});
   [[nodiscard]] bool createPresetEntity(std::string_view preset,
                                         std::string &error);
+  [[nodiscard]] bool unpackPrefab(std::string_view id, std::string &error);
+  [[nodiscard]] bool unpackHudPrefab(std::string_view id, std::string &error);
   [[nodiscard]] bool unpackPreset(std::string_view id, std::string &error);
   [[nodiscard]] bool deleteEntity(std::string_view id, std::string &error);
   [[nodiscard]] bool deleteEntities(std::vector<std::string> ids,
@@ -257,6 +259,14 @@ public:
                                      std::string_view field,
                                      nlohmann::json value, std::string &error,
                                      bool continuous = false);
+  [[nodiscard]] bool previewHudAction(std::string_view id);
+  [[nodiscard]] bool resetHudPreviewState(std::string &error);
+  [[nodiscard]] bool resetHudPrefabTarget(std::string_view id,
+                                          std::string_view target,
+                                          std::string &error);
+  [[nodiscard]] bool resetHudNodeOverride(std::string_view id,
+                                          std::string_view field,
+                                          std::string &error);
   void endHudContinuousEdit();
   [[nodiscard]] bool saveHud(std::string &error);
   // Refresh a clean linked/open HUD after another document session saved its

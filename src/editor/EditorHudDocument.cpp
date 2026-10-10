@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <map>
 #include <optional>
 #include <set>
 #include <unordered_map>
@@ -294,9 +295,10 @@ std::optional<Json> starterValue(const std::string_view type) {
   return std::nullopt;
 }
 
-std::optional<Json> prefabArguments(const std::filesystem::path &hudPath,
-                                    const std::string_view prefabReference,
-                                    std::string &error) {
+std::optional<Json>
+prefabArgumentDefaults(const std::filesystem::path &hudPath,
+                       const std::string_view prefabReference,
+                       std::string &error) {
   const auto prefabPath =
       runtime::ui::resolveUiPrefabReference(hudPath, prefabReference);
   if (!prefabPath) {
@@ -354,6 +356,7 @@ bool EditorHudDocument::open(std::filesystem::path path, std::string &error) {
           },
           error))
     return false;
+  previewVisibility_.clear();
   return rebuild(error);
 }
 
@@ -366,22 +369,14 @@ bool EditorHudDocument::createNode(const std::string_view type,
     return false;
   }
   Json replacement = document_.json();
-  Json *root =
-      replacement.contains("root") ? &replacement["root"] : &replacement;
-  Json *parent = root == nullptr ? nullptr
-                 : (parentId.empty() ||
-                    (!replacement.contains("root") && parentId == "ui_root"))
-                     ? root
-                     : findNode(*root, parentId);
-  if (parent == nullptr) {
-    error = "Select an authored HUD container before adding an element.";
+  std::string prefix;
+  Json *parent = childStorage(replacement, parentId, prefix);
+  if (!parent) {
+    error = "Select a HUD container before adding content.";
     return false;
   }
-  if (parent->contains("prefab")) {
-    error = "Prefab-expanded HUD nodes must be edited in their UI prefab.";
-    return false;
-  }
-  createdId = uniqueId(*root, std::string(type));
+  const auto localId = newChildId(std::string(type), prefix);
+  createdId = prefix + localId;
   const auto key = parent == &replacement && parent->contains("elements")
                        ? "elements"
                        : "children";
@@ -390,14 +385,15 @@ bool EditorHudDocument::createNode(const std::string_view type,
   const auto placement = editorHudFlowPlacement(
       preview_, parentId.empty() ? authoredRootId(replacement) : parentId,
       (*parent)[key], position);
-  Json node = defaultNode(type, createdId);
+  Json node = defaultNode(type, localId);
   if (placement.flow)
     node.erase("position");
   else if (position)
     node["position"] = normalizeAuthoredValue(
         Json::array({position->x, position->y}), nullptr, 1);
   (*parent)[key].insert((*parent)[key].begin() +
-                            static_cast<Json::difference_type>(placement.index),
+                            static_cast<Json::difference_type>(std::min(
+                                placement.index, (*parent)[key].size())),
                         std::move(node));
   return replaceAndRebuild(std::move(replacement), error);
 }
@@ -411,27 +407,19 @@ bool EditorHudDocument::createPrefabInstance(
     return false;
   }
   Json replacement = document_.json();
-  Json *root =
-      replacement.contains("root") ? &replacement["root"] : &replacement;
-  Json *parent = parentId.empty() || (!replacement.contains("root") &&
-                                      parentId == "ui_root")
-                     ? root
-                     : findNode(*root, parentId);
-  if (parent == nullptr) {
-    error = "Select an authored HUD container before adding a UI prefab.";
+  std::string prefix;
+  Json *parent = childStorage(replacement, parentId, prefix);
+  if (!parent) {
+    error = "Select a HUD container before adding content.";
     return false;
   }
-  if (parent->contains("prefab")) {
-    error = "Prefab-expanded HUD nodes must be edited in their UI prefab.";
-    return false;
-  }
-
   const std::optional<Json> arguments =
-      prefabArguments(document_.path(), prefabReference, error);
+      prefabArgumentDefaults(document_.path(), prefabReference, error);
   if (!arguments)
     return false;
-  createdId = uniqueId(*root, prefabInstanceBase(prefabReference));
-  Json instance{{"id", createdId}, {"prefab", prefabReference}};
+  const auto localId = newChildId(prefabInstanceBase(prefabReference), prefix);
+  createdId = prefix + localId;
+  Json instance{{"id", localId}, {"prefab", prefabReference}};
   if (!arguments->empty())
     instance["arguments"] = *arguments;
   const auto key = parent == &replacement && parent->contains("elements")
@@ -446,69 +434,17 @@ bool EditorHudDocument::createPrefabInstance(
     // The container owns the root's slot, even if the source prefab uses an
     // offset or stretch anchors for standalone placement. Its contents remain
     // inherited.
-    instance["overrides"] = {
+    instance["overrides"]["$root"] = {
         {"position", {0, 0}}, {"anchor_min", {0, 0}}, {"anchor_max", {0, 0}}};
   } else if (position) {
-    instance["overrides"] = {
+    instance["overrides"]["$root"] = {
         {"position", normalizeAuthoredValue(
                          Json::array({position->x, position->y}), nullptr, 1)}};
   }
   (*parent)[key].insert((*parent)[key].begin() +
-                            static_cast<Json::difference_type>(placement.index),
+                            static_cast<Json::difference_type>(std::min(
+                                placement.index, (*parent)[key].size())),
                         std::move(instance));
-  return replaceAndRebuild(std::move(replacement), error);
-}
-
-bool EditorHudDocument::reparentNode(const std::string_view id,
-                                     const std::string_view parentId,
-                                     std::string &error) {
-  Json replacement = document_.json();
-  const std::string rootId = authoredRootId(replacement);
-  if (id.empty() || id == rootId) {
-    error = "The HUD root cannot be moved.";
-    return false;
-  }
-  const std::optional<NodeLocation> source =
-      findNodeLocation(*authoredRoot(replacement), id);
-  if (!source) {
-    error = "This node is generated by a UI prefab or no longer exists.";
-    return false;
-  }
-  Json *parent = findAuthoredHudNode(replacement, parentId);
-  if (parent == nullptr) {
-    error = "The destination is generated by a UI prefab or no longer exists.";
-    return false;
-  }
-  if (parent->contains("prefab")) {
-    error = "UI prefab instances cannot own authored children. Open the UI "
-            "prefab source to change its hierarchy.";
-    return false;
-  }
-
-  const std::set<std::string> subtreeIds = previewSubtreeIds(preview_, id);
-  if (subtreeIds.contains(std::string(parentId))) {
-    error = "A HUD node cannot be parented to itself or its descendants.";
-    return false;
-  }
-  const std::string nestedParentId =
-      source->owner == authoredRoot(replacement)
-          ? rootId
-          : source->owner->value("id", "");
-  const std::string currentParentId =
-      (*source->siblings)[source->index].value("parent", nestedParentId);
-  if (currentParentId == parentId)
-    return true;
-
-  Json moved = std::move((*source->siblings)[source->index]);
-  moved.erase("parent");
-  source->siblings->erase(source->siblings->begin() +
-                          static_cast<Json::difference_type>(source->index));
-  parent = findAuthoredHudNode(replacement, parentId);
-  if (parent == nullptr) {
-    error = "The destination is no longer available.";
-    return false;
-  }
-  authoredChildren(*parent).push_back(std::move(moved));
   return replaceAndRebuild(std::move(replacement), error);
 }
 
@@ -625,15 +561,77 @@ bool EditorHudDocument::duplicateNodes(const std::span<const std::string> ids,
 
 bool EditorHudDocument::deleteNodes(const std::span<const std::string> ids,
                                    std::string &error) {
-  const auto roots = exportNodes(ids, error);
-  if (!roots)
-    return false;
   Json replacement = document_.json();
-  for (const auto &root : *roots)
-    if (!eraseNode(*authoredRoot(replacement), root.at("id").get<std::string>())) {
-      error = "The authored HUD element no longer exists.";
+  std::set<std::string> selected(ids.begin(), ids.end());
+  std::map<std::string, std::vector<std::size_t>> removals;
+  for (const auto &id : selected) {
+    const auto *node = previewNode(preview_, id);
+    if (!node || node->parent.empty()) {
+      error = "The HUD root cannot be deleted.";
       return false;
     }
+    bool covered = false;
+    for (auto parent = node->parent; !parent.empty();) {
+      if (selected.contains(parent)) {
+        covered = true;
+        break;
+      }
+      const auto *ancestor = previewNode(preview_, parent);
+      parent = ancestor ? ancestor->parent : std::string{};
+    }
+    if (covered)
+      continue;
+    const auto source = composition_.authoredNodes.find(id);
+    if (source != composition_.authoredNodes.end()) {
+      discardOverridesForSource(replacement, source->second.pointer, true);
+      auto pointer = Json::json_pointer(source->second.pointer);
+      const auto index = std::stoull(pointer.back());
+      pointer.pop_back();
+      removals[pointer.to_string()].push_back(index);
+    } else if (const auto *origin = prefabOrigin(id)) {
+      replacement.at(Json::json_pointer(
+          origin->instancePointer))["overrides"][origin->localNodeId] = nullptr;
+    } else {
+      error = "The selected HUD node has no editable owner.";
+      return false;
+    }
+  }
+  std::vector<std::pair<std::string, std::vector<std::size_t>>> ordered(
+      removals.begin(), removals.end());
+  std::ranges::sort(ordered, [](const auto &a, const auto &b) {
+    return std::ranges::count(a.first, '/') > std::ranges::count(b.first, '/');
+  });
+  for (auto &[pointer, indices] : ordered) {
+    auto &array = replacement.at(Json::json_pointer(pointer));
+    std::ranges::sort(indices, std::greater{});
+    for (auto index : indices)
+      array.erase(array.begin() + static_cast<Json::difference_type>(index));
+  }
+  const auto prune = [&](auto &&self, Json &value) -> void {
+    if (value.is_object()) {
+      if (value.contains("prefab") && value["prefab"].is_string() &&
+          value["prefab"].get<std::string>().starts_with("ui-prefab://")) {
+        if (auto patches = value.find("overrides"); patches != value.end()) {
+          for (auto it = patches->begin(); it != patches->end();) {
+            if (it->is_object() && it->contains("children") &&
+                (*it)["children"].empty())
+              it->erase("children");
+            if (it->is_object() && it->empty())
+              it = patches->erase(it);
+            else
+              ++it;
+          }
+          if (patches->empty())
+            value.erase(patches);
+        }
+      }
+      for (auto &child : value)
+        self(self, child);
+    } else if (value.is_array())
+      for (auto &child : value)
+        self(self, child);
+  };
+  prune(prune, replacement);
   return replaceAndRebuild(std::move(replacement), error);
 }
 
@@ -666,20 +664,22 @@ bool EditorHudDocument::setNodeField(const std::string_view id,
             "element to edit its properties.";
     return false;
   }
-  Json *root = replacement.contains("root") ? &replacement["root"] : nullptr;
-  if (!root)
-    root = &replacement;
-  Json *node = root == nullptr ? nullptr : findNode(*root, id);
-  if (node == nullptr) {
-    error = "This node is generated by a UI prefab or no longer exists.";
+  Json *node = nullptr;
+  if (field == "arguments") {
+    node = mutableAuthoredNode(replacement, id);
+    if (!node || !node->contains("prefab")) {
+      error = "Select an authored UI prefab instance to edit its parameters.";
+      return false;
+    }
+  } else {
+    node = mutableNodeProperties(replacement, id);
+  }
+  if (!node) {
+    error = "This HUD node no longer has an editable source or instance.";
     return false;
   }
-  if (node->contains("prefab") && field != "arguments") {
-    error = "UI prefab instances are read-only here. Open the UI prefab source "
-            "to edit its nodes.";
-    return false;
-  }
-
+  const Json *effective = effectiveNode(id);
+  const bool hadDock = effective && effective->contains("dock");
   const runtime::ui::UiNode *parsed = previewNode(preview_, id);
   const auto preserveDockPosition = [&] {
     if (!parsed)
@@ -698,7 +698,7 @@ bool EditorHudDocument::setNodeField(const std::string_view id,
     (*node)["position"] =
         normalizeAuthoredValue(vec2Json(position), nullptr, 1);
   };
-  if (field == "dock" && value.is_null() && node->contains("dock") && parsed) {
+  if (field == "dock" && value.is_null() && hadDock && parsed) {
     preserveDockPosition();
     node->erase("dock");
     (*node)["anchor_min"] = normalizeAuthoredValue(
@@ -719,7 +719,7 @@ bool EditorHudDocument::setNodeField(const std::string_view id,
       node->erase("position");
       node->erase("at");
     } else if ((field == "anchor_min" || field == "anchor_max") &&
-               !value.is_null() && node->contains("dock") && parsed) {
+               !value.is_null() && hadDock && parsed) {
       preserveDockPosition();
       const char *other = field == "anchor_min" ? "anchor_max" : "anchor_min";
       const runtime::Vec2 otherValue = field == "anchor_min"
@@ -753,6 +753,7 @@ bool EditorHudDocument::setNodeField(const std::string_view id,
       (*node)[std::string(field)] = std::move(value);
     }
   }
+  pruneOverrides(replacement, id);
   return replaceAndRebuild(std::move(replacement), error,
                            continuous ? Json::array({id, field}).dump()
                                       : std::string{});
@@ -768,11 +769,9 @@ bool EditorHudDocument::setNodeAnchors(const std::string_view id,
             "element to edit its properties.";
     return false;
   }
-  Json *root =
-      replacement.contains("root") ? &replacement["root"] : &replacement;
-  Json *node = findNode(*root, id);
-  if (node == nullptr || node->contains("prefab")) {
-    error = "This node is generated by a UI prefab or no longer exists.";
+  Json *node = mutableNodeProperties(replacement, id);
+  if (!node) {
+    error = "This HUD node no longer has an editable source or instance.";
     return false;
   }
   node->erase("dock");
@@ -801,32 +800,35 @@ bool EditorHudDocument::hasImplicitRoot() const {
           document_.json().contains("elements"));
 }
 
-const Json *EditorHudDocument::authoredNode(const std::string_view id) const {
-  const auto root = document_.json().find("root");
-  if (root != document_.json().end())
-    return findNode(*root, id);
-  return id == "ui_root" ? &document_.json() : findNode(document_.json(), id);
+const Json *EditorHudDocument::effectiveNode(std::string_view id) const {
+  if (!composition_.document)
+    return nullptr;
+  return findNode(composition_.document->at("root"), id);
 }
 
 bool EditorHudDocument::rebuild(std::string &error) {
   std::optional<runtime::ui::UiDocument> parsed =
-      runtime::scene_loading::parseHudDocument(document_.path(),
-                                               document_.json(), error);
+      runtime::scene_loading::parseHudDocument(
+          document_.path(), document_.json(), error, &composition_);
   if (!parsed)
     return false;
   preview_ = std::move(*parsed);
+  applyPreviewState();
   return true;
 }
 
 bool EditorHudDocument::replaceAndRebuild(Json replacement, std::string &error,
                                           std::string_view continuousKey) {
+  runtime::ui::UiPrefabExpansionResult composition;
   std::optional<runtime::ui::UiDocument> parsed =
       runtime::scene_loading::parseHudDocument(document_.path(), replacement,
-                                               error);
+                                               error, &composition);
   if (!parsed ||
       !document_.replace(std::move(replacement), error, continuousKey))
     return false;
   preview_ = std::move(*parsed);
+  composition_ = std::move(composition);
+  applyPreviewState();
   return true;
 }
 

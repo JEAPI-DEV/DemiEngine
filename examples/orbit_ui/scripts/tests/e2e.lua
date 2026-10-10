@@ -40,16 +40,17 @@ return {tests = {{name="orbit_controls_and_runtime_factory", func=function()
   Test.wait(0.2)
   Test.expect(Hud.get_text("demo.feedback") == "Defaults restored. A fresh start.", "Reset button works")
   local button = Orbit.button("runtime_button", "Runtime button", {palette=Orbit.palette("glacier")})
-  button.overrides = {at = {380,730}}
+  button.overrides = {["$root"]={at = {380,730}}}
   local handle, error = Hud.create("ui_root", button)
   Test.expect(handle ~= nil, error or "Runtime factory creates a native button")
   Test.touch("runtime_button")
   Test.expect(Hud.remove(handle), "Runtime node can be removed")
   local settings = Orbit.node("settings", "runtime_settings")
-  settings.overrides = {at={1500,0}}
+  settings.overrides = {["$root"]={at={1500,0},children={}}, title={text="Runtime override"}}
   local tree, tree_error = Hud.create("ui_root", settings)
   Test.expect(tree ~= nil, tree_error or "Runtime prefab creates a complete tree")
   Test.expect(Hud.find("runtime_settings.tabs.tab1") ~= nil, "Nested runtime prefab IDs match authored IDs")
+  Test.expect(Hud.get_text("runtime_settings.title") == "Runtime override", "Runtime descendant overrides use the shared loader")
   Test.expect(Hud.get_text("runtime_settings.apply") == "Apply changes", "Runtime prefab content is preserved")
   Test.expect(Hud.remove(tree), "Runtime tree can be removed together")
   local invalid = Hud.create("ui_root", {id="rejected",type="container",children={{id="demo.feedback",type="label"}}})

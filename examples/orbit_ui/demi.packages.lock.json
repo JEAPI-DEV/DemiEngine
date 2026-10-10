@@ -2,8 +2,8 @@
   "format_version": 1,
   "packages": [
     {
-      "archive_hash": "sha256:af8e70d7857af1327970164e62e7fa6670b9f4d04f5d72e64ccb8e70c1ae5566",
-      "archive_uri": "https://demiengine.de/v1/packages/demi.ui.orbit/1.0.0/archive",
+      "archive_hash": "sha256:d6ca8634dfe2c484041b789c31661d35dadc0449b27d82c1a11f7249135fe3a5",
+      "archive_uri": "https://demiengine.de/v1/packages/demi.ui.orbit/1.1.0/archive",
       "manifest": {
         "asset_manifests": [
           "assets/icons/arrow-left.asset.json",
@@ -158,9 +158,9 @@
         "public_modules": [
           "demi.ui.orbit"
         ],
-        "version": "1.0.0"
+        "version": "1.1.0"
       },
-      "manifest_hash": "sha256:e4b7f5b38131bbfe3ed24a28780cf9f69e9aa7a52e1a951681c8734d5c74ae96",
+      "manifest_hash": "sha256:0c90a3d2f9d18d42d8b6a3bcd837b603b4b43284b44dea41f294765f7fc50782",
       "yanked": false
     }
   ],

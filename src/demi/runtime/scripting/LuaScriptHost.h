@@ -414,6 +414,7 @@ public:
   [[nodiscard]] bool setHudColor(const std::string &id, Color color);
   [[nodiscard]] bool setHudBackgroundColor(const std::string &id, Color color);
   [[nodiscard]] bool setHudOpacity(const std::string &id, float opacity);
+  [[nodiscard]] bool applyHudAction(const std::string &action);
   [[nodiscard]] bool setHudVisible(const std::string &id, bool visible);
   [[nodiscard]] bool setHudValue(const std::string &id, float value);
   [[nodiscard]] bool setHudChecked(const std::string &id, bool checked);

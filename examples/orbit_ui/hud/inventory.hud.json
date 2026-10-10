@@ -10,7 +10,9 @@
       "prefab": "ui-prefab://orbit/inventory",
       "arguments": {},
       "overrides": {
-        "dock": "center"
+        "$root": {
+          "dock": "center"
+        }
       }
     }
   ]

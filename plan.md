@@ -1,5 +1,10 @@
 # DemiEngine Roadmap
 
+Orbit UI 1.1.0 adds a single target-based overrides map and declarative tab
+previews. HUD and scene prefab content supports local edits, reparenting and
+explicit Unpack with stable IDs and Undo. See
+[authoring qualification](docs/ui-prefab-authoring-qualification.md).
+
 Orbit UI 1.0.0 is published with 39 native prefabs/compositions and 32 tintable
 SVG icons. Installed package prefabs and declarative HUD creation share the
 authoring loader; docking alignment and image/input rendering are corrected.

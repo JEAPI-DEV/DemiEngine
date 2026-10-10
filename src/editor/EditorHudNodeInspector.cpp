@@ -705,6 +705,18 @@ void drawInteractionSection(EditorWorkspace &workspace,
                   "accessibility_description", state.accessibilityDescription,
                   "HUD accessibility description modified", notice);
   });
+  if (ImGui::TreeNode("Local UI actions")) {
+    const auto *source = workspace.hudDocument()->authoringProperties(node.id);
+    Json value = source ? source->value("action_effects", Json::object())
+                        : Json::object();
+    const auto edit = drawStructuredValue(value, state.actions);
+    if (edit.changed)
+      (void)setField(workspace, node, "action_effects", std::move(value),
+                     "UI action effects modified", notice, edit.continuous);
+    if (edit.finished)
+      workspace.endHudContinuousEdit();
+    ImGui::TreePop();
+  }
   bool accessibilityHidden = node.accessibilityHidden;
   grid.row("Accessibility", [&] {
     if (ImGui::Checkbox("Hide decorative subtree##accessible-hidden",
@@ -722,62 +734,77 @@ void drawPrefabArguments(EditorWorkspace &workspace,
   if (!ImGui::CollapsingHeader("Prefab Parameters",
                                ImGuiTreeNodeFlags_DefaultOpen))
     return;
-  const Json arguments = authoredNode.value("arguments", Json::object());
-  if (arguments.empty()) {
+  std::string error;
+  const auto defaults =
+      workspace.hudDocument()->prefabArguments(node.id, error);
+  if (!defaults) {
+    ImGui::TextWrapped("%s", error.c_str());
+    return;
+  }
+  if (defaults->empty()) {
     ImGui::TextDisabled("This UI prefab has no parameters.");
     return;
   }
+  const Json explicitArguments =
+      authoredNode.value("arguments", Json::object());
   PropertyGrid grid("hud-prefab-arguments");
-  for (const auto &[name, value] : arguments.items()) {
+  for (const auto &[name, value] : defaults->items()) {
     ImGui::PushID(name.c_str());
     grid.row(name.c_str(), [&] {
-      Json replacement = arguments;
-      bool changed = false;
-      if (value.is_string()) {
-        auto &buffer = state.prefabStrings[name];
-        auto &synced = state.syncedPrefabStrings[name];
-        syncBuffer(buffer, synced, value.get_ref<const std::string &>());
-        ImGui::PushID(&workspace);
-        ImGui::PushID(node.id.c_str());
-        const bool submitted =
-            ImGui::InputText("##value", buffer.data(), buffer.size(),
-                             ImGuiInputTextFlags_EnterReturnsTrue);
-        if (ImGui::IsItemActivated())
-          workspace.endHudContinuousEdit();
-        changed = ImGui::IsItemEdited();
-        if (changed) {
-          replacement[name] = std::string(buffer.data());
-          (void)setField(workspace, node, "arguments", std::move(replacement),
-                         "UI prefab parameters modified", notice, true);
-        }
-        if (submitted || ImGui::IsItemDeactivated())
-          workspace.endHudContinuousEdit();
-        ImGui::PopID();
-        ImGui::PopID();
-        return;
-      } else if (value.is_boolean()) {
-        bool edited = value.get<bool>();
-        changed = ImGui::Checkbox("##value", &edited);
-        if (changed)
-          replacement[name] = edited;
-      } else if (value.is_number_integer()) {
-        std::int64_t edited = value.get<std::int64_t>();
-        changed = ImGui::InputScalar("##value", ImGuiDataType_S64, &edited);
-        if (changed)
-          replacement[name] = edited;
-      } else if (value.is_number()) {
-        double edited = value.get<double>();
-        changed = ImGui::InputDouble("##value", &edited, 0.1, 1.0, "%.3f");
-        if (changed)
-          replacement[name] = edited;
-      } else {
-        ImGui::TextDisabled("Complex parameter - edit the prefab source");
-      }
-      if (changed)
+      Json candidate = value;
+      auto &valueState = state.prefabValues[name];
+      const auto edit = drawStructuredValue(candidate, valueState);
+      if (edit.changed) {
+        Json replacement = explicitArguments;
+        replacement[name] = std::move(candidate);
         (void)setField(workspace, node, "arguments", std::move(replacement),
-                       "UI prefab parameters modified", notice);
+                       "UI prefab parameter overridden", notice,
+                       edit.continuous);
+      }
+      if (edit.finished)
+        workspace.endHudContinuousEdit();
+      if (explicitArguments.contains(name)) {
+        if (ImGui::SmallButton("Reset to default")) {
+          Json replacement = explicitArguments;
+          replacement.erase(name);
+          (void)setField(workspace, node, "arguments", std::move(replacement),
+                         "UI prefab parameter reset", notice);
+        }
+      } else
+        ImGui::TextDisabled("Inherited default");
     });
     ImGui::PopID();
+  }
+}
+
+void drawInstanceOverrides(EditorWorkspace &workspace,
+                           const runtime::ui::UiNode &node,
+                           std::string &notice) {
+  const auto *document = workspace.hudDocument();
+  const auto *patch = document ? document->nodeOverrides(node.id) : nullptr;
+  if (!patch || patch->empty())
+    return;
+  const Json snapshot = *patch;
+  if (!ImGui::CollapsingHeader("Instance overrides",
+                               ImGuiTreeNodeFlags_DefaultOpen))
+    return;
+  for (const auto &[field, value] : snapshot.items()) {
+    ImGui::PushID(field.c_str());
+    ImGui::TextUnformatted(field.c_str());
+    ImGui::SameLine();
+    if (ImGui::SmallButton("Reset")) {
+      std::string error;
+      notice = workspace.resetHudNodeOverride(node.id, field, error)
+                   ? "Property reset to prefab source"
+                   : error;
+    }
+    ImGui::PopID();
+  }
+  if (ImGui::Button("Reset all node overrides")) {
+    std::string error;
+    notice = workspace.resetHudNodeOverride(node.id, {}, error)
+                 ? "Node reset to prefab source"
+                 : error;
   }
 }
 
@@ -811,7 +838,7 @@ void drawEditorHudNodeInspectorContents(EditorWorkspace &workspace,
     ImGui::TextDisabled("Select a HUD element to edit its properties.");
     return;
   }
-  const runtime::ui::UiNode node = *selectedNode;
+  runtime::ui::UiNode node = *selectedNode;
   const EditorHudDocument *document = workspace.hudDocument();
   std::optional<Json> authoredNodeSnapshot;
   if (document != nullptr)
@@ -823,8 +850,20 @@ void drawEditorHudNodeInspectorContents(EditorWorkspace &workspace,
                             document->hasImplicitRoot() && node.id == "ui_root";
   const bool prefabInstance =
       authoredNode != nullptr && authoredNode->contains("prefab");
+  const auto *origin = document ? document->prefabOrigin(node.id) : nullptr;
   const bool editable =
-      authoredNode != nullptr && !implicitRoot && !prefabInstance;
+      !implicitRoot && (authoredNode != nullptr || origin != nullptr);
+  std::optional<Json> effectiveSnapshot;
+  if (document)
+    if (const auto *effective = document->authoringProperties(node.id))
+      effectiveSnapshot = *effective;
+  const Json *layoutSource =
+      effectiveSnapshot ? &*effectiveSnapshot : authoredNode;
+  if (effectiveSnapshot)
+    node.visible = effectiveSnapshot->value("visible", true);
+  if (document)
+    if (const auto *properties = document->authoringProperties(node.id))
+      node.action = properties->value("action", node.action);
   syncInspectorState(state, node);
 
   ImGui::TextUnformatted(node.id.c_str());
@@ -834,12 +873,27 @@ void drawEditorHudNodeInspectorContents(EditorWorkspace &workspace,
     ImGui::TextColored({0.63F, 0.68F, 0.76F, 1.0F},
                        "Implicit fill root - select a child to edit");
   else if (prefabInstance)
-    ImGui::TextColored(
-        {0.63F, 0.68F, 0.76F, 1.0F},
-        "UI prefab instance - edit parameters or open its source");
-  else if (authoredNode == nullptr)
-    ImGui::TextColored({0.91F, 0.68F, 0.30F, 1.0F},
-                       "UI prefab content - open its source to edit");
+    ImGui::TextColored({0.63F, 0.68F, 0.76F, 1.0F},
+                       "UI prefab instance - changes override this instance");
+  else if (origin)
+    ImGui::TextColored({0.63F, 0.68F, 0.76F, 1.0F},
+                       "Inherited prefab node - edits affect this instance");
+  if (origin && origin->instanceId != node.id) {
+    ImGui::TextDisabled("Instance: %s", origin->instanceId.c_str());
+    if (ImGui::SmallButton("Select owning instance")) {
+      workspace.selectHudNode(origin->instanceId);
+      return;
+    }
+  }
+  if ((prefabInstance || origin) &&
+      ImGui::Button(prefabInstance ? "Unpack Prefab"
+                                   : "Unpack owning prefab")) {
+    std::string error;
+    notice = workspace.unpackHudPrefab(node.id, error)
+                 ? "Prefab unpacked; IDs and values preserved"
+                 : error;
+    return;
+  }
   ImGui::Separator();
 
   if (document != nullptr && isHudFile(document->path()) && node.parent.empty()) {
@@ -856,20 +910,47 @@ void drawEditorHudNodeInspectorContents(EditorWorkspace &workspace,
     ImGui::TextWrapped("Layout is authored in this coordinate space and scaled for the game view.");
   }
 
+  if (document && document->hasPreviewState()) {
+    ImGui::TextDisabled("Preview state; source visibility is unchanged");
+    if (ImGui::Button("Reset preview state")) {
+      std::string error;
+      notice = workspace.resetHudPreviewState(error)
+                   ? "Authored preview defaults restored"
+                   : error;
+      return;
+    }
+  }
   if (prefabInstance)
     drawPrefabArguments(workspace, node, *authoredNode, state, notice);
-  else {
+  {
     ImGui::BeginDisabled(!editable);
-    drawLayoutSection(workspace, node, authoredNode, notice);
+    drawLayoutSection(workspace, node, layoutSource, notice);
     drawAppearanceSection(workspace, node, state, notice);
     drawContentSection(workspace, node, state, notice);
     drawInteractionSection(workspace, node, state, notice);
     ImGui::EndDisabled();
   }
 
+  if (prefabInstance && authoredNode->contains("overrides")) {
+    for (const auto &[target, value] : authoredNode->at("overrides").items()) {
+      if (!value.is_null())
+        continue;
+      ImGui::PushID(target.c_str());
+      ImGui::Text("Removed: %s", target.c_str());
+      ImGui::SameLine();
+      if (ImGui::SmallButton("Restore")) {
+        std::string error;
+        notice = workspace.resetHudPrefabTarget(node.id, target, error)
+                     ? "Inherited node restored"
+                     : error;
+      }
+      ImGui::PopID();
+    }
+  }
+  drawInstanceOverrides(workspace, node, notice);
   ImGui::Spacing();
   ImGui::Separator();
-  ImGui::BeginDisabled(authoredNode == nullptr || implicitRoot);
+  ImGui::BeginDisabled(!editable);
   if (ImGui::Button("Delete UI Element", {-1.0F, 28.0F})) {
     std::string error;
     notice =

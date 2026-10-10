@@ -1,6 +1,6 @@
 <h1>Orbit UI kit</h1>
 <p>Orbit is an original native UI package with 39 controls and compositions, editable colors and Lua bindings. Install it from the <a href="/packages/demi.ui.orbit">package store</a>. It uses native nodes and the engine font; includes 32 original tintable SVG icons; no reference-image artwork is redistributed.</p>
-<pre><code>demi package add demi.ui.orbit@1.0.0 --project path/to/game</code></pre>
+<pre><code>demi package add demi.ui.orbit@1.1.0 --project path/to/game</code></pre>
 <p>Open a HUD and choose a prefab from <strong>UI Palette</strong>. Edit its parameters in the Inspector. For JSON authoring, use <code>ui-prefab://orbit/button-primary</code>, <code>ui-prefab://orbit/settings</code>, or another documented prefab ID. Root layout belongs in <code>overrides</code>; labels, content and colors belong in <code>arguments</code>.</p>
 <h2>The same controls from Lua</h2>
 <pre><code>local Hud = require("demi.hud")
@@ -8,13 +8,13 @@ local Orbit = require("demi.ui.orbit")
 local definition = Orbit.button("launch", "Launch", {
     palette = Orbit.palette("glacier", {accent = "#83D5FF"}),
 })
-definition.overrides = {dock = "bottom", margin = {24, 0, 24, 24}}
+definition.overrides = {["$root"] = {dock = "bottom", margin = {24, 0, 24, 24}}}
 local handle, error = Hud.create("ui_root", definition)
 assert(handle, error)</code></pre>
 <p>Ember, glacier and meadow palettes provide warm, blue and green starting points. Override named colors such as <code>surface</code>, <code>text</code>, <code>accent</code> and <code>negative</code>. Controls resolve through the same prefab sources in Lua and the editor.</p>
 <h2>What is included</h2>
 <p>Buttons, text/search inputs, toggles, checkbox and radio choices, sliders, progress bars, tabs, segmented navigation, dropdowns, pagination, steppers, tooltips, notifications, dialog/modal layouts, inventory slots and rows, panels, metrics, settings and a main menu. The package README lists every prefab, argument source and binding operation.</p>
-<p>Native controls work immediately. Compound controls need bindings such as <code>Orbit.bind_tabs</code> and <code>Orbit.bind_dropdown</code> in your script's <code>on_start</code>. Dispose each binding in <code>on_destroy</code>. Tabs and dropdowns start with three entries; pagination supports arbitrary page counts through a three-button window. Your game owns persistence, menu actions and inventory data.</p>
+<p>Native controls and declarative tabs work immediately, including tab preview in the HUD editor. Optional tab callbacks and other compound controls use bindings such as <code>Orbit.bind_tabs</code> and <code>Orbit.bind_dropdown</code> in your script's <code>on_start</code>. Dispose each binding in <code>on_destroy</code>. Tabs and dropdowns start with three entries; pagination supports arbitrary page counts through a three-button window. Your game owns persistence, menu actions and inventory data.</p>
 <h2>Icons</h2>
 <p>The package includes 32 original SVG icons. Use the <code>icon</code>, <code>icon-button</code>, <code>button-with-icon</code> and <code>icon-gallery</code> prefabs, or call <code>Orbit.icon</code> and <code>Orbit.icon_button</code>. Set <code>texture</code> to your own asset URI to use custom icons; the native image tint controls color. Icon-only buttons expose an accessible label. The SVGs can also be used outside the engine under the included BSD license.</p>
 <h2>Preview</h2>
@@ -22,3 +22,4 @@ assert(handle, error)</code></pre>
 demi test linux --project examples/orbit_ui</code></pre>
 <p>The engine checkout example includes interactive galleries and additional palette/menu/inventory scenes. Maximize the window to check your actual monitor layout. Orbit requires the current development engine's installed-prefab and declarative runtime creation support.</p>
 <p>See <a href="{{ path('docs_page', {slug: 'hud-layout'}) }}">HUD layout</a>, <a href="{{ path('docs_page', {slug: 'ui-prefabs'}) }}">UI prefabs</a>, and <a href="{{ path('docs_page', {slug: 'hud-from-lua'}) }}">HUD from Lua</a> for the shared authoring contracts.</p>
+<p>Orbit 1.1.0 uses the single <code>overrides</code> map: <code>$root</code> for root properties, local node IDs for descendants, <code>children</code> for local additions and <code>null</code> for removed inherited content. See the UI-prefab guide for editing, reset and migration examples.</p>

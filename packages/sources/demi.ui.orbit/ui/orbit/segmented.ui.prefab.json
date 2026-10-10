@@ -98,7 +98,8 @@
         "anchor_max": [
           1,
           0
-        ]
+        ],
+        "action": "select1"
       },
       {
         "id": "tab2",
@@ -145,7 +146,8 @@
         "anchor_max": [
           1,
           0
-        ]
+        ],
+        "action": "select2"
       },
       {
         "id": "tab3",
@@ -192,8 +194,38 @@
         "anchor_max": [
           1,
           0
+        ],
+        "action": "select3"
+      }
+    ],
+    "action_effects": {
+      "select1": {
+        "show": [
+          "indicator1"
+        ],
+        "hide": [
+          "indicator2",
+          "indicator3"
+        ]
+      },
+      "select2": {
+        "show": [
+          "indicator2"
+        ],
+        "hide": [
+          "indicator1",
+          "indicator3"
+        ]
+      },
+      "select3": {
+        "show": [
+          "indicator3"
+        ],
+        "hide": [
+          "indicator1",
+          "indicator2"
         ]
       }
-    ]
+    }
   }
 }

@@ -9,12 +9,9 @@ function Showcase:on_start()
   local function keep(control) self.controls[#self.controls+1] = control; return control end
   local function feedback(text) Hud.set_text("demo.feedback", text) end
   if Hud.find("demo.settings") then
-    keep(Orbit.bind_tabs("demo.settings.tabs", {panels={"demo.settings.audio_page","demo.settings.display_page","demo.settings.controls_page"}}))
     self.quality = keep(Orbit.bind_dropdown("demo.settings.quality"))
     keep(Orbit.bind_choices("demo.settings.controls"))
   elseif Hud.find("demo.navigation") then
-    keep(Orbit.bind_tabs("demo.navigation.tabs"))
-    keep(Orbit.bind_tabs("demo.navigation.segment"))
     keep(Orbit.bind_pagination("demo.navigation.pages", {pages=12}))
     keep(Orbit.bind_dropdown("demo.forms.quality"))
     keep(Orbit.bind_stepper("demo.forms.quantity", {minimum=1,maximum=9}))

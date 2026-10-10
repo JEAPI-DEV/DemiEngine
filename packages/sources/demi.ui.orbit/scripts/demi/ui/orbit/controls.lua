@@ -16,6 +16,7 @@ local function require_node(Hud, id) assert(Hud.find(id), "Missing Orbit control
 function Controls.tabs(root, options)
   local Hud = require("demi.hud")
   options = options or {}
+  require_node(Hud, root .. ".tab1")
   local state
   state = bind(function(e)
     if not pressed(e) then return end
@@ -23,14 +24,13 @@ function Controls.tabs(root, options)
   end)
   function state:select(index)
     assert(index >= 1 and index <= 3 and index % 1 == 0, "Tab index must be 1..3")
+    assert(Hud.apply_action(root .. ".select" .. index), "Missing tab action: " .. root)
     for i = 1, 3 do
-      Hud.set_visible(root .. ".indicator" .. i, i == index)
       if options.panels and options.panels[i] then Hud.set_visible(options.panels[i], i == index) end
     end
     self.value = index
     changed(options, index)
   end
-  require_node(Hud, root .. ".tab1")
   state:select(options.selected or 1)
   return state
 end

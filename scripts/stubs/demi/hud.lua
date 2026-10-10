@@ -28,12 +28,20 @@ function HudVirtualLayout:set_extent(index, extent) end
 ---@return number offset
 ---@return string error
 function HudVirtualLayout:item_offset(index) end
+---@class HudActionEffect
+---@field show? string[]
+---@field hide? string[]
+---@field focus? string
+---@param action string Qualified action name from this HUD.
+---@return boolean applied
+function Hud.apply_action(action) end
 ---@class HudNodeDefinition
 ---@field id string
 ---@field type? string
 ---@field prefab? string ui-prefab:// URI instead of type; includes installed package prefabs.
 ---@field arguments? table Prefab parameter values.
----@field overrides? table Prefab root overrides.
+---@field overrides? table<string, table> Target patches: $root or stable local node ID; children append local content.
+---@field action_effects? table<string, HudActionEffect> Local show/hide/focus actions, namespaced with prefab instances.
 ---@field children? HudNodeDefinition[] Atomically creates the complete child tree.
 ---@field position? number[]
 ---@field anchor_min? number[]

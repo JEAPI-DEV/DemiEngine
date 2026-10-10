@@ -55,6 +55,10 @@ expandScene(const std::filesystem::path &scenePath,
             const nlohmann::json &sceneDocument, bool compileFractures = true);
 
 [[nodiscard]] ExpansionResult
+expandSceneForAuthoring(const std::filesystem::path &scenePath,
+                        const nlohmann::json &sceneDocument);
+
+[[nodiscard]] ExpansionResult
 expandPrefabInstance(const std::filesystem::path &ownerPath,
                      const nlohmann::json &instance);
 // Rebase a prepared template through the same component-reference remapper.

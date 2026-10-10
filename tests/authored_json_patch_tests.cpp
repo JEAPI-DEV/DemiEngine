@@ -88,6 +88,17 @@ int main() {
   const auto removed = patchAuthoredJsonSource(*added, structural, after);
   assert(removed && nlohmann::json::parse(*removed) == after);
 
+  // Moving the last override to another target must not accumulate blank lines.
+  const std::string sole = "{\n  \"overrides\": {\n    \"audio\": {\"children\": []}\n  }\n}\n";
+  const auto soleBefore = nlohmann::json::parse(sole);
+  auto soleAfter = soleBefore;
+  soleAfter["overrides"]["display"] = soleAfter["overrides"]["audio"];
+  soleAfter["overrides"].erase("audio");
+  const auto moved = patchAuthoredJsonSource(sole, soleBefore, soleAfter);
+  assert(moved && nlohmann::json::parse(*moved) == soleAfter);
+  assert(moved->find("\"overrides\": {\n    \"display\":") != std::string::npos);
+  assert(moved->find("\n    \n") == std::string::npos);
+
   namespace fs = std::filesystem;
   const fs::path root = fs::temp_directory_path() / "demi_editor_authored_json";
   std::error_code ignored;

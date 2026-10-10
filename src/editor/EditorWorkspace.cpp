@@ -5,6 +5,7 @@
 #include "editor/EditorIsoGridCell.h"
 #include "editor/EditorIsoGridCellDocument.h"
 #include "editor/EditorPrefabPlacement.h"
+#include "editor/EditorSceneJson.h"
 #include "editor/EditorScenePreview.h"
 #include "editor/EditorTerrainPicking.h"
 
@@ -817,6 +818,24 @@ bool EditorWorkspace::deleteEntity(const std::string_view id,
   return deleteEntities({std::string(id)}, error);
 }
 
+bool EditorWorkspace::unpackPrefab(std::string_view id, std::string &error) {
+  const auto target = resolveSceneTarget({.entityId = std::string(id)});
+  const auto instance =
+      target.isPrefabOverride() ? target.prefabInstanceId : std::string(id);
+  return mutateAndRebuild(
+      [&](EditorSceneDocument &document, std::string &failure) {
+        return document.unpackPrefab(instance, failure);
+      },
+      error);
+}
+bool EditorWorkspace::unpackHudPrefab(std::string_view id, std::string &error) {
+  auto *hud = activeHudDocument();
+  if (!hud || !hud->unpackPrefab(id, error))
+    return false;
+  syncHudPreview();
+  return true;
+}
+
 bool EditorWorkspace::unpackPreset(const std::string_view id,
                                    std::string &error) {
   return mutateAndRebuild(
@@ -845,6 +864,41 @@ bool EditorWorkspace::reparentEntity(const std::string_view id,
                                      std::optional<std::string> newParent,
                                      std::string &error) {
   const bool revealSelection = isEntitySelected(id);
+  const auto *entity =
+      project_ ? runtime::findEntity(project_->world, std::string(id))
+               : nullptr;
+  if (!entity) {
+    error = "The moved entity no longer exists.";
+    return false;
+  }
+  std::unordered_set<std::string> visited;
+  for (auto current = newParent.value_or(""); !current.empty();) {
+    if (current == id || !visited.insert(current).second) {
+      error = "An entity cannot be parented beneath itself.";
+      return false;
+    }
+    const auto *ancestor = runtime::findEntity(project_->world, current);
+    if (!ancestor) {
+      error = "The destination no longer exists.";
+      return false;
+    }
+    current = transformParentId(editorPreviewEntityJson(*ancestor));
+  }
+  if (!entity->prefabInstance.empty()) {
+    const auto snapshot = editorPreviewEntityJson(*entity);
+    const auto *transform = transformComponentName(snapshot);
+    if (!transform) {
+      error = "Reparenting needs a spatial transform.";
+      return false;
+    }
+    const bool changed = editValue({.entityId = std::string(id),
+                                    .component = transform,
+                                    .field = "parent"},
+                                   newParent.value_or(""), false, error);
+    if (changed && revealSelection)
+      ++selectionRevision_;
+    return changed;
+  }
   const bool changed = mutateAndRebuild(
       [id = std::string(id), newParent = std::move(newParent)](
           EditorSceneDocument &document, std::string &mutationError) mutable {
@@ -1017,11 +1071,9 @@ bool EditorWorkspace::placeHudModule(const EditorModule &module,
   const runtime::ui::UiNode *parent = nullptr;
   if (!targetId.empty()) {
     parent = findEditorHudNode(preview, targetId);
-    while (parent && (!hud->authoredNode(parent->id) ||
-                      hud->authoredNode(parent->id)->contains("prefab") ||
-                      (parent->type != "container" && parent->type != "panel" &&
-                       parent->type != "scroll" && parent->type != "list" &&
-                       parent->type != "modal")))
+    while (parent && (parent->type != "container" && parent->type != "panel" &&
+                      parent->type != "scroll" && parent->type != "list" &&
+                      parent->type != "modal"))
       parent = findEditorHudNode(preview, parent->parent);
   }
   if (!parent && !preview.nodes.empty())
@@ -1114,6 +1166,44 @@ bool EditorWorkspace::setHudNodeField(const std::string_view id,
     return false;
   }
   if (!hud->setNodeField(id, field, std::move(value), error, continuous))
+    return false;
+  syncHudPreview();
+  return true;
+}
+
+bool EditorWorkspace::previewHudAction(std::string_view id) {
+  auto *hud = activeHudDocument();
+  if (!hud || !hud->previewNodeAction(id))
+    return false;
+  syncHudPreview();
+  return true;
+}
+bool EditorWorkspace::resetHudPreviewState(std::string &error) {
+  auto *hud = activeHudDocument();
+  if (!hud || !hud->resetPreviewState(error))
+    return false;
+  syncHudPreview();
+  return true;
+}
+bool EditorWorkspace::resetHudPrefabTarget(std::string_view id,
+                                           std::string_view target,
+                                           std::string &error) {
+  auto *hud = activeHudDocument();
+  if (!hud || !hud->resetPrefabTarget(id, target, error))
+    return false;
+  syncHudPreview();
+  return true;
+}
+
+bool EditorWorkspace::resetHudNodeOverride(std::string_view id,
+                                           std::string_view field,
+                                           std::string &error) {
+  auto *hud = activeHudDocument();
+  if (!hud) {
+    error = "Open a HUD before resetting overrides.";
+    return false;
+  }
+  if (!hud->resetNodeOverride(id, field, error))
     return false;
   syncHudPreview();
   return true;

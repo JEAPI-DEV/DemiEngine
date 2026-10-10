@@ -138,7 +138,7 @@ void check(const fs::path &root) {
   require(document.createPrefabInstance("ui-prefab://widget", "group", id,
                                         error, Vec2{33, 44}),
           error);
-  require(document.authoredNode(id)->at("overrides") ==
+  require(document.authoredNode(id)->at("overrides").at("$root") ==
               Json({{"position", {33, 44}}}),
           "Free prefab placement changed");
   auto implicit = fixture("row");

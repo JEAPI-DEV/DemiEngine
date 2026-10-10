@@ -5,6 +5,26 @@
 namespace demi::runtime::ui {
 namespace {
 using Json = nlohmann::json;
+std::unordered_map<std::string, UiActionEffect>
+actionEffects(const Json &document) {
+  std::unordered_map<std::string, UiActionEffect> result;
+  if (const auto *effects =
+          scene_loading::objectField(document, "action_effects"))
+    for (const auto &[action, value] : effects->items()) {
+      if (!value.is_object())
+        continue;
+      UiActionEffect effect;
+      for (const auto *key : {"show", "hide"})
+        if (const auto *ids = scene_loading::arrayField(value, key))
+          for (const auto &id : *ids)
+            if (id.is_string())
+              (std::string_view(key) == "show" ? effect.show : effect.hide)
+                  .push_back(id.get<std::string>());
+      effect.focus = scene_loading::stringOr(value, "focus");
+      result[action] = std::move(effect);
+    }
+  return result;
+}
 Insets insets(const Json &value) {
   if (value.is_number()) {
     const float v = value.get<float>();
@@ -163,6 +183,7 @@ void parseNodeImpl(const Json &json, const std::string &parent, UiDocument &out,
   node.localizationKey = scene_loading::stringOr(source, "localization_key");
   node.texture = scene_loading::stringOr(source, "texture");
   node.action = scene_loading::stringOr(source, "action");
+  node.actionEffects = actionEffects(source);
   node.control = scene_loading::stringOr(source, "control");
   node.script = scene_loading::stringOr(source, "script");
   node.accessibilityLabel =
@@ -355,24 +376,7 @@ UiDocument parseUiDocument(const nlohmann::json &document) {
     for (const auto &[key, value] : actions->items())
       if (value.is_string())
         result.actionMap[key] = value.get<std::string>();
-  if (const Json *effects =
-          scene_loading::objectField(document, "action_effects")) {
-    for (const auto &[action, value] : effects->items()) {
-      if (!value.is_object())
-        continue;
-      UiActionEffect effect;
-      if (const Json *show = scene_loading::arrayField(value, "show"))
-        for (const Json &id : *show)
-          if (id.is_string())
-            effect.show.push_back(id.get<std::string>());
-      if (const Json *hide = scene_loading::arrayField(value, "hide"))
-        for (const Json &id : *hide)
-          if (id.is_string())
-            effect.hide.push_back(id.get<std::string>());
-      effect.focus = scene_loading::stringOr(value, "focus");
-      result.actionEffects[action] = std::move(effect);
-    }
-  }
+  result.actionEffects = actionEffects(document);
   if (const Json *styles = scene_loading::objectField(document, "styles")) {
     for (const auto &[name, value] : styles->items()) {
       UiStyle style;

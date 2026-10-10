@@ -92,6 +92,8 @@ struct HierarchyAction {
     PlacePrefab,
     DuplicateHudNode,
     ReparentHudNode,
+    UnpackHudPrefab,
+    UnpackPrefab,
     Reparent,
     Delete,
     DeleteSelection,
@@ -172,6 +174,14 @@ bool applyHierarchyAction(EditorWorkspace &workspace,
   case HierarchyAction::Kind::DuplicateHudNode:
     succeeded = workspace.duplicateHudNode(action.entityId, error);
     notice = succeeded ? "HUD subtree duplicated" : error;
+    break;
+  case HierarchyAction::Kind::UnpackHudPrefab:
+    succeeded = workspace.unpackHudPrefab(action.entityId, error);
+    notice = succeeded ? "HUD prefab unpacked" : error;
+    break;
+  case HierarchyAction::Kind::UnpackPrefab:
+    succeeded = workspace.unpackPrefab(action.entityId, error);
+    notice = succeeded ? "Prefab unpacked" : error;
     break;
   case HierarchyAction::Kind::ReparentHudNode:
     succeeded = workspace.reparentHudNode(action.entityId,
@@ -303,15 +313,15 @@ void drawHudNode(const std::vector<EditorHudHierarchyNode> &nodes,
   const EditorHudDocument *document = workspace.hudDocument();
   const bool authored =
       document != nullptr && document->authoredNode(node.id) != nullptr;
-  const bool movable = authored && node.id != rootId;
+  const bool movable = document != nullptr && node.id != rootId;
   if (movable && ImGui::BeginDragDropSource()) {
     ImGui::SetDragDropPayload(HudNodePayload, node.id.c_str(),
                               node.id.size() + 1);
     ImGui::TextUnformatted(node.label.c_str());
-    ImGui::TextDisabled("Drop on an authored HUD node to reparent");
+    ImGui::TextDisabled("Drop on a HUD node to reparent");
     ImGui::EndDragDropSource();
   }
-  if (authored && ImGui::BeginDragDropTarget()) {
+  if (document && ImGui::BeginDragDropTarget()) {
     if (const ImGuiPayload *payload =
             ImGui::AcceptDragDropPayload(HudNodePayload);
         payload != nullptr && payload->Data != nullptr &&
@@ -328,7 +338,14 @@ void drawHudNode(const std::vector<EditorHudHierarchyNode> &nodes,
     ImGui::EndDragDropTarget();
   }
   if (ImGui::BeginPopupContextItem(widgetId.c_str())) {
-    if (ImGui::MenuItem("Duplicate UI subtree", nullptr, false, movable))
+    if (document &&
+        ((authored && document->authoredNode(node.id)->contains("prefab")) ||
+         document->prefabOrigin(node.id)) &&
+        ImGui::MenuItem("Unpack Prefab"))
+      pending = HierarchyAction{.kind = HierarchyAction::Kind::UnpackHudPrefab,
+                                .entityId = node.id};
+    if (ImGui::MenuItem("Duplicate UI subtree", nullptr, false,
+                        movable && authored))
       pending = HierarchyAction{.kind = HierarchyAction::Kind::DuplicateHudNode,
                                 .entityId = node.id};
     if (ImGui::MenuItem("Move to HUD root", nullptr, false,
@@ -486,6 +503,9 @@ void drawEntityNode(EditorWorkspace &workspace, const runtime::Entity &entity,
 
   if (!pending.has_value() && ImGui::BeginPopupContextItem(entity.id.c_str())) {
     const bool prefabInstance = !entity.prefabInstance.empty();
+    if (prefabInstance && ImGui::MenuItem("Unpack Prefab"))
+      pending = HierarchyAction{.kind = HierarchyAction::Kind::UnpackPrefab,
+                                .entityId = entity.id};
     if (ImGui::MenuItem(prefabInstance ? "Duplicate prefab instance"
                                        : "Duplicate subtree"))
       pending = HierarchyAction{

@@ -1038,8 +1038,10 @@ static void drawInspectorContents(EditorWorkspace &workspace,
 
   const std::string selectedId = selected->id;
   const nlohmann::json *entity = workspace.sceneDocument().entity(selectedId);
+  // Preserved entity IDs may equal the placement's ID. Runtime provenance,
+  // rather than a coincidental authored-ID match, identifies instance content.
   const bool prefabEntity =
-      entity == nullptr && !selected->prefabInstance.empty();
+      !selected->prefabInstance.empty() && !selected->prefabLocalId.empty();
   nlohmann::json effectiveEntity;
   if (prefabEntity) {
     effectiveEntity = editorPreviewEntityJson(*selected);
@@ -1060,6 +1062,13 @@ static void drawInspectorContents(EditorWorkspace &workspace,
         state.openRequest = *path;
       else
         notice = "Could not resolve the source prefab for this instance.";
+      return;
+    }
+    if (ImGui::Button("Unpack Prefab")) {
+      std::string error;
+      notice = workspace.unpackPrefab(selectedId, error)
+                   ? "Prefab unpacked; entity IDs preserved"
+                   : error;
       return;
     }
     ImGui::Separator();

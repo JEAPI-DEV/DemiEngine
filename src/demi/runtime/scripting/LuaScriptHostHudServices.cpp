@@ -1,6 +1,7 @@
 #include "demi/runtime/scripting/LuaScriptHost.h"
 
 #include "demi/runtime/scene/HudParser.h"
+#include "demi/runtime/ui/UiActionController.h"
 #include "demi/runtime/ui/UiInteractionController.h"
 #include "demi/runtime/ui/UiLayoutEngine.h"
 #include "demi/runtime/ui/UiLocalization.h"
@@ -192,6 +193,13 @@ bool LuaScriptHost::setHudOpacity(const std::string &id, float opacity) {
   return false;
 }
 
+bool LuaScriptHost::applyHudAction(const std::string &action) {
+  if (!world_ || !ui::UiActionController{}.apply(world_->ui, action))
+    return false;
+  relayoutHud(*world_);
+  return true;
+}
+
 bool LuaScriptHost::setHudVisible(const std::string &id, bool visible) {
   if (world_ == nullptr)
     return false;
@@ -269,20 +277,39 @@ LuaScriptHost::createHudDefinition(const std::string &parent,
         for (const char *key : {"x", "y", "width", "height"})
           node.erase(key);
       }
-      if (node.contains("children")) {
-        if (node["children"].is_object() && node["children"].empty())
-          node["children"] = nlohmann::json::array();
-        for (auto &child : node["children"])
-          self(self, child);
-      }
+      const auto normalizeArrays = [&](nlohmann::json &properties) {
+        if (properties.contains("children")) {
+          if (properties["children"].is_object() &&
+              properties["children"].empty())
+            properties["children"] = nlohmann::json::array();
+          for (auto &child : properties["children"])
+            self(self, child);
+        }
+        if (properties.contains("action_effects") &&
+            properties["action_effects"].is_object())
+          for (auto &effect : properties["action_effects"])
+            if (effect.is_object())
+              for (const auto *field : {"show", "hide"})
+                if (effect.contains(field) && effect[field].is_object() &&
+                    effect[field].empty())
+                  effect[field] = nlohmann::json::array();
+      };
+      normalizeArrays(node);
+      if (node.contains("overrides") && node["overrides"].is_object())
+        for (auto &patch : node["overrides"])
+          if (patch.is_object())
+            normalizeArrays(patch);
     };
     normalize(normalize, root);
+    std::unordered_set<std::string> existingParents;
+    for (const auto &node : world_->ui.nodes)
+      existingParents.insert(node.id);
     auto parsed = scene_loading::parseHudDocument(
         projectDirectory_ / "runtime.hud.json",
         {{"format_version", 1},
          {"canvas_size", {world_->ui.canvasSize.x, world_->ui.canvasSize.y}},
          {"root", std::move(root)}},
-        error);
+        error, nullptr, existingParents);
     if (!parsed || parsed->nodes.empty())
       return std::nullopt;
     const std::string rootId = parsed->nodes.front().id;

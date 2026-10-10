@@ -1,5 +1,6 @@
 #pragma once
 
+#include "editor/EditorStructuredValue.h"
 #include <array>
 #include <string>
 #include <unordered_map>
@@ -12,6 +13,7 @@ class EditorWorkspace;
 
 struct EditorHudInspectorState {
   std::string nodeId;
+  StructuredValueState actions;
   std::array<char, 512> text{};
   std::array<char, 512> texture{};
   std::array<char, 256> font{};
@@ -36,8 +38,7 @@ struct EditorHudInspectorState {
   std::string syncedTextHex;
   std::string syncedBorderHex;
   std::string syncedTintHex;
-  std::unordered_map<std::string, std::array<char, 512>> prefabStrings;
-  std::unordered_map<std::string, std::string> syncedPrefabStrings;
+  std::unordered_map<std::string, StructuredValueState> prefabValues;
 };
 
 void drawEditorHudNodeInspector(EditorWorkspace &workspace, ImVec2 position,

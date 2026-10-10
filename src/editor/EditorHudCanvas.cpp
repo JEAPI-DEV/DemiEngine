@@ -1,4 +1,5 @@
 #include "editor/EditorHudCanvas.h"
+#include "demi/runtime/ui/UiPresentation.h"
 
 #include <algorithm>
 
@@ -32,11 +33,28 @@ const runtime::ui::UiNode *
 pickEditorHudNode(const runtime::ui::UiDocument &document,
                   const runtime::Vec2 authoredPoint) {
   const runtime::ui::UiNode *picked = nullptr;
-  for (const runtime::ui::UiNode &node : document.nodes) {
-    if (!node.visible || !hasEditableVisual(node) ||
-        !editorHudRectContains(editorHudEditableRect(node), authoredPoint))
-      continue;
-    if (picked == nullptr || node.layer >= picked->layer)
+  for (const auto &item : runtime::ui::buildUiPresentation(document)) {
+    const auto &node = *item.node;
+    if (item.visible && hasEditableVisual(node) &&
+        runtime::ui::uiPointInsideScrollClip(document, node, authoredPoint) &&
+        editorHudRectContains(editorHudEditableRect(node), authoredPoint))
+      picked = &node;
+  }
+  return picked;
+}
+
+const runtime::ui::UiNode *
+pickEditorHudDropParent(const runtime::ui::UiDocument &document,
+                        runtime::Vec2 point) {
+  const runtime::ui::UiNode *picked = nullptr;
+  for (const auto &item : runtime::ui::buildUiPresentation(document)) {
+    const auto &node = *item.node;
+    const bool container = node.type == "container" || node.type == "panel" ||
+                           node.type == "scroll" || node.type == "list" ||
+                           node.type == "modal";
+    if (item.visible && container &&
+        editorHudRectContains(node.resolved, point) &&
+        runtime::ui::uiPointInsideScrollClip(document, node, point))
       picked = &node;
   }
   return picked;

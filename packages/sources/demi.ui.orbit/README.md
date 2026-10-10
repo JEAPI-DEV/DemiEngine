@@ -6,13 +6,13 @@ Includes 32 original tintable SVG icons and uses the engine's built-in font.
 No third-party UI artwork is included.
 BSD-3-Clause; redistribution and modification are permitted under LICENSE.
 
-Requires a current development build of DemiEngine with installed UI-prefab
-resolution and declarative `Hud.create` support (October 2026 or later).
+Requires the development engine with target-based UI overrides and node-owned
+UI actions. Update the engine and package together; 1.0.0 used root-only overrides.
 
 ## Install and use in the editor
 
 ```sh
-demi package add demi.ui.orbit@1.0.0 --project path/to/game
+demi package add demi.ui.orbit@1.1.0 --project path/to/game
 ```
 
 Open a HUD in the editor. Installed prefabs appear in **UI Palette**. Insert a
@@ -27,7 +27,7 @@ in hand-authored HUD JSON:
     "id": "launch",
     "prefab": "ui-prefab://orbit/button-primary",
     "arguments": {"label": "Launch", "accent": "#7DCBFF"},
-    "overrides": {"dock": "bottom", "margin": [24, 0, 24, 24]}
+    "overrides": {"$root": {"dock": "bottom", "margin": [24, 0, 24, 24]}}
   }]
 }
 ```
@@ -35,8 +35,8 @@ in hand-authored HUD JSON:
 Choose a unique instance ID. Descendants use that ID as a prefix: `settings.tabs.tab1`.
 Keep `ui-prefab://orbit/...` references; do not reference installed cache paths.
 The `ui/orbit/*.ui.prefab.json` parameter blocks describe every supported argument,
-its type and default. Use `overrides` for root layout; use `arguments` for content
-and colors. Docking, anchors, padding and stacks remain ordinary engine layout.
+its type and default. Use `overrides["$root"]` for root layout and `overrides[local_id]` for
+descendants; use `arguments` for shared parameters such as content and colors. Docking, anchors, padding and stacks remain ordinary engine layout.
 Headers put the title and accent in one docked row, so resizing keeps them aligned.
 
 ## Create the same UI from Lua
@@ -47,7 +47,7 @@ local Orbit = require("demi.ui.orbit")
 
 local palette = Orbit.palette("glacier", { accent = "#83D5FF" })
 local button = Orbit.button("launch", "Launch", {palette = palette})
-button.overrides = {dock = "bottom", margin = {24, 0, 24, 24}}
+button.overrides = {["$root"] = {dock = "bottom", margin = {24, 0, 24, 24}}}
 local handle, error = Hud.create("ui_root", button)
 assert(handle, error)
 ```
@@ -131,13 +131,13 @@ water, energy, cargo, globe, rocket.
 
 ## Compound-control behavior
 
-Native buttons, inputs, sliders and toggles work without package controllers.
+Native buttons, inputs, sliders, toggles and declarative tabs work without package
+controllers. Tabs can also switch pages in the HUD editor without Play.
 Bind compound controls once in `on_start`, and dispose them in `on_destroy`:
 
 ```lua
 function Menu:on_start()
     self.tabs = Orbit.bind_tabs("settings.tabs", {
-        panels = {"settings.audio_page", "settings.display_page", "settings.controls_page"},
         selected = 1,
         on_change = function(index) print("Page", index) end,
     })
@@ -191,3 +191,43 @@ The example script demonstrates subscriptions, control cleanup and runtime creat
 The galleries are templates for a game interface, not a complete game or inventory
 system. Layouts use native nodes with original SVG icon assets; no reference-image asset is
 included in this package.
+
+## Authoring inactive pages and local content
+
+Click a settings tab in the HUD view to reveal its page. The preview uses the
+same declarative show/hide actions as the runtime, without running gameplay Lua.
+Preview visibility is not saved and does not enter Undo history; Reset preview
+state restores the authored page. It survives editing the page's content.
+
+One map handles instance changes:
+
+```json
+"overrides": {
+  "$root": {"size": [400, 440]},
+  "title": {"text": "Colony settings"},
+  "display_page": {
+    "children": [{"id": "custom_hint", "type": "label", "text": "Local content", "size": [200, 30]}]
+  },
+  "alerts": null
+}
+```
+
+Targets must exist in the chosen prefab; unknown IDs are errors. Local additions use stable host-document IDs and may contain further prefab instances. Moving them between prefab containers preserves those IDs.
+In the Inspector, Reset restores inherited property values; the owning instance
+provides Restore for removed nodes. Adding/removing local content is undoable and
+never rewrites the installed package source.
+
+The `settings` prefab declares page actions alongside the `tabs` prefab's
+indicator actions. The engine namespaces both together. `Orbit.bind_tabs` adds
+selection state/callbacks and programmatic `:select`; it is not required merely
+to switch the authored pages. Optional external `panels` remain a runtime binding
+for custom content; declare matching action effects to preview that content in
+the editor. Native `Hud.apply_action` is also available directly.
+
+Drag children between containers in Hierarchy to reorganize a view, including
+across prefab instances. Inherited children keep their link and receive a parent
+override; parent and action references in overrides use host-document IDs.
+Choose **Unpack Prefab** in Hierarchy or Inspector for independent editable content.
+This bakes the owning instance and nested prefabs with their authored overrides,
+preserves IDs and references, and supports Undo. Temporary tab-preview state is
+not saved into the unpacked nodes.

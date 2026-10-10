@@ -3,6 +3,7 @@
 #include "editor/EditorJsonDocument.h"
 
 #include "demi/runtime/ui/UiModel.h"
+#include "demi/runtime/ui/UiPrefabResolver.h"
 
 #include <filesystem>
 #include <optional>
@@ -27,6 +28,7 @@ public:
                                           std::string &createdId,
                                           std::string &error,
                                           std::optional<runtime::Vec2> position = std::nullopt);
+  [[nodiscard]] bool unpackPrefab(std::string_view id, std::string &error);
   [[nodiscard]] bool reparentNode(std::string_view id,
                                   std::string_view parentId,
                                   std::string &error);
@@ -56,6 +58,25 @@ public:
                                     runtime::Vec2 anchorMin,
                                     runtime::Vec2 anchorMax,
                                     std::string &error);
+  [[nodiscard]] bool previewNodeAction(std::string_view id);
+  [[nodiscard]] bool resetPreviewState(std::string &error);
+  [[nodiscard]] bool hasPreviewState() const {
+    return !previewVisibility_.empty();
+  }
+  [[nodiscard]] bool resetPrefabTarget(std::string_view instance,
+                                       std::string_view target,
+                                       std::string &error);
+  [[nodiscard]] bool resetNodeOverride(std::string_view id,
+                                       std::string_view field,
+                                       std::string &error);
+  [[nodiscard]] const runtime::ui::UiPrefabNodeOrigin *
+  prefabOrigin(std::string_view id) const;
+  [[nodiscard]] const nlohmann::json *
+  authoringProperties(std::string_view id) const;
+  [[nodiscard]] const nlohmann::json *effectiveNode(std::string_view id) const;
+  [[nodiscard]] const nlohmann::json *nodeOverrides(std::string_view id) const;
+  [[nodiscard]] std::optional<nlohmann::json>
+  prefabArguments(std::string_view id, std::string &error) const;
   [[nodiscard]] bool undo(std::string &error);
   [[nodiscard]] bool redo(std::string &error);
   [[nodiscard]] bool save(std::string &error) { return document_.save(error); }
@@ -80,7 +101,23 @@ private:
                                        std::string &error,
                                        std::string_view continuousKey = {});
 
+  [[nodiscard]] nlohmann::json *mutableNodeProperties(nlohmann::json &document,
+                                                      std::string_view id);
+  void discardOverridesForSource(nlohmann::json &document,
+                                 std::string_view pointer,
+                                 bool deleting = false) const;
+  void pruneOverrides(nlohmann::json &document, std::string_view id) const;
+  [[nodiscard]] nlohmann::json *mutableAuthoredNode(nlohmann::json &document,
+                                                    std::string_view id) const;
+  [[nodiscard]] nlohmann::json *childStorage(nlohmann::json &document,
+                                             std::string_view parent,
+                                             std::string &prefix);
+  [[nodiscard]] std::string newChildId(std::string_view base,
+                                       std::string_view prefix) const;
+  void applyPreviewState();
+  std::unordered_map<std::string, bool> previewVisibility_;
   EditorJsonDocument document_;
+  runtime::ui::UiPrefabExpansionResult composition_;
   runtime::ui::UiDocument preview_;
 };
 

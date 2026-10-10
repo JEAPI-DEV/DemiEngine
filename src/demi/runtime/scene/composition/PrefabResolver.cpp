@@ -207,8 +207,14 @@ void remapEntityReferences(
 class ExpansionContext {
 public:
   explicit ExpansionContext(Diagnostics &diagnostics,
-      std::filesystem::path overridePath = {}, std::optional<Json> overrideDocument = {}, bool compileFractures = true)
-      : diagnostics_(diagnostics), overridePath_(std::move(overridePath)), overrideDocument_(std::move(overrideDocument)), compileFractures_(compileFractures) {}
+                            std::filesystem::path overridePath = {},
+                            std::optional<Json> overrideDocument = {},
+                            bool compileFractures = true,
+                            bool expandProcedural = true)
+      : diagnostics_(diagnostics), overridePath_(std::move(overridePath)),
+        overrideDocument_(std::move(overrideDocument)),
+        compileFractures_(compileFractures),
+        expandProcedural_(expandProcedural) {}
 
   Json expandInstance(const std::filesystem::path &ownerPath,
                       const Json &instance, const std::string &parentPrefix) {
@@ -362,16 +368,16 @@ public:
                    ownerPath);
     attachInstanceParent(ownerPath, instance, items);
     const bool finalizeInstance = parentPrefix.empty();
-    if (!compileFractures_ && finalizeInstance) {
+    if (expandProcedural_ && !compileFractures_ && finalizeInstance) {
       items = assets::expandMasonry(items, true);
     }
-    if (!compileFractures_ && finalizeInstance) {
+    if (expandProcedural_ && !compileFractures_ && finalizeInstance) {
       const auto authored = items;
       for (const auto &entity : authored)
         for (auto &preview : expandPlacement(canonical, entity))
           items.push_back(std::move(preview));
     }
-    if (compileFractures_ && finalizeInstance) {
+    if (expandProcedural_ && compileFractures_ && finalizeInstance) {
       try {
         items = assets::compileEntityFractures(*findProjectRoot(canonical), items, prefix);
       } catch (const std::exception &error) {
@@ -562,6 +568,7 @@ private:
   std::vector<std::filesystem::path> stack_;
   std::filesystem::path overridePath_;
   std::optional<Json> overrideDocument_;
+  bool expandProcedural_ = true;
   bool compileFractures_ = true;
 };
 
@@ -696,8 +703,10 @@ Json mergeOverride(Json inherited, const Json &overrideValue) {
   return inherited;
 }
 
-ExpansionResult expandScene(const std::filesystem::path &scenePath,
-                            const Json &sceneDocument, bool compileFractures) {
+static ExpansionResult expandSceneImpl(const std::filesystem::path &scenePath,
+                                       const Json &sceneDocument,
+                                       bool compileFractures,
+                                       bool expandProcedural) {
   ExpansionResult result{.document = sceneDocument, .diagnostics = {}};
   if (!sceneDocument.is_object()) {
     result.document.reset();
@@ -723,9 +732,12 @@ ExpansionResult expandScene(const std::filesystem::path &scenePath,
   }
   const Json authoredEntities = expanded.value("entities", Json::array());
   const bool prefabSource = sceneDocument.value("id", std::string{}).starts_with("prefab://");
-  ExpansionContext context(result.diagnostics,
-      prefabSource ? std::filesystem::weakly_canonical(scenePath) : std::filesystem::path{},
-      prefabSource ? std::optional<Json>(sceneDocument) : std::nullopt, compileFractures);
+  ExpansionContext context(
+      result.diagnostics,
+      prefabSource ? std::filesystem::weakly_canonical(scenePath)
+                   : std::filesystem::path{},
+      prefabSource ? std::optional<Json>(sceneDocument) : std::nullopt,
+      compileFractures, expandProcedural);
   if (expanded.contains("entities") && expanded["entities"].is_array()) {
     Json resolved = Json::array();
     for (const Json &entity : authoredEntities) {
@@ -757,14 +769,14 @@ ExpansionResult expandScene(const std::filesystem::path &scenePath,
       expanded["prefab_origins"].push_back(instance);
     expanded.erase("instances");
   }
-  if (!compileFractures && expanded.contains("entities")) {
+  if (expandProcedural && !compileFractures && expanded.contains("entities")) {
     for (const auto &entity : authoredEntities)
       for (auto &preview : context.expandPlacement(scenePath, entity))
         expanded["entities"].push_back(std::move(preview));
   }
-  if (!compileFractures && expanded.contains("entities"))
+  if (expandProcedural && !compileFractures && expanded.contains("entities"))
     expanded["entities"] = assets::expandMasonry(expanded["entities"], true);
-  if (compileFractures && expanded.contains("entities")) {
+  if (expandProcedural && compileFractures && expanded.contains("entities")) {
     try {
       expanded["entities"] = assets::compileEntityFractures(
           findProjectRoot(scenePath).value_or(scenePath.parent_path()), expanded["entities"]);
@@ -786,6 +798,15 @@ ExpansionResult expandScene(const std::filesystem::path &scenePath,
     result.document.reset();
   }
   return result;
+}
+
+ExpansionResult expandScene(const std::filesystem::path &path,
+                            const Json &document, bool compileFractures) {
+  return expandSceneImpl(path, document, compileFractures, true);
+}
+ExpansionResult expandSceneForAuthoring(const std::filesystem::path &path,
+                                        const Json &document) {
+  return expandSceneImpl(path, document, false, false);
 }
 
 ExpansionResult expandPrefabInstance(const std::filesystem::path &ownerPath,

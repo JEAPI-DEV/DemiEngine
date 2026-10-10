@@ -78,18 +78,6 @@ std::string activeModal(const UiDocument &document) {
   return activeModal(document, buildUiPresentation(document));
 }
 
-bool insideClip(const UiDocument &document, const UiNode &node, Vec2 position) {
-  std::string parent = node.parent;
-  while (!parent.empty()) {
-    const auto found = std::ranges::find(document.nodes, parent, &UiNode::id);
-    if (found == document.nodes.end())
-      return false;
-    if (found->type == "scroll" && !contains(found->resolved, position))
-      return false;
-    parent = found->parent;
-  }
-  return true;
-}
 
 UiNode *find(UiDocument &document, const std::string_view id) {
   const auto node = std::ranges::find(document.nodes, id, &UiNode::id);
@@ -103,7 +91,7 @@ UiNode *hitTest(UiDocument &document, const Vec2 position) {
     const auto &node = *item->node;
     if (item->visible && pointerInteractive(document, node) &&
         belongsTo(document, node, modal) && contains(node.resolved, position) &&
-        insideClip(document, node, position))
+        uiPointInsideScrollClip(document, node, position))
       return find(document, node.id);
   }
   return nullptr;
@@ -117,7 +105,7 @@ UiNode *scrollTarget(UiDocument &document, const Vec2 position) {
     if (!item->visible || !available(document, node) ||
         !belongsTo(document, node, modal) ||
         !contains(node.resolved, position) ||
-        !insideClip(document, node, position))
+        !uiPointInsideScrollClip(document, node, position))
       continue;
     UiNode *candidate = find(document, node.id);
     while (candidate != nullptr) {

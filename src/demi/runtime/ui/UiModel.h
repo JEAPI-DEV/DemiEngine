@@ -49,6 +49,12 @@ struct LayoutSpec {
   int columns = 1;
 };
 
+struct UiActionEffect {
+  std::vector<std::string> show;
+  std::vector<std::string> hide;
+  std::string focus;
+};
+
 struct UiNode {
   std::string id;
   std::string sceneOwner;
@@ -65,6 +71,7 @@ struct UiNode {
   std::string texture;
   std::string animation;
   std::string action;
+  std::unordered_map<std::string, UiActionEffect> actionEffects;
   std::string control;
   std::string accessibilityLabel;
   std::string accessibilityDescription;
@@ -132,12 +139,6 @@ struct UiStyle {
   bool hasControlHeight = false;
   float rowHeight = 0.0F;
   bool hasRowHeight = false;
-};
-
-struct UiActionEffect {
-  std::vector<std::string> show;
-  std::vector<std::string> hide;
-  std::string focus;
 };
 
 struct UiDocument {

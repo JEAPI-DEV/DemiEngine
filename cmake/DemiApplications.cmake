@@ -87,6 +87,9 @@ else()
     src/editor/EditorModuleCatalog.cpp
     src/editor/EditorHudHierarchy.cpp
     src/editor/EditorHudDocument.cpp
+    src/editor/EditorHudHierarchyCommands.cpp
+    src/editor/EditorHudPrefabOverrides.cpp
+    src/editor/EditorHudPreviewState.cpp
     src/editor/EditorHudFlowPlacement.cpp
     src/editor/EditorHudCanvas.cpp
     src/editor/EditorIsoGridCell.cpp
@@ -118,6 +121,7 @@ else()
     src/editor/EditorSourceCreation.cpp
     src/editor/EditorPrefabAuthoring.cpp
     src/editor/EditorPrefabConversion.cpp
+    src/editor/EditorPrefabUnpack.cpp
     src/editor/EditorEntityBounds3D.cpp
     src/editor/EditorCodeEditor.cpp
     src/editor/EditorSceneView2DState.cpp

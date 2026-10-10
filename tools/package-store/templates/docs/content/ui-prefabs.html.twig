@@ -1,116 +1,99 @@
 <h1>UI prefabs</h1>
-<p>A <strong>UI prefab</strong> is a saved piece of HUD tree you can drop in many times with different contents — one button design for every menu, one row design for every inventory slot. It exists so repeated UI is authored once and instantiated with parameters instead of copied by hand. This page builds a parameterized prefab and shows every way an instance can fill and adjust it.</p>
-
-<h2>Why reusable UI</h2>
-<p>Skyforge has dozens of menu buttons and hundreds of inventory rows. Copying the same panel JSON into each place means every style tweak is a hundred edits. A prefab holds the shape once; each instance supplies its own label, icon, and one-off overrides. Update the prefab and every instance follows.</p>
-
+<p>A UI prefab is a reusable HUD subtree. Instances share its design and supply parameters or local overrides. The editor and runtime use the same loader, including prefabs installed through the package manager.</p>
 <h2>The prefab document</h2>
-<p>Prefabs live in <code>*.ui.prefab.json</code> files. Here is a complete menu-button prefab:</p>
 <pre><code>{
   "format_version": 1,
   "id": "ui-prefab://controls/menu_button",
   "parameters": {
-    "label":   { "type": "string",  "default": "Continue" },
-    "hint":    { "type": "string",  "default": "" },
-    "disabled": { "type": "boolean", "default": false },
-    "pad":     { "type": "integer", "default": 12 }
+    "label": {"type": "string", "default": "Continue"},
+    "hint": {"type": "string", "default": ""},
+    "disabled": {"type": "boolean", "default": false}
   },
   "root": {
     "id": "menu_button",
-    "type": "panel",
+    "type": "container",
+    "size": [320, 90],
     "stack": "column",
-    "padding": "${pad}",
-    "gap": 4,
+    "alignment": "stretch",
     "children": [
-      { "id": "button", "type": "button", "text": "${label}", "action": "ui_ok", "disabled": "${disabled}" },
-      { "id": "hint",   "type": "label",  "text": "${hint}", "font_size": 14, "accessibility_hidden": true }
+      {"id": "button", "type": "button", "text": "${label}", "disabled": "${disabled}", "size": [320, 44]},
+      {"id": "hint", "type": "label", "text": "${hint}", "size": [320, 24]}
     ]
   }
 }</code></pre>
-<ul>
-  <li><code>format_version</code> — always present in authored documents. Required.</li>
-  <li><code>id</code> — the prefab’s stable identity as a <code>ui-prefab://</code> URI. Required.</li>
-  <li><code>parameters</code> — map of parameter name to <code>{type, default}</code>. Types: <code>string</code>, <code>number</code>, <code>integer</code>, <code>boolean</code>, <code>array</code>, <code>object</code>. Omitted parameters fall back to their <code>default</code>.</li>
-  <li><code>root</code> — the subtree that gets expanded. Its <code>${name}</code> markers are filled from the arguments at instantiation.</li>
-</ul>
-<p>Read it as: “this prefab is a column panel with a button and a small hint label; the caller supplies the label text, an optional hint, whether the button is disabled, and the padding.”</p>
-
-<h2>Instancing with arguments and overrides</h2>
-<p>A HUD references the prefab in a node position and passes two optional maps. For example, these are entries in its <code>children</code> array:</p>
+<p>Save this under <code>ui/controls/menu_button.ui.prefab.json</code>. Keep <code>format_version</code> and the stable <code>ui-prefab://</code> ID. Parameter types are <code>string</code>, <code>number</code>, <code>integer</code>, <code>boolean</code>, <code>array</code> and <code>object</code>. Omitted arguments use their declared default. Unknown arguments, missing required arguments and type mismatches reject the instance.</p>
+<h2>One overrides map</h2>
 <pre><code>{
   "format_version": 1,
-  "children": [
-    {
-      "id": "confirm",
-      "prefab": "ui-prefab://controls/menu_button",
-      "arguments": { "label": "Confirm", "hint": "A / Enter" },
-      "overrides": { "style": "primary" }
-    },
-    {
-      "id": "back",
-      "prefab": "ui-prefab://controls/menu_button",
-      "arguments": { "label": "Back", "disabled": true }
+  "children": [{
+    "id": "confirm",
+    "prefab": "ui-prefab://controls/menu_button",
+    "arguments": {"label": "Confirm", "hint": "Enter to continue"},
+    "overrides": {
+      "$root": {"size": [400, 100]},
+      "hint": {"text_color": "#A3B5C5"}
     }
-  ]
+  }]
 }</code></pre>
 <ul>
-  <li><code>id</code> — the instance’s id in the hosting HUD. Required and document-unique.</li>
-  <li><code>prefab</code> — the <code>ui-prefab://</code> URI to expand. Required.</li>
-  <li><code>arguments</code> — map of parameter name to value. Every value must match the declared <code>type</code>. Omitted names use the parameter <code>default</code>. This is how <code>${label}</code>, <code>${hint}</code>, <code>${disabled}</code>, and <code>${pad}</code> get filled.</li>
-  <li><code>overrides</code> — map of field name to value, applied to the expanded root node. <code>id</code>, <code>children</code>, and <code>prefab</code> are reserved and rejected. Use it for one-off tweaks like the instance’s <code>action</code> or <code>style</code>.</li>
+  <li><code>arguments</code> fills the prefab's declared parameters.</li>
+  <li><code>overrides</code> is one map from a target to its changes. <code>$root</code> targets the root; other keys are stable prefab-local descendant IDs.</li>
+  <li>A property object changes that node's values. These edits affect this instance, leaving the shared source unchanged.</li>
+  <li>A <code>children</code> array appends locally authored content under that target.</li>
+  <li>A <code>null</code> target removes an inherited descendant and its subtree. Remove the instance itself to delete its root.</li>
 </ul>
-<p>The first instance expands to a “Confirm” button with the hint “A / Enter” and the <code>primary</code> style on the expanded root. The second is a disabled “Back” button with the default hint (empty) and default padding 12.</p>
-
-<h2>Descendant ID expansion</h2>
-<p>When a prefab expands, descendant ids are prefixed with the instance id and a dot, so two instances never collide:</p>
+<pre><code>"overrides": {
+  "$root": {"size": [400, 140]},
+  "hint": null,
+  "button": {"text": "Launch"}
+}</code></pre>
+<p>Unknown targets are rejected, not ignored. A local addition looks like this:</p>
+<pre><code>"overrides": {
+  "$root": {
+    "children": [{"id": "extra_hint", "type": "label", "text": "Local content", "size": [320, 24]}]
+  }
+}</code></pre>
+<p>Local additions can contain ordinary nodes or further prefab instances. Their IDs belong to the host document, exactly as written, and must not collide with inherited IDs. Moving an addition between instances preserves its ID. Nesting ordinary children does not create another namespace. <code>$root</code> is reserved as an override target.</p>
+<p>Identity and ownership fields (<code>id</code>, <code>prefab</code>, <code>arguments</code>, <code>overrides</code>) cannot be replaced through a property patch. A <code>null</code> property removes that inherited field before defaults and styles apply. Removing the override entry instead restores inheritance; Reset does this.</p>
+<h2>Stable IDs and nested prefabs</h2>
 <table>
-  <thead><tr><th>Prefab node</th><th>In instance <code>confirm</code></th><th>In instance <code>back</code></th></tr></thead>
-  <tbody>
-    <tr><td><code>menu_button</code> (root)</td><td><code>confirm</code></td><td><code>back</code></td></tr>
-    <tr><td><code>button</code></td><td><code>confirm.button</code></td><td><code>back.button</code></td></tr>
-    <tr><td><code>hint</code></td><td><code>confirm.hint</code></td><td><code>back.hint</code></td></tr>
-  </tbody>
-</table>
-<p>Scripts address them through the dotted path — or through a handle:</p>
-<pre><code>local Hud = require("demi.hud")
-
-Hud.set_text("confirm.hint", "Tap to confirm")
-Hud.set_disabled("back.button", false)</code></pre>
-<ul>
-  <li><code>"confirm.hint"</code> is the <code>hint</code> label inside the <code>confirm</code> instance. <code>Hud.set_text</code> takes the id and the new string; returns a success boolean.</li>
-  <li><code>Hud.set_disabled("back.button", false)</code> enables the button. Setters take node ID strings; <code>Hud.find</code> returns a generation-checked handle for structural operations (see <a href="{{ path('docs_page', {slug: 'hud-from-lua'}) }}">HUD from Lua</a>).</li>
-</ul>
-<p>The instance id itself addresses the expanded root, so <code>Hud.set_visible("confirm", false)</code> hides the whole group.</p>
-
-<h2>Type errors and validation failures</h2>
-<p>Expansion is checked at load time. Each failure names the instance and the problem:</p>
-<table>
-  <thead><tr><th>Problem</th><th>Example</th><th>Result</th></tr></thead>
-  <tbody>
-    <tr><td>Unknown parameter</td><td><code>"arguments": { "colour": "red" }</code></td><td>Validation error: no parameter named <code>colour</code>.</td></tr>
-    <tr><td>Type mismatch</td><td><code>"arguments": { "enabled": "yes" }</code> where <code>enabled</code> is <code>boolean</code></td><td>Validation error: expected <code>boolean</code>, got string.</td></tr>
-    <tr><td>Missing required value</td><td>A parameter with no <code>default</code> and no argument</td><td>Validation error: no value for the parameter.</td></tr>
-    <tr><td>Unresolved <code>${…}</code></td><td><code>${label}</code> in <code>root</code> with no matching parameter</td><td>Validation error: unresolved marker.</td></tr>
-    <tr><td>Reference cycle</td><td>Prefab A instances prefab B which instances A</td><td>Validation error: reference cycle.</td></tr>
-    <tr><td>Duplicate id</td><td>An expanded <code>confirm.hint</code> colliding with an authored node of that id</td><td>Validation error: duplicate id.</td></tr>
-    <tr><td>Unknown prefab URI</td><td><code>"prefab": "ui-prefab://controls/nope"</code></td><td>Validation error: unresolved prefab reference.</td></tr>
-    <tr><td>Reserved override field</td><td><code>"overrides": { "children": [] }</code></td><td>Validation error: <code>id</code>, <code>children</code>, and <code>prefab</code> cannot be overridden.</td></tr>
-  </tbody>
-</table>
-<p>Check a project and every reachable source from the CLI:</p>
-<pre><code>demi validate games/skyforge</code></pre>
-<p>This validates the project and all reachable sources, including prefab expansion. Fix every reported instance before shipping — a HUD that fails validation does not load.</p>
-
-<h2>Nested prefabs</h2>
-<p>A prefab may instance other prefabs in its <code>root</code>, using the same <code>id</code>/<code>prefab</code>/<code>arguments</code>/<code>overrides</code> shape. Ids chain with dots (<code>confirm.icon.badge</code>), and cycles are rejected as above. Keep nesting shallow — one level of composition covers most menus and rows.</p>
-
-<h2>Next</h2>
-<ul>
-  <li><a href="{{ path('docs_page', {slug: 'hud-nodes'}) }}">HUD nodes</a> — every node type and its fields.</li>
-  <li><a href="{{ path('docs_page', {slug: 'hud-from-lua'}) }}">HUD from Lua</a> — addressing nodes and runtime creation.</li>
-  <li><a href="{{ path('docs_page', {slug: 'ui'}) }}">UI &amp; HUD</a> — the overview page.</li>
-</ul>
-
-<h2>Installed package prefabs</h2>
-<p>A package can declare <code>*.ui.prefab.json</code> files in its manifest's <code>files</code> list. Install it through the package manager; the runtime, validator and editor UI Palette resolve its stable <code>ui-prefab://</code> IDs through verified locked package content. Nested prefabs resolve relative to their owning package's <code>ui/</code> directory and must also be declared. Local project prefabs take precedence; conflicting IDs from multiple installed packages are rejected. Never author an installed cache path into a HUD.</p>
-<p>The <a href="{{ path('docs_page', {slug: 'orbit-ui'}) }}">Orbit UI kit</a> provides a complete example with configurable colors and compound-control bindings.</p>
+<thead><tr><th>Local ID</th><th>Instance <code>confirm</code></th><th>Instance <code>back</code></th></tr></thead>
+<tbody>
+<tr><td>Root</td><td><code>confirm</code></td><td><code>back</code></td></tr>
+<tr><td><code>button</code></td><td><code>confirm.button</code></td><td><code>back.button</code></td></tr>
+<tr><td><code>hint</code></td><td><code>confirm.hint</code></td><td><code>back.hint</code></td></tr>
+</tbody></table>
+<p>A nested prefab instance named <code>settings</code> gives its <code>callsign</code> child the local ID <code>settings.callsign</code> in the outer prefab. Use that complete local ID as the override key. IDs remain stable when sibling order changes. Duplicate IDs, missing targets, missing sources and reference cycles reject the candidate document.</p>
+<h2>Edit instances in the HUD view</h2>
+<p>Select a root or generated child in Hierarchy or the HUD canvas. Normal Inspector edits create instance overrides. Parameters display inherited defaults even when the instance has no explicit arguments; arrays and objects use the structured value editor.</p>
+<p><strong>Instance overrides</strong> provides per-property Reset and Reset all node overrides. Removed descendants appear on the owning instance with a Restore action. You can add controls to inherited containers through UI Palette and delete inherited content locally. Changes use the normal validated Undo/Redo, Save and recovery paths.</p>
+<p>Layout choices such as docking and explicit anchors take precedence over inherited layout. Canonical/shorthand pairs such as <code>position</code>/<code>at</code> do not mask one another. Selecting a node alone does not create a position override.</p>
+<p>Editing a scene's linked HUD edits that HUD document. Entity-prefab overrides belong to their instance in the scene document. Opening the shared prefab source is a separate choice that affects all instances.</p>
+<h2>Reparent and unpack</h2>
+<p>Drag a node in Hierarchy onto its new parent, including containers in other prefab instances. Local nodes move in the authored source; inherited nodes record a <code>parent</code> override. IDs and prefab links remain stable. Parent values and action targets in overrides use host-document IDs, such as <code>other.settings.display_page</code>. Cycles are rejected without changing the document.</p>
+<p>Deleting an inherited container removes its current descendants; a child moved out of that container survives. Source ownership remains separate from parenting: deleting an entire instance also removes the inherited content it supplies, even if that content was moved elsewhere.</p>
+<p>Choose <strong>Unpack Prefab</strong> in Hierarchy or Inspector to turn the owning instance and its nested prefabs into ordinary editable nodes. It preserves IDs, current authored overrides, actions and asset references. Temporary tab-preview visibility is not baked. Reparented content owned by other instances keeps its own links. Unpack is one Undo step and does not change the shared source. Entity prefabs provide the same explicit Unpack command in scene and prefab views.</p>
+<h2>Switch tabs while authoring</h2>
+<p>Tab buttons can use declarative <code>action_effects</code> to show a page and hide the others. Declare them on a container node; the effects stay with that subtree. For example:</p>
+<pre><code>{
+  "id": "settings", "type": "container", "dock": "fill",
+  "action_effects": {
+    "audio": {"show": ["audio_page"], "hide": ["display_page"]},
+    "display": {"show": ["display_page"], "hide": ["audio_page"]}
+  },
+  "children": [
+    {"id": "audio_tab", "type": "button", "text": "Audio", "action": "audio", "size": [120, 40]},
+    {"id": "display_tab", "type": "button", "text": "Display", "action": "display", "at": [130, 0], "size": [120, 40]},
+    {"id": "audio_page", "type": "panel", "at": [0, 50], "size": [400, 240]},
+    {"id": "display_page", "type": "panel", "at": [0, 50], "size": [400, 240], "visible": false}
+  ]
+}</code></pre>
+<p>Clicking a tab in the HUD canvas selects it and previews its declarative action. The editor runs no gameplay scripts. You can then select, change, add or remove content on that page. Temporary preview visibility stays outside the saved document and Undo history, survives content edits, and resets on reopening or through <strong>Reset preview state</strong>. Inspector visibility fields still describe authored defaults.</p>
+<p>Prefab expansion namespaces locally declared action names and node references. A nested prefab and its parent may contribute show/hide effects to the same action: all hides run before all shows. Global application actions without a local declaration keep their names. <code>Hud.apply_action(qualifiedName)</code> invokes the same effects at runtime. Locally owned actions follow runtime clones and disappear with their owner.</p>
+<p>The <a href="{{ path('docs_page', {slug: 'orbit-ui'}) }}">Orbit UI kit</a> uses this for its tabs and settings pages. Lua-only custom interactions require an equivalent declarative action for authoring preview.</p>
+<h2>Installed packages and validation</h2>
+<p>Package manifests declare UI-prefab sources in <code>files</code>. Installed prefabs appear in UI Palette and resolve through verified locked content. Nested package prefabs must also be declared. Local project sources take precedence; conflicting IDs in installed packages fail. Author stable URIs, never cache paths.</p>
+<pre><code>demi validate path/to/game</code></pre>
+<p>This validates reachable sources and prefab expansion. Fix reported errors before shipping.</p>
+<h2>Development migration</h2>
+<p>Older root-only <code>overrides: {"size": [400, 100]}</code> becomes <code>overrides: {"$root": {"size": [400, 100]}}</code>. Use the same map for descendants. Repository examples and Orbit 1.1.0 use this model. Update Orbit through the package manager when updating the engine; older archives remain immutable.</p>

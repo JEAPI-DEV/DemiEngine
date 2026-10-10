@@ -46,6 +46,9 @@ void LuaHudBindingModule::install(LuaScriptHost &host, lua_State *state) const {
   lua["HudNodeHandle"] = sol::nil;
   lua["HudVirtualLayout"] = sol::nil;
   sol::table hud = lua.create_named_table("Hud");
+  hud.set_function("apply_action", [&host](const std::string &action) {
+    return host.applyHudAction(action);
+  });
   hud.set_function("find", [&host](const std::string &id) {
     return host.hudNodeHandle(id);
   });

@@ -5,6 +5,7 @@
 #include "demi/runtime/ui/UiAccessibilityActions.h"
 #include "demi/runtime/ui/UiAccessibilityBridge.h"
 #include "demi/runtime/ui/UiAccessibilityTree.h"
+#include "demi/runtime/ui/UiActionController.h"
 #include "demi/runtime/ui/UiDocumentParser.h"
 #include "demi/runtime/ui/UiEventQueue.h"
 #include "demi/runtime/ui/UiInteractionController.h"
@@ -785,6 +786,78 @@ int main() {
     std::cerr << "Package-local prefab lookup ignored declared content.\n";
     return 1;
   }
+  auto overriddenHud = prefabHud;
+  auto &instance = overriddenHud["root"]["children"][0];
+  instance["overrides"] = {{"$root", {{"size", {240, 60}}}},
+                           {"status.caption", {{"text", "LOCAL"}}}};
+  const auto overridden = expandUiDocument(hudPath, overriddenHud);
+  if (!overridden.document ||
+      overridden.origins.at("confirm.status.caption").localNodeId !=
+          "status.caption") {
+    std::cerr << "UI prefab descendant override or provenance failed.\n";
+    return 1;
+  }
+  const auto parsedOverride = parseUiDocument(*overridden.document);
+  const auto overriddenCaption = std::ranges::find(
+      parsedOverride.nodes, "confirm.status.caption", &UiNode::id);
+  if (overriddenCaption == parsedOverride.nodes.end() ||
+      overriddenCaption->text != "LOCAL")
+    return 1;
+  instance["overrides"] = {{"missing", {{"text", "NO"}}}};
+  if (expandUiDocument(hudPath, overriddenHud).document) {
+    std::cerr << "Unknown override descendant was silently ignored.\n";
+    return 1;
+  }
+  instance["overrides"] = {{"status.caption", {{"parent", "elsewhere"}}}};
+  if (expandUiDocument(hudPath, overriddenHud).document)
+    return 1;
+  instance["overrides"] = {
+      {"$root",
+       {{"children",
+         nlohmann::json::array(
+             {{{"id", "local"}, {"type", "label"}, {"text", "Added"}},
+              {{"id", "local_badge"}, {"prefab", "ui-prefab://badge"}}})}}},
+      {"status.caption", nullptr}};
+  const auto additions = expandUiDocument(hudPath, overriddenHud);
+  if (!additions.document ||
+      additions.origins.contains("confirm.status.caption") ||
+      !additions.reservedIds.contains("confirm.status.caption") ||
+      additions.authoredNodes.at("local_badge").pointer.find("children/1") ==
+          std::string::npos)
+    return 1;
+  instance["overrides"] = {
+      {"$root",
+       {{"children", nlohmann::json::array(
+                         {{{"id", "confirm.label"}, {"type", "label"}}})}}}};
+  if (expandUiDocument(hudPath, overriddenHud).document)
+    return 1;
+  instance["overrides"] = {{"$root", nullptr}};
+  if (expandUiDocument(hudPath, overriddenHud).document)
+    return 1;
+
+  auto actions =
+      parseUiDocument(nlohmann::json::parse(R"({"format_version":1,"root":{
+    "id":"owner","type":"container","action_effects":{"open":{"show":["page"]},"close":{"hide":["page"]}},
+    "children":[{"id":"page","type":"panel","visible":false},{"id":"button","type":"button","action":"open"}]}})"));
+  UiMutationQueue::initializeGenerations(actions);
+  UiMutationQueue actionClone;
+  actionClone.clone(*UiMutationQueue::handle(actions, "owner"), "copy", "");
+  if (!actionClone.apply(actions).applied ||
+      !UiActionController{}.apply(actions, "copy.open"))
+    return 1;
+  const auto originalPage =
+      std::ranges::find(actions.nodes, "page", &UiNode::id);
+  const auto copiedPage =
+      std::ranges::find(actions.nodes, "copy.page", &UiNode::id);
+  if (originalPage->visible || !copiedPage->visible) {
+    std::cerr << "Cloned local actions leaked into the source subtree.\n";
+    return 1;
+  }
+  UiMutationQueue actionRemove;
+  actionRemove.remove(*UiMutationQueue::handle(actions, "copy"));
+  if (!actionRemove.apply(actions).applied ||
+      UiActionController{}.apply(actions, "copy.open"))
+    return 1;
   nlohmann::json invalidArguments = prefabHud;
   invalidArguments["root"]["children"][0]["arguments"] = {{"label", 7},
                                                           {"unknown", true}};

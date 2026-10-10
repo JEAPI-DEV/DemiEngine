@@ -178,13 +178,16 @@ Hud.clear_recycled_rows("inventory")  -- release the pool</code></pre>
 </ul>
 
 <h2>Create a declarative subtree</h2>
-<p><code>Hud.create(parentId, definition)</code> accepts the same node fields as authored HUD JSON, including nested <code>children</code>, docking, anchors, padding, colors, borders and a UI-prefab instance. It returns a root handle or <code>nil, error</code>. Creation validates and inserts the whole subtree atomically; an invalid or duplicate child leaves no partial root behind. Use an empty parent ID for a top-level node.</p>
+<p><code>Hud.create(parentId, definition)</code> accepts the same node fields as authored HUD JSON, including nested <code>children</code>, docking, anchors, padding, colors, borders and a UI-prefab instance with a single target-based <code>overrides</code> map. It returns a root handle or <code>nil, error</code>. Creation validates and inserts the whole subtree atomically; an invalid or duplicate child leaves no partial root behind. Use an empty parent ID for a top-level node.</p>
 <pre><code>local Hud = require("demi.hud")
 local handle, error = Hud.create("ui_root", {
     id = "launch",
     prefab = "ui-prefab://orbit/button-primary",
     arguments = {label = "Launch", accent = "#7DCBFF"},
-    overrides = {dock = "bottom", margin = {24, 0, 24, 24}},
+    overrides = {["$root"] = {dock = "bottom", margin = {24, 0, 24, 24}}},
 })
 assert(handle, error)</code></pre>
 <p>Install the referenced package first. Runtime node creation also accepts the older <code>x</code>, <code>y</code>, <code>width</code> and <code>height</code> fields; canonical <code>position</code> and <code>size</code> take precedence. Scripts can use a package factory to construct these ordinary definitions without maintaining a second layout implementation.</p>
+
+<h2>Declarative UI actions</h2>
+<p><code>Hud.apply_action(name)</code> applies a declared show/hide/focus action and relayouts the HUD, returning whether an action was found. Actions can live on the HUD document or a node's <code>action_effects</code> map. Prefab-local action names and node references are namespaced with their instance; application actions without a local declaration retain their names. Node-owned actions clone and disappear with their subtree. The editor can preview these same effects without executing Lua.</p>
