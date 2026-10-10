@@ -361,9 +361,9 @@ int main() {
   const auto rotateGizmo =
       tool.presentation(world, "reloaded-cube", sceneView, viewport);
   const runtime::Vec2 rotateHandle = midpoint(rotateGizmo.axes.front());
-  const runtime::Vec2 rotateDelta{
-      rotateGizmo.axes.front().end.x - rotateGizmo.axes.front().start.x,
-      rotateGizmo.axes.front().end.y - rotateGizmo.axes.front().start.y};
+  assert(rotateGizmo.axes.size() == 288);
+  const auto rotateEnd = midpoint(rotateGizmo.axes.at(24));
+  const runtime::Vec2 rotateDelta{rotateEnd.x - rotateHandle.x, rotateEnd.y - rotateHandle.y};
   action = tool.update(world, "reloaded-cube", sceneView,
                        {.mousePosition = rotateHandle,
                         .viewportSize = viewport,
@@ -373,7 +373,7 @@ int main() {
                         .leftDown = true});
   assert(tool.isDragging());
   action = tool.update(world, "reloaded-cube", sceneView,
-                       {.mousePosition = rotateHandle,
+                       {.mousePosition = rotateEnd,
                         .mouseDelta = rotateDelta,
                         .viewportSize = viewport,
                         .hovered = true,

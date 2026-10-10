@@ -157,7 +157,7 @@ void checkAssetsBackgroundDrop(EditorWorkspace &workspace,
   renderExternalDragFrame(demi::editor::EditorSceneEntityPayload, entityId,
                           gridBackground, false, drawAssets);
 
-  ImGuiWindow *dialog = ImGui::FindWindowByName("New document");
+  ImGuiWindow *dialog = ImGui::FindWindowByName("Create Prefab###CreateSource");
   require(dialog != nullptr && dialog->Active,
           "Entity drop did not open the prefab naming dialog");
   // Let the newly opened dialog's name-field focus request settle before
@@ -314,6 +314,27 @@ void checkElevatedTerrainPlacement(const fs::path &prefabPath) {
   require(rounded && rounded->at("body").at("components").at("Transform3D")
                          .at("position") == json({5.123, 6.235, 5.346}),
           "Prefab placement retained floating point noise");
+}
+
+void checkLightCreation(EditorWorkspace &workspace) {
+  std::string error;
+  const auto before = workspace.sceneDocument().json();
+  for (const auto kind : {demi::editor::EditorEntityKind::PointLight,
+                          demi::editor::EditorEntityKind::SpotLight,
+                          demi::editor::EditorEntityKind::BasicLighting}) {
+    require(workspace.createEntity(error, {}, kind, demi::runtime::Vec3{2, 3, 4}), error);
+    const auto *created = workspace.sceneDocument().entity(workspace.selectedEntityId());
+    require(created && created->at("components").contains("Transform3D"),
+            "Created light has no editable transform");
+    const char *component = kind == demi::editor::EditorEntityKind::PointLight ? "PointLight"
+                            : kind == demi::editor::EditorEntityKind::SpotLight ? "SpotLight"
+                            : "Environment3D";
+    require(created->at("components").contains(component), "Wrong light component");
+    require(workspace.gizmoPresentation({800, 600}).axes.size() == 3,
+            "Created light cannot be moved with a gizmo");
+    require(workspace.undo(error) && workspace.sceneDocument().json() == before,
+            "Light creation did not undo in one command");
+  }
 }
 
 void checkParentedPlacement(EditorWorkspace &workspace) {
@@ -522,6 +543,7 @@ int main() {
     checkViewportPrefabDrop(workspace, dropPrefab);
     checkViewportPrimitiveDrop(workspace);
     checkParentedPlacement(workspace);
+    checkLightCreation(workspace);
     workspace.selectEntity("player");
     checkInspectorTabs(workspace, "scene");
     checkHudModuleDrop(workspace, hud);

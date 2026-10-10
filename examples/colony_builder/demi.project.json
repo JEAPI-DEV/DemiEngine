@@ -70,6 +70,10 @@
     {
       "id": "scene://colony",
       "path": "scenes/colony.scene.json"
+    },
+    {
+      "id": "scene://lighting_lab",
+      "path": "scenes/lighting_lab.scene.json"
     }
   ],
   "scripting": {

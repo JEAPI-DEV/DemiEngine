@@ -12,7 +12,7 @@
 
 <h2>Create and finish a project in the editor</h2>
 <ol>
-  <li>Use <strong>File → New project</strong> to choose a starter. <strong>File → New document</strong> (also under <strong>Assets → Create</strong>) creates a 2D/3D scene, HUD, entity or UI prefab, or Lua behaviour. The Assets Create menu also offers materials and data assets.</li>
+  <li>Use <strong>File → New project</strong> to choose a starter. <strong>File → Create</strong> (also under <strong>Assets → Create</strong>) creates a 2D/3D scene, HUD, entity or UI prefab, or Lua behaviour. The Assets Create menu also offers materials and data assets.</li>
   <li>Build the scene and HUD in their stages. Use <strong>Scene → Create prefab from selection</strong> to create a reusable source and replace the selection with a linked instance. <strong>Replace selection with a prefab instance</strong> is on by default: entity IDs, placement, hierarchy and references stay intact. Uncheck it to create an unlinked copy. One Undo restores the original hierarchy; the reusable prefab file remains. Add it through <strong>Scene → Add prefab instance</strong>, the Assets action, or a drag onto the Scene viewport.</li>
   <li>Attach a HUD with <strong>Scene → HUD</strong>. Set the built game's <strong>Start scene</strong> in Project Settings; the open editor scene does not choose it for you.</li>
   <li>Double-click a Lua behaviour to edit it in your configured external code editor. Use <strong>Ctrl+S</strong> or <strong>File → Save all</strong> for authored documents and project settings, then <strong>Build → Build Project</strong> for the saved game.</li>
@@ -128,3 +128,14 @@
 
 <h2>Preview tabbed HUD pages</h2>
 <p>Click a tab button in the HUD canvas to preview its declarative UI action. The runtime and editor share show/hide/focus behavior. Preview visibility is temporary, stays outside saves and Undo history, and survives content edits. Use Reset preview state to return to authored defaults. You can add, edit and remove content on the visible page; gameplay Lua is not executed in this authoring preview.</p>
+
+<h2>Inspector controls</h2>
+<p>Layer and reference pickers include search. Entity layers are drawn from the project's declared physics layers, plus Default. An existing unknown value remains visible until changed; choosing a value does not rewrite the layer declarations.</p>
+<p><strong>Show advanced settings</strong> reveals specialized component fields. Property search includes hidden advanced fields. Hover a field label for its purpose, and a component header for an overview. Common camera controls stay visible; split-screen viewports, render scheduling and diagnostic modes live under advanced settings.</p>
+<p>Colour fields use one standard picker with RGB/HSV/Hex options. The redundant RGBA precision foldout has been removed; existing floating-point colours are preserved when simply viewing them. The Material overrides section offers typed overrides for Base colour, Metallic, Roughness and Opacity, with Add and Remove actions. These override the material asset for that mesh; explicit surface fields take precedence. Unsupported existing entries remain intact until explicitly removed.</p>
+<p>The toolbar groups projection, camera alignment and preview lighting under <strong>View</strong>, movement increments under <strong>Snapping</strong>, and diagnostic visibility under <strong>Overlays</strong>. Navigation help is in View instead of continuously covering the canvas. Hierarchy icons distinguish cameras, lights, terrain and prefab instances.</p>
+
+<p>Controls, text and icons scale together using the current display's DPI. Editor UI zoom multiplies that scale. Saved dock sizes migrate with scale changes without resetting which panels are docked together; newly created 3D scenes include a basic environment and a sun with an editable Transform.</p>
+
+<p>Use <strong>Assets → Create</strong> in the folder you are working in. The creation dialog names the selected type and previews its destination; compatible subfolders are retained, and incompatible locations fall back to the type's conventional folder. The File menu is a shortcut to the same creation workflow. Prefab creation explains whether the selected hierarchy will become a linked instance.</p>
+<p>The 3D Rotate tool uses coloured axis rings. Drag a ring around the selected object's pivot; Local/World chooses the axis space, rotation snapping uses degrees, Shift bypasses snapping, and Escape cancels the gesture. The canvas fills the view directly below its dock tabs.</p>

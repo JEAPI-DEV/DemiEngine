@@ -1,4 +1,11 @@
 #include "editor/EditorHierarchyPanel.h"
+#include "demi/runtime/scene/components/3dcomponents/Camera3DComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/DirectionalLightComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/PointLightComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/SpotLightComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
+
 #include <unordered_map>
 #include <unordered_set>
 
@@ -457,13 +464,24 @@ void drawEntityNode(EditorWorkspace &workspace, const runtime::Entity &entity,
   if (!reveal.hud && reveal.ancestors.contains(entity.id))
     ImGui::SetNextItemOpen(true, ImGuiCond_Always);
   const bool open =
-      ImGui::TreeNodeEx(entity.id.c_str(), flags, "%s", entity.name.c_str());
+      ImGui::TreeNodeEx(entity.id.c_str(), flags, "      %s", entity.name.c_str());
   if (!reveal.hud && reveal.target == entity.id && !ImGui::IsItemVisible())
     ImGui::SetScrollHereY(0.5F);
   if (!entity.enabled)
     ImGui::PopStyleColor();
   const ImVec2 rowMin = ImGui::GetItemRectMin();
   const ImVec2 rowMax = ImGui::GetItemRectMax();
+  EditorIcon icon = EditorIcon::Scene;
+  if (!entity.prefabInstance.empty()) icon = EditorIcon::Prefab;
+  else if (entity.hasComponent<runtime::Camera3DComponent>()) icon = EditorIcon::Camera;
+  else if (entity.hasComponent<runtime::DirectionalLightComponent>() ||
+           entity.hasComponent<runtime::PointLightComponent>() ||
+           entity.hasComponent<runtime::SpotLightComponent>()) icon = EditorIcon::Light;
+  else if (entity.hasComponent<runtime::Terrain3DComponent>()) icon = EditorIcon::Terrain;
+  else if (entity.hasComponent<runtime::MeshRendererComponent>()) icon = EditorIcon::Modules;
+  drawEditorGlyph(*ImGui::GetWindowDrawList(), icon,
+      {rowMin.x + ImGui::GetTreeNodeToLabelSpacing() + 6.0F, (rowMin.y + rowMax.y) * .5F},
+      ImGui::GetColorU32(ImGuiCol_TextDisabled), .75F);
   const ImVec2 visibilityCenter{rowMax.x - 13.0F, (rowMin.y + rowMax.y) * 0.5F};
   const ImVec2 mouse = ImGui::GetIO().MousePos;
   const bool overVisibility = mouse.x >= visibilityCenter.x - 10.0F &&
@@ -595,12 +613,18 @@ void EditorHierarchyPanel::draw(EditorWorkspace &workspace,
       ImGui::EndPopup();
     }
     if (workspace.viewDimension() == EditorSceneViewDimension::ThreeDimensional) {
-      ImGui::TextDisabled("Create 3D  |  click or drag into Viewport");
+      const bool showCreate = ImGui::CollapsingHeader("Create objects");
+      if (showCreate) {
       constexpr std::pair<const char *, EditorEntityKind> shapes[]{
           {"Cube", EditorEntityKind::Cube},
           {"Sphere", EditorEntityKind::Sphere},
           {"Cylinder", EditorEntityKind::Cylinder},
           {"Plane", EditorEntityKind::Plane},
+          {"Camera", EditorEntityKind::Camera},
+          {"Basic Lighting", EditorEntityKind::BasicLighting},
+          {"Point Light", EditorEntityKind::PointLight},
+          {"Spot Light", EditorEntityKind::SpotLight},
+          {"Sun Light", EditorEntityKind::DirectionalLight},
       };
       const float buttonWidth =
           std::max(1.0F, (ImGui::GetContentRegionAvail().x -
@@ -624,11 +648,10 @@ void EditorHierarchyPanel::draw(EditorWorkspace &workspace,
         }
         ImGui::PopID();
       }
+      }
     }
   }
-  if (workspace.hudDocument()) {
-    if (!hudOnly)
-      ImGui::SameLine();
+  if (workspace.hudDocument() && hudOnly) {
     if (editorIconButton("add-ui-element", EditorIcon::Hud, "Add UI element"))
       ImGui::OpenPopup("add-hud-element");
     if (ImGui::BeginPopup("add-hud-element")) {

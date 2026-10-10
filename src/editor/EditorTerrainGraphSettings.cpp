@@ -521,11 +521,7 @@ void drawBiomeColor(nlohmann::json &biome) {
       ImGuiColorEditFlags_AlphaBar;
   const bool changed = drawEditorColorControl(
       terrainField("Color (Hex RGBA)").c_str(), rgba,
-      {.flags = flags,
-       .showPrecision = true,
-       .precisionHelp = "Normalized red, green, blue and alpha (0 to 1). "
-                        "Hex edits use byte channels; these fields retain "
-                        "floating-point precision."});
+      {.flags = flags});
   if (changed)
     biome["color"] = {rgba[0], rgba[1], rgba[2], rgba[3]};
 }

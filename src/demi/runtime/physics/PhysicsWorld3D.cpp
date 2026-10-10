@@ -292,6 +292,16 @@ void mix(std::uint64_t &hash, const bool value) {
   return hash;
 }
 
+JPH::ShapeRefC capsuleShape(float radius, float totalHeight) {
+  radius = std::max(radius, 0.001F);
+  const float halfCylinder = totalHeight * 0.5F - radius;
+  // A capsule with no cylindrical section is exactly a sphere. Jolt's
+  // capsule constructor requires a strictly positive cylinder height.
+  if (halfCylinder <= 0.0F)
+    return new JPH::SphereShape(radius);
+  return new JPH::CapsuleShape(halfCylinder, radius);
+}
+
 [[nodiscard]] JPH::ShapeRefC shapeFor(const World &world,
                                       const Entity &entity) {
   const auto transform = resolveWorldTransform3D(world, entity);
@@ -318,8 +328,7 @@ void mix(std::uint64_t &hash, const bool value) {
                  entity.component<CapsuleCollider3DComponent>()) {
     const float radius = capsule->radius * std::max(scale.x, scale.z);
     const float totalHeight = capsule->height * scale.y;
-    shape = new JPH::CapsuleShape(std::max(totalHeight * 0.5F - radius, 0.0F),
-                                  std::max(radius, 0.001F));
+    shape = capsuleShape(radius, totalHeight);
     offset = {capsule->offset.x * scale.x, capsule->offset.y * scale.y,
               capsule->offset.z * scale.z};
   } else if (const auto *convex = entity.component<ConvexCollider3DComponent>();
@@ -1654,13 +1663,12 @@ PhysicsWorld3D::overlapCapsule(const Vec3 center, const float radius,
                                const std::string &ignoredEntityId) const {
   if (radius < 0.0F || height < 2.0F * radius || impl_->world == nullptr)
     return {};
-  const JPH::CapsuleShape shape(std::max(height * 0.5F - radius, 0.0F),
-                                std::max(radius, 0.001F));
+  const auto shape = capsuleShape(radius, height);
   JPH::AllHitCollisionCollector<JPH::CollideShapeCollector> collector;
   const DemiQueryBodyFilter filter(impl_->world, &impl_->ids, layer,
                                    ignoredEntityId);
   impl_->physics.GetNarrowPhaseQuery().CollideShape(
-      &shape, JPH::Vec3::sOne(),
+      shape.GetPtr(), JPH::Vec3::sOne(),
       JPH::RMat44::sTranslation(JPH::RVec3(center.x, center.y, center.z)), {},
       JPH::RVec3::sZero(), collector, {}, {}, filter);
   std::vector<PhysicsQueryHit3D> result;
@@ -1747,13 +1755,12 @@ PhysicsWorld3D::castCapsule(const Vec3 origin, const float radius,
                             const std::string &ignoredEntityId) const {
   if (radius < 0.0F || height < 2.0F * radius)
     return std::nullopt;
-  const JPH::CapsuleShape shape(std::max(height * 0.5F - radius, 0.0F),
-                                std::max(radius, 0.001F));
+  const auto shape = capsuleShape(radius, height);
   const JPH::Vec3 unit = jolt(direction).NormalizedOr(JPH::Vec3::sZero());
   if (distance < 0.0F || unit.IsNearZero() || impl_->world == nullptr)
     return std::nullopt;
   const JPH::RShapeCast cast = JPH::RShapeCast::sFromWorldTransform(
-      &shape, JPH::Vec3::sOne(),
+      shape.GetPtr(), JPH::Vec3::sOne(),
       JPH::RMat44::sTranslation(JPH::RVec3(origin.x, origin.y, origin.z)),
       unit * distance);
   JPH::ClosestHitCollisionCollector<JPH::CastShapeCollector> collector;

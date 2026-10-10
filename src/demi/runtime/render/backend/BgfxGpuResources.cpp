@@ -130,6 +130,8 @@ const bgfx::EmbeddedShader EmbeddedShaders[] = {
 
 bgfx::TextureFormat::Enum textureFormat(const TextureFormat format) {
   switch (format) {
+  case TextureFormat::RGBA32F:
+    return bgfx::TextureFormat::RGBA32F;
   case TextureFormat::R8:
     return bgfx::TextureFormat::R8;
   case TextureFormat::RGBA8:
@@ -181,6 +183,23 @@ struct BufferValue {
   BufferKind kind = BufferKind::Vertex;
 };
 
+struct TextureRecord {
+  std::uint16_t index = Invalid;
+  std::uint16_t width = 0;
+  std::uint16_t height = 0;
+  unsigned bytesPerPixel = 0;
+};
+
+unsigned texturePixelBytes(TextureFormat format) {
+  switch (format) {
+  case TextureFormat::R8: return 1;
+  case TextureFormat::RGBA8:
+  case TextureFormat::BGRA8: return 4;
+  case TextureFormat::RGBA32F: return 16;
+  }
+  return 0;
+}
+
 class BgfxGpuResources final : public GpuResources, public BgfxResourceLookup {
 public:
   ~BgfxGpuResources() override { clear(); }
@@ -215,8 +234,8 @@ public:
       error = "Texture dimensions must be positive.";
       return {};
     }
-    if(info.renderTarget && !bgfx::isTextureValid(0,false,1,textureFormat(info.format),textureFlags(info))) {
-      error="Render-target format or MSAA mode is unsupported";return {};
+    if(!bgfx::isTextureValid(0,false,1,textureFormat(info.format),textureFlags(info))) {
+      error="Texture format or MSAA mode is unsupported";return {};
     }
     const bgfx::TextureHandle texture = bgfx::createTexture2D(
         info.width, info.height, info.generateMipmaps, 1,
@@ -227,19 +246,22 @@ public:
     }
     if (!info.debugName.empty())
       bgfx::setName(texture, info.debugName.c_str());
-    return textures_.insert(texture.idx);
+    return textures_.insert({texture.idx, info.width, info.height, info.renderTarget || !info.data.empty() ? 0U : texturePixelBytes(info.format)});
   }
 
   bool updateTexture(const TextureHandle handle, const TextureUpdateInfo &info,
                      std::string &error) override {
-    const std::uint16_t *texture = textures_.find(handle);
-    if (texture == nullptr || info.width == 0 || info.height == 0 ||
-        info.data.size() !=
-            static_cast<std::size_t>(info.width) * info.height * 4U) {
-      error = "Texture update handle, dimensions, or RGBA8 data are invalid.";
+    const auto *texture = textures_.find(handle);
+    if (texture == nullptr || texture->bytesPerPixel == 0 ||
+        info.width == 0 || info.height == 0 ||
+        unsigned(info.x) + info.width > texture->width ||
+        unsigned(info.y) + info.height > texture->height ||
+        info.data.size() != static_cast<std::size_t>(info.width) *
+                                info.height * texture->bytesPerPixel) {
+      error = "Texture update handle, region, or format-sized data are invalid.";
       return false;
     }
-    bgfx::updateTexture2D(bgfx::TextureHandle{*texture}, 0, 0, info.x, info.y,
+    bgfx::updateTexture2D(bgfx::TextureHandle{texture->index}, 0, 0, info.x, info.y,
                           info.width, info.height, copy(info.data));
     error.clear();
     return true;
@@ -466,9 +488,9 @@ public:
     const TextureHandle color = createTexture(colorInfo, error);
     if (!color)
       return {};
-    const std::uint16_t *colorIndex = textures_.find(color);
+    const auto *colorRecord = textures_.find(color);
     std::array<bgfx::Attachment, 2> attachments;
-    attachments[0].init(bgfx::TextureHandle{*colorIndex}, bgfx::Access::Write,
+    attachments[0].init(bgfx::TextureHandle{colorRecord->index}, bgfx::Access::Write,
                         0, 1, 0, BGFX_RESOLVE_NONE);
     std::uint8_t count = 1;
     TextureHandle depthHandle;
@@ -482,7 +504,7 @@ public:
         error = "bgfx could not create render-target depth texture.";
         return {};
       }
-      depthHandle = textures_.insert(depth.idx);
+      depthHandle = textures_.insert({depth.idx, info.width, info.height, 0});
       attachments[1].init(depth, bgfx::Access::Write, 0, 1, 0,
                           BGFX_RESOLVE_NONE);
       count = 2;
@@ -503,10 +525,10 @@ public:
   }
 
   bool destroy(const TextureHandle handle) override {
-    std::uint16_t value = Invalid;
+    TextureRecord value;
     if (!textures_.remove(handle, &value))
       return false;
-    bgfx::destroy(bgfx::TextureHandle{value});
+    bgfx::destroy(bgfx::TextureHandle{value.index});
     return true;
   }
   bool destroy(const SamplerHandle handle) override {
@@ -569,12 +591,12 @@ public:
     uniforms_.clear(
         [](std::uint16_t value) { bgfx::destroy(bgfx::UniformHandle{value}); });
     textures_.clear(
-        [](std::uint16_t value) { bgfx::destroy(bgfx::TextureHandle{value}); });
+        [](TextureRecord value) { bgfx::destroy(bgfx::TextureHandle{value.index}); });
   }
 
   bgfx::TextureHandle bgfxTexture(const TextureHandle handle) const override {
-    const std::uint16_t *value = textures_.find(handle);
-    return value != nullptr ? bgfx::TextureHandle{*value}
+    const auto *value = textures_.find(handle);
+    return value != nullptr ? bgfx::TextureHandle{value->index}
                             : bgfx::TextureHandle{Invalid};
   }
 
@@ -611,7 +633,7 @@ public:
   }
 
 private:
-  ResourceHandlePool<TextureTag, std::uint16_t> textures_;
+  ResourceHandlePool<TextureTag, TextureRecord> textures_;
   ResourceHandlePool<SamplerTag, std::uint16_t> samplers_;
   ResourceHandlePool<UniformTag, std::uint16_t> uniforms_;
   ResourceHandlePool<BufferTag, BufferValue> buffers_;

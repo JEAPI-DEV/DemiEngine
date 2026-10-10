@@ -43,7 +43,7 @@ void drawMenu(EditorWorkspace &workspace, EditorDocumentSessions &documents,
     if (ImGui::BeginMenu("File")) {
       if (ImGui::MenuItem("New project..."))
         projectPanel.openCreateProject();
-      if (ImGui::BeginMenu("New document")) {
+      if (ImGui::BeginMenu("Create")) {
         for (const auto &[label, kind] :
              {std::pair{"2D scene...", EditorSourceKind::Scene2D},
               std::pair{"3D scene...", EditorSourceKind::Scene3D},
@@ -268,6 +268,7 @@ EditorShell::EditorShell(EditorWorkspace &sceneWorkspace)
     notice_ = "Editor preferences: " + error;
     preferenceSyncBlocked_ = true;
   }
+  focusWindow_ = "Viewport";
   uiScale_ = preferences_.uiScale;
   persistedPreferences_ = preferences_;
   applyViewportPreferences(documents_.scene());
@@ -382,7 +383,6 @@ bool EditorShell::openTerrainNodeSettings(std::string_view nodeId,
 
 void EditorShell::draw(const int width, const int height,
                        const std::string_view rendererName) {
-  playSession_.poll();
   workspace().pollScriptSources();
   std::string terrainError;
   if (!documents_.pollTerrain(terrainError))
@@ -453,7 +453,7 @@ void EditorShell::draw(const int width, const int height,
                           shortcutSettings_);
   const auto previousPlayState = playSession_.state();
   drawEditorToolbar({0.0F, menuHeight}, {screenWidth, toolbarHeight},
-                    workspace(), documents_.scene(), playSession_,
+                    workspace(), documents_.scene(), playSession_, runPanel_,
                     showGameView_, stepRequested_, notice_,
                     preferences_.keyBindings, menuContext,
                     [this, menuContext](EditorCommand command) {
@@ -576,6 +576,8 @@ void EditorShell::draw(const int width, const int height,
     ImGui::EndPopup();
   }
   buildPanel_.draw(workspace(), notice_);
+  runPanel_.draw(documents_.scene(), playSession_.isRunning(),
+                 [this](std::string &error) { return documents_.saveAll(error); }, notice_);
   drawStatus(workspace(), {0.0F, contentBottom}, {screenWidth, statusHeight},
              rendererName, notice_, buildPanel_.linuxTarget(),
              buildPanel_.androidTarget());

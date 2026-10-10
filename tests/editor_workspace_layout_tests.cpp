@@ -24,7 +24,9 @@ int main() {
   verify(960, 600);
   verify(640, 480);
   verify(320, 240);
-  assert(demi::editor::editorFontSize(96.0F) == 15.0F);
-  assert(demi::editor::editorFontSize(192.0F) == 22.0F);
-  assert(demi::editor::editorFontSize(48.0F) == 14.0F);
+  assert(demi::editor::editorDisplayScale(96.0F) == 1.0F);
+  assert(demi::editor::editorDisplayScale(192.0F) == 2.0F);
+  assert(demi::editor::editorDisplayScale(48.0F) == 1.0F);
+  assert(demi::editor::editorDisplayScale(144.0F, 1.5F) == 2.25F);
+  assert(demi::editor::editorDisplayScale(0.0F) == 1.0F);
 }

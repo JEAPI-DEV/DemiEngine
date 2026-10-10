@@ -132,6 +132,47 @@ editorSourceAssetChoices(const EditorWorkspace &workspace) {
   return choices;
 }
 
+EditorSourceDescription editorSourceDescription(const EditorSourceKind kind) {
+  switch (kind) {
+  case EditorSourceKind::Scene2D: return {"2D Scene", "scenes", ".scene.json"};
+  case EditorSourceKind::Scene3D: return {"3D Scene", "scenes", ".scene.json"};
+  case EditorSourceKind::Hud: return {"HUD", "hud", ".hud.json"};
+  case EditorSourceKind::Prefab2D: return {"2D Prefab", "prefabs", ".prefab.json"};
+  case EditorSourceKind::Prefab: return {"3D Prefab", "prefabs", ".prefab.json"};
+  case EditorSourceKind::PrefabFromSelection: return {"Prefab", "prefabs", ".prefab.json"};
+  case EditorSourceKind::UiPrefab: return {"UI Prefab", "ui", ".ui.prefab.json"};
+  case EditorSourceKind::Lua: return {"Lua Behaviour", "scripts", ".lua"};
+  case EditorSourceKind::Material: return {"Material", "assets/materials", ".material.json", true};
+  case EditorSourceKind::Terrain:
+  case EditorSourceKind::TerrainFromSelection: return {"Terrain", "assets/terrains", ".terrain.json", true};
+  case EditorSourceKind::Data: return {"Data Asset", "assets/data", ".json", true};
+  case EditorSourceKind::TerrainMaterial: return {"Terrain Material", "assets/terrain_materials", ".json", true};
+  case EditorSourceKind::TerrainMaterialSet: return {"Terrain Material Set", "assets/terrain_material_sets", ".json", true};
+  case EditorSourceKind::TerrainPalette: return {"Terrain Palette", "assets/terrain_palettes", ".json", true};
+  }
+  return {};
+}
+
+std::filesystem::path editorSourceDirectory(
+    EditorSourceKind kind, const std::filesystem::path &selectedFolder) {
+  const auto description = editorSourceDescription(kind);
+  const auto relative = selectedFolder.lexically_normal().lexically_relative(description.folder);
+  if (!selectedFolder.is_absolute() && !relative.empty() &&
+      *relative.begin() != "..")
+    return selectedFolder;
+  return std::filesystem::path(description.folder);
+}
+
+std::filesystem::path editorSourceRelativePath(
+    EditorSourceKind kind, std::string_view name, const std::filesystem::path &directory) {
+  const auto description = editorSourceDescription(kind);
+  const auto folder = directory.empty() ? std::filesystem::path(description.folder) : directory;
+  const auto filename = std::string(name) + std::string(description.suffix);
+  return description.assetDirectory
+      ? folder / name / (std::filesystem::path(name).filename().string() + std::string(description.suffix))
+      : folder / filename;
+}
+
 bool createEditorSource(EditorWorkspace &workspace, EditorSourceKind kind,
                         const std::string &name, std::filesystem::path &created,
                         std::string &error, std::string_view selectedEntity,
@@ -162,29 +203,8 @@ bool createEditorSource(EditorWorkspace &workspace, EditorSourceKind kind,
       error = "Save or undo changes before creating a registered scene.";
       return false;
     }
-    const std::string folder =
-        kind == EditorSourceKind::TerrainMaterial ? "assets/terrain_materials"
-        : kind == EditorSourceKind::TerrainMaterialSet
-            ? "assets/terrain_material_sets"
-        : kind == EditorSourceKind::TerrainPalette ? "assets/terrain_palettes"
-        : kind == EditorSourceKind::Material       ? "assets/materials"
-        : terrain                                  ? "assets/terrains"
-        : kind == EditorSourceKind::Data           ? "assets/data"
-        : scene                                    ? "scenes"
-        : kind == EditorSourceKind::Hud            ? "hud"
-        : kind == EditorSourceKind::Lua            ? "scripts"
-        : kind == EditorSourceKind::UiPrefab       ? "ui"
-                                                   : "prefabs";
-    const std::string suffix =
-        isTypedDataAsset(kind)               ? ".json"
-        : kind == EditorSourceKind::Material ? ".material.json"
-        : terrain                            ? ".terrain.json"
-        : kind == EditorSourceKind::Data     ? ".json"
-        : scene                              ? ".scene.json"
-        : kind == EditorSourceKind::Hud      ? ".hud.json"
-        : kind == EditorSourceKind::Lua      ? ".lua"
-        : kind == EditorSourceKind::UiPrefab ? ".ui.prefab.json"
-                                             : ".prefab.json";
+    const auto description = editorSourceDescription(kind);
+    const std::string folder(description.folder);
     const auto root = std::filesystem::weakly_canonical(
         workspace.project().project.projectDirectory);
     std::filesystem::path sourceDirectory(folder);
@@ -193,7 +213,7 @@ bool createEditorSource(EditorWorkspace &workspace, EditorSourceKind kind,
       destinationDirectory = destinationDirectory.lexically_normal();
       const auto withinSourceDirectory =
           destinationDirectory.lexically_relative(sourceDirectory);
-      if (asset || destinationDirectory.is_absolute() ||
+      if (destinationDirectory.is_absolute() ||
           withinSourceDirectory.empty() ||
           withinSourceDirectory.is_absolute() ||
           *withinSourceDirectory.begin() == "..") {
@@ -205,10 +225,7 @@ bool createEditorSource(EditorWorkspace &workspace, EditorSourceKind kind,
       if (withinSourceDirectory != ".")
         qualifiedName = withinSourceDirectory / qualifiedName;
     }
-    const auto relative =
-        asset ? sourceDirectory / name /
-                    (std::filesystem::path(name).filename().string() + suffix)
-              : sourceDirectory / (name + suffix);
+    const auto relative = editorSourceRelativePath(kind, name, sourceDirectory);
     const auto target = std::filesystem::weakly_canonical(root / relative);
     const auto within = target.lexically_relative(root);
     if (within.empty() || within.is_absolute() || *within.begin() == "..") {
@@ -356,7 +373,10 @@ bool createEditorSource(EditorWorkspace &workspace, EditorSourceKind kind,
                {"Camera3D", {{"target_offset", {0, -3, -6}}}}}}});
         document["entities"].push_back(
             {{"id", "sun"},
-             {"components", {{"DirectionalLight", nlohmann::json::object()}}}});
+             {"name", "Basic Lighting"},
+             {"components", {{"Transform3D", {{"position", {0, 5, 0}}}},
+                              {"Environment3D", nlohmann::json::object()},
+                              {"DirectionalLight", {{"casts_shadows", true}}}}}});
       } else if (kind == EditorSourceKind::Scene2D)
         document["entities"].push_back(
             {{"id", "camera"},

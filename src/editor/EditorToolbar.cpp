@@ -1,5 +1,6 @@
 #include "editor/EditorToolbar.h"
 #include "editor/EditorKeyBindings.h"
+#include "editor/EditorRunPanel.h"
 
 #include "editor/EditorChrome.h"
 #include "editor/EditorPanelStyle.h"
@@ -116,53 +117,13 @@ void drawPlayGroup(EditorWorkspace &workspace, EditorPlaySession &playSession,
     playSession.stop();
     notice = "Play session stopped";
   }
-  sameLine();
-  if (editorIconButton("play-options", EditorIcon::Settings, "Play options"))
-    ImGui::OpenPopup("play-options-popup");
-  if (ImGui::BeginPopup("play-options-popup")) {
-    ImGui::BeginDisabled(playSession.isRunning());
-    if (ImGui::MenuItem("Play in external window")) {
-      std::string error;
-      if (!workspace.terrainReady(error))
-        notice = error;
-      else if (workspace.hudDirty() && !workspace.saveHud(error))
-        notice = error;
-      else if (workspace.sceneDocument().isDirty() && !workspace.save(error))
-        notice = error;
-      else if (playSession.startExternal(workspace.projectPath(), error))
-        notice = "External play session started";
-      else
-        notice = error;
-    }
-    ImGui::EndDisabled();
-    ImGui::EndPopup();
-  }
 }
 
 void drawTransformGroup(EditorWorkspace &workspace,
                         const EditorKeyBindings &bindings,
                         const std::function<void(EditorCommand)> &execute,
                         bool allowCameraEdit, std::string &notice) {
-  if (workspace.sceneDomain() == EditorSceneDomain::Mixed) {
-    if (ImGui::Button(is2D(workspace) ? "2D" : "3D", {38.0F, 30.0F}))
-      workspace.setViewDimension(
-          is2D(workspace) ? EditorSceneViewDimension::ThreeDimensional
-                          : EditorSceneViewDimension::TwoDimensional);
-    sameLine();
-  } else if (!is2D(workspace)) {
-    const bool perspective =
-        workspace.sceneView().projection() == EditorProjection::Perspective;
-    if (ImGui::Button(perspective ? "Persp" : "Ortho", {54.0F, 30.0F}))
-      workspace.sceneView().setProjection(perspective
-                                              ? EditorProjection::Orthographic
-                                              : EditorProjection::Perspective);
-    sameLine();
-  }
   const EditorGizmoOperation selected = operation(workspace);
-  (void)editorIconButton("select-tool", EditorIcon::Pointer,
-                         "Selection is always available in the Scene view",
-                         false, false);
-  sameLine();
   if (editorIconButton("move-tool", EditorIcon::Move, "Move tool",
                        selected == EditorGizmoOperation::Translate))
     setOperation(workspace, EditorGizmoOperation::Translate);
@@ -195,25 +156,52 @@ void drawTransformGroup(EditorWorkspace &workspace,
                        frameTooltip.c_str()))
     execute(EditorCommand::FrameSelection);
   sameLine();
-  if (editorIconButton("align-camera", EditorIcon::Camera,
-                       "Align view to the first authored camera"))
-    alignToCamera(workspace);
-  sameLine();
-  if (editorIconButton(
-          "camera-to-view", EditorIcon::Camera,
-          "Align selected camera to view (select one matching camera)", false,
-          allowCameraEdit && workspace.canAlignSelectedCameraToView())) {
-    std::string error;
-    notice = workspace.alignSelectedCameraToView(error)
-                 ? "Camera aligned to view"
-                 : error;
-  }
-  sameLine();
-  if (editorIconButton("reset-view", EditorIcon::Refresh, "Reset Scene view")) {
-    if (is2D(workspace))
-      workspace.sceneView2D().reset(workspace.project().world);
-    else
-      workspace.sceneView().reset(workspace.project().world);
+  if (ImGui::Button("View"))
+    ImGui::OpenPopup("view-settings");
+  if (ImGui::BeginPopup("view-settings")) {
+    if (!is2D(workspace)) {
+      const auto projection = workspace.sceneView().projection();
+      if (ImGui::MenuItem("Perspective", nullptr,
+                          projection == EditorProjection::Perspective))
+        workspace.sceneView().setProjection(EditorProjection::Perspective);
+      if (ImGui::MenuItem("Orthographic", nullptr,
+                          projection == EditorProjection::Orthographic))
+        workspace.sceneView().setProjection(EditorProjection::Orthographic);
+      ImGui::Separator();
+      ImGui::Checkbox("Studio preview lighting",
+                      &workspace.sceneView().studioLighting);
+      if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Neutral inspection light for this view only. "
+                          "Disable to see authored scene lights.");
+    }
+    if (workspace.sceneDomain() == EditorSceneDomain::Mixed &&
+        ImGui::MenuItem(is2D(workspace) ? "Switch to 3D" : "Switch to 2D"))
+      workspace.setViewDimension(
+          is2D(workspace) ? EditorSceneViewDimension::ThreeDimensional
+                          : EditorSceneViewDimension::TwoDimensional);
+    ImGui::Separator();
+    if (ImGui::MenuItem("View through scene camera"))
+      alignToCamera(workspace);
+    if (ImGui::MenuItem("Align selected camera to view", nullptr, false,
+                        allowCameraEdit &&
+                            workspace.canAlignSelectedCameraToView())) {
+      std::string error;
+      notice = workspace.alignSelectedCameraToView(error)
+                   ? "Camera aligned to view"
+                   : error;
+    }
+    if (ImGui::MenuItem("Reset view")) {
+      if (is2D(workspace))
+        workspace.sceneView2D().reset(workspace.project().world);
+      else
+        workspace.sceneView().reset(workspace.project().world);
+    }
+    ImGui::Separator();
+    ImGui::TextDisabled("Navigation");
+    ImGui::TextUnformatted(
+        "Orbit: Alt + left drag\nPan: middle drag\nZoom: wheel\nFly: right "
+        "drag + WASDQE\nFrame selection: F");
+    ImGui::EndPopup();
   }
 }
 
@@ -225,56 +213,39 @@ void drawSnapAndVisibility(EditorWorkspace &workspace, const float available) {
                         : workspace.sceneView().rotationSnapDegrees;
   float &scale = is2D(workspace) ? workspace.sceneView2D().scaleSnap
                                  : workspace.sceneView().scaleSnap;
-  if (editorIconButton("grid-snap", EditorIcon::Grid,
-                       "Position and angle snapping", true)) {
-  }
-  sameLine();
-  ImGui::SetNextItemWidth(58.0F);
-  if (ImGui::InputFloat("##translation-snap", &translation, 0.0F, 0.0F, "%.1f"))
+  (void)available;
+  if (ImGui::Button("Snapping"))
+    ImGui::OpenPopup("snap-settings");
+  if (ImGui::BeginPopup("snap-settings")) {
+    ImGui::TextDisabled("Zero disables snapping for that operation.");
+    ImGui::InputFloat("Move step", &translation, 0, 0, "%.3f");
+    ImGui::InputFloat("Rotation step (degrees)", &rotation, 0, 0, "%.1f");
+    ImGui::InputFloat("Scale step", &scale, 0, 0, "%.3f");
     translation = std::clamp(translation, 0.0F, 1000.0F);
-  sameLine();
-  ImGui::TextDisabled("Angle");
-  sameLine();
-  ImGui::SetNextItemWidth(54.0F);
-  if (ImGui::InputFloat("##rotation-snap", &rotation, 0.0F, 0.0F, "%.0f"))
     rotation = std::clamp(rotation, 0.0F, 180.0F);
-
-  if (available >= 330.0F) {
-    sameLine();
-    ImGui::SetNextItemWidth(54.0F);
-    if (ImGui::InputFloat("##scale-snap", &scale, 0.0F, 0.0F, "S %.2f"))
-      scale = std::clamp(scale, 0.0F, 100.0F);
+    scale = std::clamp(scale, 0.0F, 100.0F);
+    ImGui::TextDisabled("Hold Shift while dragging to bypass snapping.");
+    ImGui::EndPopup();
   }
-
-  if (available < 400.0F)
-    return;
-  editorToolbarSeparator();
-  bool &showBounds = is2D(workspace) ? workspace.sceneView2D().showBounds
-                                     : workspace.sceneView().showBounds;
-  bool &showCameras = is2D(workspace) ? workspace.sceneView2D().showCameras
-                                      : workspace.sceneView().showCameras;
-  if (editorIconButton("show-bounds", EditorIcon::Eye, "Toggle bounds",
-                       showBounds))
-    showBounds = !showBounds;
   sameLine();
-  if (editorIconButton("show-cameras", EditorIcon::Camera, "Toggle cameras",
-                       showCameras))
-    showCameras = !showCameras;
-  sameLine();
-  if (editorIconButton("visibility-options", EditorIcon::Settings,
-                       "Viewport visibility options"))
+  if (ImGui::Button("Overlays"))
     ImGui::OpenPopup("visibility-options-popup");
   if (ImGui::BeginPopup("visibility-options-popup")) {
-    bool &showColliders = is2D(workspace)
-                              ? workspace.sceneView2D().showColliders
-                              : workspace.sceneView().showColliders;
-    ImGui::Checkbox("Bounds", &showBounds);
-    ImGui::Checkbox("Colliders", &showColliders);
-    ImGui::Checkbox("Cameras", &showCameras);
+    ImGui::Checkbox("Bounds", is2D(workspace)
+                                  ? &workspace.sceneView2D().showBounds
+                                  : &workspace.sceneView().showBounds);
+    ImGui::Checkbox("Colliders", is2D(workspace)
+                                     ? &workspace.sceneView2D().showColliders
+                                     : &workspace.sceneView().showColliders);
+    ImGui::Checkbox("Cameras", is2D(workspace)
+                                   ? &workspace.sceneView2D().showCameras
+                                   : &workspace.sceneView().showCameras);
     if (is2D(workspace))
       ImGui::Checkbox("Grid", &workspace.sceneView2D().showGrid);
-    else
-      ImGui::Checkbox("Lights", &workspace.sceneView().showLights);
+    else {
+      ImGui::Checkbox("Light icons", &workspace.sceneView().showLights);
+      ImGui::Checkbox("Light ranges", &workspace.sceneView().showLightRanges);
+    }
     ImGui::EndPopup();
   }
 }
@@ -284,9 +255,9 @@ void drawSnapAndVisibility(EditorWorkspace &workspace, const float available) {
 void drawEditorToolbar(const ImVec2 position, const ImVec2 size,
                        EditorWorkspace &workspace,
                        EditorWorkspace &playWorkspace,
-                       EditorPlaySession &playSession, bool &showGameView,
-                       bool &stepRequested, std::string &notice,
-                       const EditorKeyBindings &bindings,
+                       EditorPlaySession &playSession, EditorRunPanel &runPanel,
+                       bool &showGameView, bool &stepRequested,
+                       std::string &notice, const EditorKeyBindings &bindings,
                        EditorCommandContext context,
                        const std::function<void(EditorCommand)> &execute) {
   beginEditorShellPanel("Toolbar", position, size,
@@ -294,10 +265,15 @@ void drawEditorToolbar(const ImVec2 position, const ImVec2 size,
   ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {4.0F, 4.0F});
   drawDocumentGroup(workspace, bindings, context, execute);
 
-  const float playStart = std::max(340.0F, size.x * 0.225F);
+  const float playStart = std::max(200.0F, size.x * 0.14F);
   ImGui::SameLine(playStart);
+  ImGui::BeginDisabled(runPanel.running());
   drawPlayGroup(playWorkspace, playSession, showGameView, stepRequested,
                 notice);
+  ImGui::EndDisabled();
+  sameLine();
+  if (ImGui::Button("Run & Test"))
+    runPanel.open();
   editorToolbarSeparator();
   drawTransformGroup(workspace, bindings, execute,
                      !showGameView && !playSession.isRunning() &&

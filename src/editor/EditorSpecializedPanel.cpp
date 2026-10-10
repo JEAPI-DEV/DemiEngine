@@ -148,8 +148,7 @@ void drawMaterialControls(EditorSpecializedDocument &editor,
         (*color)[2].get<float>(), (*color)[3].get<float>()};
     if (drawEditorColorControl(
             "Base color", edited.data(),
-            {.flags = ImGuiColorEditFlags_AlphaBar | ImGuiColorEditFlags_Float,
-             .showPrecision = true})) {
+            {.flags = ImGuiColorEditFlags_AlphaBar | ImGuiColorEditFlags_Float})) {
       std::string error;
       notice = document.set("/parameters/base_color", edited, error)
                    ? "Material color modified"

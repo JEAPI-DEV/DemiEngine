@@ -3,12 +3,6 @@
 #include "demi/runtime/app/EmbeddedRuntimeSession.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 
-#if defined(__linux__)
-#include <csignal>
-#include <sys/wait.h>
-#include <unistd.h>
-#endif
-
 #include <utility>
 
 namespace demi::editor {
@@ -16,9 +10,12 @@ namespace demi::editor {
 bool EditorPlaySession::mouseCaptured() const {
   return embedded_ && embedded_->mouseCaptured();
 }
-bool EditorPlaySession::mouseVisible() const {return !embedded_ || embedded_->mouseVisible();}
+bool EditorPlaySession::mouseVisible() const {
+  return !embedded_ || embedded_->mouseVisible();
+}
 void EditorPlaySession::releaseMouseCapture() {
-  if (embedded_) embedded_->releaseMouseCapture();
+  if (embedded_)
+    embedded_->releaseMouseCapture();
 }
 
 std::string_view editorPlayStateLabel(const EditorPlayState state) {
@@ -42,10 +39,10 @@ EditorPlaySession::EditorPlaySession() = default;
 EditorPlaySession::~EditorPlaySession() { stop(); }
 
 bool EditorPlaySession::startEmbedded(const std::filesystem::path &project,
-                                      std::string &error, const std::string &sceneId) {
+                                      std::string &error,
+                                      const std::string &sceneId) {
   stop();
   state_ = EditorPlayState::Starting;
-  mode_ = EditorPlayMode::Embedded;
   failure_.clear();
   retainedLogs_.clear();
   gpuTimingAvailable_ = false;
@@ -62,73 +59,13 @@ bool EditorPlaySession::startEmbedded(const std::filesystem::path &project,
   return true;
 }
 
-bool EditorPlaySession::startExternal(const std::filesystem::path &project,
-                                      std::string &error) {
-  stop();
-  state_ = EditorPlayState::Starting;
-  mode_ = EditorPlayMode::External;
-  failure_.clear();
-#if defined(__linux__)
-  std::error_code filesystemError;
-  const std::filesystem::path editor =
-      std::filesystem::read_symlink("/proc/self/exe", filesystemError);
-  if (filesystemError) {
-    error = "Could not locate the editor executable.";
-    reportFailure(error);
-    return false;
-  }
-  const std::filesystem::path runtime = editor.parent_path() / "demi-runtime";
-  if (!std::filesystem::is_regular_file(runtime)) {
-    error = "Could not find demi-runtime beside the editor.";
-    reportFailure(error);
-    return false;
-  }
-  const pid_t child = fork();
-  if (child < 0) {
-    error = "Could not create the external play process.";
-    reportFailure(error);
-    return false;
-  }
-  if (child == 0) {
-    const std::string executable = runtime.string();
-    const std::string projectPath = project.string();
-    execl(executable.c_str(), executable.c_str(), "--project",
-          projectPath.c_str(), static_cast<char *>(nullptr));
-    _exit(127);
-  }
-  processId_ = static_cast<int>(child);
-  state_ = EditorPlayState::Running;
-  return true;
-#else
-  (void)project;
-  error = "External play sessions are currently available on Linux only.";
-  reportFailure(error);
-  return false;
-#endif
-}
-
 bool EditorPlaySession::togglePause(std::string &error) {
-  poll();
   if (!isRunning()) {
     error = "No play session is running.";
     return false;
   }
   const bool pause = state_ == EditorPlayState::Running;
-  if (mode_ == EditorPlayMode::Embedded) {
-    embedded_->setPaused(pause);
-  } else {
-#if defined(__linux__)
-    const int signal = pause ? SIGSTOP : SIGCONT;
-    if (kill(static_cast<pid_t>(processId_), signal) != 0) {
-      error = "Could not change the external play-session state.";
-      poll();
-      return false;
-    }
-#else
-    error = "Pause is unavailable on this platform.";
-    return false;
-#endif
-  }
+  embedded_->setPaused(pause);
   state_ = pause ? EditorPlayState::Paused : EditorPlayState::Running;
   return true;
 }
@@ -136,7 +73,7 @@ bool EditorPlaySession::togglePause(std::string &error) {
 bool EditorPlaySession::step(runtime::InputState input,
                              const std::uint16_t width,
                              const std::uint16_t height, std::string &error) {
-  if (mode_ != EditorPlayMode::Embedded || !isPaused()) {
+  if (!isPaused()) {
     error = "Step requires a paused embedded play session.";
     return false;
   }
@@ -151,8 +88,7 @@ bool EditorPlaySession::update(runtime::InputState input,
                                const float deltaSeconds,
                                const std::uint16_t width,
                                const std::uint16_t height, std::string &error) {
-  poll();
-  if (state_ != EditorPlayState::Running || mode_ != EditorPlayMode::Embedded)
+  if (state_ != EditorPlayState::Running)
     return true;
   if (!embedded_->update(std::move(input), deltaSeconds, width, height,
                          error)) {
@@ -172,36 +108,7 @@ void EditorPlaySession::stop() {
     embedded_.reset();
     runtime::RuntimeProfiler::setEnabled(false);
   }
-#if defined(__linux__)
-  if (processId_ > 0) {
-    if (state_ == EditorPlayState::Paused)
-      (void)kill(static_cast<pid_t>(processId_), SIGCONT);
-    (void)kill(static_cast<pid_t>(processId_), SIGTERM);
-    (void)waitpid(static_cast<pid_t>(processId_), nullptr, 0);
-  }
-#endif
-  processId_ = 0;
   state_ = EditorPlayState::Stopped;
-}
-
-void EditorPlaySession::poll() {
-  if (mode_ != EditorPlayMode::External || processId_ <= 0)
-    return;
-#if defined(__linux__)
-  int status = 0;
-  const pid_t result =
-      waitpid(static_cast<pid_t>(processId_), &status, WNOHANG);
-  if (result == static_cast<pid_t>(processId_)) {
-    processId_ = 0;
-    if (WIFEXITED(status) && WEXITSTATUS(status) == 0)
-      state_ = EditorPlayState::Stopped;
-    else
-      reportFailure("The external play process exited unexpectedly.");
-  } else if (result < 0) {
-    processId_ = 0;
-    reportFailure("The external play process could not be observed.");
-  }
-#endif
 }
 
 const runtime::World *EditorPlaySession::runtimeWorld() const {

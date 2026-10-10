@@ -223,7 +223,7 @@ EditorSceneViewCamera EditorSceneViewState::camera() const {
           .up = up_,
           .debugGeometry = {.forceColliders = showColliders,
                             .bounds = showBounds,
-                            .lights = showLights,
+                            .lights = showLightRanges,
                             .cameras = showCameras},
           .studioLighting = studioLighting,
           .focusDistance = distance_};

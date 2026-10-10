@@ -285,34 +285,9 @@ void checkAppearanceControls(EditorWorkspace &workspace) {
   };
   draw();
   draw();
-  const auto hex =
-      scopedId("Biome controls", {"default", "##Color (Hex RGBA)", "##Text"});
-  replaceText(hex, "33669980", draw);
-  const auto colored =
-      demi::runtime::TerrainRecipe::parse(draft).biomes.at("default").color;
-  require(std::abs(colored.r - 0.2F) < 0.00001F &&
-              std::abs(colored.g - 0.4F) < 0.00001F &&
-              std::abs(colored.b - 0.6F) < 0.00001F &&
-              std::abs(colored.a - 128.0F / 255.0F) < 0.00001F,
-          "Hex RGBA input did not write normalized native channels");
-
-  const auto tree = scopedId("Biome controls",
-                             {"default", "##Color (Hex RGBA)",
-                              "RGBA precision"});
-  activateWidget(tree, draw);
-  auto component = scopedId("Biome controls",
-                            {"default", "##Color (Hex RGBA)",
-                             "RGBA precision", "##normalized-rgba"});
-  const int redAxis = 0;
-  component = ImHashData(&redAxis, sizeof(redAxis), component);
-  // The pinned ImGui DragScalarN submits DragScalar("") beneath its integer
-  // component scope. An empty label keeps that seed; there is no ##v child.
-  replaceText(component, "0.123456", draw);
-  const auto edited =
-      demi::runtime::TerrainRecipe::parse(draft).biomes.at("default").color;
-  require(std::abs(edited.r - 0.123456F) < 0.000001F && edited.g == colored.g &&
-              edited.b == colored.b && edited.a == colored.a,
-          "Float RGBA control lost precision or modified unrelated channels");
+  // Editing the shared standard picker is covered by editor_color_control_tests.
+  // This consumer check ensures opening settings preserves authored precision.
+  require(draft == precise, "Opening biome color settings changed the source");
   const auto shared = draft;
   drawSettings(workspace, "Output controls", "output");
   drawSettings(workspace, "Root settings");

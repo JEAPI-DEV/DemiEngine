@@ -114,6 +114,23 @@ int main() {
     std::string error;
     require(workspace.open(project.root, error), error);
     fs::path created;
+    const auto folder = editorSourceDirectory(EditorSourceKind::Material,
+                                              "assets/materials/lighting");
+    require(folder == "assets/materials/lighting",
+            "Compatible Assets folder was ignored");
+    require(editorSourceDirectory(EditorSourceKind::Scene3D, "prefabs") ==
+                "scenes",
+            "Incompatible folder did not use the scene convention");
+    const auto preview =
+        editorSourceRelativePath(EditorSourceKind::Material, "lamp", folder);
+    require(createEditorSource(workspace, EditorSourceKind::Material, "lamp",
+                               created, error, {}, folder),
+            error);
+    const auto nestedMaterial = loadAssetManifest(created);
+    require(nestedMaterial &&
+                nestedMaterial->sourcePath == project.root / preview &&
+                fs::is_regular_file(project.root / preview),
+            "Creation destination differs from its preview");
 
     require(createEditorSource(workspace, EditorSourceKind::Material,
                                "general_paint", created, error),
@@ -201,6 +218,7 @@ int main() {
     const auto choices = editorSourceAssetChoices(workspace);
     require(choices.materials ==
                     std::vector<std::string>{"asset://materials/general_paint",
+                                             "asset://materials/lighting/lamp",
                                              setOptions.initialAsset} &&
                 choices.models ==
                     std::vector<std::string>{"asset://models/rock"},

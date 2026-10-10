@@ -3,6 +3,7 @@
 #include "editor/EditorPreferencesStore.h"
 #include "editor/EditorProjectPanel.h"
 #include "editor/EditorSettingsPanel.h"
+#include "editor/EditorShortcutSettings.h"
 #include "editor/EditorWorkspace.h"
 
 #include <imgui.h>
@@ -32,6 +33,7 @@ void checkPanels(demi::editor::EditorWorkspace &workspace, ImVec2 screen) {
   demi::editor::EditorProjectPanel project;
   demi::editor::EditorBuildPanel build;
   demi::editor::EditorPreferences preferences;
+  demi::editor::EditorShortcutSettingsState shortcuts;
   project.openSettings();
   build.open();
   bool open = true;
@@ -40,7 +42,7 @@ void checkPanels(demi::editor::EditorWorkspace &workspace, ImVec2 screen) {
   const auto originalProject = workspace.projectDocument().json();
   for (int frame = 0; frame < 3; ++frame) {
     ImGui::NewFrame();
-    demi::editor::drawEditorSettingsPanel(open, scale, preferences);
+    demi::editor::drawEditorSettingsPanel(open, scale, preferences, shortcuts);
     project.draw(workspace, notice);
     build.draw(workspace, notice);
     for (const char *name : {"Editor Settings", "Project Settings", "Build Project"}) {

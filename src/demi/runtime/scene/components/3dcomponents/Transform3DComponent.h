@@ -20,7 +20,7 @@ struct Transform3DComponent {
                                true, {}, 0.0, false, true}.withHelp("Local Euler rotation in radians around X, Y and Z. Parent rotation is composed at runtime."),
       ComponentFieldDescriptor{"scale", ComponentFieldType::Vec3, false, true,
                                {}, 0.0, false, true}};
-  static constexpr ComponentEditorMetadata editor{"3D", "Transform 3D"};
+  static constexpr ComponentEditorMetadata editor{"3D", "Transform"};
   static void parse(const nlohmann::json &json, Entity &entity);
 
   std::string parent;

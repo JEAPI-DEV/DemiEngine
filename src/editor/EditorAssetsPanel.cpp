@@ -166,9 +166,9 @@ bool drawAssetTile(const char *id, const std::string &label,
                    const ImVec2 size = {102.0F, 86.0F}) {
   ImGui::PushID(id);
   ImGui::PushStyleColor(ImGuiCol_Header, selected
-                                             ? ImVec4{0.27F, 0.21F, 0.40F, 1.0F}
+                                             ? ImGui::GetStyleColorVec4(ImGuiCol_Header)
                                              : ImVec4{0.0F, 0.0F, 0.0F, 0.0F});
-  ImGui::PushStyleColor(ImGuiCol_HeaderHovered, {0.18F, 0.18F, 0.22F, 1.0F});
+  ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImGui::GetStyleColorVec4(ImGuiCol_HeaderHovered));
   const bool pressed = ImGui::Selectable(
       "##tile", selected, ImGuiSelectableFlags_AllowDoubleClick, size);
   ImGui::PopStyleColor(2);
@@ -356,13 +356,13 @@ void EditorAssetsPanel::draw(EditorWorkspace &workspace, const ImVec2 position,
              {"Terrain Palette...", EditorSourceKind::TerrainPalette},
              {"Data Asset...", EditorSourceKind::Data}})
       if (ImGui::MenuItem(name))
-        dialogs_.openNewSource(kind);
+        dialogs_.openNewSource(kind, {}, editorSourceDirectory(kind, directory_));
     const auto selection = workspace.selectedEntityId();
     if (ImGui::MenuItem("Prefab from selected hierarchy...", nullptr, false,
                         !selection.empty() &&
                             workspace.sceneDocument().entity(selection)))
       dialogs_.openNewSource(EditorSourceKind::PrefabFromSelection,
-                             std::string(selection));
+                             std::string(selection), editorSourceDirectory(EditorSourceKind::PrefabFromSelection, directory_));
     ImGui::Separator();
     if (ImGui::MenuItem("New Folder..."))
       dialogs_.openNewFolder(directory_);

@@ -103,6 +103,8 @@ private:
     float translationPerPixel = 0.01F;
     float scalePerPixel = 0.01F;
     float pixels = 0.0F;
+    float angle = 0.0F;
+    std::optional<runtime::Vec3> rotationVector;
   };
   std::optional<ActiveDrag> active_;
   EditorGizmoOperation operation_ = EditorGizmoOperation::Translate;

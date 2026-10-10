@@ -48,7 +48,7 @@
     <tr><td><code>inner_angle</code> / <code>outer_angle</code></td><td>Angles in degrees from the spotlight axis. Full brightness inside the inner cone, fading at the outer cone.</td></tr>
   </tbody>
 </table>
-<p>The current built-in lighting path supports one directional light plus up to four point and four spot lights per camera. Only the directional light casts shadows. Point and spot lights need <code>Transform3D</code> for their world position; the spotlight's <code>direction</code> is transformed by its hierarchy.</p>
+<p>The built-in lighting path uses dynamically sized light data rather than a fixed four-point/four-spot array. All enabled, mask-matching lights contribute. The first matching directional light is the primary sun and can cast cascaded shadows; additional directional lights contribute illumination without shadows. Point and spot shadows remain unimplemented. Point/spot lights use <code>Transform3D</code> for position; both sun and spot directions follow transform rotation and parenting. GPU texture capacity and rendering cost still apply: more overlapping lights increase fragment work. Exceeding storage capacity reports an error rather than silently dropping lights.</p>
 
 <h2>Environment3D</h2>
 <p><code>Environment3D</code> controls the panorama backdrop, ambient color/intensity, fog, anti-aliasing and shadow quality. A sky texture does not by itself provide reflection probes or physically based image lighting.</p>
@@ -190,3 +190,7 @@ if px then T.look_at(spot_id, px, py, pz) end</code></pre>
   <li>One camera; conversions always take the real viewport size.</li>
   <li><code>Transform3D.look_at</code> for aiming, world vectors for facing checks.</li>
 </ul>
+
+<h2>Create and edit lighting in the editor</h2>
+<p>Expand <strong>Create objects</strong> in Hierarchy. <strong>Basic Lighting</strong> creates an environment and a shadow-casting sun together; <strong>Point Light</strong> and <strong>Spot Light</strong> create movable local lights with a Transform. Select a light using its Hierarchy row or the sun-shaped viewport marker. Use Move for a local light's position and Rotate to aim a spot or sun. Moving a directional sun changes its authoring marker, not its illumination direction.</p>
+<p>For a desk lamp, parent a point or spot light under the lamp entity, then create a prefab from that hierarchy. Each instance has its own light. Use <strong>View → Studio preview lighting</strong> only for neutral inspection; disable it to see the authored lighting. Older sun entities without Transform offer <strong>Enable light gizmo</strong> in Inspector.</p>

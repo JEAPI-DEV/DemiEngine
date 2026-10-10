@@ -26,7 +26,7 @@ using ProgramHandle = ResourceHandle<ProgramTag>;
 using FrameBufferHandle = ResourceHandle<FrameBufferTag>;
 using UniformHandle = ResourceHandle<UniformTag>;
 
-enum class TextureFormat { R8, RGBA8, BGRA8 };
+enum class TextureFormat { R8, RGBA8, BGRA8, RGBA32F };
 enum class TextureFilter { Linear, Nearest };
 enum class TextureWrap { Clamp, Repeat, Mirror };
 enum class BufferKind { Vertex, DynamicVertex, Index16, Index32 };
@@ -76,6 +76,8 @@ struct TextureCreateInfo {
   std::uint16_t width = 1;
   std::uint16_t height = 1;
   TextureFormat format = TextureFormat::RGBA8;
+  // Initial data makes the texture immutable. Allocate with empty data and
+  // call updateTexture when the contents will change (atlases, light data).
   std::span<const std::byte> data;
   bool renderTarget = false;
   bool generateMipmaps = false;

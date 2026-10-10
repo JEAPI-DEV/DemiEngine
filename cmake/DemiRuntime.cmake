@@ -242,6 +242,7 @@ configure_demi_runtime(demi-runtime-lib TRUE
   src/demi/runtime/platform/PlatformInput.cpp
   src/demi/runtime/platform/SdlNativeWindow.cpp
   src/demi/runtime/platform/SdlPlatformHost.cpp
+  src/demi/runtime/platform/ManagedProcess.cpp
   src/demi/runtime/platform/ExternalProcess.cpp
 )
 

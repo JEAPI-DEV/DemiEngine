@@ -6,6 +6,7 @@
 #include <imgui_internal.h>
 
 #include <cstdlib>
+#include <cmath>
 #include <filesystem>
 #include <iostream>
 #include <set>
@@ -203,7 +204,23 @@ int main() {
     initializeImGui();
     EditorDockingWorkspace docking(fixture.root);
     checkIndependentDocking(docking);
+    const float inspectorWidth = window("Inspector").Size.x;
+    const auto inspectorDock = window("Inspector").DockId;
+    rescaleEditorLayout(.75F);
+    ImGui::GetIO().DisplaySize = {1200, 750};
+    for (int frame = 0; frame < 3; ++frame)
+      renderFrame([&] { drawPanels(docking); });
+    require(window("Inspector").DockId == inspectorDock,
+            "DPI migration changed the user's dock graph");
+    require(std::abs(window("Inspector").Size.x - inspectorWidth * .75F) < 8,
+            "DPI migration did not scale fixed Inspector width");
     checkPaletteContexts();
+    float layoutScale = 2.0F;
+    installEditorLayoutScaleTracking(layoutScale);
+    const std::string savedLayout(ImGui::SaveIniSettingsToMemory());
+    layoutScale = 0;
+    ImGui::LoadIniSettingsFromMemory(savedLayout.c_str());
+    require(layoutScale == 2.0F, "Saved layout lost its DPI coordinate scale");
     ImGui::DestroyContext();
     std::cout << "Independent docking and palette contexts passed\n";
     return 0;

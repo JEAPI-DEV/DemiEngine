@@ -589,10 +589,39 @@ void checkRuntimePanelsRejectDelete(ImGuiFixture &imgui, EditorShell &shell,
           "Stopping embedded Play changed authored scene data");
 }
 
+
+void checkMultiSelectionInspectorScopes() {
+  TestDirectory fixture;
+  ScopedEnvironment data("XDG_DATA_HOME", fixture.root / "data");
+  ScopedEnvironment cache("XDG_CACHE_HOME", fixture.root / "cache");
+  const auto project = fixture.root / "project";
+  createProject(project);
+  const auto scenePath = project / "scenes/main.scene.json";
+  std::ifstream input(scenePath);
+  Json source = Json::parse(input);
+  input.close();
+  source["entities"][0]["components"]["Transform2D"]["position"] = {0, 0};
+  source["entities"].push_back({{"id", "other"}, {"components",
+      {{"Transform2D", {{"position", {2, 0}}}}}}});
+  writeJson(scenePath, source);
+  EditorWorkspace workspace;
+  std::string error;
+  require(workspace.open(project, error), error);
+  ImGuiFixture imgui;
+  EditorShell shell(workspace);
+  workspace.selectEntity("player");
+  workspace.toggleEntitySelection("other");
+  for (int frame = 0; frame < 4; ++frame)
+    imgui.frame(shell, "Inspector");
+  require(workspace.sceneDocument().json() == source,
+          "Inspecting mixed values mutated the scene");
+}
+
 } // namespace
 
 int main() {
   try {
+    checkMultiSelectionInspectorScopes();
     checkFreshTerrainGraphStartupFocus();
     TestDirectory fixture;
     ScopedEnvironment data("XDG_DATA_HOME", fixture.root / "data");

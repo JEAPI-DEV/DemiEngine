@@ -33,6 +33,19 @@ void drawEditorGlyph(ImDrawList &draw, const EditorIcon icon,
   constexpr float Thickness = 1.6F;
   const float thickness = Thickness * scale;
   switch (icon) {
+  case EditorIcon::Light: {
+    draw.AddCircle(center, 3.5F * scale, color, 12, thickness);
+    for (int ray = 0; ray < 8; ++ray) {
+      const float angle = ray * 0.785398163F;
+      const ImVec2 direction{std::cos(angle), std::sin(angle)};
+      draw.AddLine({center.x + direction.x * 5.5F * scale,
+                    center.y + direction.y * 5.5F * scale},
+                   {center.x + direction.x * 8.0F * scale,
+                    center.y + direction.y * 8.0F * scale},
+                   color, thickness);
+    }
+    break;
+  }
   case EditorIcon::Refresh: {
     draw.PathArcTo(center, 7.0F * scale, -2.7F, 2.1F, 18);
     draw.PathStroke(color, thickness, ImDrawFlags_None);
@@ -353,7 +366,8 @@ bool editorIconButton(const char *id, const EditorIcon icon,
   const ImVec2 min = ImGui::GetItemRectMin();
   const ImVec2 max = ImGui::GetItemRectMax();
   ImDrawList *draw = ImGui::GetWindowDrawList();
-  const ImU32 background = selected || held     ? IM_COL32(79, 57, 126, 255)
+  const ImU32 background = selected || held
+                               ? ImGui::GetColorU32(ImGuiCol_ButtonActive)
                            : hovered && enabled ? IM_COL32(52, 54, 62, 255)
                                                 : IM_COL32(37, 39, 46, 255);
   const ImU32 border = selected ? EditorAccent : IM_COL32(61, 64, 72, 255);

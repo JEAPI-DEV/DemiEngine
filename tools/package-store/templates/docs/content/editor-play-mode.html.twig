@@ -75,3 +75,7 @@
 </ol>
 
 <p>The read-only Runtime Inspector reads current native component fields, including transforms changed by scripts or physics. These are local transform values when an entity has a parent. Fields without a live inspection codec are explicitly marked unavailable; they are not substituted with saved values. This view does not expose arbitrary Lua instance variables or renderer/physics internals.</p>
+
+<h2>Debug, Release and E2E runs</h2>
+<p><strong>Run &amp; Test</strong> in the toolbar launches a standalone Debug or Release runtime. This chooses an actual compiled executable; embedded Play always uses the editor's own build. The panel looks for matching build directories, and Runtime location lets you select an installed CLI executable. Missing builds are reported before launch.</p>
+<p><strong>Run project</strong> and <strong>Run E2E tests</strong> save authoring sessions before launch. E2E uses the same runtime harness as the CLI and requires <code>scripts/tests/e2e.lua</code>. Set both a simulation frame limit and a wall-clock timeout for longer scenarios. The panel shows the process output and pass/fail status; Stop cancels the owned process. Pause and single-step controls apply to embedded Play; standalone game pause is controlled by the game. Only the most recent MiB of console output is retained. Close the panel to keep working while a test finishes, or reopen it for the result.</p>

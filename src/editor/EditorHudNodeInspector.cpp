@@ -334,6 +334,9 @@ void drawLayoutSection(EditorWorkspace &workspace,
                        const Json *authoredNode, std::string &notice) {
   if (!ImGui::CollapsingHeader("Layout", ImGuiTreeNodeFlags_DefaultOpen))
     return;
+  const bool advanced = editorAdvancedSettings(
+      "Show raw anchor coordinates and minimum/maximum size constraints.\n"
+      "Dock and anchor presets handle common layouts without these fields.");
   PropertyGrid grid("hud-layout-properties");
   const std::string currentDock =
       authoredNode != nullptr && authoredNode->contains("dock") &&
@@ -358,6 +361,7 @@ void drawLayoutSection(EditorWorkspace &workspace,
     }
   });
 
+  if (advanced) {
   float anchorMin[2]{node.layout.anchorMin.x, node.layout.anchorMin.y};
   grid.row("Anchor min", [&] {
     if (ImGui::InputFloat2("##anchor-min", anchorMin, "%.2f")) {
@@ -376,6 +380,7 @@ void drawLayoutSection(EditorWorkspace &workspace,
               notice);
     }
   });
+  }
   float position[2]{node.layout.position.x, node.layout.position.y};
   grid.row("Position", [&] {
     if (ImGui::InputFloat2("##position", position, "%.1f"))
@@ -390,6 +395,7 @@ void drawLayoutSection(EditorWorkspace &workspace,
       setVec2(workspace, node, "size", size, "HUD size modified", notice);
     }
   });
+  if (advanced) {
   float minimumSize[2]{node.layout.minSize.x, node.layout.minSize.y};
   grid.row("Minimum size", [&] {
     if (ImGui::InputFloat2("##minimum-size", minimumSize, "%.1f")) {
@@ -408,6 +414,7 @@ void drawLayoutSection(EditorWorkspace &workspace,
               "HUD maximum size modified", notice);
     }
   });
+  }
   float margin[4]{node.layout.margin.left, node.layout.margin.top,
                   node.layout.margin.right, node.layout.margin.bottom};
   grid.row("Margin L T R B", [&] {

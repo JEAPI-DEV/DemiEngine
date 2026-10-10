@@ -7,6 +7,9 @@ are registered in `tools/package-store/src/Docs.php`.
 
 This directory keeps material that has a different job:
 
+- [Editor usability redesign](editor-usability-redesign.md) records Inspector,
+  viewport, creation, execution and dynamic-lighting changes and qualification.
+
 - [Colony logistics qualification](colony-logistics-qualification.md) records
   physical material conservation, needs, time controls and editor fixes.
 

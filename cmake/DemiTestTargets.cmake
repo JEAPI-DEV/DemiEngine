@@ -818,3 +818,8 @@ if(UNIX)
     tests/desktop_test_commands_tests.cpp src/cli/TestCommands.cpp)
   target_link_libraries(demi-desktop-test-commands-tests PRIVATE demi-cli-support)
 endif()
+
+if(TARGET demi-runtime-lib)
+  add_executable(demi-managed-process-tests tests/managed_process_tests.cpp)
+  target_link_libraries(demi-managed-process-tests PRIVATE demi-runtime-lib)
+endif()

@@ -9,12 +9,13 @@
 namespace demi::editor {
 
 class EditorPlaySession;
+class EditorRunPanel;
 class EditorWorkspace;
 class EditorKeyBindings;
 
 void drawEditorToolbar(ImVec2 position, ImVec2 size, EditorWorkspace &workspace,
                        EditorWorkspace &playWorkspace,
-                       EditorPlaySession &playSession, bool &showGameView,
+                       EditorPlaySession &playSession, EditorRunPanel &runPanel, bool &showGameView,
                        bool &stepRequested, std::string &notice,
                        const EditorKeyBindings &bindings,
                        EditorCommandContext context,

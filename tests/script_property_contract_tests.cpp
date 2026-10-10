@@ -35,6 +35,14 @@ int main() {
   assert((*resolved)["offset"] == json({0.0, 1.0}));
   assert(!resolved->contains("target"));
 
+  const json integerSchema = {{"count", {{"type", "integer"}}}};
+  const auto integralFloat = demi::runtime::resolveScriptProperties(
+      integerSchema, {{"count", 64.0}}, error);
+  assert(integralFloat && (*integralFloat)["count"].is_number_integer());
+  for (const double invalid : {1.5, 0x1p63, -0x1p64})
+    assert(!demi::runtime::resolveScriptProperties(
+        integerSchema, {{"count", invalid}}, error));
+
   error.clear();
   const auto references = demi::runtime::resolveScriptProperties(
       {{"target", {{"type", "entity"}, {"default", ""}}}},

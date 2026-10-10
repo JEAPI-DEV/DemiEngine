@@ -53,7 +53,7 @@ Colony.walk_speed = 3
 ---@demi_property
 ---@range 1 60
 Colony.build_seconds = 5
----@demi_property
+---@demi_property integer
 ---@label Navigation Cells Per Axis (2 m)
 ---@range 1 256
 Colony.navigation_cells = 64

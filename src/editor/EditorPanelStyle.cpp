@@ -46,6 +46,16 @@ void beginEditorShellPanel(const char *id, const ImVec2 position,
   ImGui::Begin(id, nullptr, ShellPanelFlags | additionalFlags);
 }
 
+bool editorAdvancedSettings(const char *help) {
+  const auto key = ImGui::GetID("advanced-settings-state");
+  bool expanded = ImGui::GetStateStorage()->GetBool(key, false);
+  if (ImGui::Checkbox("Show advanced settings", &expanded))
+    ImGui::GetStateStorage()->SetBool(key, expanded);
+  if (ImGui::IsItemHovered())
+    ImGui::SetTooltip("%s", help);
+  return expanded;
+}
+
 void editorSectionTitle(const char *title, const char *detail) {
   ImGui::TextUnformatted(title);
   if (detail != nullptr) {

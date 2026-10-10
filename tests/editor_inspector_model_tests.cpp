@@ -180,6 +180,15 @@ int main() {
   const auto *meshDescriptor =
       runtime::scene_loading::findComponentDescriptor("MeshRenderer");
   assert(meshDescriptor != nullptr);
+  const auto materialProperties =
+      std::ranges::find(meshDescriptor->fields, "material_properties",
+                        &runtime::ComponentFieldDescriptor::name);
+  assert(materialProperties != meshDescriptor->fields.end());
+  assert(!runtime::scene_loading::componentFieldEditorReadOnly(
+      *materialProperties));
+  assert(runtime::scene_loading::componentFieldEditorLabel(
+             *materialProperties) == "Material overrides");
+
   const auto vertexColors = std::ranges::find(
       meshDescriptor->fields, "vertex_colors", &runtime::ComponentFieldDescriptor::name);
   assert(vertexColors != meshDescriptor->fields.end());
@@ -242,6 +251,17 @@ int main() {
   assert(document.removeValue(defaultPosition, error));
   assert(!document.component("world_stream", "Transform3D")
               ->contains("position"));
+  const auto beforeMaterialEdit = document.json();
+  const SceneValueTarget materialTarget{.entityId = "floor",
+                                        .component = "MeshRenderer",
+                                        .field = "material_properties"};
+  const nlohmann::json materialValues{{"roughness", 0.4},
+                                      {"base_color", {0.2, 0.3, 0.4, 1.0}}};
+  assert(document.setValue(materialTarget, materialValues, false, error));
+  assert(
+      document.component("floor", "MeshRenderer")->at("material_properties") ==
+      materialValues);
+  assert(document.undo(error) && document.json() == beforeMaterialEdit);
   const SceneValueTarget opacityTarget{.entityId = "floor",
                                        .component = "MeshRenderer",
                                        .field = "opacity"};

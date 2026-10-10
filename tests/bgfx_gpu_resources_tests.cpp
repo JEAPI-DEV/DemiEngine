@@ -30,6 +30,25 @@ int main() {
                                                  .debugName = "test texture"},
                                error);
   assert(texture);
+  const std::array<float, 16> lightData{1, 2, 3, 8, 1, .5F, 0, 2};
+  const auto lightBytes = std::as_bytes(std::span(lightData));
+  const auto lights = resources->createTexture({.width = 4, .height = 1,
+      .format = TextureFormat::RGBA32F}, error);
+  assert(lights);
+  assert(resources->updateTexture(lights, {.width = 4, .height = 1,
+                                           .data = lightBytes}, error));
+  assert(!resources->updateTexture(lights, {.width = 4, .height = 1,
+                                            .data = pixels}, error));
+  assert(!resources->updateTexture(lights, {.x = 1, .width = 4, .height = 1,
+                                            .data = lightBytes}, error));
+  assert(resources->destroy(lights));
+  const auto immutable = resources->createTexture({.width = 4, .height = 1,
+      .format = TextureFormat::RGBA32F, .data = lightBytes}, error);
+  assert(immutable);
+  assert(!resources->updateTexture(immutable, {.width = 4, .height = 1,
+                                               .data = lightBytes}, error));
+  assert(resources->destroy(immutable));
+
   const SamplerHandle sampler = resources->createSampler("s_test", error);
   assert(sampler);
 

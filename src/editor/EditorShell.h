@@ -4,6 +4,7 @@
 #include "editor/EditorAnimationMachinePanel.h"
 #include "editor/EditorAssetsPanel.h"
 #include "editor/EditorBuildPanel.h"
+#include "editor/EditorRunPanel.h"
 #include "editor/EditorConflictPanel.h"
 #include "editor/EditorConsolePanel.h"
 #include "editor/EditorDockingWorkspace.h"
@@ -43,6 +44,7 @@ public:
   void draw(int width, int height, std::string_view rendererName);
   // Release ImGui-dependent panel state before the UI host destroys ImGui.
   void releaseUiResources() noexcept {
+    runPanel_.stop();
     terrainGraphPanel_.releaseUiResources();
   }
   [[nodiscard]] float uiScale() const { return uiScale_; }
@@ -109,6 +111,7 @@ private:
   EditorTerrainGraphPanel terrainGraphPanel_;
   EditorTerrainPresetsPanel terrainPresetsPanel_;
   EditorBuildPanel buildPanel_;
+  EditorRunPanel runPanel_;
   EditorProjectPanel projectPanel_;
   EditorSpecializedPanel specializedPanel_;
   EditorHierarchyPanel hierarchyPanel_;

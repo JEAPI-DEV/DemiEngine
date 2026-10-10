@@ -307,19 +307,17 @@ bool lightingContracts() {
     world.entities.push_back(std::move(light));
   }
   const SceneLighting3D frame = collectSceneLighting3D(world, "world");
-  if (frame.pointPositionRange[3] == 0.0F ||
-      frame.pointPositionRange[15] == 0.0F)
+  if (frame.lights.size() < 4)
     return false;
   const SceneLighting3D masked = collectSceneLighting3D(world, "ui");
-  if (masked.pointPositionRange[3] == 0.0F ||
-      masked.pointPositionRange[7] != 0.0F)
+  if (masked.lights.size() != 1)
     return false;
 
   for (Entity &entity : world.entities)
     if (entity.id != "environment")
       entity.enabled = false;
   const SceneLighting3D disabled = collectSceneLighting3D(world, "world");
-  return disabled.pointPositionRange[3] == 0.0F;
+  return disabled.lights.empty();
 }
 
 bool particleContracts() {

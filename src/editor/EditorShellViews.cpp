@@ -74,9 +74,11 @@ void EditorShell::drawDocumentViews(ImVec2 position, ImVec2 size) {
     if (!open || !document || (hud && !document->hasHudDocument()))
       return;
     focus(name);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {0, 0});
     const bool visible = beginEditorPanel(
         name, position, size, &open,
         ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    ImGui::PopStyleVar();
     if (visible) {
       if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)) {
         focusAuthoring(session, hud);
@@ -120,9 +122,12 @@ void EditorShell::drawDocumentViews(ImVec2 position, ImVec2 size) {
   }
   if (panels.game) {
     focus("Game View");
-    if (beginEditorPanel("Game View", position, size, &panels.game,
-                         ImGuiWindowFlags_NoScrollbar |
-                             ImGuiWindowFlags_NoScrollWithMouse)) {
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {0, 0});
+    const bool visible = beginEditorPanel(
+        "Game View", position, size, &panels.game,
+        ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    ImGui::PopStyleVar();
+    if (visible) {
       drawEditorGameView({}, {}, gameTextureIndex_, gameArea_, gameViewFocused_,
                          true);
       if (gameViewFocused_)

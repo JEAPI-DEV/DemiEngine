@@ -6,6 +6,7 @@
 #include "editor/EditorInputOwnership.h"
 #include "editor/EditorRecoveryStore.h"
 #include "editor/EditorUiHost.h"
+#include "editor/EditorDockingWorkspace.h"
 #include "editor/EditorViewportRenderer.h"
 #include "editor/EditorWorkspaceLayout.h"
 
@@ -84,7 +85,8 @@ public:
       return false;
     }
 
-    const float fontSize = editorFontSize(frame.logicalDpi);
+    const float fontSize = 15.0F;
+    uiScale_ = editorDisplayScale(frame.logicalDpi);
     imguiCreate(fontSize);
     ImGuiIO &io = ImGui::GetIO();
     const auto fontData = runtime::render::defaultFontData();
@@ -100,6 +102,7 @@ public:
       return false;
     }
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    installEditorLayoutScaleTracking(layoutScale_);
     const EditorLayoutPreparation layout = dockingState_.prepareLayout();
     workspaceDiagnostic_ = layout.diagnostic;
     std::error_code directoryError;
@@ -184,12 +187,13 @@ public:
   }
 
   void setUiScale(const float scale) override {
-    uiScale_ = std::clamp(scale, 1.0F, 2.5F);
+    userZoom_ = std::clamp(scale, 1.0F, 2.5F);
   }
 
   bool beginFrame(std::string &error) override {
     platform_->poll(input_);
     const auto &frame = platform_->frameState();
+    uiScale_ = editorDisplayScale(frame.logicalDpi, userZoom_);
     if (!frame.minimized && frame.width > 0 && frame.height > 0 &&
         !graphics_.resize(static_cast<std::uint32_t>(frame.width),
                           static_cast<std::uint32_t>(frame.height), error))
@@ -226,6 +230,10 @@ public:
         buttons, 0, static_cast<std::uint16_t>(std::clamp(width(), 1, 65535)),
         static_cast<std::uint16_t>(std::clamp(height(), 1, 65535)), -1,
         ImGuiViewId);
+    // Layouts written before DPI-aware controls used the user's zoom alone.
+    const float previousScale = layoutScale_ > 0 ? layoutScale_ : userZoom_;
+    rescaleEditorLayout(previousScale / uiScale_);
+    layoutScale_ = uiScale_;
     return true;
   }
 
@@ -473,6 +481,8 @@ private:
             .height = scaled(area.height)};
   }
   float uiScale_ = 1.0F;
+  float userZoom_ = 1.0F;
+  float layoutScale_ = 0.0F;
   EditorFontLoader fontLoader_{runtime::render::defaultFontVariations()};
   void shutdownGraphics() {
     for (auto &viewport : viewports_) {

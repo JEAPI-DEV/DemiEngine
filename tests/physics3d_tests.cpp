@@ -697,6 +697,16 @@ bool testShapeQueriesAndColliderKinds() {
     std::cerr << "Invalid 3D shape query input was accepted.\n";
     return false;
   }
+  world.entities[0].component<CapsuleCollider3DComponent>()->height = 0.8F;
+  stepPhysics3D(world, 1.0F / 60.0F, {});
+  const auto roundCapsule =
+      overlapCapsuleAll3D(world, {2, 0, 0}, 0.4F, 0.8F, "actors");
+  const auto roundSweep =
+      capsuleCast3D(world, {-1, 0, 0}, 0.2F, 0.4F, {1, 0, 0}, 4.0F);
+  if (roundCapsule.size() != 1 || !roundSweep) {
+    std::cerr << "Sphere-shaped capsule query failed.\n";
+    return false;
+  }
   return true;
 }
 

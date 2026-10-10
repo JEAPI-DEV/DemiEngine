@@ -1,5 +1,10 @@
 # DemiEngine Roadmap
 
+Editor usability work adds typed material overrides, searchable layers, compact
+creation, rotation rings, display scaling and Debug/Release Run & Test. Dynamic
+light storage replaces fixed point/spot arrays. Qualification is recorded in
+[editor usability redesign](docs/editor-usability-redesign.md).
+
 Colony Lua is expanded for readability, with a module-reading guide. Reusable
 Character Needs 0.1.0 is published; prefab source saves now refresh open
 instances without discarding scene history.

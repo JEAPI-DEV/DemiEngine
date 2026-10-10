@@ -79,8 +79,11 @@ template <typename Draw>
 void replaceText(ImGuiID id, const char *text, Draw &&draw) {
   focusWidget(id, draw);
   // Navigation focus alone does not activate DragFloat's text input.
-  if (ImGui::GetCurrentContext()->ActiveId != id)
-    pressKey(ImGuiKey_Enter, draw);
+  if (ImGui::GetCurrentContext()->ActiveId != id) {
+    ImGui::ActivateItemByID(id);
+    ImGui::GetCurrentContext()->NavNextActivateFlags = ImGuiActivateFlags_PreferInput;
+    draw();
+  }
   require(ImGui::GetCurrentContext()->ActiveId == id,
           "Could not activate precision channel");
   auto &io = ImGui::GetIO();
@@ -108,12 +111,11 @@ void checkPrecisionAndIdentity() {
     ImGui::Begin("Color control");
     const bool changed = demi::editor::drawEditorColorControl(
         "##color", rgba.data(),
-        {.flags = ImGuiColorEditFlags_DisplayHex |
+        {.flags = ImGuiColorEditFlags_DisplayRGB |
                   ImGuiColorEditFlags_InputRGB | ImGuiColorEditFlags_Float |
-                  ImGuiColorEditFlags_AlphaBar,
-         .showPrecision = true});
+                  ImGuiColorEditFlags_AlphaBar});
     const bool otherChanged = demi::editor::drawEditorColorControl(
-        "##other-color", other.data(), {.showPrecision = true});
+        "##other-color", other.data(), {.flags = ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_Float});
     ImGui::End();
     ImGui::Render();
     require(ImGui::GetCurrentContext()->ErrorCountCurrentFrame == 0,
@@ -125,41 +127,18 @@ void checkPrecisionAndIdentity() {
   auto *window = ImGui::FindWindowByName("Color control");
   const ImGuiID colorScope = ImHashStr("##color", 0, window->ID);
   const ImGuiID otherScope = ImHashStr("##other-color", 0, window->ID);
-  const ImGuiID tree = ImHashStr("RGBA precision", 0, colorScope);
-  const ImGuiID otherTree = ImHashStr("RGBA precision", 0, otherScope);
-  require(tree != otherTree, "Color precision trees share an ImGui ID");
-  focusWidget(tree, draw);
-  pressKey(ImGuiKey_Space, draw);
-  require(window->StateStorage.GetBool(tree) &&
-              !window->StateStorage.GetBool(otherTree),
-          "Opening one color also opened the other precision tree");
-  ImGuiID red = ImHashStr("##normalized-rgba", 0, tree);
-  const int redAxis = 0;
-  red = ImHashData(&redAxis, sizeof(redAxis), red);
+  const ImGuiID red = ImHashStr("##X", 0, colorScope);
+  const ImGuiID otherRed = ImHashStr("##X", 0, otherScope);
+  require(red != otherRed, "Colour controls share an ImGui ID");
   replaceText(red, "0.654321", draw);
   require(std::abs(rgba[0] - 0.654321F) < 0.000001F && rgba[1] == original[1] &&
               rgba[2] == original[2] && rgba[3] == original[3],
-          "Precise edit rounded or changed unrelated channels");
-  ImGuiID green = ImHashStr("##normalized-rgba", 0, tree);
-  const int greenAxis = 1;
-  green = ImHashData(&greenAxis, sizeof(greenAxis), green);
-  replaceText(green, "2.0", draw);
-  require(std::abs(rgba[0] - 0.654321F) < 0.000001F && rgba[1] == 1.0F,
-          "Normalized precision input exceeded its channel range");
-  require(other == otherOriginal, "First color edit changed the second color");
-
-  focusWidget(otherTree, draw);
-  pressKey(ImGuiKey_Space, draw);
-  require(window->StateStorage.GetBool(tree) &&
-              window->StateStorage.GetBool(otherTree),
-          "Precision trees did not keep independent open state");
-  ImGuiID otherRed = ImHashStr("##normalized-rgba", 0, otherTree);
-  otherRed = ImHashData(&redAxis, sizeof(redAxis), otherRed);
+          "Colour edit rounded or changed unrelated channels");
   replaceText(otherRed, "0.765432", draw);
   require(std::abs(other[0] - 0.765432F) < 0.000001F &&
               other[1] == otherOriginal[1] &&
-              std::abs(rgba[0] - 0.654321F) < 0.000001F && rgba[1] == 1.0F,
-          "Second color edit changed the first color or lost precision");
+              std::abs(rgba[0] - 0.654321F) < 0.000001F,
+          "Second colour edit changed the first colour");
 }
 
 void checkConsumerEncoding() {

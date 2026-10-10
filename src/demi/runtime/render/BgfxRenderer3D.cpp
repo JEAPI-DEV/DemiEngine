@@ -73,7 +73,7 @@ float debugModeValue(const std::string &mode) {
 
 BgfxRenderer3D::BgfxRenderer3D(GpuResources &resources,
                                RenderCommands &commands, bool enableGpuSkinning)
-    : resources_(resources), shadows_(resources,commands), commands_(shadows_),
+    : resources_(resources), shadows_(resources,commands), lightBuffer_(resources, shadows_), commands_(lightBuffer_),
       primitives_(resources, commands_), postProcess_(resources, commands_),
       particleRenderer_(resources, commands_), overlay_(resources, commands_),
       textures_(resources), sky_(resources), materials_(resources), gpuSkinningRequested_(enableGpuSkinning),
@@ -123,18 +123,6 @@ bool BgfxRenderer3D::initialize(std::string &error) {
       resources_.createUniform("u_lightColor", UniformType::Vec4, 1, error);
   ambientColorUniform_ =
       resources_.createUniform("u_ambientColor", UniformType::Vec4, 1, error);
-  pointPositionRangeUniform_ = resources_.createUniform(
-      "u_pointPositionRange", UniformType::Vec4, 4, error);
-  pointColorIntensityUniform_ = resources_.createUniform(
-      "u_pointColorIntensity", UniformType::Vec4, 4, error);
-  spotPositionRangeUniform_ = resources_.createUniform(
-      "u_spotPositionRange", UniformType::Vec4, 4, error);
-  spotDirectionOuterUniform_ = resources_.createUniform(
-      "u_spotDirectionOuter", UniformType::Vec4, 4, error);
-  spotColorIntensityUniform_ = resources_.createUniform(
-      "u_spotColorIntensity", UniformType::Vec4, 4, error);
-  spotInnerUniform_ =
-      resources_.createUniform("u_spotInner", UniformType::Vec4, 4, error);
   constexpr std::array<std::byte, 4> White{std::byte{0xff}, std::byte{0xff},
                                            std::byte{0xff}, std::byte{0xff}};
   whiteTexture_ = resources_.createTexture({.width = 1,
@@ -150,10 +138,7 @@ bool BgfxRenderer3D::initialize(std::string &error) {
       !tintUniform_ || !alphaCutoffUniform_ || !debugModeUniform_ ||
       !viewPositionUniform_ || !metalRoughUniform_ ||
       !whiteTexture_ || !lightDirectionUniform_ || !lightColorUniform_ ||
-      !ambientColorUniform_ || !pointPositionRangeUniform_ ||
-      !pointColorIntensityUniform_ || !spotPositionRangeUniform_ ||
-      !spotDirectionOuterUniform_ || !spotColorIntensityUniform_ ||
-      !spotInnerUniform_) {
+      !ambientColorUniform_) {
     shutdown();
     return false;
   }
@@ -176,6 +161,7 @@ bool BgfxRenderer3D::initialize(std::string &error) {
 }
 
 void BgfxRenderer3D::shutdown() {
+  lightBuffer_.shutdown();
   shadows_.shutdown();
   sky_.clear();
   for (const auto program : {directionalMeshProgram_, directionalInstancedProgram_, directionalSkinnedProgram_})
@@ -217,10 +203,7 @@ void BgfxRenderer3D::shutdown() {
   for (const UniformHandle uniform :
        {tintUniform_, alphaCutoffUniform_, debugModeUniform_,
         viewPositionUniform_, metalRoughUniform_,
-        lightDirectionUniform_, lightColorUniform_, ambientColorUniform_,
-        pointPositionRangeUniform_, pointColorIntensityUniform_,
-        spotPositionRangeUniform_, spotDirectionOuterUniform_,
-        spotColorIntensityUniform_, spotInnerUniform_})
+        lightDirectionUniform_, lightColorUniform_, ambientColorUniform_})
     if (uniform)
       resources_.destroy(uniform);
   if (meshProgram_)
@@ -237,12 +220,6 @@ void BgfxRenderer3D::shutdown() {
   lightDirectionUniform_ = {};
   lightColorUniform_ = {};
   ambientColorUniform_ = {};
-  pointPositionRangeUniform_ = {};
-  pointColorIntensityUniform_ = {};
-  spotPositionRangeUniform_ = {};
-  spotDirectionOuterUniform_ = {};
-  spotColorIntensityUniform_ = {};
-  spotInnerUniform_ = {};
   meshProgram_ = {};
   instancedMeshProgram_ = {};
   particleRenderer_.shutdown();
@@ -394,6 +371,12 @@ bool BgfxRenderer3D::renderView(const World &world,const BgfxCameraFrame3D &fram
           error))
     return false;
 
+  // Invalid intermediate authoring data must not poison subsequent frames.
+  struct PrimitiveFrameScope {
+    PrimitiveCanvas3D &canvas;
+    ~PrimitiveFrameScope() { canvas.cancel(); }
+  } primitiveFrame{primitives_};
+
   std::unordered_set<std::string> liveDynamicMeshes;
   std::unordered_set<std::string> liveDeformedMeshes;
   // Cache ownership follows entity lifetime, not camera visibility. Otherwise
@@ -426,7 +409,10 @@ bool BgfxRenderer3D::renderView(const World &world,const BgfxCameraFrame3D &fram
       frame.lightingOverride
           ? *frame.lightingOverride
           : sceneLighting;
-  const bool directionalOnly = !lighting.hasLocalLights();
+  if (!lightBuffer_.prepare(frame.viewId, lighting, error))
+    return false;
+  RuntimeProfiler::setGauge("Renderer3D.additional_lights", double(lighting.lights.size()));
+  const bool directionalOnly = !lighting.hasAdditionalLights();
   RuntimeProfiler::setGauge("Renderer3D.directional_shader", directionalOnly ? 1.0 : 0.0);
   const ProgramHandle defaultMeshProgram = directionalOnly ? directionalMeshProgram_ : meshProgram_;
   const ProgramHandle defaultInstancedProgram = directionalOnly ? directionalInstancedProgram_ : instancedMeshProgram_;
@@ -435,33 +421,16 @@ bool BgfxRenderer3D::renderView(const World &world,const BgfxCameraFrame3D &fram
   const std::array<float, 4> noAlphaCutoff{};
   const std::array<float, 4> debugMode{debugModeValue(frame.camera.debugMode),
                                        0.0F, 0.0F, 0.0F};
-  const std::array<float, 16> disabledArrayLights{};
   const std::array<float, 4> viewPosition{frame.position.x, frame.position.y,
                                           frame.position.z, 0.0F};
   const std::array<float, 4> defaultMetalRough{0.0F, 0.8F, 0.0F, 0.0F};
-  const std::array<DrawUniformValue, 14> lightingUniforms{{
+  const std::array<DrawUniformValue, 8> lightingUniforms{{
       {.handle = tintUniform_, .values = whiteTint},
       {.handle = alphaCutoffUniform_, .values = noAlphaCutoff},
       {.handle = debugModeUniform_, .values = debugMode},
       {.handle = lightDirectionUniform_, .values = lighting.direction},
       {.handle = lightColorUniform_, .values = lighting.directionalColor},
       {.handle = ambientColorUniform_, .values = lighting.ambient},
-      {.handle = pointPositionRangeUniform_,
-       .values = lighting.pointPositionRange,
-       .count = 4},
-      {.handle = pointColorIntensityUniform_,
-       .values = lighting.pointColorIntensity,
-       .count = 4},
-      {.handle = spotPositionRangeUniform_,
-       .values = lighting.spotPositionRange,
-       .count = 4},
-      {.handle = spotDirectionOuterUniform_,
-       .values = lighting.spotDirectionOuter,
-       .count = 4},
-      {.handle = spotColorIntensityUniform_,
-       .values = lighting.spotColorIntensity,
-       .count = 4},
-      {.handle = spotInnerUniform_, .values = lighting.spotInner, .count = 4},
       {.handle = viewPositionUniform_, .values = viewPosition},
       {.handle = metalRoughUniform_, .values = defaultMetalRough},
   }};
@@ -538,7 +507,7 @@ bool BgfxRenderer3D::renderView(const World &world,const BgfxCameraFrame3D &fram
       drawUniforms.front().values = material && material->program
                                         ? surfaceTint : builtinSurfaceTint;
       std::array<float, 4> metalRough = surface.shaderParameters();
-      drawUniforms[13].values = metalRough;
+      drawUniforms[7].values = metalRough;
       const std::array<float, 4> alphaCutoff{
           material == nullptr ? 0.0F : material->alphaCutoff, 0.0F, 0.0F, 0.0F};
       drawUniforms[1].values = alphaCutoff;
@@ -553,8 +522,6 @@ bool BgfxRenderer3D::renderView(const World &world,const BgfxCameraFrame3D &fram
         drawUniforms[3].values = noLight;
         drawUniforms[4].values = noLight;
         drawUniforms[5].values = unlitAmbient;
-        for (std::size_t lightUniform = 6; lightUniform < 12; ++lightUniform)
-          drawUniforms[lightUniform].values = disabledArrayLights;
       }
       if (material != nullptr)
         drawUniforms.insert(drawUniforms.end(), material->uniforms.begin(),
@@ -798,10 +765,10 @@ bool BgfxRenderer3D::renderView(const World &world,const BgfxCameraFrame3D &fram
     }
     for (const auto &[key, group] : instanceGroups) {
       static_cast<void>(key);
-      std::array<DrawUniformValue, 14> groupUniforms = lightingUniforms;
+      auto groupUniforms = lightingUniforms;
       groupUniforms.front().values = group.tint;
       std::array<float, 4> groupMetalRough = group.metalRough;
-      groupUniforms[13].values = groupMetalRough;
+      groupUniforms[7].values = groupMetalRough;
       const std::array<float, 4> groupingMode{
           debugMode[0], group.transforms.size() > 1U ? 1.0F : 0.0F, 0.0F, 0.0F};
       groupUniforms[2].values = groupingMode;
@@ -812,8 +779,6 @@ bool BgfxRenderer3D::renderView(const World &world,const BgfxCameraFrame3D &fram
         groupUniforms[3].values = noLight;
         groupUniforms[4].values = noLight;
         groupUniforms[5].values = unlitAmbient;
-        for (std::size_t lightUniform = 6; lightUniform < 12; ++lightUniform)
-          groupUniforms[lightUniform].values = disabledArrayLights;
       }
       const bool queued =
           group.transforms.size() == 1U

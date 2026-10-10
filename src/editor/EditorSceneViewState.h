@@ -77,6 +77,7 @@ public:
   bool showBounds = false;
   bool showColliders = false;
   bool showLights = true;
+  bool showLightRanges = false;
   bool showCameras = true;
   bool studioLighting = false;
 

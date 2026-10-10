@@ -5,6 +5,8 @@
 #include <imgui.h>
 #include <imgui_internal.h>
 
+#include <cmath>
+#include <cstdio>
 #include <utility>
 
 namespace demi::editor {
@@ -16,6 +18,58 @@ constexpr const char *SpecializedWindow = "Specialized Document";
 constexpr const char *AnimationWindow = "Animation State Machine";
 
 } // namespace
+
+void installEditorLayoutScaleTracking(float &scale) {
+  ImGuiSettingsHandler handler;
+  handler.TypeName = "DemiLayoutScale";
+  handler.TypeHash = ImHashStr(handler.TypeName);
+  handler.UserData = &scale;
+  handler.ReadOpenFn = [](ImGuiContext *, ImGuiSettingsHandler *h,
+                          const char *) -> void * { return h->UserData; };
+  handler.ReadLineFn = [](ImGuiContext *, ImGuiSettingsHandler *, void *entry,
+                          const char *line) {
+    float value = 0;
+    if (std::sscanf(line, "Scale=%f", &value) == 1 && std::isfinite(value) &&
+        value >= 1 && value <= 10)
+      *static_cast<float *>(entry) = value;
+  };
+  handler.WriteAllFn = [](ImGuiContext *, ImGuiSettingsHandler *h,
+                          ImGuiTextBuffer *out) {
+    out->appendf("[DemiLayoutScale][Main]\nFormatVersion=1\nScale=%.6f\n\n",
+                 *static_cast<float *>(h->UserData));
+  };
+  ImGui::AddSettingsHandler(&handler);
+}
+
+void rescaleEditorLayout(const float factor) {
+  if (!std::isfinite(factor) || factor <= 0 || std::abs(factor - 1) < .001F)
+    return;
+  auto &context = *ImGui::GetCurrentContext();
+  // SizeRef drives fixed side panels. Scaling only the root leaves those
+  // panels twice as wide when entering a high-DPI display.
+  for (auto &entry : context.DockContext.Nodes.Data) {
+    auto *node = static_cast<ImGuiDockNode *>(entry.val_p);
+    if (!node)
+      continue;
+    node->Pos = {node->Pos.x * factor, node->Pos.y * factor};
+    node->Size = {node->Size.x * factor, node->Size.y * factor};
+    node->SizeRef = {node->SizeRef.x * factor, node->SizeRef.y * factor};
+  }
+  for (auto *window : context.Windows) {
+    if (window->Flags & ImGuiWindowFlags_NoSavedSettings)
+      continue;
+    window->Pos = {window->Pos.x * factor, window->Pos.y * factor};
+    window->Size = {window->Size.x * factor, window->Size.y * factor};
+    window->SizeFull = {window->SizeFull.x * factor,
+                        window->SizeFull.y * factor};
+  }
+  for (auto *settings = context.SettingsWindows.begin(); settings;
+       settings = context.SettingsWindows.next_chunk(settings)) {
+    settings->Pos = ImVec2ih(ImVec2(settings->Pos.x * factor, settings->Pos.y * factor));
+    settings->Size = ImVec2ih(ImVec2(settings->Size.x * factor, settings->Size.y * factor));
+  }
+  ImGui::MarkIniSettingsDirty();
+}
 
 EditorDockingWorkspace::EditorDockingWorkspace(
     std::filesystem::path editorDataRoot)

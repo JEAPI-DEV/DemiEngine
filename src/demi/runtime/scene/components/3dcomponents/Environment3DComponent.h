@@ -161,7 +161,7 @@ struct Environment3DComponent {
                     "shadows; the current renderer supports one directional "
                     "light per camera.")};
   static constexpr ComponentEditorMetadata editor{"Lighting",
-                                                  "3D Environment"};
+                                                  "Environment & Lighting"};
   static void parse(const nlohmann::json &json, Entity &entity);
   static bool serializeField(const Environment3DComponent &component,
                              std::string_view field, nlohmann::json &out);

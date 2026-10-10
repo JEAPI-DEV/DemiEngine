@@ -530,7 +530,7 @@ PropProbe.property_schema = {
 }
 function PropProbe:on_start()
   local Entity = require("demi.entity")
-  if self.entity_id == "ent_prop" and self.speed == 12.5 and self.enabled == true and self.tags[1] == "runner" and self.spawn.x == 3.0 and self.lives == 3 and self.role == "runner" and self.target == "ent_prop" and Entity.exists(self.target) then
+  if self.entity_id == "ent_prop" and self.speed == 12.5 and self.enabled == true and self.tags[1] == "runner" and self.spawn.x == 3.0 and self.lives == 3 and math.type(self.lives) == "integer" and self.role == "runner" and self.target == "ent_prop" and Entity.exists(self.target) then
     Save.set_string("test", "script_properties", "generic")
   end
 end

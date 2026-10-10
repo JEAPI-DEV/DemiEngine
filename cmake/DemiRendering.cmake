@@ -288,6 +288,7 @@ add_library(demi-render3d-bgfx STATIC
   src/demi/runtime/render/bgfx3d/DirectionalShadow3D.cpp
   src/demi/runtime/render/bgfx3d/ShadowCascadeLayout3D.cpp
   src/demi/runtime/render/bgfx3d/ParticleBillboardRenderer3D.cpp
+  src/demi/runtime/render/bgfx3d/SceneLightBuffer3D.cpp
   src/demi/runtime/render/bgfx3d/SceneLighting3D.cpp
   src/demi/runtime/render/bgfx3d/SceneVisibility3D.cpp
   src/demi/runtime/render/bgfx3d/WorldTextProjection3D.cpp

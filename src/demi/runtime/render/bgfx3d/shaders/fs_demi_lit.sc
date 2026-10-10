@@ -33,12 +33,14 @@ uniform vec4 u_viewPosition;
 // x metallic, y roughness; opacity is applied to u_tint alpha on the CPU.
 uniform vec4 u_metalRough;
 #ifndef DEMI_DIRECTIONAL_ONLY
-uniform vec4 u_pointPositionRange[4];
-uniform vec4 u_pointColorIntensity[4];
-uniform vec4 u_spotPositionRange[4];
-uniform vec4 u_spotDirectionOuter[4];
-uniform vec4 u_spotColorIntensity[4];
-uniform vec4 u_spotInner[4];
+SAMPLER2D(s_lightData, 2);
+// Number of records, texture width and height. Four RGBA texels per record.
+uniform vec4 u_lightData;
+vec4 readLightTexel(float index)
+{
+    vec2 coordinate = vec2(mod(index, u_lightData.y), floor(index / u_lightData.y));
+    return texture2DLod(s_lightData, (coordinate + vec2(0.5)) / u_lightData.yz, 0.0);
+}
 #endif
 
 // Base-color textures and authored colors use display sRGB. The 3D target is
@@ -210,43 +212,40 @@ void main()
                    directSurfaceLight(baseColor, normal, viewDirection,
                                       directionalDirection, metallic, roughness);
 #ifndef DEMI_DIRECTIONAL_ONLY
-    for (int ii = 0; ii < 4; ++ii)
+    if (u_metalRough.z < 0.5)
+    for (int ii = 0; ii < int(u_lightData.x); ++ii)
     {
-        if (u_pointPositionRange[ii].w > 0.0 &&
-            u_pointColorIntensity[ii].w > 0.0)
+        float offset = float(ii) * 4.0;
+        vec4 positionRange = readLightTexel(offset);
+        vec4 colorIntensity = readLightTexel(offset + 1.0);
+        vec4 directionOuter = readLightTexel(offset + 2.0);
+        vec4 coneType = readLightTexel(offset + 3.0);
+        vec3 lightDirection;
+        float attenuation = 1.0;
+        if (coneType.y > 1.5)
         {
-            vec3 toLight = u_pointPositionRange[ii].xyz - v_worldPos;
+            lightDirection = -directionOuter.xyz / max(length(directionOuter.xyz), 0.0001);
+        }
+        else
+        {
+            vec3 toLight = positionRange.xyz - v_worldPos;
             float distanceToLight = length(toLight);
-            vec3 lightDirection = toLight / max(distanceToLight, 0.0001);
-            float attenuation = max(1.0 - distanceToLight /
-                                    u_pointPositionRange[ii].w, 0.0);
-            vec3 irradiance = u_pointColorIntensity[ii].rgb *
-                              u_pointColorIntensity[ii].w * attenuation * attenuation;
-            lighting += irradiance * max(dot(normal, lightDirection), 0.0);
-            shadedColor += irradiance * directSurfaceLight(
-                baseColor, normal, viewDirection, lightDirection, metallic, roughness);
+            if (distanceToLight >= positionRange.w)
+                continue;
+            lightDirection = toLight / max(distanceToLight, 0.0001);
+            attenuation = max(1.0 - distanceToLight / max(positionRange.w, 0.0001), 0.0);
+            attenuation *= attenuation;
+            if (coneType.y > 0.5)
+            {
+                vec3 spotDirection = directionOuter.xyz / max(length(directionOuter.xyz), 0.0001);
+                float cone = dot(-lightDirection, spotDirection);
+                attenuation *= smoothstep(directionOuter.w, coneType.x, cone);
+            }
         }
-
-        if (u_spotPositionRange[ii].w > 0.0 &&
-            u_spotColorIntensity[ii].w > 0.0)
-        {
-            vec3 toSpot = u_spotPositionRange[ii].xyz - v_worldPos;
-            float distanceToSpot = length(toSpot);
-            vec3 lightDirection = toSpot / max(distanceToSpot, 0.0001);
-            vec3 spotVector = u_spotDirectionOuter[ii].xyz;
-            vec3 spotDirection = spotVector / max(length(spotVector), 0.0001);
-            float cone = dot(-lightDirection, spotDirection);
-            float coneAmount = smoothstep(u_spotDirectionOuter[ii].w,
-                                          u_spotInner[ii].x, cone);
-            float spotAttenuation = max(1.0 - distanceToSpot /
-                                        u_spotPositionRange[ii].w, 0.0);
-            vec3 irradiance = u_spotColorIntensity[ii].rgb *
-                              u_spotColorIntensity[ii].w * coneAmount *
-                              spotAttenuation * spotAttenuation;
-            lighting += irradiance * max(dot(normal, lightDirection), 0.0);
-            shadedColor += irradiance * directSurfaceLight(
-                baseColor, normal, viewDirection, lightDirection, metallic, roughness);
-        }
+        vec3 irradiance = colorIntensity.rgb * colorIntensity.w * attenuation;
+        lighting += irradiance * max(dot(normal, lightDirection), 0.0);
+        shadedColor += irradiance * directSurfaceLight(
+            baseColor, normal, viewDirection, lightDirection, metallic, roughness);
     }
 #endif
     if (u_metalRough.z > 0.5)

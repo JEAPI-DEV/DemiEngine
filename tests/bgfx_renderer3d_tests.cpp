@@ -145,11 +145,11 @@ public:
                               draw.uniforms.front().values[1],
                               draw.uniforms.front().values[2],
                               draw.uniforms.front().values[3]});
-    if (draw.uniforms.size() > 13)
-      bufferedMetalRough.push_back({draw.uniforms[13].values[0],
-                                  draw.uniforms[13].values[1],
-                                  draw.uniforms[13].values[2],
-                                  draw.uniforms[13].values[3]});
+    if (draw.uniforms.size() > 7)
+      bufferedMetalRough.push_back({draw.uniforms[7].values[0],
+                                  draw.uniforms[7].values[1],
+                                  draw.uniforms[7].values[2],
+                                  draw.uniforms[7].values[3]});
     bufferedTransforms.push_back(draw.transform);
     return target_.submit(draw, error);
   }
@@ -777,15 +777,21 @@ int main() {
   assert(std::any_of(reloaded.begin(), reloaded.end(), [](const auto &entry) {
     return entry.name == "Renderer3D.animation_rebuild" && entry.calls == 41;
   }));
+  World invalidShapeWorld;
+  invalidShapeWorld.entities.push_back(shape("editable", "unfinished_shape", {}));
+  assert(!renderer.renderFrame(invalidShapeWorld, frame, .016F, error));
+  invalidShapeWorld.entities.front().component<MeshRendererComponent>()->shape = "sphere";
+  error.clear();
+  assert(renderer.renderFrame(invalidShapeWorld, frame, .016F, error));
+  static_cast<void>(graphics.endFrame());
+
   auto lightingFrame = frame;
   for (int lightingCase = 0; lightingCase < 4; ++lightingCase) {
     lightingFrame.lightingOverride = SceneLighting3D{};
     if (lightingCase == 1) {
-      lightingFrame.lightingOverride->pointPositionRange[3] = 10;
-      lightingFrame.lightingOverride->pointColorIntensity[3] = 1;
+      lightingFrame.lightingOverride->lights.push_back({.range = 10});
     } else if (lightingCase == 2) {
-      lightingFrame.lightingOverride->spotPositionRange[15] = 10;
-      lightingFrame.lightingOverride->spotColorIntensity[15] = 1;
+      lightingFrame.lightingOverride->lights.push_back({.kind = SceneLightKind3D::Spot, .range = 10, .outerConeCos = .5F, .innerConeCos = .8F});
     }
     RuntimeProfiler::beginFrame();
     assert(renderer.renderFrame(world, lightingFrame, 0.016F, error));

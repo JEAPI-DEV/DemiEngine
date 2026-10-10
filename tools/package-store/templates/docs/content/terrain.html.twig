@@ -51,7 +51,7 @@
 </figure>
 <h3>Create materials and palettes in the editor</h3>
 <ol>
-  <li>Choose <strong>File → New document</strong> or <strong>Assets → Create</strong>, then <strong>Terrain Surface Material</strong>, <strong>Terrain Material Set</strong> or <strong>Terrain Asset Palette</strong>.</li>
+  <li>Choose <strong>File → Create</strong> or <strong>Assets → Create</strong>, then <strong>Terrain Surface Material</strong>, <strong>Terrain Material Set</strong> or <strong>Terrain Asset Palette</strong>.</li>
   <li>A surface material starts with native defaults. Material sets require an initial surface material; palettes require a Model3D asset or a prefab with a compatible asset. The dialog offers project references instead of inventing a sample binding.</li>
   <li>Open the resulting asset. Its Editor tab provides color/scalar controls, texture-map slots, material-role bindings or full placement-role settings, including scale, spacing, collision, LOD and biome filters.</li>
   <li>Use Undo/Redo for edits and Save to update source and reimport its metadata. Native asset dependencies are derived during import/reimport; existing manual declarations remain intact. Prefabs remain prefab references, not asset-ID dependencies.</li>
@@ -62,7 +62,7 @@
 <h3>Edit colors, biome rules and asset placement</h3>
 <ol>
   <li>On <strong>Biome Rules</strong>, press <strong>Colors and biome rules...</strong>. The settings overlay opens the terrain's shared biome definitions and rules.</li>
-  <li>Edit a color swatch or enter <strong>Hex RGBA</strong>, including alpha. Expand <strong>RGBA precision</strong> for normalized 0–1 numeric channels.</li>
+  <li>Edit a color swatch or enter <strong>Hex RGBA</strong>, including alpha. Use the colour picker's RGB/HSV/Hex options for numeric channels.</li>
   <li>Press <strong>Generate</strong> to apply the draft to the preview. Connect Biome Rules into the branch you publish if its rules should assign the surface's biomes.</li>
 </ol>
 <p><strong>Scatter Palette → Choose asset palette...</strong> opens placement settings, and <strong>Landform → Landscape shapes...</strong> opens landform definitions. These controls edit the same recipe as <strong>All landscape settings</strong>; they do not create separate copies of colors, rules or palettes. Recipe sections collapse independently. Ordinary Material assets render on terrain; typed PBR definitions and blended layers remain pending.</p>

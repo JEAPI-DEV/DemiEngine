@@ -32,7 +32,10 @@ struct EditorFieldEdit {
   nlohmann::json value;
 };
 
-enum class EditorEntityKind { Empty, Cube, Sphere, Cylinder, Plane };
+enum class EditorEntityKind {
+  Empty, Cube, Sphere, Cylinder, Plane, Camera, PointLight, SpotLight,
+  DirectionalLight, BasicLighting
+};
 
 // Owns the active authored scene JSON, its command history, and its
 // conflict-safe persistence. Structural mutations are built with reusable

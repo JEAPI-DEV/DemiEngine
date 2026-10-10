@@ -37,7 +37,8 @@ enum class EditorIcon {
   Modules,
   ZoomReset,
   Discard,
-  Settings
+  Settings,
+  Light
 };
 
 [[nodiscard]] bool editorIconButton(const char *id, EditorIcon icon,

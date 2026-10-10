@@ -385,3 +385,8 @@ set_tests_properties(demi-navigation-ground-package PROPERTIES LABELS "packages;
 if(TARGET demi-desktop-test-commands-tests)
   add_test(NAME demi-desktop-test-commands-tests COMMAND demi-desktop-test-commands-tests)
 endif()
+
+if(TARGET demi-managed-process-tests)
+  add_test(NAME demi-managed-process-tests COMMAND demi-managed-process-tests)
+  set_tests_properties(demi-managed-process-tests PROPERTIES TIMEOUT 20)
+endif()

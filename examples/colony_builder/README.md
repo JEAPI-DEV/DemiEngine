@@ -133,3 +133,11 @@ Inventory handles stock transfers, and Character Needs handles bounded meters an
 thresholds. The example owns the colony rules. It does not import package-private
 modules. Lua uses two-space indentation, separate statements and expanded control
 flow; `.stylua.toml` records the format. Run StyLua on these modules when editing.
+
+## Lighting authoring probe
+
+Open `scenes/lighting_lab.scene.json` in the editor to inspect basic lighting,
+a floor and a reusable `prefabs/desk_lamp.prefab.json` point light. Both were
+created through the editor. The lamp includes a small sphere and a material
+override; duplicate its instance and move it to experiment with local lighting.
+The colony remains the project entry scene.

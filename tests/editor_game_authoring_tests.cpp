@@ -211,7 +211,7 @@ return Player
     const auto *droppedUiPrefab = workspace.hudDocument()->authoredNode(droppedPrefabId);
     require(droppedUiPrefab && droppedUiPrefab->at("prefab") ==
                 "ui-prefab://widgets/start" &&
-                droppedUiPrefab->at("overrides").at("position") ==
+                droppedUiPrefab->at("overrides").at("$root").at("position") ==
                     nlohmann::json({360, 220}),
             "UI prefab drop lost its stable reference or position override");
     require(workspace.undo(error), error);
@@ -221,13 +221,12 @@ return Player
     const auto beforeGeneratedTargetDrop = workspace.hudDocument()->json();
     require(workspace.placeHudModule(*buttonModule, {410, 260}, droppedPrefabId,
                                      error), error);
-    const std::string siblingId(workspace.selectedHudNodeId());
-    require(std::ranges::any_of(
-                workspace.hudDocument()->json().at("root").at("children"),
-                [&](const auto &child) {
-                  return child.value("id", "") == siblingId;
-                }),
-            "Drop on prefab-generated content did not use its authored parent");
+    const std::string childId(workspace.selectedHudNodeId());
+    const auto &previewNodes = workspace.hudDocument()->preview().nodes;
+    require(std::ranges::any_of(previewNodes, [&](const auto &node) {
+              return node.id == childId && node.parent == droppedPrefabId;
+            }),
+            "Drop into a prefab panel did not preserve its chosen parent");
     require(workspace.undo(error) &&
                 workspace.hudDocument()->json() == beforeGeneratedTargetDrop,
             "Generated-content target drop did not undo in one step");

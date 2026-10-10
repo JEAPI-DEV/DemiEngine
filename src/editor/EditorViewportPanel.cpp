@@ -1,4 +1,9 @@
 #include "editor/EditorViewportPanel.h"
+#include "demi/runtime/scene/Transform3DHierarchy.h"
+#include "demi/runtime/scene/components/3dcomponents/DirectionalLightComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/PointLightComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/SpotLightComponent.h"
+#include "editor/EditorChrome.h"
 
 #include "editor/EditorDragDropPayloads.h"
 #include "editor/EditorHudCanvas.h"
@@ -264,6 +269,43 @@ bool drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
         (io.MousePos.x - canvasMin.x) / std::max(hudScaleX, 0.001F),
         (io.MousePos.y - canvasMin.y) / std::max(hudScaleY, 0.001F)};
     bool hudConsumed = false;
+    if (!is2D && workspace.sceneView().showLights) {
+      for (const auto &light : workspace.project().world.entities) {
+        if (!light.enabled ||
+            !(light.hasComponent<runtime::PointLightComponent>() ||
+              light.hasComponent<runtime::SpotLightComponent>() ||
+              light.hasComponent<runtime::DirectionalLightComponent>()))
+          continue;
+        const auto transform =
+            runtime::resolveWorldTransform3D(workspace.project().world, light);
+        const auto point =
+            transform ? projectScenePoint3D(workspace.sceneView().camera(),
+                                            transform->position,
+                                            {canvasWidth, canvasHeight})
+                      : std::nullopt;
+        if (!point)
+          continue;
+        const ImVec2 centre{canvasMin.x + point->x,
+                            canvasMin.y + point->y - 20};
+        if (centre.x < canvasMin.x || centre.x > canvasMax.x ||
+            centre.y < canvasMin.y || centre.y > canvasMax.y)
+          continue;
+        drawEditorGlyph(*draw, EditorIcon::Light, centre,
+                        IM_COL32(255, 202, 104, 255));
+        if (hovered && !io.KeyAlt &&
+            std::hypot(io.MousePos.x - centre.x, io.MousePos.y - centre.y) <
+                11) {
+          ImGui::SetTooltip("%s", light.name.c_str());
+          if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+            if (io.KeyCtrl)
+              workspace.toggleEntitySelection(light.id);
+            else
+              workspace.selectEntity(light.id);
+            hudConsumed = true;
+          }
+        }
+      }
+    }
     const runtime::ui::UiNode *selectedHud = workspace.selectedHudNode();
     if (hudOnly && hovered && !io.KeyAlt &&
         ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
@@ -443,9 +485,11 @@ bool drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
                          canvasMin.y + line.start.y};
       const ImVec2 end{canvasMin.x + line.end.x, canvasMin.y + line.end.y};
       draw->AddLine(start, end, color(line.axis), 4.0F);
-      if (drawnOperation == EditorGizmoOperation::Rotate)
-        draw->AddCircle(end, 6.0F, color(line.axis), 16, 3.0F);
-      else if (drawnOperation == EditorGizmoOperation::Scale)
+      if (drawnOperation == EditorGizmoOperation::Rotate) {
+        if (is2D)
+          draw->AddCircle(end, 6.0F, color(line.axis), 16, 3.0F);
+        continue;
+      } else if (drawnOperation == EditorGizmoOperation::Scale)
         draw->AddRectFilled({end.x - 5.0F, end.y - 5.0F},
                             {end.x + 5.0F, end.y + 5.0F}, color(line.axis));
       else {
@@ -491,15 +535,7 @@ bool drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
       draw->AddText({rectMin.x, rectMin.y - 19.0F},
                     IM_COL32(210, 194, 255, 255), hudNode->id.c_str());
     }
-    if (hovered)
-      ImGui::SetTooltip(
-          hudOnly ? "Click to select | Ctrl+click toggles selection | Drag to "
-                    "move | Drag the "
-                    "corner handle to resize"
-          : is2D  ? "Click select (repeat to cycle overlaps) | Middle pan | "
-                    "Wheel zoom | F frame | Shift bypass snap"
-                  : "Alt+Left orbit | Middle pan | Wheel zoom | "
-                    "Right+WASDQE fly | F frame | Shift bypass snap");
+
   } else {
     if (is2D)
       workspace.sceneView2D().update({});

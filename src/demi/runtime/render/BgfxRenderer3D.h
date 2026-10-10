@@ -12,6 +12,7 @@
 #include "demi/runtime/render/bgfx3d/BgfxCameraFrame3D.h"
 #include "demi/runtime/render/bgfx3d/DeformedMeshCache3D.h"
 #include "demi/runtime/render/bgfx3d/DirectionalShadow3D.h"
+#include "demi/runtime/render/bgfx3d/SceneLightBuffer3D.h"
 #include "demi/runtime/render/bgfx3d/GpuMesh3D.h"
 #include "demi/runtime/render/bgfx3d/ReliefMeshCache3D.h"
 #include "demi/runtime/render/bgfx3d/GpuSkinnedMesh3D.h"
@@ -104,6 +105,7 @@ private:
 
   GpuResources &resources_;
   DirectionalShadow3D shadows_;
+  SceneLightBuffer3D lightBuffer_;
   RenderCommands &commands_;
   PrimitiveCanvas3D primitives_;
   PostProcessRenderer3D postProcess_;
@@ -128,12 +130,6 @@ private:
   UniformHandle lightDirectionUniform_;
   UniformHandle lightColorUniform_;
   UniformHandle ambientColorUniform_;
-  UniformHandle pointPositionRangeUniform_;
-  UniformHandle pointColorIntensityUniform_;
-  UniformHandle spotPositionRangeUniform_;
-  UniformHandle spotDirectionOuterUniform_;
-  UniformHandle spotColorIntensityUniform_;
-  UniformHandle spotInnerUniform_;
   TextureHandle whiteTexture_;
   std::unordered_map<std::string, std::unique_ptr<CachedMesh>> dynamicMeshes_;
   std::unordered_map<std::string, std::unique_ptr<CachedMesh>> primitiveMeshes_;

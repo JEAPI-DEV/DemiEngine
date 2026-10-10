@@ -27,7 +27,8 @@ std::string colliderIdForModel(const std::string_view modelId) {
 void drawAssetChoice(const char *label, const std::vector<std::string> &choices,
                      std::string &selected) {
   ImGui::SetNextItemWidth(-1.0F);
-  if (!ImGui::BeginCombo(label, selected.empty() ? "Choose an asset" : selected.c_str()))
+  if (!ImGui::BeginCombo(label, selected.empty() ? "Choose an asset"
+                                                 : selected.c_str()))
     return;
   for (const std::string &id : choices)
     if (ImGui::Selectable(id.c_str(), selected == id))
@@ -90,41 +91,55 @@ bool EditorAssetDialogs::openEditGroup(const std::filesystem::path &path,
 
 void EditorAssetDialogs::draw(EditorWorkspace &workspace, std::string &notice) {
   if (showNewSource_) {
-    prepareEditorDialog({.preferredEm = {48, 22}, .minimumEm = {30, 16}});
-    if (ImGui::Begin("New document", &showNewSource_,
-                     ImGuiWindowFlags_NoDocking)) {
-      ImGui::TextWrapped("Choose a name for the new document.");
+    const auto description = editorSourceDescription(sourceKind_);
+    const std::string title =
+        "Create " + std::string(description.label) + "###CreateSource";
+    const auto *viewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(viewport->GetWorkCenter(), ImGuiCond_Appearing,
+                            {0.5F, 0.5F});
+    const float width =
+        std::min(40.0F * ImGui::GetFontSize(), viewport->WorkSize.x - 32.0F);
+    ImGui::SetNextWindowSizeConstraints({width, 0},
+                                        {width, viewport->WorkSize.y - 32.0F});
+    if (ImGui::Begin(title.c_str(), &showNewSource_,
+                     ImGuiWindowFlags_NoDocking |
+                         ImGuiWindowFlags_NoSavedSettings |
+                         ImGuiWindowFlags_NoCollapse |
+                         ImGuiWindowFlags_AlwaysAutoResize)) {
       if (sourceKind_ == EditorSourceKind::PrefabFromSelection) {
-        ImGui::TextWrapped("Create a reusable prefab from hierarchy '%s'.",
-                           sourceSelection_.c_str());
-        ImGui::Checkbox("Replace selection with a prefab instance",
+        const auto *source = workspace.sceneDocument().entity(sourceSelection_);
+        const auto name = source ? source->value("name", sourceSelection_) : sourceSelection_;
+        ImGui::TextWrapped("From: %s", name.c_str());
+        ImGui::Checkbox("Replace selection with a linked instance",
                         &sourceAssetOptions_.replaceSelectionWithPrefab);
-        ImGui::TextWrapped(
-            sourceAssetOptions_.replaceSelectionWithPrefab
-                ? "Keep entity IDs and placement. Prefab edits update this "
-                  "instance. Undo restores the original hierarchy; the prefab "
-                  "file remains."
-                : "Create a copy and leave the original hierarchy unlinked.");
+        if (ImGui::IsItemHovered())
+          ImGui::SetTooltip("Keeps entity IDs and placement. Undo restores the original hierarchy.\n"
+                            "Disable to save a copy without linking the scene objects.");
       }
       if (sourceKind_ == EditorSourceKind::TerrainFromSelection)
         ImGui::TextWrapped("Move the selected terrain's editable recipe into "
                            "a Terrain asset. The scene keeps a reference; "
                            "Undo restores the inline recipe.");
-      if (!sourceDirectory_.empty())
-        ImGui::TextDisabled("Create in: %s",
-                            sourceDirectory_.generic_string().c_str());
-      ImGui::TextDisabled(
-          "No extension needed. Use chapter/level_01 for subfolders.");
-      ImGui::Spacing();
       ImGui::TextUnformatted("Name");
       ImGui::SetNextItemWidth(-1.0F);
       if (focusSourceName_) {
         ImGui::SetKeyboardFocusHere();
         focusSourceName_ = false;
       }
-      const bool entered = ImGui::InputText(
-          "##source-name", sourceName_.data(), sourceName_.size(),
-          ImGuiInputTextFlags_EnterReturnsTrue);
+      const bool entered = ImGui::InputTextWithHint(
+          "##source-name", "Name without extension", sourceName_.data(),
+          sourceName_.size(), ImGuiInputTextFlags_EnterReturnsTrue);
+      if (ImGui::IsItemEdited())
+        sourceError_.clear();
+      const auto preview = editorSourceRelativePath(
+          sourceKind_, sourceName_[0] ? sourceName_.data() : "<name>",
+          sourceDirectory_);
+      ImGui::Spacing();
+      ImGui::TextDisabled("Destination");
+      ImGui::TextWrapped("%s", preview.generic_string().c_str());
+      ImGui::TextDisabled(
+          "Extension added automatically. Use / for a subfolder.");
+      ImGui::Separator();
       const bool needsReference =
           sourceKind_ == EditorSourceKind::TerrainMaterialSet ||
           sourceKind_ == EditorSourceKind::TerrainPalette;
@@ -139,9 +154,8 @@ void EditorAssetDialogs::draw(EditorWorkspace &workspace, std::string &notice) {
                                            ? "(No prefab)"
                                            : sourceAssetOptions_.initialPrefab;
           drawAssetChoice("Geometry prefab", prefabs, selectedPrefab);
-          const std::string newPrefab = selectedPrefab == "(No prefab)"
-                                            ? ""
-                                            : selectedPrefab;
+          const std::string newPrefab =
+              selectedPrefab == "(No prefab)" ? "" : selectedPrefab;
           if (newPrefab != sourceAssetOptions_.initialPrefab) {
             sourceAssetOptions_.initialPrefab = newPrefab;
             sourceAssetOptions_.initialAsset.clear();
@@ -166,14 +180,17 @@ void EditorAssetDialogs::draw(EditorWorkspace &workspace, std::string &notice) {
         }
       }
       ImGui::Spacing();
-      const bool canCreate = sourceName_[0] != '\0' &&
-                             (!needsReference ||
-                              !sourceAssetOptions_.initialAsset.empty());
+      const bool canCreate =
+          sourceName_[0] != '\0' &&
+          (!needsReference || !sourceAssetOptions_.initialAsset.empty());
       ImGui::BeginDisabled(!canCreate);
+      ImGui::PushStyleColor(ImGuiCol_Button,
+                            ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive));
       const bool create =
           ImGui::Button(sourceKind_ == EditorSourceKind::PrefabFromSelection
                             ? "Create prefab"
                             : "Create and open");
+      ImGui::PopStyleColor();
       ImGui::EndDisabled();
       if ((create || entered) && canCreate) {
         std::filesystem::path created;
@@ -192,7 +209,8 @@ void EditorAssetDialogs::draw(EditorWorkspace &workspace, std::string &notice) {
         }
       }
       ImGui::SameLine();
-      if (ImGui::Button("Cancel"))
+      if (ImGui::Button("Cancel") ||
+          (ImGui::IsWindowFocused() && ImGui::IsKeyPressed(ImGuiKey_Escape)))
         showNewSource_ = false;
       if (!sourceError_.empty())
         ImGui::TextWrapped("%s", sourceError_.c_str());

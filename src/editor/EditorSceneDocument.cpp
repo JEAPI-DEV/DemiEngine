@@ -630,6 +630,11 @@ bool EditorSceneDocument::createEntity(std::string &error,
   switch (kind) {
   case EditorEntityKind::Empty:
     break;
+  case EditorEntityKind::Camera: label = "Camera"; break;
+  case EditorEntityKind::PointLight: label = "Point Light"; break;
+  case EditorEntityKind::SpotLight: label = "Spot Light"; break;
+  case EditorEntityKind::DirectionalLight: label = "Sun Light"; break;
+  case EditorEntityKind::BasicLighting: label = "Basic Lighting"; break;
   case EditorEntityKind::Cube:
     label = "Cube";
     shape = "cube";
@@ -651,6 +656,21 @@ bool EditorSceneDocument::createEntity(std::string &error,
   nlohmann::json entity{{"id", id},
                         {"name", label},
                         {"components", nlohmann::json::object()}};
+  auto &components = entity["components"];
+  if (kind == EditorEntityKind::Camera)
+    components["Camera3D"] = nlohmann::json::object();
+  if (kind == EditorEntityKind::PointLight)
+    components["PointLight"] = nlohmann::json::object();
+  if (kind == EditorEntityKind::SpotLight)
+    components["SpotLight"] = nlohmann::json::object();
+  if (kind == EditorEntityKind::DirectionalLight || kind == EditorEntityKind::BasicLighting)
+    components["DirectionalLight"] = {{"casts_shadows", true}};
+  if (kind == EditorEntityKind::BasicLighting)
+    components["Environment3D"] = nlohmann::json::object();
+  if (kind == EditorEntityKind::Camera || kind == EditorEntityKind::PointLight ||
+      kind == EditorEntityKind::SpotLight || kind == EditorEntityKind::DirectionalLight ||
+      kind == EditorEntityKind::BasicLighting)
+    components["Transform3D"] = nlohmann::json::object();
   if (shape != nullptr) {
     entity["components"]["MeshRenderer"] =
         kind == EditorEntityKind::Cube ? nlohmann::json::object()

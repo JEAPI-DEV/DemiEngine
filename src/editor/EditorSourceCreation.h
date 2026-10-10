@@ -22,6 +22,21 @@ enum class EditorSourceKind {
   TerrainMaterialSet,
   TerrainPalette
 };
+struct EditorSourceDescription {
+  std::string_view label;
+  std::string_view folder;
+  std::string_view suffix;
+  bool assetDirectory = false;
+};
+[[nodiscard]] EditorSourceDescription
+editorSourceDescription(EditorSourceKind kind);
+[[nodiscard]] std::filesystem::path
+editorSourceDirectory(EditorSourceKind kind,
+                      const std::filesystem::path &selectedFolder);
+[[nodiscard]] std::filesystem::path
+editorSourceRelativePath(EditorSourceKind kind, std::string_view name,
+                         const std::filesystem::path &directory = {});
+
 struct EditorSourceAssetOptions {
   bool replaceSelectionWithPrefab = true;
   std::string initialRole;
