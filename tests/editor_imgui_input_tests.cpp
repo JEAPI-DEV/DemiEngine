@@ -35,6 +35,25 @@ int main() {
   io.IniFilename = nullptr;
   io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
 
+  demi::editor::EditorPointerMotion motion;
+  demi::runtime::InputState captured;
+  captured.mousePosition = {635, 240};
+  auto cursor = motion.update(captured, false);
+  assert(cursor.x == 635);
+  // Absolute X stops at the edge; raw deltas continue for a complete turn.
+  captured.mousePosition = {639, 240};
+  captured.mouseDelta = {20, 0};
+  for (int frame = 0; frame < 100; ++frame)
+    cursor = motion.update(captured, true);
+  assert(cursor.x == 2635 && cursor.y == 240);
+  captured.mouseDelta = {0, 0};
+  assert(motion.update(captured, true).x == 2635);
+  captured.mousePosition = {100, 120};
+  assert(motion.update(captured, false).x == 100);
+  captured.mouseDelta = {-4, 3};
+  cursor = motion.update(captured, true);
+  assert(cursor.x == 96 && cursor.y == 123);
+
   demi::runtime::InputState input;
   input.mouseScroll = {0.25F, -1.5F};
   input.keysPressed.insert("n");

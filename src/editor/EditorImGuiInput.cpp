@@ -9,6 +9,17 @@
 #include <unordered_map>
 
 namespace demi::editor {
+runtime::Vec2 EditorPointerMotion::update(const runtime::InputState &input,
+                                          bool relative) {
+  if (!initialized_ || !relative)
+    position_ = input.mousePosition;
+  else {
+    position_.x += input.mouseDelta.x;
+    position_.y += input.mouseDelta.y;
+  }
+  initialized_ = true;
+  return position_;
+}
 namespace {
 
 ImGuiKey imguiKey(const std::string_view key) {

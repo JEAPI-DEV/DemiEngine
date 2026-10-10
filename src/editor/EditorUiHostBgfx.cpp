@@ -203,6 +203,8 @@ public:
       ImGui::GetIO().ClearInputMouse();
     }
     const auto &editorInput = routed.input;
+    const auto pointer = pointerMotion_.update(
+        editorInput, mouseCaptured_ && frame.focused && !routed.exclusive);
     std::uint8_t buttons = 0;
     if (editorInput.mouseButtonsDown.contains("left"))
       buttons |= IMGUI_MBUT_LEFT;
@@ -217,12 +219,10 @@ public:
     ImGui::GetIO().AddFocusEvent(frame.focused);
     ImGui::GetIO().DisplayFramebufferScale = {uiScale_, uiScale_};
     imguiBeginFrame(
-        routed.exclusive
-            ? INT32_MIN
-            : static_cast<std::int32_t>(editorInput.mousePosition.x / uiScale_),
-        routed.exclusive
-            ? INT32_MIN
-            : static_cast<std::int32_t>(editorInput.mousePosition.y / uiScale_),
+        routed.exclusive ? INT32_MIN
+                         : static_cast<std::int32_t>(pointer.x / uiScale_),
+        routed.exclusive ? INT32_MIN
+                         : static_cast<std::int32_t>(pointer.y / uiScale_),
         buttons, 0, static_cast<std::uint16_t>(std::clamp(width(), 1, 65535)),
         static_cast<std::uint16_t>(std::clamp(height(), 1, 65535)), -1,
         ImGuiViewId);
@@ -499,6 +499,7 @@ private:
   runtime::render::TextureHandle brandingTexture_;
   EditorGpuTimingSample gpuTimingSample_;
   InputState input_;
+  EditorPointerMotion pointerMotion_;
   std::string imguiIniPath_;
   std::string workspaceDiagnostic_;
   bool initialized_ = false;

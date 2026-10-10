@@ -492,3 +492,17 @@ cycles. Normal MSAA, threading and resource release were retained. Windows and
 Android hardware qualification remains pending. The independent startup
 legacy-device-layer validation warning is documented in the investigation;
 it is not claimed fixed by these changes.
+
+## Captured viewport rotation correction (2026-10-10)
+
+Right-button rotation could stop while native relative capture was active because
+ImGui received absolute cursor coordinates. The editor input adapter now maintains
+a virtual pointer from SDL relative deltas during authored-view capture, then
+returns to absolute coordinates on release or focus loss. This also keeps captured
+pan and drag deltas independent of cursor boundaries. Game View retains its
+separate exclusive input ownership. No platform-specific cursor warp was added.
+
+The ImGui input test covers sustained motion with frozen absolute coordinates,
+zero-motion frames, release and recapture. Native event tracing confirmed relative
+deltas reached the viewport; the user confirmed continuous rotation in the rebuilt
+editor. Temporary tracing was removed after verification.
