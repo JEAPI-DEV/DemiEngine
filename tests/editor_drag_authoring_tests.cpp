@@ -309,6 +309,11 @@ void checkElevatedTerrainPlacement(const fs::path &prefabPath) {
   require(overrides->at("body").at("components").at("Transform3D")
               .at("position")[1] == 6,
           "Prefab drop lost its source height over elevated terrain");
+  const auto rounded = demi::editor::prefabPlacementOverrides(
+      prefabPath, demi::runtime::Vec3{5.123456F, 5.234567F, 5.345678F}, error);
+  require(rounded && rounded->at("body").at("components").at("Transform3D")
+                         .at("position") == json({5.123, 6.235, 5.346}),
+          "Prefab placement retained floating point noise");
 }
 
 void checkParentedPlacement(EditorWorkspace &workspace) {

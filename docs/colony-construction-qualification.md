@@ -54,3 +54,11 @@ This does not qualify Windows/Android or the full engine test suite. Constructio
 is immediate and session-local. Physical utility connections, hauling/build jobs,
 autonomous colonists and persistence remain future gameplay work. Original starter
 assets remain in the project; the colony scene is its entry point.
+
+### Standalone resolution correction (2026-10-10)
+
+The earlier standalone test commands passed `--window-size` to `test linux`,
+which did not forward that option. Those passes establish gameplay behavior,
+but do not establish the claimed standalone resolution. The maximized editor
+captures remain valid. The wrapper now forwards the option and has a focused
+child-process argument regression test.

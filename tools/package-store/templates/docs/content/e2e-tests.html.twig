@@ -148,3 +148,7 @@ return { tests = tests }</code></pre>
 </ul>
 <p>When a test fails in the field, capture it as an input recording and replay it locally — see <a href="{{ path('docs_page', {slug: 'replay-and-profiler'}) }}">Replay &amp; profiler</a>.</p>
 <p>Headless E2E runs advance the test runner and synthetic HUD input using the fixed simulation step. They finish with a pass/fail summary and a failing exit status for failed or unfinished tests. Without <code>--max-frames</code>, the suite has a 120-second simulated-time budget; ordinary headless smoke runs still default to one frame. An explicit frame limit that interrupts a test reports failure rather than silently skipping it.</p>
+
+<p>Desktop tests forward <code>--window-size WIDTHxHEIGHT</code>, <code>--max-frames N</code> and <code>--profile-frames PATH</code> to the runtime. <code>--timeout</code> limits wall-clock seconds; <code>--max-frames</code> separately bounds simulation frames. Longer hauling or simulation tests may need both budgets increased.</p>
+<pre><code>DEMI_HEADLESS=1 demi test linux --project examples/colony_builder --timeout 180 --max-frames 24000
+demi test linux --project examples/colony_builder --window-size 5120x2806 --timeout 300 --max-frames 24000</code></pre>

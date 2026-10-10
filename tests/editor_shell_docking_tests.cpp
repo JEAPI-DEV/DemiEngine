@@ -1,6 +1,7 @@
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/terrain/TerrainGraph.h"
 #include "demi/runtime/terrain/TerrainRecipe.h"
+#include "editor/EditorDragDropPayloads.h"
 #include "editor/EditorRecoveryStore.h"
 #include "editor/EditorShell.h"
 #include "editor/EditorWorkspace.h"
@@ -12,6 +13,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <optional>
 #include <sstream>
@@ -143,10 +145,13 @@ public:
 
   ~ImGuiFixture() { ImGui::DestroyContext(); }
 
-  void frame(EditorShell &shell, const char *focus = nullptr) {
+  void frame(EditorShell &shell, const char *focus = nullptr,
+             const std::function<void()> &beforeDraw = {}) {
     ImGui::NewFrame();
     if (focus)
       ImGui::SetWindowFocus(focus);
+    if (beforeDraw)
+      beforeDraw();
     shell.draw(1600, 1000, "Synthetic ImGui");
     ImGui::Render();
     const auto *context = ImGui::GetCurrentContext();
@@ -351,6 +356,41 @@ void checkIndependentViews(ImGuiFixture &imgui, EditorShell &shell,
       imgui.frame(shell, tool);
     require(active("UI Palette"), "HUD tool focus hid its contextual palette");
   }
+  // Dragging out of Assets does not focus the target ImGui window. The drop
+  // itself must select the Scene document instead of retaining HUD Inspector.
+  const auto dropSource = project / "prefabs/drop.prefab.json";
+  writeJson(
+      dropSource,
+      {{"format_version", 1},
+       {"id", "prefab://drop"},
+       {"entities",
+        Json::array({{{"id", "body"},
+                      {"components", {{"Transform2D", Json::object()}}}}})}});
+  const auto payload = dropSource.string();
+  const auto dropArea = scene.area;
+  auto &io = ImGui::GetIO();
+  for (bool held : {true, true, false}) {
+    io.AddMousePosEvent(dropArea.x + dropArea.width / 2.0F,
+                        dropArea.y + dropArea.height / 2.0F);
+    io.AddMouseButtonEvent(ImGuiMouseButton_Left, held);
+    imgui.frame(shell, "Assets", [&] {
+      require(
+          ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceExtern |
+                                     ImGuiDragDropFlags_SourceNoPreviewTooltip),
+          "External prefab drag unavailable");
+      ImGui::SetDragDropPayload(EditorPrefabSourcePayload, payload.c_str(),
+                                payload.size() + 1);
+      ImGui::EndDragDropSource();
+    });
+  }
+  imgui.frame(shell, "Assets");
+  require(!shell.showingHudView() && !active("UI Palette"),
+          "Delivered Scene drop retained HUD focus");
+  require(scene.workspace->selectedEntityId() != "player",
+          "Placed prefab was not selected");
+  require(scene.workspace->undo(error), error);
+  for (int frame = 0; frame < 3; ++frame)
+    imgui.frame(shell, "HUD");
   for (int frame = 0; frame < 3; ++frame)
     imgui.frame(shell, "Game View");
   require(!active("UI Palette"), "Idle Game View exposed the HUD palette");

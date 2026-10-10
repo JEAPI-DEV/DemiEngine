@@ -59,7 +59,7 @@ void drawOrientationGizmo(ImDrawList &draw, const ImVec2 center,
 
 } // namespace
 
-void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
+bool drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
                         const ImVec2 size, const std::uint16_t textureIndex,
                         EditorViewportArea &viewportArea,
                         EditorHudViewportState &hudState, const bool hudOnly,
@@ -71,8 +71,9 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
                             ImGuiWindowFlags_NoBackground)) {
     viewportArea = {};
     ImGui::End();
-    return;
+    return false;
   }
+  bool activated = false;
   const bool is2D = hudOnly || workspace.viewDimension() ==
                                    EditorSceneViewDimension::TwoDimensional;
   const ImVec2 canvasMin = ImGui::GetCursorScreenPos();
@@ -108,6 +109,10 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
     }
     // Capture the canvas item's hover state before drag/drop and overlays.
     canvasHovered = ImGui::IsItemHovered();
+    activated =
+        canvasHovered && (ImGui::IsMouseClicked(ImGuiMouseButton_Left) ||
+                          ImGui::IsMouseClicked(ImGuiMouseButton_Right) ||
+                          ImGui::IsMouseClicked(ImGuiMouseButton_Middle));
     const bool acceptsPrefabDrop =
         !hudOnly && !workspace.isPrefabDocument() &&
         workspace.activeDocument() == EditorWorkspaceDocument::Scene;
@@ -121,6 +126,7 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
                   ? ImGui::AcceptDragDropPayload(EditorPrefabSourcePayload)
                   : nullptr;
           payload != nullptr && payload->IsDelivery()) {
+        activated = true;
         const auto *data = static_cast<const char *>(payload->Data);
         const bool valid = data != nullptr && payload->DataSize > 1 &&
                            data[payload->DataSize - 1] == '\0';
@@ -149,6 +155,7 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
                   ? ImGui::AcceptDragDropPayload(EditorEntityCreationPayload)
                   : nullptr;
           payload != nullptr && payload->IsDelivery()) {
+        activated = true;
         if (is2D || payload->Data == nullptr ||
             payload->DataSize != sizeof(EditorEntityKind)) {
           notice = "The 3D creation drag payload is invalid for this view.";
@@ -171,6 +178,7 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
       if (const ImGuiPayload *payload =
               ImGui::AcceptDragDropPayload(EditorTerrainAssetPayload);
           payload != nullptr && payload->IsDelivery()) {
+        activated = true;
         const auto *data = static_cast<const char *>(payload->Data);
         if (data == nullptr || payload->DataSize < 2 ||
             data[payload->DataSize - 1] != '\0') {
@@ -197,6 +205,7 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
       if (const ImGuiPayload *payload =
               ImGui::AcceptDragDropPayload(EditorModulePayload);
           payload != nullptr && payload->IsDelivery()) {
+        activated = true;
         const auto *data = static_cast<const char *>(payload->Data);
         if (data == nullptr || payload->DataSize < 2 ||
             data[payload->DataSize - 1] != '\0') {
@@ -535,6 +544,7 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
   }
   if (!embedded)
     ImGui::End();
+  return activated;
 }
 
 } // namespace demi::editor

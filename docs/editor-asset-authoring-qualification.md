@@ -59,3 +59,18 @@ interactive desktop drag/drop or Android behavior.
 Terrain material-layer rendering, smooth blending, texture residency, visible
 water and landscape art quality remain open in `terrain-plan.md`. Authoring
 these definitions does not mean terrain meshes render their PBR properties.
+
+## Package refresh and drop context (2026-10-10)
+
+A live package upgrade reproduced an editor abort in packageContentHash through
+filesystem::relative while an installed directory was being replaced. Hash labels
+now use the already-constructed relative package paths, and the shared package
+loader converts transient filesystem failures into diagnostics. A 1,000-scan
+concurrent directory-swap test passes, as does a native reinstall with the editor
+open. This does not weaken manifest checks or publish partial package files.
+
+Dropping a prefab into Viewport while HUD was the active document also left the
+Inspector on HUD. The viewport now reports activation/delivered drops to the
+shell, which follows the receiving document and its selection. A real ImGui drag
+fixture verifies Scene focus, selection, HUD isolation and Undo. Native depot
+placement and subsequent selection were checked at full editor resolution.

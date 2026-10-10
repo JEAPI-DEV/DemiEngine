@@ -21,7 +21,8 @@ struct EditorHudViewportState {
   runtime::Vec2 startSize{};
 };
 
-void drawEditorViewport(EditorWorkspace &workspace, ImVec2 position,
+// Returns whether this view was activated or received a delivered drop.
+bool drawEditorViewport(EditorWorkspace &workspace, ImVec2 position,
                         ImVec2 size, std::uint16_t textureIndex,
                         EditorViewportArea &viewportArea,
                         EditorHudViewportState &hudState, bool hudOnly,

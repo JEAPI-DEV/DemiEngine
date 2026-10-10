@@ -381,3 +381,7 @@ add_test(NAME demi-hud-inspect-cli-tests
 add_test(NAME demi-navigation-ground-package
   COMMAND demi package test ${CMAKE_SOURCE_DIR}/packages/sources/demi.navigation.ground)
 set_tests_properties(demi-navigation-ground-package PROPERTIES LABELS "packages;navigation")
+
+if(TARGET demi-desktop-test-commands-tests)
+  add_test(NAME demi-desktop-test-commands-tests COMMAND demi-desktop-test-commands-tests)
+endif()

@@ -812,3 +812,9 @@
       endif()
     endif()
   endforeach()
+
+if(UNIX)
+  add_executable(demi-desktop-test-commands-tests
+    tests/desktop_test_commands_tests.cpp src/cli/TestCommands.cpp)
+  target_link_libraries(demi-desktop-test-commands-tests PRIVATE demi-cli-support)
+endif()

@@ -81,3 +81,11 @@ release 20261010-122353-ground-agents. Composer checks, all 105 Twig templates,
 production cache warmup and health passed. Hosted Ground and Orbit archives match
 the tested staging hashes, and the colony installs both from the public registry
 with its committed lockfile. Previously published packages were not overwritten.
+
+### Standalone resolution correction (2026-10-10)
+
+The earlier standalone test commands passed `--window-size` to `test linux`,
+which did not forward that option. Those passes establish gameplay behavior,
+but do not establish the claimed standalone resolution. The maximized editor
+captures remain valid. The wrapper now forwards the option and has a focused
+child-process argument regression test.

@@ -83,8 +83,9 @@ void EditorShell::drawDocumentViews(ImVec2 position, ImVec2 size) {
       }
       auto &view = authoringViews_[static_cast<std::size_t>(kind)];
       view.workspace = document;
-      drawEditorViewport(*document, {}, {}, view.texture, view.area, view.hud,
-                         hud, notice_, true);
+      if (drawEditorViewport(*document, {}, {}, view.texture, view.area,
+                             view.hud, hud, notice_, true))
+        focusAuthoring(session, hud);
     }
     ImGui::End();
   };
