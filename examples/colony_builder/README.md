@@ -25,14 +25,14 @@ Native editor checks covered script discovery/attachment, editable properties,
 HUD updates and both powered/unpowered cases. To repeat the automated check:
 
 ```sh
-DEMI_HEADLESS=1 ./build/linux-release/demi test linux --project examples/colony_builder
+DEMI_HEADLESS=1 ./build/linux-release/demi test linux --project examples/colony_builder --timeout 180 --max-frames 24000
 ```
 
 The E2E suite checks HUD resource progression, the idle camera, prefab references,
 power loss, worker jobs and graph connectivity through the real runtime. Generated test reports stay under the ignored project `build/`.
 
-Still to build: finished environment/building art, connections,
-colonist work/pathfinding, storage logistics, day/night production and hazards.
+Still to build: finished environment/building art, food production,
+multiple colonists, day/night production and hazards.
 The inherited starter scene is not the colony start scene.
 
 The NVIDIA Vulkan Play/Stop crash found during this probe was corrected in
@@ -42,11 +42,11 @@ The project does not select a GPU or disable MSAA.
 
 ## Connected construction milestone
 
-The project installs Orbit UI 1.1.0 and Ground Navigation 0.1.0 from the package
+The project installs Orbit UI 1.1.0 and Ground Navigation 0.2.0 and Inventory 1.2.0 from the package
 manager. Press Play: WASD pans, Solar array / Water extractor selects a plan,
 and clicking a green footprint reserves metal and creates a construction site.
 Engineer Mara walks around building footprints to an adjacent reachable cell,
-then builds over five seconds. No utility produces or consumes colony resources
+hauls metal from the depot in loads of four, then builds over five seconds. No utility produces or consumes colony resources
 while unfinished or disconnected.
 
 Choose Connect, click two completed buildings, and the engineer constructs their
@@ -57,10 +57,12 @@ habitat is required for power and water service. Disconnect removes the chosen
 link; disabling a relay utility also disconnects its downstream branch.
 
 Choose Cancel/Escape/right-click to leave placement mode. With no placement tool
-active, select an unfinished site and use Cancel to refund its reserved metal.
+active, select an unfinished site and use Cancel to release uncollected reservations. Delivered metal becomes a
+recoverable crate; carried and delivered metal must return to the depot before
+it can be reserved again.
 The most recently queued site is already selected for this purpose. Finished
 buildings are not demolished by Cancel. Disconnecting a pending link cancels its
-job and refunds its cost; completed links do not refund their spent metal.
+job with the same physical recovery rules; completed links do not refund their spent metal.
 
 The Colony Simulation component exposes worker speed, work duration, starting
 metal, building references and the navigation extent. Resource demand is six kW
@@ -83,11 +85,29 @@ extend down to the sampled low ground. Each plan reserves its final building ID;
 and are removed when finished. Cancelled IDs are not reused.
 
 This is still a session-local vertical slice: one engineer, FIFO jobs, abstract
-reserved materials and utility conduits. Physical hauling, interior airlocks,
-needs-driven colonist scheduling, crowd avoidance and saves remain future work.
+utility conduits, physical metal hauling and basic needs. Interior airlocks,
+multiple-worker scheduling, crowd avoidance and saves remain future work.
 Stopping Play resets runtime construction and resources. The inherited starter
 scene is retained but is not the colony entry scene.
 
 The E2E test covers resource failure/recovery, disabled workers, bounded walking,
 queued costs/refunds, disconnected production, completed links, duplicate links,
 transitive service, removal and insufficient materials.
+
+## Hauling and habitat breaks
+
+The depot holds metal and twelve meals. Mara carries up to four metal per trip;
+construction only starts once the full cost is delivered. The HUD distinguishes
+depot stock, reservations, cargo, site materials and recoverable materials.
+A visible carried crate and cancellation recovery crates reflect those stocks.
+
+Stamina, nutrition and suit oxygen decrease during activity. Mara interrupts work
+for a habitat break when a need runs low; Rest engineer requests one immediately.
+The habitat needs connectivity, power, water and oxygen for recovery. Rest uses
+water, and meals restore nutrition. Cargo and construction progress survive the
+break. Meal production and death/injury are not implemented.
+
+Pause, 1x and 3x affect the simulation together. Camera panning remains available
+while paused. The E2E test checks hauling capacity, pause, forced rest, partial
+site cancellation, carried-metal cancellation and conservation throughout the
+construction/connection sequence.

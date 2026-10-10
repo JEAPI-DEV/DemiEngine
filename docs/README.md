@@ -7,6 +7,9 @@ are registered in `tools/package-store/src/Docs.php`.
 
 This directory keeps material that has a different job:
 
+- [Colony logistics qualification](colony-logistics-qualification.md) records
+  physical material conservation, needs, time controls and editor fixes.
+
 - [Colony navigation qualification](colony-navigation-qualification.md) records
   utility connections, engineer jobs, reusable ground agents and API migration.
 

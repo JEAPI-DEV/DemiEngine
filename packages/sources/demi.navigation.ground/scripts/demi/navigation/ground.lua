@@ -1,6 +1,7 @@
 local Navigation = require("demi.navigation")
 local Entity = require("demi.entity")
 local Physics = require("demi.physics.query3d")
+local Transform = require("demi.transform3d")
 local Controller = require("demi.physics.character_controller3d")
 local Ground = {}
 local function finite(value) return type(value)=="number" and value==value and math.abs(value)<math.huge end
@@ -104,8 +105,17 @@ function Surface:path(from,goal,radius)
   for _,target in ipairs(candidates) do
     local path,diagnostic=self.grid:path(sx,sz,target.x,target.z,false)
     if #path>0 then
-      local points={}
-      for _,cell in ipairs(path) do points[#points+1]={cell.world_x,self.heights[cell[2]*self.columns+cell[1]],cell.world_y} end
+      -- Start at the actual actor, not a possibly blocked cell centre. A route
+      -- may leave a blocked start cell, but must never ask the actor to enter it.
+      local points={{from[1],from[2],from[3]}}
+      for i=2,#path do
+        local cell=path[i]
+        points[#points+1]={cell.world_x,self.heights[cell[2]*self.columns+cell[1]],cell.world_y}
+      end
+      if #path==1 then
+        local cell=path[1]
+        points[#points+1]={cell.world_x,self.heights[cell[2]*self.columns+cell[1]],cell.world_y}
+      end
       return points,diagnostic
     end
   end
@@ -114,6 +124,7 @@ end
 function Surface:agent(entity,options)
   options=options or {}
   return setmetatable({surface=self,id=entity,speed=positive(options.speed or 3,"speed"),arrival=positive(options.arrival_distance or 0.15,"arrival_distance"),
+    face_movement=options.face_movement==true,
     stuck_timeout=positive(options.stuck_timeout or 3,"stuck_timeout"),state="idle",elapsed=0},Agent)
 end
 function Agent:stop()
@@ -153,6 +164,7 @@ function Agent:update(dt)
     return self.state
   end
   local speed=math.min(self.speed,distance/math.max(dt,0.001))
+  if self.face_movement then Transform.look_at(self.id,position[1]+dx,position[2],position[3]+dz) end
   Controller.set_velocity(self.id,dx/distance*speed,0,dz/distance*speed)
   self.elapsed=self.elapsed+dt
   if self.elapsed>=self.stuck_timeout then

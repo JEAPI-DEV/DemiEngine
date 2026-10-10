@@ -2,8 +2,57 @@
   "format_version": 1,
   "packages": [
     {
-      "archive_hash": "sha256:f2691883a6e717958034e15048f57a37ab332383a12090235c1663bd2af11afc",
-      "archive_uri": "https://demiengine.de/v1/packages/demi.navigation.ground/0.1.0/archive",
+      "archive_hash": "sha256:515945d823cc3e562df5c5f51f71ef69b4ed8196f41597606a02c9fe159ce2f3",
+      "archive_uri": "https://demiengine.de/v1/packages/demi.gameplay.events/1.0.0/archive",
+      "manifest": {
+        "dependencies": {},
+        "engine": "^0.1.0",
+        "exported_events": [],
+        "files": [
+          "README.md",
+          "scripts/demi/gameplay/events.lua",
+          "tests/events_test.lua"
+        ],
+        "format_version": 1,
+        "name": "demi.gameplay.events",
+        "public_modules": [
+          "demi.gameplay.events"
+        ],
+        "version": "1.0.0"
+      },
+      "manifest_hash": "sha256:cf8ba7b19490af8ffaaa381208ae83aa257f8c4caa0edbf10486c413015b6308",
+      "yanked": false
+    },
+    {
+      "archive_hash": "sha256:f8785a29fcf49f2f9e95a6101c4294c7a6b52e16b28adc412622b3e3fa16d9bc",
+      "archive_uri": "https://demiengine.de/v1/packages/demi.gameplay.inventory/1.2.0/archive",
+      "manifest": {
+        "dependencies": {
+          "demi.gameplay.events": "^1.0.0"
+        },
+        "engine": "^0.1.0",
+        "exported_events": [
+          "inventory_changed",
+          "equipment_changed"
+        ],
+        "files": [
+          "README.md",
+          "scripts/demi/gameplay/inventory.lua",
+          "tests/inventory_test.lua"
+        ],
+        "format_version": 1,
+        "name": "demi.gameplay.inventory",
+        "public_modules": [
+          "demi.gameplay.inventory"
+        ],
+        "version": "1.2.0"
+      },
+      "manifest_hash": "sha256:b8d55c145f771c9d97404b9261b91e7c35f2f5b0c0c95dcf9909b614c95b5689",
+      "yanked": false
+    },
+    {
+      "archive_hash": "sha256:d6cecd42dd9215b7c9a8f1587db42e7ae358f5e5dc89ebaa820f6fda194ac6ca",
+      "archive_uri": "https://demiengine.de/v1/packages/demi.navigation.ground/0.2.0/archive",
       "manifest": {
         "dependencies": {},
         "engine": "^0.1.0",
@@ -19,9 +68,9 @@
         "public_modules": [
           "demi.navigation.ground"
         ],
-        "version": "0.1.0"
+        "version": "0.2.0"
       },
-      "manifest_hash": "sha256:765522e07827f00d4c5a79d9a9c6fa68c3c8ea813e708dcba70111d731d4e7f1",
+      "manifest_hash": "sha256:524ae8f7cd6a39a78bb7dedea3c1ecda858df67bcb58cf9b7e1ab52ebbe2f5e0",
       "yanked": false
     },
     {

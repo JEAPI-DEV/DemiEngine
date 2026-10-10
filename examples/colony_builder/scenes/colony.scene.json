@@ -123,6 +123,23 @@
       "name": "Engineer Mara",
       "prefab": "prefab://colonists/engineer",
       "entity_ids": {"body": "engineer"}
+    },
+    {
+      "id": "depot",
+      "prefab": "prefab://utilities/depot",
+      "overrides": {
+        "base": {
+          "components": {
+            "Transform3D": {
+              "position": [
+                60.775,
+                1.188,
+                67.981
+              ]
+            }
+          }
+        }
+      }
     }
   ],
   "format_version": 1,

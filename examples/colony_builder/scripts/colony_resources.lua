@@ -18,6 +18,15 @@ function ColonyResources:demand()
   return self.power_demand+water*2
 end
 
+function ColonyResources:habitable()
+  if not self.network.connected[self.network.root] or self:available_power()<self:demand() then
+    return false,"Habitat has no power · waiting for life support"
+  end
+  if self.oxygen<35 then return false,"Habitat oxygen too low · waiting for life support" end
+  if self.water<0.5 then return false,"Habitat has no water · waiting for life support" end
+  return true
+end
+
 function ColonyResources:publish()
   Hud.set_text("label", string.format("Power: %+.0f kW", self:available_power() - self:demand()))
   Hud.set_text("label_copy", string.format("Water: %.0f L", self.water))

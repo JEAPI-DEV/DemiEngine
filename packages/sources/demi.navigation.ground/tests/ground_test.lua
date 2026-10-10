@@ -1,4 +1,6 @@
 local Test=require("demi.test")
+local facing
+package.preload["demi.transform3d"]=function() return {look_at=function(_,x,y,z) facing={x,y,z};return true end} end
 local samples,position,enabled,velocity,path_calls=0,{0.5,1,0.5},true,nil,0
 package.preload["demi.entity"]=function() return {
   exists=function() return position~=nil end,is_enabled=function() return enabled end,
@@ -64,4 +66,16 @@ Test.case("invalid settings and missing actors have explicit failures",function(
   local ok,reason=agent:move_to({1,0,1})
   Test.equal(ok,false);Test.equal(reason,"AGENT_UNAVAILABLE")
   position={.5,1,.5}
+end)
+
+Test.case("routes start at the actor and facing is opt in",function()
+  local nav=surface();nav:update(16)
+  position,enabled={.8,1,.8},true
+  nav.heights[0]=nil;nav.grid:set_blocked(0,0,true)
+  local points=nav:path(position,{3.5,0,.5})
+  Test.equal(points[1][1],.8);Test.equal(points[1][2],1);Test.equal(points[1][3],.8)
+  local agent=nav:agent("worker",{face_movement=true})
+  Test.truthy(agent:move_to({3.5,0,.5}))
+  agent:update(.1);agent:update(.1)
+  Test.truthy(facing);Test.equal(facing[2],position[2])
 end)

@@ -20,73 +20,108 @@
         "id": "panel",
         "size": [
           0,
-          64
+          96
         ],
         "type": "panel",
         "children": [
           {
-            "id": "label",
-            "position": [
-              0.0,
-              0.0
-            ],
+            "id": "resource_row",
+            "type": "container",
+            "dock": "top",
             "size": [
-              210,
+              0,
               32
             ],
-            "text": "Power: 0 kW",
-            "type": "label",
-            "font_size": 20,
-            "text_vertical_alignment": "center",
-            "text_color": "#EEF4FA"
+            "stack": "row",
+            "gap": 24,
+            "children": [
+              {
+                "id": "label",
+                "position": [
+                  0.0,
+                  0.0
+                ],
+                "size": [
+                  200,
+                  32
+                ],
+                "text": "Power: 0 kW",
+                "type": "label",
+                "font_size": 20,
+                "text_vertical_alignment": "center",
+                "text_color": "#EEF4FA"
+              },
+              {
+                "id": "label_copy",
+                "position": [
+                  0.0,
+                  0.0
+                ],
+                "size": [
+                  200,
+                  32
+                ],
+                "text": "Water: 0 L",
+                "type": "label",
+                "font_size": 20,
+                "text_vertical_alignment": "center",
+                "text_color": "#EEF4FA"
+              },
+              {
+                "id": "label_copy_copy",
+                "position": [
+                  0.0,
+                  0.0
+                ],
+                "size": [
+                  200,
+                  32
+                ],
+                "text": "Oxygen: 0%",
+                "type": "label",
+                "font_size": 20,
+                "text_vertical_alignment": "center",
+                "text_color": "#EEF4FA"
+              },
+              {
+                "id": "metal",
+                "type": "label",
+                "text": "Metal: 24",
+                "size": [
+                  200,
+                  32
+                ],
+                "font_size": 20,
+                "text_vertical_alignment": "center",
+                "text_color": "#FFB66B"
+              },
+              {
+                "id": "meals",
+                "type": "label",
+                "text": "Meals: 12",
+                "size": [
+                  200,
+                  32
+                ],
+                "font_size": 20,
+                "text_vertical_alignment": "center",
+                "text_color": "#7ED5BF"
+              }
+            ]
           },
           {
-            "id": "label_copy",
-            "position": [
-              0.0,
-              0.0
-            ],
-            "size": [
-              210,
-              32
-            ],
-            "text": "Water: 0 L",
+            "id": "logistics_status",
             "type": "label",
-            "font_size": 20,
-            "text_vertical_alignment": "center",
-            "text_color": "#EEF4FA"
-          },
-          {
-            "id": "label_copy_copy",
-            "position": [
-              0.0,
-              0.0
-            ],
+            "dock": "bottom",
             "size": [
-              210,
-              32
+              0,
+              22
             ],
-            "text": "Oxygen: 0%",
-            "type": "label",
-            "font_size": 20,
-            "text_vertical_alignment": "center",
-            "text_color": "#EEF4FA"
-          },
-          {
-            "id": "metal",
-            "type": "label",
-            "text": "Metal: 24",
-            "size": [
-              210,
-              32
-            ],
-            "font_size": 20,
-            "text_vertical_alignment": "center",
-            "text_color": "#FFB66B"
+            "font_size": 15,
+            "text_color": "#A3B5C5",
+            "text": "Depot: 24   Reserved: 0   Carrying: 0   On sites: 0   Recoverable: 0"
           }
         ],
-        "stack": "row",
-        "gap": 30,
         "padding": [
           16.0,
           16.0,
@@ -115,7 +150,7 @@
             "dock": "bottom",
             "size": [
               0,
-              192
+              224
             ],
             "margin": [
               16,
@@ -261,10 +296,139 @@
                 "font_size": 16,
                 "text_color": "#FFB66B",
                 "text": "Engineer · ready for construction jobs"
+              },
+              {
+                "id": "needs_status",
+                "type": "label",
+                "at": [
+                  0,
+                  110
+                ],
+                "size": [
+                  950,
+                  24
+                ],
+                "font_size": 16,
+                "text_color": "#A3B5C5",
+                "text": "Mara   Stamina: 85%   Nutrition: 80%   Suit O2: 65%"
+              },
+              {
+                "id": "rest_engineer",
+                "prefab": "ui-prefab://orbit/button-secondary",
+                "arguments": {
+                  "label": "Rest engineer",
+                  "action": "worker.rest",
+                  "size": [
+                    180,
+                    32
+                  ]
+                },
+                "overrides": {
+                  "$root": {
+                    "at": [
+                      988,
+                      106
+                    ]
+                  }
+                }
               }
             ]
           }
         }
+      },
+      {
+        "id": "time_controls",
+        "type": "container",
+        "dock": "top",
+        "size": [
+          0,
+          28
+        ],
+        "margin": [
+          1016,
+          124,
+          16,
+          0
+        ],
+        "blocks_pointer": true,
+        "children": [
+          {
+            "id": "time_pause",
+            "prefab": "ui-prefab://orbit/button-secondary",
+            "arguments": {
+              "label": "Pause",
+              "action": "time.pause",
+              "size": [
+                62,
+                28
+              ]
+            },
+            "overrides": {
+              "$root": {
+                "at": [
+                  0,
+                  0
+                ]
+              }
+            }
+          },
+          {
+            "id": "time_normal",
+            "prefab": "ui-prefab://orbit/button-secondary",
+            "arguments": {
+              "label": "1x",
+              "action": "time.normal",
+              "size": [
+                42,
+                28
+              ]
+            },
+            "overrides": {
+              "$root": {
+                "at": [
+                  70,
+                  0
+                ]
+              }
+            }
+          },
+          {
+            "id": "time_fast",
+            "prefab": "ui-prefab://orbit/button-secondary",
+            "arguments": {
+              "label": "3x",
+              "action": "time.fast",
+              "size": [
+                42,
+                28
+              ]
+            },
+            "overrides": {
+              "$root": {
+                "at": [
+                  120,
+                  0
+                ]
+              }
+            }
+          },
+          {
+            "id": "time_label",
+            "type": "label",
+            "text": "1x",
+            "at": [
+              172,
+              0
+            ],
+            "size": [
+              64,
+              28
+            ],
+            "text_vertical_alignment": "center",
+            "font_size": 15,
+            "text_color": "#FFB66B"
+          }
+        ]
       }
     ],
     "id": "root",

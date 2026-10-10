@@ -18,6 +18,24 @@ Colony.engineer = "engineer"
 Colony.camera = "camera"
 ---@demi_property entity
 Colony.terrain = "terrain"
+---@demi_property entity
+Colony.depot = "depot/base"
+---@demi_property entity
+Colony.cargo = "construction/cargo"
+---@demi_property
+---@range 1 20
+Colony.carry_capacity = 4
+---@demi_property
+Colony.starting_meals = 12
+---@demi_property
+---@range 0 100
+Colony.starting_stamina = 85
+---@demi_property
+---@range 0 100
+Colony.starting_nutrition = 80
+---@demi_property
+---@range 0 100
+Colony.starting_suit_oxygen = 65
 ---@demi_property
 Colony.starting_metal = 24
 ---@demi_property
@@ -42,8 +60,8 @@ Colony.navigation_cells = 64
 function Colony:on_start()
   self.terrain_service=Terrain.new(self.terrain,self.engineer)
   self.network=Network.new(self,self.terrain_service)
-  self.jobs=Jobs.new(self,self.network,self.terrain_service)
   self.resources=Resources.new(self,self.network)
+  self.jobs=Jobs.new(self,self.network,self.terrain_service,self.resources)
   self.controls=Construction.new(self,self.network,self.jobs,self.terrain_service)
 end
 function Colony:on_update() self.controls:update() end
@@ -62,12 +80,12 @@ function Colony:on_fixed_update(dt)
     end
     self.initial_links=true
   end
-  self.jobs:update(dt)
   self.network:refresh()
   self.resources:update(dt)
+  self.jobs:update(dt)
 end
 function Colony:on_destroy()
-  if self.jobs then self.jobs.agent:stop() end
+  if self.jobs then self.jobs.worker:interrupt() end
   if self.controls then self.controls:destroy() end
 end
 return Colony

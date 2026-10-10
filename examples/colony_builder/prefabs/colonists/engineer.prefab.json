@@ -152,6 +152,33 @@
               ]
             }
           }
+        },
+        {
+          "id": "cargo",
+          "components": {
+            "Transform3D": {
+              "position": [
+                0,
+                -0.1,
+                0.5
+              ]
+            },
+            "MeshRenderer": {
+              "shape": "cube",
+              "size": [
+                0.5,
+                0.45,
+                0.45
+              ],
+              "color": [
+                0.78,
+                0.62,
+                0.35,
+                1
+              ]
+            }
+          },
+          "enabled": false
         }
       ]
     }

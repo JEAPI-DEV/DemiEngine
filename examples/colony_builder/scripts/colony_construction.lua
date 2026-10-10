@@ -3,6 +3,7 @@ local Entity = require("demi.entity")
 local Events = require("demi.events")
 local Hud = require("demi.hud")
 local Input = require("demi.input")
+local Time = require("demi.time")
 local Physics = require("demi.physics.query3d")
 local Transform = require("demi.transform3d")
 
@@ -43,7 +44,7 @@ function Construction:site(x, z)
   self.cached_site = result
   local center = self:ground(x, z)
   if not center then return result end
-  result.y = center.point[2]
+  result.y, result.ground_y = center.point[2], center.point[2]
   -- A conservative footprint rejects slopes and building overlap, including
   -- the starter buildings. Sampling is cached per snapped site, not per frame.
   local low, high = result.y, result.y
@@ -92,7 +93,7 @@ function Construction:world_click(x,y)
   if not node then self:message("Select a building or construction site");return end
   if not self.kind then
     self.selected_job=self.jobs:find_site(node.site_id)
-    self:message(self.selected_job and "Planned site selected · Cancel refunds reserved metal" or
+    self:message(self.selected_job and "Planned site selected · Cancel releases reservations; delivered metal is hauled back" or
       (self.network.connected[node.id] and "Connected to habitat" or "Disconnected · use Connect to join the utility network"))
     return
   end
@@ -120,8 +121,12 @@ function Construction.new(config,network,jobs,terrain)
     elseif event.action=="build.water" then self:select("water")
     elseif event.action=="build.connect" then self:select("connect")
     elseif event.action=="build.disconnect" then self:select("disconnect")
+    elseif event.action=="time.pause" then Time.set_paused(not Time.is_paused())
+    elseif event.action=="time.normal" then Time.set_paused(false);Time.set_scale(1)
+    elseif event.action=="time.fast" then Time.set_paused(false);Time.set_scale(3)
+    elseif event.action=="worker.rest" then jobs.worker.needs.forced=true;self:message("Engineer ordered to rest and refill at the habitat")
     elseif event.action=="build.cancel" then
-      if not self.kind and self.selected_job and jobs:cancel(self.selected_job) then self:select(nil);self:message("Plan cancelled · metal refunded")
+      if not self.kind and self.selected_job and jobs:cancel(self.selected_job) then self:select(nil);self:message("Plan cancelled · uncollected metal released; other loads return by hauling")
       else self:select(nil) end
     end
   end)
@@ -130,6 +135,8 @@ function Construction.new(config,network,jobs,terrain)
 end
 
 function Construction:update()
+  local clock=Time.is_paused() and "Paused" or string.format("%dx",Time.get_scale())
+  if clock~=self.clock_label then Hud.set_text("time_label",clock);self.clock_label=clock end
   if self.observed_job and self.observed_job.state=="complete" then
     local job=self.observed_job;self.observed_job=nil
     if not self.first_node and not catalog[self.kind] then
@@ -146,7 +153,7 @@ function Construction:update()
   if site and site.y then
     local item = catalog[self.kind]
     Entity.set_enabled(ghost, true)
-    local valid = site.valid and self.jobs.metal >= item.cost
+    local valid = site.valid and self.jobs:available_metal() >= item.cost
     local visual_key = self.cached_key .. tostring(valid)
     if self.visual_key ~= visual_key then
       Transform.set_position(ghost, site.x, site.y+0.18, site.z)
@@ -154,7 +161,7 @@ function Construction:update()
       Entity.set_field(ghost, "MeshRenderer", "color", valid and {0.3,1,0.65,1} or {1,0.25,0.3,1})
       self.visual_key = visual_key
     end
-    self:message(self.jobs.metal < item.cost and "Not enough metal" or site.reason)
+    self:message(self.jobs:available_metal() < item.cost and "Not enough metal" or site.reason)
   else Entity.set_enabled(ghost, false) end
   local touches = Input.touches()
   for _, touch in ipairs(touches) do

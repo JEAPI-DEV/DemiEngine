@@ -50,3 +50,7 @@ Survey cells include center and four clearance samples. Bounds and sampling
 heights should match your world. Physics remains authoritative between samples.
 
 Run isolated package policy tests with `demi package test packages/sources/demi.navigation.ground`. Native A* and character collision are covered separately by engine and runtime tests.
+
+Version 0.2 starts routes at the actor’s exact position, including when it is
+leaving a blocked start cell. Set `face_movement=true` in agent options to turn
+the actor toward its movement without tilting it; the default preserves rotation.

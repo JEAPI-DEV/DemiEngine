@@ -1,0 +1,125 @@
+{
+  "format_version": 1,
+  "id": "prefab://utilities/depot",
+  "entities": [
+    {
+      "id": "base",
+      "components": {
+        "Transform3D": {
+          "position": [
+            0,
+            0,
+            0
+          ]
+        },
+        "MeshRenderer": {
+          "shape": "cube",
+          "size": [
+            4,
+            0.25,
+            4
+          ],
+          "color": [
+            0.28,
+            0.32,
+            0.35,
+            1
+          ]
+        },
+        "BoxCollider3D": {
+          "size": [
+            4,
+            1.8,
+            4
+          ],
+          "offset": [
+            0,
+            0.9,
+            0
+          ]
+        }
+      },
+      "name": "Material depot",
+      "children": [
+        {
+          "id": "rack",
+          "components": {
+            "Transform3D": {
+              "position": [
+                -0.9,
+                0.8,
+                0
+              ]
+            },
+            "MeshRenderer": {
+              "shape": "cube",
+              "size": [
+                1.3,
+                1.4,
+                3
+              ],
+              "color": [
+                0.55,
+                0.6,
+                0.65,
+                1
+              ]
+            }
+          }
+        },
+        {
+          "id": "metal",
+          "components": {
+            "Transform3D": {
+              "position": [
+                0.75,
+                0.7,
+                -0.75
+              ]
+            },
+            "MeshRenderer": {
+              "shape": "cube",
+              "size": [
+                1.2,
+                1.1,
+                1.2
+              ],
+              "color": [
+                0.78,
+                0.62,
+                0.35,
+                1
+              ]
+            }
+          }
+        },
+        {
+          "id": "rations",
+          "components": {
+            "Transform3D": {
+              "position": [
+                0.75,
+                0.7,
+                0.75
+              ]
+            },
+            "MeshRenderer": {
+              "shape": "cube",
+              "size": [
+                1.2,
+                1.1,
+                1.2
+              ],
+              "color": [
+                0.28,
+                0.65,
+                0.58,
+                1
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

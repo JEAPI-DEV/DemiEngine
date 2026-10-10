@@ -1,7 +1,11 @@
 # DemiEngine Roadmap
 
+The colony now exercises depot hauling, recoverable construction materials,
+basic habitat breaks and pause/1x/3x controls. See
+[logistics qualification](docs/colony-logistics-qualification.md).
+
 Colony utilities now require completed connections to the habitat. An engineer
-walks to queued sites and builds them; cancellations refund reserved materials.
+walks to queued sites and builds them; cancellations release uncollected reservations.
 The Ground Navigation package uses independent native grids and character
 controller movement. See [navigation qualification](docs/colony-navigation-qualification.md).
 

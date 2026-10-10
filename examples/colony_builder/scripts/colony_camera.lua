@@ -1,3 +1,4 @@
+local Time = require("demi.time")
 local Input = require("demi.input")
 local Transform3D = require("demi.transform3d")
 
@@ -10,6 +11,7 @@ local ColonyCamera = {}
 ColonyCamera.pan_speed = 35.0
 
 function ColonyCamera:on_update(dt)
+  dt = Time.unscaled_delta_time
   local horizontal = Input.value("move_x")
   local forward = Input.value("move_z")
   local length = math.sqrt(horizontal * horizontal + forward * forward)
