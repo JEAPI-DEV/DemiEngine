@@ -454,7 +454,7 @@ void drawEntityNode(EditorWorkspace &workspace, const runtime::Entity &entity,
   if (prefabRow && !selected) {
     const ImVec2 rowMin = ImGui::GetCursorScreenPos();
     const ImVec2 rowMax{rowMin.x + ImGui::GetContentRegionAvail().x,
-                        rowMin.y + ImGui::GetFrameHeight()};
+                        rowMin.y + ImGui::GetTextLineHeight()};
     ImGui::GetWindowDrawList()->AddRectFilled(rowMin, rowMax,
                                               IM_COL32(35, 67, 99, 105), 2.0F);
   }
@@ -610,45 +610,31 @@ void EditorHierarchyPanel::draw(EditorWorkspace &workspace,
                      ? std::string(preset) + " added"
                      : error;
       }
-      ImGui::EndPopup();
-    }
-    if (workspace.viewDimension() == EditorSceneViewDimension::ThreeDimensional) {
-      const bool showCreate = ImGui::CollapsingHeader("Create objects");
-      if (showCreate) {
-      constexpr std::pair<const char *, EditorEntityKind> shapes[]{
-          {"Cube", EditorEntityKind::Cube},
-          {"Sphere", EditorEntityKind::Sphere},
-          {"Cylinder", EditorEntityKind::Cylinder},
-          {"Plane", EditorEntityKind::Plane},
-          {"Camera", EditorEntityKind::Camera},
-          {"Basic Lighting", EditorEntityKind::BasicLighting},
-          {"Point Light", EditorEntityKind::PointLight},
-          {"Spot Light", EditorEntityKind::SpotLight},
-          {"Sun Light", EditorEntityKind::DirectionalLight},
-      };
-      const float buttonWidth =
-          std::max(1.0F, (ImGui::GetContentRegionAvail().x -
-                          ImGui::GetStyle().ItemSpacing.x) * 0.5F);
-      for (std::size_t index = 0; index < std::size(shapes); ++index) {
-        const auto [label, kind] = shapes[index];
-        if (index % 2 == 1)
-          ImGui::SameLine();
-        ImGui::PushID(label);
-        if (ImGui::Button(label, {buttonWidth, 34.0F}))
-          pending = HierarchyAction{.kind = HierarchyAction::Kind::Create,
-                                    .entityKind = kind};
-        if (ImGui::IsItemHovered())
-          ImGui::SetTooltip("Click to create at the view center, or drag to "
-                            "place on terrain. Press F to frame the selection.");
-        if (ImGui::BeginDragDropSource()) {
-          ImGui::SetDragDropPayload(EditorEntityCreationPayload, &kind,
-                                    sizeof(kind));
-          ImGui::Text("Place %s", label);
-          ImGui::EndDragDropSource();
+      if (workspace.viewDimension() == EditorSceneViewDimension::ThreeDimensional) {
+        ImGui::Separator();
+        constexpr std::pair<const char *, EditorEntityKind> objects[]{
+            {"Cube", EditorEntityKind::Cube},
+            {"Sphere", EditorEntityKind::Sphere},
+            {"Cylinder", EditorEntityKind::Cylinder},
+            {"Plane", EditorEntityKind::Plane},
+            {"Camera", EditorEntityKind::Camera},
+            {"Basic Lighting", EditorEntityKind::BasicLighting},
+            {"Point Light", EditorEntityKind::PointLight},
+            {"Spot Light", EditorEntityKind::SpotLight},
+            {"Sun Light", EditorEntityKind::DirectionalLight},
+        };
+        for (const auto &[label, kind] : objects) {
+          if (ImGui::MenuItem(label))
+            pending = HierarchyAction{.kind = HierarchyAction::Kind::Create,
+                                      .entityKind = kind};
+          if (ImGui::BeginDragDropSource()) {
+            ImGui::SetDragDropPayload(EditorEntityCreationPayload, &kind, sizeof(kind));
+            ImGui::Text("Place %s", label);
+            ImGui::EndDragDropSource();
+          }
         }
-        ImGui::PopID();
       }
-      }
+      ImGui::EndPopup();
     }
   }
   if (workspace.hudDocument() && hudOnly) {

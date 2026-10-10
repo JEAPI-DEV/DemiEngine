@@ -44,26 +44,32 @@ void drawMenu(EditorWorkspace &workspace, EditorDocumentSessions &documents,
       if (ImGui::MenuItem("New project..."))
         projectPanel.openCreateProject();
       if (ImGui::BeginMenu("Create")) {
-        for (const auto &[label, kind] :
-             {std::pair{"2D scene...", EditorSourceKind::Scene2D},
-              std::pair{"3D scene...", EditorSourceKind::Scene3D},
-              std::pair{"HUD...", EditorSourceKind::Hud},
-              std::pair{"2D entity prefab...", EditorSourceKind::Prefab2D},
-              std::pair{"3D entity prefab...", EditorSourceKind::Prefab},
-              std::pair{"UI prefab...", EditorSourceKind::UiPrefab},
-              std::pair{"Terrain asset...", EditorSourceKind::Terrain},
-              std::pair{"Terrain surface material...",
-                        EditorSourceKind::TerrainMaterial},
-              std::pair{"Terrain material set...",
-                        EditorSourceKind::TerrainMaterialSet},
-              std::pair{"Terrain asset palette...",
-                        EditorSourceKind::TerrainPalette},
-              std::pair{"Lua behaviour...", EditorSourceKind::Lua}}) {
+        const auto sourceItem = [&](const char *label, EditorSourceKind kind) {
           if (ImGui::MenuItem(label)) {
             dockingWorkspace.visibility().assets = true;
             assetsPanel.openCreate(kind);
           }
+        };
+        if (ImGui::BeginMenu("Scene")) {
+          sourceItem("2D Scene", EditorSourceKind::Scene2D);
+          sourceItem("3D Scene", EditorSourceKind::Scene3D);
+          ImGui::EndMenu();
         }
+        if (ImGui::BeginMenu("Prefab")) {
+          sourceItem("2D Entity Prefab", EditorSourceKind::Prefab2D);
+          sourceItem("3D Entity Prefab", EditorSourceKind::Prefab);
+          sourceItem("UI Prefab", EditorSourceKind::UiPrefab);
+          ImGui::EndMenu();
+        }
+        sourceItem("HUD", EditorSourceKind::Hud);
+        if (ImGui::BeginMenu("Terrain")) {
+          sourceItem("Terrain", EditorSourceKind::Terrain);
+          sourceItem("Material", EditorSourceKind::TerrainMaterial);
+          sourceItem("Material Set", EditorSourceKind::TerrainMaterialSet);
+          sourceItem("Palette", EditorSourceKind::TerrainPalette);
+          ImGui::EndMenu();
+        }
+        sourceItem("Lua Script", EditorSourceKind::Lua);
         ImGui::EndMenu();
       }
       if (ImGui::MenuItem("Project settings..."))

@@ -156,7 +156,7 @@ void drawTransformGroup(EditorWorkspace &workspace,
                        frameTooltip.c_str()))
     execute(EditorCommand::FrameSelection);
   sameLine();
-  if (ImGui::Button("View"))
+  if (ImGui::Button("View", {0.0F, 30.0F}))
     ImGui::OpenPopup("view-settings");
   if (ImGui::BeginPopup("view-settings")) {
     if (!is2D(workspace)) {
@@ -214,7 +214,7 @@ void drawSnapAndVisibility(EditorWorkspace &workspace, const float available) {
   float &scale = is2D(workspace) ? workspace.sceneView2D().scaleSnap
                                  : workspace.sceneView().scaleSnap;
   (void)available;
-  if (ImGui::Button("Snapping"))
+  if (ImGui::Button("Snapping", {0.0F, 30.0F}))
     ImGui::OpenPopup("snap-settings");
   if (ImGui::BeginPopup("snap-settings")) {
     ImGui::TextDisabled("Zero disables snapping for that operation.");
@@ -228,7 +228,7 @@ void drawSnapAndVisibility(EditorWorkspace &workspace, const float available) {
     ImGui::EndPopup();
   }
   sameLine();
-  if (ImGui::Button("Overlays"))
+  if (ImGui::Button("Overlays", {0.0F, 30.0F}))
     ImGui::OpenPopup("visibility-options-popup");
   if (ImGui::BeginPopup("visibility-options-popup")) {
     ImGui::Checkbox("Bounds", is2D(workspace)
@@ -272,7 +272,7 @@ void drawEditorToolbar(const ImVec2 position, const ImVec2 size,
                 notice);
   ImGui::EndDisabled();
   sameLine();
-  if (ImGui::Button("Run & Test"))
+  if (ImGui::Button("Run & Test", {0.0F, 30.0F}))
     runPanel.open();
   editorToolbarSeparator();
   drawTransformGroup(workspace, bindings, execute,

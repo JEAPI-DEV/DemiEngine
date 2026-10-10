@@ -16,7 +16,9 @@ public:
 
 private:
   runtime::Vec2 position_;
+  runtime::Vec2 absolutePosition_;
   bool initialized_ = false;
+  bool relative_ = false;
 };
 
 // Adapts one platform input snapshot to Dear ImGui's queued input API. Call

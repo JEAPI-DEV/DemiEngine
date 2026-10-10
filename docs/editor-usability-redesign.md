@@ -111,3 +111,25 @@ checks, excluding the two unresolved checks above and the already-passed Android
 packaging test. Colony validation checked 97 files with no diagnostics.
 The rebuilt editor was reopened at full resolution; final captures are
 `/tmp/editor-final-rotation.png` and `/tmp/editor-final-create-dialog.png`.
+
+## Follow-up interaction and density fixes
+
+Right-button navigation remained captured, but the X11 input trace showed
+absolute position changes with zero relative deltas. EditorPointerMotion now
+uses absolute differences only when relative deltas are absent, ignores
+capture-entry warps, and continues preferring raw deltas at physical edges.
+The same native two-part held-button motion probe stopped changing the camera
+before the fix and kept rotating afterward. Input tests cover absolute-only
+motion, stationary frames, raw-delta precedence and capture transitions.
+
+Prefab row backgrounds now use text-row height rather than padded button height.
+Primitive/camera/light creation lives in the existing entity-preset popup.
+Toolbar menu buttons use Local's unchanged 30-unit height. Assets and File Create
+menus group Scene, Prefab and Terrain; creation labels omit trailing ellipses.
+Vector axis labels sit beside their inputs, falling back to stacked pairs only
+when the Inspector is too narrow.
+
+The Release editor rebuilt successfully; imgui-input, shell-docking and
+drag-authoring tests all passed. Full-resolution native captures:
+`/tmp/right-capture-probe-0.png`, `/tmp/right-capture-probe-1.png`,
+`/tmp/editor-followup-create.png`, `/tmp/editor-followup-presets-open.png`.

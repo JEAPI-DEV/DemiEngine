@@ -489,47 +489,20 @@ bool drawVectorEditor(const ComponentFieldDescriptor *field,
   const float available = ImGui::GetContentRegionAvail().x;
   const float axisWidth = available / static_cast<float>(count);
   const bool stackAxes = axisWidth < ImGui::GetFontSize() * 2.4F;
-  if (stackAxes) {
-    if (!ImGui::BeginTable("##vector-axes", 2,
-                           ImGuiTableFlags_SizingStretchProp))
-      return false;
-    ImGui::TableSetupColumn("Axis", ImGuiTableColumnFlags_WidthFixed,
-                            ImGui::CalcTextSize("W").x);
-    ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
-    for (int index = 0; index < count; ++index) {
-      ImGui::TableNextRow();
-      ImGui::TableSetColumnIndex(0);
-      ImGui::AlignTextToFramePadding();
-      ImGui::TextColored(AxisColors[index], "%s", AxisLabels[index]);
-      ImGui::TableSetColumnIndex(1);
-      ImGui::PushID(index);
-      ImGui::SetNextItemWidth(-1.0F);
-      changed |= ImGui::InputFloat("##axis", &values[index], 0.0F, 0.0F,
-                                   "%.5g");
-      ImGui::PopID();
-    }
-    ImGui::EndTable();
-  } else {
-    if (!ImGui::BeginTable("##vector-axes", count,
-                           ImGuiTableFlags_SizingStretchSame))
-      return false;
-    ImGui::TableNextRow();
-    for (int index = 0; index < count; ++index) {
-      ImGui::TableSetColumnIndex(index);
-      ImGui::AlignTextToFramePadding();
-      ImGui::TextColored(AxisColors[index], "%s", AxisLabels[index]);
-    }
-    ImGui::TableNextRow();
-    for (int index = 0; index < count; ++index) {
-      ImGui::TableSetColumnIndex(index);
-      ImGui::PushID(index);
-      ImGui::SetNextItemWidth(-1.0F);
-      changed |= ImGui::InputFloat("##axis", &values[index], 0.0F, 0.0F,
-                                   "%.5g");
-      ImGui::PopID();
-    }
-    ImGui::EndTable();
+  if (!ImGui::BeginTable("##vector-axes", stackAxes ? 1 : count,
+                         ImGuiTableFlags_SizingStretchSame))
+    return false;
+  for (int index = 0; index < count; ++index) {
+    ImGui::TableNextColumn();
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextColored(AxisColors[index], "%s", AxisLabels[index]);
+    ImGui::SameLine(0, ImGui::GetStyle().ItemInnerSpacing.x);
+    ImGui::PushID(index);
+    ImGui::SetNextItemWidth(-1.0F);
+    changed |= ImGui::InputFloat("##axis", &values[index], 0.0F, 0.0F, "%.5g");
+    ImGui::PopID();
   }
+  ImGui::EndTable();
   if (changed && field != nullptr)
     for (int index = 0; index < count; ++index)
       clampNumericValue(values[index], *field);

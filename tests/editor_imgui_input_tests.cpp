@@ -54,6 +54,21 @@ int main() {
   cursor = motion.update(captured, true);
   assert(cursor.x == 96 && cursor.y == 123);
 
+  // Absolute/remote devices may report no relative movement under capture.
+  captured.mouseDelta = {};
+  captured.mousePosition = {140, 130};
+  cursor = motion.update(captured, true);
+  assert(cursor.x == 136 && cursor.y == 133);
+  assert(motion.update(captured, true).x == 136);
+  // Native deltas win when both sources are available; do not double motion.
+  captured.mouseDelta = {5, 0};
+  captured.mousePosition = {150, 130};
+  assert(motion.update(captured, true).x == 141);
+  (void)motion.update(captured, false);
+  captured.mouseDelta = {};
+  captured.mousePosition = {320, 240};
+  assert(motion.update(captured, true).x == 150);
+
   demi::runtime::InputState input;
   input.mouseScroll = {0.25F, -1.5F};
   input.keysPressed.insert("n");
