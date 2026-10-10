@@ -16,6 +16,7 @@ struct HudNodeReport {
   std::string action;
   bool visible = true;
   bool focusable = false;
+  bool blocksPointer = false;
   Rect resolved;
 };
 
@@ -35,6 +36,9 @@ struct HudLayoutRequest {
   // visible, so automation can target screens that gameplay reveals later.
   bool revealHidden = false;
 };
+
+[[nodiscard]] HudLayoutReport
+inspectHudLayout(UiDocument document, const HudLayoutRequest &request = {});
 
 [[nodiscard]] HudLayoutReport
 inspectHudLayout(const nlohmann::json &document,

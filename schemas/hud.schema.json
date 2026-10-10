@@ -70,6 +70,7 @@
       "properties": {
         "id": {"type": "string", "minLength": 1},
         "parent": {"type": "string"},
+        "blocks_pointer": {"type": "boolean"},
         "prefab": {"type": "string", "pattern": "^ui-prefab://"},
         "arguments": {"type": "object"},
         "overrides": {"type": "object", "properties": {"$root": {"$ref": "#/$defs/nodeOverride"}}, "additionalProperties": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/nodeOverride"}] }},

@@ -2,6 +2,7 @@
 #include "cli/CliArguments.h"
 
 #include "demi/runtime/ui/HudLayoutReport.h"
+#include "demi/runtime/scene/HudParser.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -37,6 +38,7 @@ Json reportToJson(const runtime::ui::HudLayoutReport &report) {
         {"action", node.action},
         {"visible", node.visible},
         {"focusable", node.focusable},
+        {"blocks_pointer", node.blocksPointer},
         {"resolved",
          {{"x", node.resolved.x},
           {"y", node.resolved.y},
@@ -58,8 +60,9 @@ void printText(const runtime::ui::HudLayoutReport &report, std::ostream &out) {
     if (!node.action.empty())
       out << " action=" << node.action;
     out << " visible=" << (node.visible ? "true" : "false")
-        << " focusable=" << (node.focusable ? "true" : "false") << " rect="
-        << node.resolved.x << "," << node.resolved.y << ","
+        << " focusable=" << (node.focusable ? "true" : "false")
+        << " blocks_pointer=" << (node.blocksPointer ? "true" : "false")
+        << " rect=" << node.resolved.x << "," << node.resolved.y << ","
         << node.resolved.width << "," << node.resolved.height << '\n';
   }
 }
@@ -115,8 +118,14 @@ int runHudCommand(const std::vector<std::string> &args, std::ostream &out,
       return 2;
     }
   }
+  std::string failure;
+  auto hud = runtime::scene_loading::parseHudDocument(path, *document, failure);
+  if (!hud) {
+    error << failure << '\n';
+    return 1;
+  }
   const runtime::ui::HudLayoutReport report =
-      runtime::ui::inspectHudLayout(*document, request);
+      runtime::ui::inspectHudLayout(std::move(*hud), request);
   if (format == "json") {
     out << reportToJson(report).dump(2) << '\n';
   } else {

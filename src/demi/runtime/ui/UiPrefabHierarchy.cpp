@@ -30,6 +30,9 @@ bool composeUiHierarchy(Json &root,
     if (node.contains("parent") && !node["parent"].is_string())
       return reject("UI_PARENT_INVALID",
                     "UI parent must be a stable node reference.");
+    if (node.contains("blocks_pointer") && !node["blocks_pointer"].is_boolean())
+      return reject("UI_POINTER_BLOCK_INVALID",
+                    "blocks_pointer must be a boolean.");
     Node item{Json::object(), node.value("parent", parent),
               node.contains("children")};
     for (const auto &[key, value] : node.items())

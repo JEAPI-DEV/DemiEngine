@@ -280,6 +280,8 @@ void parseNodeImpl(const Json &json, const std::string &parent, UiDocument &out,
         scene_loading::numberField(source, "animation_frame").value_or(0.0F));
   }
   node.visible = scene_loading::boolField(source, "visible").value_or(true);
+  node.blocksPointer =
+      scene_loading::boolField(source, "blocks_pointer").value_or(false);
   node.disabled = scene_loading::boolField(source, "disabled").value_or(false);
   node.focusable =
       scene_loading::boolField(source, "focusable")

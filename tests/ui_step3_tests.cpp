@@ -803,6 +803,14 @@ int main() {
   if (overriddenCaption == parsedOverride.nodes.end() ||
       overriddenCaption->text != "LOCAL")
     return 1;
+  instance["overrides"] = {{"$root", {{"blocks_pointer", true}}}};
+  const auto blocking = expandUiDocument(hudPath, overriddenHud);
+  if (!blocking.document ||
+      !parseUiDocument(*blocking.document).nodes[1].blocksPointer)
+    return 1;
+  instance["overrides"] = {{"$root", {{"blocks_pointer", "yes"}}}};
+  if (expandUiDocument(hudPath, overriddenHud).document)
+    return 1;
   instance["overrides"] = {{"missing", {{"text", "NO"}}}};
   if (expandUiDocument(hudPath, overriddenHud).document) {
     std::cerr << "Unknown override descendant was silently ignored.\n";

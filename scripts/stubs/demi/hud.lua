@@ -86,6 +86,7 @@ function Hud.apply_action(action) end
 ---@field accessibility_hidden? boolean
 ---@field visible? boolean
 ---@field disabled? boolean
+---@field blocks_pointer? boolean Capture pointer clicks without keyboard focus; defaults to false.
 ---@field focusable? boolean
 ---@field font_size? number
 ---@field x? number

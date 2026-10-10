@@ -105,6 +105,7 @@ struct UiNode {
   bool visible = true;
   bool disabled = false;
   bool focusable = false;
+  bool blocksPointer = false;
   bool checked = false;
   bool hovered = false;
   bool accessibilityHidden = false;

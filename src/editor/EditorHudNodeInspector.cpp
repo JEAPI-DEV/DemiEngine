@@ -636,6 +636,15 @@ void drawInteractionSection(EditorWorkspace &workspace,
       (void)setField(workspace, node, "visible", visible,
                      "HUD visibility modified", notice);
   });
+  bool blocksPointer = node.blocksPointer;
+  grid.row(
+      "Block pointer",
+      [&] {
+        if (ImGui::Checkbox("##blocks-pointer", &blocksPointer))
+          (void)setField(workspace, node, "blocks_pointer", blocksPointer,
+                         "HUD pointer blocking modified", notice);
+      },
+      "Capture pointer clicks over this node without adding keyboard focus.");
   bool respectsSafeArea = node.respectsSafeArea;
   grid.row(
       "Safe area",

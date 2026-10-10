@@ -331,6 +331,19 @@ int main() {
       std::cerr << "Non-focusable button failed pointer/focus separation.\n";
       return 1;
     }
+    popup.nodes[0].type = "panel";
+    popup.nodes[0].blocksPointer = true;
+    if (!interaction.capturePointer(popup, 0, {10, 10}, "mouse") ||
+        popup.pointerCaptures[0] != "popup" || popup.focusedId != "under") {
+      std::cerr << "Blocking panel stole focus or leaked a click.\n";
+      return 1;
+    }
+    popup.nodes[0].blocksPointer = false;
+    if (!interaction.capturePointer(popup, 0, {10, 10}, "mouse") ||
+        popup.pointerCaptures[0] != "under") {
+      std::cerr << "Decorative panel did not pass the click through.\n";
+      return 1;
+    }
     UiDocument clipped;
     clipped.nodes = {
         {.id = "under",

@@ -374,3 +374,6 @@ endif()
 add_test(NAME demi-terrain-asset-world-tests COMMAND demi-terrain-asset-world-tests)
 add_test(NAME demi-terrain-asset-runtime-service-tests COMMAND demi-terrain-asset-runtime-service-tests)
 add_test(NAME demi-terrain-asset-tests COMMAND demi-terrain-asset-tests)
+
+add_test(NAME demi-hud-inspect-cli-tests
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/hud_inspect_cli_tests.py $<TARGET_FILE:demi>)

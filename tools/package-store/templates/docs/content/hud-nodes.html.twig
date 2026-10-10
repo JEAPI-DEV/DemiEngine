@@ -242,3 +242,7 @@
   <li><a href="{{ path('docs_page', {slug: 'hud-from-lua'}) }}">HUD from Lua</a> — setters and events.</li>
   <li><a href="{{ path('docs_page', {slug: 'ui'}) }}">UI &amp; HUD</a> — the overview page.</li>
 </ul>
+<h2>Panels that block world clicks</h2>
+<p>Set <code>blocks_pointer: true</code> on an enabled panel or container to capture pointer clicks over its rectangle without putting it in keyboard/controller focus navigation. The default is <code>false</code>; ordinary decorative panels let clicks through. Child buttons still receive clicks in front of the panel. Hidden ancestors and scroll clipping apply normally.</p>
+<pre><code>{"id":"build_menu", "type":"panel", "size":[320,240], "blocks_pointer":true}</code></pre>
+<p>The HUD Inspector exposes <strong>Interaction → Block pointer</strong>. Gameplay should check <code>Input.ui_pointer_captured()</code> before acting on a mouse press, or pass a touch ID for touch input. This prevents a construction-menu click from also placing a building in the world. <code>demi hud inspect --format json</code> reports the resolved blocking flag.</p>

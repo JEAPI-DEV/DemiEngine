@@ -9,8 +9,11 @@ namespace demi::runtime::ui {
 
 HudLayoutReport inspectHudLayout(const nlohmann::json &document,
                                  const HudLayoutRequest &request) {
+  return inspectHudLayout(parseUiDocument(document), request);
+}
+
+HudLayoutReport inspectHudLayout(UiDocument hud, const HudLayoutRequest &request) {
   HudLayoutReport report;
-  UiDocument hud = parseUiDocument(document);
   hud.safeArea = request.safeArea;
   if (request.revealHidden)
     for (UiNode &node : hud.nodes)
@@ -24,6 +27,7 @@ HudLayoutReport inspectHudLayout(const nlohmann::json &document,
                             .action = node.action,
                             .visible = node.visible,
                             .focusable = node.focusable,
+                            .blocksPointer = node.blocksPointer,
                             .resolved = node.resolved});
   }
   std::ranges::sort(report.nodes, {}, &HudNodeReport::id);

@@ -33,7 +33,8 @@ bool pointerInteractive(const UiDocument &document, const UiNode &node) {
                        node.type == "slider" || node.type == "text_input" ||
                        node.type == "virtual_button" ||
                        node.type == "virtual_stick";
-  return (control || node.focusable) && available(document, node);
+  return (control || node.focusable || node.blocksPointer) &&
+         available(document, node);
 }
 
 bool hoveredByAnotherPointer(const UiDocument &document,
