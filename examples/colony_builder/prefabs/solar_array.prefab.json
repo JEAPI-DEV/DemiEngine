@@ -1,0 +1,33 @@
+{
+  "entities": [
+    {
+      "components": {
+        "BoxCollider3D": {},
+        "MeshRenderer": {
+          "color": [
+            0.08,
+            0.18,
+            0.4,
+            1.0
+          ]
+        },
+        "Transform3D": {
+          "position": [
+            96.0,
+            2.0,
+            77.0
+          ],
+          "scale": [
+            8.0,
+            0.3,
+            5.0
+          ]
+        }
+      },
+      "id": "cube",
+      "name": "Solar Array"
+    }
+  ],
+  "format_version": 1,
+  "id": "prefab://solar_array"
+}

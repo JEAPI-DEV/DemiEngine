@@ -1,5 +1,10 @@
 # DemiEngine Roadmap
 
+The colony editor probe now supports terrain-aware utility construction with
+Orbit controls, metal costs and live resource production. HUD panels can explicitly
+block world clicks without keyboard focus. See
+[construction qualification](docs/colony-construction-qualification.md).
+
 Orbit UI 1.1.0 adds a single target-based overrides map and declarative tab
 previews. HUD and scene prefab content supports local edits, reparenting and
 explicit Unpack with stable IDs and Undo. See

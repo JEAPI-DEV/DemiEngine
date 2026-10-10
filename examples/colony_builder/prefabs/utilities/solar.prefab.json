@@ -1,0 +1,287 @@
+{
+  "format_version": 1,
+  "id": "prefab://utilities/solar",
+  "entities": [
+    {
+      "id": "base",
+      "components": {
+        "Transform3D": {
+          "position": [
+            0,
+            0,
+            0
+          ]
+        },
+        "BoxCollider3D": {
+          "size": [
+            8,
+            3,
+            5
+          ],
+          "offset": [
+            0,
+            1.5,
+            0
+          ]
+        }
+      },
+      "children": [
+        {
+          "id": "foundation",
+          "components": {
+            "Transform3D": {
+              "scale": [
+                8,
+                0.35,
+                5
+              ]
+            },
+            "MeshRenderer": {
+              "shape": "cube",
+              "color": [
+                0.32,
+                0.34,
+                0.36,
+                1
+              ]
+            }
+          }
+        },
+        {
+          "id": "mast",
+          "components": {
+            "Transform3D": {
+              "position": [
+                0,
+                0.8,
+                0
+              ],
+              "scale": [
+                0.5,
+                1.6,
+                0.5
+              ]
+            },
+            "MeshRenderer": {
+              "shape": "cylinder",
+              "color": [
+                0.4,
+                0.43,
+                0.46,
+                1
+              ]
+            }
+          }
+        },
+        {
+          "id": "panel",
+          "components": {
+            "Transform3D": {
+              "position": [
+                0,
+                1.8,
+                0
+              ],
+              "scale": [
+                7.5,
+                0.2,
+                4.5
+              ]
+            },
+            "MeshRenderer": {
+              "shape": "cube",
+              "color": [
+                0.08,
+                0.22,
+                0.42,
+                1
+              ]
+            }
+          }
+        },
+        {
+          "id": "rib_0",
+          "components": {
+            "Transform3D": {
+              "position": [
+                -3,
+                1.93,
+                0
+              ],
+              "scale": [
+                0.045,
+                0.03,
+                4.5
+              ]
+            },
+            "MeshRenderer": {
+              "shape": "cube",
+              "color": [
+                0.5,
+                0.65,
+                0.75,
+                1
+              ]
+            }
+          }
+        },
+        {
+          "id": "rib_1",
+          "components": {
+            "Transform3D": {
+              "position": [
+                -2,
+                1.93,
+                0
+              ],
+              "scale": [
+                0.045,
+                0.03,
+                4.5
+              ]
+            },
+            "MeshRenderer": {
+              "shape": "cube",
+              "color": [
+                0.5,
+                0.65,
+                0.75,
+                1
+              ]
+            }
+          }
+        },
+        {
+          "id": "rib_2",
+          "components": {
+            "Transform3D": {
+              "position": [
+                -1,
+                1.93,
+                0
+              ],
+              "scale": [
+                0.045,
+                0.03,
+                4.5
+              ]
+            },
+            "MeshRenderer": {
+              "shape": "cube",
+              "color": [
+                0.5,
+                0.65,
+                0.75,
+                1
+              ]
+            }
+          }
+        },
+        {
+          "id": "rib_3",
+          "components": {
+            "Transform3D": {
+              "position": [
+                0,
+                1.93,
+                0
+              ],
+              "scale": [
+                0.045,
+                0.03,
+                4.5
+              ]
+            },
+            "MeshRenderer": {
+              "shape": "cube",
+              "color": [
+                0.5,
+                0.65,
+                0.75,
+                1
+              ]
+            }
+          }
+        },
+        {
+          "id": "rib_4",
+          "components": {
+            "Transform3D": {
+              "position": [
+                1,
+                1.93,
+                0
+              ],
+              "scale": [
+                0.045,
+                0.03,
+                4.5
+              ]
+            },
+            "MeshRenderer": {
+              "shape": "cube",
+              "color": [
+                0.5,
+                0.65,
+                0.75,
+                1
+              ]
+            }
+          }
+        },
+        {
+          "id": "rib_5",
+          "components": {
+            "Transform3D": {
+              "position": [
+                2,
+                1.93,
+                0
+              ],
+              "scale": [
+                0.045,
+                0.03,
+                4.5
+              ]
+            },
+            "MeshRenderer": {
+              "shape": "cube",
+              "color": [
+                0.5,
+                0.65,
+                0.75,
+                1
+              ]
+            }
+          }
+        },
+        {
+          "id": "rib_6",
+          "components": {
+            "Transform3D": {
+              "position": [
+                3,
+                1.93,
+                0
+              ],
+              "scale": [
+                0.045,
+                0.03,
+                4.5
+              ]
+            },
+            "MeshRenderer": {
+              "shape": "cube",
+              "color": [
+                0.5,
+                0.65,
+                0.75,
+                1
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

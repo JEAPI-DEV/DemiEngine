@@ -1,0 +1,30 @@
+{
+  "entities": [
+    {
+      "components": {
+        "CapsuleCollider3D": {
+          "height": 1.0
+        },
+        "MeshRenderer": {
+          "shape": "cylinder"
+        },
+        "Transform3D": {
+          "position": [
+            82.822,
+            1.173,
+            77.408
+          ],
+          "scale": [
+            8.0,
+            3.0,
+            8.0
+          ]
+        }
+      },
+      "id": "cylinder",
+      "name": "Habitat"
+    }
+  ],
+  "format_version": 1,
+  "id": "prefab://habitat"
+}

@@ -1,0 +1,76 @@
+{
+  "assets": [],
+  "format_version": 1,
+  "input": {
+    "actions": {
+      "jump": {
+        "bindings": [
+          {
+            "input": "key:space"
+          }
+        ],
+        "context": "gameplay",
+        "type": "button"
+      },
+      "move_x": {
+        "bindings": [
+          {
+            "input": "key:a",
+            "scale": -1.0
+          },
+          {
+            "input": "key:d",
+            "scale": 1.0
+          }
+        ],
+        "context": "gameplay",
+        "type": "axis1d"
+      },
+      "move_z": {
+        "bindings": [
+          {
+            "input": "key:s",
+            "scale": -1.0
+          },
+          {
+            "input": "key:w",
+            "scale": 1.0
+          }
+        ],
+        "context": "gameplay",
+        "type": "axis1d"
+      }
+    }
+  },
+  "main_scene": "scene://colony",
+  "name": "Colony Builder",
+  "packages": {
+    "demi.ui.orbit": "^1.1.0"
+  },
+  "performance_budgets": {
+    "maximum_draw_calls": 250,
+    "maximum_frame_ms": 16.67,
+    "maximum_lights": 8,
+    "maximum_resident_assets": 128,
+    "maximum_shadow_lights": 1,
+    "maximum_texture_memory_mb": 96,
+    "maximum_transparent_draws": 96,
+    "maximum_triangles": 200000,
+    "maximum_unique_meshes": 96,
+    "maximum_visible_instances": 750
+  },
+  "scenes": [
+    {
+      "id": "scene://lightweight-3d/main",
+      "path": "scenes/main.scene.json"
+    },
+    {
+      "id": "scene://colony",
+      "path": "scenes/colony.scene.json"
+    }
+  ],
+  "scripting": {
+    "language": "lua54",
+    "modules": []
+  }
+}

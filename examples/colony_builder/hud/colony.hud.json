@@ -1,0 +1,216 @@
+{
+  "canvas_size": [
+    1280,
+    720
+  ],
+  "format_version": 1,
+  "root": {
+    "anchor_max": [
+      1,
+      1
+    ],
+    "anchor_min": [
+      0,
+      0
+    ],
+    "children": [
+      {
+        "background_color": "#1B2735F5",
+        "dock": "top",
+        "id": "panel",
+        "size": [
+          0,
+          64
+        ],
+        "type": "panel",
+        "children": [
+          {
+            "id": "label",
+            "position": [
+              0.0,
+              0.0
+            ],
+            "size": [
+              210,
+              32
+            ],
+            "text": "Power: 0 kW",
+            "type": "label",
+            "font_size": 20,
+            "text_vertical_alignment": "center",
+            "text_color": "#EEF4FA"
+          },
+          {
+            "id": "label_copy",
+            "position": [
+              0.0,
+              0.0
+            ],
+            "size": [
+              210,
+              32
+            ],
+            "text": "Water: 0 L",
+            "type": "label",
+            "font_size": 20,
+            "text_vertical_alignment": "center",
+            "text_color": "#EEF4FA"
+          },
+          {
+            "id": "label_copy_copy",
+            "position": [
+              0.0,
+              0.0
+            ],
+            "size": [
+              210,
+              32
+            ],
+            "text": "Oxygen: 0%",
+            "type": "label",
+            "font_size": 20,
+            "text_vertical_alignment": "center",
+            "text_color": "#EEF4FA"
+          },
+          {
+            "id": "metal",
+            "type": "label",
+            "text": "Metal: 24",
+            "size": [
+              210,
+              32
+            ],
+            "font_size": 20,
+            "text_vertical_alignment": "center",
+            "text_color": "#FFB66B"
+          }
+        ],
+        "stack": "row",
+        "gap": 30,
+        "padding": [
+          16.0,
+          16.0,
+          16.0,
+          16.0
+        ],
+        "border_color": "#3B5166",
+        "border_width": 1,
+        "corner_radius": 12,
+        "margin": [
+          16,
+          16,
+          16,
+          0
+        ],
+        "blocks_pointer": true
+      },
+      {
+        "id": "construction",
+        "prefab": "ui-prefab://orbit/panel",
+        "arguments": {
+          "title": "Colony construction"
+        },
+        "overrides": {
+          "$root": {
+            "dock": "bottom",
+            "size": [
+              0,
+              168
+            ],
+            "margin": [
+              16,
+              0,
+              16,
+              16
+            ],
+            "blocks_pointer": true
+          },
+          "body": {
+            "children": [
+              {
+                "id": "build_solar",
+                "prefab": "ui-prefab://orbit/button-with-icon",
+                "arguments": {
+                  "label": "Solar array · 6 metal",
+                  "texture": "asset://orbit/icons/energy",
+                  "action": "build.solar",
+                  "size": [
+                    300,
+                    44
+                  ]
+                },
+                "overrides": {
+                  "$root": {
+                    "at": [
+                      0,
+                      0
+                    ]
+                  }
+                }
+              },
+              {
+                "id": "build_water",
+                "prefab": "ui-prefab://orbit/button-with-icon",
+                "arguments": {
+                  "label": "Water extractor · 8 metal",
+                  "texture": "asset://orbit/icons/water",
+                  "action": "build.water",
+                  "size": [
+                    320,
+                    44
+                  ]
+                },
+                "overrides": {
+                  "$root": {
+                    "at": [
+                      316,
+                      0
+                    ]
+                  }
+                }
+              },
+              {
+                "id": "build_cancel",
+                "prefab": "ui-prefab://orbit/button-with-icon",
+                "arguments": {
+                  "label": "Cancel",
+                  "texture": "asset://orbit/icons/close",
+                  "action": "build.cancel",
+                  "size": [
+                    180,
+                    44
+                  ]
+                },
+                "overrides": {
+                  "$root": {
+                    "at": [
+                      652,
+                      0
+                    ]
+                  }
+                }
+              },
+              {
+                "id": "construction.status",
+                "type": "label",
+                "at": [
+                  0,
+                  54
+                ],
+                "size": [
+                  1160,
+                  26
+                ],
+                "text": "Choose a utility to extend the colony.",
+                "font_size": 16,
+                "text_color": "#A3B5C5"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "id": "root",
+    "type": "container"
+  }
+}

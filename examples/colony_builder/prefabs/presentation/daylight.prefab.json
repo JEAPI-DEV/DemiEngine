@@ -1,0 +1,9 @@
+{
+  "format_version": 1,
+  "id": "prefab://presentation/daylight",
+  "name": "Mobile Daylight Environment",
+  "entities": [
+    {"id": "environment", "components": {"Environment3D": {"ambient_color": [0.45, 0.52, 0.65, 1], "ambient_intensity": 0.55, "fog_color": [0.58, 0.72, 0.9, 1], "fog_start": 70, "fog_end": 220, "shadow_distance": 60, "shadow_resolution": 1024, "max_shadow_lights": 1}}},
+    {"id": "sun", "components": {"DirectionalLight": {"direction": [-0.4, -1, -0.3], "color": [1, 0.95, 0.85, 1], "intensity": 1, "casts_shadows": true}}}
+  ]
+}

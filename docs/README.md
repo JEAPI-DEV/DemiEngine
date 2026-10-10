@@ -7,6 +7,9 @@ are registered in `tools/package-store/src/Docs.php`.
 
 This directory keeps material that has a different job:
 
+- [Colony construction qualification](colony-construction-qualification.md) records
+  the playable utility-building probe, HUD click blocking and native verification.
+
 - [UI prefab authoring qualification](ui-prefab-authoring-qualification.md) records
   target-based overrides, reparenting, Unpack, tab previews and native verification.
 
