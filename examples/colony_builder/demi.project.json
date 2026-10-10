@@ -45,6 +45,7 @@
   "main_scene": "scene://colony",
   "name": "Colony Builder",
   "packages": {
+    "demi.navigation.ground": "^0.1.0",
     "demi.ui.orbit": "^1.1.0"
   },
   "performance_budgets": {

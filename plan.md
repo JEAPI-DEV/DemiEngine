@@ -1,5 +1,10 @@
 # DemiEngine Roadmap
 
+Colony utilities now require completed connections to the habitat. An engineer
+walks to queued sites and builds them; cancellations refund reserved materials.
+The Ground Navigation package uses independent native grids and character
+controller movement. See [navigation qualification](docs/colony-navigation-qualification.md).
+
 The colony editor probe now supports terrain-aware utility construction with
 Orbit controls, metal costs and live resource production. HUD panels can explicitly
 block world clicks without keyboard focus. See

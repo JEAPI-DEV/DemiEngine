@@ -1,0 +1,20 @@
+{
+  "format_version": 1,
+  "title": "Ground Navigation & Agents",
+  "description": "Independent terrain navigation grids and collision-aware ground agents. Incremental surveys, dynamic footprint obstacles, replanning and explicit blocked states for lightweight 3D games.",
+  "publisher": "DemiEngine",
+  "license": "BSD-3-Clause",
+  "kind": "code",
+  "category": "Gameplay",
+  "price": 0,
+  "images": [
+    "../public/images/ground-navigation/colony.webp"
+  ],
+  "tags": [
+    "navigation",
+    "ai",
+    "agents",
+    "terrain",
+    "3d"
+  ]
+}

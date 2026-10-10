@@ -136,20 +136,15 @@ local path, diagnostic = Grid.path(grid, from, to)
 
 <h2>2D physics and navigation</h2>
 <p>Bodies, colliders, joints, and queries are covered in <a href="{{ path('docs_page', {slug: 'physics'}) }}">Physics</a>. Grid pathfinding:</p>
-<pre><code>local Nav = require("demi.navigation2d")
-
-Nav.configure(grid, { diagonal = true })
-Nav.set_blocked(grid, 3, 4, true)     -- mark a cell unwalkable
-Nav.set_cost(grid, 5, 5, 2.0)         -- higher cost = avoided
-
-local path, diagnostic = Nav.path(grid, from, to)
--- path is an array of {x, y} world points, empty on failure
--- diagnostic explains why (when provided)
-
-print(Nav.available(grid))            -- boolean
-local cx, cy = Nav.world_to_cell(grid, wx, wy)
-local wx, wy = Nav.cell_to_world(grid, cx, cy)
-Nav.clear(grid)</code></pre>
+<pre><code>local Navigation = require("demi.navigation")
+local nav = assert(Navigation.create_grid(32, 32, 1))
+nav:set_blocked(3, 4, true)
+nav:set_cost(5, 5, 2)
+local path, diagnostic = nav:path(0, 0, 10, 10)
+-- Empty array on failure; diagnostic is a string such as PATH_GOAL_BLOCKED.
+local cx, cy = nav:world_to_cell(4.5, 2.5)
+local wx, wy = nav:cell_to_world(cx, cy)
+nav:clear() -- disable this grid until configured again</code></pre>
 <p>Reusable Lua controllers ship as packages: <code>demi.character_controller_2d</code>, <code>demi.top_down_controller_2d</code>, <code>demi.click_move_controller_2d</code>.</p>
 
 <h2>Particles and masks</h2>

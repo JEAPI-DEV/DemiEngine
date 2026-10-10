@@ -2,6 +2,29 @@
   "format_version": 1,
   "packages": [
     {
+      "archive_hash": "sha256:f2691883a6e717958034e15048f57a37ab332383a12090235c1663bd2af11afc",
+      "archive_uri": "https://demiengine.de/v1/packages/demi.navigation.ground/0.1.0/archive",
+      "manifest": {
+        "dependencies": {},
+        "engine": "^0.1.0",
+        "exported_events": [],
+        "files": [
+          "LICENSE",
+          "README.md",
+          "scripts/demi/navigation/ground.lua",
+          "tests/ground_test.lua"
+        ],
+        "format_version": 1,
+        "name": "demi.navigation.ground",
+        "public_modules": [
+          "demi.navigation.ground"
+        ],
+        "version": "0.1.0"
+      },
+      "manifest_hash": "sha256:765522e07827f00d4c5a79d9a9c6fa68c3c8ea813e708dcba70111d731d4e7f1",
+      "yanked": false
+    },
+    {
       "archive_hash": "sha256:d6ca8634dfe2c484041b789c31661d35dadc0449b27d82c1a11f7249135fe3a5",
       "archive_uri": "https://demiengine.de/v1/packages/demi.ui.orbit/1.1.0/archive",
       "manifest": {

@@ -5,7 +5,7 @@ local Events = require("demi.events")
 local Rigidbody2D = require("demi.physics.rigidbody2d")
 local Physics2D = require("demi.physics.query2d")
 local Tilemap2D = require("demi.tilemap2d")
-local Navigation2D = require("demi.navigation2d")
+local navigation = require("demi.navigation").default_grid()
 local Hud = require("demi.hud")
 
 local Demo = {}
@@ -45,8 +45,8 @@ end
 function Demo:on_start()
   self:set_gate(true)
   assert(Tilemap2D.bake_navigation(MAP))
-  Navigation2D.set_blocked(4, 4, true) -- authored polygon obstacle
-  Navigation2D.set_cost(8, 2, 4.0)
+  navigation:set_blocked(4, 4, true) -- authored polygon obstacle
+  navigation:set_cost(8, 2, 4.0)
 
   local spawns = Tilemap2D.objects(MAP, "markers")
   local hits = Physics2D.overlap_box_all(0, 0, 12, 8)
@@ -75,9 +75,9 @@ function Demo:on_update()
   end
 
   local x, y = Transform.get_position(PLAYER)
-  local start_x, start_y = Navigation2D.world_to_cell(x, y)
-  local goal_x, goal_y = Navigation2D.world_to_cell(4.5, 2.5)
-  local path, diagnostic = Navigation2D.path(
+  local start_x, start_y = navigation:world_to_cell(x, y)
+  local goal_x, goal_y = navigation:world_to_cell(4.5, 2.5)
+  local path, diagnostic = navigation:path(
     start_x, start_y, goal_x, goal_y, true)
   Hud.set_text("status", self.message)
   Hud.set_text("path", string.format("Path: %s (%d cells) | Gate: %s",

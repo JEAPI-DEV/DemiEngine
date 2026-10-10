@@ -115,7 +115,7 @@
             "dock": "bottom",
             "size": [
               0,
-              168
+              192
             ],
             "margin": [
               16,
@@ -135,7 +135,7 @@
                   "texture": "asset://orbit/icons/energy",
                   "action": "build.solar",
                   "size": [
-                    300,
+                    240,
                     44
                   ]
                 },
@@ -156,14 +156,14 @@
                   "texture": "asset://orbit/icons/water",
                   "action": "build.water",
                   "size": [
-                    320,
+                    272,
                     44
                   ]
                 },
                 "overrides": {
                   "$root": {
                     "at": [
-                      316,
+                      252,
                       0
                     ]
                   }
@@ -184,7 +184,7 @@
                 "overrides": {
                   "$root": {
                     "at": [
-                      652,
+                      948,
                       0
                     ]
                   }
@@ -204,6 +204,63 @@
                 "text": "Choose a utility to extend the colony.",
                 "font_size": 16,
                 "text_color": "#A3B5C5"
+              },
+              {
+                "id": "build_connect",
+                "prefab": "ui-prefab://orbit/button-with-icon",
+                "arguments": {
+                  "label": "Connect · 1 metal",
+                  "action": "build.connect",
+                  "texture": "asset://orbit/icons/power",
+                  "size": [
+                    208,
+                    44
+                  ]
+                },
+                "overrides": {
+                  "$root": {
+                    "at": [
+                      536,
+                      0
+                    ]
+                  }
+                }
+              },
+              {
+                "id": "build_disconnect",
+                "prefab": "ui-prefab://orbit/button-with-icon",
+                "arguments": {
+                  "label": "Disconnect",
+                  "action": "build.disconnect",
+                  "texture": "asset://orbit/icons/close",
+                  "size": [
+                    180,
+                    44
+                  ]
+                },
+                "overrides": {
+                  "$root": {
+                    "at": [
+                      756,
+                      0
+                    ]
+                  }
+                }
+              },
+              {
+                "id": "job_status",
+                "type": "label",
+                "at": [
+                  0,
+                  82
+                ],
+                "size": [
+                  1160,
+                  24
+                ],
+                "font_size": 16,
+                "text_color": "#FFB66B",
+                "text": "Engineer · ready for construction jobs"
               }
             ]
           }

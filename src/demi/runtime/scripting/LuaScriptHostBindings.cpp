@@ -4,24 +4,22 @@
 #include "demi/runtime/scripting/LuaWorkerServices.h"
 
 #include "demi/runtime/scripting/bindings/LuaCoreBindings.h"
-#include "demi/runtime/scripting/bindings/LuaEntityBindings.h"
-#include "demi/runtime/scripting/bindings/scene/LuaPrefabBindings.h"
-#include "demi/runtime/scripting/bindings/mesh/LuaMeshConstructionBindings.h"
-#include "demi/runtime/scripting/bindings/LuaNetworkBindings.h"
-#include "demi/runtime/scripting/bindings/LuaHttpBindings.h"
-#include "demi/runtime/scripting/bindings/LuaTcpBindings.h"
 #include "demi/runtime/scripting/bindings/LuaDatabaseBindings.h"
+#include "demi/runtime/scripting/bindings/LuaEntityBindings.h"
+#include "demi/runtime/scripting/bindings/LuaHttpBindings.h"
+#include "demi/runtime/scripting/bindings/LuaNetworkBindings.h"
 #include "demi/runtime/scripting/bindings/LuaNetworkSessionBindings.h"
 #include "demi/runtime/scripting/bindings/LuaRandomBindings.h"
+#include "demi/runtime/scripting/bindings/LuaTcpBindings.h"
 #include "demi/runtime/scripting/bindings/LuaTlsBindings.h"
 #include "demi/runtime/scripting/bindings/animation/LuaAnimationBindings.h"
 #include "demi/runtime/scripting/bindings/assets/LuaAssetsBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaCamera3DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaCharacterController3DBindings.h"
+#include "demi/runtime/scripting/bindings/components/LuaDestruction3DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaMeshDeformationBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaPhysics2DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaPhysics3DBindings.h"
-#include "demi/runtime/scripting/bindings/components/LuaDestruction3DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaRigidbody2DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaRigidbody3DBindings.h"
 #include "demi/runtime/scripting/bindings/components/LuaSprite2DBindings.h"
@@ -35,10 +33,12 @@
 #include "demi/runtime/scripting/bindings/media/LuaAudioBindings.h"
 #include "demi/runtime/scripting/bindings/media/LuaCutsceneBindings.h"
 #include "demi/runtime/scripting/bindings/media/LuaVideoBindings.h"
-#include "demi/runtime/scripting/bindings/navigation/LuaNavigation2DBindings.h"
+#include "demi/runtime/scripting/bindings/mesh/LuaMeshConstructionBindings.h"
+#include "demi/runtime/scripting/bindings/navigation/LuaNavigationBindings.h"
 #include "demi/runtime/scripting/bindings/persistence/LuaSaveBindings.h"
-#include "demi/runtime/scripting/bindings/test/LuaTestBindings.h"
+#include "demi/runtime/scripting/bindings/scene/LuaPrefabBindings.h"
 #include "demi/runtime/scripting/bindings/terrain/LuaTerrainWaterBindings.h"
+#include "demi/runtime/scripting/bindings/test/LuaTestBindings.h"
 #include "demi/runtime/scripting/bindings/text/LuaRegexBindings.h"
 #include "demi/runtime/ui/UiModel.h"
 
@@ -99,21 +99,48 @@ void installBindingModules(LuaScriptHost &host, lua_State *state) {
   const LuaVectorMathBindingModule vectorMath;
   const LuaAnimationBindingModule animation;
   const LuaAssetsBindingModule assets;
-  const LuaNavigation2DBindingModule navigation2D;
+  const LuaNavigationBindingModule navigation;
   const LuaTilemap2DBindingModule tilemap2D;
   const LuaDataBindingModule data;
   const LuaTestBindingModule e2eTests;
   const LuaTerrainWaterBindingModule terrainWater;
-  const LuaBindingModule *modules[] = {
-      &core,        &entity,      &prefab,          &meshConstruction,
-      &transform2D, &transform3D,
-      &rigidbody2D, &rigidbody3D, &meshDeformation, &characterController3D,
-      &camera3D,    &sprite2D,    &physics2D,       &physics3D,
-      &hud,         &save,        &audio,           &video,
-      &cutscene,    &network,     &networkSession,  &tls, &http, &tcp, &database,
-      &regex,       &random,      &isoGrid,         &vectorMath,
-      &animation,   &assets,      &navigation2D,    &tilemap2D,
-      &data,        &e2eTests, &destruction3D, &terrainWater};
+  const LuaBindingModule *modules[] = {&core,
+                                       &entity,
+                                       &prefab,
+                                       &meshConstruction,
+                                       &transform2D,
+                                       &transform3D,
+                                       &rigidbody2D,
+                                       &rigidbody3D,
+                                       &meshDeformation,
+                                       &characterController3D,
+                                       &camera3D,
+                                       &sprite2D,
+                                       &physics2D,
+                                       &physics3D,
+                                       &hud,
+                                       &save,
+                                       &audio,
+                                       &video,
+                                       &cutscene,
+                                       &network,
+                                       &networkSession,
+                                       &tls,
+                                       &http,
+                                       &tcp,
+                                       &database,
+                                       &regex,
+                                       &random,
+                                       &isoGrid,
+                                       &vectorMath,
+                                       &animation,
+                                       &assets,
+                                       &navigation,
+                                       &tilemap2D,
+                                       &data,
+                                       &e2eTests,
+                                       &destruction3D,
+                                       &terrainWater};
   for (const LuaBindingModule *module : modules) {
     module->install(host, state);
   }

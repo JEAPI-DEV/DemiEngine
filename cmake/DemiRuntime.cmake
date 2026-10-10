@@ -148,7 +148,7 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/scripting/bindings/text/LuaRegexBindings.cpp
   src/demi/runtime/scripting/bindings/isometric/LuaIsoGridBindings.cpp
   src/demi/runtime/scripting/bindings/math/LuaVectorMathBindings.cpp
-  src/demi/runtime/scripting/bindings/navigation/LuaNavigation2DBindings.cpp
+  src/demi/runtime/scripting/bindings/navigation/LuaNavigationBindings.cpp
   src/demi/runtime/scripting/text/RegexMatcher.cpp
   src/demi/runtime/scripting/bindings/LuaJsonBridge.cpp
   src/demi/runtime/scripting/bindings/LuaHttpBindings.cpp

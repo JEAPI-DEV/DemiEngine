@@ -1,7 +1,7 @@
 local Input = require("demi.input")
 local Transform = require("demi.transform2d")
 local Rigidbody2D = require("demi.physics.rigidbody2d")
-local Navigation2D = require("demi.navigation2d")
+local navigation = require("demi.navigation").default_grid()
 
 local ClickMoveController2D = {}
 ClickMoveController2D.__index = ClickMoveController2D
@@ -20,12 +20,12 @@ end
 
 function ClickMoveController2D:request(entity_id, world_x, world_y)
   local x, y = Transform.get_position(entity_id)
-  local start_x, start_y = Navigation2D.world_to_cell(x, y)
-  local goal_x, goal_y = Navigation2D.world_to_cell(world_x, world_y)
+  local start_x, start_y = navigation:world_to_cell(x, y)
+  local goal_x, goal_y = navigation:world_to_cell(world_x, world_y)
   if start_x == nil or goal_x == nil then
     return false, "PATH_OUT_OF_BOUNDS"
   end
-  local path, diagnostic = Navigation2D.path(
+  local path, diagnostic = navigation:path(
     start_x, start_y, goal_x, goal_y, self.diagonal
   )
   self.path = path or {}

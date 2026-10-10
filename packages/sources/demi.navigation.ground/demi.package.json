@@ -1,0 +1,16 @@
+{
+  "format_version": 1,
+  "name": "demi.navigation.ground",
+  "version": "0.1.0",
+  "engine": "^0.1.0",
+  "dependencies": {},
+  "public_modules": [
+    "demi.navigation.ground"
+  ],
+  "files": [
+    "LICENSE",
+    "README.md",
+    "scripts/demi/navigation/ground.lua",
+    "tests/ground_test.lua"
+  ]
+}

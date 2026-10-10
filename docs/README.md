@@ -7,6 +7,9 @@ are registered in `tools/package-store/src/Docs.php`.
 
 This directory keeps material that has a different job:
 
+- [Colony navigation qualification](colony-navigation-qualification.md) records
+  utility connections, engineer jobs, reusable ground agents and API migration.
+
 - [Colony construction qualification](colony-construction-qualification.md) records
   the playable utility-building probe, HUD click blocking and native verification.
 

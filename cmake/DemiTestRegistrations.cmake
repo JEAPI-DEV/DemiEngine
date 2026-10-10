@@ -377,3 +377,7 @@ add_test(NAME demi-terrain-asset-tests COMMAND demi-terrain-asset-tests)
 
 add_test(NAME demi-hud-inspect-cli-tests
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/hud_inspect_cli_tests.py $<TARGET_FILE:demi>)
+
+add_test(NAME demi-navigation-ground-package
+  COMMAND demi package test ${CMAKE_SOURCE_DIR}/packages/sources/demi.navigation.ground)
+set_tests_properties(demi-navigation-ground-package PROPERTIES LABELS "packages;navigation")

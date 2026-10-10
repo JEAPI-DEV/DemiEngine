@@ -94,6 +94,13 @@ int main() {
       root, fs::path(DEMI_SOURCE_DIR) / "scripts/stubs", error));
   assert(fs::is_regular_file(root / ".demi/lua/demi/input.lua"));
   {
+    std::ofstream old(root / ".demi/lua/demi/navigation2d.lua");
+    old << "---@meta\n-- Native module: require(\"demi.navigation2d\"). "
+           "Annotations only.\n";
+    std::ofstream custom(root / ".demi/lua/demi/custom.lua");
+    custom << "---@meta\n-- Project annotations\n";
+  }
+  {
     std::ofstream p(root / ".luarc.json");
     p << "{\"custom\":true}";
   }
@@ -103,6 +110,9 @@ int main() {
     std::ifstream p(root / ".luarc.json");
     assert(nlohmann::json::parse(p).contains("custom"));
   }
+  assert(!fs::exists(root / ".demi/lua/demi/navigation2d.lua"));
+  assert(fs::exists(root / ".demi/lua/demi/navigation.lua"));
+  assert(fs::exists(root / ".demi/lua/demi/custom.lua"));
   EditorPreferences preferences;
   const auto command =
       codeEditorCommand(preferences, root, root / "scripts/a ; b.lua");

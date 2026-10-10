@@ -4,19 +4,9 @@ local Events = require("demi.events")
 local Hud = require("demi.hud")
 local Input = require("demi.input")
 local Physics = require("demi.physics.query3d")
-local Prefab = require("demi.prefab")
 local Transform = require("demi.transform3d")
 
----@demi_component
----@description Places utility prefabs on clear, gently sloped terrain. Costs and placement belong to the game.
 local Construction = {}
----@demi_property entity
-Construction.camera = "camera"
----@demi_property entity
-Construction.terrain = "terrain"
----@demi_property
----@range 0 1000
-Construction.starting_metal = 24
 
 local catalog = {
   solar = {name="Solar array", prefab="prefab://utilities/solar", cost=6, width=8, depth=5},
@@ -31,28 +21,22 @@ function Construction:message(text)
 end
 
 function Construction:select(kind)
-  self.kind = catalog[kind] and kind or nil
+  self.kind = (catalog[kind] or kind=="connect" or kind=="disconnect") and kind or nil
+  self.first_node,self.selected_job=nil,nil
   self.cached_key, self.visual_key = nil, nil
   Entity.set_enabled(ghost, false)
-  self:message(self.kind and (catalog[self.kind].name .. ": choose clear ground") or "Choose a utility to extend the colony.")
+  self:message(self.kind and (catalog[self.kind] and catalog[self.kind].name .. ": choose clear ground" or "Select the first completed building") or "Choose a utility to extend the colony.")
 end
 
-function Construction:is_terrain(id)
-  while id and id ~= "" do
-    if id == self.terrain then return true end
-    id = Entity.parent(id)
-  end
-  return false
-end
-
-function Construction:ground(x, z)
-  local hit = Physics.raycast(x, 500, z, 0, -1, 0, 1000)
-  if hit and self:is_terrain(hit.entity_id) then return hit end
+function Construction:is_terrain(id) return self.terrain_service:owns(id) end
+function Construction:ground(x,z)
+  local y,normal=self.terrain_service:sample(x,z)
+  if y then return {point={x,y,z},normal={0,normal,0}} end
 end
 
 function Construction:site(x, z)
   local item = catalog[self.kind]
-  local key = self.kind .. ":" .. x .. ":" .. z
+  local key = self.kind .. ":" .. x .. ":" .. z .. ":" .. self.network.revision
   if key == self.cached_key then return self.cached_site end
   self.cached_key = key
   local result = {x=x, z=z, valid=false, reason="Choose clear terrain"}
@@ -92,54 +76,77 @@ function Construction:point(x, y)
 end
 
 function Construction:build(site)
-  local item = catalog[self.kind]
-  if not site or not site.valid then self:message(site and site.reason or "Choose clear terrain"); return end
-  if self.metal < item.cost then self:message("Not enough metal · cancel or choose a cheaper utility"); return end
-  local id = "built_" .. self.next_id
-  local foundation = {components={Transform3D={
-    position={0,-site.relief/2,0}, scale={item.width,site.relief+0.35,item.depth}
-  }}}
-  if not Prefab.instantiate(item.prefab, {
-    id=id, position={site.x,site.y,site.z}, overrides={foundation=foundation}
-  }) then
-    self:message("Could not construct this utility"); return
-  end
-  self.next_id = self.next_id + 1
-  self.metal = self.metal - item.cost
-  Hud.set_text("metal", string.format("Metal: %.0f", self.metal))
-  Events.emit("colony.building_created", {id=id.."/base", kind=self.kind})
-  self.cached_key = nil
-  self:select(nil)
-  self:message(item.name .. " built · select another utility to continue")
+  if not site or not site.valid then self:message(site and site.reason or "Choose clear terrain");return end
+  local job,message=self.jobs:enqueue_build(self.kind,catalog[self.kind],site)
+  if job then self:select(nil);self.selected_job=job;self.observed_job=job end
+  self:message(message)
 end
-
-function Construction:on_start()
-  self.metal, self.next_id = self.starting_metal, 1
-  Hud.set_text("metal", string.format("Metal: %.0f", self.metal))
-  assert(Entity.create(ghost, {enabled=false, components={
-    Transform3D={}, MeshRenderer={shape="cube", surface_mode="transparent", opacity=0.35, color={0.3,1,0.65,1}}
-  }}))
-  self.subscription = Events.subscribe("ui_event", function(event)
-    if event.type ~= "submit" then return end
-    if event.action == "build.solar" then self:select("solar")
-    elseif event.action == "build.water" then self:select("water")
-    elseif event.action == "build.cancel" then self:select(nil) end
+function Construction:world_click(x,y)
+  if catalog[self.kind] then return self:build(self:point(x,y)) end
+  local w,h=Input.viewport_size()
+  local ray=Camera3D.screen_ray(self.camera,x,y,w,h)
+  if not ray then return end
+  local o,d=ray.origin,ray.direction
+  local hit=Physics.raycast(o[1],o[2],o[3],d[1],d[2],d[3],1000)
+  local node=hit and self.network:pick(hit.entity_id)
+  if not node then self:message("Select a building or construction site");return end
+  if not self.kind then
+    self.selected_job=self.jobs:find_site(node.site_id)
+    self:message(self.selected_job and "Planned site selected · Cancel refunds reserved metal" or
+      (self.network.connected[node.id] and "Connected to habitat" or "Disconnected · use Connect to join the utility network"))
+    return
+  end
+  if not node.complete then self:message("Finish this building before connecting");return end
+  if not self.first_node then self.first_node=node.id;self:message("Select the second building");return end
+  local first=self.first_node;self.first_node=nil
+  if self.kind=="disconnect" then
+    local edge=self.network:pair(first,node.id)
+    if edge then
+      if edge.complete then self.network:remove(edge)
+      else for _,job in ipairs(self.jobs.queue) do if job.edge==edge then self.jobs:cancel(job);break end end end
+      self:message("Connection removed")
+    else self:message("No connection between these buildings") end
+  else
+    local job,message=self.jobs:enqueue_link(first,node.id);self.observed_job=job;self:message(message)
+  end
+end
+function Construction.new(config,network,jobs,terrain)
+  local self=setmetatable({network=network,jobs=jobs,terrain_service=terrain,camera=config.camera},{__index=Construction})
+  jobs:publish()
+  assert(Entity.create(ghost,{enabled=false,components={Transform3D={},MeshRenderer={shape="cube",surface_mode="transparent",opacity=0.35,color={0.3,1,0.65,1}}}}))
+  self.subscription=Events.subscribe("ui_event",function(event)
+    if event.type~="submit" then return end
+    if event.action=="build.solar" then self:select("solar")
+    elseif event.action=="build.water" then self:select("water")
+    elseif event.action=="build.connect" then self:select("connect")
+    elseif event.action=="build.disconnect" then self:select("disconnect")
+    elseif event.action=="build.cancel" then
+      if not self.kind and self.selected_job and jobs:cancel(self.selected_job) then self:select(nil);self:message("Plan cancelled · metal refunded")
+      else self:select(nil) end
+    end
   end)
   self:select(nil)
+  return self
 end
 
-function Construction:on_update()
+function Construction:update()
+  if self.observed_job and self.observed_job.state=="complete" then
+    local job=self.observed_job;self.observed_job=nil
+    if not self.first_node and not catalog[self.kind] then
+      self:message(job.kind=="link" and "Connection complete · select another pair or Cancel" or
+        job.item.name.." complete · Connect it to the habitat to enable production")
+    end
+  end
   local mouse = Input.mouse_down("left")
   local click = mouse and not self.mouse_was_down
   self.mouse_was_down = mouse
-  if not self.kind then return end
   if Input.key_pressed("escape") or Input.mouse_down("right") then self:select(nil); return end
   local x, y = Input.mouse_position()
-  local site = self:point(x, y)
+  local site = catalog[self.kind] and self:point(x, y)
   if site and site.y then
     local item = catalog[self.kind]
     Entity.set_enabled(ghost, true)
-    local valid = site.valid and self.metal >= item.cost
+    local valid = site.valid and self.jobs.metal >= item.cost
     local visual_key = self.cached_key .. tostring(valid)
     if self.visual_key ~= visual_key then
       Transform.set_position(ghost, site.x, site.y+0.18, site.z)
@@ -147,18 +154,18 @@ function Construction:on_update()
       Entity.set_field(ghost, "MeshRenderer", "color", valid and {0.3,1,0.65,1} or {1,0.25,0.3,1})
       self.visual_key = visual_key
     end
-    self:message(self.metal < item.cost and "Not enough metal" or site.reason)
+    self:message(self.jobs.metal < item.cost and "Not enough metal" or site.reason)
   else Entity.set_enabled(ghost, false) end
   local touches = Input.touches()
   for _, touch in ipairs(touches) do
     if touch.phase == "began" and not Input.ui_pointer_captured(touch.id) then
-      self:build(self:point(touch.x, touch.y)); return
+      self:world_click(touch.x,touch.y);return
     end
   end
-  if #touches == 0 and click and not Input.ui_pointer_captured() then self:build(site) end
+  if #touches == 0 and click and not Input.ui_pointer_captured() then self:world_click(x,y) end
 end
 
-function Construction:on_destroy()
+function Construction:destroy()
   if self.subscription then Events.unsubscribe(self.subscription) end
 end
 return Construction

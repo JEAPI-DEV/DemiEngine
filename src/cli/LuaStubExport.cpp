@@ -1,6 +1,7 @@
 #include "cli/LuaStubExport.h"
 #include "demi/runtime/scene/ComponentRegistry.h"
 #include <fstream>
+#include <vector>
 namespace demi::cli {
 bool exportLuaStubs(const std::filesystem::path &source,
                     const std::filesystem::path &destination,
@@ -23,6 +24,7 @@ bool exportLuaStubs(const std::filesystem::path &source,
           "Native Lua stub module library was not found: " + source.string();
       return false;
     }
+    std::vector<std::filesystem::path> obsolete;
     if (std::filesystem::is_directory(destination / "demi")) {
       for (const auto &entry : std::filesystem::recursive_directory_iterator(
                destination / "demi")) {
@@ -38,10 +40,7 @@ bool exportLuaStubs(const std::filesystem::path &source,
         std::getline(input, marker);
         if (first == "---@meta" &&
             marker.starts_with("-- Native module: require(")) {
-          error = "Obsolete native Lua stub: " + entry.path().string() +
-                  ". Move it out of the LuaLS library or export into a fresh "
-                  "directory.";
-          return false;
+          obsolete.push_back(entry.path());
         }
       }
     }
@@ -61,10 +60,16 @@ bool exportLuaStubs(const std::filesystem::path &source,
     std::ofstream components(destination / "demi/_components.lua");
     components << "---@meta\n"
                << runtime::scene_loading::generatedLuaComponentTypes();
+    components.close();
     if (!components) {
       error = "Failed to write component type annotations";
       return false;
     }
+    // Only provenance-marked native annotations are engine-owned. Leave custom
+    // LuaLS files alone, and prune obsolete modules after the fresh export
+    // succeeds.
+    for (const auto &path : obsolete)
+      std::filesystem::remove(path);
     return true;
   } catch (const std::filesystem::filesystem_error &exception) {
     error = exception.what();

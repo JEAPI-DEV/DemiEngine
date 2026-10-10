@@ -55,21 +55,21 @@ local px, py, pz = Transform3D.get_position(crate)  -- three scalars</code></pre
     </tr>
     <tr>
       <td><code>{}</code> (empty table)</td>
-      <td>Bulk queries, children lists, path results from <code>Navigation2D</code></td>
+      <td>Bulk queries, children lists, path results from <code>NavigationGrid</code></td>
       <td>An empty array means “the query ran and found nothing”, not an error. Iterate with <code>ipairs</code>.</td>
     </tr>
   </tbody>
 </table>
-<p>Two pathfinding calls illustrate the split between <code>nil</code> and empty tables. <code>Grid.path</code> returns a path table on success and a single <code>nil</code> (plus a diagnostic you can log) when no path exists. <code>Navigation2D.path</code> always returns a table of waypoints — empty when nothing was found — and a diagnostic. Treat <code>nil</code> as “no result object”, and an empty table as “a result with zero items”.</p>
+<p>Two pathfinding calls illustrate the split between <code>nil</code> and empty tables. <code>Grid.path</code> returns a path table on success and a single <code>nil</code> (plus a diagnostic you can log) when no path exists. <code>nav:path</code> always returns a table of waypoints — empty when nothing was found — and a diagnostic. Treat <code>nil</code> as “no result object”, and an empty table as “a result with zero items”.</p>
 <pre><code>local Grid = require("demi.grid")
-local Navigation2D = require("demi.navigation2d")
+local nav = require("demi.navigation").default_grid()
 
 local gridPath = Grid.path(0, 0, 5, 5)
 -- gridPath: array of {x, y} waypoints, or nil when unreachable (a diagnostic code is returned)
 
-local navPath = Navigation2D.path(0, 0, 5, 5)
+local navPath = nav:path(0, 0, 5, 5)
 -- navPath: always a table of waypoints (possibly empty) plus a diagnostic</code></pre>
-<p><code>Grid.path(start_x, start_y, goal_x, goal_y)</code> takes four tile coordinates and returns either an array of waypoints or <code>nil</code> plus a diagnostic code. <code>Navigation2D.path(start_x, start_y, goal_x, goal_y, diagonal?)</code> returns a (possibly empty) waypoint array and a diagnostic string you can pass to <code>Debug.log</code>.</p>
+<p><code>Grid.path(start_x, start_y, goal_x, goal_y)</code> takes four tile coordinates and returns either an array of waypoints or <code>nil</code> plus a diagnostic code. <code>nav:path(start_x, start_y, goal_x, goal_y, diagonal?)</code> returns a (possibly empty) waypoint array and a diagnostic string you can pass to <code>Debug.log</code>.</p>
 
 <h2>Error shapes</h2>
 <p>Data-loading and YAML-parsing failures use <code>nil, DataError</code>. This is not a universal error convention: many entity/network operations return booleans, while HTTP request creation returns a handle or <code>nil, error_string</code>. Poll an HTTP handle's response for transport/HTTP errors. Use each service's documented return shape. A data error looks like:</p>
@@ -123,7 +123,7 @@ local written = { nickname = Data.null }</code></pre>
     <tr><td><code>demi.time</code> / <code>demi.timer</code></td><td>Frame time, pause, time scale; delays and repeats</td></tr>
     <tr><td><code>demi.debug</code> / <code>demi.profile</code></td><td>On-screen debug lines; scoped performance timers — see <a href="{{ path('docs_page', {slug: 'math-debug-api'}) }}">Math &amp; debug</a></td></tr>
     <tr><td><code>demi.text</code> / <code>demi.regex</code></td><td>Grapheme-safe text helpers; ECMAScript pattern matching</td></tr>
-    <tr><td><code>demi.grid</code> / <code>demi.navigation2d</code></td><td>Isometric placement; 2D pathfinding</td></tr>
+    <tr><td><code>demi.grid</code> / <code>demi.navigation</code></td><td>Isometric placement; 2D pathfinding</td></tr>
     <tr><td><code>demi.video</code> / <code>demi.cutscene</code></td><td>Video playback and cutscene sequencing</td></tr>
     <tr><td><code>demi.test</code></td><td>E2E helpers — see <a href="{{ path('docs_page', {slug: 'e2e-tests'}) }}">E2E tests</a></td></tr>
     <tr><td><code>demi.network</code></td><td>Low-level transport — see <a href="{{ path('docs_page', {slug: 'sessions-and-contracts'}) }}">Sessions &amp; contracts</a></td></tr>
