@@ -1,5 +1,6 @@
 #include "demi/runtime/render/backend/RenderCommands.h"
 
+#include "demi/runtime/render/backend/BgfxDrawBindings.h"
 #include "demi/runtime/render/backend/BgfxResourceLookup.h"
 #include "demi/runtime/render/backend/BgfxVertexLayout.h"
 
@@ -127,37 +128,6 @@ void applyScissor(const ScissorRect scissor) {
     bgfx::setScissor(scissor.x, scissor.y, scissor.width, scissor.height);
 }
 
-bool bindExtraTextures(std::span<const DrawTextureBinding> bindings,
-                       BgfxResourceLookup &resources, std::string &error) {
-  const auto *caps=bgfx::getCaps();
-  std::array<bool,256> stages{};
-  for(const auto &binding:bindings) {
-    const auto texture=resources.bgfxTexture(binding.texture);
-    const auto sampler=resources.bgfxSampler(binding.sampler);
-    if(!bgfx::isValid(texture) || !bgfx::isValid(sampler) || binding.stage==0 || stages[binding.stage] ||
-       (caps && binding.stage>=caps->limits.maxTextureSamplers)) {
-      error="Invalid additional texture binding"; return false;
-    }
-    stages[binding.stage]=true;
-  }
-  for(const auto &binding:bindings)
-    bgfx::setTexture(binding.stage,resources.bgfxSampler(binding.sampler),resources.bgfxTexture(binding.texture));
-  return true;
-}
-
-bool validateUniforms(const std::span<const DrawUniformValue> uniforms,
-                      BgfxResourceLookup &resources, std::string &error,
-                      const char *drawName) {
-  for (const DrawUniformValue &value : uniforms) {
-    const bgfx::UniformHandle uniform = resources.bgfxUniform(value.handle);
-    if (!bgfx::isValid(uniform) || value.values.empty() || value.count == 0) {
-      error = std::string(drawName) + " references an invalid uniform value.";
-      return false;
-    }
-  }
-  return true;
-}
-
 bool validateBufferedSlices(const BufferSlice vertices,
                             const BufferSlice indices,
                             BgfxResourceLookup &resources,
@@ -185,11 +155,16 @@ bool validateBufferedSlices(const BufferSlice vertices,
   return true;
 }
 
-void applyUniforms(const std::span<const DrawUniformValue> uniforms,
-                   BgfxResourceLookup &resources) {
-  for (const DrawUniformValue &value : uniforms)
-    bgfx::setUniform(resources.bgfxUniform(value.handle), value.values.data(),
-                     value.count);
+void applyUniforms(std::span<const BgfxResolvedUniform> uniforms) {
+  for (const auto &uniform : uniforms) {
+    bgfx::setUniform(uniform.handle, uniform.values.data(), uniform.count);
+  }
+}
+
+void bindExtraTextures(std::span<const BgfxResolvedTexture> textures) {
+  for (const auto &texture : textures) {
+    bgfx::setTexture(texture.stage, texture.sampler, texture.texture);
+  }
 }
 
 class BgfxRenderCommands final : public RenderCommands {
@@ -241,7 +216,8 @@ public:
 
     bgfx::setViewRect(view.id, view.x, view.y, view.width, view.height);
     std::uint16_t clearFlags = BGFX_CLEAR_NONE;
-    bgfx::setViewMode(view.id, view.sequential ? bgfx::ViewMode::Sequential : bgfx::ViewMode::Default);
+    bgfx::setViewMode(view.id, view.sequential ? bgfx::ViewMode::Sequential
+                                               : bgfx::ViewMode::Default);
     if (view.clearColor)
       clearFlags |= BGFX_CLEAR_COLOR;
     if (view.clearDepth)
@@ -295,12 +271,15 @@ public:
       error = "The frame transient-buffer budget is exhausted.";
       return false;
     }
-    if (!validateUniforms(draw.uniforms, resources_, error, "Transient draw"))
+    if (!bindings_.resolveUniforms(draw.uniforms, resources_, error,
+                                   "Transient draw")) {
       return false;
+    }
     bgfx::ProgramHandle program = BGFX_INVALID_HANDLE;
     if (!bindProgramAndTexture(draw.program, draw.texture, draw.sampler,
-                               resources_, program, error, "Transient draw"))
+                               resources_, program, error, "Transient draw")) {
       return false;
+    }
 
     bgfx::TransientVertexBuffer vertices;
     bgfx::TransientIndexBuffer indices;
@@ -311,7 +290,7 @@ public:
 
     bgfx::setVertexBuffer(0, &vertices);
     bgfx::setIndexBuffer(&indices);
-    applyUniforms(draw.uniforms, resources_);
+    applyUniforms(bindings_.uniforms());
     DrawState state = draw.state;
     state.blend = draw.blend;
     bgfx::setState(renderState(state));
@@ -326,13 +305,23 @@ public:
     if (!validateBufferedSlices(draw.vertices, draw.indices, resources_,
                                 vertices, indices, error, "Buffered draw"))
       return false;
-    if (!validateUniforms(draw.uniforms, resources_, error, "Buffered draw"))
+    if (!bindings_.resolveUniforms(draw.uniforms, resources_, error,
+                                   "Buffered draw")) {
       return false;
+    }
+    const auto *caps = bgfx::getCaps();
+    const std::uint16_t maximumSamplers =
+        caps ? caps->limits.maxTextureSamplers : 256;
+    if (!bindings_.resolveTextures(draw.textures, resources_, maximumSamplers,
+                                   error)) {
+      return false;
+    }
     bgfx::ProgramHandle program = BGFX_INVALID_HANDLE;
     if (!bindProgramAndTexture(draw.program, draw.texture, draw.sampler,
-                               resources_, program, error, "Buffered draw"))
+                               resources_, program, error, "Buffered draw")) {
       return false;
-    if(!bindExtraTextures(draw.textures,resources_,error))return false;
+    }
+    bindExtraTextures(bindings_.textures());
 
     if (vertices.kind == BufferKind::DynamicVertex)
       bgfx::setVertexBuffer(0, bgfx::DynamicVertexBufferHandle{vertices.index},
@@ -343,7 +332,7 @@ public:
     bgfx::setIndexBuffer(bgfx::IndexBufferHandle{indices.index},
                          draw.indices.first, draw.indices.count);
     bgfx::setTransform(draw.transform.data());
-    applyUniforms(draw.uniforms, resources_);
+    applyUniforms(bindings_.uniforms());
     bgfx::setState(renderState(draw.state));
     applyScissor(draw.scissor);
     bgfx::submit(draw.viewId, program);
@@ -372,13 +361,23 @@ public:
       error = "The frame instance-buffer budget is exhausted.";
       return false;
     }
-    if (!validateUniforms(draw.uniforms, resources_, error, "Instanced draw"))
+    if (!bindings_.resolveUniforms(draw.uniforms, resources_, error,
+                                   "Instanced draw")) {
       return false;
+    }
+    const auto *caps = bgfx::getCaps();
+    const std::uint16_t maximumSamplers =
+        caps ? caps->limits.maxTextureSamplers : 256;
+    if (!bindings_.resolveTextures(draw.textures, resources_, maximumSamplers,
+                                   error)) {
+      return false;
+    }
     bgfx::ProgramHandle program = BGFX_INVALID_HANDLE;
     if (!bindProgramAndTexture(draw.program, draw.texture, draw.sampler,
-                               resources_, program, error, "Instanced draw"))
+                               resources_, program, error, "Instanced draw")) {
       return false;
-    if(!bindExtraTextures(draw.textures,resources_,error))return false;
+    }
+    bindExtraTextures(bindings_.textures());
 
     bgfx::InstanceDataBuffer instances;
     bgfx::allocInstanceDataBuffer(&instances, instanceCount, TransformStride);
@@ -393,7 +392,7 @@ public:
     bgfx::setIndexBuffer(bgfx::IndexBufferHandle{indices.index},
                          draw.indices.first, draw.indices.count);
     bgfx::setInstanceDataBuffer(&instances);
-    applyUniforms(draw.uniforms, resources_);
+    applyUniforms(bindings_.uniforms());
     bgfx::setState(renderState(draw.state));
     applyScissor(draw.scissor);
     bgfx::submit(draw.viewId, program);
@@ -402,6 +401,7 @@ public:
 
 private:
   BgfxResourceLookup &resources_;
+  BgfxDrawBindings bindings_;
 };
 
 } // namespace

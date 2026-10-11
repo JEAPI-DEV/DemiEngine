@@ -5,6 +5,12 @@ frame while source-watch maintenance continues. Play and active work keep
 updating without a default interaction FPS cap; see
 [editor qualification](docs/editor-usability-redesign.md).
 
+Shared runtime efficiency work now separates mesh preparation, batching and
+cache ownership, eliminates repeated draw-path lookups, and reuses physics input
+snapshots while preserving native mutation checks. Same-Release measurements
+and correctness fixes are recorded in
+[runtime efficiency qualification](docs/runtime-efficiency-qualification.md).
+
 Terrain palettes now separate surface material sets from named object placement
 rules. Material sets now drive discrete surface-role assignment using indexed
 sections of existing terrain meshes, with explicit biome overrides and finite

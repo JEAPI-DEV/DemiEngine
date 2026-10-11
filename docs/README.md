@@ -7,6 +7,9 @@ are registered in `tools/package-store/src/Docs.php`.
 
 This directory keeps material that has a different job:
 
+- [Shared runtime efficiency qualification](runtime-efficiency-qualification.md)
+  records readable renderer/physics rewrites, same-build measurements, native
+  editor verification and mutation/lifetime regression coverage.
 - [Terrain performance qualification](terrain-performance-qualification.md)
   records the CPU bottlenecks, Debug/Release comparison and native editor check.
 - [Terrain surface material qualification](terrain-surface-materials-qualification.md)

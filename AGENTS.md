@@ -51,6 +51,8 @@ and performance checks. Keep `linux-debug` for focused tests and native engine
 debugging. Embedded Play uses the editor binary's build, independently of the
 standalone Run & Test configuration. Always record build configuration alongside
 performance results; an unoptimized native Debug run is not a hardware limit.
+After rebuilding native code, relaunch the editor/runtime before measuring it.
+Restarting embedded Play does not reload an already-running editor executable.
 
 Run the narrowest relevant tests while iterating, then broaden validation in
 proportion to risk. Never report a full green gate if unrelated or newly added

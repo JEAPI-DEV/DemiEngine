@@ -36,10 +36,11 @@ bool transitionMatches(const AnimationTransition &transition,
   return transition.condition == "always";
 }
 
-void applyState(Entity &entity, AnimationStateMachineComponent &machine,
+void applyState(SpriteAnimator2DComponent *sprite,
+                AnimationPlayer3DComponent *model,
+                AnimationStateMachineComponent &machine,
                 const AnimationState &state) {
-  if (auto *sprite = entity.component<SpriteAnimator2DComponent>();
-      sprite != nullptr && !state.spriteClip.empty() &&
+  if (sprite != nullptr && !state.spriteClip.empty() &&
       sprite->clips.contains(state.spriteClip)) {
     if (machine.entered || sprite->clip != state.spriteClip) {
       sprite->previousClip = sprite->clip;
@@ -52,8 +53,7 @@ void applyState(Entity &entity, AnimationStateMachineComponent &machine,
     sprite->playing =
         state.loop || state.duration <= 0.0F || machine.time < state.duration;
   }
-  if (auto *model = entity.component<AnimationPlayer3DComponent>();
-      model != nullptr && !state.modelClipName.empty()) {
+  if (model != nullptr && !state.modelClipName.empty()) {
     if (machine.entered || model->clipName != state.modelClipName) {
       model->previousClipName = model->clipName;
       model->previousTime = model->time;
@@ -137,20 +137,26 @@ void AnimationStateMachineSystem::update(World &world,
                                          const float unscaledDeltaTime) const {
   world.stateAnimationEvents.clear();
   for (Entity &entity : world.entities) {
-    if (!entity.enabled)
+    if (!entity.enabled) {
       continue;
-    if (auto *model = entity.component<AnimationPlayer3DComponent>())
-      model->visualClock += std::max(unscaledDeltaTime >= 0 ? unscaledDeltaTime : deltaTime, 0.0F);
+    }
+    auto *model = entity.component<AnimationPlayer3DComponent>();
+    if (model != nullptr) {
+      const float visualDeltaTime =
+          unscaledDeltaTime >= 0.0F ? unscaledDeltaTime : deltaTime;
+      model->visualClock += std::max(visualDeltaTime, 0.0F);
+    }
     auto *machine = entity.component<AnimationStateMachineComponent>();
     if (machine == nullptr) {
-      if (auto *model = entity.component<AnimationPlayer3DComponent>();
-          model != nullptr && model->playing)
+      if (model != nullptr && model->playing) {
         model->time += std::max(deltaTime, 0.0F) * model->speed;
+      }
       continue;
     }
     auto current = machine->states.find(machine->state);
-    if (current == machine->states.end())
+    if (current == machine->states.end()) {
       continue;
+    }
 
     const float sourceDt =
         machine->updateWhenPaused && unscaledDeltaTime >= 0.0F
@@ -163,24 +169,25 @@ void AnimationStateMachineSystem::update(World &world,
         current->second.duration > 0.0F
             ? (current->second.loop
                    ? std::fmod(machine->time / current->second.duration, 1.0F)
-                   : std::clamp(machine->time / current->second.duration,
-                                0.0F, 1.0F))
+                   : std::clamp(machine->time / current->second.duration, 0.0F,
+                                1.0F))
             : 0.0F;
     emitEvents(world, entity, *machine, current->second, previousTime,
                machine->time);
 
     for (const AnimationTransition &transition : machine->transitions) {
       if (!machine->states.contains(transition.to) ||
-          !transitionMatches(transition, *machine, current->second))
+          !transitionMatches(transition, *machine, current->second)) {
         continue;
-      if (transition.condition == "trigger")
+      }
+      if (transition.condition == "trigger") {
         machine->triggers.erase(transition.parameter);
+      }
       machine->activeTransition = {.from = machine->state,
                                    .to = transition.to,
                                    .duration = transition.blendDuration,
                                    .elapsed = 0.0F,
-                                   .active =
-                                       transition.blendDuration > 0.0F};
+                                   .active = transition.blendDuration > 0.0F};
       machine->state = transition.to;
       machine->time = 0.0F;
       machine->normalizedTime = 0.0F;
@@ -191,8 +198,9 @@ void AnimationStateMachineSystem::update(World &world,
     if (machine->activeTransition.active) {
       machine->activeTransition.elapsed += dt;
       if (machine->activeTransition.elapsed >=
-          machine->activeTransition.duration)
+          machine->activeTransition.duration) {
         machine->activeTransition.active = false;
+      }
     }
     const float blendWeight =
         machine->activeTransition.active
@@ -200,37 +208,39 @@ void AnimationStateMachineSystem::update(World &world,
                              machine->activeTransition.duration,
                          0.0F, 1.0F)
             : 1.0F;
-    if (auto *sprite = entity.component<SpriteAnimator2DComponent>())
+    auto *sprite = entity.component<SpriteAnimator2DComponent>();
+    if (sprite != nullptr) {
       sprite->blendWeight = blendWeight;
-    if (auto *model = entity.component<AnimationPlayer3DComponent>())
+    }
+    if (model != nullptr) {
       model->blendWeight = blendWeight;
+    }
 
     const AnimationState *presentation =
         sampledState(*machine, current->second);
-    applyState(entity, *machine, *presentation);
-    if (auto *model = entity.component<AnimationPlayer3DComponent>()) {
+    applyState(sprite, model, *machine, *presentation);
+    if (model != nullptr) {
       model->time = machine->time;
       model->layers.clear();
       for (const AnimationLayer &layer : machine->layers) {
         const auto state = machine->states.find(layer.state);
-        if (state == machine->states.end() || layer.weight <= 0.0F)
+        if (state == machine->states.end() || layer.weight <= 0.0F) {
           continue;
-        model->layers.push_back(
-            {.clipName = state->second.modelClipName,
-             .mask = layer.mask,
-             .weight = layer.weight,
-             .additive = layer.additive});
+        }
+        model->layers.push_back({.clipName = state->second.modelClipName,
+                                 .mask = layer.mask,
+                                 .weight = layer.weight,
+                                 .additive = layer.additive});
       }
     }
     if (machine->rootMotion && dt > 0.0F) {
       if (auto *transform = entity.component<Transform3DComponent>()) {
-        const Vec3 motion = presentation->rootMotionTrack.size() >= 2
-                                ? extractRootMotion(
-                                      presentation->rootMotionTrack,
-                                      previousTime, machine->time,
-                                      presentation->duration,
-                                      presentation->loop)
-                                : Vec3{};
+        const Vec3 motion =
+            presentation->rootMotionTrack.size() >= 2
+                ? extractRootMotion(presentation->rootMotionTrack, previousTime,
+                                    machine->time, presentation->duration,
+                                    presentation->loop)
+                : Vec3{};
         transform->position.x += motion.x;
         transform->position.y += motion.y;
         transform->position.z += motion.z;

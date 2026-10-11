@@ -1,10 +1,17 @@
 #include "demi/runtime/scripting/LuaScriptHost.h"
 #include "demi/assets/TerrainAsset.h"
+#include "demi/assets/AssetHash.h"
+#include "demi/schema/Validation.h"
 #include "demi/runtime/terrain/TerrainScatterRuntime.h"
 #include "demi/runtime/terrain/TerrainWorld.h"
 #include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
 #include "demi/runtime/scene/SceneLoader.h"
 #include <filesystem>
+#include <chrono>
+#include <fstream>
+#include <nlohmann/json.hpp>
+#include <system_error>
+#include <stdexcept>
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/Transform3DComponent.h"
@@ -379,32 +386,157 @@ void prefabPrototypeKeepsGeometryAndStableCellId() {
 }
 
 void initialSceneScatterUsesConfiguredPrefabService() {
-  const auto project = exampleProjectPath();
-  demi::assets::prepareTerrainAssets(demi::loadAssetRegistry(project));
+  // The startup contract needs real authored loading, not the example's
+  // 512 x 512 terrain generation. Bound the fixture before preparing assets.
+  struct ProjectFixture {
+    std::filesystem::path directory;
+
+    ~ProjectFixture() {
+      std::error_code ignored;
+      std::filesystem::remove_all(directory, ignored);
+    }
+
+    void writeJson(const std::filesystem::path &relativePath,
+                   const nlohmann::json &document) const {
+      const auto path = directory / relativePath;
+      std::filesystem::create_directories(path.parent_path());
+      std::ofstream output(path);
+      output << document.dump(2);
+      if (!output.good()) {
+        throw std::runtime_error("Could not write fixture document: " +
+                                 path.string());
+      }
+    }
+
+    void write(const std::filesystem::path &relativePath,
+               std::string_view document) const {
+      writeJson(relativePath, nlohmann::json::parse(document));
+    }
+
+    void writeManifest(const std::filesystem::path &relativePath,
+                       std::string_view document) const {
+      auto manifest = nlohmann::json::parse(document);
+      const auto source = directory / relativePath.parent_path() /
+                          manifest.at("source").get<std::string>();
+      const auto hash = demi::assets::hashFiles({source});
+      if (!hash) {
+        throw std::runtime_error("Could not hash fixture source: " +
+                                 source.string());
+      }
+      manifest["source_hash"] = *hash;
+      writeJson(relativePath, manifest);
+    }
+  };
+  const auto fixtureId =
+      std::chrono::steady_clock::now().time_since_epoch().count();
+  const ProjectFixture fixture{
+      std::filesystem::temp_directory_path() /
+      ("demi-scatter-startup-" + std::to_string(fixtureId))};
+  fixture.write("demi.project.json", R"({
+    "format_version": 1,
+    "name": "Scatter startup probe",
+    "main_scene": "scene://scatter_probe/main",
+    "scenes": [{"id": "scene://scatter_probe/main"}]
+  })");
+  fixture.write("scenes/main.scene.json", R"({
+    "format_version": 1,
+    "id": "scene://scatter_probe/main",
+    "entities": [{
+      "id": "terrain",
+      "components": {
+        "Transform3D": {},
+        "Terrain3D": {"asset": "asset://terrain/startup"}
+      }
+    }]
+  })");
+
+  TerrainRecipe recipe;
+  recipe.size = {4, 4};
+  recipe.cellsX = 4;
+  recipe.cellsZ = 4;
+  recipe.chunkCells = 4;
+  recipe.paletteId = PaletteId;
+  recipe.landforms.at("default").baseHeight = 4;
+  recipe.landforms.at("default").heightVariation = 0;
+  auto terrainDocument = nlohmann::json::parse(R"({
+    "format_version": 1,
+    "id": "asset://terrain/startup",
+    "name": "Small startup terrain"
+  })");
+  terrainDocument["recipe"] = recipe.toJson();
+  fixture.writeJson("assets/startup.terrain.json", terrainDocument);
+  fixture.writeManifest("assets/startup.asset.json", R"({
+    "format_version": 1,
+    "id": "asset://terrain/startup",
+    "type": "Terrain",
+    "importer": "terrain_heightfield",
+    "importer_version": 1,
+    "source": "startup.terrain.json",
+    "dependencies": ["asset://terrain/palettes/test"]
+  })");
+  fixture.write("assets/palette.json", R"({
+    "format_version": 2,
+    "name": "Startup prefab placement",
+    "placements": {
+      "probe": {
+        "prefab": "prefab://startup_probe",
+        "weight": 1,
+        "spacing": 0,
+        "collision": "none"
+      }
+    }
+  })");
+  fixture.writeManifest("assets/palette.asset.json", R"({
+    "format_version": 1,
+    "id": "asset://terrain/palettes/test",
+    "type": "DataAsset",
+    "importer": "json_data",
+    "importer_version": 1,
+    "source": "palette.json",
+    "dependencies": [],
+    "settings": {"content_type": "terrain_palette"}
+  })");
+  fixture.write("prefabs/startup_probe.prefab.json", R"({
+    "format_version": 1,
+    "id": "prefab://startup_probe",
+    "entities": [{
+      "id": "body",
+      "components": {
+        "Transform3D": {},
+        "MeshRenderer": {"shape": "cube"}
+      }
+    }]
+  })");
+
+  demi::assets::prepareTerrainAssets(
+      demi::loadAssetRegistry(fixture.directory));
   std::string error;
-  auto loaded = loadProject(project / "demi.project.json", error);
-  assert(loaded.has_value() && error.empty());
-  auto *owner = findEntity(loaded->world, "terrain");
-  auto *terrain = owner == nullptr
-                      ? nullptr
-                      : owner->component<Terrain3DComponent>();
+  auto loaded = loadProject(fixture.directory / "demi.project.json", error);
+  if (!loaded || !error.empty()) {
+    const auto validation = demi::validatePath(fixture.directory);
+    for (const auto &diagnostic : validation.diagnostics) {
+      error += "\n" + diagnostic.code + ": " + diagnostic.message;
+    }
+    throw std::runtime_error("Scatter startup project load failed: " + error);
+  }
+  const auto *owner = findEntity(loaded->world, OwnerId);
+  const auto *terrain =
+      owner == nullptr ? nullptr : owner->component<Terrain3DComponent>();
   assert(terrain != nullptr && terrain->generated != nullptr);
+  assert(terrain->generated->cellsX == 4 && terrain->generated->cellsZ == 4);
   assert(!terrain->generated->scatterPlacements.empty());
-  const auto paletteId = terrain->generated->paletteId;
-  // This checks startup service wiring with one real placement. The full
-  // example's density belongs to runtime smoke/performance coverage.
-  auto probe = std::make_shared<HeightField>(*terrain->generated);
-  probe->scatterPlacements.resize(1);
-  terrain->generated = std::move(probe);
+  assert(terrain->generated->scatterPlacements.size() <= 25);
+  const auto expectedPlacements = terrain->generated->scatterPlacements.size();
 
   RuntimePrefabService prefabs;
   prefabs.configure(loaded->project.projectDirectory);
   const auto report = materializeTerrainScatter(loaded->world, &prefabs, error);
-  assert(error.empty() && report.unresolved == 0 && report.placed > 0);
-  const auto prefix = std::string("terrain/__scatter/") + paletteId + "/";
+  assert(error.empty() && report.unresolved == 0);
+  assert(report.placed == expectedPlacements);
+  const auto prefix = std::string("terrain/__scatter/") + PaletteId + "/";
   assert(std::ranges::any_of(loaded->world.entities, [&](const Entity &entity) {
-    return entity.id.starts_with(prefix) &&
-           !entity.prefabInstance.empty();
+    return entity.id.starts_with(prefix) && !entity.prefabInstance.empty() &&
+           entity.component<MeshRendererComponent>() != nullptr;
   }));
 }
 
@@ -424,7 +556,8 @@ void paletteSwapDoesNotCrossRemove() {
 
   HeightField empty;
   empty.paletteId = "asset://terrain/palettes/another";
-  const auto stats = syncTerrainScatter(world, commands, OwnerId, empty, &prefabs, error);
+  const auto stats =
+      syncTerrainScatter(world, commands, OwnerId, empty, &prefabs, error);
   assert(error.empty());
   assert(stats.total() == 0);
   flush(commands, world);

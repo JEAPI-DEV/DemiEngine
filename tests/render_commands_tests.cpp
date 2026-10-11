@@ -1,4 +1,5 @@
 #include "demi/runtime/render/backend/BgfxGraphicsDevice.h"
+#include "demi/runtime/render/backend/BgfxDrawBindings.h"
 #include "demi/runtime/render/backend/GpuResources.h"
 #include "demi/runtime/render/backend/QuadBatch.h"
 #include "demi/runtime/render/backend/RenderCommands.h"
@@ -16,6 +17,86 @@
 using namespace demi::runtime::render;
 
 namespace {
+
+class BindingLookup final : public BgfxResourceLookup {
+public:
+  mutable int uniformLookups = 0;
+  mutable int textureLookups = 0;
+  mutable int samplerLookups = 0;
+
+  bgfx::UniformHandle bgfxUniform(UniformHandle handle) const override {
+    ++uniformLookups;
+    if (handle.generation != 1) {
+      return BGFX_INVALID_HANDLE;
+    }
+    return {static_cast<std::uint16_t>(handle.index)};
+  }
+  bgfx::TextureHandle bgfxTexture(TextureHandle handle) const override {
+    ++textureLookups;
+    if (handle.generation != 1) {
+      return BGFX_INVALID_HANDLE;
+    }
+    return {static_cast<std::uint16_t>(handle.index)};
+  }
+  bgfx::UniformHandle bgfxSampler(SamplerHandle handle) const override {
+    ++samplerLookups;
+    if (handle.generation != 1) {
+      return BGFX_INVALID_HANDLE;
+    }
+    return {static_cast<std::uint16_t>(handle.index)};
+  }
+  bgfx::ProgramHandle bgfxProgram(ProgramHandle) const override {
+    return BGFX_INVALID_HANDLE;
+  }
+  BgfxBufferReference bgfxBuffer(BufferHandle) const override { return {}; }
+  bgfx::FrameBufferHandle bgfxFrameBuffer(FrameBufferHandle) const override {
+    return BGFX_INVALID_HANDLE;
+  }
+};
+
+void testDrawBindingResolution() {
+  BindingLookup lookup;
+  BgfxDrawBindings bindings;
+  std::string error;
+  std::array<float, 4> values{1, 2, 3, 4};
+  std::array<DrawUniformValue, 2> uniforms{
+      DrawUniformValue{{1, 1}, values, 1},
+      DrawUniformValue{{2, 1}, values, 1}};
+  assert(bindings.resolveUniforms(uniforms, lookup, error, "Test draw"));
+  assert(lookup.uniformLookups == 2);
+  assert(bindings.uniforms().size() == 2);
+  assert(bindings.uniforms()[0].values.data() == values.data());
+
+  // Resource generations are checked again even when the slot stays the same.
+  uniforms.back().handle.generation = 2;
+  assert(!bindings.resolveUniforms(uniforms, lookup, error, "Test draw"));
+  assert(lookup.uniformLookups == 4 && bindings.uniforms().empty());
+  uniforms.back().handle.generation = 1;
+  values[0] = 5;
+  assert(bindings.resolveUniforms(uniforms, lookup, error, "Test draw"));
+  assert(bindings.uniforms()[0].values[0] == 5);
+
+  std::array<DrawTextureBinding, 2> textures{
+      DrawTextureBinding{1, {3, 1}, {4, 1}},
+      DrawTextureBinding{2, {5, 1}, {6, 1}}};
+  assert(bindings.resolveTextures(textures, lookup, 16, error));
+  assert(lookup.textureLookups == 2 && lookup.samplerLookups == 2);
+  assert(bindings.textures().size() == 2);
+  textures.back().stage = 1;
+  assert(!bindings.resolveTextures(textures, lookup, 16, error));
+  assert(bindings.textures().empty());
+  textures.back().stage = 16;
+  assert(!bindings.resolveTextures(textures, lookup, 16, error));
+  textures.back().stage = 0;
+  assert(!bindings.resolveTextures(textures, lookup, 16, error));
+  textures.back().stage = 2;
+  textures.back().sampler.generation = 2;
+  assert(!bindings.resolveTextures(textures, lookup, 16, error));
+  textures.back().sampler.generation = 1;
+  assert(bindings.resolveTextures(textures, lookup, 16, error));
+  assert(bindings.resolveTextures({}, lookup, 16, error));
+  assert(bindings.textures().empty());
+}
 
 VertexLayout quadLayout() {
   return VertexLayout{.attributes = {
@@ -35,6 +116,7 @@ VertexLayout quadLayout() {
 } // namespace
 
 int main() {
+  testDrawBindingResolution();
   BgfxGraphicsDevice graphics;
   std::string error;
   assert(graphics.initialize(

@@ -20,6 +20,7 @@
 #include "demi/runtime/render/bgfx3d/PostProcessRenderer3D.h"
 #include "demi/runtime/render/bgfx3d/PrimitiveCanvas3D.h"
 #include "demi/runtime/render/bgfx3d/SceneVisibility3D.h"
+#include "demi/runtime/render/bgfx3d/MeshResourceRetention3D.h"
 #include "demi/runtime/render/bgfx3d/SkyRenderer3D.h"
 #include "demi/runtime/render/bgfx3d/VisualAnimationBudget3D.h"
 #include "demi/runtime/scene/model/World.h"
@@ -70,6 +71,19 @@ private:
       std::span<const DrawUniformValue>, ProgramHandle, std::uint32_t &, std::uint32_t &, std::string &);
   bool renderView(const World &, const BgfxCameraFrame3D &, float,
                   std::string &, bool shadowPass, const SceneLighting3D &);
+  struct MeshSubmissionStatistics {
+    std::uint32_t draws = 0;
+    std::uint32_t triangles = 0;
+    std::uint32_t distanceCulled = 0;
+    std::uint32_t mediumLodMeshes = 0;
+    std::uint32_t lowLodMeshes = 0;
+  };
+  bool submitVisibleMeshes(
+      const SceneVisibility3D &, const BgfxCameraFrame3D &, bool shadowPass,
+      std::size_t firstTransparent, const std::array<DrawUniformValue, 8> &,
+      ProgramHandle defaultMeshProgram, ProgramHandle defaultInstancedProgram,
+      ProgramHandle defaultSkinnedProgram, MeshSubmissionStatistics &,
+      std::string &error);
   struct ModelLodSelection {
     const std::string *model = nullptr;
     bool isCulled = false;
@@ -136,6 +150,10 @@ private:
   std::unordered_map<std::string, std::unique_ptr<CachedMesh>> primitiveMeshes_;
   std::unordered_map<std::string, std::unique_ptr<CachedMesh>> modelMeshes_;
   DeformedMeshCache3D deformedMeshes_;
+  MeshResourceRetention3D meshRetention_;
+  // Command adapters consume spans synchronously. Descriptors may be reused
+  // after submit returns; their value spans remain local to the current draw.
+  std::vector<DrawUniformValue> meshDrawUniforms_;
   ReliefMeshCache3D reliefMeshes_;
   std::unordered_map<std::string, assets::GltfSkinnedModel3D> animatedModels_;
   std::unordered_map<std::string, std::string> modelTextures_;

@@ -32,9 +32,4 @@ const GpuMesh3D *DeformedMeshCache3D::get(
   return &entry->gpu;
 }
 
-void DeformedMeshCache3D::retain(const std::unordered_set<std::string> &live) {
-  std::erase_if(meshes_, [&live](const auto &entry) {
-    return !live.contains(entry.first);
-  });
-}
 } // namespace demi::runtime::render

@@ -416,7 +416,7 @@
   add_executable(demi-quad-batch-tests tests/quad_batch_tests.cpp)
   target_link_libraries(demi-quad-batch-tests PRIVATE demi-graphics-bgfx)
   add_executable(demi-render-commands-tests tests/render_commands_tests.cpp)
-  target_link_libraries(demi-render-commands-tests PRIVATE demi-graphics-bgfx)
+  target_link_libraries(demi-render-commands-tests PRIVATE demi-graphics-bgfx bgfx)
   add_executable(demi-canvas2d-tests tests/canvas2d_tests.cpp)
   target_link_libraries(demi-canvas2d-tests PRIVATE demi-graphics-bgfx)
   add_executable(demi-font-atlas2d-tests tests/font_atlas2d_tests.cpp)

@@ -5,10 +5,8 @@
 
 #include <algorithm>
 #include <array>
-#include <bit>
 #include <cmath>
 #include <optional>
-#include <string>
 #include <string_view>
 
 namespace demi::runtime::render {
@@ -32,19 +30,6 @@ struct MeshSurface3D {
     return {metallic, roughness, 0.0F, 0.0F};
   }
 };
-
-// Exact float bits keep different opaque surfaces out of the same instance
-// group even when their decimal display values would round identically.
-[[nodiscard]] inline std::string surfaceBatchKey3D(const MeshSurface3D &surface) {
-  return std::to_string(std::bit_cast<std::uint32_t>(surface.metallic)) + ":" +
-         std::to_string(std::bit_cast<std::uint32_t>(surface.roughness)) + ":" +
-         std::to_string(std::bit_cast<std::uint32_t>(surface.opacity)) + ":" +
-         std::to_string(static_cast<int>(surface.blend)) + ":" +
-         std::to_string(std::bit_cast<std::uint32_t>(surface.baseColor[0])) + ":" +
-         std::to_string(std::bit_cast<std::uint32_t>(surface.baseColor[1])) + ":" +
-         std::to_string(std::bit_cast<std::uint32_t>(surface.baseColor[2])) + ":" +
-         std::to_string(std::bit_cast<std::uint32_t>(surface.baseColor[3]));
-}
 
 [[nodiscard]] inline MeshSurface3D
 resolveMeshSurface3D(const MeshRendererComponent &mesh,

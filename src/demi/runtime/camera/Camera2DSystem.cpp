@@ -13,31 +13,36 @@ namespace demi::runtime {
 void Camera2DSystem::update(World &world, const float deltaTime,
                             const float physicsInterpolationAlpha) const {
   for (Entity &entity : world.entities) {
-    if (!entity.enabled)
+    if (!entity.enabled) {
       continue;
+    }
     auto *camera = entity.component<Camera2DComponent>();
-    auto *transform = entity.component<Transform2DComponent>();
-    if (camera == nullptr || transform == nullptr || camera->target.empty())
+    if (camera == nullptr || camera->target.empty()) {
       continue;
+    }
+    auto *transform = entity.component<Transform2DComponent>();
+    if (transform == nullptr) {
+      continue;
+    }
 
     const Entity *target = findEntity(world, camera->target);
-    if (target == nullptr || !target->enabled)
+    if (target == nullptr || !target->enabled) {
       continue;
+    }
     Vec2 desired = physicsPresentationWorldPosition2D(
         world, *target, physicsInterpolationAlpha);
     desired.x += camera->followOffset.x;
     desired.y += camera->followOffset.y;
     if (camera->hasBounds) {
-      desired.x = std::clamp(desired.x, camera->boundsMin.x,
-                             camera->boundsMax.x);
-      desired.y = std::clamp(desired.y, camera->boundsMin.y,
-                             camera->boundsMax.y);
+      desired.x =
+          std::clamp(desired.x, camera->boundsMin.x, camera->boundsMax.x);
+      desired.y =
+          std::clamp(desired.y, camera->boundsMin.y, camera->boundsMax.y);
     }
     const float blend =
         camera->followSpeed <= 0.0F
             ? 1.0F
-            : 1.0F - std::exp(-camera->followSpeed *
-                              std::max(deltaTime, 0.0F));
+            : 1.0F - std::exp(-camera->followSpeed * std::max(deltaTime, 0.0F));
     transform->position.x += (desired.x - transform->position.x) * blend;
     transform->position.y += (desired.y - transform->position.y) * blend;
   }

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "demi/core/StringHash.h"
+
 #include "demi/assets/AssetRegistry.h"
 #include "demi/runtime/render/backend/CookedShaderLibrary.h"
 #include "demi/runtime/render/backend/RenderCommands.h"
@@ -52,7 +54,8 @@ public:
 private:
   GpuResources &resources_;
   CookedShaderLibrary shaders_;
-  std::unordered_map<std::string, MaterialBinding> materials_;
+  std::unordered_map<std::string, MaterialBinding, StringHash, std::equal_to<>>
+      materials_;
 };
 
 } // namespace demi::runtime::render

@@ -202,6 +202,7 @@ add_library(demi-graphics-bgfx STATIC
   src/demi/runtime/render/backend/BgfxProfileCallback.cpp
   src/demi/runtime/render/backend/BgfxGpuResources.cpp
   src/demi/runtime/render/backend/BgfxRenderCommands.cpp
+  src/demi/runtime/render/backend/BgfxDrawBindings.cpp
   src/demi/runtime/render/backend/BgfxVertexLayout.cpp
   src/demi/runtime/render/backend/CookedShaderLibrary.cpp
   src/demi/runtime/render/backend/Canvas2D.cpp
@@ -270,6 +271,10 @@ endif()
 add_library(demi-render3d-bgfx STATIC
   src/demi/runtime/render/bgfx3d/DeformedMeshCache3D.cpp
   src/demi/runtime/render/BgfxRenderer3D.cpp
+  src/demi/runtime/render/BgfxRenderer3DMeshes.cpp
+  src/demi/runtime/render/bgfx3d/MeshResourceRetention3D.cpp
+  src/demi/runtime/render/bgfx3d/PreparedMeshDraw3D.cpp
+  src/demi/runtime/render/bgfx3d/MeshInstanceBatch3D.cpp
   src/demi/runtime/render/bgfx3d/MeshShadowSections3D.cpp
   src/demi/runtime/render/BgfxRenderer3DAssets.cpp
   src/demi/runtime/render/BgfxRenderer3DAnimation.cpp

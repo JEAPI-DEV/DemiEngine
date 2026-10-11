@@ -147,7 +147,7 @@ void MaterialLibrary::clear() {
 
 const MaterialBinding *MaterialLibrary::find(
     const std::string_view assetId) const {
-  const auto found = materials_.find(std::string(assetId));
+  const auto found = materials_.find(assetId);
   return found == materials_.end() ? nullptr : &found->second;
 }
 

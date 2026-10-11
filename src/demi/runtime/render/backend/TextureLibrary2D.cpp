@@ -58,12 +58,12 @@ bool TextureLibrary2D::upload(
 }
 
 TextureView2D TextureLibrary2D::find(const std::string_view id) const {
-  const auto found = textures_.find(std::string(id));
+  const auto found = textures_.find(id);
   return found == textures_.end() ? TextureView2D{} : found->second;
 }
 
 bool TextureLibrary2D::remove(const std::string_view id) {
-  const auto found = textures_.find(std::string(id));
+  const auto found = textures_.find(id);
   if (found == textures_.end())
     return false;
   resources_.destroy(found->second.handle);

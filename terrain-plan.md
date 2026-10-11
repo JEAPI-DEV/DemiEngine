@@ -6,6 +6,52 @@ have qualification coverage. Blended landscape materials, advanced water and
 large-world vegetation/streaming still need their integration gates below.
 Evidence is recorded in [docs/terrain-qualification.md](docs/terrain-qualification.md).
 
+## Delivery checkpoint, 2026-10-11
+
+Authoring and persistence are substantially ahead of rendering quality. The
+current example is a functional integration probe, not a reference-quality
+landscape. The optimized-build frame-time result does not close the scalability
+or visual acceptance gates.
+
+| Area | Delivered in the active workflow | Remaining acceptance gap |
+| --- | --- | --- |
+| Authoring and persistence | Graphs, generation, local brushes, history, terrain assets and cooked loading | Extensive raster/tile authoring and complete reference-scene workflow qualification |
+| Landforms | Native noise, masks, erosion/drainage and water graph stages | Convincing coherent mountain masses, ridges and valleys at reference viewpoints |
+| Surfaces | Ordinary materials assigned by surface roles; explicit biome overrides | Rendered PBR texture maps, smooth layer blending, steep-slope mapping and detail variation |
+| Water | Finite coverage, carving, depth color, transparent geometry and gameplay queries | Reflections/refraction, waves, foam and underwater presentation |
+| Vegetation | Stable placement data and prototype objects | Production assets, integrated instancing/LOD/culling and bounded collision residency |
+| Terrain scale | Chunk publication, frustum culling and cooked data | Live camera-driven terrain LOD/streaming and coordinated material/collision residency |
+| Reference scenes | Functional probes and performance traces | Neither user reference has a visually qualified counterpart |
+
+`TerrainLod`, `TerrainStreaming`, material-blending and texture-residency modules
+must be judged by their live consumers. Helper implementations and unit tests do
+not count as renderer integration. Current terrain publication still creates
+ordinary mesh/collider entities for its surface groups.
+
+Next delivery order:
+
+1. Address measured shared-engine inefficiencies before increasing scene detail:
+   repeated resource/component lookups, frame preparation, allocations and static
+   physics synchronization. Rewrite dense code at its responsibility boundaries.
+   Compare the same optimized build and workload; LOD is not a substitute for
+   reducing unnecessary work. See [runtime efficiency qualification](docs/runtime-efficiency-qualification.md).
+2. Connect terrain LOD/residency to runtime and editor publication, preserving
+   seam safety, shared asset edits, history and gameplay-relevant collision.
+   Establish a repeatable moving-camera benchmark with CPU/GPU, draw count and
+   memory results. Reserve frame budget for gameplay and scene detail.
+3. Integrate a shared layered terrain material shader with PBR maps, smooth
+   transitions and steep-slope mapping. Validate it using coherent original or
+   appropriately licensed material/rock assets in a small reference scene.
+4. Connect vegetation instancing, culling and LOD before increasing grass/tree
+   density. Include representative foliage in the same performance gate.
+5. Develop atmospheric depth, environment lighting and advanced water against
+   the reference scenes. Qualify motion and frame-time percentiles alongside
+   still-image quality; do not postpone performance until all art is added.
+
+The visual references remain the goal, not a claim of current engine capability
+or evidence of parity with their source engines. See
+[measured baseline](docs/terrain-performance-qualification.md).
+
 ## In-scene authoring and graph settings
 
 - [x] Store shared brush parameters with ordered points instead of repeating
@@ -55,10 +101,10 @@ biome. The result remains editable and regenerable.
 
 Use the two user-provided landscape images as visual references:
 
-- Close-range rocky river valley: detailed rock and ground surfaces, shoreline
-  vegetation, convincing water, atmospheric depth and coherent lighting.
-- Wide mountain landscape: recognizable ridges and valleys, forests distributed
-  according to terrain conditions, shoreline transitions and distant detail.
+- Elden Ring reference: distinctive rock/cliff silhouettes, detailed surfaces,
+  dense ground cover, trees, architecture and atmospheric depth.
+- Unreal Engine 5 landscape reference: coherent mountain masses and valleys,
+  detailed foreground rocks and grass, distant snow and cloud/fog integration.
 
 Matching that direction requires landforms, erosion, materials, meshes,
 vegetation, water and rendering to work together. Increasing noise detail alone
@@ -260,14 +306,11 @@ are deliberate: a box is only ticked when the item's own wording is satisfied.
   all in the cache key, so the item's caching half is done. It stays unticked
   only because "generated-world metadata" has no standalone record; provenance
   currently lives on the field itself.
-- Biome rules: every condition the current generator can supply is implemented
-  with priority, blending and conflict resolution. One thing the item names is
-  not: drainage, which needs the flow accumulation of milestone 3, and
-  separability of appearance from landform shape. A `TerrainBiome` still carries
-  `base_height`, `height_variation`, `feature_size`, `roughness` and `octaves`
-  alongside its `color`, so changing how a biome looks still means changing how
-  it is shaped. Palettes separated appearance for scattered props, not for the
-  biome surface itself.
+- Biome rules: priority, blending, painted overrides and native rule conditions
+  are implemented. Biomes now reference separate landforms; surface appearance
+  is no longer stored together with the landform's noise controls. Complete
+  drainage-driven rule integration and reference-scene qualification remain
+  distinct from this authoring separation.
 - Automatic assignment: assignment, painted overrides, protected areas and the
   layer toggle all work through one evaluation path, and biome, elevation and
   slope masks preview in the editor. Two gaps: region constraints are not
@@ -286,8 +329,9 @@ are deliberate: a box is only ticked when the item's own wording is satisfied.
 In progress. Sub-seeds, the generator-versioned cache, biome rules, the preset
 document and the palette document are implemented and tested, and the editor and
 CLI can author, apply and explain rules and presets. Palettes are consumed during
-generation and published as scene objects. Automatic surface material rendering
-and the remaining biome-rule integration are separate unfinished work.
+generation: placements become scene objects, while surface roles select ordinary
+materials on existing terrain geometry. Layered PBR rendering and the remaining
+biome-rule integration are separate unfinished work.
 
 - [x] Add reusable versioned landscape presets with readable controls and
   previews. Initial targets: mountain range, river valley, rolling hills and

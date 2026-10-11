@@ -6,7 +6,7 @@
 
 #include <memory>
 #include <unordered_map>
-#include <unordered_set>
+#include <algorithm>
 #include <vector>
 
 namespace demi::runtime::render {
@@ -22,7 +22,11 @@ public:
       std::span<const Vec2> uvs, std::span<const std::uint32_t> indices,
       std::span<const std::uint32_t> colors, std::span<const MeshDent3D> dents,
       std::string &error);
-  void retain(const std::unordered_set<std::string> &live);
+  template <class IsLive> void retain(const IsLive &isLive) {
+    std::erase_if(meshes_, [&isLive](const auto &entry) {
+      return !isLive(entry.first);
+    });
+  }
   void clear() { meshes_.clear(); }
   [[nodiscard]] std::size_t size() const { return meshes_.size(); }
   [[nodiscard]] std::uint64_t uploads() const { return uploads_; }

@@ -1,8 +1,9 @@
 #include "demi/runtime/physics/PhysicsWorld3D.h"
 #include "demi/runtime/geometry/MeshImpact3D.h"
+#include "demi/runtime/physics/PhysicsBodyInputs3D.h"
+#include "demi/runtime/physics/JoltBodyShape3D.h"
 
 #include "demi/runtime/physics/ColliderAsset3D.h"
-#include "demi/runtime/physics/JoltCompoundShape3D.h"
 #include "demi/runtime/physics/JoltLifetime.h"
 #include "demi/runtime/physics/JoltBodyBatch3D.h"
 #include "demi/runtime/destruction/DestructionWorld3D.h"
@@ -20,7 +21,6 @@
 
 #include <Jolt/Core/JobSystemThreadPool.h>
 #include <Jolt/Core/TempAllocator.h>
-#include <Jolt/Geometry/Triangle.h>
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
 #include <Jolt/Physics/Body/BodyLock.h>
 #include <Jolt/Physics/Character/CharacterVirtual.h>
@@ -30,10 +30,6 @@
 #include <Jolt/Physics/Collision/NarrowPhaseQuery.h>
 #include <Jolt/Physics/Collision/RayCast.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
-#include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
-#include <Jolt/Physics/Collision/Shape/ConvexHullShape.h>
-#include <Jolt/Physics/Collision/Shape/MeshShape.h>
-#include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
 #include <Jolt/Physics/Collision/ShapeCast.h>
 #include <Jolt/Physics/PhysicsSystem.h>
@@ -41,7 +37,6 @@
 #include <algorithm>
 #include <tuple>
 #include <atomic>
-#include <bit>
 #include <cmath>
 #include <cstdint>
 #include <mutex>
@@ -122,14 +117,6 @@ public:
   if (const auto *value = entity.component<ModelCollider3DComponent>())
     return value->isTrigger;
   return false;
-}
-
-[[nodiscard]] bool hasCollider(const Entity &entity) {
-  return entity.hasComponent<BoxCollider3DComponent>() ||
-         entity.hasComponent<SphereCollider3DComponent>() ||
-         entity.hasComponent<CapsuleCollider3DComponent>() ||
-         entity.hasComponent<ConvexCollider3DComponent>() ||
-         entity.hasComponent<ModelCollider3DComponent>();
 }
 
 [[nodiscard]] bool reportsContacts(const Entity &entity) {
@@ -224,180 +211,22 @@ private:
   return JPH::EMotionType::Dynamic;
 }
 
-void mix(std::uint64_t &hash, const std::uint64_t value) {
-  hash ^= value + 0x9e3779b97f4a7c15ULL + (hash << 6U) + (hash >> 2U);
-}
-void mix(std::uint64_t &hash, const float value) {
-  mix(hash, static_cast<std::uint64_t>(std::bit_cast<std::uint32_t>(value)));
-}
-void mix(std::uint64_t &hash, const bool value) {
-  mix(hash, static_cast<std::uint64_t>(value));
-}
-
-[[nodiscard]] std::uint64_t shapeSignature(
-    const World &world, const Entity &entity,
-    const std::optional<WorldTransform3D> &transform) {
-  std::uint64_t hash = 0xcbf29ce484222325ULL;
-  if (transform) {
-    mix(hash, transform->scale.x);
-    mix(hash, transform->scale.y);
-    mix(hash, transform->scale.z);
-  }
-  if (const auto *value = entity.component<BoxCollider3DComponent>()) {
-    mix(hash, std::uint64_t{1});
-    for (float number : {value->size.x, value->size.y, value->size.z,
-                         value->offset.x, value->offset.y, value->offset.z})
-      mix(hash, number);
-    mix(hash, value->isTrigger);
-  } else if (const auto *value =
-                 entity.component<SphereCollider3DComponent>()) {
-    mix(hash, std::uint64_t{2});
-    mix(hash, value->radius);
-    mix(hash, value->isTrigger);
-  } else if (const auto *value =
-                 entity.component<CapsuleCollider3DComponent>()) {
-    mix(hash, std::uint64_t{3});
-    mix(hash, value->radius);
-    mix(hash, value->height);
-    mix(hash, value->isTrigger);
-  } else if (const auto *value =
-                 entity.component<ConvexCollider3DComponent>()) {
-    mix(hash, std::uint64_t{4});
-    for (const Vec3 point : value->points)
-      for (float number : {point.x, point.y, point.z})
-        mix(hash, number);
-    mix(hash, value->isTrigger);
-  } else if (const auto *value = entity.component<ModelCollider3DComponent>()) {
-    mix(hash, std::uint64_t{5});
-    mix(hash, std::hash<std::string>{}(value->asset));
-    if (value->inlineGeometry) mix(hash, value->inlineGeometry->revision);
-    mix(hash, value->isTrigger);
-    if (const auto asset = world.colliderAssets3D.find(value->asset);
-        asset != world.colliderAssets3D.end())
-      mix(hash, asset->second.revision);
-  }
-  if (const auto *body = entity.component<Rigidbody3DComponent>()) {
-    mix(hash, std::hash<std::string>{}(body->bodyType));
-    for (bool value :
-         {body->lockPositionX, body->lockPositionY, body->lockPositionZ,
-          body->lockRotationX, body->lockRotationY, body->lockRotationZ})
-      mix(hash, value);
-    for (float value : {body->mass, body->linearDamping, body->angularDamping,
-                        body->friction, body->restitution, body->gravityScale})
-      mix(hash, value);
-    mix(hash, body->allowSleep);
-    mix(hash, static_cast<std::uint64_t>(body->solverVelocitySteps));
-    mix(hash, static_cast<std::uint64_t>(body->solverPositionSteps));
-  }
-  return hash;
-}
-
 [[nodiscard]] std::uint64_t shapeSignature(const World &world,
                                           const Entity &entity) {
-  return shapeSignature(world, entity, resolveWorldTransform3D(world, entity));
-}
-
-JPH::ShapeRefC capsuleShape(float radius, float totalHeight) {
-  radius = std::max(radius, 0.001F);
-  const float halfCylinder = totalHeight * 0.5F - radius;
-  // A capsule with no cylindrical section is exactly a sphere. Jolt's
-  // capsule constructor requires a strictly positive cylinder height.
-  if (halfCylinder <= 0.0F)
-    return new JPH::SphereShape(radius);
-  return new JPH::CapsuleShape(halfCylinder, radius);
+  const auto transform = resolveWorldTransform3D(world, entity);
+  if (!transform) {
+    return 0;
+  }
+  return physicsBodySignature3D(world, physicsBodyInputs3D(entity), *transform);
 }
 
 [[nodiscard]] JPH::ShapeRefC shapeFor(const World &world,
                                       const Entity &entity) {
   const auto transform = resolveWorldTransform3D(world, entity);
-  if (!transform)
+  if (!transform) {
     return {};
-  const Vec3 scale{std::abs(transform->scale.x), std::abs(transform->scale.y),
-                   std::abs(transform->scale.z)};
-  JPH::ShapeRefC shape;
-  Vec3 offset;
-  if (const auto *box = entity.component<BoxCollider3DComponent>()) {
-    const JPH::Vec3 half(std::max(box->size.x * scale.x * 0.5F, 0.001F),
-                         std::max(box->size.y * scale.y * 0.5F, 0.001F),
-                         std::max(box->size.z * scale.z * 0.5F, 0.001F));
-    shape = new JPH::BoxShape(half);
-    offset = {box->offset.x * scale.x, box->offset.y * scale.y,
-              box->offset.z * scale.z};
-  } else if (const auto *sphere =
-                 entity.component<SphereCollider3DComponent>()) {
-    const float radius = sphere->radius * std::max({scale.x, scale.y, scale.z});
-    shape = new JPH::SphereShape(std::max(radius, 0.001F));
-    offset = {sphere->offset.x * scale.x, sphere->offset.y * scale.y,
-              sphere->offset.z * scale.z};
-  } else if (const auto *capsule =
-                 entity.component<CapsuleCollider3DComponent>()) {
-    const float radius = capsule->radius * std::max(scale.x, scale.z);
-    const float totalHeight = capsule->height * scale.y;
-    shape = capsuleShape(radius, totalHeight);
-    offset = {capsule->offset.x * scale.x, capsule->offset.y * scale.y,
-              capsule->offset.z * scale.z};
-  } else if (const auto *convex = entity.component<ConvexCollider3DComponent>();
-             (convex != nullptr && convex->points.size() >= 4) ||
-             resolvedConvexCollider3D(world, entity) != nullptr) {
-    const auto &sourcePoints =
-        convex ? convex->points : *resolvedConvexCollider3D(world, entity);
-    JPH::Array<JPH::Vec3> points;
-    points.reserve(sourcePoints.size());
-    for (const Vec3 point : sourcePoints)
-      points.emplace_back(point.x * scale.x, point.y * scale.y,
-                          point.z * scale.z);
-    JPH::ConvexHullShapeSettings settings(points);
-    const auto result = settings.Create();
-    if (result.HasError())
-      return {};
-    shape = result.Get();
-    if (convex)
-      offset = {convex->offset.x * scale.x, convex->offset.y * scale.y,
-                convex->offset.z * scale.z};
-  } else if (const auto *model = entity.component<ModelCollider3DComponent>()) {
-    if (const auto *parts = resolvedCompoundCollider3D(world, entity))
-      return createJoltCompoundShape3D(*parts, transform->scale);
-    const auto triangles = resolvedTriangleCollider3D(world, entity);
-    if (triangles != nullptr && !triangles->empty()) {
-      JPH::TriangleList list;
-      list.reserve(triangles->size());
-      for (const TriangleCollider3D &triangle : *triangles)
-        list.emplace_back(
-            JPH::Vec3(triangle.a.x * scale.x, triangle.a.y * scale.y,
-                      triangle.a.z * scale.z),
-            JPH::Vec3(triangle.b.x * scale.x, triangle.b.y * scale.y,
-                      triangle.b.z * scale.z),
-            JPH::Vec3(triangle.c.x * scale.x, triangle.c.y * scale.y,
-                      triangle.c.z * scale.z));
-      JPH::MeshShapeSettings settings(list);
-      const auto result = settings.Create();
-      if (result.HasError())
-        return {};
-      shape = result.Get();
-    } else if (const auto box = resolvedBoxCollider3D(world, entity)) {
-      shape = new JPH::BoxShape(
-          JPH::Vec3(std::max(box->size.x * scale.x * 0.5F, 0.001F),
-                    std::max(box->size.y * scale.y * 0.5F, 0.001F),
-                    std::max(box->size.z * scale.z * 0.5F, 0.001F)));
-      offset = {box->offset.x * scale.x, box->offset.y * scale.y,
-                box->offset.z * scale.z};
-    } else {
-      return {};
-    }
-    (void)model;
   }
-  if (shape == nullptr)
-    return {};
-  if (std::abs(offset.x) > 0.000001F || std::abs(offset.y) > 0.000001F ||
-      std::abs(offset.z) > 0.000001F) {
-    JPH::RotatedTranslatedShapeSettings settings(jolt(offset),
-                                                 JPH::Quat::sIdentity(), shape);
-    const auto result = settings.Create();
-    if (result.HasError())
-      return {};
-    shape = result.Get();
-  }
-  return shape;
+  return createJoltBodyShape3D(world, physicsBodyInputs3D(entity), *transform);
 }
 
 [[nodiscard]] std::uint64_t pairKey(std::uint32_t first, std::uint32_t second) {
@@ -417,6 +246,8 @@ struct PhysicsWorld3D::Impl final : JPH::ContactListener {
     Vec3 currentPosition;
     Vec3 lastAuthoredPosition;
     Vec3 lastAuthoredRotation;
+    Vec3 lastWorldPosition;
+    Vec3 lastWorldRotation;
     Vec3 publishedVelocity;
     Vec3 publishedAngularVelocity;
     bool publishedAwake = true;
@@ -764,6 +595,8 @@ bool PhysicsWorld3D::replaceBodies(
                               .currentPosition = transform->position,
                               .lastAuthoredPosition = transform->position,
                               .lastAuthoredRotation = transform->rotation,
+                              .lastWorldPosition = transform->position,
+                              .lastWorldRotation = transform->rotation,
                               .publishedVelocity = body->velocity,
                               .publishedAngularVelocity = body->angularVelocity,
                               .publishedAwake = true,
@@ -839,21 +672,37 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
   {
     ProfileScope scope("Physics3D.sync_bodies");
     for (Entity &entity : world.entities) {
-      if (!world.destruction3D && entity.enabled && entity.hasComponent<Destructible3DComponent>())
+      const bool needsDestructionWorld =
+          !world.destruction3D && entity.enabled &&
+          entity.hasComponent<Destructible3DComponent>();
+      if (needsDestructionWorld) {
         world.destruction3D = std::make_shared<DestructionWorld3D>();
-      if (!entity.enabled || !entity.hasComponent<Transform3DComponent>() ||
-          !hasCollider(entity) ||
-          entity.hasComponent<CharacterController3DComponent>())
+      }
+      if (!entity.enabled) {
         continue;
-      auto *body = entity.component<Rigidbody3DComponent>();
-      if (const auto *model = entity.component<ModelCollider3DComponent>()) {
+      }
+      const auto inputs = physicsBodyInputs3D(entity);
+      if (inputs.transform == nullptr || !inputs.hasCollider()) {
+        continue;
+      }
+      if (entity.hasComponent<CharacterController3DComponent>()) {
+        continue;
+      }
+      auto *body = inputs.mutableBody;
+      const auto nativeMotionType = motionType(body);
+      if (const auto *model = inputs.model) {
         if (auto asset = world.colliderAssets3D.find(model->asset);
             asset != world.colliderAssets3D.end())
           asset->second.lastUsedEpoch = impl_->frameEpoch;
       }
       // Shape scaling and body placement use the same hierarchy snapshot.
-      const auto resolved = resolveWorldTransform3D(world, entity);
-      const std::uint64_t signature = shapeSignature(world, entity, resolved);
+      const auto resolved =
+          resolveWorldTransform3D(world, entity, *inputs.transform);
+      if (!resolved) {
+        continue;
+      }
+      const std::uint64_t signature =
+          physicsBodySignature3D(world, inputs, *resolved);
       auto found = impl_->bodies.find(entity.id);
       const bool shapeRebuilt =
           found != impl_->bodies.end() && found->second.signature != signature;
@@ -867,15 +716,12 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
         found = impl_->bodies.end();
       }
 
-      const Transform3DComponent &local =
-          *entity.component<Transform3DComponent>();
-      if (!resolved)
-        continue;
+      const Transform3DComponent &local = *inputs.transform;
       if (found == impl_->bodies.end()) {
         JPH::ShapeRefC shape;
         {
           ProfileScope scope("Physics3D.create_shape");
-          shape = shapeFor(world, entity);
+          shape = createJoltBodyShape3D(world, inputs, *resolved);
         }
         if (shape == nullptr)
           continue;
@@ -883,8 +729,8 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
             shape,
             JPH::RVec3(resolved->position.x, resolved->position.y,
                        resolved->position.z),
-            joltRotation(resolved->rotation), motionType(body),
-            motionType(body) == JPH::EMotionType::Static ? StaticLayer
+            joltRotation(resolved->rotation), nativeMotionType,
+            nativeMotionType == JPH::EMotionType::Static ? StaticLayer
                                                          : MovingLayer);
         if (body != nullptr) {
           settings.mLinearVelocity = jolt(body->velocity);
@@ -908,7 +754,7 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
               JPH::EOverrideMassProperties::CalculateInertia;
           settings.mMassPropertiesOverride.mMass = body->mass;
         }
-        settings.mIsSensor = isTrigger(entity);
+        settings.mIsSensor = inputs.isTrigger;
         JPH::Body *created = interface.CreateBody(settings);
         if (created == nullptr)
           continue;
@@ -917,7 +763,7 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
                           body != nullptr && (body->awake || shapeRebuilt)
                               ? JPH::EActivation::Activate
                               : JPH::EActivation::DontActivate);
-        if (motionType(body) == JPH::EMotionType::Static)
+        if (nativeMotionType == JPH::EMotionType::Static)
           impl_->wakeNearBody(bodyId);
         if (body != nullptr && !body->bodyEnabled)
           interface.RemoveBody(bodyId);
@@ -932,6 +778,8 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
                             .currentPosition = resolved->position,
                             .lastAuthoredPosition = local.position,
                             .lastAuthoredRotation = local.rotation,
+                            .lastWorldPosition = resolved->position,
+                            .lastWorldRotation = resolved->rotation,
                             .publishedVelocity = body ? body->velocity : Vec3{},
                             .publishedAngularVelocity =
                                 body ? body->angularVelocity : Vec3{},
@@ -944,8 +792,11 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
                             .continuous = body != nullptr && body->continuous,
                             .added = body == nullptr || body->bodyEnabled})
                     .first;
-        if (const auto *parts = resolvedCompoundCollider3D(world, entity))
-          for (const auto &part : *parts) found->second.partIds.push_back(part.id);
+        if (const auto *parts = resolvedCompoundCollider3D(world, entity)) {
+          for (const auto &part : *parts) {
+            found->second.partIds.push_back(part.id);
+          }
+        }
       } else {
         Impl::BodyRecord &record = found->second;
         const bool authoredTransformChanged =
@@ -955,17 +806,30 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
             local.rotation.x != record.lastAuthoredRotation.x ||
             local.rotation.y != record.lastAuthoredRotation.y ||
             local.rotation.z != record.lastAuthoredRotation.z;
-        if (authoredTransformChanged ||
-            motionType(body) == JPH::EMotionType::Kinematic) {
-          if (authoredTransformChanged)
+        const auto differs = [](const Vec3 first, const Vec3 second) {
+          return first.x != second.x || first.y != second.y ||
+                 first.z != second.z;
+        };
+        // Local values alone cannot detect parent motion or reparenting. The
+        // remembered world pose tracks authored input, not simulated output.
+        const bool hierarchyPoseChanged =
+            differs(resolved->position, record.lastWorldPosition) ||
+            differs(resolved->rotation, record.lastWorldRotation);
+        const bool authoredPoseChanged =
+            authoredTransformChanged || hierarchyPoseChanged;
+        if (authoredPoseChanged ||
+            nativeMotionType == JPH::EMotionType::Kinematic) {
+          if (authoredPoseChanged) {
             impl_->wakeNearBody(record.body);
+          }
           interface.SetPositionAndRotationWhenChanged(
               record.body,
               JPH::RVec3(resolved->position.x, resolved->position.y,
                          resolved->position.z),
               joltRotation(resolved->rotation), JPH::EActivation::Activate);
-          if (authoredTransformChanged)
+          if (authoredPoseChanged) {
             impl_->wakeNearBody(record.body);
+          }
         }
         if (body != nullptr) {
           if (body->bodyEnabled != record.added) {
@@ -982,7 +846,7 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
             impl_->wakeNearBody(record.body);
             record.reportContacts = body->reportContacts;
           }
-          if (motionType(body) != JPH::EMotionType::Static) {
+          if (nativeMotionType != JPH::EMotionType::Static) {
             const auto changed = [](Vec3 a, Vec3 b) {
               return a.x != b.x || a.y != b.y || a.z != b.z;
             };
@@ -1019,6 +883,8 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
         }
         record.lastAuthoredPosition = local.position;
         record.lastAuthoredRotation = local.rotation;
+        record.lastWorldPosition = resolved->position;
+        record.lastWorldRotation = resolved->rotation;
       }
       if (body != nullptr && found != impl_->bodies.end()) {
         Impl::BodyRecord &record = found->second;
@@ -1057,8 +923,8 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
             .epoch = impl_->frameEpoch,
             .bodyKey = nativeId.GetIndexAndSequenceNumber(),
             .entity = &entity,
-            .layer = colliderLayer(entity),
-            .reports = reportsContacts(entity),
+            .layer = std::string(inputs.layer),
+            .reports = body == nullptr || body->reportContacts,
             .added = found->second.added};
       }
     }
@@ -1267,6 +1133,10 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
         transform->rotation = demi(rotation.GetEulerAngles());
       record.lastAuthoredPosition = transform->position;
       record.lastAuthoredRotation = transform->rotation;
+      if (transform->parent.empty()) {
+        record.lastWorldPosition = transform->position;
+        record.lastWorldRotation = transform->rotation;
+      }
       if (body != nullptr) {
         body->velocity = demi(simulated.GetLinearVelocity());
         body->angularVelocity = demi(simulated.GetAngularVelocity());
@@ -1669,7 +1539,7 @@ PhysicsWorld3D::overlapCapsule(const Vec3 center, const float radius,
                                const std::string &ignoredEntityId) const {
   if (radius < 0.0F || height < 2.0F * radius || impl_->world == nullptr)
     return {};
-  const auto shape = capsuleShape(radius, height);
+  const auto shape = createJoltCapsuleShape3D(radius, height);
   JPH::AllHitCollisionCollector<JPH::CollideShapeCollector> collector;
   const DemiQueryBodyFilter filter(impl_->world, &impl_->ids, layer,
                                    ignoredEntityId);
@@ -1761,7 +1631,7 @@ PhysicsWorld3D::castCapsule(const Vec3 origin, const float radius,
                             const std::string &ignoredEntityId) const {
   if (radius < 0.0F || height < 2.0F * radius)
     return std::nullopt;
-  const auto shape = capsuleShape(radius, height);
+  const auto shape = createJoltCapsuleShape3D(radius, height);
   const JPH::Vec3 unit = jolt(direction).NormalizedOr(JPH::Vec3::sZero());
   if (distance < 0.0F || unit.IsNearZero() || impl_->world == nullptr)
     return std::nullopt;

@@ -1,5 +1,6 @@
 #include "demi/runtime/camera/Camera3DMath.h"
 #include "demi/runtime/physics/Physics3D.h"
+#include "demi/runtime/physics/PhysicsBodyInputs3D.h"
 #include "demi/runtime/physics/PhysicsWorld3D.h"
 #include "demi/runtime/physics/SpatialQuery3D.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
@@ -10,6 +11,7 @@
 #include <algorithm>
 #include <cmath>
 #include <iostream>
+#include <utility>
 
 namespace {
 
@@ -70,6 +72,184 @@ Entity box(std::string id, const Vec3 position, const Vec3 size,
                            .useGravity = gravity,
                            .continuous = true});
   return entity;
+}
+
+bool testNonphysicalBodyInputRejection() {
+  Entity entity;
+  entity.setComponent<Rigidbody3DComponent>(Rigidbody3DComponent{});
+  entity.setComponent<BoxCollider3DComponent>(BoxCollider3DComponent{});
+  const Entity &constantEntity = entity;
+  const auto withoutTransform = physicsBodyInputs3D(entity);
+  const auto constantWithoutTransform = physicsBodyInputs3D(constantEntity);
+  if (withoutTransform.transform != nullptr || withoutTransform.hasCollider() ||
+      withoutTransform.body != nullptr ||
+      withoutTransform.mutableBody != nullptr ||
+      constantWithoutTransform.hasCollider() ||
+      constantWithoutTransform.body != nullptr) {
+    std::cerr << "Non-3D entity unnecessarily resolved physics inputs\n";
+    return false;
+  }
+
+  entity.setComponent<Transform3DComponent>(Transform3DComponent{});
+  entity.removeComponent<BoxCollider3DComponent>();
+  const auto withoutCollider = physicsBodyInputs3D(entity);
+  const auto constantWithoutCollider = physicsBodyInputs3D(constantEntity);
+  if (withoutCollider.transform == nullptr || withoutCollider.hasCollider() ||
+      withoutCollider.body != nullptr ||
+      withoutCollider.mutableBody != nullptr ||
+      constantWithoutCollider.body != nullptr) {
+    std::cerr
+        << "Entity without collision unnecessarily resolved body inputs\n";
+    return false;
+  }
+  return true;
+}
+
+bool testStaticHierarchyPoseSynchronization() {
+  World world;
+  Entity parent;
+  parent.id = "parent";
+  parent.setComponent<Transform3DComponent>(Transform3DComponent{});
+  Entity child = box("child", {2, 0, 0}, {1, 1, 1}, "static");
+  child.component<Transform3DComponent>()->parent = parent.id;
+  world.entities.push_back(parent);
+  world.entities.push_back(child);
+  auto &physics = ensurePhysicsWorld3D(world);
+  physics.step(world, 1.0F / 60.0F, {});
+
+  const auto containsChild = [&](const Vec3 center) {
+    const auto hits = physics.overlapSphere(center, 0.1F);
+    return hits.size() == 1 && hits.front().entityId == "child";
+  };
+  if (!containsChild({2, 0, 0})) {
+    std::cerr << "Initial static child world pose was incorrect\n";
+    return false;
+  }
+
+  auto *parentTransform =
+      findEntity(world, "parent")->component<Transform3DComponent>();
+  parentTransform->position = {4, 0, 0};
+  physics.step(world, 1.0F / 60.0F, {});
+  if (!containsChild({6, 0, 0}) || containsChild({2, 0, 0})) {
+    std::cerr << "Parent-only translation did not move static collision\n";
+    return false;
+  }
+
+  parentTransform->rotation = {0, 1.57079632679F, 0};
+  physics.step(world, 1.0F / 60.0F, {});
+  if (!containsChild({4, 0, -2}) || containsChild({6, 0, 0})) {
+    std::cerr << "Parent-only rotation did not move static collision\n";
+    return false;
+  }
+
+  parentTransform->scale = {2, 2, 2};
+  physics.step(world, 1.0F / 60.0F, {});
+  if (!containsChild({4, 0, -4}) || containsChild({4, 0, -2})) {
+    std::cerr << "Parent scaling did not rebuild static collision\n";
+    return false;
+  }
+
+  Entity otherParent;
+  otherParent.id = "other_parent";
+  otherParent.setComponent<Transform3DComponent>(
+      Transform3DComponent{.position = {10, 0, 0}});
+  // Growth invalidates borrowed entity pointers; synchronization must resolve
+  // the new addresses and parent identity on the next step.
+  world.entities.push_back(otherParent);
+  findEntity(world, "child")->component<Transform3DComponent>()->parent =
+      "other_parent";
+  physics.step(world, 1.0F / 60.0F, {});
+  if (!containsChild({12, 0, 0}) || containsChild({4, 0, -4})) {
+    std::cerr << "Reparenting did not move static collision\n";
+    return false;
+  }
+  return true;
+}
+
+bool testParentedDynamicPoseOwnership() {
+  World world;
+  Entity parent;
+  parent.id = "parent";
+  parent.setComponent<Transform3DComponent>(Transform3DComponent{});
+  Entity child = box("child", {2, 0, 0}, {1, 1, 1}, "dynamic", {3, 0, 0});
+  child.component<Transform3DComponent>()->parent = parent.id;
+  child.component<Rigidbody3DComponent>()->linearDamping = 0.0F;
+  child.component<Rigidbody3DComponent>()->allowSleep = false;
+  world.entities.push_back(parent);
+  world.entities.push_back(child);
+  auto &physics = ensurePhysicsWorld3D(world);
+  constexpr float fixedDt = 1.0F / 60.0F;
+  constexpr float displacementPerStep = 3.0F * fixedDt;
+
+  const auto hasNativePosition = [&](const float expectedX) {
+    const auto snapshot = physics.motionSnapshot("child");
+    return snapshot && near(snapshot->center.x, expectedX, 0.002F) &&
+           near(snapshot->center.y, 0.0F, 0.002F) &&
+           near(snapshot->center.z, 0.0F, 0.002F);
+  };
+  for (int step = 1; step <= 4; ++step) {
+    physics.step(world, fixedDt, {});
+    if (!hasNativePosition(2.0F + step * displacementPerStep)) {
+      std::cerr << "Unchanged parented dynamic body replayed authored pose\n";
+      return false;
+    }
+  }
+
+  // A changed authored hierarchy deliberately resets the native pose before
+  // simulation; unchanged following steps must retain native motion ownership.
+  findEntity(world, "parent")->component<Transform3DComponent>()->position = {
+      4, 0, 0};
+  for (int step = 1; step <= 4; ++step) {
+    physics.step(world, fixedDt, {});
+    if (!hasNativePosition(6.0F + step * displacementPerStep)) {
+      std::cerr << "Parent edit or subsequent native motion was lost\n";
+      return false;
+    }
+  }
+  const auto *authoredTransform =
+      findEntity(world, "child")->component<Transform3DComponent>();
+  if (!near(authoredTransform->position.x, 2.0F, 0.002F)) {
+    std::cerr << "Parented dynamic simulation changed authored local pose\n";
+    return false;
+  }
+  return true;
+}
+
+bool testNativeColliderOffsetSynchronization() {
+  const auto testOffset = []<typename Collider>(Collider collider) {
+    World world;
+    Entity entity;
+    entity.id = "collider";
+    entity.setComponent<Transform3DComponent>(Transform3DComponent{});
+    entity.setComponent<Collider>(std::move(collider));
+    world.entities.push_back(entity);
+    auto &physics = ensurePhysicsWorld3D(world);
+    physics.step(world, 1.0F / 60.0F, {});
+    if (physics.overlapSphere({}, 0.1F).size() != 1) {
+      std::cerr << "Initial collider offset probe was unavailable\n";
+      return false;
+    }
+    world.entities.front().component<Collider>()->offset = {5, 0, 0};
+    physics.step(world, 1.0F / 60.0F, {});
+    const auto movedHits = physics.overlapSphere({5, 0, 0}, 0.1F);
+    if (!physics.overlapSphere({}, 0.1F).empty() || movedHits.size() != 1 ||
+        movedHits.front().entityId != "collider") {
+      std::cerr << "Native collider offset edit did not rebuild collision\n";
+      return false;
+    }
+    // An unchanged step must preserve the resulting shape and query identity.
+    physics.step(world, 1.0F / 60.0F, {});
+    return physics.overlapSphere({5, 0, 0}, 0.1F).size() == 1;
+  };
+
+  ConvexCollider3DComponent convex;
+  convex.points = {{-0.5F, -0.5F, -0.5F}, {0.5F, -0.5F, -0.5F},
+                   {-0.5F, 0.5F, -0.5F},  {0.5F, 0.5F, -0.5F},
+                   {-0.5F, -0.5F, 0.5F},  {0.5F, -0.5F, 0.5F},
+                   {-0.5F, 0.5F, 0.5F},   {0.5F, 0.5F, 0.5F}};
+  return testOffset(BoxCollider3DComponent{}) &&
+         testOffset(SphereCollider3DComponent{}) &&
+         testOffset(CapsuleCollider3DComponent{}) && testOffset(convex);
 }
 
 bool testSleepingAndWakeCommands() {
@@ -1031,7 +1211,11 @@ int main() {
     return 1;
   }
 
-  if (!testSleepingAndWakeCommands() || !testSleepingSupportChanges() ||
+  if (!testNonphysicalBodyInputRejection() ||
+      !testStaticHierarchyPoseSynchronization() ||
+      !testParentedDynamicPoseOwnership() ||
+      !testNativeColliderOffsetSynchronization() ||
+      !testSleepingAndWakeCommands() || !testSleepingSupportChanges() ||
       !testSleepingEditsAndReusedBodySlots() ||
       !testContactIdentityAndEntityLifetime() || !testFixedStepSimulation() ||
       !testCollisionFromEverySide() || !testContinuousCollisionAndCommands() ||

@@ -1,5 +1,8 @@
 #include "demi/runtime/render/BgfxRenderer3D.h"
 #include "demi/runtime/render/bgfx3d/SceneVisibility3D.h"
+#include "demi/runtime/render/bgfx3d/PreparedMeshDraw3D.h"
+#include "demi/runtime/render/bgfx3d/MeshInstanceBatch3D.h"
+#include <cmath>
 #include "demi/runtime/render/bgfx2d/ColorPacking2D.h"
 #include "demi/runtime/geometry/MeshDeformation3D.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshInstances3DComponent.h"
@@ -117,6 +120,7 @@ public:
   std::vector<DrawState> bufferedStates;
   std::vector<BufferSlice> bufferedIndices;
   std::size_t instanceDrawCalls = 0;
+  bool forwardDraws = true;
   std::vector<float> bufferedAlpha;
   std::vector<std::array<float, 4>> bufferedTint;
   std::vector<std::array<float, 4>> bufferedMetalRough;
@@ -154,14 +158,14 @@ public:
                                   draw.uniforms[7].values[2],
                                   draw.uniforms[7].values[3]});
     bufferedTransforms.push_back(draw.transform);
-    return target_.submit(draw, error);
+    return forwardDraws ? target_.submit(draw, error) : true;
   }
   bool submit(const InstancedBufferedDraw &draw, std::string &error) override {
     ++instanceDrawCalls;
     for(const auto &transform:draw.transforms)transformsByView[draw.viewId].push_back(transform);
     for(const auto &texture:draw.textures)if(texture.stage==1)shadowTextures[draw.viewId]=texture.texture;
     textures.push_back(draw.texture);
-    return target_.submit(draw, error);
+    return forwardDraws ? target_.submit(draw, error) : true;
   }
 private:
   RenderCommands &target_;
@@ -180,6 +184,36 @@ Entity shape(std::string id, std::string shapeName, const Vec3 position) {
 } // namespace
 
 int main() {
+  {
+    MeshRendererComponent mesh;
+    mesh.color = {0.5F, 0.5F, 0.5F, 0.5F};
+    MaterialBinding material;
+    material.baseColor = {0.5F, 0.25F, 1, 0.5F};
+    material.opacity = 0.5F;
+    material.program = {.index = 1, .generation = 1};
+    std::array<DrawUniformValue, 8> lighting;
+    std::vector<DrawUniformValue> scratch;
+    PreparedMeshDraw3D custom(mesh, &material, std::nullopt, true, false,
+                              false, {});
+    auto moved = std::move(custom);
+    moved.fillUniforms(lighting, &material, scratch);
+    assert(scratch[0].values.data() == moved.surfaceTint.data());
+    assert(scratch[0].values[0] == 0.5F);
+    assert(scratch[0].values[3] == 0.25F);
+    assert(scratch[7].values[2] == 1.0F);
+    assert(scratch[3].values[0] == 0.0F);
+    assert(scratch[5].values[0] == 1.0F);
+
+    material.program = {};
+    PreparedMeshDraw3D builtin(mesh, &material, 0.5F, false, false, false, {});
+    builtin.fillUniforms(lighting, &material, scratch);
+    assert(scratch[0].values.data() == builtin.builtinSurfaceTint.data());
+    assert(scratch[0].values[0] == 0.25F);
+    assert(scratch[0].values[3] == 0.0625F);
+    assert(scratch[7].values[2] == 0.0F);
+    assert(builtin.state.blend == BlendMode::Alpha);
+    assert(!builtin.state.writeDepth);
+  }
   BgfxGraphicsDevice graphics;
   std::string error;
   assert(graphics.initialize(GraphicsDeviceConfig{.api = GraphicsApi::Noop,
@@ -189,6 +223,52 @@ int main() {
                              error));
   auto resources = createBgfxGpuResources();
   auto commands = createBgfxRenderCommands(*resources);
+  {
+    // Capture command intent without backend validation so recycled texture
+    // generations can be compared together, including the stale generation.
+    TextureCapture batchCapture(*commands);
+    batchCapture.forwardDraws = false;
+    GpuMesh3D firstMesh(*resources);
+    GpuMesh3D secondMesh(*resources);
+    const std::array<Vec3, 3> positions{{{-1, 0, 0}, {1, 0, 0}, {0, 1, 0}}};
+    assert(firstMesh.upload(positions, {}, {}, 0xffffffffU, error));
+    assert(secondMesh.upload(positions, {}, {}, 0xffffffffU, error));
+    const TextureHandle texture{.index = 7, .generation = 1};
+    const TextureHandle recycled{.index = 7, .generation = 2};
+    const std::array<float, 4> tint{0.5F, 1, 1, 1};
+    auto distinctTint = tint;
+    distinctTint[0] = std::nextafter(tint[0], 1.0F);
+    const std::array<float, 4> metalRough{0, 0.8F, 0, 0};
+    auto distinctMetalRough = metalRough;
+    distinctMetalRough[1] = std::nextafter(metalRough[1], 1.0F);
+    const std::array<float, 16> transform{
+        1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
+    std::array<DrawUniformValue, 8> lighting;
+    for (auto &uniform : lighting) {
+      uniform.values = tint;
+    }
+    MeshInstanceBatch3D batches;
+    batches.add(firstMesh, texture, tint, metalRough, false, transform);
+    batches.add(secondMesh, texture, tint, metalRough, false, transform);
+    batches.add(firstMesh, recycled, tint, metalRough, false, transform);
+    batches.add(firstMesh, texture, distinctTint, metalRough, false, transform);
+    batches.add(firstMesh, texture, tint, metalRough, true, transform);
+    batches.add(firstMesh, texture, tint, distinctMetalRough, false, transform);
+    batches.add(firstMesh, texture, tint, metalRough, false, transform);
+    std::uint32_t draws = 0;
+    std::uint32_t triangles = 0;
+    assert(batches.flush(batchCapture, 0, {}, {}, {}, {}, lighting,
+                         draws, triangles, error));
+    assert(draws == 6);
+    assert(triangles == 7);
+    assert(batchCapture.instanceDrawCalls == 1);
+    assert(batchCapture.textures.size() == 6);
+    assert(batchCapture.textures[0] == texture);
+    assert(batchCapture.textures[1] == texture);
+    assert(batchCapture.textures[2] == recycled);
+    assert(batchCapture.bufferedTint[2][0] == distinctTint[0]);
+    assert(batchCapture.bufferedMetalRough.back()[1] == distinctMetalRough[1]);
+  }
   TextureCapture capture(*commands);
   BgfxRenderer3D renderer(*resources, capture, false); // CPU fallback reference.
   assert(renderer.initialize(error));
@@ -320,6 +400,59 @@ int main() {
     static_cast<void>(graphics.endFrame());
   }
 
+  {
+    MeshUploadCapture uploads(*resources);
+    BgfxRenderer3D retentionRenderer(uploads, *commands);
+    assert(retentionRenderer.initialize(error));
+    World retentionWorld;
+    auto triangle = shape("retained-inline", "", {});
+    auto *mesh = triangle.component<MeshRendererComponent>();
+    mesh->vertices = {{-1, 0, 0}, {1, 0, 0}, {0, 1, 0}};
+    mesh->hasBounds = true;
+    mesh->boundsMin = {-1, 0, 0};
+    mesh->boundsMax = {1, 1, 0};
+    mesh->markGeometryChanged();
+    retentionWorld.entities.push_back(std::move(triangle));
+
+    assert(retentionRenderer.renderFrame(retentionWorld, frame, 0.016F, error));
+    assert(uploads.meshUploads.size() == 1);
+    static_cast<void>(graphics.endFrame());
+
+    // Camera visibility must not control GPU resource ownership.
+    auto *transform = retentionWorld.entities.front().component<Transform3DComponent>();
+    transform->position = {10000, 0, 0};
+    assert(extractVisibleMeshes3D(retentionWorld, frame).meshes.empty());
+    assert(retentionRenderer.renderFrame(retentionWorld, frame, 0.016F, error));
+    static_cast<void>(graphics.endFrame());
+    transform->position = {};
+    assert(retentionRenderer.renderFrame(retentionWorld, frame, 0.016F, error));
+    assert(uploads.meshUploads.size() == 1);
+    static_cast<void>(graphics.endFrame());
+
+    // A failed frame cannot evict absent resources: the authoring document
+    // may be restored immediately after an unsuccessful preview rebuild.
+    Entity retained = std::move(retentionWorld.entities.front());
+    retentionWorld.entities.clear();
+    retentionWorld.entities.push_back(shape("invalid-preview", "invalid", {}));
+    assert(!retentionRenderer.renderFrame(retentionWorld, frame, 0.016F, error));
+    retentionWorld.entities.clear();
+    retentionWorld.entities.push_back(std::move(retained));
+    error.clear();
+    assert(retentionRenderer.renderFrame(retentionWorld, frame, 0.016F, error));
+    assert(uploads.meshUploads.size() == 1);
+    static_cast<void>(graphics.endFrame());
+
+    // Successful entity removal releases ownership; recreating the same ID
+    // must upload again instead of borrowing stale geometry.
+    retained = std::move(retentionWorld.entities.front());
+    retentionWorld.entities.clear();
+    assert(retentionRenderer.renderFrame(retentionWorld, frame, 0.016F, error));
+    static_cast<void>(graphics.endFrame());
+    retentionWorld.entities.push_back(std::move(retained));
+    assert(retentionRenderer.renderFrame(retentionWorld, frame, 0.016F, error));
+    assert(uploads.meshUploads.size() == 2);
+    static_cast<void>(graphics.endFrame());
+  }
   {
     MeshUploadCapture uploads(*resources);
     TextureCapture coloredDraws(*commands);
