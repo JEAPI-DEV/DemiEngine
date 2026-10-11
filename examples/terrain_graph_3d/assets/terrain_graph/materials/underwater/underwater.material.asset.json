@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://terrain_graph/materials/underwater",
+  "importer": "material",
+  "importer_version": 1,
+  "settings": {},
+  "source": "underwater.material.json",
+  "source_hash": "fnv1a64:765d435a4ee2c4e3",
+  "type": "Material"
+}

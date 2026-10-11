@@ -53,8 +53,8 @@ Grid gridOf(const HeightField &field) {
 // The multi-source chamfer distance transform, reproduced from
 // TerrainBiomeRules.cpp so the rule condition and the drainage mask are the same
 // measurement rather than two similar-looking ones.
-std::vector<float> waterDistances(const std::vector<float> &heights,
-                                  const Grid &grid, Vec2 size, float seaLevel,
+std::vector<float> waterDistances(std::span<const std::uint8_t> wetSamples,
+                                  const Grid &grid, Vec2 size,
                                   std::stop_token stop) {
   constexpr float Unreachable = std::numeric_limits<float>::max() / 4.F;
   std::vector<float> distance(grid.count, std::numeric_limits<float>::max());
@@ -63,7 +63,7 @@ std::vector<float> waterDistances(const std::vector<float> &heights,
     if (stop.stop_requested())
       return {};
     for (int x = 0; x < grid.width; ++x)
-      if (heights[grid.at(x, z)] <= seaLevel) {
+      if (wetSamples[grid.at(x, z)] != 0) {
         const auto cell = grid.at(x, z);
         distance[cell] = 0;
         frontier.push(cell);
@@ -119,6 +119,16 @@ struct FloodGreater {
 };
 
 } // namespace
+
+std::vector<float> computeTerrainWaterDistances(
+    const HeightField &field, std::span<const std::uint8_t> wetSamples,
+    std::stop_token stop) {
+  const auto grid = gridOf(field);
+  if (field.cellsX <= 0 || field.cellsZ <= 0 || wetSamples.size() != grid.count) {
+    throw std::invalid_argument("Water coverage does not match the terrain grid");
+  }
+  return waterDistances(wetSamples, grid, field.size, stop);
+}
 
 std::optional<TerrainDrainage>
 computeTerrainDrainage(const HeightField &field, const TerrainRecipe &recipe,
@@ -378,8 +388,11 @@ computeTerrainDrainage(const HeightField &field, const TerrainRecipe &recipe,
     }
   }
 
-  const auto distances = waterDistances(heights, grid, field.size,
-                                        settings.seaLevel, stop);
+  std::vector<std::uint8_t> wetSamples(grid.count);
+  for (std::size_t sample = 0; sample < grid.count; ++sample) {
+    wetSamples[sample] = heights[sample] <= settings.seaLevel;
+  }
+  const auto distances = waterDistances(wetSamples, grid, field.size, stop);
   if (stop.stop_requested())
     return std::nullopt;
   drainage.waterDistance.resize(grid.count);

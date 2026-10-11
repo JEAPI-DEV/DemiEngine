@@ -75,6 +75,7 @@ buildChunkTriangles(const HeightField &field, const TerrainChunk &chunk,
     const auto textureScale = field.biomeTextureScale(biome);
     for (std::size_t vertex = 0; vertex < 3; ++vertex) {
       const auto sample = samples[vertex];
+      surface.samples.push_back(sample);
       const Vec2 position = positions[vertex];
       surface.vertices.push_back(
           {position.x, field.heights.at(sample), position.y});
@@ -130,6 +131,7 @@ buildMeshEntity(const Entity &owner, std::string id,
   Entity entity;
   entity.id = std::move(id);
   entity.name = "Terrain surface";
+  entity.setComponent(MeshMaterialSections3D{});
   entity.enabled = owner.enabled;
   entity.layer = owner.layer;
   entity.sceneOwner = owner.sceneOwner;

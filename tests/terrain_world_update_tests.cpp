@@ -7,6 +7,10 @@
 #include "demi/runtime/scene/model/World.h"
 #include "demi/runtime/terrain/TerrainScatterRuntime.h"
 #include "demi/runtime/terrain/TerrainUpdate.h"
+#include "demi/runtime/terrain/TerrainGenerationCache.h"
+#include "demi/runtime/terrain/TerrainMaterialSections.h"
+#include "demi/runtime/terrain/TerrainPalette.h"
+#include "demi/runtime/terrain/TerrainSurfaceMaterials.h"
 #include "demi/runtime/terrain/TerrainWorld.h"
 #include "demi/runtime/terrain/TerrainWorldBatch.h"
 
@@ -1095,10 +1099,136 @@ void testSharedAssetScatterReconciliation() {
     check(instance.id != scatterId("land") && instance.id != scatterId("other"),
           "Excluded scenery survived a shared terrain update");
 }
+void testSurfaceBindingRetainsGeometryAndHistory() {
+  const auto initialRecipe = flatRecipe();
+  auto world = makeWorld(initialRecipe);
+  auto recipe = initialRecipe;
+  recipe.paletteId = "asset://surface_palette";
+
+  auto palette = std::make_shared<TerrainPalette>();
+  palette->id = recipe.paletteId;
+  palette->materialSet = "asset://surface_materials";
+  for (const auto *role : {"rock", "cliff", "sediment", "ground", "grass",
+                           "sand", "snow", "wet_ground", "underwater"}) {
+    palette->surfaceMaterials.emplace(role, std::string("asset://") + role);
+  }
+  TerrainGenerationInputs inputs;
+  inputs.palette = palette;
+  inputs.fingerprint = "unchanged-placement-inputs";
+  const auto generated = regenerateTerrainWithInputs(
+      recipe, field(world), "Install surface palette", inputs);
+  check(generated.has_value(), "Surface terrain generation failed");
+  std::string error;
+  check(updateTerrainWorld(world, "land", recipe.toJson(), *generated, error),
+        error.c_str());
+
+  const auto originalField = field(world);
+  const auto originalResources = resources(world);
+  const std::string surfaceId = "land/__terrain/0_0/default";
+  const auto originalSections =
+      *entity(world, surfaceId).component<MeshMaterialSections3D>();
+  check(!originalSections.sections.empty(), "Automatic materials made no sections");
+  const auto changedRole = originalSections.sections.front().id;
+
+  auto editedPalette = std::make_shared<TerrainPalette>(*palette);
+  editedPalette->surfaceMaterials[changedRole] = "asset://replacement";
+  inputs.palette = editedPalette;
+  const auto rebound = updateTerrainWithInputs(
+      recipe, recipe, originalField, inputs);
+  check(rebound && !rebound->invalidation.fullGeneration,
+        "Material binding edit regenerated terrain");
+  check(rebound->field->surfaceMaterials->classification ==
+            originalField->surfaceMaterials->classification,
+        "Material binding edit rebuilt classification");
+  check(updateTerrainWorld(world, "land", recipe.toJson(), *rebound, error),
+        error.c_str());
+  checkAllResources(world, originalResources);
+
+  const auto *updatedSections =
+      entity(world, surfaceId).component<MeshMaterialSections3D>();
+  check(updatedSections->indices == originalSections.indices &&
+            updatedSections->indexRevision == originalSections.indexRevision,
+        "Material binding edit replaced GPU indices");
+  check(updatedSections->sections.front().material == "asset://replacement",
+        "Material binding was not published");
+
+  const auto undone = applyTerrainPatch(field(world), *rebound->patch, false);
+  check(updateTerrainWorld(world, "land", recipe.toJson(), undone, error),
+        error.c_str());
+  check(terrainSurfaceMaterialsEqual(*field(world), *originalField),
+        "Undo did not restore material bindings");
+  const auto redone = applyTerrainPatch(field(world), *rebound->patch, true);
+  check(updateTerrainWorld(world, "land", recipe.toJson(), redone, error),
+        error.c_str());
+  checkAllResources(world, originalResources);
+
+  auto overriddenRecipe = recipe;
+  overriddenRecipe.biomes.at("default").material = "asset://biome_override";
+  const auto overridden = updateTerrain(recipe, overriddenRecipe, field(world));
+  check(overridden.has_value(), "Biome material override update failed");
+  check(updateTerrainWorld(world, "land", overriddenRecipe.toJson(),
+                           *overridden, error), error.c_str());
+  check(entity(world, surfaceId).component<MeshMaterialSections3D>()->sections.empty(),
+        "Biome override left automatic material sections active");
+  checkAllResources(world, originalResources);
+
+  const auto restored = updateTerrain(overriddenRecipe, recipe, field(world));
+  check(restored.has_value(), "Removing biome material override failed");
+  check(updateTerrainWorld(world, "land", recipe.toJson(), *restored, error),
+        error.c_str());
+  check(!entity(world, surfaceId).component<MeshMaterialSections3D>()->sections.empty(),
+        "Removing biome override did not restore automatic sections");
+  checkAllResources(world, originalResources);
+
+  const auto sculptedRecipe = raised(recipe, {3, 2});
+  const auto sculpted = updateTerrain(recipe, sculptedRecipe, field(world));
+  check(sculpted.has_value(), "Sculpt with automatic materials failed");
+  check(sculpted->field->surfaceMaterials->classification !=
+            field(world)->surfaceMaterials->classification,
+        "Sculpt left classification stale");
+  const auto beforeSculpt = field(world);
+  check(updateTerrainWorld(world, "land", sculptedRecipe.toJson(),
+                           *sculpted, error), error.c_str());
+  const auto undoSculpt = applyTerrainPatch(field(world), *sculpted->patch, false);
+  check(updateTerrainWorld(world, "land", recipe.toJson(), undoSculpt, error),
+        error.c_str());
+  check(terrainFieldsEqual(*beforeSculpt, *field(world)),
+        "Sculpt undo did not restore the classified surface");
+}
+
+void testMaterialSectionGrouping() {
+  HeightField terrain;
+  terrain.biomeIds = {"default"};
+  auto classification = std::make_shared<TerrainSurfaceClassification>();
+  classification->roles = {"ground", "rock"};
+  classification->samples = {0, 1, 1, 0};
+  auto surface = std::make_shared<TerrainSurfaceMaterials>();
+  surface->classification = classification;
+  surface->bindings = {{"ground", "asset://ground"}, {"rock", "asset://rock"}};
+  terrain.surfaceMaterials = surface;
+
+  const std::vector<std::size_t> samples{0, 1, 2, 0, 2, 3};
+  const auto sections = terrain_detail::buildTerrainMaterialSections(
+      terrain, 0, samples);
+  check(sections.sections.size() == 2, "Mixed surface lost a material");
+  check(*sections.indices == std::vector<std::uint32_t>({3, 4, 5, 0, 1, 2}),
+        "Triangles were not grouped by majority role");
+  check(sections.sections[0].indexCount == 3 &&
+            sections.sections[1].firstIndex == 3,
+        "Material draw ranges overlap or omit triangles");
+
+  terrain.biomeMaterials = {"asset://explicit_override"};
+  const auto overridden = terrain_detail::buildTerrainMaterialSections(
+      terrain, 0, samples, &sections);
+  check(overridden.sections.empty(), "Automatic materials displaced biome override");
+}
+
 } // namespace
 
 int main() {
   try {
+    testSurfaceBindingRetainsGeometryAndHistory();
+    testMaterialSectionGrouping();
     testLocalHeightAndNormalHalo();
     testSharedCornerAndUndoRedo();
     testTintAndExclusion();

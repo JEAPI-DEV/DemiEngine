@@ -1,4 +1,5 @@
 #include "demi/runtime/terrain/TerrainUpdate.h"
+#include "demi/runtime/terrain/TerrainSurfaceMaterials.h"
 #include "demi/runtime/terrain/TerrainBrushBounds.h"
 #include "demi/runtime/terrain/TerrainGenerationCache.h"
 #include "demi/runtime/terrain/TerrainGraphExecutor.h"
@@ -13,6 +14,72 @@
 
 namespace demi::runtime {
 namespace {
+std::string_view surfaceRoleAt(const HeightField &field, std::size_t sample) {
+  if (!field.surfaceMaterials) {
+    return {};
+  }
+  const auto &classification = *field.surfaceMaterials->classification;
+  const auto roleIndex = classification.samples.at(sample);
+  return classification.roles.at(roleIndex);
+}
+
+void invalidateChangedSurfaceRoles(const HeightField &previous,
+                                   const HeightField &current,
+                                   TerrainInvalidation &invalidation) {
+  // Drainage can change classification far from the edited height samples.
+  // Publish only changed render samples; retain unchanged heights/colliders.
+  for (int z = 0; z <= current.cellsZ; ++z) {
+    for (int x = 0; x <= current.cellsX; ++x) {
+      const auto sample = current.index(x, z);
+      if (surfaceRoleAt(previous, sample) != surfaceRoleAt(current, sample)) {
+        invalidation.surfaceSamples.include(x, z);
+      }
+    }
+  }
+}
+
+bool refreshSurfaceMaterials(const HeightField &previous, HeightField &current,
+                             const TerrainRecipe &recipe,
+                             const std::shared_ptr<const TerrainPalette> &palette,
+                             TerrainPatch &patch, std::stop_token stop) {
+  const bool heightsChanged = !patch.invalidation.heightSamples.empty();
+  const bool needsClassification = heightsChanged && current.surfaceMaterials;
+  const bool bindingsChanged = !terrainSurfaceBindingsMatch(current, palette.get());
+  if (!needsClassification && !bindingsChanged) {
+    return true;
+  }
+
+  if (!patch.beforeDerived) {
+    patch.beforeDerived = terrainDerivedState(previous);
+  }
+  if (!updateTerrainSurfaceMaterials(current, recipe, palette.get(),
+                                     heightsChanged, stop)) {
+    return false;
+  }
+
+  current.resolvedPalette = palette;
+  patch.afterDerived = terrainDerivedState(current);
+  patch.invalidation.materialsChanged = true;
+  invalidateChangedSurfaceRoles(previous, current, patch.invalidation);
+  return true;
+}
+
+void invalidateChangedBiomeOverrides(const HeightField &previous,
+                                     const HeightField &current,
+                                     TerrainPatch &patch) {
+  if (!patch.beforePalette || !current.surfaceMaterials) {
+    return;
+  }
+  for (std::size_t biome = 0; biome < current.biomeIds.size(); ++biome) {
+    const bool hadOverride = !previous.biomeMaterial(biome).empty();
+    const bool hasOverride = !current.biomeMaterial(biome).empty();
+    if (hadOverride != hasOverride) {
+      patch.invalidation.surfaceSamples = {0, 0, current.cellsX, current.cellsZ};
+      return;
+    }
+  }
+}
+
 bool same(Vec2 a, Vec2 b) { return a.x == b.x && a.y == b.y; }
 bool same(Vec3 a, Vec3 b) { return a.x == b.x && a.y == b.y && a.z == b.z; }
 bool same(Color a, Color b) {
@@ -264,8 +331,14 @@ regenerateTerrainWithInputs(const TerrainRecipe &recipe,
                        : TerrainGenerator::generate(
                              recipe, inputs.palette.get(), stop, progress,
                              inputs.fingerprint);
-  if (!generated)
+  if (!generated) {
     return std::nullopt;
+  }
+  if (!recipe.graph.is_null() &&
+      !updateTerrainSurfaceMaterials(*generated, recipe, inputs.palette.get(),
+                                     true, stop)) {
+    return std::nullopt;
+  }
   if (inputs.palette &&
       (generated->paletteId != recipe.paletteId ||
        generated->inputFingerprint != inputs.fingerprint ||
@@ -498,9 +571,7 @@ updateTerrainWithInputs(const TerrainRecipe &before, const TerrainRecipe &after,
   const bool changedSurfaceInputs =
       !heightArea.empty() || !baseArea.empty() || !exclusionArea.empty();
   if (changedSurfaceInputs && (graphBase != nullptr || inputs.palette)) {
-    patch->beforeDerived = TerrainDerivedState{
-        previous->scatterPlacements, previous->scatterTruncated,
-        previous->graphArtifacts};
+    patch->beforeDerived = terrainDerivedState(*previous);
     if (graphBase != nullptr) {
       if (field->graphArtifacts &&
           field->graphArtifacts->waterResult &&
@@ -535,10 +606,13 @@ updateTerrainWithInputs(const TerrainRecipe &before, const TerrainRecipe &after,
         return std::nullopt;
       field->scatterTruncated = candidates.truncated;
     }
-    patch->afterDerived = TerrainDerivedState{
-        field->scatterPlacements, field->scatterTruncated,
-        field->graphArtifacts};
+    patch->afterDerived = terrainDerivedState(*field);
   }
+  if (!refreshSurfaceMaterials(*previous, *field, after, inputs.palette,
+                               *patch, stop)) {
+    return std::nullopt;
+  }
+  invalidateChangedBiomeOverrides(*previous, *field, *patch);
   stats.changedSamples = patch->samples.size();
   patch->invalidation.reason = "Local dependency replay from retained base";
   if (progress)

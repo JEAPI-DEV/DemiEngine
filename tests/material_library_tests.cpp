@@ -2,6 +2,7 @@
 #include "demi/runtime/render/backend/CookedShaderLibrary.h"
 #include "demi/runtime/render/bgfx3d/MeshSurface3D.h"
 #include "demi/runtime/render/bgfx3d/MeshDrawOrder3D.h"
+#include "demi/runtime/render/bgfx3d/MeshShadowSections3D.h"
 
 #include <cassert>
 #include <algorithm>
@@ -250,6 +251,44 @@ int main() {
   assert(materials.load(registry, diagnostics));
   assert(materials.find("asset://material/unlit") &&
          materials.find("asset://material/unlit")->unlit);
+  Entity sectioned;
+  MeshRendererComponent sectionMesh;
+  sectionMesh.vertices.resize(6);
+  sectioned.setComponent(sectionMesh);
+  MeshMaterialSections3D sections;
+  sections.indices = std::make_shared<const std::vector<std::uint32_t>>(
+      std::vector<std::uint32_t>{0, 1, 2, 3, 4, 5});
+  sections.sections = {{"left", "asset://material/unlit", 0, 3},
+                        {"right", "asset://material/unlit", 3, 3}};
+  sectioned.setComponent(sections);
+  const auto sectionDraws = [&] {
+    return std::vector<VisibleMesh3D>{
+        {.entity = &sectioned, .materialSection = 0},
+        {.entity = &sectioned, .materialSection = 1}};
+  };
+
+  auto opaqueDraws = sectionDraws();
+  compactOpaqueShadowSections3D(opaqueDraws, materials);
+  assert(opaqueDraws.size() == 1 && opaqueDraws.front().drawAllSections);
+
+  sectioned.component<MeshRendererComponent>()->surfaceMode = "transparent";
+  auto transparentDraws = sectionDraws();
+  compactOpaqueShadowSections3D(transparentDraws, materials);
+  assert(transparentDraws.size() == 2);
+
+  sectioned.component<MeshRendererComponent>()->surfaceMode = "opaque";
+  auto *sectionTable = sectioned.component<MeshMaterialSections3D>();
+  sectionTable->sections.back().material = "asset://material/test";
+  auto cutoutDraws = sectionDraws();
+  compactOpaqueShadowSections3D(cutoutDraws, materials);
+  assert(cutoutDraws.size() == 2);
+
+  sectionTable->sections.back().material = "asset://material/unlit";
+  sectionTable->sections.back().indexCount = 0;
+  auto partialDraws = sectionDraws();
+  compactOpaqueShadowSections3D(partialDraws, materials);
+  assert(partialDraws.size() == 2);
+
   materials.clear();
   assert(resources.uniforms.empty() && resources.programs.empty());
 

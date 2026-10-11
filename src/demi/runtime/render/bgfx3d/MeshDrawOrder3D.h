@@ -4,6 +4,7 @@
 #include "demi/runtime/render/bgfx3d/MeshSurface3D.h"
 #include "demi/runtime/render/bgfx3d/SceneVisibility3D.h"
 #include "demi/runtime/scene/model/Entity.h"
+#include "demi/runtime/scene/model/MeshMaterialSections3D.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -20,7 +21,14 @@ namespace demi::runtime::render {
   const auto isTransparent = [&](const VisibleMesh3D &visible) {
     const auto *mesh = visible.entity->component<MeshRendererComponent>();
     const auto *fade = visible.entity->component<FragmentOpacity3D>();
-    return resolveMeshSurface3D(*mesh, materials.find(mesh->material),
+    const auto *material = materials.find(mesh->material);
+    if (visible.materialSection) {
+      const auto *sections =
+          visible.entity->component<MeshMaterialSections3D>();
+      const auto &section = sections->sections.at(*visible.materialSection);
+      material = materials.find(section.material);
+    }
+    return resolveMeshSurface3D(*mesh, material,
                                 fade ? std::optional<float>(fade->value)
                                      : std::nullopt)
         .transparent();

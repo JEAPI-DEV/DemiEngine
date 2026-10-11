@@ -8,6 +8,7 @@
 #include "demi/runtime/physics/PhysicsWorld3D.h"
 #include "demi/runtime/scene/SceneLoader.h"
 #include "demi/runtime/scene/WorldQueries.h"
+#include "demi/runtime/scene/model/MeshMaterialSections3D.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/render/backend/BgfxGraphicsDevice.h"
 #include "demi/runtime/scene/components/3dcomponents/AnimationPlayer3DComponent.h"
@@ -114,6 +115,7 @@ public:
   explicit TextureCapture(RenderCommands &target) : target_(target) {}
   std::vector<TextureHandle> textures;
   std::vector<DrawState> bufferedStates;
+  std::vector<BufferSlice> bufferedIndices;
   std::size_t instanceDrawCalls = 0;
   std::vector<float> bufferedAlpha;
   std::vector<std::array<float, 4>> bufferedTint;
@@ -139,6 +141,7 @@ public:
     for(const auto &texture:draw.textures) if(texture.stage==1)shadowTextures[draw.viewId]=texture.texture;
     textures.push_back(draw.texture);
     bufferedStates.push_back(draw.state);
+    bufferedIndices.push_back(draw.indices);
     bufferedAlpha.push_back(draw.uniforms.empty()?1.F:draw.uniforms.front().values[3]);
     if (!draw.uniforms.empty())
       bufferedTint.push_back({draw.uniforms.front().values[0],
@@ -267,6 +270,55 @@ int main() {
   const std::uint32_t batchesWithoutDebugGeometry =
       renderer.statistics().batches;
   static_cast<void>(graphics.endFrame());
+
+  {
+    MeshUploadCapture uploads(*resources);
+    TextureCapture sectionDraws(*commands);
+    BgfxRenderer3D sectionRenderer(uploads, sectionDraws);
+    assert(sectionRenderer.initialize(error));
+
+    World sectionWorld;
+    auto panel = shape("sectioned_inline", "", {});
+    auto *mesh = panel.component<MeshRendererComponent>();
+    mesh->vertices = {{-1, 0, 0}, {0, 0, 0}, {-1, 1, 0},
+                      {0, 0, 0}, {1, 0, 0}, {1, 1, 0}};
+    mesh->normals.assign(6, {0, 0, 1});
+    mesh->uvs.assign(6, {0, 0});
+    mesh->markGeometryChanged();
+
+    MeshMaterialSections3D sections;
+    sections.indices = std::make_shared<const std::vector<std::uint32_t>>(
+        std::vector<std::uint32_t>{0, 1, 2, 3, 4, 5});
+    sections.sections = {{"left", {}, 0, 3}, {"right", {}, 3, 3}};
+    sections.indexRevision = 1;
+    panel.setComponent(sections);
+    sectionWorld.entities.push_back(std::move(panel));
+
+    assert(sectionRenderer.renderFrame(sectionWorld, frame, 0.016F, error));
+    assert(sectionDraws.bufferedIndices.size() == 2);
+    assert(sectionDraws.bufferedIndices[0].first == 0);
+    assert(sectionDraws.bufferedIndices[1].first == 3);
+    assert(sectionDraws.bufferedIndices[0].count == 3);
+    assert(sectionDraws.bufferedIndices[1].count == 3);
+    assert(uploads.meshUploads.size() == 1);
+    static_cast<void>(graphics.endFrame());
+
+    auto *published =
+        sectionWorld.entities.front().component<MeshMaterialSections3D>();
+    published->sections.front().material = "asset://changed_binding";
+    assert(sectionRenderer.renderFrame(sectionWorld, frame, 0.016F, error));
+    assert(uploads.meshUploads.size() == 1);
+    static_cast<void>(graphics.endFrame());
+
+    Entity sun;
+    sun.id = "section_shadow_light";
+    sun.setComponent(DirectionalLightComponent{.castsShadows = true});
+    sectionWorld.entities.push_back(std::move(sun));
+    assert(sectionRenderer.renderFrame(sectionWorld, frame, 0.016F, error));
+    assert(sectionRenderer.statistics().shadowPasses > 0);
+    assert(uploads.meshUploads.size() == 1);
+    static_cast<void>(graphics.endFrame());
+  }
 
   {
     MeshUploadCapture uploads(*resources);

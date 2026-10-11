@@ -1,4 +1,5 @@
 #include "demi/runtime/terrain/TerrainGenerator.h"
+#include "demi/runtime/terrain/TerrainSurfaceMaterials.h"
 #include "demi/runtime/terrain/TerrainBiomeRules.h"
 #include "demi/runtime/terrain/TerrainBrushBounds.h"
 #include "demi/runtime/terrain/TerrainEvaluation.h"
@@ -277,9 +278,15 @@ TerrainGenerator::generate(const TerrainRecipe &recipe,
                            const TerrainPalette *palette, std::stop_token stop,
                            const Progress &progress,
                            std::string_view inputFingerprint) {
-  if (!recipe.graph.is_null())
-    return executeTerrainGraph(
+  if (!recipe.graph.is_null()) {
+    auto field = executeTerrainGraph(
         recipe, {palette, std::string(inputFingerprint), {}}, stop, progress);
+    if (field &&
+        !updateTerrainSurfaceMaterials(*field, recipe, palette, true, stop)) {
+      return std::nullopt;
+    }
+    return field;
+  }
   auto field = generate(recipe, stop, progress);
   if (!field)
     return field;
@@ -300,6 +307,9 @@ TerrainGenerator::generate(const TerrainRecipe &recipe,
   auto scattered = scatterTerrain(*field, recipe, *palette);
   field->scatterPlacements = std::move(scattered.placements);
   field->scatterTruncated = scattered.truncated;
+  if (!updateTerrainSurfaceMaterials(*field, recipe, palette, true, stop)) {
+    return std::nullopt;
+  }
   if (stop.stop_requested())
     return std::nullopt;
   return field;

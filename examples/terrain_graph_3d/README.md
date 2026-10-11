@@ -56,3 +56,15 @@ The payload contains `entity_id` and `water`. Set `offset_y` to sample feet or a
 head instead of the entity origin; disable `emit_stay` if only transitions are
 needed. The sensor follows parented transforms. It is optional and is not added
 to the scene automatically. Swimming, splashes and damage are game-defined.
+
+## Automatic surface materials
+
+The recipe uses `asset://terrain_graph/surface_palette`, a surface-only palette.
+Its material set binds all nine surface roles to ordinary lit Material assets.
+Generate assigns triangle materials from the final terrain masks and resolved
+water coverage. Biome colors remain tints; an explicit biome material overrides
+automatic assignment. Role boundaries are discrete, without texture blending.
+
+Edit the material set and reimport it, then Generate to refresh the preview.
+Binding-only changes retain terrain heights and collision geometry. The Terrain
+Graph panel reports missing bindings or samples without a matching role.

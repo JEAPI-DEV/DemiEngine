@@ -26,6 +26,7 @@ struct TerrainInvalidation {
   TerrainRect normalSamples;
   TerrainRect biomeSamples;
   TerrainRect exclusionSamples;
+  TerrainRect surfaceSamples;
   std::string reason;
   TerrainRect geometrySamples() const;
 };
@@ -52,7 +53,13 @@ struct TerrainDerivedState {
   std::vector<TerrainScatterPlacement> placements;
   bool scatterTruncated = false;
   std::shared_ptr<const TerrainGraphArtifacts> graphArtifacts;
+  std::shared_ptr<const TerrainSurfaceMaterials> surfaceMaterials;
+  std::shared_ptr<const TerrainPalette> palette;
 };
+inline TerrainDerivedState terrainDerivedState(const HeightField &field) {
+  return {field.scatterPlacements, field.scatterTruncated, field.graphArtifacts,
+          field.surfaceMaterials, field.resolvedPalette};
+}
 
 struct TerrainPatch {
   Vec2 size{};

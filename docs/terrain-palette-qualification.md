@@ -33,6 +33,11 @@ retained in cooked metadata and normal asset dependency closure.
 
 ## Rendering boundary
 
+The later [surface material integration](terrain-surface-materials-qualification.md)
+connects these bindings to rendering. The following describes this format-2
+migration's original qualification scope.
+
+
 This delivers palette separation and authoring, not automatic surface shading.
 Explicit ordinary biome materials still render. Applying material-set roles to
 surface masks, typed PBR maps, smooth blending and vegetation LOD/instancing

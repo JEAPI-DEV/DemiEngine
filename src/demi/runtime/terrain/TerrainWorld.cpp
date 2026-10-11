@@ -1,4 +1,5 @@
 #include "demi/runtime/terrain/TerrainWorld.h"
+#include "demi/runtime/terrain/TerrainSurfaceMaterials.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/terrain/TerrainScatterRuntime.h"
 #include "demi/runtime/terrain/TerrainWorldBatch.h"
@@ -93,6 +94,8 @@ struct PreparedTerrainWorldUpdate::State {
     std::optional<Color> tint;
     std::optional<std::string> material;
     std::optional<std::vector<Vec2>> uvs;
+    std::optional<MeshMaterialSections3D> sections;
+    std::optional<MeshMaterialSections3D> beforeSections;
     bool remove = false;
   };
 
@@ -429,6 +432,9 @@ std::optional<PreparedTerrainWorldUpdate> prepareTerrainWorldUpdate(
            .collider = collider ? collider->inlineGeometry : nullptr,
            .beforeColor = mesh->color,
            .beforeMaterial = mesh->material});
+      if (const auto *sections = entity.component<MeshMaterialSections3D>()) {
+        state->changes.back().beforeSections = *sections;
+      }
       return state->changes.back();
     };
     if (full)
@@ -467,6 +473,9 @@ std::optional<PreparedTerrainWorldUpdate> prepareTerrainWorldUpdate(
               "Generated terrain entity ID conflicts with existing entity: " +
               id);
 
+        const auto sections = terrain_detail::buildTerrainMaterialSections(
+            field, biome, triangles.samples,
+            old ? old->component<MeshMaterialSections3D>() : nullptr);
         std::shared_ptr<const ColliderAsset3D> retainedCollider;
         if (old) {
           auto &change = stage(existing->second);
@@ -478,6 +487,10 @@ std::optional<PreparedTerrainWorldUpdate> prepareTerrainWorldUpdate(
               std::ranges::equal(mesh->normals, triangles.normals, samePoint) &&
               std::ranges::equal(mesh->uvs, triangles.uvs, sameUv);
           if (sameGeometry) {
+            const auto *previousSections = old->component<MeshMaterialSections3D>();
+            if (!previousSections || *previousSections != sections) {
+              change.sections = sections;
+            }
             if (!sameColor(mesh->color, color))
               change.tint = color;
             if (mesh->material != material)
@@ -504,6 +517,7 @@ std::optional<PreparedTerrainWorldUpdate> prepareTerrainWorldUpdate(
         if (!entity)
           return std::nullopt;
         entity->enabled = enabled;
+        entity->setComponent(sections);
         entity->setComponent(TerrainGeneratedSurface{
             owner.id, chunk.firstCellX, chunk.firstCellZ, biomeId});
         if (old)
@@ -546,6 +560,20 @@ std::optional<PreparedTerrainWorldUpdate> prepareTerrainWorldUpdate(
                                       world.entities[index].id);
         if (!sameColor(mesh->color, color))
           stage(index).tint = color;
+        const auto *sections =
+            world.entities[index].component<MeshMaterialSections3D>();
+        const auto pending = staged.find(index);
+        const bool sectionsAlreadyRebuilt =
+            pending != staged.end() && state->changes[pending->second].sections;
+        // A rebuilt section table already uses the new bindings. Rebinding the
+        // live table here would overwrite classification or override changes.
+        if (sections && !sectionsAlreadyRebuilt) {
+          auto rebound = terrain_detail::rebindTerrainMaterialSections(
+              field, biomeIndex, *sections);
+          if (rebound != *sections) {
+            stage(index).sections = std::move(rebound);
+          }
+        }
         if (mesh->material != field.biomeMaterial(biomeIndex))
           stage(index).material = field.biomeMaterial(biomeIndex);
         const auto oldBiome =
@@ -658,6 +686,18 @@ bool publishTerrainWorldUpdate(World &world,
       const auto *collider = entity.component<ModelCollider3DComponent>();
       const auto currentCollider =
           collider ? collider->inlineGeometry : nullptr;
+      const auto *sections = entity.component<MeshMaterialSections3D>();
+      const bool sectionsChanged =
+          change.beforeSections &&
+          (!sections || *sections != *change.beforeSections);
+      if (sectionsChanged) {
+        throw std::invalid_argument(
+            "Terrain preparation is stale: material sections changed");
+      }
+      if (change.sections && !sections) {
+        throw std::invalid_argument(
+            "Terrain surface is missing native material sections");
+      }
       if (entity.id != change.id ||
           terrainSurfaceOwner(entity) != state.ownerId || !mesh ||
           mesh->revision != change.revision ||
@@ -719,6 +759,11 @@ bool publishTerrainWorldUpdate(World &world,
       } else {
         auto *mesh =
             world.entities[change.index].component<MeshRendererComponent>();
+        if (change.sections) {
+          auto *sections =
+              world.entities[change.index].component<MeshMaterialSections3D>();
+          *sections = std::move(*change.sections);
+        }
         if (change.tint)
           mesh->color = *change.tint;
         if (change.material)
@@ -859,6 +904,8 @@ bool materializeTerrains(World &world, std::string &error,
               field->biomeMaterial(biome), error);
           if (!entity)
             return false;
+          entity->setComponent(terrain_detail::buildTerrainMaterialSections(
+              *field, biome, surface.samples));
           entity->setComponent(TerrainGeneratedSurface{
               owner.id, chunk.firstCellX, chunk.firstCellZ,
               field->biomeIds.at(biome)});

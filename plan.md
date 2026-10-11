@@ -6,9 +6,10 @@ updating without a default interaction FPS cap; see
 [editor qualification](docs/editor-usability-redesign.md).
 
 Terrain palettes now separate surface material sets from named object placement
-rules. Format-2 migration removes ground proxy objects and preserves explicit
-model/prefab ownership; automatic surface shading remains the next integration
-gate. See [terrain plan](terrain-plan.md).
+rules. Material sets now drive discrete surface-role assignment using indexed
+sections of existing terrain meshes, with explicit biome overrides and finite
+water coverage. Smooth blending and terrain PBR texture maps remain integration
+gates. See [terrain plan](terrain-plan.md).
 
 Editor usability work adds typed material overrides, searchable layers, compact
 creation, rotation rings, display scaling and Debug/Release Run & Test. Dynamic

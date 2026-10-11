@@ -1,3 +1,4 @@
+#include "demi/runtime/terrain/TerrainSurfaceMaterials.h"
 #include "editor/EditorTerrainGraphPanel.h"
 #include "editor/EditorChrome.h"
 #include "editor/EditorClipboard.h"
@@ -1117,6 +1118,22 @@ void EditorTerrainGraphPanel::draw(EditorWorkspace &workspace,
   }
   const auto surface = authoring.surface();
   const auto field = surface ? surface->heightField() : nullptr;
+  if (field && field->surfaceMaterials) {
+    ImGui::PushTextWrapPos(0);
+    for (const auto &role : field->surfaceMaterials->unboundRoles) {
+      if (role.empty()) {
+        ImGui::TextColored(
+            {1.0F, 0.75F, 0.35F, 1.0F},
+            "Some samples have no matching surface role; using biome tint.");
+        continue;
+      }
+      ImGui::TextColored(
+          {1.0F, 0.75F, 0.35F, 1.0F},
+          "Surface role '%s' has no material binding in %s; using biome tint.",
+          role.c_str(), field->surfaceMaterials->materialSet.c_str());
+    }
+    ImGui::PopTextWrapPos();
+  }
   if (field && field->graphArtifacts) {
     ImGui::PushTextWrapPos(0);
     for (const auto &warning : field->graphArtifacts->warnings)

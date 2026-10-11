@@ -1,11 +1,13 @@
 {
-  "dependencies": [],
+  "dependencies": [
+    "asset://terrain_graph/surface_palette"
+  ],
   "format_version": 1,
   "id": "asset://terrain/landscape",
   "importer": "terrain_heightfield",
   "importer_version": 1,
   "settings": {},
   "source": "landscape.terrain.json",
-  "source_hash": "fnv1a64:0f6c8e6fd60a8067",
+  "source_hash": "fnv1a64:80b919b5085cf0a2",
   "type": "Terrain"
 }

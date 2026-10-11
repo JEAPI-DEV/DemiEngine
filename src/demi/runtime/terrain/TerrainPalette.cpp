@@ -296,9 +296,17 @@ TerrainPalette parseTerrainPalette(const assets::DataDocument &document,
     palette.materialSet = assets::data_read::text(*set, Kind, "material_set");
     require(palette.materialSet.starts_with(AssetPrefix),
             at("material_set") + "must be an asset:// reference.");
-    require(assets::loadTerrainMaterialSet(registry, palette.materialSet)
-                .has_value(),
+    const auto loadedSet =
+        assets::loadTerrainMaterialSet(registry, palette.materialSet);
+    require(loadedSet.has_value(),
             at("material_set") + "must resolve to a terrain_material_set.");
+    palette.surfaceMaterials = loadedSet->roles;
+    for (const auto &[role, reference] : palette.surfaceMaterials) {
+      const auto *material = findAsset(registry, reference);
+      if (!material || material->type != "Material") {
+        palette.unsupportedSurfaceRoles.push_back(role);
+      }
+    }
   }
   if (const auto *placements = root.find("placements")) {
     const auto *entries = placements->object();

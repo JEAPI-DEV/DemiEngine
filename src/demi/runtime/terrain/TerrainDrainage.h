@@ -4,6 +4,8 @@
 #include <cstddef>
 #include <optional>
 #include <stop_token>
+#include <span>
+#include <cstdint>
 #include <vector>
 
 namespace demi::runtime {
@@ -59,6 +61,12 @@ struct TerrainDrainageSettings {
   // get joined to. Preview buys its iteration speed in the Erosion stage.
   TerrainQuality quality = TerrainQuality::Standard;
 };
+
+// Uses the same distance metric as drainage with explicit finite-body coverage.
+// Returns an empty vector on cancellation.
+std::vector<float> computeTerrainWaterDistances(
+    const HeightField &field, std::span<const std::uint8_t> wetSamples,
+    std::stop_token stop = {});
 
 // Empty only when the field holds no samples. A field whose sample storage does
 // not match its own grid throws std::invalid_argument rather than computing

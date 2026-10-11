@@ -14,6 +14,7 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/terrain/TerrainWorldBatch.cpp
   src/demi/runtime/terrain/TerrainScatterRuntime.cpp
   src/demi/runtime/terrain/TerrainMeshBuilder.cpp
+  src/demi/runtime/terrain/TerrainMaterialSections.cpp
   src/demi/runtime/terrain/TerrainWaterMesh.cpp
   src/demi/runtime/network/TcpClient.cpp
   src/demi/runtime/database/DatabaseService.cpp

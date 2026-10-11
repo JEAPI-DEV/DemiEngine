@@ -155,7 +155,7 @@ std::string assetInputFingerprint(
   // Appearance assets are loaded by the renderer, not consumed by terrain
   // generation. Their references remain in the recipe digest and cook closure.
   for (const auto &id : extractAssetReferences(generationRecipe.dump()))
-    references.insert(id);
+    if (id != recipe.paletteId) references.insert(id);
   if (generationInputs.palette) {
     for (const auto &id : generationInputs.palette->assetDependencies())
       if (id.starts_with("asset://") &&

@@ -136,16 +136,23 @@ bool GpuMesh3D::draw(RenderCommands &commands, const std::uint16_t viewId,
                      const SamplerHandle sampler,
                      const std::array<float, 16> &transform,
                      const DrawState &state, std::string &error,
-                     const std::span<const DrawUniformValue> uniforms) const {
+                     const std::span<const DrawUniformValue> uniforms,
+                     std::uint32_t firstIndex, std::uint32_t indexCount) const {
   if (!valid()) {
     error = "GPU mesh must be uploaded before drawing.";
     return false;
   }
+  if (firstIndex > indexCount_ ||
+      (indexCount != UINT32_MAX && indexCount > indexCount_ - firstIndex)) {
+    error = "Mesh material section exceeds its index buffer.";
+    return false;
+  }
+  const auto count = indexCount == UINT32_MAX ? indexCount_ - firstIndex : indexCount;
   return commands.submit(
       BufferedDraw{
           .viewId = viewId,
           .vertices = {.handle = vertices_, .count = vertexCount_},
-          .indices = {.handle = indices_, .count = indexCount_},
+          .indices = {.handle = indices_, .first = firstIndex, .count = count},
           .program = program,
           .texture = texture,
           .sampler = sampler,

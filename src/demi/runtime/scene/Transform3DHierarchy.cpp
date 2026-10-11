@@ -198,6 +198,26 @@ resolveWorldTransform3D(const World &world, const Entity &entity,
     return WorldTransform3D{.position = localOverride.position,
                             .rotation = localOverride.rotation,
                             .scale = localOverride.scale};
+  const Entity *parent = findById(world, localOverride.parent);
+  if (!parent || parent->id == entity.id) {
+    return std::nullopt;
+  }
+  const auto *parentLocal = parent->component<Transform3DComponent>();
+  if (!parentLocal) {
+    return std::nullopt;
+  }
+  if (parentLocal->parent.empty()) {
+    // A direct child of a root cannot contain a deeper cycle. Avoid allocating
+    // a traversal set for terrain chunks and ordinary one-level hierarchies.
+    const WorldTransform3D parentTransform{parentLocal->position,
+                                           parentLocal->rotation,
+                                           parentLocal->scale};
+    const WorldTransform3D childTransform{localOverride.position,
+                                          localOverride.rotation,
+                                          localOverride.scale};
+    return composeWorldTransform3D(parentTransform, childTransform);
+  }
+
   std::unordered_set<std::string> visiting;
   const auto result = resolve(world, entity, localOverride, visiting);
   return result ? std::make_optional(result->transform) : std::nullopt;

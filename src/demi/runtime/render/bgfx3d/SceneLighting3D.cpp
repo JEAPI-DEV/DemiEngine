@@ -1,6 +1,7 @@
 #include "demi/runtime/render/bgfx3d/SceneLighting3D.h"
 
 #include "demi/runtime/scene/Transform3DHierarchy.h"
+#include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/scene/components/3dcomponents/DirectionalLightComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/Environment3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/PointLightComponent.h"
@@ -21,6 +22,7 @@ bool matchesMask(const std::string_view cameraMask,
 
 SceneLighting3D collectSceneLighting3D(const World &world,
                                        const std::string_view renderMask) {
+  ProfileScope profile("Renderer3D.collect_lighting");
   SceneLighting3D lighting;
   bool hasAuthoredLighting = false;
   bool hasEnvironment = false;
@@ -48,10 +50,16 @@ SceneLighting3D collectSceneLighting3D(const World &world,
       hasAuthoredLighting = true;
       hasEnvironment = true;
     }
+    const auto *directional = entity.component<DirectionalLightComponent>();
+    const auto *point = entity.component<PointLightComponent>();
+    const auto *spot = entity.component<SpotLightComponent>();
+    if (!directional && !point && !spot) {
+      continue;
+    }
+
+    // Terrain chunks and other non-light entities need no hierarchy resolution.
     const auto transform = resolveWorldTransform3D(world, entity);
-    if (const auto *directional = entity.component<DirectionalLightComponent>();
-        directional != nullptr &&
-        matchesMask(renderMask, directional->renderMask)) {
+    if (directional && matchesMask(renderMask, directional->renderMask)) {
       const Vec3 direction =
           transform ? transformDirection3D(*transform, directional->direction)
                     : directional->direction;
@@ -71,8 +79,7 @@ SceneLighting3D collectSceneLighting3D(const World &world,
       }
       hasAuthoredLighting = true;
     }
-    if (const auto *point = entity.component<PointLightComponent>();
-        point && transform && point->range > 0 && point->intensity > 0 &&
+    if (point && transform && point->range > 0 && point->intensity > 0 &&
         matchesMask(renderMask, point->renderMask)) {
       lighting.lights.push_back({.kind = SceneLightKind3D::Point,
                                  .position = transform->position,
@@ -81,8 +88,7 @@ SceneLighting3D collectSceneLighting3D(const World &world,
                                  .intensity = point->intensity});
       hasAuthoredLighting = true;
     }
-    if (const auto *spot = entity.component<SpotLightComponent>();
-        spot && transform && spot->range > 0 && spot->intensity > 0 &&
+    if (spot && transform && spot->range > 0 && spot->intensity > 0 &&
         matchesMask(renderMask, spot->renderMask)) {
       const Vec3 direction = transformDirection3D(*transform, spot->direction);
       lighting.lights.push_back(

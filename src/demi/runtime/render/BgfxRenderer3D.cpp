@@ -1,4 +1,6 @@
 #include "demi/runtime/render/BgfxRenderer3D.h"
+#include "demi/runtime/render/bgfx3d/MeshShadowSections3D.h"
+#include "demi/runtime/scene/model/MeshMaterialSections3D.h"
 #include "demi/runtime/destruction/DestructionWorld3D.h"
 #include "demi/runtime/destruction/DetachedFragmentFade3D.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
@@ -38,7 +40,8 @@ void hashValue(std::uint64_t &hash, const std::uint32_t value) {
   }
 }
 
-std::uint64_t meshCacheRevision(const MeshRendererComponent &mesh) {
+std::uint64_t meshCacheRevision(const MeshRendererComponent &mesh,
+                                const MeshMaterialSections3D *sections = nullptr) {
   // Geometry mutation APIs advance revision. Keep this key constant-size so
   // resident procedural meshes do not rescan all vertex data every camera.
   std::uint64_t hash = 14695981039346656037ULL;
@@ -50,6 +53,10 @@ std::uint64_t meshCacheRevision(const MeshRendererComponent &mesh) {
   hashValue(hash, static_cast<std::uint32_t>(mesh.vertexColors.size()));
   for (const char value : mesh.shape)
     hashValue(hash, static_cast<unsigned char>(value));
+  if (sections && sections->indices) {
+    hashValue(hash, static_cast<std::uint32_t>(sections->indexRevision));
+    hashValue(hash, static_cast<std::uint32_t>(sections->indexRevision >> 32U));
+  }
   return hash;
 }
 
@@ -233,16 +240,23 @@ void BgfxRenderer3D::shutdown() {
 bool BgfxRenderer3D::renderFrame(const World &world,
                                  const BgfxCameraFrame3D &frame,
                                  const float deltaSeconds, std::string &error) {
-  if(!initialized_) {error="BgfxRenderer3D must be initialized before rendering.";return false;}
-  const auto lighting=frame.lightingOverride.value_or(collectSceneLighting3D(world,frame.camera.renderMask));
-  if(!shadows_.prepare(lighting,frame,error))return false;
-  auto mainFrame=frame;
+  if (!initialized_) {
+    error = "BgfxRenderer3D must be initialized before rendering.";
+    return false;
+  }
+  const auto sceneLighting = collectSceneLighting3D(world, frame.camera.renderMask);
+  const auto &lighting = frame.lightingOverride ? *frame.lightingOverride
+                                               : sceneLighting;
+  if (!shadows_.prepare(lighting, frame, error)) {
+    return false;
+  }
+  auto mainFrame = frame;
   std::size_t shadowBatches = 0;
   const auto depthFrames = shadows_.depthFrames();
   for (std::size_t cascade = 0; cascade < depthFrames.size(); ++cascade) {
     ProfileScope scope("Renderer3D.directional_shadow");
     shadows_.cast(cascade);
-    if (!renderView(world, depthFrames[cascade], 0, error, true))
+    if (!renderView(world, depthFrames[cascade], 0, error, true, sceneLighting))
       return false;
     shadowBatches += statistics_.batches;
     ++mainFrame.viewId;
@@ -251,13 +265,16 @@ bool BgfxRenderer3D::renderFrame(const World &world,
   RuntimeProfiler::setGauge("Renderer3D.shadow_cascades", depthFrames.size());
   shadows_.receive();
   const bool rendered =
-      renderView(world, mainFrame, deltaSeconds, error, false);
+      renderView(world, mainFrame, deltaSeconds, error, false, sceneLighting);
   statistics_.shadowPasses = depthFrames.size();
   return rendered;
 }
 
-bool BgfxRenderer3D::renderView(const World &world,const BgfxCameraFrame3D &frame,
-    float deltaSeconds,std::string &error,bool shadowPass) {
+bool BgfxRenderer3D::renderView(const World &world,
+                               const BgfxCameraFrame3D &frame,
+                               float deltaSeconds, std::string &error,
+                               bool shadowPass,
+                               const SceneLighting3D &sceneLighting) {
   if (!initialized_) {
     error = "BgfxRenderer3D must be initialized before rendering.";
     return false;
@@ -265,7 +282,6 @@ bool BgfxRenderer3D::renderView(const World &world,const BgfxCameraFrame3D &fram
   const Vec3 target{frame.position.x + frame.forward.x,
                     frame.position.y + frame.forward.y,
                     frame.position.z + frame.forward.z};
-  const SceneLighting3D sceneLighting = collectSceneLighting3D(world, frame.camera.renderMask);
   const int msaaSamples=shadowPass?1:std::max(sceneLighting.msaaSamples,1);
   if(!shadowPass)postProcess_.setMsaaSamples(msaaSamples);
   const auto renderTarget = renderTargets_.find(frame.camera.renderTarget);
@@ -336,6 +352,9 @@ bool BgfxRenderer3D::renderView(const World &world,const BgfxCameraFrame3D &fram
             .count();
   } else {
     lastExtractionMilliseconds_ = 0.0;
+  }
+  if (shadowPass) {
+    compactOpaqueShadowSections3D(visibility.meshes, materials_);
   }
   if (frame.updateContent && !prepareAnimatedMeshes(visibility.meshes, frame, error))
     return false;
@@ -478,7 +497,13 @@ bool BgfxRenderer3D::renderView(const World &world,const BgfxCameraFrame3D &fram
       const std::uint32_t color = packVertexColorRgba8(mesh->color);
       const std::array<float, 4> entityTint{mesh->color.r, mesh->color.g,
                                             mesh->color.b, mesh->color.a*(fade?fade->value:1.F)};
-      const MaterialBinding *material = materials_.find(mesh->material);
+      const auto *sections = entity.component<MeshMaterialSections3D>();
+      const MeshMaterialSection3D *section = nullptr;
+      if (visible.materialSection) {
+        section = &sections->sections.at(*visible.materialSection);
+      }
+      const auto &materialId = section ? section->material : mesh->material;
+      const MaterialBinding *material = materials_.find(materialId);
       const MeshSurface3D surface = resolveMeshSurface3D(
           *mesh, material,
           fade ? std::optional<float>(fade->value) : std::nullopt);
@@ -552,7 +577,11 @@ bool BgfxRenderer3D::renderView(const World &world,const BgfxCameraFrame3D &fram
           if(queued){++bufferedDraws;bufferedTriangles+=gpu->indexCount()/3U;}
         }
       } else if (!mesh->vertices.empty()) {
-        const std::uint64_t signature = meshCacheRevision(*mesh);
+        const std::uint64_t signature = meshCacheRevision(*mesh, sections);
+        std::span<const std::uint32_t> indices;
+        if (sections && sections->indices) {
+          indices = *sections->indices;
+        }
         auto &cached = dynamicMeshes_[entity.id];
         if (!cached)
           cached = std::make_unique<CachedMesh>(resources_);
@@ -574,7 +603,7 @@ bool BgfxRenderer3D::renderView(const World &world,const BgfxCameraFrame3D &fram
         }
         if (dents.empty() &&
             (cached->signature != signature || !cached->gpu.valid())) {
-          if (!cached->gpu.upload(mesh->vertices, mesh->uvs, {}, 0xffffffffU,
+          if (!cached->gpu.upload(mesh->vertices, mesh->uvs, indices, 0xffffffffU,
                                   error, mesh->normals, cached->inlineColors)) {
             error = entity.id + ": " + error;
             return false;
@@ -588,20 +617,25 @@ bool BgfxRenderer3D::renderView(const World &world,const BgfxCameraFrame3D &fram
         const GpuMesh3D *drawMesh = &cached->gpu;
         if (!dents.empty()) {
           drawMesh = deformedMeshes_.get(entity.id, "inline", signature,
-                                         mesh->vertices, mesh->uvs, {},
+                                         mesh->vertices, mesh->uvs, indices,
                                          cached->inlineColors,
                                          dents, error);
           if (!drawMesh)
             return false;
         }
+        const bool drawSectionRange = section && !visible.drawAllSections;
         queued = drawMesh->draw(commands_, frame.viewId, program,
                                 texture.handle ? texture.handle : whiteTexture_,
                                 meshSampler_,
                                 composeMeshTransform3D(transform, mesh->size),
-                                state, error, drawUniforms);
+                                state, error, drawUniforms,
+                                drawSectionRange ? section->firstIndex : 0,
+                                drawSectionRange ? section->indexCount : UINT32_MAX);
         if (queued) {
           ++bufferedDraws;
-          bufferedTriangles += drawMesh->indexCount() / 3U;
+          const auto drawnIndices =
+              drawSectionRange ? section->indexCount : drawMesh->indexCount();
+          bufferedTriangles += drawnIndices / 3U;
         }
       } else if (!selectedModel.empty()) {
         const auto cached = modelMeshes_.find(selectedModel);

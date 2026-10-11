@@ -68,7 +68,8 @@ public:
 private:
   bool drawCosmeticDebris(std::vector<CosmeticFragment3D> &, const BgfxCameraFrame3D &,
       std::span<const DrawUniformValue>, ProgramHandle, std::uint32_t &, std::uint32_t &, std::string &);
-  bool renderView(const World &, const BgfxCameraFrame3D &, float, std::string &, bool shadowPass);
+  bool renderView(const World &, const BgfxCameraFrame3D &, float,
+                  std::string &, bool shadowPass, const SceneLighting3D &);
   struct ModelLodSelection {
     const std::string *model = nullptr;
     bool isCulled = false;

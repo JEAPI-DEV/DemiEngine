@@ -234,10 +234,10 @@ void mix(std::uint64_t &hash, const bool value) {
   mix(hash, static_cast<std::uint64_t>(value));
 }
 
-[[nodiscard]] std::uint64_t shapeSignature(const World &world,
-                                           const Entity &entity) {
+[[nodiscard]] std::uint64_t shapeSignature(
+    const World &world, const Entity &entity,
+    const std::optional<WorldTransform3D> &transform) {
   std::uint64_t hash = 0xcbf29ce484222325ULL;
-  const auto transform = resolveWorldTransform3D(world, entity);
   if (transform) {
     mix(hash, transform->scale.x);
     mix(hash, transform->scale.y);
@@ -290,6 +290,11 @@ void mix(std::uint64_t &hash, const bool value) {
     mix(hash, static_cast<std::uint64_t>(body->solverPositionSteps));
   }
   return hash;
+}
+
+[[nodiscard]] std::uint64_t shapeSignature(const World &world,
+                                          const Entity &entity) {
+  return shapeSignature(world, entity, resolveWorldTransform3D(world, entity));
 }
 
 JPH::ShapeRefC capsuleShape(float radius, float totalHeight) {
@@ -846,7 +851,9 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
             asset != world.colliderAssets3D.end())
           asset->second.lastUsedEpoch = impl_->frameEpoch;
       }
-      const std::uint64_t signature = shapeSignature(world, entity);
+      // Shape scaling and body placement use the same hierarchy snapshot.
+      const auto resolved = resolveWorldTransform3D(world, entity);
+      const std::uint64_t signature = shapeSignature(world, entity, resolved);
       auto found = impl_->bodies.find(entity.id);
       const bool shapeRebuilt =
           found != impl_->bodies.end() && found->second.signature != signature;
@@ -862,7 +869,6 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
 
       const Transform3DComponent &local =
           *entity.component<Transform3DComponent>();
-      const auto resolved = resolveWorldTransform3D(world, entity);
       if (!resolved)
         continue;
       if (found == impl_->bodies.end()) {

@@ -1,4 +1,5 @@
 #include "demi/runtime/terrain/TerrainGenerationCache.h"
+#include "demi/runtime/terrain/TerrainSurfaceMaterials.h"
 #include "demi/assets/AssetHash.h"
 #include "demi/assets/AssetRegistry.h"
 #include "demi/runtime/terrain/TerrainGenerator.h"
@@ -41,7 +42,6 @@ std::string paletteFingerprint(const TerrainPalette &palette,
                                const AssetRegistry &registry) {
   nlohmann::json semantic{{"format_version", palette.formatVersion},
                           {"id", palette.id},
-                          {"material_set", palette.materialSet},
                           {"placements", nlohmann::json::object()},
                           {"assets", nlohmann::json::object()}};
   for (const auto &[name, entry] : palette.placements)
@@ -240,10 +240,25 @@ acquireTerrain(const nlohmann::json &recipe,
   validateInputs(parsed, inputs);
   const auto key = recipeKey(parsed, inputs.fingerprint);
   auto &store = cache();
+  std::shared_ptr<const HeightField> existing;
   {
     std::scoped_lock lock(store.mutex);
-    if (auto existing = findLocked(store, key))
+    existing = findLocked(store, key);
+  }
+  if (existing) {
+    if (terrainSurfaceBindingsMatch(*existing, inputs.palette.get())) {
       return existing;
+    }
+    auto rebound = std::make_shared<HeightField>(*existing);
+    const bool reboundSuccessfully = updateTerrainSurfaceMaterials(
+        *rebound, parsed, inputs.palette.get(), false);
+    if (!reboundSuccessfully) {
+      throw std::runtime_error("Terrain appearance update cancelled");
+    }
+    rebound->resolvedPalette = inputs.palette;
+    std::scoped_lock lock(store.mutex);
+    store.fields[key] = rebound;
+    return rebound;
   }
   auto generated = TerrainGenerator::generate(
       parsed, inputs.palette.get(), {}, {}, inputs.fingerprint);
@@ -257,8 +272,11 @@ acquireTerrain(const nlohmann::json &recipe,
        !field->resolvedPalette))
     throw std::logic_error("Terrain generator dropped resolved palette inputs");
   std::scoped_lock lock(store.mutex);
-  if (auto existing = findLocked(store, key))
-    return existing;
+  if (auto existing = findLocked(store, key)) {
+    if (terrainSurfaceBindingsMatch(*existing, inputs.palette.get())) {
+      return existing;
+    }
+  }
   removeExpiredLocked(store);
   store.fields[key] = field;
   return field;

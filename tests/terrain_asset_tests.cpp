@@ -6,6 +6,7 @@
 #include "demi/runtime/terrain/TerrainGraph.h"
 #include "demi/runtime/terrain/TerrainGraphExecutor.h"
 #include "demi/runtime/terrain/TerrainUpdate.h"
+#include "demi/runtime/terrain/TerrainSurfaceMaterials.h"
 
 #include <cassert>
 #include <chrono>
@@ -157,6 +158,16 @@ void completePayloadRoundTrip() {
   palette->id = field.paletteId;
   palette->name = "Test palette";
   palette->materialSet = "asset://surface_set";
+  palette->surfaceMaterials.emplace("ground", "asset://ground_material");
+  auto classification = std::make_shared<TerrainSurfaceClassification>();
+  classification->roles = {"", "ground"};
+  classification->samples.assign(field.heights.size(), 1);
+  classification->samples.set(0, 0);
+  auto appearance = std::make_shared<TerrainSurfaceMaterials>();
+  appearance->materialSet = palette->materialSet;
+  appearance->bindings = palette->surfaceMaterials;
+  appearance->classification = classification;
+  field.surfaceMaterials = appearance;
   TerrainPaletteEntry ruleId;
   ruleId.model = "asset://tree";
   palette->placements.emplace("tree", ruleId);
@@ -213,6 +224,13 @@ void completePayloadRoundTrip() {
   assert(restored->resolvedPalette &&
          restored->resolvedPalette->placements.size() == 1);
   assert(restored->resolvedPalette->materialSet == "asset://surface_set");
+  assert(terrainSurfaceMaterialsEqual(field, *restored));
+  assert(restored->surfaceMaterials->classification != classification);
+  auto malformed = derived;
+  malformed["surface_materials"]["samples"][0] = 17;
+  HeightField invalidField = field;
+  expectFailure([&] { terrain_payload::decodeDerived(malformed, invalidField); },
+                "out of range");
   assert(restored->graphArtifacts && restored->graphArtifacts->baseField);
   assert(restored->graphArtifacts->basePlacements->size() == 1);
   assert(restored->graphArtifacts->water.bodies.size() == 1);
@@ -272,7 +290,7 @@ void waterCoverageRoundTrip() {
   assert(encoded["body"][0] == 0 && encoded["body"][1] == 2 &&
          encoded["body"][2] == -1);
   const auto payload = serializeTerrainAssetPayload(field, "recipe", "inputs");
-  assert(terrainAssetPayloadVersion == 5 && payload[7] == std::byte{'5'});
+  assert(terrainAssetPayloadVersion == 6 && payload[7] == std::byte{'6'});
   const auto restored = deserializeTerrainAssetPayload(payload);
   const auto &before = *field.graphArtifacts->waterResult;
   const auto &after = *restored->graphArtifacts->waterResult;

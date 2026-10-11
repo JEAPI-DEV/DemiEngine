@@ -170,9 +170,11 @@ is the focused branching-graph probe.
   one `model` or `prefab`. Surface bindings never create proxy entities.
 - [x] Migrate parsers, native validation/dependencies, editor creation/controls,
   stable rule identity, cache keys, cooked data and the meadow example together.
-- [ ] Connect the material set to automatic mask-based terrain surface rendering.
-  Explicit biome Material bindings continue to render; this format migration
-  does not complete milestone 4 or implement smooth PBR blending.
+- [x] Connect the material set to automatic mask-based terrain surface rendering.
+  Indexed sections reuse terrain geometry; explicit biome Material bindings win.
+  Binding edits retain classification and collision. Finite water coverage drives
+  submerged roles. This is discrete assignment, not smooth PBR blending, and
+  does not complete milestone 4. See [qualification](docs/terrain-surface-materials-qualification.md).
 
 The agreed contract is recorded in
 [terrain palette separation](docs/terrain-palette-proposal.md).

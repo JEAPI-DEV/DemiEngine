@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://terrain_graph/materials/ground",
+  "importer": "material",
+  "importer_version": 1,
+  "settings": {},
+  "source": "ground.material.json",
+  "source_hash": "fnv1a64:e75091549eaa526f",
+  "type": "Material"
+}

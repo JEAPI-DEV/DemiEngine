@@ -10,6 +10,7 @@
 
 namespace demi::runtime {
 struct TerrainGraphArtifacts;
+struct TerrainSurfaceMaterials;
 
 struct TerrainChunk {
   int firstCellX = 0;
@@ -40,6 +41,7 @@ struct HeightField {
   float biomeTextureScale(std::size_t index) const {
     return biomeTextureScales.empty() ? 1.F : biomeTextureScales.at(index);
   }
+  std::shared_ptr<const TerrainSurfaceMaterials> surfaceMaterials;
   std::vector<TerrainChunk> chunks;
   std::vector<TerrainScatterPlacement> scatterPlacements;
   bool scatterTruncated = false;

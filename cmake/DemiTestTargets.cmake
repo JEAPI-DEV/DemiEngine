@@ -461,7 +461,7 @@
   target_compile_definitions(demi-bgfx-renderer2d-tests PRIVATE
     DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
   add_executable(demi-material-library-tests tests/material_library_tests.cpp)
-  target_link_libraries(demi-material-library-tests PRIVATE demi-render2d-bgfx)
+  target_link_libraries(demi-material-library-tests PRIVATE demi-render3d-bgfx)
   add_executable(demi-primitive-canvas3d-tests
     tests/primitive_canvas3d_tests.cpp)
   target_link_libraries(demi-primitive-canvas3d-tests

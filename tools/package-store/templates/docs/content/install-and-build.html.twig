@@ -17,38 +17,46 @@ c++ --version</code></pre>
 <p><code>cmake --version</code> prints the CMake release. <code>c++ --version</code> prints your compiler release. If either command is missing, install the corresponding package from your distribution (typically <code>cmake</code>, <code>ninja-build</code>, and <code>g++</code> or <code>clang</code>).</p>
 
 <h2>Configure the build</h2>
-<p>The repository defines named build configurations called presets. A preset is a saved set of CMake options so you do not have to remember flags. Configure the Linux debug preset from the repository root:</p>
-<pre><code>cmake --preset linux-debug</code></pre>
+<p>The repository defines named build configurations called presets. A preset is a saved set of CMake options so you do not have to remember flags. Use the optimized Linux release preset for normal editor and game development. Configure it from the repository root:</p>
+<pre><code>cmake --preset linux-release</code></pre>
 <ul>
   <li><code>cmake</code> — the build configuration tool.</li>
-  <li><code>--preset linux-debug</code> — selects the checked-in <code>linux-debug</code> configuration. It sets the compiler mode to debug (fast builds, easy to inspect) and places output under <code>build/linux-debug/</code>.</li>
+  <li><code>--preset linux-release</code> — selects the checked-in <code>linux-release</code> configuration. It enables native compiler optimization and places output under <code>build/linux-release/</code>.</li>
 </ul>
 <p>The command returns after generating build files. It does not compile anything yet. On success the last lines name the build directory and generator.</p>
 
 <h2>Compile the engine</h2>
-<pre><code>cmake --build --preset linux-debug</code></pre>
+<pre><code>cmake --build --preset linux-release</code></pre>
 <ul>
   <li><code>cmake --build</code> — runs the build tool CMake configured.</li>
-  <li><code>--preset linux-debug</code> — builds the same preset you configured.</li>
+  <li><code>--preset linux-release</code> — builds the same preset you configured.</li>
 </ul>
 <p>This compiles the engine and links the CLI. The command returns when compilation finishes; a first build takes the longest. Later incremental builds only recompile what changed.</p>
 
 <h2>Confirm the demi CLI</h2>
-<p>After the build finishes, the <code>demi</code> command is ready on your <code>PATH</code>:</p>
-<pre><code>demi --help</code></pre>
+<p>After the build finishes, run the CLI directly from the build directory, or add that directory to your <code>PATH</code>:</p>
+<pre><code>./build/linux-release/demi --help
+./build/linux-release/demi editor --project path/to/project</code></pre>
 <ul>
   <li><code>demi</code> — the engine CLI used for authoring, validation, testing, and packaging.</li>
   <li><code>--help</code> — prints the top-level command list and global options, then exits with code <code>0</code>.</li>
 </ul>
 <p>The help output is the fastest way to see every command group: <code>new</code>, <code>doctor</code>, <code>dev</code>, <code>editor</code>, <code>run</code>, <code>validate</code>, <code>asset</code>, <code>package</code>, <code>test</code>, <code>cook</code>, <code>build</code>, and more. Add <code>--help</code> to any subcommand for its own flags. Command details are covered in <a href="{{ path('docs_page', {slug: 'cli-create-and-dev'}) }}">Create &amp; develop</a>, <a href="{{ path('docs_page', {slug: 'cli-assets-and-packages'}) }}">Assets &amp; packages</a>, and <a href="{{ path('docs_page', {slug: 'cli-build-and-test'}) }}">Build, cook &amp; test</a>.</p>
 
+<h2>Debugging native engine code</h2>
+<p>The <code>linux-debug</code> preset keeps a separate native Debug build for stepping through C++ engine code and running focused tests:</p>
+<pre><code>cmake --preset linux-debug
+cmake --build --preset linux-debug
+ctest --preset linux-debug</code></pre>
+<p>The default Debug preset disables native compiler optimization, which can make editor rendering and simulation substantially slower. Use the optimized editor for normal authoring and frame-rate measurements. Embedded Play runs inside the editor's own native build; selecting Release in Run &amp; Test changes the standalone runtime, not the running editor.</p>
+
 <h2>Troubleshooting missing dependencies</h2>
 <p>Most early failures come from the environment rather than the engine source. Check these first:</p>
 <ul>
   <li><strong><code>cmake</code> not found</strong> — CMake is not installed or not on your <code>PATH</code>. Install it and reopen the terminal.</li>
   <li><strong>Compiler errors about C++20 features</strong> — the compiler is too old. Install a newer GCC or Clang and re-run the configure step so CMake picks it up.</li>
-  <li><strong>Configure stops on a missing library</strong> — the message names the missing package. Install it with your distribution's package manager, then run <code>cmake --preset linux-debug</code> again.</li>
-  <li><strong>Build stops mid-compile</strong> — read the first error, not the last. Fix the reported file, then re-run <code>cmake --build --preset linux-debug</code>; only the changed parts rebuild.</li>
+  <li><strong>Configure stops on a missing library</strong> — the message names the missing package. Install it with your distribution's package manager, then run <code>cmake --preset linux-release</code> again.</li>
+  <li><strong>Build stops mid-compile</strong> — read the first error, not the last. Fix the reported file, then re-run <code>cmake --build --preset linux-release</code>; only the changed parts rebuild.</li>
 </ul>
 <p>Once the binary exists, <a href="{{ path('docs_page', {slug: 'development-loop'}) }}">The development loop</a> shows how <code>demi doctor</code> reports anything else your machine is missing for a given target platform.</p>
 

@@ -1,4 +1,5 @@
 #include "demi/runtime/render/bgfx3d/SceneVisibility3D.h"
+#include "demi/runtime/scene/model/MeshMaterialSections3D.h"
 #include "demi/runtime/geometry/MeshDeformation3D.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshInstances3DComponent.h"
 
@@ -192,6 +193,23 @@ SceneVisibility3D extractVisibleMeshes3D(const World &world,
     if (extracted[index])
       result.meshes.push_back(std::move(*extracted[index]));
   }
+  std::vector<VisibleMesh3D> draws;
+  draws.reserve(result.meshes.size());
+  for (const auto &visible : result.meshes) {
+    const auto *sections = visible.entity->component<MeshMaterialSections3D>();
+    const auto *mesh = visible.entity->component<MeshRendererComponent>();
+    const bool usesInlineGeometry = mesh && !mesh->vertices.empty();
+    if (!usesInlineGeometry || !sections || sections->sections.empty()) {
+      draws.push_back(visible);
+      continue;
+    }
+    for (std::size_t index = 0; index < sections->sections.size(); ++index) {
+      auto draw = visible;
+      draw.materialSection = index;
+      draws.push_back(std::move(draw));
+    }
+  }
+  result.meshes = std::move(draws);
   return result;
 }
 

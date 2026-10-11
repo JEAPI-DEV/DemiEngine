@@ -130,7 +130,8 @@ struct MaterialProfile {
 
 MaterialProfile
 deriveProfile(const HeightField &field,
-              const TerrainMaterialLayerSettings &settings) {
+              const TerrainMaterialLayerSettings &settings,
+              const TerrainMasks *masks = nullptr) {
   MaterialProfile profile;
   profile.waterLevel = settings.waterLevel;
   std::vector<float> dry;
@@ -138,10 +139,14 @@ deriveProfile(const HeightField &field,
   dry.reserve(field.heights.size());
   for (std::size_t cell = 0; cell < field.heights.size(); ++cell) {
     const float height = field.heights[cell];
-    if (height > profile.waterLevel)
+    const float depth = masks && !masks->waterDepth.empty()
+                            ? masks->waterDepth[cell]
+                            : profile.waterLevel - height;
+    if (depth < 0.F) {
       dry.push_back(height);
-    else
-      depths.push_back(profile.waterLevel - height);
+    } else {
+      depths.push_back(depth);
+    }
   }
   if (!dry.empty()) {
     const float low = quantileCeil(dry, SnowLineLowQuantile);
@@ -175,6 +180,7 @@ struct CellFacts {
   float flow = 0.F;
   // Signed transport balance: positive deposition, negative cut.
   float sediment = 0.F;
+  float waterDepth = 0.F;
   bool submerged = false;
   // Empty when the mask carries a value outside the substrate vocabulary, which
   // is then ignored rather than read as some arbitrary family.
@@ -193,7 +199,10 @@ CellFacts readCell(const HeightField &field, const TerrainMasks &masks,
   facts.waterDistance = std::max(0.F, masks.waterDistance[cell]);
   facts.flow = std::clamp(masks.flow[cell], 0.F, 1.F);
   facts.sediment = masks.sediment[cell];
-  facts.submerged = facts.height <= profile.waterLevel;
+  facts.waterDepth = masks.waterDepth.empty()
+                         ? profile.waterLevel - facts.height
+                         : masks.waterDepth[cell];
+  facts.submerged = facts.waterDepth >= 0.F;
   const auto substrate = masks.substrate[cell];
   if (substrate <= static_cast<std::size_t>(TerrainSubstrate::Wet))
     facts.substrate = static_cast<TerrainSubstrate>(substrate);
@@ -217,7 +226,7 @@ float scoreUnderwater(const CellFacts &facts,
                       const MaterialProfile &profile) noexcept {
   if (!facts.submerged)
     return 0.F;
-  const float depth = std::max(0.F, profile.waterLevel - facts.height);
+  const float depth = std::max(0.F, facts.waterDepth);
   return 0.60F + 0.35F * smooth(depth, 0.F, profile.depthScale) +
          (facts.substrate == TerrainSubstrate::Wet ? 0.05F : 0.F);
 }
@@ -490,6 +499,9 @@ void requireUsable(const assets::TerrainMaterialSet &set,
       {"flow", masks.flow.size()},
       {"sediment", masks.sediment.size()},
       {"substrate", masks.substrate.size()}};
+  if (!masks.waterDepth.empty() && masks.waterDepth.size() != count) {
+    fail("Terrain water depth mask does not match the heightfield");
+  }
   for (const auto &[name, size] : grids)
     if (size != count)
       fail("Terrain mask '" + std::string(name) + "' has " +
@@ -570,7 +582,7 @@ decideTerrainMaterial(const assets::TerrainMaterialSet &set,
                             " is outside the field's " +
                             std::to_string(field.heights.size()) + " samples.");
   const auto candidates = terrainMaterialCandidateRoles(set);
-  const auto profile = deriveProfile(field, settings);
+  const auto profile = deriveProfile(field, settings, &masks);
   const auto facts = readCell(field, masks, profile, settings, cell);
   return decide(candidates, set, facts, profile, settings);
 }
@@ -583,7 +595,7 @@ decideTerrainMaterials(const assets::TerrainMaterialSet &set,
   const auto candidates = terrainMaterialCandidateRoles(set);
   // Derived once for the whole field: every cell resolves against the same
   // facts, so the result cannot depend on which cell was visited first.
-  const auto profile = deriveProfile(field, settings);
+  const auto profile = deriveProfile(field, settings, &masks);
   std::vector<TerrainMaterialDecision> decisions;
   decisions.reserve(field.heights.size());
   for (std::size_t cell = 0; cell < field.heights.size(); ++cell) {

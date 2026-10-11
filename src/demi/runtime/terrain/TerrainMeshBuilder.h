@@ -2,6 +2,7 @@
 
 #include "demi/runtime/scene/model/Entity.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
+#include "demi/runtime/terrain/TerrainMaterialSections.h"
 
 #include <map>
 #include <memory>
@@ -30,6 +31,7 @@ struct SurfaceTriangles {
   std::vector<Vec3> vertices;
   std::vector<Vec3> normals;
   std::vector<Vec2> uvs;
+  std::vector<std::size_t> samples;
 };
 
 std::string surfaceId(const std::string &owner, const TerrainChunk &chunk,

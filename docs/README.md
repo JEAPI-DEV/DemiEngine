@@ -7,6 +7,11 @@ are registered in `tools/package-store/src/Docs.php`.
 
 This directory keeps material that has a different job:
 
+- [Terrain performance qualification](terrain-performance-qualification.md)
+  records the CPU bottlenecks, Debug/Release comparison and native editor check.
+- [Terrain surface material qualification](terrain-surface-materials-qualification.md)
+  records automatic role assignment, finite water coverage, material rebinding,
+  cooked payloads, editor warnings and the remaining blending boundary.
 - [Terrain palette qualification](terrain-palette-qualification.md) records
   format-2 migration, native editing, cooked loading and remaining rendering gates.
 

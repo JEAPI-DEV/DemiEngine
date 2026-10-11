@@ -4,6 +4,7 @@
 #include "demi/runtime/scene/Transform3DHierarchy.h"
 
 #include <cstddef>
+#include <optional>
 #include <vector>
 
 namespace demi::runtime {
@@ -17,6 +18,9 @@ namespace demi::runtime::render {
 struct VisibleMesh3D {
   const Entity *entity = nullptr;
   WorldTransform3D transform;
+  std::optional<std::size_t> materialSection;
+  // A depth-only pass may share the first section's state across the full mesh.
+  bool drawAllSections = false;
 };
 
 struct SceneVisibility3D {
