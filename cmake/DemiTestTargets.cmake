@@ -670,6 +670,9 @@
   add_executable(demi-terrain-lod-biomes-tests
     tests/terrain_lod_biomes_tests.cpp)
   target_link_libraries(demi-terrain-lod-biomes-tests PRIVATE demi-core)
+  add_executable(demi-terrain-lod-publication-tests
+    tests/terrain_lod_publication_tests.cpp)
+  target_link_libraries(demi-terrain-lod-publication-tests PRIVATE demi-runtime-lib)
   add_executable(demi-terrain-streaming-tests
     tests/terrain_streaming_tests.cpp)
   target_link_libraries(demi-terrain-streaming-tests PRIVATE demi-core)

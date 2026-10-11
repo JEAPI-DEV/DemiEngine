@@ -7,6 +7,9 @@ are registered in `tools/package-store/src/Docs.php`.
 
 This directory keeps material that has a different job:
 
+- [Terrain LOD geometry qualification](terrain-lod-qualification.md) records
+  error bounds, shared chunk boundaries, Full publication parity and the remaining
+  live-rendering integration gate.
 - [Shared runtime efficiency qualification](runtime-efficiency-qualification.md)
   records readable renderer/physics rewrites, same-build measurements, native
   editor verification and mutation/lifetime regression coverage.

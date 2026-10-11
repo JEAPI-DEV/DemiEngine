@@ -42,7 +42,9 @@ constexpr int terrainLodStep(TerrainLod level) {
 std::string_view terrainLodName(TerrainLod level);
 
 // Level ordinal, matching the declaration order above.
-constexpr int terrainLodIndex(TerrainLod level) { return static_cast<int>(level); }
+constexpr int terrainLodIndex(TerrainLod level) {
+  return static_cast<int>(level);
+}
 
 struct TerrainLodSettings {
   // Chunks nearer than this use the level at or below the first entry. A chunk
@@ -50,15 +52,13 @@ struct TerrainLodSettings {
   // be raised or lowered freely without disturbing the ordering of the others.
   std::array<float, 4> distanceThresholds{40.F, 110.F, 260.F, 600.F};
   int maximumLevel = 4; // clamped to the thresholds' size
-  // Below this height difference two levels are treated as equivalent, which is
-  // what stops the surface visibly stepping as the camera moves.
+  // Maximum vertical deviation from the Full surface in terrain-local units.
+  // This bounds shape changes; it does not provide temporal blending.
   float geometricError = 0.35F;
 };
 
-// Number of levels the distance table may address, clamped into
-// [0, min(terrainLodLevelCount - 1, distanceThresholds.size())], so no index past
-// the thresholds' size can ever be produced. `maximumLevel` is a level COUNT, not
-// an index: 4 allows every level including `Off`.
+// Highest permitted level index, clamped to the distance table: zero permits
+// Full only, while four permits every level including Off.
 [[nodiscard]] int terrainLodUsableLevels(const TerrainLodSettings &settings);
 
 // The level for a chunk, from the camera's distance to the chunk's NEAREST
@@ -68,57 +68,75 @@ struct TerrainLodSettings {
 // No chunk is named, so this answers for the chunk NEAREST the camera, which is
 // also where the geometric-error term is measured. Both parts are therefore the
 // same answer terrainLodForChunk gives for that chunk, and the whole function
-// costs O(chunks + cells in one chunk). A field with no chunk list is treated as
-// a single chunk covering its own extent.
+// costs O(chunks + cells in one chunk). A field with no chunk list is treated
+// as a single chunk covering its own extent.
 //
 // Pure in (field, camera, settings), and never returns an index past
 // `terrainLodLevelCount - 1`.
-[[nodiscard]] TerrainLod selectTerrainLod(const HeightField &, Vec2 cameraPosition,
+[[nodiscard]] TerrainLod selectTerrainLod(const HeightField &,
+                                          Vec2 cameraPosition,
                                           const TerrainLodSettings & = {});
 
-// The level a chunk should be STORED at. Independent of the camera, so a chunk
-// that is momentarily far away is not rebuilt every frame. `maxDistance` is the
-// camera's distance to the chunk's NEAREST point, evaluated by the caller
-// against its own streaming radius.
+// Selects from a caller-supplied distance to the chunk's nearest point. This
+// query performs geometry work; it neither caches meshes nor manages residency.
+// A live frame selector must consume prepared errors instead of calling it
+// repeatedly against unchanged height samples.
 //
 // Cost is O(cells in the chunk) times the number of levels the geometric-error
 // walk inspects, and never touches a cell outside the chunk.
-[[nodiscard]] TerrainLod terrainLodForChunk(const HeightField &, const TerrainChunk &,
+[[nodiscard]] TerrainLod terrainLodForChunk(const HeightField &,
+                                            const TerrainChunk &,
                                             float maxDistance,
                                             const TerrainLodSettings & = {});
 
+// Provenance of one emitted triangle. Surface refinement retains its coarse
+// cell rectangle. Its cell area is counted once, on the first emitted triangle;
+// other surface triangles and supplemental skirts carry zero sourceCells.
+struct TerrainLodTriangle {
+  int firstCellX = 0;
+  int firstCellZ = 0;
+  int cellsX = 0;
+  int cellsZ = 0;
+  std::size_t sourceCells = 0;
+  bool skirt = false;
+};
+
 // The reduced mesh for one chunk at one level.
 //
-// SEAM SAFETY IS THE WHOLE POINT. Adjacent chunks at different levels must
-// agree on their shared edge, or a crack appears. The mechanism: the edge
-// vertices of a reduced chunk carry a "skirt" down to the FULL-resolution
-// height, so a level mismatch is filled by geometry rather than showing sky.
-// Return the skirt explicitly so a test can assert it exists at every boundary
-// where the neighbour's level differs.
+// Reduced interiors retain every full-resolution perimeter sample and refine
+// boundary triangles to join them. Adjacent levels share the same edge
+// positions and field normals, including peaks and valleys between coarse
+// samples. Optional skirts supplement this topology; seam safety does not
+// require them.
 //
 // This is a single-group mesh. Biome grouping and UVs belong to the chunk mesh
 // builder that partitions triangles per biome; a consumer that needs several
 // materials has to re-partition these triangles itself.
+
 struct TerrainLodMesh {
   std::vector<Vec3> vertices;
   std::vector<Vec3> normals;
   std::vector<std::size_t> indices;
-  // For each boundary edge vertex, how far down the skirt reaches. Empty at a
-  // level with no neighbour mismatch.
+  // HeightField sample identity for every vertex; skirt bottoms repeat their
+  // top.
+  std::vector<std::size_t> sampleIndices;
+  // One provenance entry per index triple, in the same order.
+  std::vector<TerrainLodTriangle> triangles;
+  // Optional skirt depths, in fine perimeter order. Empty when skirts are
+  // disabled or the level is Full.
   std::vector<float> skirtDepths;
-  // How many field cells this level represents, per emitted vertex: the linear
-  // stride squared. 1 at Full, 4 at Half, 16 at Quarter, 64 at Coarse.
+  // Nominal interior lattice stride squared: 1 at Full, 4 at Half, 16 at
+  // Quarter, 64 at Coarse. Fine perimeter vertices retain one-sample spacing.
   std::size_t sourceCells = 0;
 };
 
-// The reduced mesh for one chunk at one level, or nothing for `TerrainLod::Off`.
+// The reduced mesh for one chunk at one level, or nothing for
+// `TerrainLod::Off`.
 //
-// `skirtDepth` is the MINIMUM reach, in world units, of the skirt emitted at the
-// chunk's boundary. The actual reach is raised per vertex to whatever covers the
-// deepest full-resolution height along the chunk's shared edges, because a
-// caller-supplied depth that is too small would reintroduce exactly the crack
-// the skirt exists to hide. Pass 0 to build a mesh without a skirt, which is
-// correct only when every neighbour is at the same level.
+// `skirtDepth` is the MINIMUM reach, in terrain-local units, of the skirt
+// emitted at the chunk's boundary. The actual reach also covers the deepest
+// edge sample. Pass zero for seam-safe surface geometry without supplemental
+// skirts.
 //
 // `Full` never emits a skirt: its boundary vertices already ARE the
 // full-resolution edge samples, so it cannot crack against a neighbour.
@@ -127,5 +145,14 @@ struct TerrainLodMesh {
 // the sampler from reading outside the heightfield.
 [[nodiscard]] std::optional<TerrainLodMesh>
 buildTerrainLodMesh(const HeightField &, const TerrainChunk &, TerrainLod,
-                     float skirtDepth);
+                    float skirtDepth);
+// Exact surface-overlay height deviation in terrain-local units. Includes
+// intersections of Full and reduced triangle diagonals, not only grid samples.
+// Intended for preparation/cache construction, not repeated frame updates.
+// Computed in double precision and rounded upward to float; planar surfaces
+// may retain floating-point residuals, so use a small nonzero error tolerance.
+[[nodiscard]] float terrainLodGeometricError(const HeightField &,
+                                             const TerrainChunk &, TerrainLod);
+[[nodiscard]] std::size_t terrainLodSurfaceTriangleCount(int cellsX, int cellsZ,
+                                                         TerrainLod);
 } // namespace demi::runtime

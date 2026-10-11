@@ -28,6 +28,11 @@ must be judged by their live consumers. Helper implementations and unit tests do
 not count as renderer integration. Current terrain publication still creates
 ordinary mesh/collider entities for its surface groups.
 
+The LOD correctness pass now preserves full-resolution perimeter samples and
+shared normals, measures error against the actual triangulated surface, and
+matches Full biome/UV publication. This is a prerequisite for live integration,
+not completion of it. See [LOD geometry qualification](docs/terrain-lod-qualification.md).
+
 Next delivery order:
 
 1. Address measured shared-engine inefficiencies before increasing scene detail:

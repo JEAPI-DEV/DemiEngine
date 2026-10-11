@@ -36,6 +36,8 @@ add_library(demi-core STATIC
   src/demi/runtime/terrain/TerrainCookNode.cpp
   src/demi/runtime/terrain/TerrainScatter.cpp
   src/demi/runtime/terrain/TerrainLod.cpp
+  src/demi/runtime/terrain/TerrainLodGeometry.cpp
+  src/demi/runtime/terrain/TerrainGeometryUv.cpp
   src/demi/runtime/terrain/TerrainStreaming.cpp
   src/demi/runtime/terrain/TerrainLodBiomes.cpp
   src/demi/runtime/simulation/DeterministicRandom.cpp

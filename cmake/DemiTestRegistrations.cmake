@@ -338,6 +338,9 @@ add_test(NAME demi-simulation-tests COMMAND demi-simulation-tests)
     set_tests_properties(demi-${async_test}-tests PROPERTIES TIMEOUT 30)
   endforeach()
   add_test(NAME demi-frame-timing-tests COMMAND demi-frame-timing-tests)
+  add_test(NAME demi-terrain-lod-publication-tests
+    COMMAND demi-terrain-lod-publication-tests)
+  set_tests_properties(demi-terrain-lod-publication-tests PROPERTIES TIMEOUT 30)
   add_test(NAME demi-visible-timing-summary-tests
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/visible_timing_summary_tests.py")
   add_test(NAME demi-profiler-hud-layout-tests COMMAND demi-profiler-hud-layout-tests)
