@@ -5,12 +5,12 @@
 #include <bgfx/bgfx.h>
 #include <bgfx/embedded_shader.h>
 
+#include <fs_demi_directional_essl.h>
+#include <fs_demi_directional_glsl.h>
+#include <fs_demi_directional_spv.h>
 #include <fs_demi_lit_essl.h>
 #include <fs_demi_lit_glsl.h>
 #include <fs_demi_lit_spv.h>
-#include <fs_demi_directional_glsl.h>
-#include <fs_demi_directional_essl.h>
-#include <fs_demi_directional_spv.h>
 #include <fs_demi_post_process_essl.h>
 #include <fs_demi_post_process_glsl.h>
 #include <fs_demi_post_process_spv.h>
@@ -23,23 +23,33 @@
 #include <vs_demi_lit_instanced_glsl.h>
 #include <vs_demi_lit_instanced_spv.h>
 #include <vs_demi_lit_spv.h>
-#include <vs_demi_skinned_spv.h>
 #include <vs_demi_post_process_essl.h>
 #include <vs_demi_post_process_glsl.h>
 #include <vs_demi_post_process_spv.h>
+#include <vs_demi_skinned_spv.h>
 #include <vs_drawstress.bin.h>
 #include <vs_drawstress_tex.bin.h>
 #include <vs_ocornut_imgui.bin.h>
 
-#include <array>
 #include <algorithm>
-#include <vs_demi_sky_glsl.h>
-#include <vs_demi_sky_essl.h>
-#include <vs_demi_sky_spv.h>
-#include <fs_demi_sky_glsl.h>
+#include <array>
 #include <fs_demi_sky_essl.h>
+#include <fs_demi_sky_glsl.h>
 #include <fs_demi_sky_spv.h>
 #include <limits>
+#include <vs_demi_sky_essl.h>
+#include <vs_demi_sky_glsl.h>
+#include <vs_demi_sky_spv.h>
+
+#include <fs_demi_terrain_directional_essl.h>
+#include <fs_demi_terrain_directional_glsl.h>
+#include <fs_demi_terrain_directional_spv.h>
+#include <fs_demi_terrain_essl.h>
+#include <fs_demi_terrain_glsl.h>
+#include <fs_demi_terrain_spv.h>
+#include <vs_demi_terrain_essl.h>
+#include <vs_demi_terrain_glsl.h>
+#include <vs_demi_terrain_spv.h>
 
 namespace demi::runtime::render {
 namespace {
@@ -47,29 +57,65 @@ namespace {
 constexpr std::uint16_t Invalid = std::numeric_limits<std::uint16_t>::max();
 
 const bgfx::EmbeddedShader EmbeddedShaders[] = {
+    {"vs_demi_terrain",
+     {{bgfx::RendererType::OpenGLES, vs_demi_terrain_essl,
+       sizeof(vs_demi_terrain_essl)},
+      {bgfx::RendererType::OpenGL, vs_demi_terrain_glsl,
+       sizeof(vs_demi_terrain_glsl)},
+      {bgfx::RendererType::Vulkan, vs_demi_terrain_spv,
+       sizeof(vs_demi_terrain_spv)},
+      {bgfx::RendererType::Noop,
+       reinterpret_cast<const std::uint8_t *>("VSH\x5\x0\x0\x0\x0\x0\x0"), 10},
+      {bgfx::RendererType::Count, nullptr, 0}}},
+    {"fs_demi_terrain",
+     {{bgfx::RendererType::OpenGLES, fs_demi_terrain_essl,
+       sizeof(fs_demi_terrain_essl)},
+      {bgfx::RendererType::OpenGL, fs_demi_terrain_glsl,
+       sizeof(fs_demi_terrain_glsl)},
+      {bgfx::RendererType::Vulkan, fs_demi_terrain_spv,
+       sizeof(fs_demi_terrain_spv)},
+      {bgfx::RendererType::Noop,
+       reinterpret_cast<const std::uint8_t *>("FSH\x5\x0\x0\x0\x0\x0\x0"), 10},
+      {bgfx::RendererType::Count, nullptr, 0}}},
+    {"fs_demi_terrain_directional",
+     {{bgfx::RendererType::OpenGLES, fs_demi_terrain_directional_essl,
+       sizeof(fs_demi_terrain_directional_essl)},
+      {bgfx::RendererType::OpenGL, fs_demi_terrain_directional_glsl,
+       sizeof(fs_demi_terrain_directional_glsl)},
+      {bgfx::RendererType::Vulkan, fs_demi_terrain_directional_spv,
+       sizeof(fs_demi_terrain_directional_spv)},
+      {bgfx::RendererType::Noop,
+       reinterpret_cast<const std::uint8_t *>("FSH\x5\x0\x0\x0\x0\x0\x0"), 10},
+      {bgfx::RendererType::Count, nullptr, 0}}},
     {"vs_demi_sky",
-     {{bgfx::RendererType::OpenGLES, vs_demi_sky_essl, sizeof(vs_demi_sky_essl)},
+     {{bgfx::RendererType::OpenGLES, vs_demi_sky_essl,
+       sizeof(vs_demi_sky_essl)},
       {bgfx::RendererType::OpenGL, vs_demi_sky_glsl, sizeof(vs_demi_sky_glsl)},
       {bgfx::RendererType::Vulkan, vs_demi_sky_spv, sizeof(vs_demi_sky_spv)},
       {bgfx::RendererType::Noop,
        reinterpret_cast<const std::uint8_t *>("VSH\x5\x0\x0\x0\x0\x0\x0"), 10},
       {bgfx::RendererType::Count, nullptr, 0}}},
     {"fs_demi_sky",
-     {{bgfx::RendererType::OpenGLES, fs_demi_sky_essl, sizeof(fs_demi_sky_essl)},
+     {{bgfx::RendererType::OpenGLES, fs_demi_sky_essl,
+       sizeof(fs_demi_sky_essl)},
       {bgfx::RendererType::OpenGL, fs_demi_sky_glsl, sizeof(fs_demi_sky_glsl)},
       {bgfx::RendererType::Vulkan, fs_demi_sky_spv, sizeof(fs_demi_sky_spv)},
       {bgfx::RendererType::Noop,
        reinterpret_cast<const std::uint8_t *>("FSH\x5\x0\x0\x0\x0\x0\x0"), 10},
       {bgfx::RendererType::Count, nullptr, 0}}},
     {"fs_demi_directional",
-     {{bgfx::RendererType::OpenGLES, fs_demi_directional_essl, sizeof(fs_demi_directional_essl)},
-      {bgfx::RendererType::OpenGL, fs_demi_directional_glsl, sizeof(fs_demi_directional_glsl)},
-      {bgfx::RendererType::Vulkan, fs_demi_directional_spv, sizeof(fs_demi_directional_spv)},
+     {{bgfx::RendererType::OpenGLES, fs_demi_directional_essl,
+       sizeof(fs_demi_directional_essl)},
+      {bgfx::RendererType::OpenGL, fs_demi_directional_glsl,
+       sizeof(fs_demi_directional_glsl)},
+      {bgfx::RendererType::Vulkan, fs_demi_directional_spv,
+       sizeof(fs_demi_directional_spv)},
       {bgfx::RendererType::Noop,
        reinterpret_cast<const std::uint8_t *>("FSH\x5\x0\x0\x0\x0\x0\x0"), 10},
       {bgfx::RendererType::Count, nullptr, 0}}},
     {"vs_demi_skinned",
-     {{bgfx::RendererType::Vulkan, vs_demi_skinned_spv, sizeof(vs_demi_skinned_spv)},
+     {{bgfx::RendererType::Vulkan, vs_demi_skinned_spv,
+       sizeof(vs_demi_skinned_spv)},
       {bgfx::RendererType::Noop,
        reinterpret_cast<const std::uint8_t *>("VSH\x5\x0\x0\x0\x0\x0\x0"), 10},
       {bgfx::RendererType::Count, nullptr, 0}}},
@@ -132,6 +178,8 @@ bgfx::TextureFormat::Enum textureFormat(const TextureFormat format) {
   switch (format) {
   case TextureFormat::RGBA32F:
     return bgfx::TextureFormat::RGBA32F;
+  case TextureFormat::R32F:
+    return bgfx::TextureFormat::R32F;
   case TextureFormat::R8:
     return bgfx::TextureFormat::R8;
   case TextureFormat::RGBA8:
@@ -143,18 +191,26 @@ bgfx::TextureFormat::Enum textureFormat(const TextureFormat format) {
 }
 
 std::uint64_t renderTargetFlags(int samples) {
-  switch(samples) {
-  case 0: case 1: return BGFX_TEXTURE_RT;
-  case 2: return BGFX_TEXTURE_RT_MSAA_X2;
-  case 4: return BGFX_TEXTURE_RT_MSAA_X4;
-  case 8: return BGFX_TEXTURE_RT_MSAA_X8;
-  case 16: return BGFX_TEXTURE_RT_MSAA_X16;
-  default: return 0;
+  switch (samples) {
+  case 0:
+  case 1:
+    return BGFX_TEXTURE_RT;
+  case 2:
+    return BGFX_TEXTURE_RT_MSAA_X2;
+  case 4:
+    return BGFX_TEXTURE_RT_MSAA_X4;
+  case 8:
+    return BGFX_TEXTURE_RT_MSAA_X8;
+  case 16:
+    return BGFX_TEXTURE_RT_MSAA_X16;
+  default:
+    return 0;
   }
 }
 
 std::uint64_t textureFlags(const TextureCreateInfo &info) {
-  std::uint64_t flags = info.renderTarget ? renderTargetFlags(info.msaaSamples) : BGFX_TEXTURE_NONE;
+  std::uint64_t flags = info.renderTarget ? renderTargetFlags(info.msaaSamples)
+                                          : BGFX_TEXTURE_NONE;
   if (info.filter == TextureFilter::Nearest)
     flags |= BGFX_SAMPLER_MIN_POINT | BGFX_SAMPLER_MAG_POINT |
              BGFX_SAMPLER_MIP_POINT;
@@ -192,20 +248,59 @@ struct TextureRecord {
 
 unsigned texturePixelBytes(TextureFormat format) {
   switch (format) {
-  case TextureFormat::R8: return 1;
+  case TextureFormat::R8:
+    return 1;
   case TextureFormat::RGBA8:
-  case TextureFormat::BGRA8: return 4;
-  case TextureFormat::RGBA32F: return 16;
+  case TextureFormat::BGRA8:
+  case TextureFormat::R32F:
+    return 4;
+  case TextureFormat::RGBA32F:
+    return 16;
   }
   return 0;
+}
+
+std::size_t textureDataBytes(const TextureCreateInfo &info) {
+  std::size_t total = 0;
+  std::size_t width = info.width;
+  std::size_t height = info.height;
+  const auto pixelBytes = texturePixelBytes(info.format);
+  while (true) {
+    total += width * height * pixelBytes;
+    if (!info.generateMipmaps || (width == 1 && height == 1)) {
+      return total;
+    }
+    width = std::max<std::size_t>(width / 2, 1);
+    height = std::max<std::size_t>(height / 2, 1);
+  }
 }
 
 class BgfxGpuResources final : public GpuResources, public BgfxResourceLookup {
 public:
   ~BgfxGpuResources() override { clear(); }
   RenderDeviceLimits limits() const override {
-    const auto *caps=bgfx::getCaps();
-    return caps?RenderDeviceLimits{caps->limits.maxTextureSize,caps->limits.maxViews,caps->originBottomLeft}:RenderDeviceLimits{};
+    const auto *caps = bgfx::getCaps();
+    if (caps == nullptr) {
+      return {};
+    }
+    return {.maxTextureSize = caps->limits.maxTextureSize,
+            .maxViews = caps->limits.maxViews,
+            .originBottomLeft = caps->originBottomLeft,
+            .maxTextureSamplers = caps->limits.maxTextureSamplers,
+            .supportsInstancing =
+                (caps->supported & BGFX_CAPS_INSTANCING) != 0};
+  }
+
+  TextureCapabilities textureCapabilities(TextureFormat format) const override {
+    const auto *caps = bgfx::getCaps();
+    if (caps == nullptr || texturePixelBytes(format) == 0) {
+      return {};
+    }
+    const auto supported = caps->formats[textureFormat(format)];
+    return {
+        .sampled2D = (supported & (BGFX_CAPS_FORMAT_TEXTURE_2D |
+                                   BGFX_CAPS_FORMAT_TEXTURE_2D_EMULATED)) != 0,
+        .vertexSampling = (supported & BGFX_CAPS_FORMAT_TEXTURE_VERTEX) != 0};
   }
 
   std::string_view shaderBackend() const override {
@@ -225,17 +320,32 @@ public:
 
   TextureHandle createTexture(const TextureCreateInfo &info,
                               std::string &error) override {
-    if(!renderTargetFlags(info.msaaSamples) ||
-       (info.msaaSamples>1 && (!info.renderTarget || info.generateMipmaps || !info.data.empty()))) {
-      error="MSAA requires a render target and 1, 2, 4, 8 or 16 samples (0 disables it).";
+    if (!renderTargetFlags(info.msaaSamples) ||
+        (info.msaaSamples > 1 &&
+         (!info.renderTarget || info.generateMipmaps || !info.data.empty()))) {
+      error = "MSAA requires a render target and 1, 2, 4, 8 or 16 samples (0 "
+              "disables it).";
       return {};
     }
     if (info.width == 0 || info.height == 0) {
       error = "Texture dimensions must be positive.";
       return {};
     }
-    if(!bgfx::isTextureValid(0,false,1,textureFormat(info.format),textureFlags(info))) {
-      error="Texture format or MSAA mode is unsupported";return {};
+    if (info.width > limits().maxTextureSize ||
+        info.height > limits().maxTextureSize) {
+      error = "Texture dimensions exceed the graphics device limit.";
+      return {};
+    }
+    if (info.data.size() > UINT32_MAX || texturePixelBytes(info.format) == 0 ||
+        (!info.data.empty() && info.data.size() != textureDataBytes(info))) {
+      error =
+          "Texture initial data must match its format and complete mip layout.";
+      return {};
+    }
+    if (!bgfx::isTextureValid(0, false, 1, textureFormat(info.format),
+                              textureFlags(info))) {
+      error = "Texture format or MSAA mode is unsupported";
+      return {};
     }
     const bgfx::TextureHandle texture = bgfx::createTexture2D(
         info.width, info.height, info.generateMipmaps, 1,
@@ -246,23 +356,27 @@ public:
     }
     if (!info.debugName.empty())
       bgfx::setName(texture, info.debugName.c_str());
-    return textures_.insert({texture.idx, info.width, info.height, info.renderTarget || !info.data.empty() ? 0U : texturePixelBytes(info.format)});
+    return textures_.insert({texture.idx, info.width, info.height,
+                             info.renderTarget || !info.data.empty()
+                                 ? 0U
+                                 : texturePixelBytes(info.format)});
   }
 
   bool updateTexture(const TextureHandle handle, const TextureUpdateInfo &info,
                      std::string &error) override {
     const auto *texture = textures_.find(handle);
-    if (texture == nullptr || texture->bytesPerPixel == 0 ||
-        info.width == 0 || info.height == 0 ||
-        unsigned(info.x) + info.width > texture->width ||
+    if (texture == nullptr || texture->bytesPerPixel == 0 || info.width == 0 ||
+        info.height == 0 || unsigned(info.x) + info.width > texture->width ||
         unsigned(info.y) + info.height > texture->height ||
-        info.data.size() != static_cast<std::size_t>(info.width) *
-                                info.height * texture->bytesPerPixel) {
-      error = "Texture update handle, region, or format-sized data are invalid.";
+        info.data.size() > UINT32_MAX ||
+        info.data.size() != static_cast<std::size_t>(info.width) * info.height *
+                                texture->bytesPerPixel) {
+      error =
+          "Texture update handle, region, or format-sized data are invalid.";
       return false;
     }
-    bgfx::updateTexture2D(bgfx::TextureHandle{texture->index}, 0, 0, info.x, info.y,
-                          info.width, info.height, copy(info.data));
+    bgfx::updateTexture2D(bgfx::TextureHandle{texture->index}, 0, 0, info.x,
+                          info.y, info.width, info.height, copy(info.data));
     error.clear();
     return true;
   }
@@ -440,6 +554,14 @@ public:
       vertexName = "vs_demi_post_process";
       fragmentName = "fs_demi_post_process";
       break;
+    case BuiltinProgram::Terrain3D:
+      vertexName = "vs_demi_terrain";
+      fragmentName = "fs_demi_terrain";
+      break;
+    case BuiltinProgram::Terrain3DDirectional:
+      vertexName = "vs_demi_terrain";
+      fragmentName = "fs_demi_terrain_directional";
+      break;
     }
     const bgfx::RendererType::Enum renderer = bgfx::getRendererType();
     const bgfx::ShaderHandle vertex =
@@ -465,17 +587,27 @@ public:
 
   RenderTargetHandles createRenderTarget(const RenderTargetCreateInfo &info,
                                          std::string &error) override {
-    if(!renderTargetFlags(info.msaaSamples) || info.width==0 || info.height==0) {
-      error="Invalid render-target dimensions or MSAA sample count";return {};
+    if (!renderTargetFlags(info.msaaSamples) || info.width == 0 ||
+        info.height == 0) {
+      error = "Invalid render-target dimensions or MSAA sample count";
+      return {};
     }
-    int samples=std::max(info.msaaSamples,1);
-    const auto supported=[&](int count) {
-      const auto flags=renderTargetFlags(count);
-      return bgfx::isTextureValid(0,false,1,textureFormat(info.colorFormat),flags) &&
-        (!info.depth || bgfx::isTextureValid(0,false,1,bgfx::TextureFormat::D24S8,flags | BGFX_TEXTURE_RT_WRITE_ONLY));
+    int samples = std::max(info.msaaSamples, 1);
+    const auto supported = [&](int count) {
+      const auto flags = renderTargetFlags(count);
+      return bgfx::isTextureValid(0, false, 1, textureFormat(info.colorFormat),
+                                  flags) &&
+             (!info.depth ||
+              bgfx::isTextureValid(0, false, 1, bgfx::TextureFormat::D24S8,
+                                   flags | BGFX_TEXTURE_RT_WRITE_ONLY));
     };
-    if(samples>1 && !supported(samples))samples=1;
-    if(!supported(samples)) {error="Render-target color/depth formats are unsupported by this device";return {};}
+    if (samples > 1 && !supported(samples))
+      samples = 1;
+    if (!supported(samples)) {
+      error =
+          "Render-target color/depth formats are unsupported by this device";
+      return {};
+    }
     TextureCreateInfo colorInfo{.width = info.width,
                                 .height = info.height,
                                 .format = info.colorFormat,
@@ -490,15 +622,15 @@ public:
       return {};
     const auto *colorRecord = textures_.find(color);
     std::array<bgfx::Attachment, 2> attachments;
-    attachments[0].init(bgfx::TextureHandle{colorRecord->index}, bgfx::Access::Write,
-                        0, 1, 0, BGFX_RESOLVE_NONE);
+    attachments[0].init(bgfx::TextureHandle{colorRecord->index},
+                        bgfx::Access::Write, 0, 1, 0, BGFX_RESOLVE_NONE);
     std::uint8_t count = 1;
     TextureHandle depthHandle;
     if (info.depth) {
-      const bgfx::TextureHandle depth =
-          bgfx::createTexture2D(info.width, info.height, false, 1,
-                                bgfx::TextureFormat::D24S8,
-                                renderTargetFlags(samples) | (samples>1?BGFX_TEXTURE_RT_WRITE_ONLY:0));
+      const bgfx::TextureHandle depth = bgfx::createTexture2D(
+          info.width, info.height, false, 1, bgfx::TextureFormat::D24S8,
+          renderTargetFlags(samples) |
+              (samples > 1 ? BGFX_TEXTURE_RT_WRITE_ONLY : 0));
       if (!bgfx::isValid(depth)) {
         destroy(color);
         error = "bgfx could not create render-target depth texture.";
@@ -590,8 +722,9 @@ public:
         [](std::uint16_t value) { bgfx::destroy(bgfx::UniformHandle{value}); });
     uniforms_.clear(
         [](std::uint16_t value) { bgfx::destroy(bgfx::UniformHandle{value}); });
-    textures_.clear(
-        [](TextureRecord value) { bgfx::destroy(bgfx::TextureHandle{value.index}); });
+    textures_.clear([](TextureRecord value) {
+      bgfx::destroy(bgfx::TextureHandle{value.index});
+    });
   }
 
   bgfx::TextureHandle bgfxTexture(const TextureHandle handle) const override {

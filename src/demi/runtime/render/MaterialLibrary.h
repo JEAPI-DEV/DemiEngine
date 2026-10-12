@@ -18,6 +18,7 @@ namespace demi::runtime::render {
 struct MaterialParameter {
   UniformHandle uniform;
   std::array<float, 4> value{};
+  std::string name;
 };
 
 struct MaterialBinding {

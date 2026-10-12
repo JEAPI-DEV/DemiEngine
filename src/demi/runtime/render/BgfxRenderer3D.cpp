@@ -1,15 +1,15 @@
 #include "demi/runtime/render/BgfxRenderer3D.h"
-#include "demi/runtime/render/bgfx3d/MeshShadowSections3D.h"
 #include "demi/runtime/destruction/DestructionWorld3D.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
+#include "demi/runtime/render/bgfx3d/MeshShadowSections3D.h"
 #include "demi/runtime/render/bgfx3d/SceneVisibility3D.h"
 
 #include "demi/runtime/render/bgfx3d/DebugGeometry3D.h"
 
 #include "demi/runtime/render/bgfx2d/ColorPacking2D.h"
-#include "demi/runtime/render/bgfx3d/MeshTransform3D.h"
-#include "demi/runtime/render/bgfx3d/MeshSurface3D.h"
 #include "demi/runtime/render/bgfx3d/MeshDrawOrder3D.h"
+#include "demi/runtime/render/bgfx3d/MeshSurface3D.h"
+#include "demi/runtime/render/bgfx3d/MeshTransform3D.h"
 #include "demi/runtime/render/bgfx3d/SceneLighting3D.h"
 #include "demi/runtime/render/bgfx3d/WorldTextProjection3D.h"
 #include "demi/runtime/scene/Transform3DHierarchy.h"
@@ -47,18 +47,23 @@ float debugModeValue(const std::string &mode) {
 
 BgfxRenderer3D::BgfxRenderer3D(GpuResources &resources,
                                RenderCommands &commands, bool enableGpuSkinning)
-    : resources_(resources), shadows_(resources,commands), lightBuffer_(resources, shadows_), commands_(lightBuffer_),
+    : resources_(resources), shadows_(resources, commands),
+      lightBuffer_(resources, shadows_), commands_(lightBuffer_),
       primitives_(resources, commands_), postProcess_(resources, commands_),
       particleRenderer_(resources, commands_), overlay_(resources, commands_),
-      textures_(resources), sky_(resources), materials_(resources), gpuSkinningRequested_(enableGpuSkinning),
-      deformedMeshes_(resources), terrainMeshes_(resources), reliefMeshes_(resources) {}
+      textures_(resources), sky_(resources), materials_(resources),
+      gpuSkinningRequested_(enableGpuSkinning), deformedMeshes_(resources),
+      terrainMeshes_(resources), terrainLodResidency_(extractionJobs_),
+      terrainGpuFields_(resources, extractionJobs_), terrainPatches_(resources),
+      reliefMeshes_(resources) {}
 
 BgfxRenderer3D::~BgfxRenderer3D() { shutdown(); }
 
 bool BgfxRenderer3D::initialize(std::string &error) {
   if (initialized_)
     return true;
-  if(!shadows_.initialize(error))return false;
+  if (!shadows_.initialize(error))
+    return false;
   if (!primitives_.initialize(error)) {
     shutdown();
     return false;
@@ -78,8 +83,10 @@ bool BgfxRenderer3D::initialize(std::string &error) {
   meshProgram_ = resources_.createBuiltinProgram(BuiltinProgram::Lit3D, error);
   instancedMeshProgram_ =
       resources_.createBuiltinProgram(BuiltinProgram::Lit3DInstanced, error);
-  directionalMeshProgram_ = resources_.createBuiltinProgram(BuiltinProgram::Directional3D, error);
-  directionalInstancedProgram_ = resources_.createBuiltinProgram(BuiltinProgram::Directional3DInstanced, error);
+  directionalMeshProgram_ =
+      resources_.createBuiltinProgram(BuiltinProgram::Directional3D, error);
+  directionalInstancedProgram_ = resources_.createBuiltinProgram(
+      BuiltinProgram::Directional3DInstanced, error);
   meshSampler_ = resources_.createSampler("s_texColor", error);
   tintUniform_ =
       resources_.createUniform("u_tint", UniformType::Vec4, 1, error);
@@ -108,26 +115,71 @@ bool BgfxRenderer3D::initialize(std::string &error) {
                                             .debugName = "3D white fallback"},
                                            error);
   if (!meshProgram_ || !instancedMeshProgram_ || !directionalMeshProgram_ ||
-      !directionalInstancedProgram_ || !meshSampler_ ||
-      !tintUniform_ || !alphaCutoffUniform_ || !debugModeUniform_ ||
-      !viewPositionUniform_ || !metalRoughUniform_ ||
-      !whiteTexture_ || !lightDirectionUniform_ || !lightColorUniform_ ||
-      !ambientColorUniform_) {
+      !directionalInstancedProgram_ || !meshSampler_ || !tintUniform_ ||
+      !alphaCutoffUniform_ || !debugModeUniform_ || !viewPositionUniform_ ||
+      !metalRoughUniform_ || !whiteTexture_ || !lightDirectionUniform_ ||
+      !lightColorUniform_ || !ambientColorUniform_) {
     shutdown();
     return false;
   }
   const char *gpuOverride = std::getenv("DEMI_GPU_SKINNING");
-  gpuSkinningEnabled_ = gpuSkinningRequested_ &&
+  gpuSkinningEnabled_ =
+      gpuSkinningRequested_ &&
       (!gpuOverride || std::string_view(gpuOverride) != "0") &&
-      (resources_.shaderBackend() == "vulkan" || resources_.shaderBackend() == "noop");
+      (resources_.shaderBackend() == "vulkan" ||
+       resources_.shaderBackend() == "noop");
   if (gpuSkinningEnabled_) {
-    skinnedMeshProgram_ = resources_.createBuiltinProgram(BuiltinProgram::Lit3DSkinned, error);
-    directionalSkinnedProgram_ = resources_.createBuiltinProgram(BuiltinProgram::Directional3DSkinned, error);
-    skinMatricesUniform_ = resources_.createUniform("u_skinMatrices", UniformType::Matrix4, MaximumGpuSkinMatrices, error);
-    skinImportUniform_ = resources_.createUniform("u_skinImport", UniformType::Matrix4, 1, error);
-    if (!skinnedMeshProgram_ || !directionalSkinnedProgram_ || !skinMatricesUniform_ || !skinImportUniform_) {
+    skinnedMeshProgram_ =
+        resources_.createBuiltinProgram(BuiltinProgram::Lit3DSkinned, error);
+    directionalSkinnedProgram_ = resources_.createBuiltinProgram(
+        BuiltinProgram::Directional3DSkinned, error);
+    skinMatricesUniform_ = resources_.createUniform(
+        "u_skinMatrices", UniformType::Matrix4, MaximumGpuSkinMatrices, error);
+    skinImportUniform_ = resources_.createUniform(
+        "u_skinImport", UniformType::Matrix4, 1, error);
+    if (!skinnedMeshProgram_ || !directionalSkinnedProgram_ ||
+        !skinMatricesUniform_ || !skinImportUniform_) {
       shutdown();
       return false;
+    }
+  }
+  const auto limits = resources_.limits();
+  const auto heightCaps = resources_.textureCapabilities(TextureFormat::R32F);
+  const auto normalCaps =
+      resources_.textureCapabilities(TextureFormat::RGBA32F);
+  const auto idCaps = resources_.textureCapabilities(TextureFormat::RGBA8);
+  const bool terrainCapable =
+      limits.supportsInstancing && limits.maxTextureSamplers >= 7 &&
+      heightCaps.sampled2D && heightCaps.vertexSampling &&
+      normalCaps.sampled2D && normalCaps.vertexSampling && idCaps.sampled2D;
+  if (!terrainCapable) {
+    terrainGpuCapabilityReason_ =
+        "GPU terrain capabilities: instancing=" +
+        std::to_string(limits.supportsInstancing) +
+        ", samplers=" + std::to_string(limits.maxTextureSamplers) +
+        ", R32F sampled/vertex=" + std::to_string(heightCaps.sampled2D) + "/" +
+        std::to_string(heightCaps.vertexSampling) +
+        ", RGBA32F sampled/vertex=" + std::to_string(normalCaps.sampled2D) +
+        "/" + std::to_string(normalCaps.vertexSampling) +
+        ", RGBA8 sampled=" + std::to_string(idCaps.sampled2D);
+  }
+  if (terrainCapable) {
+    std::string terrainError;
+    terrainProgram_ = resources_.createBuiltinProgram(BuiltinProgram::Terrain3D,
+                                                      terrainError);
+    directionalTerrainProgram_ = resources_.createBuiltinProgram(
+        BuiltinProgram::Terrain3DDirectional, terrainError);
+    if (!terrainProgram_ || !directionalTerrainProgram_) {
+      terrainGpuCapabilityReason_ =
+          "GPU terrain shader unavailable: " + terrainError;
+      if (terrainProgram_) {
+        resources_.destroy(terrainProgram_);
+      }
+      if (directionalTerrainProgram_) {
+        resources_.destroy(directionalTerrainProgram_);
+      }
+      terrainProgram_ = {};
+      directionalTerrainProgram_ = {};
     }
   }
   initialized_ = true;
@@ -138,18 +190,38 @@ void BgfxRenderer3D::shutdown() {
   lightBuffer_.shutdown();
   shadows_.shutdown();
   sky_.clear();
-  for (const auto program : {directionalMeshProgram_, directionalInstancedProgram_, directionalSkinnedProgram_})
-    if (program) resources_.destroy(program);
+  for (const auto program :
+       {directionalMeshProgram_, directionalInstancedProgram_,
+        directionalSkinnedProgram_})
+    if (program)
+      resources_.destroy(program);
   directionalMeshProgram_ = {};
   directionalInstancedProgram_ = {};
   directionalSkinnedProgram_ = {};
-  if (skinnedMeshProgram_) resources_.destroy(skinnedMeshProgram_);
-  if (skinMatricesUniform_) resources_.destroy(skinMatricesUniform_);
-  if (skinImportUniform_) resources_.destroy(skinImportUniform_);
+  if (skinnedMeshProgram_)
+    resources_.destroy(skinnedMeshProgram_);
+  if (skinMatricesUniform_)
+    resources_.destroy(skinMatricesUniform_);
+  if (skinImportUniform_)
+    resources_.destroy(skinImportUniform_);
   skinnedMeshProgram_ = {};
   skinMatricesUniform_ = {};
   skinImportUniform_ = {};
   deformedMeshes_.clear();
+  terrainPatches_.clear();
+  terrainGpuFields_.clear();
+  if (terrainProgram_) {
+    resources_.destroy(terrainProgram_);
+  }
+  if (directionalTerrainProgram_) {
+    resources_.destroy(directionalTerrainProgram_);
+  }
+  terrainProgram_ = {};
+  directionalTerrainProgram_ = {};
+  terrainLodResidency_.clear();
+  reportedTerrainFailures_ = terrainLodResidency_.statistics().failedJobs;
+  terrainDiagnostic_.clear();
+  terrainCameraDemand_.clear();
   terrainMeshes_.clear();
   terrainSelection_.clear();
   terrainStatistics_ = {};
@@ -182,8 +254,8 @@ void BgfxRenderer3D::shutdown() {
     resources_.destroy(meshSampler_);
   for (const UniformHandle uniform :
        {tintUniform_, alphaCutoffUniform_, debugModeUniform_,
-        viewPositionUniform_, metalRoughUniform_,
-        lightDirectionUniform_, lightColorUniform_, ambientColorUniform_})
+        viewPositionUniform_, metalRoughUniform_, lightDirectionUniform_,
+        lightColorUniform_, ambientColorUniform_})
     if (uniform)
       resources_.destroy(uniform);
   if (meshProgram_)
@@ -237,6 +309,21 @@ bool BgfxRenderer3D::renderFrame(const World &world,
   }
   const auto sceneLighting =
       collectSceneLighting3D(world, frame.camera.renderMask);
+  terrainLodResidency_.setSettings(
+      {.maximumResidentBytes = sceneLighting.terrainLodCacheBytes,
+       .maximumPendingJobs = sceneLighting.terrainLodPrepareJobs,
+       .maximumJobsPerPresentation = sceneLighting.terrainLodPrepareJobs});
+  const auto topologyBytes = terrainPatches_.topologyBytes();
+  const auto gpuFieldBudget =
+      sceneLighting.terrainGpuCacheBytes > topologyBytes
+          ? sceneLighting.terrainGpuCacheBytes - topologyBytes
+          : 0;
+  terrainGpuFields_.setBudgets(gpuFieldBudget,
+                               sceneLighting.terrainLodCacheBytes,
+                               sceneLighting.terrainLodPrepareJobs);
+  terrainCameraDemand_.beginCamera(
+      world, frame, terrainLodResidency_,
+      [this](const auto &field) { terrainGpuFields_.touch(field); });
   const auto &lighting =
       frame.lightingOverride ? *frame.lightingOverride : sceneLighting;
   if (!shadows_.prepare(lighting, frame, error)) {
@@ -248,8 +335,8 @@ bool BgfxRenderer3D::renderFrame(const World &world,
   for (std::size_t cascade = 0; cascade < depthFrames.size(); ++cascade) {
     ProfileScope scope("Renderer3D.directional_shadow");
     shadows_.cast(cascade);
-    if (!renderView(world, depthFrames[cascade], 0, error, true,
-                    sceneLighting, frame)) {
+    if (!renderView(world, depthFrames[cascade], 0, error, true, sceneLighting,
+                    frame)) {
       return false;
     }
     shadowBatches += statistics_.batches;
@@ -258,8 +345,8 @@ bool BgfxRenderer3D::renderFrame(const World &world,
   RuntimeProfiler::setGauge("Renderer3D.shadow_batches", shadowBatches);
   RuntimeProfiler::setGauge("Renderer3D.shadow_cascades", depthFrames.size());
   shadows_.receive();
-  const bool rendered =
-      renderView(world, mainFrame, deltaSeconds, error, false, sceneLighting, frame);
+  const bool rendered = renderView(world, mainFrame, deltaSeconds, error, false,
+                                   sceneLighting, frame);
   statistics_.shadowPasses = depthFrames.size();
   if (rendered && frame.updateContent) {
     deformedMeshes_.retain([this](const std::string &id) {
@@ -278,7 +365,7 @@ bool BgfxRenderer3D::renderView(const World &world,
                                 float deltaSeconds, std::string &error,
                                 bool shadowPass,
                                 const SceneLighting3D &sceneLighting,
-                               const BgfxCameraFrame3D &lodCamera) {
+                                const BgfxCameraFrame3D &lodCamera) {
   if (!initialized_) {
     error = "BgfxRenderer3D must be initialized before rendering.";
     return false;
@@ -356,6 +443,13 @@ bool BgfxRenderer3D::renderView(const World &world,
     }
     return false;
   }
+  terrainPatches_.beginView();
+  if (frame.updateContent) {
+    terrainPatches_.prepareExtraction(
+        world, frame, lodCamera, terrainSelection_, terrainGpuFields_,
+        materials_, terrainCameraDemand_, sceneLighting.terrainGpuCacheBytes,
+        bool(terrainProgram_ && directionalTerrainProgram_));
+  }
   SceneVisibility3D visibility;
   const bool isMainContentView = frame.updateContent && !shadowPass;
   auto cosmeticFragments = isMainContentView && world.destruction3D
@@ -363,8 +457,9 @@ bool BgfxRenderer3D::renderView(const World &world,
                                : std::vector<CosmeticFragment3D>{};
   if (frame.updateContent) {
     const auto extractionStarted = std::chrono::steady_clock::now();
-    visibility = extractVisibleMeshes3D(world, frame, &extractionJobs_,
-                                         &terrainSelection_, &lodCamera);
+    visibility = extractVisibleMeshes3D(
+        world, frame, &extractionJobs_, &terrainSelection_, &lodCamera,
+        &terrainLodResidency_, &terrainCameraDemand_, &terrainPatches_);
     lastExtractionMilliseconds_ =
         std::chrono::duration<double, std::milli>(
             std::chrono::steady_clock::now() - extractionStarted)
@@ -375,13 +470,6 @@ bool BgfxRenderer3D::renderView(const World &world,
   if (frame.updateContent && !prepareTerrainMeshes(visibility, error)) {
     return false;
   }
-  if (!shadowPass) {
-    for (const auto &draw : visibility.meshes) {
-      if (draw.terrainSurface && (!draw.materialSection || *draw.materialSection == 0)) {
-        ++terrainStatistics_.selectedSurfaces.at(draw.terrainLevel);
-      }
-    }
-  }
   if (shadowPass) {
     compactOpaqueShadowSections3D(visibility.meshes, materials_);
   }
@@ -389,7 +477,7 @@ bool BgfxRenderer3D::renderView(const World &world,
       !prepareAnimatedMeshes(visibility.meshes, frame, error)) {
     return false;
   }
-  const std::size_t firstTransparent =
+  std::size_t firstTransparent =
       shadowPass ? visibility.meshes.size()
                  : orderMeshSurfaces3D(visibility.meshes, materials_,
                                        frame.position, frame.forward);
@@ -480,6 +568,54 @@ bool BgfxRenderer3D::renderView(const World &world,
       {.handle = viewPositionUniform_, .values = viewPosition},
       {.handle = metalRoughUniform_, .values = defaultMetalRough},
   }};
+  if (frame.updateContent) {
+    const auto terrainProgram =
+        directionalOnly ? directionalTerrainProgram_ : terrainProgram_;
+    auto fallback = terrainPatches_.flush(
+        commands_, frame.viewId, terrainProgram, lightingUniforms,
+        frame.camera.debugMode == "overdraw", error);
+    if (!fallback.empty()) {
+      visibility.meshes.insert(visibility.meshes.end(), fallback.begin(),
+                               fallback.end());
+      if (!prepareTerrainMeshes(visibility, error)) {
+        return false;
+      }
+      if (shadowPass) {
+        compactOpaqueShadowSections3D(visibility.meshes, materials_);
+      }
+      firstTransparent =
+          shadowPass ? visibility.meshes.size()
+                     : orderMeshSurfaces3D(visibility.meshes, materials_,
+                                           frame.position, frame.forward);
+    }
+  }
+  const auto &patches = terrainPatches_.statistics();
+  if (shadowPass) {
+    terrainStatistics_.gpuPatchShadowDraws += patches.draws;
+    terrainStatistics_.gpuPatchShadowInstances += patches.instances;
+  } else {
+    terrainStatistics_.gpuPatchDraws += patches.draws;
+    terrainStatistics_.gpuPatchInstances += patches.instances;
+    terrainStatistics_.gpuPatchFallbacks += patches.fallbackPatches;
+    terrainStatistics_.triangles += patches.triangles;
+    for (std::size_t level = 0; level < patches.selectedLevels.size();
+         ++level) {
+      terrainStatistics_.gpuSelectedLevels[level] +=
+          patches.selectedLevels[level];
+    }
+    terrainStatistics_.gpuFallbackReason = patches.fallbackReason;
+    if (patches.fallbackReason ==
+            "GPU terrain programs/capabilities are unavailable" &&
+        !terrainGpuCapabilityReason_.empty()) {
+      terrainStatistics_.gpuFallbackReason = terrainGpuCapabilityReason_;
+    }
+    for (const auto &draw : visibility.meshes) {
+      if (draw.terrainSurface &&
+          (!draw.materialSection || *draw.materialSection == 0)) {
+        ++terrainStatistics_.selectedSurfaces.at(draw.terrainLevel);
+      }
+    }
+  }
   reliefMeshes_.beginFrame();
   MeshSubmissionStatistics meshStatistics;
   if (!submitVisibleMeshes(visibility, frame, shadowPass, firstTransparent,
@@ -488,9 +624,10 @@ bool BgfxRenderer3D::renderView(const World &world,
                            meshStatistics, error)) {
     return false;
   }
-  std::uint32_t bufferedDraws = meshStatistics.draws + (skyDrawn ? 1U : 0U);
+  std::uint32_t bufferedDraws =
+      meshStatistics.draws + patches.draws + (skyDrawn ? 1U : 0U);
   std::uint32_t bufferedTriangles =
-      meshStatistics.triangles + (skyDrawn ? 12U : 0U);
+      meshStatistics.triangles + patches.triangles + (skyDrawn ? 12U : 0U);
   const std::uint32_t distanceCulled = meshStatistics.distanceCulled;
   const std::uint32_t mediumLodMeshes = meshStatistics.mediumLodMeshes;
   const std::uint32_t lowLodMeshes = meshStatistics.lowLodMeshes;
@@ -669,9 +806,12 @@ bool BgfxRenderer3D::renderView(const World &world,
       bufferedTriangles + primitives_.statistics().triangles +
       particleRenderer_.statistics().triangles + overlayTriangles;
   statistics_.particles = static_cast<std::uint32_t>(particleData.size());
-  statistics_.consideredMeshes = visibility.considered;
-  statistics_.visibleMeshes = visibility.meshes.size() - distanceCulled;
-  statistics_.culledMeshes = visibility.culled + distanceCulled;
+  statistics_.consideredMeshes =
+      visibility.considered + patches.consideredPatches;
+  statistics_.visibleMeshes =
+      visibility.meshes.size() - distanceCulled + patches.instances;
+  statistics_.culledMeshes =
+      visibility.culled + distanceCulled + patches.culledPatches;
   statistics_.mediumLodMeshes = mediumLodMeshes;
   statistics_.lowLodMeshes = lowLodMeshes;
   return true;

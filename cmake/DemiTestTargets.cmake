@@ -412,7 +412,7 @@
   add_executable(demi-bgfx-gpu-resources-tests
     tests/bgfx_gpu_resources_tests.cpp)
   target_link_libraries(demi-bgfx-gpu-resources-tests
-    PRIVATE demi-graphics-bgfx)
+    PRIVATE demi-graphics-bgfx bgfx)
   add_executable(demi-quad-batch-tests tests/quad_batch_tests.cpp)
   target_link_libraries(demi-quad-batch-tests PRIVATE demi-graphics-bgfx)
   add_executable(demi-render-commands-tests tests/render_commands_tests.cpp)
@@ -482,6 +482,18 @@
   add_executable(demi-mesh-geometry3d-tests tests/mesh_geometry3d_tests.cpp)
   target_link_libraries(demi-mesh-geometry3d-tests PRIVATE demi-render3d-bgfx)
   add_executable(demi-bgfx-renderer3d-tests tests/bgfx_renderer3d_tests.cpp)
+  add_executable(demi-terrain-patch-topology3d-tests
+    tests/terrain_patch_topology3d_tests.cpp)
+  target_link_libraries(demi-terrain-patch-topology3d-tests PRIVATE demi-render3d-bgfx)
+  add_executable(demi-terrain-gpu-field-data3d-tests
+    tests/terrain_gpu_field_data3d_tests.cpp)
+  target_link_libraries(demi-terrain-gpu-field-data3d-tests PRIVATE demi-render3d-bgfx)
+  add_executable(demi-terrain-gpu-field-cache3d-tests
+    tests/terrain_gpu_field_cache3d_tests.cpp)
+  target_link_libraries(demi-terrain-gpu-field-cache3d-tests PRIVATE demi-render3d-bgfx)
+  add_executable(demi-terrain-patch-batch3d-tests
+    tests/terrain_patch_batch3d_tests.cpp)
+  target_link_libraries(demi-terrain-patch-batch3d-tests PRIVATE demi-runtime-lib demi-render3d-bgfx)
   add_executable(demi-shadow-cascade-layout-tests tests/shadow_cascade_layout_tests.cpp)
   target_link_libraries(demi-shadow-cascade-layout-tests PRIVATE demi-render3d-bgfx demi-runtime-lib)
   target_link_libraries(demi-bgfx-renderer3d-tests PRIVATE demi-render3d-bgfx demi-runtime-lib)
@@ -670,6 +682,9 @@
   add_executable(demi-terrain-lod-biomes-tests
     tests/terrain_lod_biomes_tests.cpp)
   target_link_libraries(demi-terrain-lod-biomes-tests PRIVATE demi-core)
+  add_executable(demi-terrain-lod-residency-tests
+    tests/terrain_lod_residency_tests.cpp)
+  target_link_libraries(demi-terrain-lod-residency-tests PRIVATE demi-runtime-lib)
   add_executable(demi-terrain-lod-publication-tests
     tests/terrain_lod_publication_tests.cpp)
   target_link_libraries(demi-terrain-lod-publication-tests PRIVATE demi-runtime-lib)

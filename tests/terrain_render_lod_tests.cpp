@@ -11,6 +11,7 @@
 #include <cmath>
 #include <iostream>
 #include <limits>
+#include <stdexcept>
 #include <stop_token>
 
 using namespace demi::runtime;
@@ -51,14 +52,20 @@ HeightField fixture() {
 }
 
 void preparationPreservesSourceAndBounds() {
-  const auto field = fixture();
+  const auto snapshot = std::make_shared<const HeightField>(fixture());
+  const auto &field = *snapshot;
   const auto beforeHeights = field.heights;
   const auto beforeNormals = field.normals;
   const auto beforeBiomes = field.biomeIndices;
   const auto &chunk = field.chunks.front();
-  const auto prepared = prepareTerrainRenderLod(field, chunk);
+  const auto prepared = prepareTerrainRenderLod(snapshot, chunk);
   assert(prepared);
-  assert(prepared->levels[0].empty());
+  assert(prepared->field == snapshot);
+  assert(prepared->geometryIdentity);
+  assert(prepared->rectangle.firstCellX == chunk.firstCellX);
+  assert(prepared->rectangle.firstCellZ == chunk.firstCellZ);
+  assert(prepared->rectangle.cellsX == chunk.cellsX);
+  assert(prepared->rectangle.cellsZ == chunk.cellsZ);
   assert(prepared->geometricErrors[0] == 0.0F);
   assert(prepared->triangleCounts[0] ==
          2 * std::size_t(chunk.cellsX) * std::size_t(chunk.cellsZ));
@@ -76,13 +83,15 @@ void preparationPreservesSourceAndBounds() {
     }
   }
   assert(prepared->boundsMin.y == minimum && prepared->boundsMax.y == maximum);
-  for (std::size_t level = 1; level < prepared->levels.size(); ++level) {
+  for (std::size_t level = 1; level < prepared->geometricErrors.size();
+       ++level) {
     const auto detail = static_cast<TerrainLod>(level);
-    assert(!prepared->levels[level].empty());
+    const auto preparedLevel = prepareTerrainRenderLodLevel(*prepared, level);
+    assert(preparedLevel && !preparedLevel->empty());
     assert(prepared->geometricErrors[level] ==
            terrainLodGeometricError(field, chunk, detail));
     std::size_t triangles = 0;
-    for (const auto &[biome, surface] : prepared->levels[level]) {
+    for (const auto &[biome, surface] : *preparedLevel) {
       assert(surface.geometry && surface.sampleIndices);
       assert(surface.geometry->vertices.size() ==
              surface.geometry->normals.size());
@@ -107,15 +116,18 @@ void preparationPreservesSourceAndBounds() {
 }
 
 void expandedGeometryRetainsUvsAndRoleSections() {
-  const auto field = fixture();
+  const auto snapshot = std::make_shared<const HeightField>(fixture());
+  const auto &field = *snapshot;
   const auto &chunk = field.chunks.front();
-  const auto prepared = prepareTerrainRenderLod(field, chunk);
-  for (std::size_t level = 1; level < prepared->levels.size(); ++level) {
+  const auto prepared = prepareTerrainRenderLod(snapshot, chunk);
+  for (std::size_t level = 1; level < prepared->geometricErrors.size();
+       ++level) {
     const auto mesh = buildTerrainLodBiomeMesh(
         field, chunk, static_cast<TerrainLod>(level), 0.0F);
     assert(mesh && mesh->skippedBiomes == 0);
+    const auto preparedLevel = prepareTerrainRenderLodLevel(*prepared, level);
     for (const auto &group : mesh->groups) {
-      const auto &surface = prepared->levels[level].at(group.biomeId);
+      const auto &surface = preparedLevel->at(group.biomeId);
       assert(surface.geometry->vertices.size() == group.indices.size());
       const auto biome =
           std::size_t(std::find(field.biomeIds.begin(), field.biomeIds.end(),
@@ -145,17 +157,27 @@ void expandedGeometryRetainsUvsAndRoleSections() {
 
 void bindingOnlyRebindRetainsGeometryAndIndexIdentity() {
   auto field = fixture();
-  const auto original = prepareTerrainRenderLod(field, field.chunks.front());
+  const auto original = prepareTerrainRenderLod(
+      std::make_shared<const HeightField>(field), field.chunks.front());
+  std::array<std::shared_ptr<const PreparedTerrainLodLevel>, 4> levels;
+  for (std::size_t level = 1; level < levels.size(); ++level) {
+    levels[level] = prepareTerrainRenderLodLevel(*original, level);
+  }
   auto bindings =
       std::make_shared<TerrainSurfaceMaterials>(*field.surfaceMaterials);
   bindings->bindings["earth"] = "asset://materials/rebound_earth";
   field.surfaceMaterials = bindings;
-  const auto rebound = rebindTerrainRenderLod(field, *original);
+  const auto rebound = rebindTerrainRenderLod(
+      std::make_shared<const HeightField>(field), *original);
+  assert(rebound->geometryIdentity == original->geometryIdentity);
+  assert(rebound->field != original->field);
   assert(rebound->geometricErrors == original->geometricErrors);
   assert(rebound->triangleCounts == original->triangleCounts);
-  for (std::size_t level = 1; level < original->levels.size(); ++level) {
-    for (const auto &[biome, before] : original->levels[level]) {
-      const auto &after = rebound->levels[level].at(biome);
+  for (std::size_t level = 1; level < levels.size(); ++level) {
+    const auto reboundLevel =
+        rebindTerrainRenderLodLevel(*rebound, *levels[level]);
+    for (const auto &[biome, before] : *levels[level]) {
+      const auto &after = reboundLevel->at(biome);
       assert(after.geometry == before.geometry);
       assert(after.sampleIndices == before.sampleIndices);
       assert(after.sections.indices == before.sections.indices);
@@ -171,17 +193,25 @@ void bindingOnlyRebindRetainsGeometryAndIndexIdentity() {
 
 void addingAndRemovingOverrideRebuildsOnlySections() {
   auto field = fixture();
-  const auto original = prepareTerrainRenderLod(field, field.chunks.front());
+  const auto original = prepareTerrainRenderLod(
+      std::make_shared<const HeightField>(field), field.chunks.front());
+  const auto originalLevel = prepareTerrainRenderLodLevel(*original, 1);
   field.biomeMaterials = {"asset://materials/override", ""};
-  const auto overridden = rebindTerrainRenderLod(field, *original);
-  const auto &before = original->levels[1].at("soil");
-  const auto &overrideSurface = overridden->levels[1].at("soil");
+  const auto overridden = rebindTerrainRenderLod(
+      std::make_shared<const HeightField>(field), *original);
+  const auto overriddenLevel =
+      rebindTerrainRenderLodLevel(*overridden, *originalLevel);
+  const auto &before = originalLevel->at("soil");
+  const auto &overrideSurface = overriddenLevel->at("soil");
   assert(overrideSurface.geometry == before.geometry);
   assert(overrideSurface.sections.sections.empty());
   assert(!overrideSurface.sections.indices);
   field.biomeMaterials.clear();
-  const auto restored = rebindTerrainRenderLod(field, *overridden);
-  const auto &after = restored->levels[1].at("soil");
+  const auto restored = rebindTerrainRenderLod(
+      std::make_shared<const HeightField>(field), *overridden);
+  const auto restoredLevel =
+      rebindTerrainRenderLodLevel(*restored, *overriddenLevel);
+  const auto &after = restoredLevel->at("soil");
   assert(after.geometry == before.geometry &&
          after.sampleIndices == before.sampleIndices);
   assert(after.sections.indices);
@@ -190,11 +220,62 @@ void addingAndRemovingOverrideRebuildsOnlySections() {
 }
 
 void canceledPreparationPublishesNothing() {
-  const auto field = fixture();
+  const auto snapshot = std::make_shared<const HeightField>(fixture());
+  const auto prepared =
+      prepareTerrainRenderLod(snapshot, snapshot->chunks.front());
   std::stop_source cancellation;
   cancellation.request_stop();
-  assert(!prepareTerrainRenderLod(field, field.chunks.front(),
+  assert(!prepareTerrainRenderLod(snapshot, snapshot->chunks.front(),
                                   cancellation.get_token()));
+  assert(!prepareTerrainRenderLodLevel(*prepared, 1, cancellation.get_token()));
+}
+
+void descriptorRetainsSourceAndSeparatesGeometryIdentity() {
+  std::weak_ptr<const HeightField> source;
+  std::shared_ptr<const PreparedTerrainChunkLod> descriptor;
+  {
+    const auto snapshot = std::make_shared<const HeightField>(fixture());
+    source = snapshot;
+    descriptor = prepareTerrainRenderLod(snapshot, snapshot->chunks.front());
+  }
+  assert(!source.expired());
+  const auto first = prepareTerrainRenderLodLevel(*descriptor, 1);
+  assert(first && !first->empty());
+  // A descriptor retains metadata/source only. Another level is requested
+  // independently and does not alter or replace an existing level's geometry.
+  const auto firstGeometry = first->begin()->second.geometry;
+  const auto second = prepareTerrainRenderLodLevel(*descriptor, 2);
+  assert(second && !second->empty());
+  assert(first->begin()->second.geometry == firstGeometry);
+
+  auto modified = std::make_shared<HeightField>(*descriptor->field);
+  modified->biomeTextureScales[0] *= 2;
+  const auto updated = prepareTerrainRenderLod(modified, descriptor->rectangle);
+  assert(updated->geometryIdentity != descriptor->geometryIdentity);
+  bool rejected = false;
+  try {
+    (void)rebindTerrainRenderLod(modified, *descriptor);
+  } catch (const std::invalid_argument &) {
+    rejected = true;
+  }
+  assert(rejected);
+  descriptor.reset();
+  assert(source.expired());
+}
+
+void invalidLevelRequestsAreRejected() {
+  const auto snapshot = std::make_shared<const HeightField>(fixture());
+  const auto prepared =
+      prepareTerrainRenderLod(snapshot, snapshot->chunks.front());
+  for (const std::size_t level : {std::size_t{0}, std::size_t{4}}) {
+    bool rejected = false;
+    try {
+      (void)prepareTerrainRenderLodLevel(*prepared, level);
+    } catch (const std::invalid_argument &) {
+      rejected = true;
+    }
+    assert(rejected);
+  }
 }
 
 } // namespace
@@ -205,5 +286,7 @@ int main() {
   bindingOnlyRebindRetainsGeometryAndIndexIdentity();
   addingAndRemovingOverrideRebuildsOnlySections();
   canceledPreparationPublishesNothing();
+  descriptorRetainsSourceAndSeparatesGeometryIdentity();
+  invalidLevelRequestsAreRejected();
   std::cout << "Prepared terrain render LOD checks passed\n";
 }

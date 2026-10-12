@@ -1,7 +1,7 @@
 #include "demi/runtime/render/bgfx3d/SceneLighting3D.h"
 
-#include "demi/runtime/scene/Transform3DHierarchy.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
+#include "demi/runtime/scene/Transform3DHierarchy.h"
 #include "demi/runtime/scene/components/3dcomponents/DirectionalLightComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/Environment3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/PointLightComponent.h"
@@ -35,6 +35,9 @@ SceneLighting3D collectSceneLighting3D(const World &world,
       lighting.skyTexture = environment->skyTexture;
       lighting.reliefCacheMeshes = environment->reliefCacheMeshes;
       lighting.reliefImageCacheBytes = environment->reliefImageCacheBytes;
+      lighting.terrainLodCacheBytes = environment->terrainLodCacheBytes;
+      lighting.terrainGpuCacheBytes = environment->terrainGpuCacheBytes;
+      lighting.terrainLodPrepareJobs = environment->terrainLodPrepareJobs;
       lighting.shadowDistance = environment->shadowDistance;
       lighting.shadowResolution = environment->shadowResolution;
       lighting.shadowCascades = environment->shadowCascades;

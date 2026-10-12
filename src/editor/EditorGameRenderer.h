@@ -33,6 +33,10 @@ public:
   [[nodiscard]] bool configure(const std::filesystem::path &projectDirectory,
                                std::string &error);
   void release();
+  void maintainTerrainResidency();
+  void maintainIdleTerrain();
+  [[nodiscard]] bool terrainNeedsFrame() const;
+  [[nodiscard]] std::string takeTerrainDiagnostic();
   [[nodiscard]] bool prepareTarget(EditorViewportArea area, std::string &error);
   [[nodiscard]] bool render(const runtime::World &world,
                             EditorViewportArea area, float deltaSeconds,
@@ -47,6 +51,8 @@ private:
   runtime::render::GpuResources &resources_;
   runtime::render::RenderCommands &commands_;
   std::unique_ptr<runtime::render::BgfxRenderer3D> renderer3D_;
+  bool terrainPresentedThisFrame_ = false;
+  bool terrainWasVisible_ = false;
   std::unique_ptr<runtime::render::BgfxRenderer2D> renderer2D_;
   std::unique_ptr<runtime::render::RenderTargetHandles> target_;
   std::uint16_t targetWidth_ = 0;

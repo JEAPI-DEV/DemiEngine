@@ -304,6 +304,9 @@ int main(const int argc, char **argv) {
         shell.setNotice("Authored view unavailable: " + error);
     }
     ui->endFrame();
+    if (auto diagnostic = ui->takeWorkspaceDiagnostic(); !diagnostic.empty()) {
+      shell.setNotice(std::move(diagnostic));
+    }
     // shell.draw() may stop Play after emitting an Image of the game texture.
     // Submit that UI frame before queuing destruction of its GPU resources.
     // Runtime/render failures follow the same lifetime rule.

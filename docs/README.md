@@ -7,6 +7,11 @@ are registered in `tools/package-store/src/Docs.php`.
 
 This directory keeps material that has a different job:
 
+- [GPU terrain qualification](terrain-gpu-rendering-qualification.md) records
+  native full-detail submission and frame-time comparisons, repeated runs and
+  the compatibility/material limitations of the implemented path.
+- [GPU terrain rendering design](terrain-gpu-rendering-design.md) explains
+  shared displaced patches, instanced material routing and capability fallbacks.
 - [Terrain LOD qualification](terrain-lod-qualification.md) records error bounds,
   shared chunk boundaries, live camera selection, GPU residency and moving-camera
   measurements, with CPU streaming still pending.

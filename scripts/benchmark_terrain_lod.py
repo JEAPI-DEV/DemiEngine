@@ -41,7 +41,7 @@ def summarize(path, warmup_frames):
     }
 
 
-def prepare_project(root, destination, error_pixels):
+def prepare_project(root, destination, error_pixels, terrain_renderer):
     shutil.copytree(
         root / "examples/terrain_graph_3d",
         destination,
@@ -57,6 +57,8 @@ def prepare_project(root, destination, error_pixels):
     for entity in scene["entities"]:
         if entity["id"] == "terrain":
             entity["components"]["Terrain3D"]["lod_error_pixels"] = error_pixels
+        if entity["id"] == "environment" and terrain_renderer == "mesh":
+            entity["components"]["Environment3D"]["terrain_gpu_cache_mb"] = 0
         if entity["id"] == "camera":
             entity["components"]["LuaScript"] = {
                 "module": "script://scripts/terrain_lod_camera.lua"
@@ -77,6 +79,8 @@ def main():
     parser.add_argument("--width", type=int, default=1920)
     parser.add_argument("--height", type=int, default=1080)
     parser.add_argument("--error-pixels", type=float, default=2.0)
+    parser.add_argument("--terrain-renderer", choices=["auto", "mesh"], default="auto",
+                        help="Mesh disables the GPU patch cache for a same-binary comparison")
     arguments = parser.parse_args()
     if arguments.frames <= 60:
         parser.error("Frames must include the 60-frame warmup and measured samples")
@@ -102,6 +106,7 @@ def main():
             (root / "examples/terrain_graph_3d/scenes/main.scene.json").read_bytes()
         ).hexdigest(),
         "lod_error_pixels": arguments.error_pixels,
+        "terrain_renderer": arguments.terrain_renderer,
         "requested_size": [arguments.width, arguments.height],
         "frames": arguments.frames,
         "warmup_frames": 60,
@@ -111,7 +116,7 @@ def main():
     for name, error_pixels in [("full", 0), ("lod", arguments.error_pixels)]:
         with tempfile.TemporaryDirectory(prefix="demi-terrain-lod-") as temporary:
             project = Path(temporary) / "project"
-            prepare_project(root, project, error_pixels)
+            prepare_project(root, project, error_pixels, arguments.terrain_renderer)
             frame_report = output / f"{name}-frames.csv"
             command = [
                 str(binary), "run", "--project", str(project),

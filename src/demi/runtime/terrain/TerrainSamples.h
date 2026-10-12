@@ -92,6 +92,12 @@ public:
     return pages_.at(sample / PageSize).get();
   }
 
+  // Cheap immutable channel identity, without exposing writable storage or
+  // requiring a value comparator for sample types such as Vec3.
+  bool sharesStorageWith(const TerrainSamples &other) const noexcept {
+    return size_ == other.size_ && pages_ == other.pages_;
+  }
+
   const T &operator[](std::size_t index) const {
     return (*pages_[index / PageSize])[index % PageSize];
   }

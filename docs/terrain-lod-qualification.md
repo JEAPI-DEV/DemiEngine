@@ -1,6 +1,28 @@
 # Terrain LOD qualification
 
-## Live render integration, 2026-10-12
+## Follow-up: demand-driven render resources, 2026-10-12
+
+The current compatible renderer uses GPU-displaced shared patches; see
+[GPU terrain qualification](terrain-gpu-rendering-qualification.md). Ordinary
+mesh fallback no longer retains every reduced level eagerly. Chunk descriptors
+retain bounds, errors, counts and immutable source identity; a bounded worker
+queue prepares only requested reduced levels. Full meshes and collision remain
+available during preparation, failures, cancellation and budget pressure.
+
+Ready resources are stable throughout a presentation's camera/shadow views.
+Material snapshots can share geometry without repeatedly cancelling each
+other's jobs. Terminal failures do not spin idle workers. Scheduled render
+targets retain demand between updates; hidden editor views cancel unused work
+and release resources without redrawing their retained image targets. Inactive
+maintenance reaps completed cancellation on idle timeouts.
+
+The CPU LOD payload cache and GPU-field staging queues have configurable
+allowances, with full source/collision memory and allocator overhead excluded.
+GPU field textures and shared topology have a separate budget. Zero preparation
+jobs pauses new work while valid ready resources remain usable. This is render
+resource residency, not the remaining large-world/gameplay streaming milestone.
+
+## Initial live render integration, 2026-10-12
 
 Runtime and editor rendering now consume immutable chunk LOD preparations.
 Terrain loading prepares the reduced meshes and exact geometric errors; local

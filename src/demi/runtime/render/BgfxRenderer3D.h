@@ -12,32 +12,37 @@
 #include "demi/runtime/render/bgfx3d/BgfxCameraFrame3D.h"
 #include "demi/runtime/render/bgfx3d/DeformedMeshCache3D.h"
 #include "demi/runtime/render/bgfx3d/DirectionalShadow3D.h"
-#include "demi/runtime/render/bgfx3d/SceneLightBuffer3D.h"
 #include "demi/runtime/render/bgfx3d/GpuMesh3D.h"
-#include "demi/runtime/render/bgfx3d/ReliefMeshCache3D.h"
 #include "demi/runtime/render/bgfx3d/GpuSkinnedMesh3D.h"
+#include "demi/runtime/render/bgfx3d/MeshResourceRetention3D.h"
 #include "demi/runtime/render/bgfx3d/ParticleBillboardRenderer3D.h"
 #include "demi/runtime/render/bgfx3d/PostProcessRenderer3D.h"
 #include "demi/runtime/render/bgfx3d/PrimitiveCanvas3D.h"
+#include "demi/runtime/render/bgfx3d/ReliefMeshCache3D.h"
+#include "demi/runtime/render/bgfx3d/SceneLightBuffer3D.h"
 #include "demi/runtime/render/bgfx3d/SceneVisibility3D.h"
-#include "demi/runtime/render/bgfx3d/MeshResourceRetention3D.h"
-#include "demi/runtime/render/bgfx3d/TerrainDrawSelection3D.h"
-#include "demi/runtime/render/bgfx3d/TerrainGpuMeshCache3D.h"
 #include "demi/runtime/render/bgfx3d/SkyRenderer3D.h"
+#include "demi/runtime/render/bgfx3d/TerrainCameraDemand3D.h"
+#include "demi/runtime/render/bgfx3d/TerrainDrawSelection3D.h"
+#include "demi/runtime/render/bgfx3d/TerrainGpuFieldCache3D.h"
+#include "demi/runtime/render/bgfx3d/TerrainGpuMeshCache3D.h"
+#include "demi/runtime/render/bgfx3d/TerrainPatchBatch3D.h"
 #include "demi/runtime/render/bgfx3d/VisualAnimationBudget3D.h"
 #include "demi/runtime/scene/model/World.h"
+#include "demi/runtime/terrain/TerrainLodResidency.h"
 
 #include <chrono>
 #include <cstdint>
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace demi::runtime {
 struct MeshRendererComponent;
 struct AnimationPlayer3DComponent;
-}
+} // namespace demi::runtime
 
 namespace demi::runtime::render {
 
@@ -47,6 +52,17 @@ struct TerrainRenderStatistics3D {
   std::uint64_t uploads = 0;
   std::size_t residentMeshes = 0;
   std::size_t residentBytes = 0;
+  std::size_t cpuResidentBytes = 0;
+  std::size_t cpuPendingBytes = 0;
+  std::size_t cpuPendingJobs = 0;
+  std::size_t cpuReadyLevels = 0;
+  std::size_t gpuPatchDraws = 0;
+  std::size_t gpuPatchInstances = 0;
+  std::size_t gpuPatchShadowDraws = 0;
+  std::size_t gpuPatchShadowInstances = 0;
+  std::size_t gpuPatchFallbacks = 0;
+  std::array<std::size_t, 4> gpuSelectedLevels{};
+  std::string gpuFallbackReason;
 };
 
 // Runtime-facing composition root for bgfx 3D rendering. Specialized mesh,
@@ -73,6 +89,14 @@ public:
   // automatically creates a single-camera presentation scope.
   void beginPresentation();
   void endPresentation(bool succeeded);
+  void tickInactiveTerrain();
+  [[nodiscard]] std::string takeTerrainDiagnostic() {
+    return std::exchange(terrainDiagnostic_, {});
+  }
+  [[nodiscard]] bool terrainPreparationPending() const {
+    return terrainLodResidency_.hasPendingWork() ||
+           terrainGpuFields_.hasPendingWork();
+  }
   [[nodiscard]] const TerrainRenderStatistics3D &terrainStatistics() const {
     return terrainStatistics_;
   }
@@ -85,8 +109,10 @@ public:
   }
 
 private:
-  bool drawCosmeticDebris(std::vector<CosmeticFragment3D> &, const BgfxCameraFrame3D &,
-      std::span<const DrawUniformValue>, ProgramHandle, std::uint32_t &, std::uint32_t &, std::string &);
+  bool drawCosmeticDebris(std::vector<CosmeticFragment3D> &,
+                          const BgfxCameraFrame3D &,
+                          std::span<const DrawUniformValue>, ProgramHandle,
+                          std::uint32_t &, std::uint32_t &, std::string &);
   bool renderView(const World &, const BgfxCameraFrame3D &, float,
                   std::string &, bool shadowPass, const SceneLighting3D &,
                   const BgfxCameraFrame3D &lodCamera);
@@ -98,20 +124,22 @@ private:
     std::uint32_t mediumLodMeshes = 0;
     std::uint32_t lowLodMeshes = 0;
   };
-  bool submitVisibleMeshes(
-      const SceneVisibility3D &, const BgfxCameraFrame3D &, bool shadowPass,
-      std::size_t firstTransparent, const std::array<DrawUniformValue, 8> &,
-      ProgramHandle defaultMeshProgram, ProgramHandle defaultInstancedProgram,
-      ProgramHandle defaultSkinnedProgram, MeshSubmissionStatistics &,
-      std::string &error);
+  bool submitVisibleMeshes(const SceneVisibility3D &, const BgfxCameraFrame3D &,
+                           bool shadowPass, std::size_t firstTransparent,
+                           const std::array<DrawUniformValue, 8> &,
+                           ProgramHandle defaultMeshProgram,
+                           ProgramHandle defaultInstancedProgram,
+                           ProgramHandle defaultSkinnedProgram,
+                           MeshSubmissionStatistics &, std::string &error);
   struct ModelLodSelection {
     const std::string *model = nullptr;
     bool isCulled = false;
     int level = 0;
   };
-  [[nodiscard]] ModelLodSelection selectModelLod(
-      const MeshRendererComponent &mesh, const AnimationPlayer3DComponent *player,
-      Vec3 position, Vec3 camera, bool preserveHigh) const;
+  [[nodiscard]] ModelLodSelection
+  selectModelLod(const MeshRendererComponent &mesh,
+                 const AnimationPlayer3DComponent *player, Vec3 position,
+                 Vec3 camera, bool preserveHigh) const;
   struct RenderTarget {
     RenderTargetHandles handles;
     std::uint16_t width = 1;
@@ -119,7 +147,8 @@ private:
     bool depth = true;
     int requestedSamples = 1;
   };
-  bool setRenderTargetSamples(RenderTarget &, const std::string &id, int samples, std::string &error);
+  bool setRenderTargetSamples(RenderTarget &, const std::string &id,
+                              int samples, std::string &error);
 
   struct CachedMesh {
     explicit CachedMesh(GpuResources &resources) : gpu(resources) {}
@@ -134,9 +163,9 @@ private:
     VisualAnimationSample3D animationSample;
   };
 
-  [[nodiscard]] bool prepareAnimatedMeshes(
-      std::span<const VisibleMesh3D> visible, const BgfxCameraFrame3D &frame,
-      std::string &error);
+  [[nodiscard]] bool
+  prepareAnimatedMeshes(std::span<const VisibleMesh3D> visible,
+                        const BgfxCameraFrame3D &frame, std::string &error);
 
   GpuResources &resources_;
   DirectionalShadow3D shadows_;
@@ -150,7 +179,8 @@ private:
   SkyRenderer3D sky_;
   MaterialLibrary materials_;
   ProgramHandle meshProgram_;
-  ProgramHandle directionalMeshProgram_, directionalInstancedProgram_, directionalSkinnedProgram_;
+  ProgramHandle directionalMeshProgram_, directionalInstancedProgram_,
+      directionalSkinnedProgram_;
   bool gpuSkinningRequested_ = true;
   bool gpuSkinningEnabled_ = false;
   ProgramHandle skinnedMeshProgram_;
@@ -171,9 +201,20 @@ private:
   std::unordered_map<std::string, std::unique_ptr<CachedMesh>> modelMeshes_;
   DeformedMeshCache3D deformedMeshes_;
   MeshResourceRetention3D meshRetention_;
+  JobSystem extractionJobs_;
   TerrainDrawSelection3D terrainSelection_;
   TerrainGpuMeshCache3D terrainMeshes_;
+  TerrainLodResidency terrainLodResidency_;
+  TerrainCameraDemand3D terrainCameraDemand_;
+  TerrainGpuFieldCache3D terrainGpuFields_;
+  TerrainPatchBatch3D terrainPatches_;
+  std::string terrainGpuCapabilityReason_;
+  std::string reportedTerrainGpuFallback_;
+  ProgramHandle terrainProgram_;
+  ProgramHandle directionalTerrainProgram_;
   TerrainRenderStatistics3D terrainStatistics_;
+  std::size_t reportedTerrainFailures_ = 0;
+  std::string terrainDiagnostic_;
   std::uint64_t terrainUploadsAtPresentationStart_ = 0;
   bool presentationActive_ = false;
   // Command adapters consume spans synchronously. Descriptors may be reused
@@ -186,7 +227,6 @@ private:
   std::unordered_map<std::string, RenderTarget> renderTargets_;
   ParticleSimulation3D particles_;
   RenderStatistics statistics_;
-  JobSystem extractionJobs_;
   double lastExtractionMilliseconds_ = 0.0;
   bool initialized_ = false;
 };

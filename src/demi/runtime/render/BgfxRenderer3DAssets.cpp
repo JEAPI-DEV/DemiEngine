@@ -11,17 +11,30 @@
 namespace demi::runtime::render {
 
 bool BgfxRenderer3D::setRenderTargetSamples(RenderTarget &target,
-    const std::string &id,int samples,std::string &error) {
-  if(target.requestedSamples==samples)return true;
-  const auto replacement=resources_.createRenderTarget({.width=target.width,
-      .height=target.height,.depth=target.depth,.debugName=id,.msaaSamples=samples},error);
-  if(!replacement.frameBuffer || !replacement.color)return false;
-  overlay_.setExternalTexture(id,{.handle=replacement.color,.width=target.width,.height=target.height});
-  if(target.handles.frameBuffer)resources_.destroy(target.handles.frameBuffer);
-  if(target.handles.depth)resources_.destroy(target.handles.depth);
-  if(target.handles.color)resources_.destroy(target.handles.color);
-  target.handles=replacement;
-  target.requestedSamples=samples;
+                                            const std::string &id, int samples,
+                                            std::string &error) {
+  if (target.requestedSamples == samples)
+    return true;
+  const auto replacement =
+      resources_.createRenderTarget({.width = target.width,
+                                     .height = target.height,
+                                     .depth = target.depth,
+                                     .debugName = id,
+                                     .msaaSamples = samples},
+                                    error);
+  if (!replacement.frameBuffer || !replacement.color)
+    return false;
+  overlay_.setExternalTexture(id, {.handle = replacement.color,
+                                   .width = target.width,
+                                   .height = target.height});
+  if (target.handles.frameBuffer)
+    resources_.destroy(target.handles.frameBuffer);
+  if (target.handles.depth)
+    resources_.destroy(target.handles.depth);
+  if (target.handles.color)
+    resources_.destroy(target.handles.color);
+  target.handles = replacement;
+  target.requestedSamples = samples;
   return true;
 }
 
@@ -52,6 +65,7 @@ bool BgfxRenderer3D::loadAssets(const AssetRegistry &registry,
   renderTargets_.clear();
 
   bool success = materials_.load(registry, diagnostics);
+  terrainGpuFields_.invalidateMaterials();
   success = overlay_.loadAssets(registry, diagnostics) && success;
   for (const AssetManifest &asset : registry.assets) {
     if (asset.type == "Texture2D") {
@@ -171,7 +185,8 @@ bool BgfxRenderer3D::loadAssets(const AssetRegistry &registry,
           std::string reason;
           if (buildGpuSkinVertices(*animated, skinVertices, layout, reason)) {
             cached->gpuSkin = std::make_unique<GpuSkinnedMesh3D>(resources_);
-            if (!cached->gpuSkin->upload(skinVertices, animated->indices, std::move(layout), error)) {
+            if (!cached->gpuSkin->upload(skinVertices, animated->indices,
+                                         std::move(layout), error)) {
               diagnostics.push_back(asset.id + ": " + error);
               success = false;
               cached->gpuSkin.reset();

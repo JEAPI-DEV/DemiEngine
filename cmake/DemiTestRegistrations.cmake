@@ -338,10 +338,21 @@ add_test(NAME demi-simulation-tests COMMAND demi-simulation-tests)
     set_tests_properties(demi-${async_test}-tests PROPERTIES TIMEOUT 30)
   endforeach()
   add_test(NAME demi-frame-timing-tests COMMAND demi-frame-timing-tests)
+  add_test(NAME demi-terrain-lod-residency-tests
+    COMMAND demi-terrain-lod-residency-tests)
+  set_tests_properties(demi-terrain-lod-residency-tests PROPERTIES TIMEOUT 30)
   add_test(NAME demi-terrain-lod-publication-tests
     COMMAND demi-terrain-lod-publication-tests)
   set_tests_properties(demi-terrain-lod-publication-tests PROPERTIES TIMEOUT 30)
   add_test(NAME demi-terrain-render-lod-tests COMMAND demi-terrain-render-lod-tests)
+  add_test(NAME demi-terrain-patch-topology3d-tests COMMAND demi-terrain-patch-topology3d-tests)
+  add_test(NAME demi-terrain-gpu-field-data3d-tests COMMAND demi-terrain-gpu-field-data3d-tests)
+  add_test(NAME demi-terrain-gpu-field-cache3d-tests COMMAND demi-terrain-gpu-field-cache3d-tests)
+  add_test(NAME demi-terrain-patch-batch3d-tests COMMAND demi-terrain-patch-batch3d-tests)
+  set_tests_properties(demi-terrain-gpu-field-cache3d-tests demi-terrain-patch-batch3d-tests
+    PROPERTIES TIMEOUT 30)
+  set_tests_properties(demi-terrain-patch-topology3d-tests demi-terrain-gpu-field-data3d-tests
+    PROPERTIES TIMEOUT 30)
   set_tests_properties(demi-terrain-render-lod-tests PROPERTIES TIMEOUT 30)
   add_test(NAME demi-visible-timing-summary-tests
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/visible_timing_summary_tests.py")

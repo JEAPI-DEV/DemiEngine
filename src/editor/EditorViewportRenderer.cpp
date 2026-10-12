@@ -93,6 +93,7 @@ bool EditorViewportRenderer::render3D(const runtime::World &world,
     lighting.ambient = {0.3F, 0.32F, 0.36F, 1.0F};
     frame.lightingOverride = lighting;
   }
+  terrainPresentedThisFrame_ = true;
   return renderer3D_->renderFrame(world, frame, deltaSeconds, error);
 }
 
@@ -198,6 +199,29 @@ void EditorViewportRenderer::destroyTarget() {
   *target_ = {};
   targetWidth_ = 0;
   targetHeight_ = 0;
+}
+
+std::string EditorViewportRenderer::takeTerrainDiagnostic() {
+  return renderer3D_ ? renderer3D_->takeTerrainDiagnostic() : std::string{};
+}
+
+bool EditorViewportRenderer::terrainNeedsFrame() const {
+  return terrainWasVisible_ && renderer3D_ &&
+         renderer3D_->terrainPreparationPending();
+}
+
+void EditorViewportRenderer::maintainIdleTerrain() {
+  if (!terrainWasVisible_ && renderer3D_) {
+    renderer3D_->tickInactiveTerrain();
+  }
+}
+
+void EditorViewportRenderer::maintainTerrainResidency() {
+  if (renderer3D_ && !terrainPresentedThisFrame_) {
+    renderer3D_->tickInactiveTerrain();
+  }
+  terrainWasVisible_ = terrainPresentedThisFrame_;
+  terrainPresentedThisFrame_ = false;
 }
 
 } // namespace demi::editor

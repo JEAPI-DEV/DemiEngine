@@ -26,7 +26,7 @@ using ProgramHandle = ResourceHandle<ProgramTag>;
 using FrameBufferHandle = ResourceHandle<FrameBufferTag>;
 using UniformHandle = ResourceHandle<UniformTag>;
 
-enum class TextureFormat { R8, RGBA8, BGRA8, RGBA32F };
+enum class TextureFormat { R8, RGBA8, BGRA8, RGBA32F, R32F };
 enum class TextureFilter { Linear, Nearest };
 enum class TextureWrap { Clamp, Repeat, Mirror };
 enum class BufferKind { Vertex, DynamicVertex, Index16, Index32 };
@@ -41,7 +41,9 @@ enum class BuiltinProgram {
   Sky3D,
   Directional3DInstanced,
   Directional3DSkinned,
-  PostProcess2D
+  PostProcess2D,
+  Terrain3D,
+  Terrain3DDirectional
 };
 enum class UniformType { Vec4, Matrix3, Matrix4 };
 enum class VertexSemantic {
@@ -136,12 +138,22 @@ struct RenderDeviceLimits {
   std::uint32_t maxTextureSize = UINT16_MAX;
   std::uint32_t maxViews = UINT16_MAX;
   bool originBottomLeft = false;
+  std::uint32_t maxTextureSamplers = 0;
+  bool supportsInstancing = false;
+};
+
+struct TextureCapabilities {
+  bool sampled2D = false;
+  bool vertexSampling = false;
 };
 
 class GpuResources {
 public:
   virtual ~GpuResources() = default;
   virtual RenderDeviceLimits limits() const { return {}; }
+  virtual TextureCapabilities textureCapabilities(TextureFormat) const {
+    return {};
+  }
   GpuResources(const GpuResources &) = delete;
   GpuResources &operator=(const GpuResources &) = delete;
 

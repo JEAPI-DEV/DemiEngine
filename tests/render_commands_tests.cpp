@@ -1,5 +1,5 @@
-#include "demi/runtime/render/backend/BgfxGraphicsDevice.h"
 #include "demi/runtime/render/backend/BgfxDrawBindings.h"
+#include "demi/runtime/render/backend/BgfxGraphicsDevice.h"
 #include "demi/runtime/render/backend/GpuResources.h"
 #include "demi/runtime/render/backend/QuadBatch.h"
 #include "demi/runtime/render/backend/RenderCommands.h"
@@ -8,11 +8,13 @@
 #ifdef NDEBUG
 #undef NDEBUG
 #endif
+#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <span>
 #include <string>
+#include <vector>
 
 using namespace demi::runtime::render;
 
@@ -54,14 +56,88 @@ public:
   }
 };
 
+class InstanceBatchCapture final : public RenderCommands {
+public:
+  std::uint32_t perDrawCapacity = 2;
+  std::uint32_t remainingRecords = 20;
+  std::size_t failAtSubmission = 0;
+  std::vector<std::uint32_t> counts;
+  std::vector<std::byte> records;
+
+  std::uint32_t availableInstances(std::uint16_t,
+                                   std::uint32_t requested) const override {
+    return std::min({perDrawCapacity, remainingRecords, requested});
+  }
+  bool configureView2D(const View2DConfig &, std::string &) override {
+    return true;
+  }
+  bool configureView3D(const View3DConfig &, std::string &) override {
+    return true;
+  }
+  bool submit(const TransientDraw &, std::string &) override { return false; }
+  bool submit(const BufferedDraw &, std::string &) override { return false; }
+  bool submit(const InstancedBufferedDraw &draw, std::string &error) override {
+    if (failAtSubmission == counts.size() + 1) {
+      error = "injected instance submission failure";
+      return false;
+    }
+    const auto count = static_cast<std::uint32_t>(draw.instances.data.size() /
+                                                  draw.instances.stride);
+    assert(count <= remainingRecords && count <= perDrawCapacity);
+    counts.push_back(count);
+    remainingRecords -= count;
+    records.insert(records.end(), draw.instances.data.begin(),
+                   draw.instances.data.end());
+    return true;
+  }
+};
+
+void testInstanceBatchSubmission() {
+  std::array<std::array<float, 20>, 5> records{};
+  for (std::size_t index = 0; index < records.size(); ++index) {
+    records[index][0] = static_cast<float>(index);
+  }
+  const auto source = instanceData(std::span(records));
+  InstancedBufferedDraw draw;
+  draw.instances = source;
+  std::string error;
+  InstanceBatchCapture capture;
+  const auto complete = capture.submitInstanceBatches(draw, error);
+  assert(complete.complete && complete.submittedRecords == 5);
+  assert(complete.submittedBatches == 3);
+  assert((capture.counts == std::vector<std::uint32_t>{2, 2, 1}));
+  assert(capture.records ==
+         std::vector<std::byte>(source.data.begin(), source.data.end()));
+
+  InstanceBatchCapture exhausted;
+  exhausted.remainingRecords = 3;
+  const auto partial = exhausted.submitInstanceBatches(draw, error);
+  assert(!partial.complete && partial.submittedRecords == 3);
+  assert(partial.submittedBatches == 2);
+  assert(error.find("budget") != std::string::npos);
+  assert(exhausted.records ==
+         std::vector<std::byte>(source.data.begin(),
+                                source.data.begin() + 3 * source.stride));
+
+  InstanceBatchCapture failed;
+  failed.failAtSubmission = 2;
+  const auto rejected = failed.submitInstanceBatches(draw, error);
+  assert(!rejected.complete && rejected.submittedRecords == 2);
+  assert(rejected.submittedBatches == 1);
+  assert(error == "injected instance submission failure");
+  assert(failed.records.size() == 2 * source.stride);
+  draw.instances.stride = 20;
+  const auto invalid = failed.submitInstanceBatches(draw, error);
+  assert(!invalid.complete && invalid.submittedRecords == 0);
+}
+
 void testDrawBindingResolution() {
   BindingLookup lookup;
   BgfxDrawBindings bindings;
   std::string error;
   std::array<float, 4> values{1, 2, 3, 4};
-  std::array<DrawUniformValue, 2> uniforms{
-      DrawUniformValue{{1, 1}, values, 1},
-      DrawUniformValue{{2, 1}, values, 1}};
+  std::array<DrawUniformValue, 2> uniforms{DrawUniformValue{{1, 1}, values, 1},
+                                           DrawUniformValue{{2, 1}, values, 1}};
   assert(bindings.resolveUniforms(uniforms, lookup, error, "Test draw"));
   assert(lookup.uniformLookups == 2);
   assert(bindings.uniforms().size() == 2);
@@ -117,6 +193,7 @@ VertexLayout quadLayout() {
 
 int main() {
   testDrawBindingResolution();
+  testInstanceBatchSubmission();
   BgfxGraphicsDevice graphics;
   std::string error;
   assert(graphics.initialize(
@@ -222,27 +299,66 @@ int main() {
       .texture = texture,
       .sampler = sampler,
       .state = {.blend = BlendMode::Alpha},
-      .transforms = transforms,
+      .instances =
+          instanceData(std::span<const std::array<float, 16>>(transforms)),
   };
   assert(commands->submit(instanced, error));
-  const auto extraSampler=resources->createSampler("s_extra",error);
-  std::array<DrawTextureBinding,1> extra{{{.stage=1,.texture=texture,.sampler=extraSampler}}};
-  auto textured=buffered;textured.textures=extra;
-  auto texturedInstances=instanced;texturedInstances.textures=extra;
-  assert(commands->submit(textured,error) && commands->submit(texturedInstances,error));
-  extra[0].stage=0;
-  assert(!commands->submit(textured,error));
-  extra[0].stage=1;
-  const std::array<DrawTextureBinding,2> duplicate{extra[0],extra[0]};
-  textured.textures=duplicate;
-  assert(!commands->submit(textured,error));
-  textured.textures=extra;
+  // Per-instance shader data occupies explicit records alongside its matrix.
+  struct TerrainInstance {
+    std::array<float, 16> transform;
+    std::array<float, 4> patch;
+  };
+  static_assert(sizeof(TerrainInstance) == 80);
+  const std::array<TerrainInstance, 2> terrainInstances{{
+      {transforms[0], {0.0F, 0.0F, 1.0F, 0.0F}},
+      {transforms[1], {8.0F, 0.0F, 1.0F, 0.0F}},
+  }};
+  auto generic = instanced;
+  generic.instances = instanceData(std::span(terrainInstances));
+  assert(generic.instances.stride == 80);
+  assert(commands->availableInstances(generic.instances.stride, 2) == 2);
+  assert(commands->submit(generic, error));
+  const std::array<std::array<float, 24>, 2> wideInstances{};
+  generic.instances = instanceData(std::span(wideInstances));
+  assert(generic.instances.stride == 96);
+  assert(commands->submit(generic, error));
+  generic.instances.stride = 0;
+  assert(!commands->submit(generic, error));
+  generic.instances.stride = 20;
+  assert(!commands->submit(generic, error));
+  generic.instances = {.data =
+                           std::as_bytes(std::span(terrainInstances)).first(79),
+                       .stride = 80};
+  assert(!commands->submit(generic, error));
+  assert(commands->availableInstances(0, 1) == 0);
+  assert(commands->availableInstances(20, 1) == 0);
+  assert(commands->availableInstances(80, 0) == 0);
+  // Availability is capped by actual transient bytes, not a 16-bit count.
+  assert(commands->availableInstances(80, UINT32_MAX) < UINT32_MAX);
+
+  const auto extraSampler = resources->createSampler("s_extra", error);
+  std::array<DrawTextureBinding, 1> extra{
+      {{.stage = 1, .texture = texture, .sampler = extraSampler}}};
+  auto textured = buffered;
+  textured.textures = extra;
+  auto texturedInstances = instanced;
+  texturedInstances.textures = extra;
+  assert(commands->submit(textured, error) &&
+         commands->submit(texturedInstances, error));
+  extra[0].stage = 0;
+  assert(!commands->submit(textured, error));
+  extra[0].stage = 1;
+  const std::array<DrawTextureBinding, 2> duplicate{extra[0], extra[0]};
+  textured.textures = duplicate;
+  assert(!commands->submit(textured, error));
+  textured.textures = extra;
   assert(resources->destroy(extraSampler));
-  assert(!commands->submit(textured,error) && !commands->submit(texturedInstances,error));
+  assert(!commands->submit(textured, error) &&
+         !commands->submit(texturedInstances, error));
   InstancedBufferedDraw noInstances = instanced;
-  noInstances.transforms = {};
+  noInstances.instances = {};
   assert(!commands->submit(noInstances, error));
-  assert(error.find("at least one transform") != std::string::npos);
+  assert(error.find("at least one instance record") != std::string::npos);
   BufferedDraw mismatched = buffered;
   mismatched.indices.handle = vertexBuffer;
   assert(!commands->submit(mismatched, error));

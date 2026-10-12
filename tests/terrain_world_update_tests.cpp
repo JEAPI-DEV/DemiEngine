@@ -1254,7 +1254,8 @@ void testPreparedRenderLodPublication() {
                                     ->inlineGeometry;
   check(nearLod && farLod,
         "Terrain publication omitted prepared render levels");
-  check(nearLod->levels[1].contains("default"), "Half detail is missing");
+  const auto originalHalf = prepareTerrainRenderLodLevel(*nearLod, 1);
+  check(originalHalf->contains("default"), "Half detail is missing");
 
   auto appearance = before;
   appearance.biomes.at("default").material = "asset://ground/rock";
@@ -1266,11 +1267,12 @@ void testPreparedRenderLodPublication() {
         error.c_str());
   const auto rebound =
       entity(world, nearId).component<TerrainRenderLod>()->chunk;
-  for (std::size_t level = 1; level < 4; ++level) {
-    check(rebound->levels[level].at("default").geometry ==
-              nearLod->levels[level].at("default").geometry,
-          "Material rebinding replaced prepared LOD geometry");
-  }
+  check(rebound->geometryIdentity == nearLod->geometryIdentity,
+        "Material rebinding invalidated reusable LOD geometry");
+  const auto reboundHalf = rebindTerrainRenderLodLevel(*rebound, *originalHalf);
+  check(reboundHalf->at("default").geometry ==
+            originalHalf->at("default").geometry,
+        "Material rebinding replaced prepared LOD geometry");
   check(entity(world, nearId)
                 .component<ModelCollider3DComponent>()
                 ->inlineGeometry == originalCollider,
@@ -1332,10 +1334,10 @@ void testPreparedRenderLodPublication() {
   const auto restored =
       entity(world, nearId).component<TerrainRenderLod>()->chunk;
   for (std::size_t level = 1; level < 4; ++level) {
-    const auto &actual =
-        restored->levels[level].at("default").geometry->vertices;
-    const auto &expected =
-        nearLod->levels[level].at("default").geometry->vertices;
+    const auto actualLevel = prepareTerrainRenderLodLevel(*restored, level);
+    const auto expectedLevel = prepareTerrainRenderLodLevel(*nearLod, level);
+    const auto &actual = actualLevel->at("default").geometry->vertices;
+    const auto &expected = expectedLevel->at("default").geometry->vertices;
     check(std::ranges::equal(actual, expected,
                              [](Vec3 a, Vec3 b) { return equal(a, b); }),
           "Undo did not restore prepared detail levels");

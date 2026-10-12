@@ -200,16 +200,28 @@ public:
   }
 
   bool awaitFrame(bool continuous) override {
+    maintainIdleTerrain();
     const bool heldInput = mouseCaptured_ || !input_.keysDown.empty() ||
                            !input_.mouseButtonsDown.empty();
-    if (activity_.needsFrame(activityTime(), continuous || heldInput))
+    const bool viewportTerrainPending =
+        std::ranges::any_of(viewports_, [](const auto &viewport) {
+          return viewport.renderer && viewport.renderer->terrainNeedsFrame();
+        });
+    const bool gameTerrainPending =
+        gameRenderer_ && gameRenderer_->terrainNeedsFrame();
+    const bool hasVisibleTerrainWork =
+        viewportTerrainPending || gameTerrainPending;
+    if (activity_.needsFrame(activityTime(), continuous || heldInput ||
+                                                 hasVisibleTerrainWork)) {
       return true;
+    }
     // Timeouts permit cheap source-watch maintenance without drawing. Text
     // input has a blinking caret, so it schedules a UI update on timeout too.
     if (platform_->waitForEvent(250)) {
       activity_.notify(activityTime());
       return true;
     }
+    maintainIdleTerrain();
     return ImGui::GetIO().WantTextInput;
   }
 
@@ -448,6 +460,26 @@ public:
   }
 
   void endFrame() override {
+    // Hidden authoring/Game views retire terrain work without redrawing their
+    // retained image targets. Active views already marked union demand.
+    for (auto &viewport : viewports_) {
+      if (viewport.renderer) {
+        viewport.renderer->maintainTerrainResidency();
+        if (auto diagnostic = viewport.renderer->takeTerrainDiagnostic();
+            !diagnostic.empty()) {
+          workspaceDiagnostic_ = std::move(diagnostic);
+          activity_.notify(activityTime());
+        }
+      }
+    }
+    if (gameRenderer_) {
+      gameRenderer_->maintainTerrainResidency();
+      if (auto diagnostic = gameRenderer_->takeTerrainDiagnostic();
+          !diagnostic.empty()) {
+        workspaceDiagnostic_ = std::move(diagnostic);
+        activity_.notify(activityTime());
+      }
+    }
     imguiEndFrame();
     // The bgfx sample adapter scales scissors for framebuffer density but
     // still uses logical DisplaySize for its view rectangle. Match the
@@ -462,12 +494,14 @@ public:
       const auto timings = graphics_.frameTimings();
       runtime::RuntimeProfiler::record("Graphics.frame_advance",
                                        timings.advanceMilliseconds);
-      if (timings.renderThreadMilliseconds)
+      if (timings.renderThreadMilliseconds) {
         runtime::RuntimeProfiler::record("Graphics.render_thread",
                                          *timings.renderThreadMilliseconds);
-      if (timings.gpuMilliseconds)
+      }
+      if (timings.gpuMilliseconds) {
         runtime::RuntimeProfiler::record("Graphics.gpu",
                                          *timings.gpuMilliseconds);
+      }
       runtime::RuntimeProfiler::setGauge(
           "Editor.refresh_hz", platform_->frameState().displayRefreshHz);
     }
@@ -507,6 +541,17 @@ public:
   }
 
 private:
+  void maintainIdleTerrain() {
+    for (auto &viewport : viewports_) {
+      if (viewport.renderer) {
+        viewport.renderer->maintainIdleTerrain();
+      }
+    }
+    if (gameRenderer_) {
+      gameRenderer_->maintainIdleTerrain();
+    }
+  }
+
   struct AuthoredViewport {
     std::optional<std::filesystem::path> projectDirectory;
     std::unique_ptr<EditorViewportRenderer> renderer;

@@ -1,7 +1,7 @@
 #include "demi/runtime/terrain/TerrainWorld.h"
-#include "demi/runtime/terrain/TerrainSurfaceMaterials.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/terrain/TerrainScatterRuntime.h"
+#include "demi/runtime/terrain/TerrainSurfaceMaterials.h"
 #include "demi/runtime/terrain/TerrainWorldBatch.h"
 
 #include "demi/runtime/physics/ColliderAsset3D.h"
@@ -100,6 +100,7 @@ struct PreparedTerrainWorldUpdate::State {
     std::shared_ptr<const PreparedTerrainChunkLod> beforeLod;
     std::string beforeLodOwner;
     std::string beforeLodBiome;
+    std::uint64_t beforeLodGeometryRevision = 0;
     std::shared_ptr<const PreparedTerrainChunkLod> renderLod;
     bool remove = false;
   };
@@ -363,7 +364,8 @@ std::optional<PreparedTerrainWorldUpdate> prepareTerrainWorldUpdate(
       serialized.erase("recipe");
       serialized["asset"] = terrain->asset;
     }
-    if (serialized.contains("lod_error_pixels") || terrain->lodErrorPixels != 2.0F) {
+    if (serialized.contains("lod_error_pixels") ||
+        terrain->lodErrorPixels != 2.0F) {
       serialized["lod_error_pixels"] = terrain->lodErrorPixels;
     }
     state->serializedTerrain = serialized.dump();
@@ -447,10 +449,13 @@ std::optional<PreparedTerrainWorldUpdate> prepareTerrainWorldUpdate(
         state->changes.back().beforeLod = lod->chunk;
         state->changes.back().beforeLodOwner = lod->owner;
         state->changes.back().beforeLodBiome = lod->biome;
+        state->changes.back().beforeLodGeometryRevision =
+            lod->fullGeometryRevision;
       }
       return state->changes.back();
     };
-    std::map<std::pair<int, int>, std::shared_ptr<const PreparedTerrainChunkLod>>
+    std::map<std::pair<int, int>,
+             std::shared_ptr<const PreparedTerrainChunkLod>>
         preparedLods;
     if (full)
       for (const auto index : ownerSurfaces)
@@ -471,7 +476,7 @@ std::optional<PreparedTerrainWorldUpdate> prepareTerrainWorldUpdate(
           stage(index).remove = true;
 
       const auto surfaces = buildChunkTriangles(field, chunk, stop);
-      const auto renderLod = prepareTerrainRenderLod(field, chunk, stop);
+      const auto renderLod = prepareTerrainRenderLod(update.field, chunk, stop);
       if (stop.stop_requested() || !renderLod) {
         error = "Terrain publication cancelled";
         return std::nullopt;
@@ -505,7 +510,8 @@ std::optional<PreparedTerrainWorldUpdate> prepareTerrainWorldUpdate(
               std::ranges::equal(mesh->uvs, triangles.uvs, sameUv);
           if (sameGeometry && old->hasComponent<TerrainRenderLod>()) {
             change.renderLod = renderLod;
-            const auto *previousSections = old->component<MeshMaterialSections3D>();
+            const auto *previousSections =
+                old->component<MeshMaterialSections3D>();
             if (!previousSections || *previousSections != sections) {
               change.sections = sections;
             }
@@ -538,7 +544,9 @@ std::optional<PreparedTerrainWorldUpdate> prepareTerrainWorldUpdate(
         entity->setComponent(sections);
         entity->setComponent(TerrainGeneratedSurface{
             owner.id, chunk.firstCellX, chunk.firstCellZ, biomeId});
-        entity->setComponent(TerrainRenderLod{renderLod, biomeId, owner.id});
+        entity->setComponent(TerrainRenderLod{
+            renderLod, biomeId, owner.id,
+            entity->component<MeshRendererComponent>()->revision});
         if (old)
           stage(existing->second).replacement = std::move(*entity);
         else {
@@ -578,7 +586,8 @@ std::optional<PreparedTerrainWorldUpdate> prepareTerrainWorldUpdate(
           auto [prepared, inserted] = preparedLods.try_emplace(key);
           if (inserted) {
             const bool textureScaleChanged =
-                state->beforeField->biomeTextureScales != field.biomeTextureScales;
+                state->beforeField->biomeTextureScales !=
+                field.biomeTextureScales;
             if (textureScaleChanged) {
               const auto chunk = std::ranges::find_if(
                   field.chunks, [&](const TerrainChunk &candidate) {
@@ -588,12 +597,14 @@ std::optional<PreparedTerrainWorldUpdate> prepareTerrainWorldUpdate(
               if (chunk == field.chunks.end()) {
                 throw std::invalid_argument("Terrain LOD chunk is missing");
               }
-              prepared->second = prepareTerrainRenderLod(field, *chunk, stop);
+              prepared->second =
+                  prepareTerrainRenderLod(update.field, *chunk, stop);
               if (!prepared->second) {
                 throw std::runtime_error("Terrain publication cancelled");
               }
             } else {
-              prepared->second = rebindTerrainRenderLod(field, *previousLod->chunk);
+              prepared->second =
+                  rebindTerrainRenderLod(update.field, *previousLod->chunk);
             }
           }
           stage(index).renderLod = prepared->second;
@@ -746,12 +757,15 @@ bool publishTerrainWorldUpdate(World &world,
       }
       const auto *renderLod = entity.component<TerrainRenderLod>();
       const auto currentLod = renderLod ? renderLod->chunk : nullptr;
-      const bool lodIdentityChanged = renderLod &&
+      const bool lodIdentityChanged =
+          renderLod &&
           (renderLod->owner != change.beforeLodOwner ||
-           renderLod->biome != change.beforeLodBiome);
+           renderLod->biome != change.beforeLodBiome ||
+           renderLod->fullGeometryRevision != change.beforeLodGeometryRevision);
       if (currentLod != change.beforeLod || lodIdentityChanged ||
           (change.renderLod && !renderLod)) {
-        throw std::invalid_argument("Terrain preparation is stale: render LOD changed");
+        throw std::invalid_argument(
+            "Terrain preparation is stale: render LOD changed");
       }
       if (entity.id != change.id ||
           terrainSurfaceOwner(entity) != state.ownerId || !mesh ||
@@ -815,7 +829,8 @@ bool publishTerrainWorldUpdate(World &world,
         auto *mesh =
             world.entities[change.index].component<MeshRendererComponent>();
         if (change.renderLod) {
-          auto *lod = world.entities[change.index].component<TerrainRenderLod>();
+          auto *lod =
+              world.entities[change.index].component<TerrainRenderLod>();
           lod->chunk.swap(change.renderLod);
         }
         if (change.sections) {
@@ -830,6 +845,11 @@ bool publishTerrainWorldUpdate(World &world,
         if (change.uvs) {
           mesh->uvs.swap(*change.uvs);
           mesh->markGeometryChanged();
+          auto *lod =
+              world.entities[change.index].component<TerrainRenderLod>();
+          if (lod && change.revision == change.beforeLodGeometryRevision) {
+            lod->fullGeometryRevision = mesh->revision;
+          }
         }
       }
     }
@@ -953,10 +973,10 @@ bool materializeTerrains(World &world, std::string &error,
       const bool enabled = terrainHierarchyEnabled(world, owner);
       for (const TerrainChunk &chunk : field->chunks) {
         const auto surfaces = buildChunkTriangles(*field, chunk);
-        auto &renderLod = preparedLods[field.get()][
-            {chunk.firstCellX, chunk.firstCellZ}];
+        auto &renderLod =
+            preparedLods[field.get()][{chunk.firstCellX, chunk.firstCellZ}];
         if (!renderLod) {
-          renderLod = prepareTerrainRenderLod(*field, chunk);
+          renderLod = prepareTerrainRenderLod(field, chunk);
           if (!renderLod) {
             throw std::runtime_error("Terrain LOD preparation failed");
           }
@@ -982,7 +1002,8 @@ bool materializeTerrains(World &world, std::string &error,
               owner.id, chunk.firstCellX, chunk.firstCellZ,
               field->biomeIds.at(biome)});
           entity->setComponent(TerrainRenderLod{
-              renderLod, field->biomeIds.at(biome), owner.id});
+              renderLod, field->biomeIds.at(biome), owner.id,
+              entity->component<MeshRendererComponent>()->revision});
           entity->enabled = enabled;
           owners.back().surfaces.push_back(entity->id);
           generated.push_back(std::move(*entity));

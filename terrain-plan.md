@@ -20,7 +20,7 @@ or visual acceptance gates.
 | Surfaces | Ordinary materials assigned by surface roles; explicit biome overrides | Rendered PBR texture maps, smooth layer blending, steep-slope mapping and detail variation |
 | Water | Finite coverage, carving, depth color, transparent geometry and gameplay queries | Reflections/refraction, waves, foam and underwater presentation |
 | Vegetation | Stable placement data and prototype objects | Production assets, integrated instancing/LOD/culling and bounded collision residency |
-| Terrain scale | Chunk publication, frustum culling, cooked data, camera-driven render LOD and GPU mesh residency | CPU streaming, coordinated material/collision residency and larger reference scenes |
+| Terrain scale | Chunk publication, cooked data, camera-driven LOD, shared GPU patches and budgeted render-resource preparation | Heightfield/Full collision streaming, coordinated water/scatter residency and larger reference scenes |
 | Reference scenes | Functional probes and performance traces | Neither user reference has a visually qualified counterpart |
 
 `TerrainLod`, `TerrainStreaming`, material-blending and texture-residency modules
@@ -33,6 +33,14 @@ camera pixel-error selection, multi-camera GPU residency and independent Full
 collision. The default tight budget retains Full detail in the current coarse
 landscape probe; triangle reduction is not the dominant CPU performance issue.
 See [LOD qualification](docs/terrain-lod-qualification.md).
+
+The GPU patch renderer now reduces submission cost at Full detail rather than
+relying on triangle reduction. Compatible opaque fields share topology and data
+textures; unsupported materials/devices use ordinary meshes. The implementation,
+intentional per-pixel material-boundary change and repeated native measurements
+are recorded in [GPU terrain qualification](docs/terrain-gpu-rendering-qualification.md).
+This is a rendering foundation, not completion of milestone 7 or the visual
+reference-scene goals.
 
 Next delivery order:
 
@@ -690,12 +698,15 @@ a hostile-input-safe deserializer, a content digest and per-cause staleness
 reasons, and `TerrainCookNode` routes it through the existing cook graph: the
 recipe is the source, the generator version and input fingerprint are the
 importer inputs, and the palette is recorded as a dependency. `TerrainLod`
-selects a level per chunk by distance to the chunk's NEAREST point and builds a
-reduced mesh with exact power-of-two cell steps, normals recomputed at the
-reduced resolution, and skirts at boundaries so a level mismatch is filled by
-geometry instead of showing sky. Cross-chunk edge stitching, camera-driven
-streaming, cross-system LOD coordination, the renderer audit and the performance
-qualification are not implemented.
+now feeds live pixel-error selection. Reduced interiors preserve the full
+boundary samples and shared normals; optional skirts are supplemental. Render
+LOD and GPU mesh residency are implemented, but CPU terrain/collision streaming,
+cross-system residency and the platform qualification gates remain open.
+Shared GPU-displaced patches and instanced material routing are now implemented
+for compatible opaque terrain. Reduced compatibility meshes and GPU field data
+are prepared on demand with memory/work budgets, cancellation and safe Full
+fallback. CPU sample/collision paging and coordinated water/scatter/material
+residency are still missing; see [GPU terrain design](docs/terrain-gpu-rendering-design.md).
 
 - [ ] Audit required renderer support for PBR layers, directional-shadow quality,
   indirect/environment lighting, reflections, atmospheric depth, anti-aliasing

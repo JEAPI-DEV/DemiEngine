@@ -15,6 +15,10 @@ public:
   bool prepare(std::uint16_t view, const SceneLighting3D &lighting,
                std::string &error);
   void shutdown();
+  std::uint32_t availableInstances(std::uint16_t stride,
+                                   std::uint32_t requested) const override {
+    return commands_.availableInstances(stride, requested);
+  }
   bool configureView2D(const View2DConfig &v, std::string &e) override {
     return commands_.configureView2D(v, e);
   }

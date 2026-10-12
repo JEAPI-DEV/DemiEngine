@@ -1,11 +1,14 @@
 #include "demi/runtime/render/bgfx3d/SceneVisibility3D.h"
 #include "demi/runtime/geometry/MeshDeformation3D.h"
+#include "demi/runtime/render/bgfx3d/TerrainCameraDemand3D.h"
 #include "demi/runtime/render/bgfx3d/TerrainDrawSelection3D.h"
+#include "demi/runtime/render/bgfx3d/TerrainPatchBatch3D.h"
 #include "demi/runtime/render/bgfx3d/VisibleMeshGeometry3D.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshInstances3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
 #include "demi/runtime/scene/model/MeshMaterialSections3D.h"
+#include "demi/runtime/terrain/TerrainLodResidency.h"
 #include "demi/runtime/terrain/TerrainRenderLod.h"
 
 #include "demi/runtime/concurrency/JobSystem.h"
@@ -144,11 +147,12 @@ void appendVisibleInstances(const VisibleMesh3D &source,
 
 } // namespace
 
-SceneVisibility3D
-extractVisibleMeshes3D(const World &world, const BgfxCameraFrame3D &frame,
-                       JobSystem *jobs,
-                       TerrainDrawSelection3D *terrainSelection,
-                       const BgfxCameraFrame3D *lodCamera) {
+SceneVisibility3D extractVisibleMeshes3D(
+    const World &world, const BgfxCameraFrame3D &frame, JobSystem *jobs,
+    TerrainDrawSelection3D *terrainSelection,
+    const BgfxCameraFrame3D *lodCamera, TerrainLodResidency *terrainResidency,
+    TerrainCameraDemand3D *terrainDemand,
+    const TerrainPatchBatch3D *terrainPatches) {
   std::vector<std::optional<VisibleMesh3D>> extracted(world.entities.size());
   // byte-per-entry storage lets workers write independent indices without the
   // packed-bit races of std::vector<bool>.
@@ -161,6 +165,11 @@ extractVisibleMeshes3D(const World &world, const BgfxCameraFrame3D &frame,
     }
     const auto *mesh = entity.component<MeshRendererComponent>();
     if (mesh == nullptr) {
+      return;
+    }
+    const auto *terrainMarker = entity.component<TerrainRenderLod>();
+    if (terrainPatches && terrainMarker &&
+        terrainPatches->suppressesOwner(terrainMarker->owner)) {
       return;
     }
     if (!frame.camera.renderMask.empty() && !mesh->renderLayer.empty() &&
@@ -218,9 +227,13 @@ extractVisibleMeshes3D(const World &world, const BgfxCameraFrame3D &frame,
   std::vector<VisibleMesh3D> draws;
   draws.reserve(result.meshes.size());
   std::unordered_map<std::string, float> ownerQuality;
+  struct ChunkDrawSelection {
+    std::size_t level = 0;
+    std::shared_ptr<const PreparedTerrainLodLevel> prepared;
+  };
   std::unordered_map<
       std::string,
-      std::unordered_map<const PreparedTerrainChunkLod *, std::size_t>>
+      std::unordered_map<const PreparedTerrainChunkLod *, ChunkDrawSelection>>
       chunkLevels;
   const auto &selectionCamera = lodCamera ? *lodCamera : frame;
   for (auto visible : result.meshes) {
@@ -241,7 +254,7 @@ extractVisibleMeshes3D(const World &world, const BgfxCameraFrame3D &frame,
       auto [decision, firstSurface] =
           chunkLevels[terrain->owner].try_emplace(terrain->chunk.get());
       if (firstSurface) {
-        decision->second =
+        decision->second.level =
             terrainSelection
                 ? terrainSelection->select(terrain->chunk, visible.transform,
                                            appearance->size, selectionCamera,
@@ -250,11 +263,28 @@ extractVisibleMeshes3D(const World &world, const BgfxCameraFrame3D &frame,
                                            appearance->size, selectionCamera,
                                            quality->second);
       }
-      visible.terrainLevel = decision->second;
+      if (terrainPatches && terrainPatches->forcesFullOwner(terrain->owner)) {
+        decision->second.level = 0;
+      }
+      if (firstSurface && decision->second.level != 0) {
+        if (terrainDemand) {
+          terrainDemand->record(selectionCamera, visible.entity->id,
+                                terrain->owner, terrain->chunk,
+                                decision->second.level);
+        }
+        decision->second.prepared =
+            terrainResidency ? terrainResidency->request(terrain->chunk,
+                                                         decision->second.level)
+                             : nullptr;
+        if (!decision->second.prepared) {
+          decision->second.level = 0;
+        }
+      }
+      visible.terrainLevel = decision->second.level;
+      visible.terrainPreparedLevel = decision->second.prepared;
       if (visible.terrainLevel != 0) {
-        const auto &surfaces = terrain->chunk->levels[visible.terrainLevel];
-        const auto surface = surfaces.find(terrain->biome);
-        if (surface == surfaces.end()) {
+        const auto surface = visible.terrainPreparedLevel->find(terrain->biome);
+        if (surface == visible.terrainPreparedLevel->end()) {
           continue;
         }
         visible.terrainGeometry = surface->second.geometry;
@@ -286,6 +316,22 @@ extractVisibleMeshes3D(const World &world, const BgfxCameraFrame3D &frame,
   }
   result.meshes = std::move(draws);
   return result;
+}
+
+bool terrainChunkVisible3D(const PreparedTerrainChunkLod &chunk,
+                           const WorldTransform3D &transform,
+                           const BgfxCameraFrame3D &frame) {
+  const Vec3 localCenter{(chunk.boundsMin.x + chunk.boundsMax.x) * 0.5F,
+                         (chunk.boundsMin.y + chunk.boundsMax.y) * 0.5F,
+                         (chunk.boundsMin.z + chunk.boundsMax.z) * 0.5F};
+  const Vec3 extent{(chunk.boundsMax.x - chunk.boundsMin.x) * 0.5F,
+                    (chunk.boundsMax.y - chunk.boundsMin.y) * 0.5F,
+                    (chunk.boundsMax.z - chunk.boundsMin.z) * 0.5F};
+  const auto center = transformPoint3D(transform, localCenter);
+  const float radius =
+      std::hypot(extent.x * transform.scale.x, extent.y * transform.scale.y,
+                 extent.z * transform.scale.z);
+  return sphereVisible({center, radius}, frame);
 }
 
 } // namespace demi::runtime::render

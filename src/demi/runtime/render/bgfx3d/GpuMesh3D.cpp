@@ -73,7 +73,8 @@ bool GpuMesh3D::upload(const std::span<const Vec3> positions,
 bool GpuMesh3D::uploadPrepared(const std::span<const GpuMeshVertex3D> vertices,
                                const std::span<const std::uint32_t> indices,
                                std::string &error, const bool dynamicVertices) {
-  if (!resources_ || vertices.empty() || indices.empty() || indices.size() % 3) {
+  if (!resources_ || vertices.empty() || indices.empty() ||
+      indices.size() % 3) {
     error = "Invalid prepared GPU mesh.";
     return false;
   }
@@ -147,7 +148,8 @@ bool GpuMesh3D::draw(RenderCommands &commands, const std::uint16_t viewId,
     error = "Mesh material section exceeds its index buffer.";
     return false;
   }
-  const auto count = indexCount == UINT32_MAX ? indexCount_ - firstIndex : indexCount;
+  const auto count =
+      indexCount == UINT32_MAX ? indexCount_ - firstIndex : indexCount;
   return commands.submit(
       BufferedDraw{
           .viewId = viewId,
@@ -185,7 +187,7 @@ bool GpuMesh3D::drawInstanced(
           .sampler = sampler,
           .state = state,
           .scissor = {},
-          .transforms = transforms,
+          .instances = instanceData(transforms),
           .uniforms = uniforms,
       },
       error);

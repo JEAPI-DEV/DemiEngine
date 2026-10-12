@@ -1,0 +1,509 @@
+#include "demi/runtime/concurrency/JobSystem.h"
+#include "demi/runtime/render/backend/BgfxGraphicsDevice.h"
+#include "demi/runtime/render/backend/RenderCommands.h"
+#include "demi/runtime/render/bgfx3d/TerrainCameraDemand3D.h"
+#include "demi/runtime/render/bgfx3d/TerrainGpuFieldCache3D.h"
+#include "demi/runtime/render/bgfx3d/TerrainPatchBatch3D.h"
+#include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/Transform3DComponent.h"
+#include "demi/runtime/scene/model/Entity.h"
+#include "demi/runtime/scene/model/World.h"
+#include "demi/runtime/terrain/TerrainGenerator.h"
+#include "demi/runtime/terrain/TerrainRenderLod.h"
+#include "demi/runtime/terrain/TerrainWorld.h"
+
+#include <algorithm>
+#include <array>
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
+#include <cassert>
+#include <cstring>
+#include <iostream>
+#include <stdexcept>
+#include <vector>
+
+using namespace demi::runtime;
+using namespace demi::runtime::render;
+
+namespace {
+
+class CapturingCommands final : public RenderCommands {
+public:
+  struct Submission {
+    std::uint16_t view = 0;
+    ProgramHandle program;
+    BufferSlice vertices;
+    BufferSlice indices;
+    std::vector<std::array<float, 20>> instances;
+  };
+  std::uint32_t recordsPerDraw = 100;
+  std::uint32_t remainingRecords = 100;
+  std::vector<Submission> submissions;
+
+  void beginFrame(std::uint32_t available) {
+    remainingRecords = available;
+    submissions.clear();
+  }
+
+  std::uint32_t availableInstances(std::uint16_t stride,
+                                   std::uint32_t requested) const override {
+    assert(stride == 80);
+    return std::min({requested, recordsPerDraw, remainingRecords});
+  }
+  bool configureView2D(const View2DConfig &, std::string &) override {
+    return true;
+  }
+  bool configureView3D(const View3DConfig &, std::string &) override {
+    return true;
+  }
+  bool submit(const TransientDraw &, std::string &) override { return false; }
+  bool submit(const BufferedDraw &, std::string &) override { return false; }
+  bool submit(const InstancedBufferedDraw &draw, std::string &) override {
+    assert(draw.instances.stride == 80);
+    const auto count = draw.instances.data.size() / draw.instances.stride;
+    assert(count <= remainingRecords && count <= recordsPerDraw);
+    Submission submission{.view = draw.viewId,
+                          .program = draw.program,
+                          .vertices = draw.vertices,
+                          .indices = draw.indices};
+    submission.instances.resize(count);
+    std::memcpy(submission.instances.data(), draw.instances.data.data(),
+                draw.instances.data.size());
+    submissions.push_back(std::move(submission));
+    remainingRecords -= static_cast<std::uint32_t>(count);
+    return true;
+  }
+};
+
+constexpr std::size_t GpuBudget = 8U * 1024U * 1024U;
+
+std::shared_ptr<const HeightField> flatField() {
+  TerrainRecipe recipe;
+  recipe.size = {16, 16};
+  recipe.cellsX = 16;
+  recipe.cellsZ = 16;
+  recipe.chunkCells = 8;
+  recipe.landforms.at("default").baseHeight = 0;
+  recipe.landforms.at("default").heightVariation = 0;
+  const auto generated = TerrainGenerator::generate(recipe);
+  assert(generated);
+  return std::make_shared<const HeightField>(*generated);
+}
+
+World worldWithField(const std::shared_ptr<const HeightField> &field,
+                     const TerrainRecipe &recipe) {
+  World world;
+  Entity owner;
+  owner.id = "terrain";
+  owner.setComponent(Transform3DComponent{});
+  Terrain3DComponent terrain;
+  terrain.asset = "asset://test/terrain";
+  owner.setComponent(std::move(terrain));
+  world.entities.push_back(std::move(owner));
+  const TerrainFieldResolver resolveField = [&](std::string_view,
+                                                nlohmann::json &sourceRecipe) {
+    sourceRecipe = recipe.toJson();
+    return field;
+  };
+  std::string error;
+  if (!materializeTerrains(world, error, nullptr, {}, resolveField)) {
+    throw std::runtime_error("Terrain patch fixture publication failed: " +
+                             error);
+  }
+  return world;
+}
+
+std::shared_ptr<const TerrainGpuField3D>
+readyField(GpuResources &resources,
+           const std::shared_ptr<const HeightField> &field) {
+  JobSystem jobs(1);
+  TerrainGpuFieldCache3D cache(resources, jobs);
+  MaterialLibrary materials(resources);
+  cache.beginPresentation();
+  assert(!cache.request(field, materials).field);
+  cache.endPresentation();
+  jobs.submit([] {}).wait();
+  cache.pollCompleted();
+  cache.beginPresentation();
+  const auto result = cache.request(field, materials);
+  assert(result.field);
+  cache.endPresentation();
+  return result.field;
+}
+
+TerrainPatchInstance3D instance(float translationX, float originX = 0) {
+  TerrainPatchInstance3D result;
+  result.transform = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, translationX,
+                      0, 0, 1};
+  result.gridOrigin = {originX, 0, 0, 0};
+  return result;
+}
+
+std::array<DrawUniformValue, 8> lighting() {
+  static constexpr std::array<float, 4> zero{};
+  static constexpr std::array<float, 4> white{1, 1, 1, 1};
+  std::array<DrawUniformValue, 8> result;
+  for (auto &uniform : result) {
+    uniform.values = zero;
+  }
+  result.front().values = white;
+  return result;
+}
+
+ProgramHandle terrainProgram(GpuResources &resources, std::string &error) {
+  const auto program =
+      resources.createBuiltinProgram(BuiltinProgram::Terrain3D, error);
+  assert(program);
+  return program;
+}
+
+void sharedTopologyCombinesIndependentOwnerTransforms(GpuResources &resources) {
+  TerrainPatchBatch3D batch(resources);
+  const auto field = readyField(resources, flatField());
+  const TerrainPatchTopologyKey3D topology{8, 8};
+  assert(topology.level == TerrainLod::Full);
+  const auto left = instance(-100);
+  auto right = instance(100);
+  right.transform[0] = 2;
+  right.transform[10] = 3;
+  std::string error;
+  batch.beginPresentation();
+  batch.beginView();
+  assert(batch.addPatch(field, topology, left, {}, GpuBudget, error));
+  assert(batch.addPatch(field, topology, right, {}, GpuBudget, error));
+  CapturingCommands commands;
+  const auto fallback = batch.flush(
+      commands, 7, terrainProgram(resources, error), lighting(), false, error);
+  assert(fallback.empty());
+  assert(commands.submissions.size() == 1);
+  const auto &submission = commands.submissions.front();
+  assert(submission.view == 7 && submission.instances.size() == 2);
+  assert(submission.indices.count == 8 * 8 * 6);
+  assert(std::equal(left.transform.begin(), left.transform.end(),
+                    submission.instances[0].begin()));
+  assert(std::equal(right.transform.begin(), right.transform.end(),
+                    submission.instances[1].begin()));
+  assert(batch.statistics().draws == 1);
+  assert(batch.statistics().instances == 2);
+  assert(batch.statistics().triangles == 8 * 8 * 2 * 2);
+  assert(batch.topologyBytes() > 0);
+}
+
+void topologyIsSharedAcrossDifferentFields(GpuResources &resources) {
+  TerrainPatchBatch3D batch(resources);
+  const auto first = readyField(resources, flatField());
+  const auto second = readyField(resources, flatField());
+  const TerrainPatchTopologyKey3D topology{8, 8, TerrainLod::Half};
+  std::string error;
+  batch.beginPresentation();
+  batch.beginView();
+  assert(batch.addPatch(first, topology, instance(0), {}, GpuBudget, error));
+  const auto bytes = batch.topologyBytes();
+  assert(batch.addPatch(second, topology, instance(100), {}, GpuBudget, error));
+  assert(batch.topologyBytes() == bytes);
+  CapturingCommands commands;
+  assert(batch
+             .flush(commands, 0, terrainProgram(resources, error), lighting(),
+                    false, error)
+             .empty());
+  assert(commands.submissions.size() == 2);
+  assert(commands.submissions[0].vertices.handle ==
+         commands.submissions[1].vertices.handle);
+  assert(commands.submissions[0].indices.handle ==
+         commands.submissions[1].indices.handle);
+  const auto triangles = terrainLodSurfaceTriangleCount(8, 8, TerrainLod::Half);
+  assert(commands.submissions[0].indices.count == triangles * 3);
+  assert(batch.statistics().triangles == triangles * 2);
+}
+
+void partialCapacityReturnsOnlyUnsubmittedChunks(GpuResources &resources) {
+  TerrainPatchBatch3D batch(resources);
+  const auto field = readyField(resources, flatField());
+  std::array<Entity, 3> entities;
+  entities[0].id = "first";
+  entities[1].id = "second";
+  entities[2].id = "remaining";
+  std::string error;
+  batch.beginPresentation();
+  batch.beginView();
+  for (std::size_t index = 0; index < entities.size(); ++index) {
+    assert(batch.addPatch(field, {8, 8, TerrainLod::Full},
+                          instance(static_cast<float>(index)),
+                          {{.entity = &entities[index]}}, GpuBudget, error));
+  }
+  CapturingCommands commands;
+  commands.recordsPerDraw = 1;
+  commands.beginFrame(2);
+  const auto fallback = batch.flush(
+      commands, 0, terrainProgram(resources, error), lighting(), false, error);
+  assert(commands.submissions.size() == 2);
+  assert(commands.submissions[0].instances[0][12] == 0);
+  assert(commands.submissions[1].instances[0][12] == 1);
+  assert(fallback.size() == 1 && fallback.front().entity == &entities[2]);
+  assert(batch.statistics().draws == 2);
+  assert(batch.statistics().instances == 2);
+  assert(batch.statistics().fallbackPatches == 1);
+  assert(batch.statistics().triangles == 8 * 8 * 2 * 2);
+}
+
+void exhaustedCapacityPreservesEveryFallbackGroup(GpuResources &resources) {
+  TerrainPatchBatch3D batch(resources);
+  const auto field = readyField(resources, flatField());
+  std::array<Entity, 2> groups;
+  groups[0].id = "ground";
+  groups[1].id = "cliff";
+  std::string error;
+  batch.beginPresentation();
+  batch.beginView();
+  assert(batch.addPatch(field, {8, 8}, instance(0),
+                        {{.entity = &groups[0]}, {.entity = &groups[1]}},
+                        GpuBudget, error));
+  CapturingCommands commands;
+  commands.beginFrame(0);
+  const auto fallback = batch.flush(
+      commands, 0, terrainProgram(resources, error), lighting(), false, error);
+  assert(commands.submissions.empty());
+  assert(fallback.size() == 2);
+  assert(fallback[0].entity == &groups[0] && fallback[1].entity == &groups[1]);
+  assert(batch.statistics().fallbackPatches == 1);
+}
+
+void preparingFieldKeepsFullNativeCoverage(GpuResources &resources) {
+  const auto field = flatField();
+  TerrainRecipe recipe;
+  recipe.size = {16, 16};
+  recipe.cellsX = 16;
+  recipe.cellsZ = 16;
+  recipe.chunkCells = 8;
+  auto world = worldWithField(field, recipe);
+  JobSystem jobs(1);
+  MaterialLibrary materials(resources);
+  TerrainGpuFieldCache3D fields(resources, jobs);
+  TerrainPatchBatch3D batch(resources);
+  TerrainDrawSelection3D selection;
+  TerrainCameraDemand3D demand;
+  fields.beginPresentation();
+  batch.beginPresentation();
+  batch.beginView();
+  selection.beginPresentation();
+  demand.beginPresentation();
+  BgfxCameraFrame3D camera;
+  camera.cameraId = "game";
+  camera.camera.perspective = false;
+  camera.camera.orthographicSize = 100;
+  camera.position = {8, 100, 8};
+  camera.forward = {0, -1, 0};
+  camera.up = {0, 0, -1};
+  camera.viewportWidth = 512;
+  camera.viewportHeight = 512;
+  batch.prepareExtraction(world, camera, camera, selection, fields, materials,
+                          demand, GpuBudget, true);
+  assert(!batch.suppressesOwner("terrain"));
+  assert(batch.forcesFullOwner("terrain"));
+  CapturingCommands commands;
+  std::string error;
+  assert(batch
+             .flush(commands, 0, terrainProgram(resources, error), lighting(),
+                    false, error)
+             .empty());
+  assert(commands.submissions.empty());
+  fields.endPresentation();
+  demand.endPresentation();
+}
+
+void changedBudgetAndInvalidFieldCannotBypassAdmission(
+    GpuResources &resources) {
+  TerrainPatchBatch3D batch(resources);
+  const auto field = readyField(resources, flatField());
+  std::string error;
+  batch.beginPresentation();
+  batch.beginView();
+  assert(!batch.addPatch({}, {8, 8}, instance(0), {}, GpuBudget, error));
+  assert(batch.topologyBytes() == 0);
+  assert(batch.addPatch(field, {8, 8}, instance(0), {}, GpuBudget, error));
+  assert(batch.topologyBytes() > 0);
+  batch.beginPresentation();
+  batch.beginView();
+  assert(!batch.addPatch(field, {8, 8}, instance(0), {}, 0, error));
+  CapturingCommands commands;
+  assert(batch
+             .flush(commands, 0, terrainProgram(resources, error), lighting(),
+                    false, error)
+             .empty());
+  assert(commands.submissions.empty());
+}
+
+void missingBiomeGroupKeepsTheRemainingNativeFallback(GpuResources &resources) {
+  TerrainRecipe recipe;
+  recipe.size = {8, 8};
+  recipe.cellsX = 8;
+  recipe.cellsZ = 8;
+  recipe.chunkCells = 8;
+  recipe.landforms.at("default").baseHeight = 0;
+  recipe.landforms.at("default").heightVariation = 0;
+  auto generated = TerrainGenerator::generate(recipe);
+  assert(generated);
+  generated->biomeIds = {"default", "other"};
+  generated->biomeColors = {{1, 1, 1, 1}, {0.5F, 0.5F, 0.5F, 1}};
+  generated->biomeMaterials.clear();
+  generated->biomeTextureScales.assign(2, 1.0F);
+  for (int z = 0; z <= generated->cellsZ; ++z) {
+    for (int x = 4; x <= generated->cellsX; ++x) {
+      generated->biomeIndices.set(generated->index(x, z), 1);
+    }
+  }
+  const auto field = std::make_shared<const HeightField>(std::move(*generated));
+  auto world = worldWithField(field, recipe);
+  std::string error;
+  assert(world.entities.size() == 3);
+  std::erase_if(world.entities, [](const Entity &entity) {
+    const auto *surface = entity.component<TerrainRenderLod>();
+    return surface && surface->biome == "other";
+  });
+  rebuildTerrainOwnership(world);
+  assert(world.entities.size() == 2);
+
+  JobSystem jobs(1);
+  MaterialLibrary materials(resources);
+  TerrainGpuFieldCache3D fields(resources, jobs);
+  fields.beginPresentation();
+  assert(!fields.request(field, materials).field);
+  fields.endPresentation();
+  jobs.submit([] {}).wait();
+  fields.pollCompleted();
+  fields.beginPresentation();
+  assert(fields.request(field, materials).field);
+  TerrainPatchBatch3D batch(resources);
+  TerrainDrawSelection3D selection;
+  TerrainCameraDemand3D demand;
+  batch.beginPresentation();
+  batch.beginView();
+  selection.beginPresentation();
+  demand.beginPresentation();
+  BgfxCameraFrame3D camera;
+  camera.cameraId = "game";
+  camera.camera.perspective = false;
+  camera.camera.orthographicSize = 100;
+  camera.position = {4, 100, 4};
+  camera.forward = {0, -1, 0};
+  camera.up = {0, 0, -1};
+  camera.viewportWidth = 512;
+  camera.viewportHeight = 512;
+  batch.prepareExtraction(world, camera, camera, selection, fields, materials,
+                          demand, GpuBudget, true);
+  assert(!batch.suppressesOwner("terrain"));
+  CapturingCommands commands;
+  assert(batch
+             .flush(commands, 0, terrainProgram(resources, error), lighting(),
+                    false, error)
+             .empty());
+  assert(commands.submissions.empty());
+  fields.endPresentation();
+  demand.endPresentation();
+}
+
+void shadowSelectionUsesTheOriginatingCamera(GpuResources &resources) {
+  TerrainRecipe recipe;
+  recipe.size = {8, 8};
+  recipe.cellsX = 8;
+  recipe.cellsZ = 8;
+  recipe.chunkCells = 8;
+  recipe.landforms.at("default").baseHeight = 0;
+  recipe.landforms.at("default").heightVariation = 0;
+  auto generated = TerrainGenerator::generate(recipe);
+  assert(generated);
+  generated->heights.set(generated->index(3, 3), 20.0F);
+  const auto field = std::make_shared<const HeightField>(std::move(*generated));
+  auto world = worldWithField(field, recipe);
+  std::string error;
+
+  JobSystem jobs(1);
+  MaterialLibrary materials(resources);
+  TerrainGpuFieldCache3D fields(resources, jobs);
+  fields.beginPresentation();
+  assert(!fields.request(field, materials).field);
+  fields.endPresentation();
+  jobs.submit([] {}).wait();
+  fields.pollCompleted();
+  fields.beginPresentation();
+  assert(fields.request(field, materials).field);
+  TerrainPatchBatch3D batch(resources);
+  TerrainDrawSelection3D selection;
+  TerrainCameraDemand3D demand;
+  batch.beginPresentation();
+  batch.beginView();
+  selection.beginPresentation();
+  demand.beginPresentation();
+  BgfxCameraFrame3D origin;
+  origin.cameraId = "game";
+  origin.position = {4, 12, 24};
+  origin.forward = {0, -0.4F, -1};
+  origin.viewportWidth = 512;
+  origin.viewportHeight = 512;
+  BgfxCameraFrame3D shadow = origin;
+  shadow.cameraId = "shadow";
+  shadow.camera.perspective = false;
+  shadow.camera.orthographicSize = 10000;
+  shadow.position = {4, 100, 4};
+  shadow.forward = {0, -1, 0};
+  shadow.up = {0, 0, -1};
+  shadow.viewId = 1;
+  batch.prepareExtraction(world, shadow, origin, selection, fields, materials,
+                          demand, GpuBudget, true);
+  assert(batch.suppressesOwner("terrain"));
+  assert(!batch.forcesFullOwner("terrain"));
+  CapturingCommands commands;
+  const auto program = resources.createBuiltinProgram(
+      BuiltinProgram::Terrain3DDirectional, error);
+  assert(program);
+  assert(batch.flush(commands, shadow.viewId, program, lighting(), false, error)
+             .empty());
+  assert(!commands.submissions.empty());
+  assert(batch.statistics().selectedLevels[0] == 1);
+  assert(commands.submissions.front().indices.count == 8 * 8 * 6);
+  fields.endPresentation();
+  demand.endPresentation();
+}
+
+void insufficientTopologyBudgetDoesNotPublishResources(
+    GpuResources &resources) {
+  TerrainPatchBatch3D batch(resources);
+  const auto field = readyField(resources, flatField());
+  std::string error;
+  batch.beginPresentation();
+  batch.beginView();
+  assert(!batch.addPatch(field, {8, 8}, instance(0), {}, 0, error));
+  assert(!error.empty());
+  assert(batch.topologyBytes() == 0);
+  CapturingCommands commands;
+  assert(batch
+             .flush(commands, 0, terrainProgram(resources, error), lighting(),
+                    false, error)
+             .empty());
+  assert(commands.submissions.empty());
+}
+
+} // namespace
+
+int main() {
+  BgfxGraphicsDevice graphics;
+  std::string error;
+  assert(graphics.initialize(
+      {.api = GraphicsApi::Noop, .width = 64, .height = 64, .vsync = false},
+      error));
+  {
+    auto resources = createBgfxGpuResources();
+    sharedTopologyCombinesIndependentOwnerTransforms(*resources);
+    topologyIsSharedAcrossDifferentFields(*resources);
+    partialCapacityReturnsOnlyUnsubmittedChunks(*resources);
+    exhaustedCapacityPreservesEveryFallbackGroup(*resources);
+    insufficientTopologyBudgetDoesNotPublishResources(*resources);
+    shadowSelectionUsesTheOriginatingCamera(*resources);
+    changedBudgetAndInvalidFieldCannotBypassAdmission(*resources);
+    preparingFieldKeepsFullNativeCoverage(*resources);
+    missingBiomeGroupKeepsTheRemainingNativeFallback(*resources);
+  }
+  graphics.shutdown();
+  std::cout << "Terrain patch batch checks passed\n";
+}

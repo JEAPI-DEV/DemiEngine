@@ -1,5 +1,6 @@
 #include "demi/runtime/render/BgfxRenderer3D.h"
 
+#include "demi/runtime/diagnostics/DeviceLog.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/render/bgfx3d/VisibleMeshGeometry3D.h"
 
@@ -14,7 +15,11 @@ void BgfxRenderer3D::beginPresentation() {
   presentationActive_ = true;
   terrainStatistics_ = {};
   terrainUploadsAtPresentationStart_ = terrainMeshes_.uploads();
+  terrainPatches_.beginPresentation();
+  terrainGpuFields_.beginPresentation();
   terrainMeshes_.beginPresentation();
+  terrainLodResidency_.beginPresentation();
+  terrainCameraDemand_.beginPresentation();
   terrainSelection_.beginPresentation();
 }
 
@@ -22,7 +27,10 @@ void BgfxRenderer3D::endPresentation(bool succeeded) {
   if (!presentationActive_) {
     return;
   }
+  terrainGpuFields_.endPresentation();
   terrainMeshes_.endPresentation(succeeded);
+  terrainCameraDemand_.endPresentation();
+  terrainLodResidency_.endPresentation();
   terrainStatistics_.uploads =
       terrainMeshes_.uploads() - terrainUploadsAtPresentationStart_;
   terrainStatistics_.residentMeshes = terrainMeshes_.residentMeshes();
@@ -42,7 +50,80 @@ void BgfxRenderer3D::endPresentation(bool succeeded) {
     RuntimeProfiler::setGauge(names[level],
                               terrainStatistics_.selectedSurfaces[level]);
   }
+  const auto cpu = terrainLodResidency_.statistics();
+  if (cpu.failedJobs > reportedTerrainFailures_) {
+    reportedTerrainFailures_ = cpu.failedJobs;
+    terrainDiagnostic_ =
+        "Terrain LOD preparation failed; Full terrain remains visible: " +
+        terrainLodResidency_.lastError();
+    deviceLogError(deviceLogMessage("terrain.lod", terrainDiagnostic_));
+  }
+  terrainStatistics_.cpuResidentBytes = cpu.residentBytes;
+  terrainStatistics_.cpuPendingBytes = cpu.pendingBytes;
+  terrainStatistics_.cpuPendingJobs = cpu.pendingJobs;
+  terrainStatistics_.cpuReadyLevels = cpu.readyLevels;
+  RuntimeProfiler::setGauge("Renderer3D.terrain_cpu_bytes", cpu.residentBytes);
+  RuntimeProfiler::setGauge("Renderer3D.terrain_cpu_pending_bytes",
+                            cpu.pendingBytes);
+  RuntimeProfiler::setGauge("Renderer3D.terrain_cpu_pending_jobs",
+                            cpu.pendingJobs);
+  RuntimeProfiler::setGauge("Renderer3D.terrain_cpu_ready_levels",
+                            cpu.readyLevels);
+  RuntimeProfiler::setGauge("Renderer3D.terrain_cpu_submitted_jobs",
+                            cpu.submittedJobs);
+  RuntimeProfiler::setGauge("Renderer3D.terrain_cpu_discarded_jobs",
+                            cpu.discardedJobs);
+  RuntimeProfiler::setGauge("Renderer3D.terrain_cpu_failed_jobs",
+                            cpu.failedJobs);
+  RuntimeProfiler::setGauge("Renderer3D.terrain_cpu_budget_pressure",
+                            cpu.budgetPressure);
+  if (!terrainStatistics_.gpuFallbackReason.empty() &&
+      terrainStatistics_.gpuFallbackReason != reportedTerrainGpuFallback_) {
+    reportedTerrainGpuFallback_ = terrainStatistics_.gpuFallbackReason;
+    deviceLog(deviceLogMessage("terrain.gpu", "CPU compatibility path: " +
+                                                  reportedTerrainGpuFallback_));
+  }
+  RuntimeProfiler::setGauge("Renderer3D.terrain_patch_draws",
+                            terrainStatistics_.gpuPatchDraws);
+  RuntimeProfiler::setGauge("Renderer3D.terrain_patch_instances",
+                            terrainStatistics_.gpuPatchInstances);
+  RuntimeProfiler::setGauge("Renderer3D.terrain_patch_shadow_draws",
+                            terrainStatistics_.gpuPatchShadowDraws);
+  RuntimeProfiler::setGauge("Renderer3D.terrain_patch_shadow_instances",
+                            terrainStatistics_.gpuPatchShadowInstances);
+  RuntimeProfiler::setGauge("Renderer3D.terrain_patch_fallbacks",
+                            terrainStatistics_.gpuPatchFallbacks);
+  RuntimeProfiler::setGauge("Renderer3D.terrain_field_bytes",
+                            terrainGpuFields_.residentBytes());
+  RuntimeProfiler::setGauge("Renderer3D.terrain_field_pending_bytes",
+                            terrainGpuFields_.pendingBytes());
+  RuntimeProfiler::setGauge("Renderer3D.terrain_field_pending_jobs",
+                            terrainGpuFields_.pendingJobs());
+  RuntimeProfiler::setGauge("Renderer3D.terrain_field_upload_bytes",
+                            terrainGpuFields_.uploadBytes());
+  RuntimeProfiler::setGauge("Renderer3D.terrain_topology_bytes",
+                            terrainPatches_.topologyBytes());
   presentationActive_ = false;
+}
+
+void BgfxRenderer3D::tickInactiveTerrain() {
+  if (presentationActive_) {
+    return;
+  }
+  terrainPatches_.clear();
+  terrainGpuFields_.clear();
+  terrainGpuFields_.pollCompleted();
+  terrainLodResidency_.tickInactive();
+  const auto cpu = terrainLodResidency_.statistics();
+  terrainStatistics_.cpuResidentBytes = cpu.residentBytes;
+  terrainStatistics_.cpuPendingBytes = cpu.pendingBytes;
+  terrainStatistics_.cpuPendingJobs = cpu.pendingJobs;
+  terrainStatistics_.cpuReadyLevels = cpu.readyLevels;
+  terrainCameraDemand_.clear();
+  terrainMeshes_.clear();
+  terrainSelection_.clear();
+  terrainStatistics_.residentMeshes = terrainMeshes_.residentMeshes();
+  terrainStatistics_.residentBytes = terrainMeshes_.residentBytes();
 }
 
 bool BgfxRenderer3D::prepareTerrainMeshes(SceneVisibility3D &visibility,

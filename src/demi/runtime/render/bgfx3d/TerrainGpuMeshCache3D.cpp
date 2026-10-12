@@ -44,7 +44,7 @@ const GpuMesh3D *TerrainGpuMeshCache3D::get(
   auto &entry =
       level == 0 ? fullSurfaces_[surfaceId]
                  : variants_[VariantKey{retainedGeometry.get(), indexRevision}];
-  const bool sameSource = entry && entry->geometry == retainedGeometry &&
+  const bool sameSource = entry && entry->geometry.lock() == retainedGeometry &&
                           entry->geometryRevision == geometry.revision &&
                           entry->indexRevision == indexRevision;
   if (!sameSource) {

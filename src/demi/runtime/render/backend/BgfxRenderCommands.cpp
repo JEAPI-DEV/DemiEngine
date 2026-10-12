@@ -172,6 +172,16 @@ public:
   explicit BgfxRenderCommands(BgfxResourceLookup &resources)
       : resources_(resources) {}
 
+  std::uint32_t availableInstances(std::uint16_t stride,
+                                   std::uint32_t requested) const override {
+    const auto *caps = bgfx::getCaps();
+    if (caps == nullptr || (caps->supported & BGFX_CAPS_INSTANCING) == 0 ||
+        stride == 0 || stride % 16 != 0 || requested == 0) {
+      return 0;
+    }
+    return bgfx::getAvailInstanceDataBuffer(requested, stride);
+  }
+
   bool configureView2D(const View2DConfig &view, std::string &error) override {
     if (!positiveView(view.width, view.height, error, "2D"))
       return false;
@@ -345,20 +355,26 @@ public:
     if (!validateBufferedSlices(draw.vertices, draw.indices, resources_,
                                 vertices, indices, error, "Instanced draw"))
       return false;
-    if (draw.transforms.empty()) {
-      error = "Instanced draws require at least one transform.";
+    const auto stride = draw.instances.stride;
+    if (draw.instances.data.empty()) {
+      error = "Instanced draws require at least one instance record.";
       return false;
     }
-    if (draw.transforms.size() > UINT16_MAX) {
-      error = "Instanced draw count exceeds the 16-bit backend limit.";
+    if (stride == 0 || stride % 16 != 0 ||
+        draw.instances.data.size() % stride != 0) {
+      error = "Instance records require a sixteen-byte-aligned stride and "
+              "complete payload.";
       return false;
     }
-    const std::uint16_t instanceCount =
-        static_cast<std::uint16_t>(draw.transforms.size());
-    constexpr std::uint16_t TransformStride = sizeof(float) * 16U;
-    if (bgfx::getAvailInstanceDataBuffer(instanceCount, TransformStride) <
-        instanceCount) {
-      error = "The frame instance-buffer budget is exhausted.";
+    const auto count = draw.instances.data.size() / stride;
+    if (count > UINT32_MAX) {
+      error = "Instance count exceeds the native 32-bit buffer limit.";
+      return false;
+    }
+    const auto instanceCount = static_cast<std::uint32_t>(count);
+    if (availableInstances(stride, instanceCount) < instanceCount) {
+      error = "Instancing is unsupported or the frame instance-buffer budget "
+              "is exhausted.";
       return false;
     }
     if (!bindings_.resolveUniforms(draw.uniforms, resources_, error,
@@ -380,9 +396,9 @@ public:
     bindExtraTextures(bindings_.textures());
 
     bgfx::InstanceDataBuffer instances;
-    bgfx::allocInstanceDataBuffer(&instances, instanceCount, TransformStride);
-    std::memcpy(instances.data, draw.transforms.data(),
-                draw.transforms.size_bytes());
+    bgfx::allocInstanceDataBuffer(&instances, instanceCount, stride);
+    std::memcpy(instances.data, draw.instances.data.data(),
+                draw.instances.data.size());
     if (vertices.kind == BufferKind::DynamicVertex)
       bgfx::setVertexBuffer(0, bgfx::DynamicVertexBufferHandle{vertices.index},
                             draw.vertices.first, draw.vertices.count);

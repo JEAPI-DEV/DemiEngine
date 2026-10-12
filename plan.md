@@ -1,5 +1,11 @@
 # DemiEngine Roadmap
 
+Compatible terrain now uses GPU height/normal sampling, shared instanced patches
+and per-pixel material routing. Same-build native measurements show substantially
+less CPU submission work at Full detail; unsupported materials/devices retain
+ordinary meshes. Resource preparation is demand-driven and budgeted. See
+[GPU terrain qualification](docs/terrain-gpu-rendering-qualification.md).
+
 Terrain render LOD now shares prepared chunk data between runtime and editor,
 with a pixel-error setting, camera-specific selection and bounded GPU residency.
 Full collision remains resident; CPU streaming is still pending. The landscape

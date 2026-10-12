@@ -89,40 +89,75 @@ TerrainLodSurface prepareSurface(const HeightField &field,
 } // namespace
 
 std::shared_ptr<const PreparedTerrainChunkLod>
-prepareTerrainRenderLod(const HeightField &field, const TerrainChunk &chunk,
-                        std::stop_token stop) {
+prepareTerrainRenderLod(std::shared_ptr<const HeightField> field,
+                        const TerrainChunk &chunk, std::stop_token stop) {
   if (stop.stop_requested()) {
     return {};
   }
+  if (!field) {
+    throw std::invalid_argument(
+        "Prepared terrain LOD requires a field snapshot");
+  }
   auto result = std::make_shared<PreparedTerrainChunkLod>();
-  if (!prepareBounds(field, chunk, *result, stop)) {
+  if (!prepareBounds(*field, chunk, *result, stop)) {
     return {};
   }
+  result->field = std::move(field);
+  result->rectangle = chunk;
+  result->geometryIdentity = std::make_shared<TerrainLodGeometryIdentity>();
   result->triangleCounts[0] =
       2 * std::size_t(chunk.cellsX) * std::size_t(chunk.cellsZ);
-  for (std::size_t level = 1; level < result->levels.size(); ++level) {
+  for (std::size_t level = 1; level < result->geometricErrors.size(); ++level) {
     if (stop.stop_requested()) {
       return {};
     }
     const auto detail = static_cast<TerrainLod>(level);
     result->geometricErrors[level] =
-        terrainLodGeometricError(field, chunk, detail);
-    if (stop.stop_requested()) {
+        terrainLodGeometricError(*result->field, chunk, detail);
+    result->triangleCounts[level] =
+        terrainLodSurfaceTriangleCount(chunk.cellsX, chunk.cellsZ, detail);
+  }
+  if (stop.stop_requested()) {
+    return {};
+  }
+  return result;
+}
+
+std::shared_ptr<const PreparedTerrainLodLevel>
+prepareTerrainRenderLodLevel(const PreparedTerrainChunkLod &chunk,
+                             std::size_t level, std::stop_token stop) {
+  if (stop.stop_requested()) {
+    return {};
+  }
+  if (!chunk.field || !chunk.geometryIdentity || level == 0 ||
+      level >= chunk.geometricErrors.size()) {
+    throw std::invalid_argument(
+        "Terrain render preparation requires a reduced level and descriptor");
+  }
+  const auto mesh = buildTerrainLodBiomeMesh(
+      *chunk.field, chunk.rectangle, static_cast<TerrainLod>(level), 0.0F);
+  if (!mesh || mesh->skippedBiomes != 0) {
+    throw std::invalid_argument(
+        "Prepared terrain LOD cannot omit unnamed biome surfaces");
+  }
+  auto result = std::make_shared<PreparedTerrainLodLevel>();
+  std::size_t triangles = 0;
+  for (const auto &group : mesh->groups) {
+    auto surface = prepareSurface(*chunk.field, group, stop);
+    if (!surface.geometry || stop.stop_requested()) {
       return {};
     }
-    const auto mesh = buildTerrainLodBiomeMesh(field, chunk, detail, 0.0F);
-    if (!mesh || mesh->skippedBiomes != 0) {
+    triangles += surface.geometry->vertices.size() / 3;
+    const auto inserted =
+        result->emplace(group.biomeId, std::move(surface)).second;
+    if (!inserted) {
       throw std::invalid_argument(
-          "Prepared terrain LOD cannot omit unnamed biome surfaces");
+          "Prepared terrain LOD repeats a biome identity");
     }
-    for (const auto &group : mesh->groups) {
-      auto surface = prepareSurface(field, group, stop);
-      if (!surface.geometry || stop.stop_requested()) {
-        return {};
-      }
-      result->triangleCounts[level] += surface.geometry->vertices.size() / 3;
-      result->levels[level].emplace(group.biomeId, std::move(surface));
-    }
+  }
+  if (triangles != chunk.triangleCounts[level]) {
+    throw std::invalid_argument(
+        "Prepared terrain LOD omitted surface triangles");
   }
   if (stop.stop_requested()) {
     return {};
@@ -131,19 +166,43 @@ prepareTerrainRenderLod(const HeightField &field, const TerrainChunk &chunk,
 }
 
 std::shared_ptr<const PreparedTerrainChunkLod>
-rebindTerrainRenderLod(const HeightField &field,
+rebindTerrainRenderLod(std::shared_ptr<const HeightField> field,
                        const PreparedTerrainChunkLod &previous) {
+  if (!field || !previous.field || !previous.geometryIdentity) {
+    throw std::invalid_argument(
+        "Terrain LOD rebinding requires immutable field snapshots");
+  }
+  const auto &before = *previous.field;
+  const bool incompatibleGeometry =
+      field->cellsX != before.cellsX || field->cellsZ != before.cellsZ ||
+      field->size.x != before.size.x || field->size.y != before.size.y ||
+      field->biomeIds != before.biomeIds ||
+      field->biomeTextureScales != before.biomeTextureScales;
+  if (incompatibleGeometry) {
+    throw std::invalid_argument(
+        "Terrain geometry and UV changes require new LOD preparation");
+  }
   auto result = std::make_shared<PreparedTerrainChunkLod>(previous);
-  for (auto &level : result->levels) {
-    for (auto &[biome, surface] : level) {
-      if (!surface.geometry || !surface.sampleIndices) {
-        throw std::invalid_argument(
-            "Prepared terrain LOD surface has no geometry provenance");
-      }
-      surface.sections = terrain_detail::buildTerrainMaterialSections(
-          field, biomeIndex(field, biome), *surface.sampleIndices,
-          &surface.sections);
+  result->field = std::move(field);
+  return result;
+}
+
+std::shared_ptr<const PreparedTerrainLodLevel>
+rebindTerrainRenderLodLevel(const PreparedTerrainChunkLod &chunk,
+                            const PreparedTerrainLodLevel &previous) {
+  if (!chunk.field || !chunk.geometryIdentity) {
+    throw std::invalid_argument(
+        "Terrain LOD section rebinding requires a descriptor");
+  }
+  auto result = std::make_shared<PreparedTerrainLodLevel>(previous);
+  for (auto &[biome, surface] : *result) {
+    if (!surface.geometry || !surface.sampleIndices) {
+      throw std::invalid_argument(
+          "Prepared terrain LOD surface has no geometry provenance");
     }
+    surface.sections = terrain_detail::buildTerrainMaterialSections(
+        *chunk.field, biomeIndex(*chunk.field, biome), *surface.sampleIndices,
+        &surface.sections);
   }
   return result;
 }

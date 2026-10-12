@@ -37,7 +37,7 @@ private:
   struct Entry {
     explicit Entry(GpuResources &resources) : mesh(resources) {}
     GpuMesh3D mesh;
-    std::shared_ptr<const MeshRendererComponent> geometry;
+    std::weak_ptr<const MeshRendererComponent> geometry;
     std::uint64_t geometryRevision = 0;
     std::uint64_t indexRevision = 0;
     std::uint64_t lastPresentation = 0;
@@ -54,7 +54,8 @@ private:
   };
   std::unordered_map<std::string, std::unique_ptr<Entry>> fullSurfaces_;
   // Immutable geometry is shared across placements; material bindings and tint
-  // remain per draw. Entry ownership prevents pointer reuse while GPU-resident.
+  // remain per draw. Weak source identity detects pointer reuse without keeping
+  // evicted CPU geometry alive solely because its GPU buffers still exist.
   std::unordered_map<VariantKey, std::unique_ptr<Entry>, VariantHash> variants_;
   std::uint64_t presentation_ = 0;
   std::uint64_t uploads_ = 0;

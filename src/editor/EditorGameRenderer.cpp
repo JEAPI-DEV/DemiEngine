@@ -125,7 +125,8 @@ bool EditorGameRenderer::render(const runtime::World &world,
     const runtime::Entity &entity = *cameras.front();
     frame.camera = *entity.component<runtime::Camera3DComponent>();
     frame.camera.renderHudToTarget = true;
-    if (const auto *effect = entity.component<runtime::PostProcessStackComponent>())
+    if (const auto *effect =
+            entity.component<runtime::PostProcessStackComponent>())
       frame.postProcess = *effect;
     if (const auto transform =
             runtime::resolveWorldTransform3D(world, entity)) {
@@ -136,6 +137,7 @@ bool EditorGameRenderer::render(const runtime::World &world,
           *transform, {0.0F, frame.camera.upAxis, 0.0F});
     }
   }
+  terrainPresentedThisFrame_ = true;
   const bool rendered =
       renderer3D_->renderFrame(world, frame, deltaSeconds, error);
   const auto &statistics = renderer3D_->statistics();
@@ -198,6 +200,29 @@ void EditorGameRenderer::destroyTarget() {
   *target_ = {};
   targetWidth_ = 0;
   targetHeight_ = 0;
+}
+
+std::string EditorGameRenderer::takeTerrainDiagnostic() {
+  return renderer3D_ ? renderer3D_->takeTerrainDiagnostic() : std::string{};
+}
+
+bool EditorGameRenderer::terrainNeedsFrame() const {
+  return terrainWasVisible_ && renderer3D_ &&
+         renderer3D_->terrainPreparationPending();
+}
+
+void EditorGameRenderer::maintainIdleTerrain() {
+  if (!terrainWasVisible_ && renderer3D_) {
+    renderer3D_->tickInactiveTerrain();
+  }
+}
+
+void EditorGameRenderer::maintainTerrainResidency() {
+  if (renderer3D_ && !terrainPresentedThisFrame_) {
+    renderer3D_->tickInactiveTerrain();
+  }
+  terrainWasVisible_ = terrainPresentedThisFrame_;
+  terrainPresentedThisFrame_ = false;
 }
 
 } // namespace demi::editor

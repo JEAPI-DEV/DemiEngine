@@ -2,10 +2,11 @@
 
 #include "demi/runtime/render/bgfx3d/BgfxCameraFrame3D.h"
 #include "demi/runtime/scene/Transform3DHierarchy.h"
+#include "demi/runtime/terrain/TerrainRenderLod.h"
 
 #include <cstddef>
-#include <optional>
 #include <memory>
+#include <optional>
 #include <vector>
 
 namespace demi::runtime {
@@ -14,10 +15,13 @@ class JobSystem;
 struct World;
 struct MeshRendererComponent;
 struct MeshMaterialSections3D;
+class TerrainLodResidency;
 } // namespace demi::runtime
 
 namespace demi::runtime::render {
 class TerrainDrawSelection3D;
+class TerrainCameraDemand3D;
+class TerrainPatchBatch3D;
 class GpuMesh3D;
 
 struct VisibleMesh3D {
@@ -29,6 +33,7 @@ struct VisibleMesh3D {
   // Native terrain render variants replace geometry/sections only. Appearance
   // and gameplay collision remain on the original generated entity.
   std::shared_ptr<const MeshRendererComponent> terrainGeometry;
+  std::shared_ptr<const PreparedTerrainLodLevel> terrainPreparedLevel;
   const MeshMaterialSections3D *terrainSections = nullptr;
   std::size_t terrainLevel = 0;
   bool terrainSurface = false;
@@ -48,6 +53,13 @@ struct SceneVisibility3D {
 extractVisibleMeshes3D(const World &world, const BgfxCameraFrame3D &frame,
                        JobSystem *jobs = nullptr,
                        TerrainDrawSelection3D *terrainSelection = nullptr,
-                       const BgfxCameraFrame3D *lodCamera = nullptr);
+                       const BgfxCameraFrame3D *lodCamera = nullptr,
+                       TerrainLodResidency *terrainResidency = nullptr,
+                       TerrainCameraDemand3D *terrainDemand = nullptr,
+                       const TerrainPatchBatch3D *terrainPatches = nullptr);
+
+[[nodiscard]] bool terrainChunkVisible3D(const PreparedTerrainChunkLod &chunk,
+                                         const WorldTransform3D &transform,
+                                         const BgfxCameraFrame3D &frame);
 
 } // namespace demi::runtime::render
