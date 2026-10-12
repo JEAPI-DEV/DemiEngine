@@ -13,9 +13,20 @@ struct Terrain3DComponent {
   static constexpr ComponentDomain domain = ComponentDomain::ThreeDimensional;
   static constexpr std::array fields{
       ComponentFieldDescriptor::assetReference("asset"),
-      ComponentFieldDescriptor{"recipe", ComponentFieldType::Object}};
+      ComponentFieldDescriptor{"recipe", ComponentFieldType::Object},
+      ComponentFieldDescriptor{"lod_error_pixels",
+                               ComponentFieldType::Number,
+                               false,
+                               true,
+                               {},
+                               0.0,
+                               true}
+          .withLabel("LOD Error Pixels")
+          .withHelp("Maximum projected terrain error in pixels. Zero disables "
+                    "render LOD.")};
   static constexpr ComponentEditorMetadata editor{"3D", "Terrain 3D"};
   std::string asset;
+  float lodErrorPixels = 2.0F;
   // Inline authored recipe for procedural terrain, or the editable source
   // resolved by the asset loader. Resolved recipes never serialize into scenes.
   nlohmann::json recipe;
@@ -37,6 +48,8 @@ struct Terrain3DComponent {
   static constexpr std::array runtimeFields{
       RuntimeFieldBinding<Terrain3DComponent>{"asset", copyAsset, readAsset},
       RuntimeFieldBinding<Terrain3DComponent>{"recipe", copyRecipe, readRecipe}
-          .withoutDefault()};
+          .withoutDefault(),
+      RuntimeFieldBinding<Terrain3DComponent>::member<
+          &Terrain3DComponent::lodErrorPixels>("lod_error_pixels")};
 };
 } // namespace demi::runtime

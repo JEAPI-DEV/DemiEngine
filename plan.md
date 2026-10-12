@@ -1,5 +1,10 @@
 # DemiEngine Roadmap
 
+Terrain render LOD now shares prepared chunk data between runtime and editor,
+with a pixel-error setting, camera-specific selection and bounded GPU residency.
+Full collision remains resident; CPU streaming is still pending. The landscape
+probe now uses a 5,000-unit far clip. See [terrain LOD qualification](docs/terrain-lod-qualification.md).
+
 The editor now waits for events when authoring is unchanged, retaining its last
 frame while source-watch maintenance continues. Play and active work keep
 updating without a default interaction FPS cap; see

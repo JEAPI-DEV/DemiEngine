@@ -673,6 +673,8 @@
   add_executable(demi-terrain-lod-publication-tests
     tests/terrain_lod_publication_tests.cpp)
   target_link_libraries(demi-terrain-lod-publication-tests PRIVATE demi-runtime-lib)
+  add_executable(demi-terrain-render-lod-tests tests/terrain_render_lod_tests.cpp)
+  target_link_libraries(demi-terrain-render-lod-tests PRIVATE demi-runtime-lib)
   add_executable(demi-terrain-streaming-tests
     tests/terrain_streaming_tests.cpp)
   target_link_libraries(demi-terrain-streaming-tests PRIVATE demi-core)

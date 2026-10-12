@@ -1,6 +1,7 @@
 #include "demi/runtime/render/bgfx3d/MeshShadowSections3D.h"
 
 #include "demi/runtime/render/bgfx3d/MeshSurface3D.h"
+#include "demi/runtime/render/bgfx3d/VisibleMeshGeometry3D.h"
 #include "demi/runtime/scene/model/MeshMaterialSections3D.h"
 
 namespace demi::runtime::render {
@@ -8,7 +9,8 @@ namespace {
 
 bool sameShadowState(const DrawState &left, const DrawState &right) {
   return left.depthTest == right.depthTest && left.cull == right.cull &&
-         left.topology == right.topology && left.writeColor == right.writeColor &&
+         left.topology == right.topology &&
+         left.writeColor == right.writeColor &&
          left.writeAlpha == right.writeAlpha &&
          left.multisampling == right.multisampling;
 }
@@ -23,7 +25,8 @@ bool canDrawWholeShadow(const Entity &entity,
   std::optional<DrawState> sharedState;
   std::size_t nextIndex = 0;
   for (const auto &section : sections.sections) {
-    // Native section tables may omit geometry. A whole-mesh draw must not add it.
+    // Native section tables may omit geometry. A whole-mesh draw must not add
+    // it.
     if (section.firstIndex != nextIndex) {
       return false;
     }
@@ -52,7 +55,8 @@ bool hasCompleteSectionGroup(const std::vector<VisibleMesh3D> &meshes,
   }
   for (std::size_t section = 0; section < count; ++section) {
     const auto &draw = meshes[first + section];
-    if (draw.entity != meshes[first].entity || draw.materialSection != section) {
+    if (draw.entity != meshes[first].entity ||
+        draw.materialSection != section) {
       return false;
     }
   }
@@ -62,14 +66,14 @@ bool hasCompleteSectionGroup(const std::vector<VisibleMesh3D> &meshes,
 } // namespace
 
 void compactOpaqueShadowSections3D(std::vector<VisibleMesh3D> &meshes,
-                                    const MaterialLibrary &materials) {
+                                   const MaterialLibrary &materials) {
   std::size_t read = 0;
   std::size_t write = 0;
   while (read < meshes.size()) {
     auto draw = meshes[read];
     std::size_t consumed = 1;
     if (draw.materialSection == 0) {
-      const auto *sections = draw.entity->component<MeshMaterialSections3D>();
+      const auto *sections = visibleMeshSections3D(draw);
       if (sections &&
           hasCompleteSectionGroup(meshes, read, sections->sections.size()) &&
           canDrawWholeShadow(*draw.entity, *sections, materials)) {

@@ -1239,16 +1239,33 @@ static void drawInspectorContents(EditorWorkspace &workspace,
         continue;
       }
       drawInlineIssue(workspace, {.entityId = selectedId, .component = name});
-      if (name == "Terrain3D")
+      if (name == "Terrain3D") {
+        if (descriptor != nullptr) {
+          // Terrain graph controls own asset/recipe editing. Other reflected
+          // fields use the same command and presentation path as components.
+          auto terrainDescriptor = *descriptor;
+          std::vector<ComponentFieldDescriptor> scalarFields;
+          for (const auto &field : descriptor->fields) {
+            if (field.name != "asset" && field.name != "recipe") {
+              scalarFields.push_back(field);
+            }
+          }
+          terrainDescriptor.fields = scalarFields;
+          drawComponentFields(workspace, selectedId, name, component,
+                              terrainDescriptor, notice, prefabEntity,
+                              propertyQuery, state.structuredValues);
+        }
         drawEditorTerrainInspector(workspace, notice);
-      else if (luaMetadata != nullptr)
+      } else if (luaMetadata != nullptr)
         drawScriptProperties(workspace, selectedId, component, *luaMetadata,
-                             notice, prefabEntity, propertyQuery, state.structuredValues);
+                             notice, prefabEntity, propertyQuery,
+                             state.structuredValues);
       else if (descriptor == nullptr || descriptor->fields.empty())
         drawGenericComponent(component, name, propertyQuery);
       else
-        drawComponentFields(workspace, selectedId, name, component,
-                            *descriptor, notice, prefabEntity, propertyQuery, state.structuredValues);
+        drawComponentFields(workspace, selectedId, name, component, *descriptor,
+                            notice, prefabEntity, propertyQuery,
+                            state.structuredValues);
       ImGui::PopID();
     }
   }

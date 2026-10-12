@@ -17,6 +17,12 @@ and the combined water data. This keeps both authored bodies in the cooked
 asset. River points are terrain-local XYZ bed positions; the water plane is
 authored separately from the river bed. Both bodies use a fixed water level;
 downhill river flow is not simulated. Water-body coordinates are terrain-local.
+
+The game camera's 5,000-unit far clip covers the landscape instead of cutting
+it off after 500 units. Terrain detail uses the shared renderer's default
+two-pixel error allowance. Set **LOD Error Pixels** to zero in the Terrain
+Inspector to compare Full detail. This changes rendered geometry only;
+terrain collision and surface queries retain the Full heightfield.
 The sediment rule uses elevation and slope;
 graph water does not yet supply shoreline-distance context to biome rules.
 

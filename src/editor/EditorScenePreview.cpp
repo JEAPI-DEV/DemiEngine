@@ -103,10 +103,12 @@ bool applyEditorPreviewValue(runtime::World &world,
 
   runtime::Entity replacement =
       runtime::scene_loading::parseSceneEntity(effective);
-  if (auto *terrain = replacement.component<runtime::Terrain3DComponent>();
-      terrain && !terrain->asset.empty()) {
+  if (auto *terrain = replacement.component<runtime::Terrain3DComponent>()) {
     const auto *previous = current->component<runtime::Terrain3DComponent>();
-    if (previous && previous->asset == terrain->asset) {
+    const bool sameSource =
+        previous && previous->asset == terrain->asset &&
+        (!terrain->asset.empty() || previous->recipe == terrain->recipe);
+    if (sameSource) {
       terrain->recipe = previous->recipe;
       terrain->generated = previous->generated;
     }

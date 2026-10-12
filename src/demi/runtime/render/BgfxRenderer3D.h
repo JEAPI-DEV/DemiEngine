@@ -21,6 +21,8 @@
 #include "demi/runtime/render/bgfx3d/PrimitiveCanvas3D.h"
 #include "demi/runtime/render/bgfx3d/SceneVisibility3D.h"
 #include "demi/runtime/render/bgfx3d/MeshResourceRetention3D.h"
+#include "demi/runtime/render/bgfx3d/TerrainDrawSelection3D.h"
+#include "demi/runtime/render/bgfx3d/TerrainGpuMeshCache3D.h"
 #include "demi/runtime/render/bgfx3d/SkyRenderer3D.h"
 #include "demi/runtime/render/bgfx3d/VisualAnimationBudget3D.h"
 #include "demi/runtime/scene/model/World.h"
@@ -38,6 +40,14 @@ struct AnimationPlayer3DComponent;
 }
 
 namespace demi::runtime::render {
+
+struct TerrainRenderStatistics3D {
+  std::array<std::size_t, 4> selectedSurfaces{};
+  std::size_t triangles = 0;
+  std::uint64_t uploads = 0;
+  std::size_t residentMeshes = 0;
+  std::size_t residentBytes = 0;
+};
 
 // Runtime-facing composition root for bgfx 3D rendering. Specialized mesh,
 // particle, post-process, camera, and overlay systems retain their own narrow
@@ -59,6 +69,14 @@ public:
                                  const BgfxCameraFrame3D &frame,
                                  float deltaSeconds, std::string &error);
 
+  // Hosts with multiple cameras bracket them once; direct/editor rendering
+  // automatically creates a single-camera presentation scope.
+  void beginPresentation();
+  void endPresentation(bool succeeded);
+  [[nodiscard]] const TerrainRenderStatistics3D &terrainStatistics() const {
+    return terrainStatistics_;
+  }
+
   [[nodiscard]] const RenderStatistics &statistics() const {
     return statistics_;
   }
@@ -70,7 +88,9 @@ private:
   bool drawCosmeticDebris(std::vector<CosmeticFragment3D> &, const BgfxCameraFrame3D &,
       std::span<const DrawUniformValue>, ProgramHandle, std::uint32_t &, std::uint32_t &, std::string &);
   bool renderView(const World &, const BgfxCameraFrame3D &, float,
-                  std::string &, bool shadowPass, const SceneLighting3D &);
+                  std::string &, bool shadowPass, const SceneLighting3D &,
+                  const BgfxCameraFrame3D &lodCamera);
+  bool prepareTerrainMeshes(SceneVisibility3D &, std::string &error);
   struct MeshSubmissionStatistics {
     std::uint32_t draws = 0;
     std::uint32_t triangles = 0;
@@ -151,6 +171,11 @@ private:
   std::unordered_map<std::string, std::unique_ptr<CachedMesh>> modelMeshes_;
   DeformedMeshCache3D deformedMeshes_;
   MeshResourceRetention3D meshRetention_;
+  TerrainDrawSelection3D terrainSelection_;
+  TerrainGpuMeshCache3D terrainMeshes_;
+  TerrainRenderStatistics3D terrainStatistics_;
+  std::uint64_t terrainUploadsAtPresentationStart_ = 0;
+  bool presentationActive_ = false;
   // Command adapters consume spans synchronously. Descriptors may be reused
   // after submit returns; their value spans remain local to the current draw.
   std::vector<DrawUniformValue> meshDrawUniforms_;

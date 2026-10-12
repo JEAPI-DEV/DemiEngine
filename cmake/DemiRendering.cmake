@@ -272,6 +272,9 @@ add_library(demi-render3d-bgfx STATIC
   src/demi/runtime/render/bgfx3d/DeformedMeshCache3D.cpp
   src/demi/runtime/render/BgfxRenderer3D.cpp
   src/demi/runtime/render/BgfxRenderer3DMeshes.cpp
+  src/demi/runtime/render/BgfxRenderer3DTerrain.cpp
+  src/demi/runtime/render/bgfx3d/TerrainDrawSelection3D.cpp
+  src/demi/runtime/render/bgfx3d/TerrainGpuMeshCache3D.cpp
   src/demi/runtime/render/bgfx3d/MeshResourceRetention3D.cpp
   src/demi/runtime/render/bgfx3d/PreparedMeshDraw3D.cpp
   src/demi/runtime/render/bgfx3d/MeshInstanceBatch3D.cpp

@@ -51,7 +51,7 @@ BgfxRenderer3D::BgfxRenderer3D(GpuResources &resources,
       primitives_(resources, commands_), postProcess_(resources, commands_),
       particleRenderer_(resources, commands_), overlay_(resources, commands_),
       textures_(resources), sky_(resources), materials_(resources), gpuSkinningRequested_(enableGpuSkinning),
-      deformedMeshes_(resources), reliefMeshes_(resources) {}
+      deformedMeshes_(resources), terrainMeshes_(resources), reliefMeshes_(resources) {}
 
 BgfxRenderer3D::~BgfxRenderer3D() { shutdown(); }
 
@@ -150,6 +150,10 @@ void BgfxRenderer3D::shutdown() {
   skinMatricesUniform_ = {};
   skinImportUniform_ = {};
   deformedMeshes_.clear();
+  terrainMeshes_.clear();
+  terrainSelection_.clear();
+  terrainStatistics_ = {};
+  presentationActive_ = false;
   reliefMeshes_.clear();
   dynamicMeshes_.clear();
   meshRetention_.clear();
@@ -213,6 +217,21 @@ bool BgfxRenderer3D::renderFrame(const World &world,
     error = "BgfxRenderer3D must be initialized before rendering.";
     return false;
   }
+  const bool ownsPresentation = !presentationActive_;
+  if (ownsPresentation) {
+    beginPresentation();
+  }
+  bool presentationSucceeded = false;
+  struct PresentationScope {
+    BgfxRenderer3D &renderer;
+    bool ownsPresentation;
+    bool &succeeded;
+    ~PresentationScope() {
+      if (ownsPresentation) {
+        renderer.endPresentation(succeeded);
+      }
+    }
+  } presentationScope{*this, ownsPresentation, presentationSucceeded};
   if (frame.updateContent) {
     meshRetention_.collect(world);
   }
@@ -230,7 +249,7 @@ bool BgfxRenderer3D::renderFrame(const World &world,
     ProfileScope scope("Renderer3D.directional_shadow");
     shadows_.cast(cascade);
     if (!renderView(world, depthFrames[cascade], 0, error, true,
-                    sceneLighting)) {
+                    sceneLighting, frame)) {
       return false;
     }
     shadowBatches += statistics_.batches;
@@ -240,7 +259,7 @@ bool BgfxRenderer3D::renderFrame(const World &world,
   RuntimeProfiler::setGauge("Renderer3D.shadow_cascades", depthFrames.size());
   shadows_.receive();
   const bool rendered =
-      renderView(world, mainFrame, deltaSeconds, error, false, sceneLighting);
+      renderView(world, mainFrame, deltaSeconds, error, false, sceneLighting, frame);
   statistics_.shadowPasses = depthFrames.size();
   if (rendered && frame.updateContent) {
     deformedMeshes_.retain([this](const std::string &id) {
@@ -250,6 +269,7 @@ bool BgfxRenderer3D::renderFrame(const World &world,
       return !meshRetention_.containsDynamic(entry.first);
     });
   }
+  presentationSucceeded = rendered;
   return rendered;
 }
 
@@ -257,7 +277,8 @@ bool BgfxRenderer3D::renderView(const World &world,
                                 const BgfxCameraFrame3D &frame,
                                 float deltaSeconds, std::string &error,
                                 bool shadowPass,
-                                const SceneLighting3D &sceneLighting) {
+                                const SceneLighting3D &sceneLighting,
+                               const BgfxCameraFrame3D &lodCamera) {
   if (!initialized_) {
     error = "BgfxRenderer3D must be initialized before rendering.";
     return false;
@@ -342,13 +363,24 @@ bool BgfxRenderer3D::renderView(const World &world,
                                : std::vector<CosmeticFragment3D>{};
   if (frame.updateContent) {
     const auto extractionStarted = std::chrono::steady_clock::now();
-    visibility = extractVisibleMeshes3D(world, frame, &extractionJobs_);
+    visibility = extractVisibleMeshes3D(world, frame, &extractionJobs_,
+                                         &terrainSelection_, &lodCamera);
     lastExtractionMilliseconds_ =
         std::chrono::duration<double, std::milli>(
             std::chrono::steady_clock::now() - extractionStarted)
             .count();
   } else {
     lastExtractionMilliseconds_ = 0.0;
+  }
+  if (frame.updateContent && !prepareTerrainMeshes(visibility, error)) {
+    return false;
+  }
+  if (!shadowPass) {
+    for (const auto &draw : visibility.meshes) {
+      if (draw.terrainSurface && (!draw.materialSection || *draw.materialSection == 0)) {
+        ++terrainStatistics_.selectedSurfaces.at(draw.terrainLevel);
+      }
+    }
   }
   if (shadowPass) {
     compactOpaqueShadowSections3D(visibility.meshes, materials_);

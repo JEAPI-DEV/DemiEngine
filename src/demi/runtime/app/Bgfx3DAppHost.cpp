@@ -146,6 +146,7 @@ bool Bgfx3DAppHost::renderFrames(
   frameStatistics_.reset();
   frameExtractionMilliseconds_ = 0.0;
   cameraScheduler_.beginFrame();
+  renderer_->renderer.beginPresentation();
   for (render::BgfxCameraFrame3D current : cameras) {
     if(!current.frameBuffer)current.destinationSamples=samples;
     if (current.viewportWidth == 0)
@@ -180,6 +181,7 @@ bool Bgfx3DAppHost::renderFrames(
         renderer_->renderer.lastExtractionMilliseconds();
   }
   cameraScheduler_.endFrame();
+  renderer_->renderer.endPresentation(rendered);
   context_.endFrame();
   if (cameras.empty())
     error = "At least one 3D camera frame is required.";

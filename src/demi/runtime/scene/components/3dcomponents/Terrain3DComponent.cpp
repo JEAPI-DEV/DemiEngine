@@ -1,5 +1,7 @@
 #include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
 #include "demi/runtime/scene/model/Entity.h"
+#include <cmath>
+#include <limits>
 #include <stdexcept>
 
 namespace demi::runtime {
@@ -9,6 +11,19 @@ bool Terrain3DComponent::validateAuthored(const nlohmann::json &json,
       (json.contains("asset") && !json.at("asset").is_string())) {
     error = "Terrain3D requires an object and a string asset reference";
     return false;
+  }
+  if (const auto quality = json.find("lod_error_pixels");
+      quality != json.end()) {
+    if (!quality->is_number()) {
+      error = "Terrain3D lod_error_pixels requires a number";
+      return false;
+    }
+    const double value = quality->get<double>();
+    if (!std::isfinite(value) || value < 0.0 ||
+        value > std::numeric_limits<float>::max()) {
+      error = "Terrain3D lod_error_pixels must be finite and nonnegative";
+      return false;
+    }
   }
   const auto asset = json.value("asset", std::string{});
   if (!asset.empty() && !asset.starts_with("asset://")) {
@@ -37,12 +52,15 @@ nlohmann::json Terrain3DComponent::schemaConstraints() {
 }
 void Terrain3DComponent::parse(const nlohmann::json &json, Entity &entity) {
   std::string error;
-  if (!validateAuthored(json, error))
+  if (!validateAuthored(json, error)) {
     throw std::invalid_argument(error);
+  }
   Terrain3DComponent value;
   value.asset = json.value("asset", std::string{});
-  if (json.contains("recipe"))
+  value.lodErrorPixels = json.value("lod_error_pixels", value.lodErrorPixels);
+  if (json.contains("recipe")) {
     value.recipe = json.at("recipe");
+  }
   entity.setComponent(std::move(value));
 }
 nlohmann::json Terrain3DComponent::defaults() {
@@ -51,10 +69,15 @@ nlohmann::json Terrain3DComponent::defaults() {
 bool Terrain3DComponent::serializeField(const Terrain3DComponent &component,
                                         std::string_view field,
                                         nlohmann::json &out) {
-  if (field == "asset")
+  if (field == "asset") {
     return readAsset(component, out);
-  if (field == "recipe")
+  }
+  if (field == "recipe") {
     return readRecipe(component, out);
+  }
+  if (field == "lod_error_pixels") {
+    return runtimeFieldJson(component.lodErrorPixels, out);
+  }
   return false;
 }
 void Terrain3DComponent::copyRecipe(Terrain3DComponent &destination,
@@ -75,8 +98,9 @@ bool Terrain3DComponent::readAsset(const Terrain3DComponent &source,
 }
 bool Terrain3DComponent::readRecipe(const Terrain3DComponent &source,
                                     nlohmann::json &out) {
-  if (!source.asset.empty() || source.recipe.is_null())
+  if (!source.asset.empty() || source.recipe.is_null()) {
     return false;
+  }
   out = source.recipe;
   return true;
 }

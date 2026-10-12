@@ -6,12 +6,14 @@
 #include "demi/assets/AssetHash.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
+#include "demi/runtime/terrain/TerrainRenderLod.h"
 #include "demi/runtime/terrain/TerrainGenerationCache.h"
 #include "demi/runtime/terrain/TerrainGenerator.h"
 #include "demi/runtime/terrain/TerrainUpdate.h"
 #include "demi/runtime/terrain/TerrainWorld.h"
 
 #include <chrono>
+#include <map>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
@@ -1108,6 +1110,64 @@ void testPinnedTerrainTarget() {
         "Unpinned selection lost its retained settings draft");
 }
 
+void testQualityEditRetainsGeneratedResources() {
+  TemporaryProject project;
+  createProject(project.root);
+  editor::EditorWorkspace workspace;
+  std::string error;
+  check(workspace.open(project.root, error),
+        "Quality probe open failed: " + error);
+  const auto generated = terrain(workspace).generated;
+  const auto recipe = terrain(workspace).recipe;
+  const auto entityCount = workspace.project().world.entities.size();
+  struct SurfaceResources {
+    std::uint64_t revision;
+    std::shared_ptr<const runtime::PreparedTerrainChunkLod> lod;
+  };
+  std::map<std::string, SurfaceResources> resources;
+  for (const auto &entity : workspace.project().world.entities) {
+    const auto *lod = entity.component<runtime::TerrainRenderLod>();
+    const auto *mesh = entity.component<runtime::MeshRendererComponent>();
+    if (lod && mesh) {
+      resources.emplace(entity.id,
+                        SurfaceResources{mesh->revision, lod->chunk});
+    }
+  }
+  check(!resources.empty(), "Quality probe has no prepared terrain surfaces");
+  const editor::SceneValueTarget target{.entityId = "terrain",
+                                        .component = "Terrain3D",
+                                        .field = "lod_error_pixels"};
+  check(workspace.editValue(target, 0.0, false, error),
+        "Quality edit failed: " + error);
+  check(terrain(workspace).lodErrorPixels == 0.0F &&
+            terrain(workspace).generated == generated &&
+            terrain(workspace).recipe == recipe &&
+            workspace.project().world.entities.size() == entityCount,
+        "Quality edit replaced terrain generation or entities");
+  for (const auto &[id, before] : resources) {
+    const auto *entity = runtime::findEntity(workspace.project().world, id);
+    const auto *mesh =
+        entity ? entity->component<runtime::MeshRendererComponent>() : nullptr;
+    const auto *lod =
+        entity ? entity->component<runtime::TerrainRenderLod>() : nullptr;
+    check(mesh && lod && mesh->revision == before.revision &&
+              lod->chunk == before.lod,
+          "Quality edit replaced prepared geometry resources");
+  }
+  check(workspace.undo(error), "Quality Undo failed: " + error);
+  check(terrain(workspace).lodErrorPixels == 2.0F,
+        "Quality Undo did not restore the omitted default");
+  check(workspace.redo(error), "Quality Redo failed: " + error);
+  check(terrain(workspace).lodErrorPixels == 0.0F,
+        "Quality Redo did not restore the authored override");
+  for (const auto &[id, before] : resources) {
+    const auto *entity = runtime::findEntity(workspace.project().world, id);
+    const auto *lod =
+        entity ? entity->component<runtime::TerrainRenderLod>() : nullptr;
+    check(lod && lod->chunk, "Quality history lost prepared terrain geometry");
+  }
+}
+
 void testInheritedPrefabRecipeHistory() {
   TemporaryProject project;
   createProject(project.root);
@@ -1182,6 +1242,7 @@ int main() {
     testEmptyProceduralRecipeHistory();
     testTerrainPresetApplyHistoryAndGridDecision();
     testInheritedPrefabRecipeHistory();
+    testQualityEditRetainsGeneratedResources();
     testLiveSelectionAndSourceConflict();
     testPinnedTerrainTarget();
     testSceneSwitchPreservesTerrainDraft();

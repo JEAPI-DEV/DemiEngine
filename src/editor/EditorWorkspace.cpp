@@ -685,14 +685,17 @@ bool EditorWorkspace::editValue(SceneValueTarget target, nlohmann::json value,
       return false;
     }
   }
+  const bool terrainContentEdit =
+      target.component == "Terrain3D" && target.field != "lod_error_pixels";
   if (target.component == "PrefabPlacement3D" ||
-      target.component == "Masonry3D" || target.component == "Terrain3D" ||
-      (target.component.empty() && target.field == "enabled"))
+      target.component == "Masonry3D" || terrainContentEdit ||
+      (target.component.empty() && target.field == "enabled")) {
     return mutateAndRebuild(
         [&](EditorSceneDocument &document, std::string &issue) {
           return document.setValue(target, value, continuous, issue);
         },
         error);
+  }
   if (target.isPrefabOverride()) {
     EditorSceneDocument before = sceneDocument_;
     if (!sceneDocument_.setValue(target, std::move(value), continuous, error)) {
@@ -1888,10 +1891,12 @@ void EditorWorkspace::syncChangedEntity() {
     return;
   runtime::Entity reparsed =
       runtime::scene_loading::parseSceneEntity(*authored);
-  if (auto *terrain = reparsed.component<runtime::Terrain3DComponent>();
-      terrain && !terrain->asset.empty()) {
+  if (auto *terrain = reparsed.component<runtime::Terrain3DComponent>()) {
     const auto *previous = existing->component<runtime::Terrain3DComponent>();
-    if (previous && previous->asset == terrain->asset) {
+    const bool sameSource =
+        previous && previous->asset == terrain->asset &&
+        (!terrain->asset.empty() || previous->recipe == terrain->recipe);
+    if (sameSource) {
       terrain->recipe = previous->recipe;
       terrain->generated = previous->generated;
     }

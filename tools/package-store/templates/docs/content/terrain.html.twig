@@ -91,6 +91,8 @@
   --output build/terrain-graph-cooked --platform linux
 demi run --project build/terrain-graph-cooked</code></pre>
 <p>Development tools can prepare missing or stale source-asset caches before running a project. Warm source loads reuse prepared results; normal shipped projects load their binary payloads. Source edits and dependency changes invalidate preparation through the shared asset/cook services.</p>
+<p><code>Terrain3D.lod_error_pixels</code> sets the maximum projected surface error for render detail selection. It defaults to 2 pixels; smaller values retain more detail, and 0 disables render LOD. The value must be finite and nonnegative. Each camera reads the terrain owner's current value. Changing this setting preserves the generated heightfield and collision geometry; it does not change terrain residency or gameplay scatter. The Terrain Inspector exposes the same setting.</p>
+<p>The allowance uses the originating camera's presentation viewport pixels. Shadow views use that camera's detail decision, and reduced render resolution does not loosen the allowance. Rough, sparsely sampled terrain may stay at full detail even at a distance. LOD does not extend the camera's <code>far_clip</code>: choose a far plane that covers the landscape you want to see. GPU mesh eviction only retires unused render resources; it does not remove nearby terrain or its collision.</p>
 <p>For a deliberately procedural game, an entity can instead specify <code>Terrain3D.recipe</code> inline. That explicitly requests runtime generation. <code>asset</code> and <code>recipe</code> cannot be supplied together.</p>
 
 <h2>Landforms and biomes</h2>
@@ -327,7 +329,7 @@ Rule "shoreline" biome=sand priority=30 blend=1.500
 
 <h2>Saved source and generated geometry</h2>
 <p>A Terrain asset stores a versioned recipe, region strokes and manual edits; a scene placement stores its asset reference. Neither stores generated triangle lists or one authored entity per chunk. Generated child meshes and colliders exist in the loaded world. Explicit inline procedural recipes remain available in scenes and prefabs.</p>
-<p>Development tools prepare uncached source assets; shipped games load cooked heightfields without rerunning generation. Chunk geometry and native resources are built from the loaded field. Background work covers generation, but scene publication, mesh construction and GPU/physics updates can still take time on large terrains. Chunking does not imply integrated LOD or large-world streaming.</p>
+<p>Development tools prepare uncached source assets; shipped games load cooked heightfields without rerunning generation. Chunk geometry and native resources are built from the loaded field. Background work covers generation, but scene publication, mesh construction and GPU/physics updates can still take time on large terrains. Render LOD selects detail per camera using the terrain owner's pixel-error setting. It does not implement large-world streaming.</p>
 
 <h2>Try the example</h2>
 <pre><code>demi editor --project examples/terrain_3d

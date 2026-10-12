@@ -1,12 +1,86 @@
 #include "demi/runtime/scene/ComponentRegistry.h"
+#include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
+#include "demi/runtime/terrain/TerrainGenerator.h"
+
+#include <limits>
 
 #include <fstream>
 #include <iostream>
 #include <nlohmann/json.hpp>
 #include <stdexcept>
 
+namespace {
+
+void testTerrainLodQualityContract() {
+  using namespace demi::runtime;
+  using namespace demi::runtime::scene_loading;
+  const auto require = [](bool condition, const char *message) {
+    if (!condition) {
+      throw std::runtime_error(message);
+    }
+  };
+  const auto *descriptor = findComponentDescriptor("Terrain3D");
+  require(descriptor != nullptr, "Terrain3D descriptor is missing");
+  require(descriptor->defaults().at("lod_error_pixels") == 2.0F,
+          "Terrain3D quality default differs from native values");
+  const auto schema = componentSchema(*descriptor);
+  const auto &qualitySchema = schema.at("properties").at("lod_error_pixels");
+  require(qualitySchema.at("minimum") == 0.0,
+          "Terrain3D quality schema lost its nonnegative constraint");
+  require(qualitySchema.at("default") == 2.0,
+          "Terrain3D quality schema lost its default");
+
+  Entity entity;
+  const nlohmann::json authored{{"asset", "asset://terrain/test"},
+                                {"lod_error_pixels", 3.5}};
+  descriptor->parse(authored, entity);
+  auto *terrain = entity.component<Terrain3DComponent>();
+  require(terrain != nullptr && terrain->lodErrorPixels == 3.5F,
+          "Terrain3D quality parsing failed");
+  require(descriptor->serialize(entity) == authored,
+          "Terrain3D quality authored round trip failed");
+  auto retained = std::make_shared<const HeightField>();
+  terrain->generated = retained;
+  terrain->recipe = {{"retained_input", true}};
+  const auto nativeRecipe = terrain->recipe;
+  const nlohmann::json patched{{"asset", "asset://terrain/test"},
+                               {"lod_error_pixels", 0.0}};
+  require(descriptor->patch(entity, "lod_error_pixels", patched),
+          "Terrain3D quality field binding failed");
+  require(terrain->lodErrorPixels == 0.0F && terrain->generated == retained &&
+              terrain->recipe == nativeRecipe &&
+              terrain->asset == "asset://terrain/test",
+          "Terrain3D quality mutation invalidated unrelated terrain state");
+  require(descriptor->serialize(entity) == patched,
+          "Terrain3D field patch did not publish its authored values");
+  terrain->lodErrorPixels = 1.25F;
+  require(descriptor->inspect(entity).at("lod_error_pixels") == 1.25F,
+          "Terrain3D inspection missed current native quality");
+  require(descriptor->serialize(entity) == patched,
+          "Terrain3D native quality mutation rewrote patched authored source");
+
+  for (const auto &invalid :
+       {nlohmann::json(-1.0), nlohmann::json("invalid"),
+        nlohmann::json(std::numeric_limits<double>::infinity()),
+        nlohmann::json(std::numeric_limits<double>::quiet_NaN())}) {
+    std::string error;
+    require(!Terrain3DComponent::validateAuthored(
+                {{"lod_error_pixels", invalid}}, error) &&
+                error.find("lod_error_pixels") != std::string::npos,
+            "Terrain3D accepted invalid render quality");
+  }
+  Entity omitted;
+  descriptor->parse(nlohmann::json::object(), omitted);
+  require(omitted.component<Terrain3DComponent>()->lodErrorPixels == 2.0F &&
+              descriptor->serialize(omitted).empty(),
+          "Terrain3D omission materialized authored defaults");
+}
+
+} // namespace
+
 int main() {
   try {
+    testTerrainLodQualityContract();
     using namespace demi::runtime;
     using namespace demi::runtime::scene_loading;
     Entity entity;

@@ -6,6 +6,7 @@
 #include "demi/runtime/render/bgfx3d/MeshTransform3D.h"
 #include "demi/runtime/render/bgfx3d/PreparedMeshDraw3D.h"
 #include "demi/runtime/render/bgfx3d/PrimitiveMeshFactory3D.h"
+#include "demi/runtime/render/bgfx3d/VisibleMeshGeometry3D.h"
 #include "demi/runtime/scene/components/3dcomponents/AnimationPlayer3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
 #include "demi/runtime/scene/model/MeshMaterialSections3D.h"
@@ -89,7 +90,7 @@ bool BgfxRenderer3D::submitVisibleMeshes(
         const std::string &selectedModel = *lod.model;
         mediumLodMeshes += lod.level == 1 ? 1U : 0U;
         lowLodMeshes += lod.level == 2 ? 1U : 0U;
-        const auto *sections = entity.component<MeshMaterialSections3D>();
+        const auto *sections = visibleMeshSections3D(visible);
         const MeshMaterialSection3D *section = nullptr;
         if (visible.materialSection) {
           section = &sections->sections.at(*visible.materialSection);
@@ -148,6 +149,34 @@ bool BgfxRenderer3D::submitVisibleMeshes(
             if (queued) {
               ++bufferedDraws;
               bufferedTriangles += gpu->indexCount() / 3U;
+            }
+          }
+        } else if (visible.terrainSurface) {
+          const auto *gpu = visible.terrainGpuMesh;
+          if (!gpu) {
+            error = "Terrain mesh preparation did not complete: " + entity.id;
+            return false;
+          }
+          std::string textureId = mesh->texture;
+          if (textureId.empty() && material) {
+            textureId = material->albedoTexture;
+          }
+          const auto texture = textures_.find(textureId);
+          const bool drawSectionRange = section && !visible.drawAllSections;
+          prepared.fillUniforms(lightingUniforms, material, drawUniforms);
+          queued = gpu->draw(
+              commands_, frame.viewId, program,
+              texture.handle ? texture.handle : whiteTexture_, meshSampler_,
+              composeMeshTransform3D(transform, mesh->size), state, error,
+              drawUniforms, drawSectionRange ? section->firstIndex : 0,
+              drawSectionRange ? section->indexCount : UINT32_MAX);
+          if (queued) {
+            ++bufferedDraws;
+            const auto drawnIndices =
+                drawSectionRange ? section->indexCount : gpu->indexCount();
+            bufferedTriangles += drawnIndices / 3U;
+            if (!shadowPass) {
+              terrainStatistics_.triangles += drawnIndices / 3U;
             }
           }
         } else if (!mesh->vertices.empty()) {

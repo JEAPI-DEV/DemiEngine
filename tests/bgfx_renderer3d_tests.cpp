@@ -2,7 +2,10 @@
 #include "demi/runtime/render/bgfx3d/SceneVisibility3D.h"
 #include "demi/runtime/render/bgfx3d/PreparedMeshDraw3D.h"
 #include "demi/runtime/render/bgfx3d/MeshInstanceBatch3D.h"
+#include "demi/runtime/terrain/TerrainRenderLod.h"
+#include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
 #include <cmath>
+#include <numbers>
 #include "demi/runtime/render/bgfx2d/ColorPacking2D.h"
 #include "demi/runtime/geometry/MeshDeformation3D.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshInstances3DComponent.h"
@@ -42,6 +45,7 @@ class MeshUploadCapture final : public GpuResources {
 public:
   explicit MeshUploadCapture(GpuResources &target) : target_(target) {}
   std::vector<std::vector<GpuMeshVertex3D>> meshUploads;
+  bool failNextMeshUpload = false;
   RenderDeviceLimits limits() const override { return target_.limits(); }
   TextureHandle createTexture(const TextureCreateInfo &info,
                               std::string &error) override {
@@ -62,6 +66,12 @@ public:
   }
   BufferHandle createBuffer(const BufferCreateInfo &info,
                             std::string &error) override {
+    if (failNextMeshUpload && info.kind == BufferKind::Vertex &&
+        info.debugName == "3D mesh vertices") {
+      failNextMeshUpload = false;
+      error = "Injected terrain upload failure";
+      return {};
+    }
     const auto handle = target_.createBuffer(info, error);
     if (handle && info.kind == BufferKind::Vertex &&
         info.debugName == "3D mesh vertices") {
@@ -213,6 +223,105 @@ int main() {
     assert(scratch[7].values[2] == 0.0F);
     assert(builtin.state.blend == BlendMode::Alpha);
     assert(!builtin.state.writeDepth);
+  }
+  {
+    auto chunk = std::make_shared<PreparedTerrainChunkLod>();
+    chunk->boundsMin = {-1, -1, -1};
+    chunk->boundsMax = {1, 1, 1};
+    chunk->geometricErrors = {0, 0.1F, 0.2F, 0.4F};
+    chunk->triangleCounts = {4, 3, 2, 1};
+    BgfxCameraFrame3D camera;
+    camera.cameraId = "hysteresis-camera";
+    camera.camera.perspective = false;
+    camera.camera.orthographicSize = 100;
+    camera.viewportHeight = 200;
+    WorldTransform3D transform;
+    assert(selectTerrainDrawLevel3D(*chunk, transform, {1, 1, 1}, camera, 0.5F) == 3);
+    transform.scale = {10, 1, 1};
+    assert(selectTerrainDrawLevel3D(*chunk, transform, {1, 1, 1}, camera, 0.5F) == 3);
+    transform.scale = {1, 10, 1};
+    assert(selectTerrainDrawLevel3D(*chunk, transform, {1, 1, 1}, camera, 2.0F) == 2);
+    transform = {};
+    TerrainDrawSelection3D selection;
+    selection.beginPresentation();
+    assert(selection.select(chunk, transform, {1, 1, 1}, camera, 0.38F) == 2);
+    assert(selection.select(chunk, transform, {1, 1, 1}, camera, 0.42F) == 2);
+    assert(selection.select(chunk, transform, {1, 1, 1}, camera, 0.5F) == 3);
+    assert(selection.select(chunk, transform, {1, 1, 1}, camera, 0.39F) == 2);
+    camera.cameraId = "independent-camera";
+    assert(selection.select(chunk, transform, {1, 1, 1}, camera, 0.42F) == 3);
+    // Two placements may share immutable prepared geometry, but not quality
+    // transition history. One owner's demotion band cannot hold back another.
+    camera.cameraId = "shared-placement-camera";
+    assert(selection.select(chunk, transform, {1, 1, 1}, camera, 0.38F, "owner-a") == 2);
+    assert(selection.select(chunk, transform, {1, 1, 1}, camera, 0.42F, "owner-a") == 2);
+    assert(selection.select(chunk, transform, {1, 1, 1}, camera, 0.42F, "owner-b") == 3);
+    chunk->triangleCounts = {4, 4, 4, 4};
+    assert(selectTerrainDrawLevel3D(*chunk, transform, {1, 1, 1}, camera, 100) == 0);
+  }
+  {
+    PreparedTerrainChunkLod chunk;
+    chunk.boundsMin = {-1000, -1, -1};
+    chunk.boundsMax = {1000, 1, 1};
+    chunk.geometricErrors = {0, 0.03F, 0.06F, 0.1F};
+    chunk.triangleCounts = {100, 60, 30, 15};
+    BgfxCameraFrame3D camera;
+    camera.position = {0, 0, 100};
+    camera.forward = {0, 0, -1};
+    camera.camera.fov = 60;
+    camera.viewportHeight = 1000;
+    // A wide chunk's bounding sphere crosses the camera plane even though its
+    // actual terrain bounds are entirely in front. Local Y error does not
+    // gain arbitrary horizontal/depth displacement merely from this width.
+    assert(selectTerrainDrawLevel3D(chunk, {}, {1, 1, 1}, camera, 1.0F) == 3);
+    chunk.boundsMin.z = 99.95F;
+    chunk.boundsMax.z = 101;
+    assert(selectTerrainDrawLevel3D(chunk, {}, {1, 1, 1}, camera, 1.0F) == 0);
+
+    chunk.boundsMin = {-2, -10, -2};
+    chunk.boundsMax = {2, 10, 2};
+    chunk.geometricErrors = {0, 0.05F, 0.1F, 0.25F};
+    camera.position = {0, 3, 100};
+    const auto project = [&camera](Vec3 point) {
+      const float x = point.x - camera.position.x;
+      const float y = point.y - camera.position.y;
+      if (!camera.camera.perspective) {
+        const float factor = float(camera.viewportHeight) /
+                             (2 * camera.camera.orthographicSize);
+        return Vec2{x * factor, y * factor};
+      }
+      const float depth = camera.position.z - point.z;
+      const float factor = float(camera.viewportHeight) /
+                           (2 * std::tan(camera.camera.fov *
+                                         std::numbers::pi_v<float> / 360));
+      return Vec2{x * factor / depth, y * factor / depth};
+    };
+    for (const bool perspective : {true, false}) {
+      camera.camera.perspective = perspective;
+      camera.camera.orthographicSize = 50;
+      for (const Vec3 rotation : {Vec3{}, Vec3{35, 40, 25}, Vec3{80, 0, 10},
+                                  Vec3{0, 0, 90}}) {
+        WorldTransform3D transform;
+        transform.scale = {7, 3, 2};
+        transform.rotation = rotation;
+        const auto level = selectTerrainDrawLevel3D(chunk, transform, {1, 1, 1},
+                                                    camera, 12.0F);
+        assert(level == 3);
+        const float heightError = chunk.geometricErrors[level];
+        for (const float x : {-2.0F, 0.0F, 2.0F}) {
+          for (const float y : {-9.0F, 0.0F, 9.0F}) {
+            for (const float z : {-2.0F, 0.0F, 2.0F}) {
+              const auto full = project(transformPoint3D(transform, {x, y, z}));
+              for (const float direction : {-1.0F, 1.0F}) {
+                const auto reduced = project(transformPoint3D(
+                    transform, {x, y + direction * heightError, z}));
+                assert(std::hypot(full.x - reduced.x, full.y - reduced.y) <= 12.0F);
+              }
+            }
+          }
+        }
+      }
+    }
   }
   BgfxGraphicsDevice graphics;
   std::string error;
@@ -1137,6 +1246,129 @@ int main() {
 
     instanceWorld.entities.front().component<MeshInstances3DComponent>()->transforms.clear();
     assert(extractVisibleMeshes3D(instanceWorld, frame).meshes.empty());
+  }
+  {
+    MeshUploadCapture uploads(*resources);
+    BgfxRenderer3D terrainRenderer(uploads, *commands);
+    assert(terrainRenderer.initialize(error));
+    World terrainWorld;
+    Entity owner;
+    owner.id = "terrain-owner";
+    owner.setComponent(Transform3DComponent{});
+    owner.setComponent(Terrain3DComponent{});
+    terrainWorld.entities.push_back(std::move(owner));
+    auto surface = shape("terrain-surface", "", {});
+    auto *full = surface.component<MeshRendererComponent>();
+    const std::array<Vec3, 3> triangle{{{-1, 0, 0}, {1, 0, 0}, {0, 1, 0}}};
+    for (int copy = 0; copy < 4; ++copy) {
+      full->vertices.insert(full->vertices.end(), triangle.begin(), triangle.end());
+    }
+    full->markGeometryChanged();
+    const auto fullRevision = full->revision;
+    auto chunk = std::make_shared<PreparedTerrainChunkLod>();
+    chunk->boundsMin = {-1, -1, -1};
+    chunk->boundsMax = {1, 1, 1};
+    chunk->geometricErrors = {0, 0.1F, 0.2F, 0.4F};
+    chunk->triangleCounts = {4, 3, 2, 1};
+    for (std::size_t level = 1; level < 4; ++level) {
+      auto geometry = std::make_shared<MeshRendererComponent>();
+      for (std::size_t copy = 0; copy < 4 - level; ++copy) {
+        geometry->vertices.insert(geometry->vertices.end(), triangle.begin(), triangle.end());
+      }
+      geometry->markGeometryChanged();
+      chunk->levels[level]["grass"].geometry = std::move(geometry);
+    }
+    surface.setComponent(TerrainRenderLod{chunk, "grass", "terrain-owner"});
+    terrainWorld.entities.push_back(std::move(surface));
+    auto nearCamera = frame;
+    nearCamera.cameraId = "near-camera";
+    nearCamera.camera.renderHud = false;
+    auto farCamera = nearCamera;
+    farCamera.cameraId = "far-camera";
+    farCamera.position = {0, 0, 500};
+    farCamera.forward = {0, 0, -1};
+    farCamera.camera.farClip = 1000;
+    assert(terrainRenderer.renderFrame(terrainWorld, farCamera, 0.016F, error));
+    assert(terrainRenderer.terrainStatistics().selectedSurfaces[3] == 1);
+    assert(terrainRenderer.terrainStatistics().triangles == 1);
+    assert(terrainRenderer.terrainStatistics().uploads == 1);
+    static_cast<void>(graphics.endFrame());
+    assert(terrainRenderer.renderFrame(terrainWorld, nearCamera, 0.016F, error));
+    assert(terrainRenderer.terrainStatistics().selectedSurfaces[0] == 1);
+    assert(terrainRenderer.terrainStatistics().triangles == 4);
+    assert(terrainRenderer.terrainStatistics().uploads == 1);
+    static_cast<void>(graphics.endFrame());
+    assert(terrainWorld.entities[1].component<MeshRendererComponent>()->revision == fullRevision);
+    assert(terrainWorld.entities[1].component<MeshRendererComponent>()->vertices.size() == 12);
+
+    // Multiple cameras retain the union of Full and reduced GPU demand.
+    for (int presentation = 0; presentation < 10; ++presentation) {
+      terrainRenderer.beginPresentation();
+      assert(terrainRenderer.renderFrame(terrainWorld, nearCamera, 0.016F, error));
+      assert(terrainRenderer.renderFrame(terrainWorld, farCamera, 0.016F, error));
+      terrainRenderer.endPresentation(true);
+      assert(terrainRenderer.terrainStatistics().residentMeshes == 2);
+      assert(terrainRenderer.terrainStatistics().uploads == 0);
+      static_cast<void>(graphics.endFrame());
+    }
+    // The Full CPU mesh survives when its unused GPU variant is evicted.
+    for (int presentation = 0; presentation < 10; ++presentation) {
+      assert(terrainRenderer.renderFrame(terrainWorld, farCamera, 0.016F, error));
+      static_cast<void>(graphics.endFrame());
+    }
+    assert(terrainRenderer.terrainStatistics().residentMeshes == 1);
+    assert(terrainRenderer.renderFrame(terrainWorld, nearCamera, 0.016F, error));
+    assert(terrainRenderer.terrainStatistics().uploads == 1);
+    static_cast<void>(graphics.endFrame());
+
+    // Shadows use the originating camera's projection, not the cascade's.
+    auto shadowCamera = farCamera;
+    shadowCamera.camera.perspective = false;
+    shadowCamera.camera.orthographicSize = 0.01F;
+    shadowCamera.position = {0, 0, 5};
+    const auto shadowDraws = extractVisibleMeshes3D(terrainWorld, shadowCamera,
+                                                   nullptr, nullptr, &farCamera);
+    assert(!shadowDraws.meshes.empty());
+    for (const auto &draw : shadowDraws.meshes) {
+      assert(draw.terrainLevel == 3);
+    }
+
+    // Reduced upload failure falls back to Full without changing the source.
+    BgfxRenderer3D fallbackRenderer(uploads, *commands);
+    assert(fallbackRenderer.initialize(error));
+    uploads.failNextMeshUpload = true;
+    assert(fallbackRenderer.renderFrame(terrainWorld, farCamera, 0.016F, error));
+    assert(fallbackRenderer.terrainStatistics().selectedSurfaces[0] == 1);
+    assert(fallbackRenderer.terrainStatistics().triangles == 4);
+    assert(error.empty());
+    static_cast<void>(graphics.endFrame());
+    assert(fallbackRenderer.renderFrame(terrainWorld, farCamera, 0.016F, error));
+    assert(fallbackRenderer.terrainStatistics().selectedSurfaces[3] == 1);
+    static_cast<void>(graphics.endFrame());
+
+    terrainWorld.entities.front().component<Terrain3DComponent>()->lodErrorPixels = 0;
+    assert(terrainRenderer.renderFrame(terrainWorld, farCamera, 0.016F, error));
+    assert(terrainRenderer.terrainStatistics().selectedSurfaces[0] == 1);
+    static_cast<void>(graphics.endFrame());
+
+    Entity secondOwner;
+    secondOwner.id = "second-terrain-owner";
+    secondOwner.setComponent(Transform3DComponent{.position = {0, 0, -100}});
+    secondOwner.setComponent(Terrain3DComponent{});
+    auto secondSurface = terrainWorld.entities[1];
+    secondSurface.id = "second-terrain-surface";
+    secondSurface.setComponent(Transform3DComponent{.parent = secondOwner.id});
+    secondSurface.setComponent(TerrainRenderLod{chunk, "grass", secondOwner.id});
+    terrainWorld.entities.push_back(std::move(secondOwner));
+    terrainWorld.entities.push_back(std::move(secondSurface));
+    assert(terrainRenderer.renderFrame(terrainWorld, farCamera, 0.016F, error));
+    assert(terrainRenderer.terrainStatistics().selectedSurfaces[0] == 1);
+    assert(terrainRenderer.terrainStatistics().selectedSurfaces[3] == 1);
+    // Shared immutable reduced geometry uses the existing GPU variant even
+    // though the placement, transform, quality and stable surface ID differ.
+    assert(terrainRenderer.terrainStatistics().uploads == 0);
+    assert(terrainRenderer.terrainStatistics().residentMeshes == 2);
+    static_cast<void>(graphics.endFrame());
   }
   renderer.shutdown();
   renderer.shutdown();

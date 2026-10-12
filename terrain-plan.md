@@ -6,7 +6,7 @@ have qualification coverage. Blended landscape materials, advanced water and
 large-world vegetation/streaming still need their integration gates below.
 Evidence is recorded in [docs/terrain-qualification.md](docs/terrain-qualification.md).
 
-## Delivery checkpoint, 2026-10-11
+## Delivery checkpoint, 2026-10-12
 
 Authoring and persistence are substantially ahead of rendering quality. The
 current example is a functional integration probe, not a reference-quality
@@ -20,7 +20,7 @@ or visual acceptance gates.
 | Surfaces | Ordinary materials assigned by surface roles; explicit biome overrides | Rendered PBR texture maps, smooth layer blending, steep-slope mapping and detail variation |
 | Water | Finite coverage, carving, depth color, transparent geometry and gameplay queries | Reflections/refraction, waves, foam and underwater presentation |
 | Vegetation | Stable placement data and prototype objects | Production assets, integrated instancing/LOD/culling and bounded collision residency |
-| Terrain scale | Chunk publication, frustum culling and cooked data | Live camera-driven terrain LOD/streaming and coordinated material/collision residency |
+| Terrain scale | Chunk publication, frustum culling, cooked data, camera-driven render LOD and GPU mesh residency | CPU streaming, coordinated material/collision residency and larger reference scenes |
 | Reference scenes | Functional probes and performance traces | Neither user reference has a visually qualified counterpart |
 
 `TerrainLod`, `TerrainStreaming`, material-blending and texture-residency modules
@@ -28,10 +28,11 @@ must be judged by their live consumers. Helper implementations and unit tests do
 not count as renderer integration. Current terrain publication still creates
 ordinary mesh/collider entities for its surface groups.
 
-The LOD correctness pass now preserves full-resolution perimeter samples and
-shared normals, measures error against the actual triangulated surface, and
-matches Full biome/UV publication. This is a prerequisite for live integration,
-not completion of it. See [LOD geometry qualification](docs/terrain-lod-qualification.md).
+Live rendering now consumes prepared LOD geometry with shared chunk boundaries,
+camera pixel-error selection, multi-camera GPU residency and independent Full
+collision. The default tight budget retains Full detail in the current coarse
+landscape probe; triangle reduction is not the dominant CPU performance issue.
+See [LOD qualification](docs/terrain-lod-qualification.md).
 
 Next delivery order:
 

@@ -1,11 +1,93 @@
-# Terrain LOD geometry qualification
+# Terrain LOD qualification
 
-## Scope, 2026-10-11
+## Live render integration, 2026-10-12
 
-This change repairs native LOD geometry and residency-policy helpers before
-connecting them to live rendering. It does not enable camera-driven LOD in the
-editor or runtime. The existing full-resolution scene meshes, collision data,
-authored terrain documents and cooked format remain unchanged.
+Runtime and editor rendering now consume immutable chunk LOD preparations.
+Terrain loading prepares the reduced meshes and exact geometric errors; local
+publication rebuilds affected chunks, and material rebinding retains geometry.
+The Full meshes and colliders remain independently available. Shared asset
+placements share prepared data on loading, with separate camera/placement
+selection history.
+
+`Terrain3D.lod_error_pixels` defaults to 2. Zero selects Full detail. Reflection,
+validation, schema, serialization and the Terrain Inspector expose the same
+field. Direct quality edits preserve generated resources; generic editor
+Undo/Redo still uses the existing scene rebuild path and restores the value.
+
+Selection projects transformed local-height error using camera-space chunk
+bounds. This avoids inflating error with unrelated horizontal scale. The budget
+uses originating presentation viewport pixels; downscaled render targets remain
+conservatively constrained, and shadow atlas dimensions do not set quality.
+Every biome in a chunk shares the decision. Coarsening requires 15% headroom;
+refinement occurs immediately when the error budget is exceeded.
+
+The GPU cache retains demand across all cameras and shadow views in a
+presentation. Unused entries retire after eight presentations. Reduced geometry
+shares GPU buffers across placements; material bindings remain per draw. Failed
+reduced uploads fall back to Full without replacing collision or destroying an
+existing cache entry. Profiler gauges expose selected surface counts, terrain
+triangles, resident GPU bytes/meshes and uploads.
+
+The graph example's camera far clip is now 5,000 units instead of 500. Its
+landscape spans 2,000 units; the old clipping plane cut the view off during the
+camera-height sweep. Render LOD does not impose a terrain eviction distance.
+
+### Moving-camera evidence
+
+Run `scripts/benchmark_terrain_lod.py` with an optimized binary, a unique output
+directory and `--build-configuration linux-release`. The script creates temporary
+project copies, uses identical frame-indexed camera paths, disables VSync for
+measurement, and records per-frame CSV plus binary/source hashes. It does not
+override simulation delta time or modify the example in place.
+
+At 2,954 by 1,744 pixels, 600 frames with 60 warmup frames excluded, and the
+5,000-unit far clip:
+
+- The default 2-pixel budget retained Full terrain throughout this path. Both
+  runs submitted a median 178,896 terrain triangles. Timing variation between
+  these runs is not evidence of a LOD improvement.
+- An explicit 8-pixel diagnostic reduced median terrain triangles from 178,896
+  to 144,028 (about 19.5%). CPU render preparation changed from 6.41 to 6.19 ms,
+  and frame time from 9.20 to 8.76 ms. This is a quality tradeoff diagnostic,
+  not the default setting or evidence that triangles dominate frame cost.
+- The field has 256 chunks and 4-unit sample spacing. Cached Half errors range
+  from 1.84 to 24.54 terrain units, with median 3.47. Full fallback at the tighter
+  budget is expected for this coarse, rough surface and camera path.
+
+Reports for this session: `/tmp/terrain-lod-tight-long-view/` and
+`/tmp/terrain-lod-eight-pixels/`. Temporary reports are not durable repository
+artifacts; the script and recorded workload provide reproduction.
+
+### Remaining scope
+
+This delivers render LOD and GPU mesh residency, not large-world streaming.
+All heightfield samples, Full CPU meshes and collision remain resident. Preparing
+LOD adds loading/edit work and retained CPU geometry. Large chunk preparation
+can delay cancellation until the current geometry/error operation finishes.
+CPU paging, actor-driven collision residency, layered PBR materials, vegetation
+instancing and advanced water remain separate terrain-plan gates.
+
+### Live qualification
+
+Thirteen focused Release CTest suites passed, covering component/schema contracts,
+LOD geometry and preparation, renderer selection/cache behavior, visibility,
+terrain publication and editor history/workspace integration. The graph example
+validated all 15 reachable files and completed a three-frame headless run.
+`git diff --check` passed. This is not a full repository or Android-device gate.
+
+The rebuilt native editor was launched at 5,120 by 2,806 pixels. The Terrain
+Inspector displayed the default 2.000-pixel setting, and embedded Play displayed
+the distant mountain range with the extended far clip. Session captures are
+`/tmp/terrain-live-editor-view.png` and `/tmp/terrain-live-editor-play.png`.
+The native screenshot is visual qualification, not a controlled performance
+comparison; the moving-camera runs above provide the repeatable measurements.
+
+## Initial geometry pass, 2026-10-11
+
+The initial change repaired native LOD geometry and residency-policy helpers
+before connecting them to live rendering. At this checkpoint camera-driven LOD
+was not yet enabled. Full scene meshes, collision data, authored terrain
+documents and the cooked format were unchanged.
 
 ## Correctness changes
 
