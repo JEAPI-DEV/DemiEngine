@@ -5,6 +5,26 @@
 namespace demi::runtime::ui {
 namespace {
 using Json = nlohmann::json;
+std::unordered_map<std::string, UiActionEffect>
+actionEffects(const Json &document) {
+  std::unordered_map<std::string, UiActionEffect> result;
+  if (const auto *effects =
+          scene_loading::objectField(document, "action_effects"))
+    for (const auto &[action, value] : effects->items()) {
+      if (!value.is_object())
+        continue;
+      UiActionEffect effect;
+      for (const auto *key : {"show", "hide"})
+        if (const auto *ids = scene_loading::arrayField(value, key))
+          for (const auto &id : *ids)
+            if (id.is_string())
+              (std::string_view(key) == "show" ? effect.show : effect.hide)
+                  .push_back(id.get<std::string>());
+      effect.focus = scene_loading::stringOr(value, "focus");
+      result[action] = std::move(effect);
+    }
+  return result;
+}
 Insets insets(const Json &value) {
   if (value.is_number()) {
     const float v = value.get<float>();
@@ -49,8 +69,7 @@ TextOverflowMode textOverflow(const std::string &value) {
 }
 
 std::optional<Color> hexColor(const std::string &text) {
-  if (text.empty() || text[0] != '#' ||
-      (text.size() != 7 && text.size() != 9))
+  if (text.empty() || text[0] != '#' || (text.size() != 7 && text.size() != 9))
     return std::nullopt;
   auto hex = [](char c) -> int {
     if (c >= '0' && c <= '9')
@@ -140,8 +159,8 @@ Json expandNodeShorthand(const Json &json) {
   return out;
 }
 
-void parseNodeImpl(const Json &json, const std::string &parent,
-                   UiDocument &out, const bool parentFlowChild) {
+void parseNodeImpl(const Json &json, const std::string &parent, UiDocument &out,
+                   const bool parentFlowChild) {
   if (!json.is_object())
     return;
   const Json expanded = expandNodeShorthand(json);
@@ -164,6 +183,7 @@ void parseNodeImpl(const Json &json, const std::string &parent,
   node.localizationKey = scene_loading::stringOr(source, "localization_key");
   node.texture = scene_loading::stringOr(source, "texture");
   node.action = scene_loading::stringOr(source, "action");
+  node.actionEffects = actionEffects(source);
   node.control = scene_loading::stringOr(source, "control");
   node.script = scene_loading::stringOr(source, "script");
   node.accessibilityLabel =
@@ -184,6 +204,15 @@ void parseNodeImpl(const Json &json, const std::string &parent,
     node.layout.anchorMin = *value;
   if (auto value = scene_loading::vec2Field(source, "anchor_max"))
     node.layout.anchorMax = *value;
+  if (!json.contains("anchor_min") && !json.contains("anchor_max")) {
+    const auto dock = scene_loading::stringOr(json, "dock");
+    if (dock == "right")
+      node.layout.dockPivot.x = 1.0F;
+    else if (dock == "bottom")
+      node.layout.dockPivot.y = 1.0F;
+    else if (dock == "center")
+      node.layout.dockPivot = {0.5F, 0.5F};
+  }
   const bool implicitFill =
       !source.contains("size") && !source.contains("anchor_min") &&
       !source.contains("anchor_max") && !source.contains("dock") &&
@@ -200,7 +229,8 @@ void parseNodeImpl(const Json &json, const std::string &parent,
   if (source.contains("padding"))
     node.layout.padding = insets(source["padding"]);
   node.layout.direction = direction(scene_loading::stringOr(source, "layout"));
-  node.layout.alignment = alignment(scene_loading::stringOr(source, "alignment"));
+  node.layout.alignment =
+      alignment(scene_loading::stringOr(source, "alignment"));
   node.layout.gap = scene_loading::numberField(source, "gap").value_or(0.0F);
   node.layout.columns = static_cast<int>(
       scene_loading::numberField(source, "columns").value_or(1.0F));
@@ -235,19 +265,23 @@ void parseNodeImpl(const Json &json, const std::string &parent,
   node.borderWidth =
       scene_loading::numberField(source, "border_width").value_or(0.0F);
   node.radius = scene_loading::numberField(source, "radius").value_or(0.0F);
-  node.deadzone = scene_loading::numberField(source, "deadzone").value_or(0.15F);
+  node.deadzone =
+      scene_loading::numberField(source, "deadzone").value_or(0.15F);
   node.layer = static_cast<int>(
       scene_loading::numberField(source, "layer").value_or(0.0F));
   if (auto value = scene_loading::vec2Field(source, "source_position"))
     node.sourcePosition = *value;
   if (auto value = scene_loading::vec2Field(source, "source_size"))
     node.sourceSize = *value;
-  if (auto value = scene_loading::stringOr(source, "animation"); !value.empty()) {
+  if (auto value = scene_loading::stringOr(source, "animation");
+      !value.empty()) {
     node.animation = value;
     node.animationFrame = static_cast<int>(
         scene_loading::numberField(source, "animation_frame").value_or(0.0F));
   }
   node.visible = scene_loading::boolField(source, "visible").value_or(true);
+  node.blocksPointer =
+      scene_loading::boolField(source, "blocks_pointer").value_or(false);
   node.disabled = scene_loading::boolField(source, "disabled").value_or(false);
   node.focusable =
       scene_loading::boolField(source, "focusable")
@@ -273,9 +307,8 @@ void parseNodeImpl(const Json &json, const std::string &parent,
   // styles (applied below) override these type defaults. Flow-layout
   // children (row/column/grid parents) get their slot from the parent, so
   // only fixed-position nodes receive a fallback size here.
-  const bool stretches =
-      node.layout.anchorMax.x > node.layout.anchorMin.x ||
-      node.layout.anchorMax.y > node.layout.anchorMin.y;
+  const bool stretches = node.layout.anchorMax.x > node.layout.anchorMin.x ||
+                         node.layout.anchorMax.y > node.layout.anchorMin.y;
   if (!source.contains("size") && !stretches && !parentFlowChild) {
     if (node.type == "button" || node.type == "toggle" ||
         node.type == "text_input") {
@@ -284,9 +317,8 @@ void parseNodeImpl(const Json &json, const std::string &parent,
       node.layout.size = {240.0F, 24.0F};
     }
   }
-  if (!authoredFontSize &&
-      (node.type == "label" || node.type == "text" || node.type == "button" ||
-       node.type == "toggle"))
+  if (!authoredFontSize && (node.type == "label" || node.type == "text" ||
+                            node.type == "button" || node.type == "toggle"))
     node.fontSize = 20.0F;
   const std::string id = node.id;
   // Stash authored-field flags in generation map via sentinel: reuse padding
@@ -346,24 +378,7 @@ UiDocument parseUiDocument(const nlohmann::json &document) {
     for (const auto &[key, value] : actions->items())
       if (value.is_string())
         result.actionMap[key] = value.get<std::string>();
-  if (const Json *effects =
-          scene_loading::objectField(document, "action_effects")) {
-    for (const auto &[action, value] : effects->items()) {
-      if (!value.is_object())
-        continue;
-      UiActionEffect effect;
-      if (const Json *show = scene_loading::arrayField(value, "show"))
-        for (const Json &id : *show)
-          if (id.is_string())
-            effect.show.push_back(id.get<std::string>());
-      if (const Json *hide = scene_loading::arrayField(value, "hide"))
-        for (const Json &id : *hide)
-          if (id.is_string())
-            effect.hide.push_back(id.get<std::string>());
-      effect.focus = scene_loading::stringOr(value, "focus");
-      result.actionEffects[action] = std::move(effect);
-    }
-  }
+  result.actionEffects = actionEffects(document);
   if (const Json *styles = scene_loading::objectField(document, "styles")) {
     for (const auto &[name, value] : styles->items()) {
       UiStyle style;

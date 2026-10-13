@@ -53,7 +53,8 @@ public:
        TextureHandle texture, SamplerHandle sampler,
        const std::array<float, 16> &transform, const DrawState &state,
        std::string &error,
-       std::span<const DrawUniformValue> uniforms = {}) const;
+       std::span<const DrawUniformValue> uniforms = {},
+       std::uint32_t firstIndex = 0, std::uint32_t indexCount = UINT32_MAX) const;
   [[nodiscard]] bool
   drawInstanced(RenderCommands &commands, std::uint16_t viewId,
                 ProgramHandle program, TextureHandle texture,

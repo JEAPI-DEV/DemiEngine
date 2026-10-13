@@ -54,6 +54,7 @@ public:
   [[nodiscard]] bool line(Vec3 start, Vec3 end, std::uint32_t rgba);
 
   [[nodiscard]] bool flush(std::string &error);
+  void cancel();
   [[nodiscard]] const PrimitiveCanvas3DStatistics &statistics() const {
     return statistics_;
   }

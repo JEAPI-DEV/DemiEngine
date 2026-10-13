@@ -1,5 +1,6 @@
 #include "editor/EditorWorkspace.h"
 
+#include "demi/runtime/scene/composition/PrefabResolver.h"
 #include "editor/EditorPrefabPlacement.h"
 
 #include "demi/filesystem/ProjectPaths.h"
@@ -62,6 +63,48 @@ void selectPrefabInstance(EditorWorkspace &workspace, const bool frame) {
 }
 
 } // namespace
+
+bool EditorWorkspace::replaceHierarchyWithPrefab(
+    std::string_view selectedId, const std::filesystem::path &prefabPath,
+    std::string &error) {
+  if (!project_ || activeDocument_ != EditorWorkspaceDocument::Scene) {
+    error = "Open a scene or prefab before replacing a hierarchy.";
+    return false;
+  }
+  const auto source = resolvePrefabSource(project_->project.projectDirectory,
+                                          prefabPath, error);
+  if (!source)
+    return false;
+  const auto preview = runtime::composition::expandPrefabInstance(
+      prefabPath,
+      {{"id", "conversion_preview"}, {"prefab", source->reference}});
+  if (!preview.document) {
+    error = preview.diagnostics.empty() ? "Could not validate the new prefab."
+                                        : preview.diagnostics.front().message;
+    return false;
+  }
+  nlohmann::json ids = nlohmann::json::object();
+  for (const auto &entity : *preview.document) {
+    const auto expanded = entity.at("id").get<std::string>();
+    constexpr std::string_view prefix = "conversion_preview/";
+    if (!expanded.starts_with(prefix)) {
+      error = "Prefab expansion did not retain its owner namespace.";
+      return false;
+    }
+    const auto local = expanded.substr(prefix.size());
+    ids[local] = local;
+  }
+  const std::string selection(selectedEntityId());
+  if (!mutateAndRebuild(
+          [&](EditorSceneDocument &document, std::string &failure) {
+            return document.replaceHierarchyWithPrefab(
+                selectedId, source->reference, ids, failure);
+          },
+          error))
+    return false;
+  selectEntity(selection);
+  return true;
+}
 
 bool EditorWorkspace::instantiatePrefab(const std::filesystem::path &path,
                                         std::string &error) {
@@ -208,6 +251,27 @@ EditorWorkspace::loadEntityPreview(const EditorSceneDocument &document,
   auto preview = document.json();
   return runtime::loadSceneDocument(previewProject, previewId, preview, error,
                                     false, prefabs);
+}
+
+bool EditorWorkspace::refreshPrefabInstances(std::string &error) {
+  if (!project_ || sceneDocument_.path().empty())
+    return true;
+  if (parkedSceneWorld_)
+    return rebuildParkedSceneWorld(error);
+  if (!std::ranges::any_of(project_->world.entities, [](const auto &entity) {
+        return !entity.prefabInstance.empty();
+      }))
+    return true;
+  // rebuildWorld publishes only a successfully composed replacement world.
+  // Unlike refresh(), it does not reload the document or clear its history.
+  if (!rebuildWorld(error))
+    return false;
+  std::erase_if(selectedEntityIds_, [this](const std::string &id) {
+    return std::ranges::find(project_->world.entities, id, &runtime::Entity::id) ==
+           project_->world.entities.end();
+  });
+  refreshDiagnostics();
+  return true;
 }
 
 } // namespace demi::editor

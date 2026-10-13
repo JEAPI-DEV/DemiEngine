@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://orbit/icons/check",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {},
+  "source": "check.svg",
+  "source_hash": "fnv1a64:74ae9f31fb5c3004",
+  "type": "Icon2D"
+}

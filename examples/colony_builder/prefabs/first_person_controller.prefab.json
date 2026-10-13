@@ -1,0 +1,26 @@
+{
+  "format_version": 1,
+  "id": "prefab://first_person_controller",
+  "name": "First-Person Controller",
+  "entities": [
+    {
+      "id": "body",
+      "name": "Player Body",
+      "tags": ["player", "controller-extension-point"],
+      "components": {
+        "Transform3D": {"position": [0, 1, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1]},
+        "CapsuleCollider3D": {"radius": 0.35, "height": 1.8, "offset": [0, 0, 0], "layer": "player"},
+        "CharacterController3D": {"step_height": 0.3, "slope_limit": 50, "skin_width": 0.02, "gravity": -20},
+        "LuaScript": {"module": "script://scripts/controllers/character_3d.lua", "properties": {"speed": 5.0, "jump_speed": 7.0}}
+      }
+    },
+    {
+      "id": "camera",
+      "name": "First-Person Camera",
+      "components": {
+        "Transform3D": {"parent": "body", "position": [0, 0.65, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1]},
+        "Camera3D": {"primary": true, "fov": 70, "near_clip": 0.05, "far_clip": 250, "target_offset": [0, 0, -1]}
+      }
+    }
+  ]
+}

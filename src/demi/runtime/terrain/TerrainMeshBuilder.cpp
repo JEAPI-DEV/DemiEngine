@@ -38,18 +38,6 @@ std::string surfaceId(const std::string &owner, const TerrainChunk &chunk,
          std::to_string(chunk.firstCellZ) + "/" + biomeIdSegment(biome);
 }
 
-Vec2 terrainUv(Vec2 position, float textureScale) {
-  if (!std::isfinite(textureScale) || textureScale <= 0)
-    throw std::invalid_argument(
-        "Terrain texture_scale must be finite and positive");
-  const auto u = float(double(position.x) * textureScale);
-  const auto v = float(double(position.y) * textureScale);
-  if (!std::isfinite(u) || !std::isfinite(v))
-    throw std::invalid_argument(
-        "Terrain texture_scale produces non-finite UVs");
-  return {u, v};
-}
-
 std::vector<Vec2> terrainUvs(std::span<const Vec3> vertices,
                              float textureScale) {
   std::vector<Vec2> uvs;
@@ -75,6 +63,7 @@ buildChunkTriangles(const HeightField &field, const TerrainChunk &chunk,
     const auto textureScale = field.biomeTextureScale(biome);
     for (std::size_t vertex = 0; vertex < 3; ++vertex) {
       const auto sample = samples[vertex];
+      surface.samples.push_back(sample);
       const Vec2 position = positions[vertex];
       surface.vertices.push_back(
           {position.x, field.heights.at(sample), position.y});
@@ -130,6 +119,7 @@ buildMeshEntity(const Entity &owner, std::string id,
   Entity entity;
   entity.id = std::move(id);
   entity.name = "Terrain surface";
+  entity.setComponent(MeshMaterialSections3D{});
   entity.enabled = owner.enabled;
   entity.layer = owner.layer;
   entity.sceneOwner = owner.sceneOwner;

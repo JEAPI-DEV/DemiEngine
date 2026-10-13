@@ -59,6 +59,7 @@ void lifecycleAndEventTranslationWorkWithoutAGpu() {
   event.key.down = true;
   assert(SDL_PushEvent(&event));
 
+  assert(host->waitForEvent(50));
   InputState input;
   host->poll(input);
   assert(input.keysDown.contains("w"));

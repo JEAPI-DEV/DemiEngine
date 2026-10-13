@@ -338,12 +338,29 @@ int main() {
         {"id":"a","prefab":"prefab://wrapper","overrides":{
           "inner/body.Rigidbody3D.mass":20,
           "inner/body.Transform3D.position":[1,2,3]}},
-        {"id":"b","prefab":"prefab://wrapper"}]
+        {"id":"b","prefab":"prefab://wrapper"},
+        {"id":"kept","prefab":"prefab://body","entity_ids":{"body":"kept"}}]
     })");
     write(root / "scripts/behaviour.lua", "return {}\n");
     EditorWorkspace workspace;
     std::string error;
     require(workspace.open(root, error), error);
+    workspace.selectEntity("kept");
+    checkInspector(workspace);
+    require(workspace.editValue({.entityId = "kept",
+                                 .component = "Transform3D",
+                                 .field = "position"},
+                                json::array({4, 5, 6}), false, error),
+            error);
+    require(workspace.sceneDocument()
+                    .json()["entities"][2]
+                    .at("overrides")
+                    .at("body")
+                    .at("components")
+                    .at("Transform3D")
+                    .at("position") == json::array({4, 5, 6}),
+            "Mapped prefab root edit did not stay on its instance");
+    require(workspace.undo(error), error);
     const SceneValueTarget dataTarget{.entityId="a/inner/body", .component="GameplayData", .field="values"};
     const json editedData{{"health", 80}, {"nested", {{"new", nullptr}}}, {"items", json::array({1, true, "item"})}};
     const auto beforeData = workspace.sceneDocument().json();
@@ -358,6 +375,34 @@ int main() {
     require(workspace.undo(error), error);
     require(workspace.redo(error), error);
     require(workspace.save(error), error);
+    const auto linkedScene = workspace.sceneDocument().json();
+    require(
+        workspace.reparentEntity("a/inner/body", std::string("kept"), error),
+        error);
+    require(
+        !workspace.reparentEntity("kept", std::string("a/inner/body"), error),
+        "Cross-prefab parent cycle accepted");
+    const auto movedScene = workspace.sceneDocument().json();
+    require(workspace.unpackPrefab("a/inner/body", error), error);
+    require(workspace.sceneDocument().entity("a/inner/body") != nullptr,
+            "Unpack lost the stable child ID");
+    require(workspace.sceneDocument()
+                    .component("a/inner/body", "Transform3D")
+                    ->at("parent") == "kept",
+            "Unpack lost the overridden external parent");
+    require(hasComponent(workspace, "a/inner/body", "Rigidbody3D"),
+            "Unpack lost inherited components");
+    require(workspace.undo(error), error);
+    require(workspace.sceneDocument().json() == movedScene,
+            "Unpack undo changed source");
+    require(workspace.undo(error), error);
+    require(workspace.sceneDocument().json() == linkedScene,
+            "Reparent undo changed source");
+    require(workspace.unpackPrefab("kept", error), error);
+    require(workspace.sceneDocument().entity("kept") != nullptr &&
+                !workspace.sceneDocument().entity("kept")->contains("prefab"),
+            "Mapped-ID instance was not unpacked");
+    require(workspace.undo(error), error);
     const auto original = workspace.sceneDocument().json();
     require(workspace.addComponent("a/inner/body", "Dentable3D", error), error);
     require(hasComponent(workspace, "a/inner/body", "Dentable3D"),

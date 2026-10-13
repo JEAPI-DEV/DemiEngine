@@ -81,10 +81,12 @@ AssetRegistry buildRegistry() {
       manifest(std::string(PaletteSchemaId), "DataSchema",
                "palette_schema.json"),
       manifest(std::string(SetSchemaId), "DataSchema", "set_schema.json"),
-      manifest(std::string(GrassId), "Material", "grass.material.json",
+      manifest(std::string(GrassId), "Model3D", "oak.glb",
                shippableSettings("surface")),
-      manifest(std::string(RockId), "Material", "rock.material.json",
+      manifest(std::string(RockId), "Model3D", "oak.glb",
                shippableSettings("surface")),
+      manifest("asset://terrain/surfaces/ground", "Material",
+               "grass.material.json", shippableSettings("surface")),
       manifest(std::string(ClayId), "DataAsset", "clay.json",
                shippableSettings("terrain_material"),
                {std::string(ClayBaseId)}),
@@ -104,7 +106,7 @@ AssetRegistry buildRegistry() {
                R"({"content_type":"terrain_material_set","schema":")" +
                    std::string(SetSchemaId) + R"(","tags":[]})",
                {std::string(SetSchemaId), std::string(ClayId),
-                std::string(GrassId), std::string(FlatId)}),
+                "asset://terrain/surfaces/ground", std::string(FlatId)}),
   };
   std::ranges::sort(built.assets, {}, &AssetManifest::id);
   return built;
@@ -123,19 +125,28 @@ void writeClay(const std::string_view document) {
 }
 
 constexpr std::string_view PaletteDocument = R"json({
-  "format_version": 1,
+  "format_version": 2,
   "name": "Test meadow",
-  "roles": {
-    "grass": {"asset": "asset://terrain/surfaces/grass", "prefab": "prefab://test/grass", "weight": 1},
-    "soil": {"asset": "asset://terrain/surfaces/rock", "prefab": "prefab://test/soil", "weight": 1, "scale": [1, 2]}
-  },
-  "required_roles": ["grass", "soil"]
+  "placements": {
+    "grass": {
+      "model": "asset://terrain/surfaces/grass",
+      "weight": 1
+    },
+    "soil": {
+      "model": "asset://terrain/surfaces/rock",
+      "weight": 1,
+      "scale": [
+        1,
+        2
+      ]
+    }
+  }
 })json";
 
 constexpr std::string_view SetDocument = R"json({
   "format_version": 1,
   "name": "Test set",
-  "roles": {"rock": "asset://terrain/surfaces/clay", "ground": "asset://terrain/surfaces/grass"},
+  "roles": {"rock": "asset://terrain/surfaces/clay", "ground": "asset://terrain/surfaces/ground"},
   "required_roles": ["rock"]
 })json";
 
@@ -258,11 +269,15 @@ void cleanProjectIsShippable() {
                                          "oak.glb", shippableSettings("prop")));
   std::ranges::sort(meshRegistry.assets, {}, &AssetManifest::id);
   writePalette(R"json({
-    "format_version": 1,
-    "name": "Test meadow",
-    "roles": {"tree": {"asset": "asset://terrain/props/oak", "weight": 1}},
-    "required_roles": ["tree"]
-  })json");
+  "format_version": 2,
+  "name": "Test meadow",
+  "placements": {
+    "tree": {
+      "weight": 1,
+      "model": "asset://terrain/props/oak"
+    }
+  }
+})json");
   const TerrainAssetValidationReport mesh =
       validateTerrainAssets(request(meshRegistry));
   const auto noKind = [&](const TerrainAssetFindingKind kind) {
@@ -280,25 +295,6 @@ void cleanProjectIsShippable() {
 // role that is unbound.
 void unboundRequiredRoleIsReported() {
   resetDocuments();
-  writePalette(R"json({
-    "format_version": 1,
-    "name": "Test meadow",
-    "roles": {"grass": {"asset": "asset://terrain/surfaces/grass", "prefab": "prefab://test/grass", "weight": 1}},
-    "required_roles": ["grass", "tree"]
-  })json");
-  const TerrainAssetValidationReport report =
-      validateTerrainAssets(request(registry));
-  const std::vector<TerrainAssetFinding> missing =
-      ofKind(report, TerrainAssetFindingKind::MissingRole);
-  assert(missing.size() == 1);
-  // A missing binding has no asset to name, so the role carries the finding.
-  assert(missing[0].role == "tree");
-  assert(missing[0].assetId.empty());
-  assert(report.blockingCount() == 1);
-  assert(!report.shippable());
-  expectFinding(report, TerrainAssetFindingKind::MissingRole,
-                "requires role \"tree\"");
-  expectFinding(report, TerrainAssetFindingKind::MissingRole, "Add roles/tree");
   // A material set needs the same answer for a surface role.
   writeSet(R"json({
     "format_version": 1,
@@ -317,10 +313,15 @@ void unboundRequiredRoleIsReported() {
 void unresolvedReferenceBlocks() {
   resetDocuments();
   writePalette(R"json({
-    "format_version": 1,
-    "name": "Test meadow",
-    "roles": {"grass": {"asset": "asset://terrain/surfaces/absent", "weight": 1}}
-  })json");
+  "format_version": 2,
+  "name": "Test meadow",
+  "placements": {
+    "grass": {
+      "weight": 1,
+      "model": "asset://terrain/surfaces/absent"
+    }
+  }
+})json");
   const TerrainAssetValidationReport report =
       validateTerrainAssets(request(registry));
   assert(!report.shippable());
@@ -333,10 +334,15 @@ void unresolvedReferenceBlocks() {
   // A bare path is the same mistake written differently, and it is named the
   // same way rather than silently finding nothing.
   writePalette(R"json({
-    "format_version": 1,
-    "name": "Test meadow",
-    "roles": {"grass": {"asset": "terrain/surfaces/grass", "weight": 1}}
-  })json");
+  "format_version": 2,
+  "name": "Test meadow",
+  "placements": {
+    "grass": {
+      "weight": 1,
+      "model": "terrain/surfaces/grass"
+    }
+  }
+})json");
   const TerrainAssetValidationReport bare =
       validateTerrainAssets(request(registry));
   assert(!bare.shippable());
@@ -344,17 +350,17 @@ void unresolvedReferenceBlocks() {
                 "must be an asset:// reference");
   // An absent binding is not a reference at all, and says so.
   writePalette(R"json({
-    "format_version": 1,
+    "format_version": 2,
     "name": "Test meadow",
-    "roles": {"grass": {"weight": 1}}
+    "placements": {"grass": {"weight": 1}}
   })json");
   const TerrainAssetValidationReport unbound =
       validateTerrainAssets(request(registry));
   assert(!unbound.shippable());
   expectFinding(unbound, TerrainAssetFindingKind::UnresolvedAsset,
-                "binds no usable asset:// reference");
+                "requires model or prefab");
   expectFinding(unbound, TerrainAssetFindingKind::UnresolvedAsset,
-                "roles/grass/asset");
+                "placements/grass/model");
   // The documents this validator is asked about can be missing too.
   TerrainAssetValidationRequest absentPalette;
   absentPalette.registry = &registry;
@@ -366,14 +372,15 @@ void unresolvedReferenceBlocks() {
                 "asset://terrain/palettes/absent does not resolve");
   // A document whose shape hides every role is reported as uninspectable rather
   // than as a clean run, because "no findings" would be a lie there.
-  writePalette(R"json({"format_version": 1, "name": "Test meadow", "roles": 7})json");
+  writePalette(
+      R"json({"format_version": 2, "name": "Test meadow", "placements": 7})json");
   const TerrainAssetValidationReport uninspectable =
       validateTerrainAssets(request(registry));
   assert(!uninspectable.shippable());
   expectFinding(uninspectable, TerrainAssetFindingKind::UnresolvedAsset,
-                "cannot be inspected");
+                "placements must be an object");
   expectFinding(uninspectable, TerrainAssetFindingKind::UnresolvedAsset,
-                "demi validate reports the shape error");
+                "rule ID");
 }
 
 // An audio clip resolves perfectly well and is still not terrain art.
@@ -396,10 +403,15 @@ void wrongAssetTypeBlocks() {
                 "Point the role at a material asset");
 
   writePalette(R"json({
-    "format_version": 1,
-    "name": "Test meadow",
-    "roles": {"grass": {"asset": "asset://audio/wind", "weight": 1}}
-  })json");
+  "format_version": 2,
+  "name": "Test meadow",
+  "placements": {
+    "grass": {
+      "weight": 1,
+      "model": "asset://audio/wind"
+    }
+  }
+})json");
   const TerrainAssetValidationReport palette =
       validateTerrainAssets(request(registry));
   assert(!palette.shippable());
@@ -408,10 +420,15 @@ void wrongAssetTypeBlocks() {
   expectFinding(palette, TerrainAssetFindingKind::WrongAssetType, "AudioClip");
 
   writePalette(R"json({
-    "format_version": 1,
-    "name": "Test meadow",
-    "roles": {"grass": {"asset": "asset://terrain/surfaces/grass", "weight": 1}}
-  })json");
+  "format_version": 2,
+  "name": "Test meadow",
+  "placements": {
+    "grass": {
+      "weight": 1,
+      "model": "asset://terrain/surfaces/ground"
+    }
+  }
+})json");
   const auto materialOnly = validateTerrainAssets(request(registry));
   expectFinding(materialOnly, TerrainAssetFindingKind::WrongAssetType,
                 "needs Model3D geometry");
@@ -678,10 +695,19 @@ void materialMapsAreOptionalUnlessRequired() {
 void scaleOutOfRangeIsReported() {
   resetDocuments();
   writePalette(R"json({
-    "format_version": 1,
-    "name": "Test meadow",
-    "roles": {"grass": {"asset": "asset://terrain/surfaces/grass", "prefab": "prefab://test/grass", "weight": 1, "scale": [0.0001, 400]}}
-  })json");
+  "format_version": 2,
+  "name": "Test meadow",
+  "placements": {
+    "grass": {
+      "model": "asset://terrain/surfaces/grass",
+      "weight": 1,
+      "scale": [
+        0.0001,
+        400
+      ]
+    }
+  }
+})json");
   const TerrainAssetValidationReport report =
       validateTerrainAssets(request(registry));
   const std::vector<TerrainAssetFinding> scales =
@@ -734,15 +760,27 @@ void findingsAreDeterministicAndSorted() {
     "required_roles": ["rock", "snow"]
   })json");
   writePalette(R"json({
-    "format_version": 1,
-    "name": "Test meadow",
-    "roles": {
-      "grass": {"asset": "asset://terrain/surfaces/grass", "weight": 1, "scale": [0.0001, 1]},
-      "tree": {"asset": "asset://terrain/props/absent", "weight": 1},
-      "soil": {"asset": "asset://audio/wind", "weight": 1}
+  "format_version": 2,
+  "name": "Test meadow",
+  "placements": {
+    "grass": {
+      "weight": 1,
+      "scale": [
+        0.0001,
+        1
+      ],
+      "model": "asset://terrain/surfaces/grass"
     },
-    "required_roles": ["grass", "tree", "soil", "bush"]
-  })json");
+    "tree": {
+      "weight": 1,
+      "model": "asset://terrain/props/absent"
+    },
+    "soil": {
+      "weight": 1,
+      "model": "asset://audio/wind"
+    }
+  }
+})json");
   const AssetRegistry messy =
       withAsset(registry, std::string(GrassId),
                 R"({"content_type":"surface","licence":{"spdx":"CC-BY-NC-4.0","redistributable":false}})",
@@ -829,14 +867,23 @@ void rejectsImpossibleRequests() {
 void summaryNamesEveryFinding() {
   resetDocuments();
   writePalette(R"json({
-    "format_version": 1,
-    "name": "Test meadow",
-    "roles": {
-      "grass": {"asset": "asset://terrain/surfaces/grass", "weight": 1, "scale": [1, 900]},
-      "soil": {"asset": "asset://terrain/surfaces/absent", "weight": 1}
+  "format_version": 2,
+  "name": "Test meadow",
+  "placements": {
+    "grass": {
+      "weight": 1,
+      "scale": [
+        1,
+        900
+      ],
+      "model": "asset://terrain/surfaces/grass"
     },
-    "required_roles": ["grass", "soil", "bush"]
-  })json");
+    "soil": {
+      "weight": 1,
+      "model": "asset://terrain/surfaces/absent"
+    }
+  }
+})json");
   const AssetRegistry restricted =
       withAsset(registry, std::string(GrassId),
                 R"({"content_type":"surface","licence":{"spdx":"CC-BY-NC-4.0","redistributable":false}})",
@@ -882,7 +929,7 @@ void exampleProjectIsAdvisoryOnly() {
   if (!report.shippable())
     std::cerr << report.summary() << "\n";
   assert(report.shippable());
-  assert(report.checked > 11);
+  assert(report.checked >= 8);
   // Every art asset in the example is unlicensed, so every finding is advice.
   for (const TerrainAssetFinding &finding : report.findings) {
     assert(finding.kind == TerrainAssetFindingKind::UndeclaredLicence);
@@ -909,24 +956,9 @@ int main() {
   // leave a tree behind that changes what a finding proves.
   std::filesystem::remove_all(root, filesystemError);
   std::filesystem::create_directories(root, filesystemError);
-  if (!write(root / "palette_schema.json", R"({
-        "format_version": 1,
-        "type": "object",
-        "required": ["format_version", "name", "roles"],
-        "properties": {
-          "format_version": {"type": "integer", "enum": [1]},
-          "name": {"type": "string"},
-          "roles": {
-            "type": "object",
-            "properties": {
-              "grass": {"type": "object", "properties": {"asset": {"type": "string", "reference": "asset"}}},
-              "soil": {"type": "object", "properties": {"asset": {"type": "string", "reference": "asset"}}},
-              "tree": {"type": "object", "properties": {"asset": {"type": "string", "reference": "asset"}}}
-            }
-          },
-          "required_roles": {"type": "array", "items": {"type": "string"}}
-        }
-      })") ||
+  if (!write(
+          root / "palette_schema.json",
+          R"({"format_version":1,"type":"object","required":["format_version","name"],"properties":{"format_version":{"type":"integer","enum":[2]},"name":{"type":"string"},"placements":{"type":"object"},"material_set":{"type":"string","reference":"asset"}})") ||
       !write(root / "set_schema.json", R"({
         "format_version": 1,
         "type": "object",

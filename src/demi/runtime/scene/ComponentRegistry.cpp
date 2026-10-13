@@ -213,11 +213,12 @@ double componentFieldEditorStep(const ComponentFieldDescriptor &field) {
 }
 
 bool componentFieldEditorReadOnly(const ComponentFieldDescriptor &field) {
+  const bool collection = field.type == ComponentFieldType::Object ||
+                          field.type == ComponentFieldType::Vec2Array ||
+                          field.type == ComponentFieldType::Vec3Array ||
+                          field.type == ComponentFieldType::ColorArray;
   return field.editor.readOnly || field.runtimeReadOnly ||
-         field.type == ComponentFieldType::Object ||
-         field.type == ComponentFieldType::Vec2Array ||
-         field.type == ComponentFieldType::Vec3Array ||
-         field.type == ComponentFieldType::ColorArray;
+         (collection && !field.editor.editableCollection);
 }
 
 nlohmann::json componentSchema(const ComponentDescriptor &descriptor) {

@@ -51,9 +51,10 @@ bool mergeUiResources(Json &document, const std::filesystem::path &hudPath,
 
 std::optional<ui::UiDocument>
 parseHudDocument(const std::filesystem::path &hudPath, const Json &document,
-                 std::string &error) {
-  const ui::UiPrefabExpansionResult expansion =
-      ui::expandUiDocument(hudPath, document);
+                 std::string &error, ui::UiPrefabExpansionResult *composition,
+                 const std::unordered_set<std::string> &externalParents) {
+  ui::UiPrefabExpansionResult expansion =
+      ui::expandUiDocument(hudPath, document, externalParents);
   if (!expansion.document.has_value()) {
     error = expansion.diagnostics.empty()
                 ? "HUD prefab expansion failed: " + hudPath.string()
@@ -66,6 +67,8 @@ parseHudDocument(const std::filesystem::path &hudPath, const Json &document,
 
   ui::UiDocument result = ui::parseUiDocument(expanded);
   ui::UiLayoutEngine{}.layout(result, result.canvasSize);
+  if (composition)
+    *composition = std::move(expansion);
   return result;
 }
 

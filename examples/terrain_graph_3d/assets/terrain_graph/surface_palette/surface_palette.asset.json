@@ -1,0 +1,15 @@
+{
+  "dependencies": [
+    "asset://terrain_graph/surface_materials"
+  ],
+  "format_version": 1,
+  "id": "asset://terrain_graph/surface_palette",
+  "importer": "json_data",
+  "importer_version": 1,
+  "settings": {
+    "content_type": "terrain_palette"
+  },
+  "source": "surface_palette.json",
+  "source_hash": "fnv1a64:05601bf955d6a23f",
+  "type": "DataAsset"
+}

@@ -3,8 +3,10 @@
 #include "demi/runtime/simulation/DeterministicRandom.h"
 #include "demi/runtime/terrain/TerrainSeed.h"
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
+#include <limits>
 #include <stdexcept>
 #include <utility>
 #include <vector>
@@ -25,23 +27,21 @@ constexpr float MinimumWater = 0.01F;
 constexpr float ErosionRate = 0.3F;
 constexpr float MaxCutRate = 0.05F;
 constexpr int ThermalPasses = 6;
-constexpr float ThermalDiagonal = 0.70710678F;
-// The share of its own relief above its lowest neighbour that a cell may shed in
-// one thermal pass. Without this a cell with several steeper neighbours gives
-// each of them a full step's worth and ends up driven below its own ground.
+// The share of its own relief above its lowest neighbour that a cell may shed
+// in one thermal pass. Without this a cell with several steeper neighbours
+// gives each of them a full step's worth and ends up driven below its own
+// ground.
 constexpr float MaxShedFraction = 0.25F;
 
 constexpr int NeighbourX[8] = {-1, 0, 1, -1, 1, -1, 0, 1};
 constexpr int NeighbourZ[8] = {-1, -1, -1, 0, 0, 1, 1, 1};
-constexpr bool NeighbourDiagonal[8] = {true, false, true, false, false,
-                                       true, false, true};
 
 // One stream per droplet, derived from the Erosion seed channel and folded with
-// the iteration and droplet index. Indexing by position rather than drawing from
-// one running generator is what makes the result independent of traversal order:
-// droplet 4000 walks the same path whether it is the fourth or the four
-// thousandth of its iteration, and the whole stage can be replayed or parallelised
-// without reshuffling the surface.
+// the iteration and droplet index. Indexing by position rather than drawing
+// from one running generator is what makes the result independent of traversal
+// order: droplet 4000 walks the same path whether it is the fourth or the four
+// thousandth of its iteration, and the whole stage can be replayed or
+// parallelised without reshuffling the surface.
 [[nodiscard]] DeterministicRandom dropletRandom(int worldSeed, int iteration,
                                                 std::size_t droplet) {
   const auto channel =
@@ -76,7 +76,8 @@ Grid gridOf(const HeightField &field) {
 std::optional<TerrainSamples<float>>
 applyTerrainErosion(const HeightField &field, const TerrainDrainage &drainage,
                     const TerrainErosionSettings &settings,
-                    TerrainSamples<float> *sedimentOut, std::stop_token stop) {
+                    TerrainSamples<float> *sedimentOut, std::stop_token stop,
+                    const TerrainGenerator::Progress &progress) {
   if (stop.stop_requested())
     return std::nullopt;
   if (field.cellsX < 0 || field.cellsZ < 0)
@@ -88,17 +89,27 @@ applyTerrainErosion(const HeightField &field, const TerrainDrainage &drainage,
   // A drainage computed from a different surface is a wrong-direction hazard
   // rather than a cosmetic mismatch, so it is refused up front.
   if (drainage.downstream.size() != grid.count ||
-      drainage.flow.size() != grid.count ||
-      drainage.basin.size() != grid.count)
+      drainage.flow.size() != grid.count || drainage.basin.size() != grid.count)
     throw std::invalid_argument(
         "Terrain erosion drainage does not match the heightfield");
   if (field.heights.empty())
     return std::nullopt;
 
   const auto count = grid.count;
+  if (count > std::size_t(std::numeric_limits<int>::max())) {
+    throw std::invalid_argument(
+        "Terrain erosion exceeds its random sample index range");
+  }
   const bool preview = settings.quality == TerrainQuality::Preview;
-  const float cellSize = std::min(field.size.x / float(std::max(1, field.cellsX)),
-                                  field.size.y / float(std::max(1, field.cellsZ)));
+  const float spacingX = field.size.x / float(std::max(1, field.cellsX));
+  const float spacingZ = field.size.y / float(std::max(1, field.cellsZ));
+  std::array<float, 8> neighborDistances;
+  for (std::size_t neighbor = 0; neighbor < neighborDistances.size();
+       ++neighbor) {
+    // Talus is rise over physical run, including both axes on diagonal edges.
+    neighborDistances[neighbor] = std::hypot(NeighbourX[neighbor] * spacingX,
+                                             NeighbourZ[neighbor] * spacingZ);
+  }
 
   TerrainSamples<float> heights;
   heights.resize(count);
@@ -111,20 +122,36 @@ applyTerrainErosion(const HeightField &field, const TerrainDrainage &drainage,
   // Preview buys its iteration speed with a smaller droplet population, a
   // shorter walk per droplet and no thermal pass at all. The factor is large
   // enough that the two tiers cannot be mistaken for one another.
-  const int iterations =
-      std::max(1, preview ? std::max(1, settings.iterations / 8)
-                          : settings.iterations);
+  if (settings.iterations < 0) {
+    throw std::invalid_argument(
+        "Hydraulic erosion iterations must be nonnegative");
+  }
+  int iterations = settings.iterations;
+  if (preview && iterations > 0) {
+    iterations = std::max(1, iterations / 8);
+  }
   const int droplets =
-      preview ? std::clamp(int(count) / 8, 16, 256)
-              : std::clamp(int(count) * iterations / 256, 64, 200000);
+      preview
+          ? std::clamp(int(count) / 8, 16, 256)
+          : int(std::clamp(double(count) * iterations / 256.0, 64.0, 200000.0));
   const int maxSteps = preview ? 24 : 96;
 
-  for (int iteration = 0; iteration < iterations; ++iteration)
+  const float hydraulicFraction =
+      !preview && settings.thermalStrength > 0.F ? 0.8F : 1.0F;
+  for (int iteration = 0; iteration < iterations; ++iteration) {
     for (int droplet = 0; droplet < droplets; ++droplet) {
-      if ((droplet & 63) == 0 && stop.stop_requested())
-        return std::nullopt;
-      auto random = dropletRandom(settings.seed, iteration,
-                                  std::size_t(droplet));
+      if ((droplet & 63) == 0) {
+        if (progress) {
+          const double completed = double(iteration) * droplets + droplet;
+          const double total = double(iterations) * droplets;
+          progress(hydraulicFraction * float(completed / total));
+        }
+        if (stop.stop_requested()) {
+          return std::nullopt;
+        }
+      }
+      auto random =
+          dropletRandom(settings.seed, iteration, std::size_t(droplet));
       auto cell = std::size_t(random.integer(0, int(count) - 1));
       float water = 1.F + settings.rainRate;
       float sediment = 0.F;
@@ -136,19 +163,19 @@ applyTerrainErosion(const HeightField &field, const TerrainDrainage &drainage,
           break;
         const float from = heights[cell];
         const float drop = heights[next] - from;
-        const float capacity = std::max(
-            0.F, -drop * speed * water * settings.sedimentCapacity);
+        const float capacity =
+            std::max(0.F, -drop * speed * water * settings.sedimentCapacity);
         if (sediment > capacity || drop > 0.F) {
           // Carrying more than this stretch can hold, or climbing into a filled
           // sink, so the excess settles here.
-          const float amount = drop > 0.F ? std::min(drop, sediment)
-                                          : (sediment - capacity) *
-                                                settings.depositionRate;
+          const float amount =
+              drop > 0.F ? std::min(drop, sediment)
+                         : (sediment - capacity) * settings.depositionRate;
           sediment -= amount;
           heights.set(cell, from + amount);
         } else {
-          const float amount = std::min((capacity - sediment) * ErosionRate,
-                                        -drop * MaxCutRate);
+          const float amount =
+              std::min((capacity - sediment) * ErosionRate, -drop * MaxCutRate);
           sediment += amount;
           heights.set(cell, from - amount);
         }
@@ -160,15 +187,23 @@ applyTerrainErosion(const HeightField &field, const TerrainDrainage &drainage,
       }
       // Whatever the droplet still carries settles where it came to rest.
       // Discarding it instead would make the stage destroy material, and the
-      // net loss would grow with the droplet count rather than with the erosion.
+      // net loss would grow with the droplet count rather than with the
+      // erosion.
       if (sediment > 0.F)
         heights.set(cell, heights[cell] + sediment);
     }
+  }
+  if (progress) {
+    progress(hydraulicFraction);
+  }
+  if (stop.stop_requested()) {
+    return std::nullopt;
+  }
 
-  // Thermal relaxation reads every neighbour from the pass input and writes into
-  // a separate buffer. In-place relaxation would hand each cell neighbours that
-  // had already moved, which biases transport towards whichever corner the scan
-  // reaches first and reads as a prevailing wind.
+  // Thermal relaxation reads every neighbour from the pass input and writes
+  // into a separate buffer. In-place relaxation would hand each cell neighbours
+  // that had already moved, which biases transport towards whichever corner the
+  // scan reaches first and reads as a prevailing wind.
   if (!preview && settings.thermalStrength > 0.F) {
     for (int pass = 0; pass < ThermalPasses; ++pass) {
       if (stop.stop_requested())
@@ -185,26 +220,27 @@ applyTerrainErosion(const HeightField &field, const TerrainDrainage &drainage,
       // Both are read-only views of the pass input, so neither depends on the
       // order cells are visited in.
       const auto reachOf = [&](int neighbour) {
-        return cellSize * (NeighbourDiagonal[neighbour] ? ThermalDiagonal : 1.F);
+        return neighborDistances[neighbour];
       };
       const auto excessOver = [&](std::size_t cell, std::size_t target,
-                                 int neighbour) {
+                                  int neighbour) {
         const float difference = input[cell] - input[target];
         const float slope = difference / std::max(1e-6F, reachOf(neighbour));
         if (slope <= settings.talusSlope)
           return 0.F;
         // Never more than half the step, so a pair of cells cannot overshoot
         // past each other and oscillate between the two buffers.
-        return std::min((slope - settings.talusSlope) * settings.thermalStrength *
-                            reachOf(neighbour),
+        return std::min((slope - settings.talusSlope) *
+                            settings.thermalStrength * reachOf(neighbour),
                         std::max(0.F, difference) * 0.5F);
       };
       std::vector<float> desired(count, 0.F);
       std::vector<float> allowed(count, 0.F);
       for (int z = 1; z < grid.depth - 1; ++z)
         for (int x = 1; x < grid.width - 1; ++x) {
-          if ((x & 255) == 0 && stop.stop_requested())
+          if ((x == 1 || (x & 255) == 0) && stop.stop_requested()) {
             return std::nullopt;
+          }
           const auto cell = grid.at(x, z);
           const float here = input[cell];
           float wanted = 0.F;
@@ -219,13 +255,14 @@ applyTerrainErosion(const HeightField &field, const TerrainDrainage &drainage,
           // The budget is what keeps the pass stable. A cell with eight steeper
           // neighbours wants eight steps' worth of movement and would otherwise
           // end up far below its own ground, dumping the difference on them.
-          allowed[cell] = std::min(
-              wanted, std::max(0.F, here - lowest) * MaxShedFraction);
+          allowed[cell] =
+              std::min(wanted, std::max(0.F, here - lowest) * MaxShedFraction);
         }
       for (int z = 1; z < grid.depth - 1; ++z)
         for (int x = 1; x < grid.width - 1; ++x) {
-          if ((x & 255) == 0 && stop.stop_requested())
+          if ((x == 1 || (x & 255) == 0) && stop.stop_requested()) {
             return std::nullopt;
+          }
           const auto cell = grid.at(x, z);
           if (desired[cell] <= 0.F)
             continue;
@@ -241,6 +278,10 @@ applyTerrainErosion(const HeightField &field, const TerrainDrainage &drainage,
           }
         }
       heights = std::move(output);
+      if (progress) {
+        progress(hydraulicFraction +
+                 (1.0F - hydraulicFraction) * float(pass + 1) / ThermalPasses);
+      }
     }
   }
 
@@ -260,6 +301,12 @@ applyTerrainErosion(const HeightField &field, const TerrainDrainage &drainage,
   }
   if (stop.stop_requested())
     return std::nullopt;
+  if (progress) {
+    progress(1.0F);
+  }
+  if (stop.stop_requested()) {
+    return std::nullopt;
+  }
   return heights;
 }
 

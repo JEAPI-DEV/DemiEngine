@@ -36,6 +36,30 @@ runtime::Vec3 normalized(const runtime::Vec3 value,
   return magnitude > 0.00001F ? multiply(value, 1.0F / magnitude) : fallback;
 }
 
+runtime::Vec3 cross(runtime::Vec3 a, runtime::Vec3 b) {
+  return {a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x};
+}
+
+std::optional<runtime::Vec3> rotationVector(const EditorSceneViewCamera &camera,
+                                            runtime::Vec2 mouse,
+                                            runtime::Vec2 viewport,
+                                            runtime::Vec3 centre,
+                                            runtime::Vec3 normal) {
+  const auto ray = sceneViewportRay(camera, mouse, viewport);
+  const float denominator = dot(ray.direction, normal);
+  if (std::abs(denominator) < .0001F)
+    return std::nullopt;
+  const float distance =
+      dot(subtract(centre, ray.origin), normal) / denominator;
+  if (distance < 0)
+    return std::nullopt;
+  const auto radial =
+      subtract(add(ray.origin, multiply(ray.direction, distance)), centre);
+  if (length(radial) < .0001F)
+    return std::nullopt;
+  return normalized(radial);
+}
+
 float pointSegmentDistance(const runtime::Vec2 point, const runtime::Vec2 start,
                            const runtime::Vec2 end) {
   const float x = end.x - start.x;
@@ -113,6 +137,36 @@ EditorViewportTool::presentation(const runtime::World &world,
     if (sceneView.transformSpace() == EditorTransformSpace::Local)
       direction = normalized(
           runtime::transformDirection3D(*transform, direction), direction);
+    if (operation_ == EditorGizmoOperation::Rotate) {
+      const auto nextAxis = axis == EditorGizmoAxis::X   ? EditorGizmoAxis::Y
+                            : axis == EditorGizmoAxis::Y ? EditorGizmoAxis::Z
+                                                         : EditorGizmoAxis::X;
+      auto tangent = axisVector(nextAxis);
+      if (sceneView.transformSpace() == EditorTransformSpace::Local)
+        tangent =
+            normalized(runtime::transformDirection3D(*transform, tangent));
+      const auto bitangent = normalized(cross(direction, tangent));
+      constexpr int segments = 96;
+      constexpr float turn = 6.28318530718F;
+      for (int segment = 0; segment < segments; ++segment) {
+        const auto sample = [&](int index) {
+          const float angle = turn * float(index) / segments;
+          const auto radial = add(multiply(tangent, std::cos(angle)),
+                                  multiply(bitangent, std::sin(angle)));
+          return projectScenePoint3D(
+              camera, add(transform->position, multiply(radial, gizmoLength)),
+              viewportSize);
+        };
+        const auto first = sample(segment);
+        const auto second = sample(segment + 1);
+        if (first && second)
+          result.axes.push_back({.axis = axis,
+                                 .start = *first,
+                                 .end = *second,
+                                 .worldLength = gizmoLength});
+      }
+      continue;
+    }
     const auto endpoint = projectScenePoint3D(
         camera, add(transform->position, multiply(direction, gizmoLength)),
         viewportSize);
@@ -174,8 +228,24 @@ EditorViewportTool::update(const runtime::World &world,
     } else if (active_->operation == EditorGizmoOperation::Rotate) {
       constexpr float DegreesToRadians = 0.01745329251994329577F;
       const float increment = sceneView.rotationSnapDegrees * DegreesToRadians;
+      if (active_->rotationVector) {
+        const auto current = rotationVector(
+            sceneView.camera(), input.mousePosition, input.viewportSize,
+            active_->initialWorld.position, active_->worldAxis);
+        if (current) {
+          active_->angle +=
+              std::atan2(dot(active_->worldAxis,
+                             cross(*active_->rotationVector, *current)),
+                         dot(*active_->rotationVector, *current));
+          active_->rotationVector = current;
+        }
+      } else {
+        // Edge-on rings have no stable ray/plane intersection. Follow the
+        // picked screen tangent at the same constant-screen radius instead.
+        active_->angle = active_->pixels / 72.0F;
+      }
       const float amount =
-          applySnap(active_->pixels * 0.01F, increment, input.bypassSnapping);
+          applySnap(active_->angle, increment, input.bypassSnapping);
       if (sceneView.transformSpace() == EditorTransformSpace::Local) {
         local.rotation = runtime::rotateLocalEuler3D(
             active_->initialLocal.rotation, axisVector(active_->axis), amount);
@@ -289,6 +359,10 @@ EditorViewportTool::update(const runtime::World &world,
             .translationPerPixel = translationPerPixel,
             .scalePerPixel =
                 translationPerPixel / (unscaledDimension * parentScale)};
+        if (operation_ == EditorGizmoOperation::Rotate)
+          active_->rotationVector = rotationVector(
+              sceneView.camera(), input.mousePosition, input.viewportSize,
+              worldTransform->position, worldAxis);
         return action;
       }
     }

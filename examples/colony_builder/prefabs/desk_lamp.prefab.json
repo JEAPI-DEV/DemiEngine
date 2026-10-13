@@ -1,0 +1,33 @@
+{
+  "entities": [
+    {
+      "components": {
+        "MeshRenderer": {
+          "shape": "sphere",
+          "size": [
+            0.3,
+            0.3,
+            0.3
+          ],
+          "material_properties": {
+            "metallic": 0.6499999761581421
+          }
+        },
+        "PointLight": {
+          "intensity": 8.0
+        },
+        "Transform3D": {
+          "position": [
+            0.0,
+            2.0,
+            0.0
+          ]
+        }
+      },
+      "id": "ent_new",
+      "name": "Desk lamp"
+    }
+  ],
+  "format_version": 1,
+  "id": "prefab://desk_lamp"
+}

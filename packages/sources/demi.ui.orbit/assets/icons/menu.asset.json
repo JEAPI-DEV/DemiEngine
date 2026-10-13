@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://orbit/icons/menu",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {},
+  "source": "menu.svg",
+  "source_hash": "fnv1a64:79ec803b9dbbc0d8",
+  "type": "Icon2D"
+}

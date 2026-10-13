@@ -53,9 +53,8 @@ private:
   std::optional<std::filesystem::path> associatedManifest_;
 };
 
-[[nodiscard]] Diagnostics
-validateSpecializedDocument(EditorSpecializedKind kind,
-                            const std::filesystem::path &path,
-                            const nlohmann::json &document);
+[[nodiscard]] Diagnostics validateSpecializedDocument(
+    EditorSpecializedKind kind, const std::filesystem::path &path,
+    const nlohmann::json &document, std::string_view contentType = {});
 
 } // namespace demi::editor

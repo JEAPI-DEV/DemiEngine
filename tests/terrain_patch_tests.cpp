@@ -236,10 +236,22 @@ void failedLocalReplayPreservesSnapshot() {
 }
 
 void copyOnWritePageIsolation() {
+  TerrainSamples<Vec3> vectors;
+  vectors.assign(2, {0, 1, 0});
+  auto copiedVectors = vectors;
+  check(vectors.sharesStorageWith(copiedVectors),
+        "Vec3 storage identity incorrectly requires native value equality");
+  copiedVectors.set(1, {1, 0, 0});
+  check(!vectors.sharesStorageWith(copiedVectors),
+        "Vec3 mutation did not change storage identity");
   TerrainSamples<float> editable;
   editable.assign(3000, 2);
   const TerrainSamples<float> snapshot = editable;
+  check(editable.sharesStorageWith(snapshot),
+        "Copy-on-write snapshot lost shared storage identity");
   editable.set(1025, 7);
+  check(!editable.sharesStorageWith(snapshot),
+        "Edited sample pages retained stale shared storage identity");
   check(snapshot[1025] == 2 && editable[1025] == 7,
         "Editing one copy changed another copy's sample");
   check(editable.pageIdentity(0) == snapshot.pageIdentity(0) &&

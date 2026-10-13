@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://orbit/icons/cargo",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {},
+  "source": "cargo.svg",
+  "source_hash": "fnv1a64:2ece30bfbb0d5946",
+  "type": "Icon2D"
+}

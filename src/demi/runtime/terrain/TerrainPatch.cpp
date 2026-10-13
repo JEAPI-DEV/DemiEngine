@@ -1,4 +1,5 @@
 #include "demi/runtime/terrain/TerrainUpdate.h"
+#include "demi/runtime/terrain/TerrainSurfaceMaterials.h"
 #include <algorithm>
 #include <map>
 #include <stdexcept>
@@ -36,6 +37,7 @@ TerrainRect TerrainInvalidation::geometrySamples() const {
   auto result = heightSamples;
   result.include(normalSamples);
   result.include(biomeSamples);
+  result.include(surfaceSamples);
   return result;
 }
 
@@ -78,6 +80,7 @@ TerrainInvalidation mergedInvalidation(TerrainInvalidation first,
   first.normalSamples.include(next.normalSamples);
   first.biomeSamples.include(next.biomeSamples);
   first.exclusionSamples.include(next.exclusionSamples);
+  first.surfaceSamples.include(next.surfaceSamples);
   if (!next.reason.empty())
     first.reason = next.reason;
   return first;
@@ -100,16 +103,16 @@ bool sameBiomePalette(const TerrainBiomePalette &a,
 }
 bool samePlacement(const TerrainScatterPlacement &a,
                    const TerrainScatterPlacement &b) {
-  return a.role == b.role && a.asset == b.asset && a.prefab == b.prefab &&
-         a.biome == b.biome && a.biomeName == b.biomeName &&
-         a.cell == b.cell && a.position.x == b.position.x &&
-         a.position.y == b.position.y && a.position.z == b.position.z &&
-         a.yaw == b.yaw && a.scale == b.scale &&
+  return a.ruleId == b.ruleId && a.model == b.model && a.prefab == b.prefab &&
+         a.biome == b.biome && a.biomeName == b.biomeName && a.cell == b.cell &&
+         a.position.x == b.position.x && a.position.y == b.position.y &&
+         a.position.z == b.position.z && a.yaw == b.yaw && a.scale == b.scale &&
          a.collision == b.collision && a.lod == b.lod;
 }
 bool sameDerived(const TerrainDerivedState &a, const TerrainDerivedState &b) {
   if (a.scatterTruncated != b.scatterTruncated ||
       a.graphArtifacts != b.graphArtifacts ||
+      a.surfaceMaterials != b.surfaceMaterials || a.palette != b.palette ||
       a.placements.size() != b.placements.size())
     return false;
   for (std::size_t index = 0; index < a.placements.size(); ++index)
@@ -120,6 +123,8 @@ bool sameDerived(const TerrainDerivedState &a, const TerrainDerivedState &b) {
 bool sameDerived(const HeightField &field, const TerrainDerivedState &expected) {
   if (field.scatterTruncated != expected.scatterTruncated ||
       field.graphArtifacts != expected.graphArtifacts ||
+      field.surfaceMaterials != expected.surfaceMaterials ||
+      field.resolvedPalette != expected.palette ||
       field.scatterPlacements.size() != expected.placements.size())
     return false;
   for (std::size_t index = 0; index < field.scatterPlacements.size(); ++index)
@@ -138,6 +143,7 @@ bool terrainFieldsEqual(const HeightField &left, const HeightField &right) {
       left.heights != right.heights || left.baseHeights != right.baseHeights ||
       left.biomeIndices != right.biomeIndices ||
       left.exclusions != right.exclusions ||
+      !terrainSurfaceMaterialsEqual(left, right) ||
       left.normals.size() != right.normals.size() ||
       left.chunks.size() != right.chunks.size() ||
       !sameBiomePalette({left.biomeIds, left.biomeColors,
@@ -238,6 +244,8 @@ TerrainUpdate applyTerrainPatch(std::shared_ptr<const HeightField> current,
       updated->scatterPlacements = derived->placements;
       updated->scatterTruncated = derived->scatterTruncated;
       updated->graphArtifacts = derived->graphArtifacts;
+      updated->surfaceMaterials = derived->surfaceMaterials;
+      updated->resolvedPalette = derived->palette;
     }
     field = std::move(updated);
   }

@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://orbit/icons/close",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {},
+  "source": "close.svg",
+  "source_hash": "fnv1a64:7b597d1b399df995",
+  "type": "Icon2D"
+}

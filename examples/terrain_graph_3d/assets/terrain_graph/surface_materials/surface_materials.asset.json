@@ -1,0 +1,23 @@
+{
+  "dependencies": [
+    "asset://terrain_graph/materials/cliff",
+    "asset://terrain_graph/materials/grass",
+    "asset://terrain_graph/materials/ground",
+    "asset://terrain_graph/materials/rock",
+    "asset://terrain_graph/materials/sand",
+    "asset://terrain_graph/materials/sediment",
+    "asset://terrain_graph/materials/snow",
+    "asset://terrain_graph/materials/underwater",
+    "asset://terrain_graph/materials/wet_ground"
+  ],
+  "format_version": 1,
+  "id": "asset://terrain_graph/surface_materials",
+  "importer": "json_data",
+  "importer_version": 1,
+  "settings": {
+    "content_type": "terrain_material_set"
+  },
+  "source": "surface_materials.json",
+  "source_hash": "fnv1a64:9f2a87fed3fc644d",
+  "type": "DataAsset"
+}

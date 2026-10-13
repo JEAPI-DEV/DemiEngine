@@ -121,7 +121,7 @@ Hud.remove(node)                -- delete a runtime node</code></pre>
   "id": "confirm",
   "prefab": "ui-prefab://controls/menu_button",
   "arguments": { "label": "Confirm" },
-  "overrides": { "style": "primary" }
+  "overrides": {"$root": { "style": "primary" }}
 }</code></pre>
 <p><code>arguments</code> fills the prefab’s declared parameters; <code>overrides</code> patches fields on the expanded root node (<code>id</code>, <code>children</code>, and <code>prefab</code> are reserved). Expanded descendant IDs use dotted paths (<code>confirm.hint</code>). Unknown parameters, type mismatches, unresolved <code>${…}</code> markers, missing files, reference cycles, reserved override fields, and duplicate IDs fail validation with a clear diagnostic.</p>
 

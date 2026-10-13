@@ -1,5 +1,7 @@
 #include "editor/EditorPrefabPlacement.h"
 
+#include "demi/filesystem/AuthoredJsonPatch.h"
+
 #include "editor/EditorTerrainRuntime.h"
 #include "editor/EditorViewportProjection.h"
 #include "editor/EditorViewportProjection2D.h"
@@ -194,7 +196,8 @@ prefabPlacementOverrides(const std::filesystem::path &path,
                                  root.position.y + offset.y,
                                  root.position.z + offset.z};
     overrides[root.id]["components"]["Transform3D"]["position"] =
-        {position.x, position.y, position.z};
+        demi::filesystem::normalizeAuthoredValue(
+            {position.x, position.y, position.z});
   }
   return overrides;
 }
@@ -216,7 +219,7 @@ prefabPlacementOverrides(const std::filesystem::path &path,
       const runtime::Vec2 position{root.position.x + offset.x,
                                    root.position.y + offset.y};
       overrides[root.id]["components"]["Transform2D"]["position"] =
-          {position.x, position.y};
+          demi::filesystem::normalizeAuthoredValue({position.x, position.y});
     }
   }
   if (!roots->isometric.empty()) {

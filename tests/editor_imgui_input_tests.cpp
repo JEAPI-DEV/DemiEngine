@@ -35,6 +35,40 @@ int main() {
   io.IniFilename = nullptr;
   io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
 
+  demi::editor::EditorPointerMotion motion;
+  demi::runtime::InputState captured;
+  captured.mousePosition = {635, 240};
+  auto cursor = motion.update(captured, false);
+  assert(cursor.x == 635);
+  // Absolute X stops at the edge; raw deltas continue for a complete turn.
+  captured.mousePosition = {639, 240};
+  captured.mouseDelta = {20, 0};
+  for (int frame = 0; frame < 100; ++frame)
+    cursor = motion.update(captured, true);
+  assert(cursor.x == 2635 && cursor.y == 240);
+  captured.mouseDelta = {0, 0};
+  assert(motion.update(captured, true).x == 2635);
+  captured.mousePosition = {100, 120};
+  assert(motion.update(captured, false).x == 100);
+  captured.mouseDelta = {-4, 3};
+  cursor = motion.update(captured, true);
+  assert(cursor.x == 96 && cursor.y == 123);
+
+  // Absolute/remote devices may report no relative movement under capture.
+  captured.mouseDelta = {};
+  captured.mousePosition = {140, 130};
+  cursor = motion.update(captured, true);
+  assert(cursor.x == 136 && cursor.y == 133);
+  assert(motion.update(captured, true).x == 136);
+  // Native deltas win when both sources are available; do not double motion.
+  captured.mouseDelta = {5, 0};
+  captured.mousePosition = {150, 130};
+  assert(motion.update(captured, true).x == 141);
+  (void)motion.update(captured, false);
+  captured.mouseDelta = {};
+  captured.mousePosition = {320, 240};
+  assert(motion.update(captured, true).x == 150);
+
   demi::runtime::InputState input;
   input.mouseScroll = {0.25F, -1.5F};
   input.keysPressed.insert("n");

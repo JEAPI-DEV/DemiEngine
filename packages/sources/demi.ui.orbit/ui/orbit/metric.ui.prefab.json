@@ -1,0 +1,90 @@
+{
+  "format_version": 1,
+  "id": "ui-prefab://orbit/metric",
+  "parameters": {
+    "accent": {
+      "type": "string",
+      "default": "#FFB66B"
+    },
+    "label": {
+      "type": "string",
+      "default": "POWER RESERVE"
+    },
+    "muted": {
+      "type": "string",
+      "default": "#A3B5C5"
+    },
+    "size": {
+      "type": "array",
+      "default": [
+        176,
+        100
+      ]
+    },
+    "stroke": {
+      "type": "string",
+      "default": "#3B5166"
+    },
+    "surface": {
+      "type": "string",
+      "default": "#1B2735"
+    },
+    "value": {
+      "type": "string",
+      "default": "84 kW"
+    }
+  },
+  "root": {
+    "id": "metric",
+    "type": "panel",
+    "size": "${size}",
+    "background_color": "${surface}",
+    "border_color": "${stroke}",
+    "border_width": 1,
+    "corner_radius": 10,
+    "pad": 16,
+    "stack": "column",
+    "gap": 4,
+    "children": [
+      {
+        "id": "label",
+        "type": "label",
+        "text": "${label}",
+        "size": [
+          0,
+          22
+        ],
+        "font_size": 12,
+        "text_color": "${muted}",
+        "anchor_min": [
+          0,
+          0
+        ],
+        "anchor_max": [
+          1,
+          0
+        ]
+      },
+      {
+        "id": "value",
+        "type": "label",
+        "text": "${value}",
+        "size": [
+          0,
+          36
+        ],
+        "font_size": 28,
+        "text_color": "${accent}",
+        "anchor_min": [
+          0,
+          0
+        ],
+        "anchor_max": [
+          1,
+          0
+        ]
+      }
+    ],
+    "alignment": "stretch"
+  }
+}

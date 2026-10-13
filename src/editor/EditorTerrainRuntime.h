@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/scene/model/SceneTypes.h"
+#include "demi/runtime/terrain/TerrainQuality.h"
 #include <functional>
 #include <memory>
 #include <nlohmann/json.hpp>
@@ -43,8 +44,7 @@ updateEditorTerrain(const nlohmann::json &before, const nlohmann::json &after,
                     EditorTerrainSurfacePtr previous, std::stop_token stop,
                     const std::function<void(float)> &progress,
                     std::string &error);
-std::optional<EditorTerrainUpdate>
-updateEditorTerrainWithInputs(
+std::optional<EditorTerrainUpdate> updateEditorTerrainWithInputs(
     const nlohmann::json &before, const nlohmann::json &after,
     EditorTerrainSurfacePtr previous,
     const runtime::TerrainGenerationInputs &inputs, std::stop_token stop,
@@ -62,14 +62,19 @@ bool installEditorTerrain(runtime::World &world, std::string_view owner,
                           std::string &error);
 
 nlohmann::json defaultEditorTerrainRecipe();
-EditorTerrainSurfacePtr
-generateEditorTerrain(const nlohmann::json &recipe, std::stop_token stop,
-                      const std::function<void(float)> &progress,
-                      std::string &error);
-EditorTerrainSurfacePtr
-generateEditorTerrainWithInputs(
+EditorTerrainSurfacePtr generateEditorTerrain(
+    const nlohmann::json &recipe, std::stop_token stop,
+    const std::function<void(float)> &progress, std::string &error,
+    runtime::TerrainQuality quality = runtime::TerrainQuality::Standard);
+EditorTerrainSurfacePtr generateEditorTerrainWithInputs(
     const nlohmann::json &recipe,
     const runtime::TerrainGenerationInputs &inputs, std::stop_token stop,
+    const std::function<void(float)> &progress, std::string &error,
+    runtime::TerrainQuality quality = runtime::TerrainQuality::Standard);
+std::optional<EditorTerrainUpdate> regenerateEditorTerrainWithInputs(
+    const nlohmann::json &recipe, EditorTerrainSurfacePtr previous,
+    const runtime::TerrainGenerationInputs &inputs,
+    runtime::TerrainQuality quality, std::stop_token stop,
     const std::function<void(float)> &progress, std::string &error);
 EditorTerrainSurfacePtr currentEditorTerrain(const runtime::World &world,
                                              std::string_view entityId);

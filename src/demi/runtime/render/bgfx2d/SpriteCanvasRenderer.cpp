@@ -32,21 +32,33 @@ bool SpriteCanvasRenderer::draw(const World &world,
                                 const float physicsInterpolationAlpha) {
   const float ppu =
       viewportHeight / std::max(camera.orthographicSize * 2.0F, 1.0F);
-  std::vector<const Entity *> sprites;
-  for (const Entity &entity : world.entities)
-    if (entity.enabled && entity.hasComponent<SpriteComponent>() &&
-        !entity.hasComponent<IsoTransformComponent>())
-      sprites.push_back(&entity);
+  struct SpriteEntry {
+    const Entity *entity;
+    const SpriteComponent *sprite;
+  };
+  std::vector<SpriteEntry> sprites;
+  for (const Entity &entity : world.entities) {
+    if (!entity.enabled) {
+      continue;
+    }
+    const auto *sprite = entity.component<SpriteComponent>();
+    if (sprite != nullptr && !entity.hasComponent<IsoTransformComponent>()) {
+      sprites.push_back({.entity = &entity, .sprite = sprite});
+    }
+  }
   std::ranges::stable_sort(
-      sprites, [](const Entity *left, const Entity *right) {
-        const SpriteComponent &a = *left->component<SpriteComponent>();
-        const SpriteComponent &b = *right->component<SpriteComponent>();
-        return std::tuple{a.sortingOrder, a.layer, left->id} <
-               std::tuple{b.sortingOrder, b.layer, right->id};
+      sprites, [](const SpriteEntry &left, const SpriteEntry &right) {
+        const auto &leftSprite = *left.sprite;
+        const auto &rightSprite = *right.sprite;
+        return std::tie(leftSprite.sortingOrder, leftSprite.layer,
+                        left.entity->id) < std::tie(rightSprite.sortingOrder,
+                                                    rightSprite.layer,
+                                                    right.entity->id);
       });
 
-  for (const Entity *entity : sprites) {
-    const SpriteComponent &sprite = *entity->component<SpriteComponent>();
+  for (const SpriteEntry &entry : sprites) {
+    const Entity *entity = entry.entity;
+    const SpriteComponent &sprite = *entry.sprite;
     const Vec2 position = physicsPresentationWorldPosition2D(
         world, *entity, physicsInterpolationAlpha);
     const float screenX =
@@ -89,7 +101,8 @@ bool SpriteCanvasRenderer::draw(const World &world,
                                           ? material->albedoTexture
                                           : sprite.texture;
     TextureView2D texture;
-    if (const auto *animator = entity->component<SpriteAnimator2DComponent>()) {
+    const auto *animator = entity->component<SpriteAnimator2DComponent>();
+    if (animator != nullptr) {
       texture = textures_.find(textureAsset + "#" +
                                std::to_string(animator->currentFrame));
     }
@@ -101,17 +114,20 @@ bool SpriteCanvasRenderer::draw(const World &world,
         texture = textures_.find(textureAsset + "#" + std::to_string(frame));
       }
     }
-    if (!texture.handle)
+    if (!texture.handle) {
       texture = textures_.find(textureAsset);
+    }
     if (!texture.handle) {
       if (sprite.shape == "circle") {
         if (!canvas_.circle(screenX, screenY, std::min(width, height) * 0.5F,
-                            color, 32, blend, scissor, program, uniformSet))
+                            color, 32, blend, scissor, program, uniformSet)) {
           return false;
+        }
       } else if (sprite.shape == "triangle") {
         if (!canvas_.circle(screenX, screenY, std::min(width, height) * 0.5F,
-                            color, 3, blend, scissor, program, uniformSet))
+                            color, 3, blend, scissor, program, uniformSet)) {
           return false;
+        }
       } else if (!canvas_.imageTransformed(
                      canvas_.whiteTexture(), screenX, screenY, width, height,
                      sprite.pivot.x, sprite.pivot.y,
@@ -139,8 +155,7 @@ bool SpriteCanvasRenderer::draw(const World &world,
                          ? sprite.sourceSize.y * texture.height
                          : texture.height;
     }
-    if (const auto *animator = entity->component<SpriteAnimator2DComponent>();
-        animator != nullptr && animator->frameSize.x > 0.0F &&
+    if (animator != nullptr && animator->frameSize.x > 0.0F &&
         animator->frameSize.y > 0.0F) {
       sourceWidth = animator->frameSize.x;
       sourceHeight = animator->frameSize.y;
@@ -186,8 +201,9 @@ bool SpriteCanvasRenderer::draw(const World &world,
                        .v1 = (sourceY + sourceHeight - sprite.sliceEnd.y) /
                              texture.height},
               },
-              color, blend, scissor, program, uniformSet))
+              color, blend, scissor, program, uniformSet)) {
         return false;
+      }
     } else if (!canvas_.imageTransformed(
                    texture.handle, screenX, screenY, width, height,
                    sprite.pivot.x, sprite.pivot.y, rotation, source, color,

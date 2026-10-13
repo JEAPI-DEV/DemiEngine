@@ -159,7 +159,7 @@ Deform.reset(id) -- restore this instance's original visual mesh</code></pre>
     <tr><td><code>shadow_blend</code></td><td>0–1. Fraction of each depth interval used for transitions. Zero produces a hard boundary; larger values increase overlap and transition-sampling work.</td></tr>
     <tr><td><code>shadow_filter</code></td><td><code>pcf</code> smoothly interpolates neighboring depth comparisons instead of producing stepped bands. <code>hard</code> uses one comparison for sharper, cheaper shadows. PCF softness is filtering, not physically sized area-light shadows.</td></tr>
     <tr><td><code>shadow_bias</code></td><td>Depth offset in metres. Increase slightly for self-shadow speckles; reduce if shadows detach from objects. A large bias does not fix coarse shadow resolution.</td></tr>
-    <tr><td><code>max_shadow_lights</code></td><td>Zero disables the pass. Currently one directional light is supported; increasing this does not add point/spot shadows.</td></tr>
+    <tr><td><code>max_shadow_lights</code></td><td>Zero disables the pass. Only the primary directional light casts shadows; increasing this does not add point/spot shadows.</td></tr>
   </tbody>
 </table>
 <p>For a small room or close-up prop, shorten the distance before increasing resolution. For a large level, keep cascades enabled rather than spreading one map over the whole level. On lower-cost targets, try two cascades or a smaller per-cascade resolution and measure the result. A larger atlas consumes memory even if the scene contains only a few objects.</p>

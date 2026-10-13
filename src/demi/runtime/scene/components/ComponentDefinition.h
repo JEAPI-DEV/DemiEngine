@@ -39,9 +39,20 @@ struct ComponentFieldEditorMetadata {
   double numericStep = 0.0;
   bool readOnly = false;
   bool advanced = false;
+  bool editableCollection = false;
 };
 
 struct ComponentFieldDescriptor {
+  [[nodiscard]] constexpr ComponentFieldDescriptor withLabel(std::string_view text) const {
+    auto result = *this;
+    result.editor.label = text;
+    return result;
+  }
+  [[nodiscard]] constexpr ComponentFieldDescriptor withEditableCollection() const {
+    auto result = *this;
+    result.editor.editableCollection = true;
+    return result;
+  }
   [[nodiscard]] constexpr ComponentFieldDescriptor asAdvanced() const {
     auto result = *this;
     result.editor.advanced = true;

@@ -5,7 +5,12 @@
 #include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/Transform3DComponent.h"
 #include "demi/runtime/scene/model/World.h"
+#include "demi/runtime/terrain/TerrainGenerationCache.h"
+#include "demi/runtime/terrain/TerrainMaterialSections.h"
+#include "demi/runtime/terrain/TerrainPalette.h"
+#include "demi/runtime/terrain/TerrainRenderLod.h"
 #include "demi/runtime/terrain/TerrainScatterRuntime.h"
+#include "demi/runtime/terrain/TerrainSurfaceMaterials.h"
 #include "demi/runtime/terrain/TerrainUpdate.h"
 #include "demi/runtime/terrain/TerrainWorld.h"
 #include "demi/runtime/terrain/TerrainWorldBatch.h"
@@ -358,7 +363,8 @@ void testMaterialAndTextureScaleAppearance() {
   const auto initialField = field(world);
   auto materialRecipe = before;
   materialRecipe.biomes.at("default").material = "asset://ground/stone";
-  const auto materialUpdate = updateTerrain(before, materialRecipe, initialField);
+  const auto materialUpdate =
+      updateTerrain(before, materialRecipe, initialField);
   check(materialUpdate && materialUpdate->invalidation.materialsChanged &&
             !materialUpdate->invalidation.fullGeneration &&
             materialUpdate->invalidation.geometrySamples().empty() &&
@@ -367,7 +373,8 @@ void testMaterialAndTextureScaleAppearance() {
         "Material-only edit regenerated terrain");
   std::string error;
   check(updateTerrainWorld(world, "land", materialRecipe.toJson(),
-                           *materialUpdate, error), error.c_str());
+                           *materialUpdate, error),
+        error.c_str());
   checkAllResources(world, original);
   checkUnrelated(world, original, otherField);
   for (const auto &entry : world.entities)
@@ -388,14 +395,16 @@ void testMaterialAndTextureScaleAppearance() {
         "Texture scale regenerated terrain");
   const auto materialResources = resources(world);
   check(updateTerrainWorld(world, "land", scaledRecipe.toJson(), *scaleUpdate,
-                           error), error.c_str());
+                           error),
+        error.c_str());
   for (const auto &[id, beforeResource] : materialResources) {
     if (!id.starts_with("land/__terrain/")) {
       checkResource(world, id, beforeResource);
       continue;
     }
     const auto *mesh = entity(world, id).component<MeshRendererComponent>();
-    const auto *collider = entity(world, id).component<ModelCollider3DComponent>();
+    const auto *collider =
+        entity(world, id).component<ModelCollider3DComponent>();
     check(mesh->revision != beforeResource.revision &&
               mesh->vertices.data() == beforeResource.vertices &&
               mesh->normals.data() == beforeResource.normals &&
@@ -406,12 +415,13 @@ void testMaterialAndTextureScaleAppearance() {
                 mesh->uvs[vertex].y == mesh->vertices[vertex].z * 2.5F,
             "Texture UVs are not continuous terrain-local coordinates");
   }
-  check(field(world) == scaleUpdate->field && field(world, "other") == otherField,
+  check(field(world) == scaleUpdate->field &&
+            field(world, "other") == otherField,
         "Appearance edit lost retained field or changed another owner");
   checkReference(world, scaledRecipe);
   const auto undo = applyTerrainPatch(field(world), *scaleUpdate->patch, false);
-  check(updateTerrainWorld(world, "land", materialRecipe.toJson(), undo,
-                           error), error.c_str());
+  check(updateTerrainWorld(world, "land", materialRecipe.toJson(), undo, error),
+        error.c_str());
   checkReference(world, materialRecipe);
 }
 
@@ -532,8 +542,8 @@ void testFailureAndCancellationAreAtomic() {
   const auto overflowingUvs = updateTerrain(before, hugeScale, originalField);
   check(overflowingUvs && !overflowingUvs->invalidation.fullGeneration,
         "Finite positive texture scale was rejected as a recipe");
-  check(!updateTerrainWorld(world, "land", hugeScale.toJson(),
-                            *overflowingUvs, error) &&
+  check(!updateTerrainWorld(world, "land", hugeScale.toJson(), *overflowingUvs,
+                            error) &&
             error.find("UV") != std::string::npos,
         "Unrepresentable UVs were published");
   checkAllResources(world, original);
@@ -987,7 +997,8 @@ void testSharedAssetAppearancePublication() {
         "Shared appearance edit regenerated terrain");
   std::string error;
   check(updateTerrainAssetWorld(world, "asset://shared", after.toJson(),
-                                *update, error), error.c_str());
+                                *update, error),
+        error.c_str());
   for (const auto &owner : {"land", "other"}) {
     check(field(world, owner) == update->field,
           "Shared appearance publication did not retain one field");
@@ -995,7 +1006,8 @@ void testSharedAssetAppearancePublication() {
       if (!id.starts_with(std::string(owner) + "/__terrain/"))
         continue;
       const auto *mesh = entity(world, id).component<MeshRendererComponent>();
-      const auto *collider = entity(world, id).component<ModelCollider3DComponent>();
+      const auto *collider =
+          entity(world, id).component<ModelCollider3DComponent>();
       check(mesh->material == "asset://ground/sand" &&
                 mesh->revision != beforeResource.revision &&
                 mesh->vertices.data() == beforeResource.vertices &&
@@ -1009,7 +1021,8 @@ void testSharedAssetAppearancePublication() {
   }
   const auto undo = applyTerrainPatch(field(world), *update->patch, false);
   check(updateTerrainAssetWorld(world, "asset://shared", before.toJson(), undo,
-                                error), error.c_str());
+                                error),
+        error.c_str());
   for (const auto &owner : {"land", "other"})
     for (const auto &entry : world.entities)
       if (terrainSurfaceOwner(entry) == owner) {
@@ -1043,14 +1056,13 @@ void testSharedAssetScatterReconciliation() {
   };
   auto scattered = std::make_shared<HeightField>(*field(world));
   scattered->paletteId = "asset://palette";
-  scattered->scatterPlacements.push_back({.role = TerrainPaletteRole::Tree,
-                                          .asset = "asset://tree",
+  scattered->scatterPlacements.push_back({.ruleId = "tree",
+                                          .model = "asset://tree",
                                           .cell = 1,
                                           .position = {1, 1, 1}});
   publish(scattered);
   const auto scatterId = [](std::string_view owner) {
-    return terrainScatterInstanceId(owner, "asset://palette",
-                                    TerrainPaletteRole::Tree, 1);
+    return terrainScatterInstanceId(owner, "asset://palette", "tree", 1);
   };
   for (const auto &owner : {"land", "other"}) {
     auto &instance = entity(world, scatterId(owner));
@@ -1096,10 +1108,249 @@ void testSharedAssetScatterReconciliation() {
     check(instance.id != scatterId("land") && instance.id != scatterId("other"),
           "Excluded scenery survived a shared terrain update");
 }
+void testSurfaceBindingRetainsGeometryAndHistory() {
+  const auto initialRecipe = flatRecipe();
+  auto world = makeWorld(initialRecipe);
+  auto recipe = initialRecipe;
+  recipe.paletteId = "asset://surface_palette";
+
+  auto palette = std::make_shared<TerrainPalette>();
+  palette->id = recipe.paletteId;
+  palette->materialSet = "asset://surface_materials";
+  for (const auto *role : {"rock", "cliff", "sediment", "ground", "grass",
+                           "sand", "snow", "wet_ground", "underwater"}) {
+    palette->surfaceMaterials.emplace(role, std::string("asset://") + role);
+  }
+  TerrainGenerationInputs inputs;
+  inputs.palette = palette;
+  inputs.fingerprint = "unchanged-placement-inputs";
+  const auto generated = regenerateTerrainWithInputs(
+      recipe, field(world), "Install surface palette", inputs);
+  check(generated.has_value(), "Surface terrain generation failed");
+  std::string error;
+  check(updateTerrainWorld(world, "land", recipe.toJson(), *generated, error),
+        error.c_str());
+
+  const auto originalField = field(world);
+  const auto originalResources = resources(world);
+  const std::string surfaceId = "land/__terrain/0_0/default";
+  const auto originalSections =
+      *entity(world, surfaceId).component<MeshMaterialSections3D>();
+  check(!originalSections.sections.empty(),
+        "Automatic materials made no sections");
+  const auto changedRole = originalSections.sections.front().id;
+
+  auto editedPalette = std::make_shared<TerrainPalette>(*palette);
+  editedPalette->surfaceMaterials[changedRole] = "asset://replacement";
+  inputs.palette = editedPalette;
+  const auto rebound =
+      updateTerrainWithInputs(recipe, recipe, originalField, inputs);
+  check(rebound && !rebound->invalidation.fullGeneration,
+        "Material binding edit regenerated terrain");
+  check(rebound->field->surfaceMaterials->classification ==
+            originalField->surfaceMaterials->classification,
+        "Material binding edit rebuilt classification");
+  check(updateTerrainWorld(world, "land", recipe.toJson(), *rebound, error),
+        error.c_str());
+  checkAllResources(world, originalResources);
+
+  const auto *updatedSections =
+      entity(world, surfaceId).component<MeshMaterialSections3D>();
+  check(updatedSections->indices == originalSections.indices &&
+            updatedSections->indexRevision == originalSections.indexRevision,
+        "Material binding edit replaced GPU indices");
+  check(updatedSections->sections.front().material == "asset://replacement",
+        "Material binding was not published");
+
+  const auto undone = applyTerrainPatch(field(world), *rebound->patch, false);
+  check(updateTerrainWorld(world, "land", recipe.toJson(), undone, error),
+        error.c_str());
+  check(terrainSurfaceMaterialsEqual(*field(world), *originalField),
+        "Undo did not restore material bindings");
+  const auto redone = applyTerrainPatch(field(world), *rebound->patch, true);
+  check(updateTerrainWorld(world, "land", recipe.toJson(), redone, error),
+        error.c_str());
+  checkAllResources(world, originalResources);
+
+  auto overriddenRecipe = recipe;
+  overriddenRecipe.biomes.at("default").material = "asset://biome_override";
+  const auto overridden = updateTerrain(recipe, overriddenRecipe, field(world));
+  check(overridden.has_value(), "Biome material override update failed");
+  check(updateTerrainWorld(world, "land", overriddenRecipe.toJson(),
+                           *overridden, error),
+        error.c_str());
+  check(entity(world, surfaceId)
+            .component<MeshMaterialSections3D>()
+            ->sections.empty(),
+        "Biome override left automatic material sections active");
+  checkAllResources(world, originalResources);
+
+  const auto restored = updateTerrain(overriddenRecipe, recipe, field(world));
+  check(restored.has_value(), "Removing biome material override failed");
+  check(updateTerrainWorld(world, "land", recipe.toJson(), *restored, error),
+        error.c_str());
+  check(!entity(world, surfaceId)
+             .component<MeshMaterialSections3D>()
+             ->sections.empty(),
+        "Removing biome override did not restore automatic sections");
+  checkAllResources(world, originalResources);
+
+  const auto sculptedRecipe = raised(recipe, {3, 2});
+  const auto sculpted = updateTerrain(recipe, sculptedRecipe, field(world));
+  check(sculpted.has_value(), "Sculpt with automatic materials failed");
+  check(sculpted->field->surfaceMaterials->classification !=
+            field(world)->surfaceMaterials->classification,
+        "Sculpt left classification stale");
+  const auto beforeSculpt = field(world);
+  check(updateTerrainWorld(world, "land", sculptedRecipe.toJson(), *sculpted,
+                           error),
+        error.c_str());
+  const auto undoSculpt =
+      applyTerrainPatch(field(world), *sculpted->patch, false);
+  check(updateTerrainWorld(world, "land", recipe.toJson(), undoSculpt, error),
+        error.c_str());
+  check(terrainFieldsEqual(*beforeSculpt, *field(world)),
+        "Sculpt undo did not restore the classified surface");
+}
+
+void testMaterialSectionGrouping() {
+  HeightField terrain;
+  terrain.biomeIds = {"default"};
+  auto classification = std::make_shared<TerrainSurfaceClassification>();
+  classification->roles = {"ground", "rock"};
+  classification->samples = {0, 1, 1, 0};
+  auto surface = std::make_shared<TerrainSurfaceMaterials>();
+  surface->classification = classification;
+  surface->bindings = {{"ground", "asset://ground"}, {"rock", "asset://rock"}};
+  terrain.surfaceMaterials = surface;
+
+  const std::vector<std::size_t> samples{0, 1, 2, 0, 2, 3};
+  const auto sections =
+      terrain_detail::buildTerrainMaterialSections(terrain, 0, samples);
+  check(sections.sections.size() == 2, "Mixed surface lost a material");
+  check(*sections.indices == std::vector<std::uint32_t>({3, 4, 5, 0, 1, 2}),
+        "Triangles were not grouped by majority role");
+  check(sections.sections[0].indexCount == 3 &&
+            sections.sections[1].firstIndex == 3,
+        "Material draw ranges overlap or omit triangles");
+
+  terrain.biomeMaterials = {"asset://explicit_override"};
+  const auto overridden = terrain_detail::buildTerrainMaterialSections(
+      terrain, 0, samples, &sections);
+  check(overridden.sections.empty(),
+        "Automatic materials displaced biome override");
+}
+
+void testPreparedRenderLodPublication() {
+  const auto before = flatRecipe();
+  auto world = makeWorld(before);
+  const std::string nearId = "land/__terrain/0_0/default";
+  const std::string farId = "land/__terrain/8_8/default";
+  const auto nearLod =
+      entity(world, nearId).component<TerrainRenderLod>()->chunk;
+  const auto farLod = entity(world, farId).component<TerrainRenderLod>()->chunk;
+  const auto originalCollider = entity(world, nearId)
+                                    .component<ModelCollider3DComponent>()
+                                    ->inlineGeometry;
+  check(nearLod && farLod,
+        "Terrain publication omitted prepared render levels");
+  const auto originalHalf = prepareTerrainRenderLodLevel(*nearLod, 1);
+  check(originalHalf->contains("default"), "Half detail is missing");
+
+  auto appearance = before;
+  appearance.biomes.at("default").material = "asset://ground/rock";
+  const auto appearanceUpdate = updateTerrain(before, appearance, field(world));
+  check(appearanceUpdate.has_value(), "Appearance update failed");
+  std::string error;
+  check(updateTerrainWorld(world, "land", appearance.toJson(),
+                           *appearanceUpdate, error),
+        error.c_str());
+  const auto rebound =
+      entity(world, nearId).component<TerrainRenderLod>()->chunk;
+  check(rebound->geometryIdentity == nearLod->geometryIdentity,
+        "Material rebinding invalidated reusable LOD geometry");
+  const auto reboundHalf = rebindTerrainRenderLodLevel(*rebound, *originalHalf);
+  check(reboundHalf->at("default").geometry ==
+            originalHalf->at("default").geometry,
+        "Material rebinding replaced prepared LOD geometry");
+  check(entity(world, nearId)
+                .component<ModelCollider3DComponent>()
+                ->inlineGeometry == originalCollider,
+        "Render appearance changed Full collision");
+
+  const auto farBeforeSculpt =
+      entity(world, farId).component<TerrainRenderLod>()->chunk;
+  auto sculpted = appearance;
+  TerrainEdit raise;
+  raise.kind = TerrainEditKind::Raise;
+  raise.center = {1, 1};
+  raise.radius = 0.4F;
+  raise.strength = 1.0F;
+  sculpted.edits.push_back(raise);
+  const auto update = updateTerrain(appearance, sculpted, field(world));
+  check(update.has_value(), "Sculpt update failed");
+  for (const bool mutateOwner : {true, false}) {
+    auto stale = prepareTerrainWorldUpdate(world, "land", sculpted.toJson(),
+                                           *update, error);
+    check(stale.has_value(), error.c_str());
+    const auto beforeResources = resources(world);
+    const auto beforeField = field(world);
+    auto *marker = entity(world, nearId).component<TerrainRenderLod>();
+    const auto originalOwner = marker->owner;
+    const auto originalBiome = marker->biome;
+    if (mutateOwner) {
+      marker->owner = "different-owner";
+    } else {
+      marker->biome = "different-biome";
+    }
+    check(!publishTerrainWorldUpdate(world, std::move(*stale), error) &&
+              error.find("stale") != std::string::npos,
+          "Native LOD identity mutation escaped stale preparation checks");
+    check(field(world) == beforeField,
+          "Rejected LOD identity mutation changed the published field");
+    checkAllResources(world, beforeResources);
+    check(marker->chunk == rebound,
+          "Rejected LOD identity mutation replaced render geometry");
+    marker->owner = originalOwner;
+    marker->biome = originalBiome;
+  }
+  auto prepared = prepareTerrainWorldUpdate(world, "land", sculpted.toJson(),
+                                            *update, error);
+  check(prepared.has_value(), error.c_str());
+  check(entity(world, nearId).component<TerrainRenderLod>()->chunk == rebound,
+        "Preparation mutated live render data");
+  check(publishTerrainWorldUpdate(world, std::move(*prepared), error),
+        error.c_str());
+  const auto updated =
+      entity(world, nearId).component<TerrainRenderLod>()->chunk;
+  check(updated != rebound, "Sculpt retained stale LOD geometry");
+  check(entity(world, farId).component<TerrainRenderLod>()->chunk ==
+            farBeforeSculpt,
+        "Local sculpt rebuilt a distant chunk's LOD");
+
+  const auto undo = applyTerrainPatch(field(world), *update->patch, false);
+  check(updateTerrainWorld(world, "land", appearance.toJson(), undo, error),
+        error.c_str());
+  const auto restored =
+      entity(world, nearId).component<TerrainRenderLod>()->chunk;
+  for (std::size_t level = 1; level < 4; ++level) {
+    const auto actualLevel = prepareTerrainRenderLodLevel(*restored, level);
+    const auto expectedLevel = prepareTerrainRenderLodLevel(*nearLod, level);
+    const auto &actual = actualLevel->at("default").geometry->vertices;
+    const auto &expected = expectedLevel->at("default").geometry->vertices;
+    check(std::ranges::equal(actual, expected,
+                             [](Vec3 a, Vec3 b) { return equal(a, b); }),
+          "Undo did not restore prepared detail levels");
+  }
+}
+
 } // namespace
 
 int main() {
   try {
+    testPreparedRenderLodPublication();
+    testSurfaceBindingRetainsGeometryAndHistory();
+    testMaterialSectionGrouping();
     testLocalHeightAndNormalHalo();
     testSharedCornerAndUndoRedo();
     testTintAndExclusion();

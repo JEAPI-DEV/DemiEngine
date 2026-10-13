@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://orbit/icons/globe",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {},
+  "source": "globe.svg",
+  "source_hash": "fnv1a64:c1bce1fac0ed4c58",
+  "type": "Icon2D"
+}

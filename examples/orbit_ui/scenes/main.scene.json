@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "id": "scene://orbit/main",
+  "hud": "../hud/showcase.hud.json",
+  "entities": [
+    {
+      "id": "ui_controller",
+      "components": {
+        "LuaScript": {
+          "module": "script://scripts/showcase.lua"
+        }
+      }
+    }
+  ]
+}

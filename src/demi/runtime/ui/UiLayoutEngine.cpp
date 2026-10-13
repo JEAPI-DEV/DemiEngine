@@ -29,8 +29,13 @@ Rect anchoredRect(const UiNode &node, const Rect &parent) {
     height = parent.height * (layout.anchorMax.y - layout.anchorMin.y) -
              layout.margin.top - layout.margin.bottom;
   }
-  return {left, top, clampDimension(width, layout.minSize.x, layout.maxSize.x),
-          clampDimension(height, layout.minSize.y, layout.maxSize.y)};
+  width = clampDimension(width, layout.minSize.x, layout.maxSize.x);
+  height = clampDimension(height, layout.minSize.y, layout.maxSize.y);
+  return {left - layout.dockPivot.x *
+                     (width + layout.margin.left + layout.margin.right),
+          top - layout.dockPivot.y *
+                    (height + layout.margin.top + layout.margin.bottom),
+          width, height};
 }
 
 } // namespace
@@ -77,7 +82,10 @@ void UiLayoutEngine::layout(UiDocument &document,
           if (!child.visible)
             continue;
           Rect slot = content;
-          if (child.type == "modal") {
+          if (child.type == "modal" && child.layout.anchorMin.x == 0.0F &&
+              child.layout.anchorMin.y == 0.0F &&
+              child.layout.anchorMax.x == 0.0F &&
+              child.layout.anchorMax.y == 0.0F) {
             slot.x += (content.width - child.layout.size.x) * 0.5F;
             slot.y += (content.height - child.layout.size.y) * 0.5F;
             slot.width = child.layout.size.x;

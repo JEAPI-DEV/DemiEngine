@@ -23,8 +23,9 @@ local x, y = Input.vector("move")</code></pre>
   "id": "jump_btn",
   "type": "virtual_button",
   "control": "jump",
-  "dock": "bottom",
-  "at": [1100, 560],
+  "anchor_min": [1, 1],
+  "anchor_max": [1, 1],
+  "at": [-180, -180],
   "size": [140, 140],
   "accessibility_label": "Jump"
 }</code></pre>
@@ -41,8 +42,9 @@ local x, y = Input.vector("move")</code></pre>
   "id": "move_stick",
   "type": "virtual_stick",
   "control": "move",
-  "dock": "bottom",
-  "at": [180, 540],
+  "anchor_min": [0, 1],
+  "anchor_max": [0, 1],
+  "at": [40, -260],
   "size": [220, 220]
 }</code></pre>
 <ul>

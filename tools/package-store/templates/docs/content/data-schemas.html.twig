@@ -59,7 +59,7 @@
   <li><code>settings.schema</code> — the DataSchema asset ID validating this document.</li>
   <li><code>settings.content_type</code> — a type label scripts use to find documents of this kind.</li>
   <li><code>settings.tags</code> — free-form labels for grouping and queries.</li>
-  <li><code>source</code> — the JSON file to load. Source data documents use <code>format_version: 1</code> at their root.</li>
+  <li><code>source</code> — the JSON file to load. General source data documents use <code>format_version: 1</code> at their root. Native content types own their versions; terrain palettes use version 2.</li>
 </ul>
 <p>Validation errors for the content report the JSON pointer path inside the source file, so "price is not an integer at <code>/items/2/price</code>" is enough to jump straight to the row.</p>
 

@@ -361,6 +361,10 @@ public:
     state_ = {};
   }
 
+  bool waitForEvent(int timeoutMilliseconds) override {
+    return SDL_WaitEventTimeout(nullptr, timeoutMilliseconds);
+  }
+
   void poll(InputState &inputState) override {
     PlatformInput input(inputState);
     input.beginFrame();

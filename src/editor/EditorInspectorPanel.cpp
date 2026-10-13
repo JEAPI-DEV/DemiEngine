@@ -1,6 +1,7 @@
 #include "editor/EditorInspectorPanel.h"
 
 #include "editor/EditorColorControl.h"
+#include "editor/EditorMaterialPropertiesControl.h"
 #include "editor/EditorInspectorModel.h"
 #include "editor/EditorReferenceControl.h"
 #include "editor/EditorDragDropPayloads.h"
@@ -320,8 +321,7 @@ void drawScriptProperties(EditorWorkspace &workspace,
                       ? drawEditorColorControl(
                             "##value", edited.data(),
                             {.flags = ImGuiColorEditFlags_AlphaBar |
-                                      ImGuiColorEditFlags_Float,
-                             .showPrecision = true})
+                                      ImGuiColorEditFlags_Float})
                       : drawVectorEditor(nullptr, edited,
                                          static_cast<int>(count));
         value = nlohmann::json::array();
@@ -439,7 +439,7 @@ bool beginPropertyTable(const char *id) {
 void drawPropertyOrigin(const EditorPropertyOrigin origin) {
   const std::string_view label = editorPropertyOriginLabel(origin);
   if (origin == EditorPropertyOrigin::Override) {
-    ImGui::TextColored({0.64F, 0.51F, 0.94F, 1.0F}, "%.*s",
+    ImGui::TextColored({0.36F, 0.62F, 0.96F, 1.0F}, "%.*s",
                        static_cast<int>(label.size()), label.data());
     return;
   }
@@ -489,47 +489,20 @@ bool drawVectorEditor(const ComponentFieldDescriptor *field,
   const float available = ImGui::GetContentRegionAvail().x;
   const float axisWidth = available / static_cast<float>(count);
   const bool stackAxes = axisWidth < ImGui::GetFontSize() * 2.4F;
-  if (stackAxes) {
-    if (!ImGui::BeginTable("##vector-axes", 2,
-                           ImGuiTableFlags_SizingStretchProp))
-      return false;
-    ImGui::TableSetupColumn("Axis", ImGuiTableColumnFlags_WidthFixed,
-                            ImGui::CalcTextSize("W").x);
-    ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
-    for (int index = 0; index < count; ++index) {
-      ImGui::TableNextRow();
-      ImGui::TableSetColumnIndex(0);
-      ImGui::AlignTextToFramePadding();
-      ImGui::TextColored(AxisColors[index], "%s", AxisLabels[index]);
-      ImGui::TableSetColumnIndex(1);
-      ImGui::PushID(index);
-      ImGui::SetNextItemWidth(-1.0F);
-      changed |= ImGui::InputFloat("##axis", &values[index], 0.0F, 0.0F,
-                                   "%.5g");
-      ImGui::PopID();
-    }
-    ImGui::EndTable();
-  } else {
-    if (!ImGui::BeginTable("##vector-axes", count,
-                           ImGuiTableFlags_SizingStretchSame))
-      return false;
-    ImGui::TableNextRow();
-    for (int index = 0; index < count; ++index) {
-      ImGui::TableSetColumnIndex(index);
-      ImGui::AlignTextToFramePadding();
-      ImGui::TextColored(AxisColors[index], "%s", AxisLabels[index]);
-    }
-    ImGui::TableNextRow();
-    for (int index = 0; index < count; ++index) {
-      ImGui::TableSetColumnIndex(index);
-      ImGui::PushID(index);
-      ImGui::SetNextItemWidth(-1.0F);
-      changed |= ImGui::InputFloat("##axis", &values[index], 0.0F, 0.0F,
-                                   "%.5g");
-      ImGui::PopID();
-    }
-    ImGui::EndTable();
+  if (!ImGui::BeginTable("##vector-axes", stackAxes ? 1 : count,
+                         ImGuiTableFlags_SizingStretchSame))
+    return false;
+  for (int index = 0; index < count; ++index) {
+    ImGui::TableNextColumn();
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextColored(AxisColors[index], "%s", AxisLabels[index]);
+    ImGui::SameLine(0, ImGui::GetStyle().ItemInnerSpacing.x);
+    ImGui::PushID(index);
+    ImGui::SetNextItemWidth(-1.0F);
+    changed |= ImGui::InputFloat("##axis", &values[index], 0.0F, 0.0F, "%.5g");
+    ImGui::PopID();
   }
+  ImGui::EndTable();
   if (changed && field != nullptr)
     for (int index = 0; index < count; ++index)
       clampNumericValue(values[index], *field);
@@ -683,8 +656,7 @@ bool drawFieldValue(EditorWorkspace &workspace, const SceneValueTarget &target,
     if (field.type == ComponentFieldType::Color)
       changed = drawEditorColorControl(
           "##value", edited.data(),
-          {.flags = ImGuiColorEditFlags_AlphaBar | ImGuiColorEditFlags_Float,
-           .showPrecision = true});
+          {.flags = ImGuiColorEditFlags_AlphaBar | ImGuiColorEditFlags_Float});
     else
       changed = drawVectorEditor(&field, edited, count);
     replacement = nlohmann::json::array();
@@ -703,7 +675,10 @@ bool drawFieldValue(EditorWorkspace &workspace, const SceneValueTarget &target,
       vectorSize = 3;
     else if (field.type == ComponentFieldType::ColorArray)
       vectorSize = 4;
-    const auto edit = drawStructuredValue(replacement, structuredState, vectorSize);
+    const auto edit = target.component == "MeshRenderer" &&
+                              target.field == "material_properties"
+                          ? drawEditorMaterialProperties(replacement)
+                          : drawStructuredValue(replacement, structuredState, vectorSize);
     bool accepted = true;
     if (edit.changed) {
       std::string error;
@@ -736,10 +711,6 @@ void drawComponentFields(EditorWorkspace &workspace,
                          StructuredValueState &structuredState) {
   // Field commits may replace the scene document and preview world. Keep this
   // component snapshot alive until every row for the frame has been drawn.
-  if (!descriptor.editor.help.empty()) {
-    ImGui::TextWrapped("%s", descriptor.editor.help.data());
-    ImGui::Spacing();
-  }
   bool showAdvanced = false;
   std::optional<assets::MaterialAsset> material;
   if (componentName == "MeshRenderer" && component.is_object()) {
@@ -754,11 +725,9 @@ void drawComponentFields(EditorWorkspace &workspace,
   const bool hasAdvanced = std::ranges::any_of(
       descriptor.fields, [](const auto &field) { return field.editor.advanced; });
   if (hasAdvanced && query.empty()) {
-    const auto key = ImGui::GetID("advanced-fields");
-    showAdvanced = ImGui::GetStateStorage()->GetBool(key, false);
-    if (ImGui::Checkbox("Advanced fields", &showAdvanced)) {
-      ImGui::GetStateStorage()->SetBool(key, showAdvanced);
-    }
+    showAdvanced = editorAdvancedSettings(
+        "Optional settings for specialized use. Search includes these fields even while hidden.\n"
+        "Hover a field label for its purpose and default.");
   }
   for (const ComponentFieldDescriptor &field : descriptor.fields) {
     if (field.editor.advanced && !showAdvanced && query.empty())
@@ -852,17 +821,20 @@ void drawMultiSelection(EditorWorkspace &workspace, std::string &notice,
     hasMatchingField = true;
     const std::string componentName(common.component->name);
     if (currentComponent != componentName) {
-      if (tableOpen)
+      if (tableOpen) {
         ImGui::EndTable();
+        ImGui::PopID();
+      }
       currentComponent = componentName;
       ImGui::Spacing();
       ImGui::TextUnformatted(common.component->editor.displayName.data());
       ImGui::Separator();
       ImGui::PushID(componentName.c_str());
       tableOpen = beginPropertyTable("##multi-properties");
-      ImGui::PopID();
-      if (!tableOpen)
+      if (!tableOpen) {
+        ImGui::PopID();
         continue;
+      }
     }
     if (!tableOpen)
       continue;
@@ -891,8 +863,10 @@ void drawMultiSelection(EditorWorkspace &workspace, std::string &notice,
     ImGui::PopID();
     ImGui::PopID();
   }
-  if (tableOpen)
+  if (tableOpen) {
     ImGui::EndTable();
+    ImGui::PopID();
+  }
   if (!query.empty() && !hasMatchingField)
     ImGui::TextDisabled("No matching common properties.");
 }
@@ -983,8 +957,14 @@ void drawEntityHeader(EditorWorkspace &workspace, const nlohmann::json &entity,
     drawPropertyLabel("Layer", drawOrigin(layerIsExplicit));
     ImGui::TableSetColumnIndex(1);
     std::string layer = entity.value("layer", "Default");
+    if (layer.empty())
+      layer = "Default";
     ImGui::SetNextItemWidth(-1.0F);
-    if (inputString("##value", layer))
+    std::vector<EditorReferenceChoice> layers{{"Default", "Default"}};
+    for (const auto &declared : workspace.project().project.physicsLayers2D)
+      if (declared.name != "Default")
+        layers.push_back({declared.name, declared.name});
+    if (drawEditorReferenceControl("##value", layers, layer, false))
       (void)commit(workspace, layerTarget, layer, notice);
     finishEdit(workspace);
     drawInlineIssue(workspace, layerTarget);
@@ -1012,10 +992,12 @@ static void drawInspectorContents(EditorWorkspace &workspace,
                                   EditorInspectorPanelState &state,
                                   std::string &notice) {
   const float panelWidth = ImGui::GetContentRegionAvail().x;
+  const float headerY = ImGui::GetCursorPosY();
   if (workspace.sceneDocument().isDirty()) {
     ImGui::SetCursorPosX(std::max(panelWidth - 68.0F, 0.0F));
     ImGui::TextColored({0.95F, 0.67F, 0.28F, 1.0F}, "Unsaved");
   }
+  ImGui::SetCursorPosY(headerY + ImGui::GetTextLineHeightWithSpacing());
   ImGui::Separator();
   if (drawIsoGridCellInspector(workspace, notice)) {
     return;
@@ -1038,13 +1020,15 @@ static void drawInspectorContents(EditorWorkspace &workspace,
 
   const std::string selectedId = selected->id;
   const nlohmann::json *entity = workspace.sceneDocument().entity(selectedId);
+  // Preserved entity IDs may equal the placement's ID. Runtime provenance,
+  // rather than a coincidental authored-ID match, identifies instance content.
   const bool prefabEntity =
-      entity == nullptr && !selected->prefabInstance.empty();
+      !selected->prefabInstance.empty() && !selected->prefabLocalId.empty();
   nlohmann::json effectiveEntity;
   if (prefabEntity) {
     effectiveEntity = editorPreviewEntityJson(*selected);
     entity = &effectiveEntity;
-    ImGui::TextColored({0.64F, 0.51F, 0.94F, 1.0F}, "Prefab instance: %s",
+    ImGui::TextColored({0.36F, 0.62F, 0.96F, 1.0F}, "Prefab instance: %s",
                        selected->prefabInstance.c_str());
     ImGui::SameLine();
     ImGui::TextDisabled("· %s", selected->prefabLocalId.c_str());
@@ -1060,6 +1044,13 @@ static void drawInspectorContents(EditorWorkspace &workspace,
         state.openRequest = *path;
       else
         notice = "Could not resolve the source prefab for this instance.";
+      return;
+    }
+    if (ImGui::Button("Unpack Prefab")) {
+      std::string error;
+      notice = workspace.unpackPrefab(selectedId, error)
+                   ? "Prefab unpacked; entity IDs preserved"
+                   : error;
       return;
     }
     ImGui::Separator();
@@ -1109,14 +1100,22 @@ static void drawInspectorContents(EditorWorkspace &workspace,
       return;
     }
   }
-  const EditorLuaComponentCatalog luaComponents = discoverEditorLuaComponents(
-      workspace.project().project.projectDirectory, workspace.sources());
+  const auto &luaComponents = workspace.scriptCatalog();
 
   const auto components = entity->find("components");
   const auto hasAuthoredComponent = [&](const char *name) {
     return (components != entity->end() && components->is_object() &&
             components->contains(name)) || presetComponents.contains(name);
   };
+  if (hasAuthoredComponent("DirectionalLight") && !hasAuthoredComponent("Transform3D")) {
+    ImGui::TextWrapped("Sun lights use direction, not distance. Add a transform to rotate this light with the gizmo.");
+    if (ImGui::Button("Enable light gizmo")) {
+      std::string error;
+      notice = workspace.addComponent(selectedId, "Transform3D", nlohmann::json::object(), error)
+                   ? "Light transform added" : error;
+      return;
+    }
+  }
   if (!hasAuthoredComponent("MeshRenderer") &&
       (hasAuthoredComponent("BoxCollider3D") ||
        hasAuthoredComponent("SphereCollider3D") ||
@@ -1189,6 +1188,8 @@ static void drawInspectorContents(EditorWorkspace &workspace,
         ImGui::TableSetColumnIndex(0);
         componentOpen = ImGui::CollapsingHeader(
             title, ImGuiTreeNodeFlags_DefaultOpen);
+        if (descriptor && !descriptor->editor.help.empty() && ImGui::IsItemHovered())
+          ImGui::SetTooltip("%s", descriptor->editor.help.data());
         ImGui::TableSetColumnIndex(1);
         if (ImGui::SmallButton("..."))
           componentMenuRequested = true;
@@ -1238,16 +1239,33 @@ static void drawInspectorContents(EditorWorkspace &workspace,
         continue;
       }
       drawInlineIssue(workspace, {.entityId = selectedId, .component = name});
-      if (name == "Terrain3D")
+      if (name == "Terrain3D") {
+        if (descriptor != nullptr) {
+          // Terrain graph controls own asset/recipe editing. Other reflected
+          // fields use the same command and presentation path as components.
+          auto terrainDescriptor = *descriptor;
+          std::vector<ComponentFieldDescriptor> scalarFields;
+          for (const auto &field : descriptor->fields) {
+            if (field.name != "asset" && field.name != "recipe") {
+              scalarFields.push_back(field);
+            }
+          }
+          terrainDescriptor.fields = scalarFields;
+          drawComponentFields(workspace, selectedId, name, component,
+                              terrainDescriptor, notice, prefabEntity,
+                              propertyQuery, state.structuredValues);
+        }
         drawEditorTerrainInspector(workspace, notice);
-      else if (luaMetadata != nullptr)
+      } else if (luaMetadata != nullptr)
         drawScriptProperties(workspace, selectedId, component, *luaMetadata,
-                             notice, prefabEntity, propertyQuery, state.structuredValues);
+                             notice, prefabEntity, propertyQuery,
+                             state.structuredValues);
       else if (descriptor == nullptr || descriptor->fields.empty())
         drawGenericComponent(component, name, propertyQuery);
       else
-        drawComponentFields(workspace, selectedId, name, component,
-                            *descriptor, notice, prefabEntity, propertyQuery, state.structuredValues);
+        drawComponentFields(workspace, selectedId, name, component, *descriptor,
+                            notice, prefabEntity, propertyQuery,
+                            state.structuredValues);
       ImGui::PopID();
     }
   }

@@ -6,6 +6,9 @@ add_library(demi-core STATIC
   src/demi/runtime/terrain/TerrainGraphRegistry.cpp
   src/demi/runtime/terrain/TerrainGraphExecutor.cpp
   src/demi/runtime/terrain/TerrainGraphNodeEvaluation.cpp
+  src/demi/runtime/terrain/TerrainGraphSpatialMasks.cpp
+  src/demi/runtime/terrain/TerrainGraphSedimentMasks.cpp
+  src/demi/runtime/terrain/TerrainLandform.cpp
   src/demi/runtime/terrain/TerrainRecipe.cpp
   src/demi/runtime/terrain/TerrainBrushStroke.cpp
   src/demi/runtime/terrain/TerrainBrushBounds.cpp
@@ -18,12 +21,15 @@ add_library(demi-core STATIC
   src/demi/runtime/terrain/TerrainGenerationCache.cpp
   src/demi/runtime/terrain/TerrainPalette.cpp
   src/demi/runtime/terrain/TerrainPreset.cpp
+  src/demi/runtime/terrain/TerrainPresetLibrary.cpp
   src/demi/runtime/terrain/TerrainGeneration.cpp
   src/demi/runtime/terrain/TerrainPipeline.cpp
   src/demi/runtime/terrain/TerrainDrainage.cpp
   src/demi/runtime/terrain/TerrainErosion.cpp
   src/demi/runtime/terrain/TerrainWaterDiagnostics.cpp
   src/demi/runtime/terrain/TerrainScatterConstraints.cpp
+  src/demi/runtime/terrain/TerrainMaskBuilder.cpp
+  src/demi/runtime/terrain/TerrainSurfaceMaterials.cpp
   src/demi/runtime/terrain/TerrainMaterialLayers.cpp
   src/demi/runtime/terrain/TerrainMaterialBlend.cpp
   src/demi/runtime/terrain/TerrainTextureResidency.cpp
@@ -33,6 +39,11 @@ add_library(demi-core STATIC
   src/demi/runtime/terrain/TerrainCookNode.cpp
   src/demi/runtime/terrain/TerrainScatter.cpp
   src/demi/runtime/terrain/TerrainLod.cpp
+  src/demi/runtime/terrain/TerrainLodResidency.cpp
+  src/demi/runtime/terrain/TerrainRenderLod.cpp
+  src/demi/runtime/terrain/TerrainMaterialSections.cpp
+  src/demi/runtime/terrain/TerrainLodGeometry.cpp
+  src/demi/runtime/terrain/TerrainGeometryUv.cpp
   src/demi/runtime/terrain/TerrainStreaming.cpp
   src/demi/runtime/terrain/TerrainLodBiomes.cpp
   src/demi/runtime/simulation/DeterministicRandom.cpp
@@ -108,6 +119,7 @@ add_library(demi-core STATIC
   src/demi/packages/PackageLock.cpp
   src/demi/schema/Validation.cpp
   src/demi/runtime/scene/composition/PrefabResolver.cpp
+  src/demi/runtime/scene/composition/PrefabEntityIdentity.cpp
   src/demi/runtime/scene/composition/EntityHierarchy.cpp
   src/demi/runtime/ui/UiLayoutEngine.cpp
   src/demi/runtime/ui/HudLayoutReport.cpp
@@ -128,6 +140,8 @@ add_library(demi-core STATIC
   src/demi/runtime/ui/UiInteractionController.cpp
   src/demi/runtime/ui/UiDocumentParser.cpp
   src/demi/runtime/ui/UiPrefabResolver.cpp
+  src/demi/runtime/ui/UiPrefabOverrides.cpp
+  src/demi/runtime/ui/UiPrefabHierarchy.cpp
   src/demi/runtime/ui/UiPresentation.cpp
   src/demi/runtime/ui/UiStateController.cpp
   src/demi/runtime/ui/UiActionController.cpp

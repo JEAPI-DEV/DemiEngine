@@ -72,8 +72,8 @@ bool MaterialLibrary::load(const AssetRegistry &registry,
     binding.opacity = parameter("opacity", 1.0F);
     if (const auto color = descriptor->colors.find("base_color");
         color != descriptor->colors.end())
-      binding.baseColor = {color->second.r, color->second.g,
-                           color->second.b, color->second.a};
+      binding.baseColor = {color->second.r, color->second.g, color->second.b,
+                           color->second.a};
     if (const auto albedo = descriptor->textures.find("albedo");
         albedo != descriptor->textures.end())
       binding.albedoTexture = albedo->second;
@@ -98,7 +98,8 @@ bool MaterialLibrary::load(const AssetRegistry &registry,
         diagnostics.push_back(asset.id + ": " + error);
         return false;
       }
-      binding.parameters.push_back({.uniform = uniform, .value = value});
+      binding.parameters.push_back(
+          {.uniform = uniform, .value = value, .name = name});
       return true;
     };
     std::vector<std::string> names;
@@ -145,9 +146,9 @@ void MaterialLibrary::clear() {
   shaders_.clear();
 }
 
-const MaterialBinding *MaterialLibrary::find(
-    const std::string_view assetId) const {
-  const auto found = materials_.find(std::string(assetId));
+const MaterialBinding *
+MaterialLibrary::find(const std::string_view assetId) const {
+  const auto found = materials_.find(assetId);
   return found == materials_.end() ? nullptr : &found->second;
 }
 

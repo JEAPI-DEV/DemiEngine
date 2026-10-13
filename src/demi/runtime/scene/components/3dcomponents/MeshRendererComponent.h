@@ -60,7 +60,7 @@ struct MeshRendererComponent {
       ComponentFieldDescriptor{"surface_mode", ComponentFieldType::String,
                                false, true, surfaceModes}.withHelp("Opaque, transparent alpha blending, or additive blending. Omit to inherit the material."),
       ComponentFieldDescriptor{"material_properties",
-                               ComponentFieldType::Object},
+                               ComponentFieldType::Object}.withEditableCollection().withLabel("Material overrides").withHelp("Per-mesh material overrides: base_color, metallic, roughness and opacity. Explicit surface fields above take precedence; other names are not consumed by the built-in shader."),
       ComponentFieldDescriptor{"render_layer", ComponentFieldType::String},
       ComponentFieldDescriptor{"vertices", ComponentFieldType::Vec3Array}.asAdvanced().withHelp("Advanced inline triangle geometry: three XYZ vertices per triangle. Usually supplied by a model or the Shape primitive."),
       ComponentFieldDescriptor{"normals", ComponentFieldType::Vec3Array}.asAdvanced().withHelp("Lighting directions for inline vertices. Omit to calculate them from the triangles; otherwise provide one XYZ normal per vertex."),

@@ -1,4 +1,5 @@
 #include "demi/runtime/terrain/TerrainGraph.h"
+#include "demi/runtime/terrain/TerrainGraphSpatialMasks.h"
 
 #include "demi/graph/DependencyGraph.h"
 
@@ -89,6 +90,16 @@ void validateParameters(const TerrainGraphNode &node) {
       if (found->maximum)
         require(number <= *found->maximum,
                 error + ": above its allowed domain");
+    }
+  }
+  const bool isPolygon = node.type == "polygon_mask";
+  const bool isSpatialMask = isPolygon || node.type == "path_distance_mask";
+  if (isSpatialMask && node.parameters.contains("points")) {
+    try {
+      terrain_graph_detail::validateTerrainSpatialMaskPoints(
+          node.parameters.at("points"), isPolygon);
+    } catch (const std::exception &error) {
+      throw std::invalid_argument("Node " + node.id + ": " + error.what());
     }
   }
   if (node.type == "elevation_mask" || node.type == "slope_mask") {
@@ -239,7 +250,13 @@ nlohmann::json TerrainGraph::toJson() const {
 }
 std::string TerrainGraph::contentKey() const {
   auto semantic = toJson();
-  for (auto &node : semantic["nodes"]) {
+  auto &nodes = semantic["nodes"];
+  nodes.erase(std::remove_if(nodes.begin(), nodes.end(),
+                             [](const auto &node) {
+                               return node.at("type") == "comment";
+                             }),
+              nodes.end());
+  for (auto &node : nodes) {
     node.erase("position");
     for (const auto &parameter :
          terrainGraphNodeDefinition(node.at("type").get<std::string>())

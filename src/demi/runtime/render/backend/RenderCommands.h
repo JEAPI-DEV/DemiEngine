@@ -9,6 +9,7 @@
 #include <memory>
 #include <span>
 #include <string>
+#include <type_traits>
 
 namespace demi::runtime::render {
 
@@ -107,6 +108,22 @@ struct BufferedDraw {
   std::span<const DrawTextureBinding> textures;
 };
 
+// Synchronous borrowed records. Native instance buffers require a nonzero
+// stride divisible by sixteen; records remain ordinary typed author data.
+struct InstanceDataView {
+  std::span<const std::byte> data;
+  std::uint16_t stride = 0;
+};
+
+template <typename Record, std::size_t Extent>
+[[nodiscard]] InstanceDataView instanceData(std::span<Record, Extent> records) {
+  static_assert(std::is_trivially_copyable_v<Record>);
+  static_assert(sizeof(Record) <= UINT16_MAX);
+  static_assert(sizeof(Record) % 16 == 0);
+  return {.data = std::as_bytes(records),
+          .stride = static_cast<std::uint16_t>(sizeof(Record))};
+}
+
 struct InstancedBufferedDraw {
   std::uint16_t viewId = 0;
   BufferSlice vertices;
@@ -116,9 +133,15 @@ struct InstancedBufferedDraw {
   SamplerHandle sampler;
   DrawState state;
   ScissorRect scissor;
-  std::span<const std::array<float, 16>> transforms;
+  InstanceDataView instances;
   std::span<const DrawUniformValue> uniforms;
   std::span<const DrawTextureBinding> textures;
+};
+
+struct InstanceBatchSubmission {
+  std::size_t submittedRecords = 0;
+  std::size_t submittedBatches = 0;
+  bool complete = false;
 };
 
 class RenderCommands {
@@ -126,6 +149,13 @@ public:
   virtual ~RenderCommands() = default;
   RenderCommands(const RenderCommands &) = delete;
   RenderCommands &operator=(const RenderCommands &) = delete;
+
+  // Current-frame capacity only; query immediately before submission. Other
+  // draws can consume the shared transient buffer between queries.
+  [[nodiscard]] virtual std::uint32_t availableInstances(std::uint16_t,
+                                                         std::uint32_t) const {
+    return 0;
+  }
 
   [[nodiscard]] virtual bool configureView2D(const View2DConfig &view,
                                              std::string &error) = 0;
@@ -137,6 +167,11 @@ public:
                                     std::string &error) = 0;
   [[nodiscard]] virtual bool submit(const InstancedBufferedDraw &draw,
                                     std::string &error) = 0;
+  // Submits legal prefixes using current transient availability. A failure
+  // returns the already-submitted prefix so callers never redraw it by
+  // accident.
+  [[nodiscard]] InstanceBatchSubmission
+  submitInstanceBatches(const InstancedBufferedDraw &draw, std::string &error);
 
 protected:
   RenderCommands() = default;

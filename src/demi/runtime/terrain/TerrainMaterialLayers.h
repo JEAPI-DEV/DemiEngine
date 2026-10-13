@@ -47,7 +47,8 @@ struct TerrainMaterialLayerSettings {
   // authored twice as large. A field with no dry relief has no snow line at
   // all rather than one at height zero.
   float snowLine = 0.F;
-  // Water level in world units. A sample at or below it is submerged, and its
+  // Fallback water level when masks have no finite-body waterDepth samples.
+  // A sample at or below it is submerged, and its
   // bed is the Underwater role; a sample above it is dry ground however close
   // to the water it is. The caller resolves this the way
   // TerrainScatterConstraints resolves it, via withWaterLevel below, so an

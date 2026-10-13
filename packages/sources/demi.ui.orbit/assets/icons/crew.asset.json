@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://orbit/icons/crew",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {},
+  "source": "crew.svg",
+  "source_hash": "fnv1a64:f92921ef29b73af8",
+  "type": "Icon2D"
+}

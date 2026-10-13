@@ -1,0 +1,13 @@
+{
+  "format_version": 1,
+  "id": "scene://hud-lifecycle/control",
+  "entities": [
+    {
+      "id": "camera",
+      "components": {
+        "Transform3D": {"position": [0, 0, -5]},
+        "Camera3D": {}
+      }
+    }
+  ]
+}

@@ -74,17 +74,20 @@ void EditorShell::drawDocumentViews(ImVec2 position, ImVec2 size) {
     if (!open || !document || (hud && !document->hasHudDocument()))
       return;
     focus(name);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {0, 0});
     const bool visible = beginEditorPanel(
         name, position, size, &open,
         ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    ImGui::PopStyleVar();
     if (visible) {
       if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)) {
         focusAuthoring(session, hud);
       }
       auto &view = authoringViews_[static_cast<std::size_t>(kind)];
       view.workspace = document;
-      drawEditorViewport(*document, {}, {}, view.texture, view.area, view.hud,
-                         hud, notice_, true);
+      if (drawEditorViewport(*document, {}, {}, view.texture, view.area,
+                             view.hud, hud, notice_, true))
+        focusAuthoring(session, hud);
     }
     ImGui::End();
   };
@@ -119,13 +122,14 @@ void EditorShell::drawDocumentViews(ImVec2 position, ImVec2 size) {
   }
   if (panels.game) {
     focus("Game View");
-    if (beginEditorPanel("Game View", position, size, &panels.game,
-                         ImGuiWindowFlags_NoScrollbar |
-                             ImGuiWindowFlags_NoScrollWithMouse)) {
-      drawEditorGameView(
-          playSession_, {}, {}, gameTextureIndex_, gameArea_, gameViewFocused_,
-          true,
-          preferences_.keyBindings.label(EditorCommand::ReleaseGameInput));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {0, 0});
+    const bool visible = beginEditorPanel(
+        "Game View", position, size, &panels.game,
+        ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    ImGui::PopStyleVar();
+    if (visible) {
+      drawEditorGameView({}, {}, gameTextureIndex_, gameArea_, gameViewFocused_,
+                         true);
       if (gameViewFocused_)
         showGameView_ = true;
       if (gameViewFocused_ && ImGui::IsMouseClicked(ImGuiMouseButton_Left) &&

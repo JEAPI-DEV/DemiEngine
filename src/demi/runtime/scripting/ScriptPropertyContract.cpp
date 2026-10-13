@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <limits>
 
 namespace demi::runtime {
 namespace {
@@ -25,9 +26,19 @@ bool validateType(const std::string &name, const std::string &type,
     valid = value.is_boolean();
   else if (type == "number")
     valid = value.is_number();
-  else if (type == "integer")
-    valid = value.is_number() &&
-            std::floor(value.get<double>()) == value.get<double>();
+  else if (type == "integer") {
+    if (value.is_number_unsigned())
+      valid = value.get<std::uint64_t>() <=
+              std::uint64_t(std::numeric_limits<std::int64_t>::max());
+    else if (value.is_number_integer())
+      valid = true;
+    else if (value.is_number_float()) {
+      const double number = value.get<double>();
+      // The positive limit is exclusive: INT64_MAX rounds up as a double.
+      valid = std::isfinite(number) && std::floor(number) == number &&
+              number >= -0x1p63 && number < 0x1p63;
+    }
+  }
   else if (type == "string" || type == "entity")
     valid = value.is_string() && (type != "entity" || !value.empty());
   else if (type == "asset")
@@ -164,6 +175,8 @@ resolveScriptProperties(const nlohmann::json &schema,
       value = nlohmann::json::array();
     if (!validateDefinition(name, definition, value, error))
       return std::nullopt;
+    if (definition.value("type", std::string{}) == "integer")
+      value = value.get<std::int64_t>();
     resolved[name] = value;
   }
   return resolved;

@@ -12,7 +12,7 @@ struct Environment3DComponent {
   static constexpr std::string_view typeName = "Environment3D";
   static constexpr bool exposedToLua = false;
   static constexpr ComponentDomain domain = ComponentDomain::ThreeDimensional;
-  static constexpr std::array msaaOptions{0,2,4,8,16};
+  static constexpr std::array msaaOptions{0, 2, 4, 8, 16};
   static constexpr std::array shadowCascadeOptions{1, 2, 3, 4};
   static constexpr std::array<std::string_view, 2> shadowFilterOptions{"hard",
                                                                        "pcf"};
@@ -48,6 +48,48 @@ struct Environment3DComponent {
                                0,
                                true},
       ComponentFieldDescriptor::assetReference("sky_texture"),
+      ComponentFieldDescriptor{"terrain_lod_cache_mb",
+                               ComponentFieldType::Integer,
+                               false,
+                               true,
+                               {},
+                               0,
+                               true}
+          .withLabel("Terrain LOD Cache (MiB)")
+          .withHelp(
+              "CPU budget for prepared reduced terrain meshes. Full terrain "
+              "and collision remain available when this budget is exhausted."),
+      ComponentFieldDescriptor{
+          "terrain_gpu_cache_mb",
+          ComponentFieldType::Integer,
+          false,
+          true,
+          {},
+          0,
+          true,
+          false,
+          true,
+          true,
+          false,
+          double(std::numeric_limits<std::size_t>::max() / (1024U * 1024U)),
+          true}
+          .withLabel("Terrain GPU Cache (MiB)")
+          .withHelp(
+              "GPU budget for terrain field textures and shared patch buffers. "
+              "Zero disables GPU terrain; the ordinary mesh renderer remains "
+              "available."),
+      ComponentFieldDescriptor{"terrain_lod_prepare_jobs",
+                               ComponentFieldType::Integer,
+                               false,
+                               true,
+                               {},
+                               0,
+                               true}
+          .withLabel("Terrain LOD Preparation Jobs")
+          .withHelp(
+              "Maximum outstanding background terrain mesh jobs. Zero disables "
+              "new preparation; available worker threads also limit "
+              "concurrency."),
       ComponentFieldDescriptor{"ambient_color", ComponentFieldType::Color},
       ComponentFieldDescriptor{"ambient_intensity",
                                ComponentFieldType::Number,
@@ -140,8 +182,9 @@ struct Environment3DComponent {
                                               false,
                                               std::numeric_limits<float>::max(),
                                               true};
-        field.editor.help="Depth offset in metres. Large values detach shadows from their casters.";
-        field.editor.numericStep=.001;
+        field.editor.help = "Depth offset in metres. Large values detach "
+                            "shadows from their casters.";
+        field.editor.numericStep = .001;
         return field;
       }(),
       ComponentFieldDescriptor{"max_shadow_lights",
@@ -161,7 +204,7 @@ struct Environment3DComponent {
                     "shadows; the current renderer supports one directional "
                     "light per camera.")};
   static constexpr ComponentEditorMetadata editor{"Lighting",
-                                                  "3D Environment"};
+                                                  "Environment & Lighting"};
   static void parse(const nlohmann::json &json, Entity &entity);
   static bool serializeField(const Environment3DComponent &component,
                              std::string_view field, nlohmann::json &out);
@@ -172,6 +215,9 @@ struct Environment3DComponent {
   std::string skyTexture;
   std::size_t reliefCacheMeshes = 256;
   std::size_t reliefImageCacheBytes = 64U * 1024U * 1024U;
+  std::size_t terrainLodCacheBytes = 64U * 1024U * 1024U;
+  std::size_t terrainGpuCacheBytes = 128U * 1024U * 1024U;
+  std::size_t terrainLodPrepareJobs = 2;
   float ambientIntensity = 0.5F;
   Color fogColor{0.56F, 0.74F, 0.95F, 1.0F};
   float fogStart = 80.0F;
@@ -185,6 +231,15 @@ struct Environment3DComponent {
   float shadowBias = .005F;
   int maxShadowLights = 1;
   static constexpr std::array runtimeFields{
+      RuntimeFieldBinding<Environment3DComponent>::member<
+          &Environment3DComponent::terrainLodCacheBytes>(
+          "terrain_lod_cache_mb"),
+      RuntimeFieldBinding<Environment3DComponent>::member<
+          &Environment3DComponent::terrainGpuCacheBytes>(
+          "terrain_gpu_cache_mb"),
+      RuntimeFieldBinding<Environment3DComponent>::member<
+          &Environment3DComponent::terrainLodPrepareJobs>(
+          "terrain_lod_prepare_jobs"),
       RuntimeFieldBinding<Environment3DComponent>::member<
           &Environment3DComponent::msaaSamples>("msaa_samples"),
       RuntimeFieldBinding<Environment3DComponent>::member<

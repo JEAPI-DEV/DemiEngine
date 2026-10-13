@@ -1,5 +1,7 @@
 #pragma once
 
+#include "editor/EditorSourceIndex.h"
+
 #include "editor/EditorAssetIndex.h"
 #include "editor/EditorHudDocument.h"
 #include "editor/EditorLuaComponentMetadata.h"
@@ -57,6 +59,10 @@ public:
                                        std::string &error);
   [[nodiscard]] bool openPrefabDocument(const std::filesystem::path &path,
                                         std::string &error);
+  [[nodiscard]] bool
+  replaceHierarchyWithPrefab(std::string_view selectedId,
+                             const std::filesystem::path &prefabPath,
+                             std::string &error);
   [[nodiscard]] bool instantiatePrefab(const std::filesystem::path &path,
                                         std::string &error);
   [[nodiscard]] bool instantiatePrefab(const std::filesystem::path &path,
@@ -69,6 +75,9 @@ public:
                                           std::string &error);
   [[nodiscard]] bool duplicatePrefabInstance(std::string_view expandedEntityId,
                                              std::string &error);
+  // Recompose saved prefab dependencies against the current authored draft.
+  // Keep scene source, overrides, history and surviving selection intact.
+  [[nodiscard]] bool refreshPrefabInstances(std::string &error);
   [[nodiscard]] bool isPrefabDocument() const { return editingPrefab_; }
   [[nodiscard]] const std::filesystem::path &lastScenePath() const {
     return lastScenePath_;
@@ -116,11 +125,18 @@ public:
     return lastTerrainAssetPath_;
   }
   [[nodiscard]] bool refresh(std::string &error);
+  void pollScriptSources();
+  void notifyScriptCreated(const std::filesystem::path &path) {
+    sourceIndex_->changed(path);
+  }
+  const EditorLuaComponentCatalog &scriptCatalog() const {
+    return sourceIndex_->scripts();
+  }
   [[nodiscard]] bool createFolder(const std::filesystem::path &relativeParent,
                                   std::string_view name, std::string &error);
   [[nodiscard]] const std::set<std::filesystem::path> &
   sourceDirectories() const {
-    return sourceDirectories_;
+    return sourceIndex_->directories();
   }
   [[nodiscard]] bool save(std::string &error);
   [[nodiscard]] bool saveProject(std::string &error);
@@ -194,6 +210,8 @@ public:
                                   std::optional<runtime::Vec3> worldPosition = {});
   [[nodiscard]] bool createPresetEntity(std::string_view preset,
                                         std::string &error);
+  [[nodiscard]] bool unpackPrefab(std::string_view id, std::string &error);
+  [[nodiscard]] bool unpackHudPrefab(std::string_view id, std::string &error);
   [[nodiscard]] bool unpackPreset(std::string_view id, std::string &error);
   [[nodiscard]] bool deleteEntity(std::string_view id, std::string &error);
   [[nodiscard]] bool deleteEntities(std::vector<std::string> ids,
@@ -242,7 +260,17 @@ public:
   [[nodiscard]] bool deleteSelectedHudNode(std::string &error);
   [[nodiscard]] bool setHudNodeField(std::string_view id,
                                      std::string_view field,
-                                     nlohmann::json value, std::string &error);
+                                     nlohmann::json value, std::string &error,
+                                     bool continuous = false);
+  [[nodiscard]] bool previewHudAction(std::string_view id);
+  [[nodiscard]] bool resetHudPreviewState(std::string &error);
+  [[nodiscard]] bool resetHudPrefabTarget(std::string_view id,
+                                          std::string_view target,
+                                          std::string &error);
+  [[nodiscard]] bool resetHudNodeOverride(std::string_view id,
+                                          std::string_view field,
+                                          std::string &error);
+  void endHudContinuousEdit();
   [[nodiscard]] bool saveHud(std::string &error);
   // Refresh a clean linked/open HUD after another document session saved its
   // source. This does not rebuild the scene or alter scene command history.
@@ -324,10 +352,10 @@ public:
     return projectPath_;
   }
   [[nodiscard]] const std::vector<std::filesystem::path> &sources() const {
-    return sources_;
+    return sourceIndex_->sources();
   }
   [[nodiscard]] std::uint64_t sourceIndexRevision() const noexcept {
-    return sourceIndexRevision_;
+    return sourceIndex_->revision();
   }
   [[nodiscard]] std::optional<std::filesystem::path> authoredHudPath() const;
   [[nodiscard]] const EditorHudDocument *hudDocument() const;
@@ -405,6 +433,13 @@ public:
   }
   void setViewDimension(EditorSceneViewDimension dimension);
 
+  [[nodiscard]] bool canAlignSelectedCameraToView() const;
+  [[nodiscard]] bool alignSelectedCameraToView(std::string &error);
+  // Explicit selection events include selecting the same object again, so
+  // presentation can reveal a collapsed hierarchy without changing documents.
+  [[nodiscard]] std::uint64_t selectionRevision() const {
+    return selectionRevision_;
+  }
   void selectEntity(std::string id);
   void selectHudNode(std::string id);
   void toggleHudNodeSelection(std::string id);
@@ -471,6 +506,7 @@ private:
   [[nodiscard]] bool terrainAssetHistory(bool forward, std::string &error);
   [[nodiscard]] bool refreshTerrainAssetPreview(
       const nlohmann::json &recipe, std::string &error);
+  [[nodiscard]] bool restoreTerrainAssetPreview(std::string &error);
   [[nodiscard]] bool saveTerrainAsset(std::string &error);
   [[nodiscard]] bool bindTerrainAsset(std::string_view assetId,
                                       std::string &error);
@@ -524,11 +560,12 @@ private:
   EditorSceneDomain sceneDomain_ = EditorSceneDomain::Empty;
   EditorSceneViewDimension viewDimension_ =
       EditorSceneViewDimension::ThreeDimensional;
-  std::vector<std::filesystem::path> sources_;
-  std::uint64_t sourceIndexRevision_ = 0;
-  std::set<std::filesystem::path> sourceDirectories_;
+  std::shared_ptr<EditorSourceIndex> sourceIndex_ =
+      std::make_shared<EditorSourceIndex>();
+  std::uint64_t scriptDiagnosticsRevision_ = 0;
   std::unordered_map<std::string, runtime::TilemapAsset2D> tilemaps2D_;
   Diagnostics diagnostics_;
+  std::uint64_t selectionRevision_ = 0;
   std::vector<std::string> selectedEntityIds_;
   std::string selectedHudNodeId_;
   std::vector<std::string> selectedHudNodeIds_;

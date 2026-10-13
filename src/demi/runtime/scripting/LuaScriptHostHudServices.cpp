@@ -1,5 +1,7 @@
 #include "demi/runtime/scripting/LuaScriptHost.h"
 
+#include "demi/runtime/scene/HudParser.h"
+#include "demi/runtime/ui/UiActionController.h"
 #include "demi/runtime/ui/UiInteractionController.h"
 #include "demi/runtime/ui/UiLayoutEngine.h"
 #include "demi/runtime/ui/UiLocalization.h"
@@ -191,6 +193,13 @@ bool LuaScriptHost::setHudOpacity(const std::string &id, float opacity) {
   return false;
 }
 
+bool LuaScriptHost::applyHudAction(const std::string &action) {
+  if (!world_ || !ui::UiActionController{}.apply(world_->ui, action))
+    return false;
+  relayoutHud(*world_);
+  return true;
+}
+
 bool LuaScriptHost::setHudVisible(const std::string &id, bool visible) {
   if (world_ == nullptr)
     return false;
@@ -240,6 +249,89 @@ std::optional<std::string> LuaScriptHost::hudText(const std::string &id) const {
   if (const ui::UiNode *node = ui::UiStateController{}.find(world_->ui, id))
     return node->text;
   return std::nullopt;
+}
+
+std::optional<ui::UiNodeHandle>
+LuaScriptHost::createHudDefinition(const std::string &parent,
+                                   const nlohmann::json &definition,
+                                   std::string &error) {
+  if (!world_ || !definition.is_object()) {
+    error = "HUD creation requires an available HUD and a node definition.";
+    return std::nullopt;
+  }
+  try {
+    auto root = definition;
+    const auto normalize = [&](auto &&self, nlohmann::json &node) -> void {
+      if (!node.is_object())
+        return;
+      if (!node.contains("prefab")) {
+        if (!node.contains("type"))
+          node["type"] = "container";
+        if (!node.contains("position") && !node.contains("at") &&
+            (node.contains("x") || node.contains("y")))
+          node["position"] = {node.value("x", 0.0F), node.value("y", 0.0F)};
+        if (!node.contains("size") &&
+            (node.contains("width") || node.contains("height")))
+          node["size"] = {node.value("width", 0.0F),
+                          node.value("height", 0.0F)};
+        for (const char *key : {"x", "y", "width", "height"})
+          node.erase(key);
+      }
+      const auto normalizeArrays = [&](nlohmann::json &properties) {
+        if (properties.contains("children")) {
+          if (properties["children"].is_object() &&
+              properties["children"].empty())
+            properties["children"] = nlohmann::json::array();
+          for (auto &child : properties["children"])
+            self(self, child);
+        }
+        if (properties.contains("action_effects") &&
+            properties["action_effects"].is_object())
+          for (auto &effect : properties["action_effects"])
+            if (effect.is_object())
+              for (const auto *field : {"show", "hide"})
+                if (effect.contains(field) && effect[field].is_object() &&
+                    effect[field].empty())
+                  effect[field] = nlohmann::json::array();
+      };
+      normalizeArrays(node);
+      if (node.contains("overrides") && node["overrides"].is_object())
+        for (auto &patch : node["overrides"])
+          if (patch.is_object())
+            normalizeArrays(patch);
+    };
+    normalize(normalize, root);
+    std::unordered_set<std::string> existingParents;
+    for (const auto &node : world_->ui.nodes)
+      existingParents.insert(node.id);
+    auto parsed = scene_loading::parseHudDocument(
+        projectDirectory_ / "runtime.hud.json",
+        {{"format_version", 1},
+         {"canvas_size", {world_->ui.canvasSize.x, world_->ui.canvasSize.y}},
+         {"root", std::move(root)}},
+        error, nullptr, existingParents);
+    if (!parsed || parsed->nodes.empty())
+      return std::nullopt;
+    const std::string rootId = parsed->nodes.front().id;
+    ui::UiMutationQueue queue;
+    for (auto &node : parsed->nodes) {
+      const auto owner = node.id == rootId ? parent : node.parent;
+      queue.create(owner, std::move(node));
+    }
+    const auto result = queue.apply(world_->ui);
+    if (!result.applied) {
+      error = result.error;
+      return std::nullopt;
+    }
+    ui::UiVariables{}.discover(world_->ui);
+    ui::UiVariables{}.apply(world_->ui);
+    discardInvalidRecyclers(*world_);
+    relayoutHud(*world_);
+    return ui::UiMutationQueue::handle(world_->ui, rootId);
+  } catch (const nlohmann::json::exception &failure) {
+    error = failure.what();
+    return std::nullopt;
+  }
 }
 
 std::optional<ui::UiNodeHandle>

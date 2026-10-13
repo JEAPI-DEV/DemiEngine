@@ -82,9 +82,12 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/physics/Physics3D.cpp
   src/demi/runtime/physics/PhysicsContactPhases3D.cpp
   src/demi/runtime/physics/PhysicsWorld3D.cpp
+  src/demi/runtime/physics/PhysicsBodyInputs3D.cpp
+  src/demi/runtime/physics/JoltBodyShape3D.cpp
   src/demi/runtime/physics/JoltCompoundShape3D.cpp
   src/demi/runtime/profiling/PlatformFrameProfiling.cpp
   src/demi/runtime/profiling/ProfilerHudLayout.cpp
+  src/demi/runtime/platform/DirectoryChangeWatcher.cpp
   src/demi/runtime/platform/ProjectFileWatcher.cpp
   src/demi/runtime/platform/RuntimeCapabilities.cpp
   src/demi/runtime/scene/HudParser.cpp
@@ -147,7 +150,7 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/scripting/bindings/text/LuaRegexBindings.cpp
   src/demi/runtime/scripting/bindings/isometric/LuaIsoGridBindings.cpp
   src/demi/runtime/scripting/bindings/math/LuaVectorMathBindings.cpp
-  src/demi/runtime/scripting/bindings/navigation/LuaNavigation2DBindings.cpp
+  src/demi/runtime/scripting/bindings/navigation/LuaNavigationBindings.cpp
   src/demi/runtime/scripting/text/RegexMatcher.cpp
   src/demi/runtime/scripting/bindings/LuaJsonBridge.cpp
   src/demi/runtime/scripting/bindings/LuaHttpBindings.cpp
@@ -241,6 +244,7 @@ configure_demi_runtime(demi-runtime-lib TRUE
   src/demi/runtime/platform/PlatformInput.cpp
   src/demi/runtime/platform/SdlNativeWindow.cpp
   src/demi/runtime/platform/SdlPlatformHost.cpp
+  src/demi/runtime/platform/ManagedProcess.cpp
   src/demi/runtime/platform/ExternalProcess.cpp
 )
 

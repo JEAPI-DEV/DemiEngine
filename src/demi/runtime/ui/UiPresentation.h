@@ -12,6 +12,9 @@ struct UiPresentationNode {
   bool visible = false;
 };
 
+[[nodiscard]] bool uiPointInsideScrollClip(const UiDocument &document,
+                                           const UiNode &node, Vec2 point);
+
 // Layout-oriented nodes are transparent unless they declare a background.
 // Visual panels retain `color` as the convenient fill fallback.
 [[nodiscard]] Color uiPanelFillColor(const UiNode &node);

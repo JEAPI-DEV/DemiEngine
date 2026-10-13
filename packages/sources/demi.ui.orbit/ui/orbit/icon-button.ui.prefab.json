@@ -1,0 +1,76 @@
+{
+  "format_version": 1,
+  "id": "ui-prefab://orbit/icon-button",
+  "parameters": {
+    "accent": {
+      "type": "string",
+      "default": "#FFB66B"
+    },
+    "action": {
+      "type": "string",
+      "default": ""
+    },
+    "disabled": {
+      "type": "boolean",
+      "default": false
+    },
+    "label": {
+      "type": "string",
+      "default": "Settings"
+    },
+    "raised": {
+      "type": "string",
+      "default": "#263748"
+    },
+    "size": {
+      "type": "array",
+      "default": [
+        44,
+        44
+      ]
+    },
+    "stroke": {
+      "type": "string",
+      "default": "#3B5166"
+    },
+    "text": {
+      "type": "string",
+      "default": "#EEF4FA"
+    },
+    "texture": {
+      "type": "string",
+      "default": "asset://orbit/icons/settings"
+    }
+  },
+  "root": {
+    "id": "control",
+    "type": "button",
+    "size": "${size}",
+    "text": "",
+    "action": "${action}",
+    "disabled": "${disabled}",
+    "corner_radius": 9,
+    "font_size": 16,
+    "text_color": "${text}",
+    "background_color": "${raised}",
+    "hover_color": "${stroke}",
+    "border_color": "${stroke}",
+    "border_width": 1,
+    "color": "${accent}",
+    "accessibility_label": "${label}",
+    "children": [
+      {
+        "id": "icon",
+        "type": "image",
+        "dock": "center",
+        "size": [
+          20,
+          20
+        ],
+        "texture": "${texture}",
+        "color": "${text}",
+        "accessibility_hidden": true
+      }
+    ]
+  }
+}

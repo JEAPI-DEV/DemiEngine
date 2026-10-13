@@ -1,3 +1,4 @@
+#include "demi/runtime/terrain/TerrainSurfaceMaterials.h"
 #include "editor/EditorTerrainGraphPanel.h"
 #include "editor/EditorChrome.h"
 #include "editor/EditorClipboard.h"
@@ -173,13 +174,25 @@ void EditorTerrainGraphPanel::bind(const EditorWorkspace &workspace) {
   links_.clear();
   shownPositions_.clear();
   textEdits_.clear();
-  numericEdits_.clear();
+  valueEdits_.clear();
+  structuredEdits_.clear();
   waypointEdits_.clear();
   nextUiId_ = 1;
   canvasView_.reset();
   lastPasteClipboard_.clear();
   nextPasteOffset_ = 32.0F;
   releaseUiResources();
+}
+
+void EditorTerrainGraphPanel::resetDraftHistory() {
+  showSettings_ = false;
+  document_.clearHistory();
+  shownPositions_.clear();
+  textEdits_.clear();
+  valueEdits_.clear();
+  structuredEdits_.clear();
+  selectNodes({});
+  frameSelectionRequested_ = true;
 }
 
 void EditorTerrainGraphPanel::open(const EditorWorkspace &workspace) {
@@ -614,7 +627,7 @@ void EditorTerrainGraphPanel::drawParameter(
   Json edited;
   switch (definition.kind) {
   case runtime::TerrainGraphParameterKind::Color: {
-    Json &working = numericEdits_.try_emplace(key, value).first->second;
+    Json &working = valueEdits_.try_emplace(key, value).first->second;
     float rgba[4]{working.at(0).get<float>(), working.at(1).get<float>(),
                   working.at(2).get<float>(), working.at(3).get<float>()};
     const bool colorChanged =
@@ -633,11 +646,13 @@ void EditorTerrainGraphPanel::drawParameter(
     break;
   }
   case runtime::TerrainGraphParameterKind::Number: {
-    Json &working = numericEdits_.try_emplace(key, value).first->second;
-    float number = working.is_number() ? working.get<float>() : 0.0F;
-    if (ImGui::DragFloat("##value", &number, 0.05F, 0.0F, 0.0F, "%.3f") &&
-        std::isfinite(number))
+    Json &working = valueEdits_.try_emplace(key, value).first->second;
+    double number = working.is_number() ? working.get<double>() : 0.0;
+    if (ImGui::DragScalar("##value", ImGuiDataType_Double, &number, 0.05F,
+                          nullptr, nullptr, "%.3f") &&
+        std::isfinite(number)) {
       working = number;
+    }
     const bool finished = ImGui::IsItemDeactivatedAfterEdit();
     if (finished) {
       edited = working;
@@ -649,7 +664,7 @@ void EditorTerrainGraphPanel::drawParameter(
     break;
   }
   case runtime::TerrainGraphParameterKind::Integer: {
-    Json &working = numericEdits_.try_emplace(key, value).first->second;
+    Json &working = valueEdits_.try_emplace(key, value).first->second;
     int number = working.is_number_integer() ? working.get<int>() : 0;
     if (ImGui::DragInt("##value", &number))
       working = number;
@@ -688,6 +703,33 @@ void EditorTerrainGraphPanel::drawParameter(
   case runtime::TerrainGraphParameterKind::Text:
   case runtime::TerrainGraphParameterKind::Structured: {
     if (definition.kind == runtime::TerrainGraphParameterKind::Structured &&
+        definition.name == "points") {
+      Json &working = valueEdits_.try_emplace(key, value).first->second;
+      auto &state = structuredEdits_[key];
+      // Collection widgets fill their available region. Give them a node-local
+      // column so span/fill sizing cannot consume the surrounding canvas.
+      const float contentWidth = 240.0F * canvasView_.zoom();
+      const auto tableFlags = ImGuiTableFlags_SizingFixedFit |
+                              ImGuiTableFlags_NoHostExtendX |
+                              ImGuiTableFlags_NoSavedSettings;
+      StructuredValueEdit edit;
+      if (ImGui::BeginTable("##point-controls", 1, tableFlags,
+                            {contentWidth, 0.0F})) {
+        ImGui::TableSetupColumn("Coordinates", ImGuiTableColumnFlags_WidthFixed,
+                                contentWidth);
+        ImGui::TableNextColumn();
+        edit = drawStructuredValue(working, state, 2);
+        ImGui::EndTable();
+      }
+      if (edit.finished || (edit.changed && !edit.continuous)) {
+        edited = working;
+        changed = true;
+      } else if (!ImGui::IsAnyItemActive()) {
+        working = value;
+      }
+      break;
+    }
+    if (definition.kind == runtime::TerrainGraphParameterKind::Structured &&
         definition.name == "river_path") {
       if (auto path = drawRiverPath(nodeId, value, definition.defaultValue)) {
         edited = std::move(*path);
@@ -701,9 +743,25 @@ void EditorTerrainGraphPanel::drawParameter(
                                : value.is_string() ? value.get<std::string>()
                                                    : std::string{};
     std::string &buffer = textEdits_.try_emplace(key, source).first->second;
-    const bool submitted = ImGui::InputText(
-        "##value", &buffer, ImGuiInputTextFlags_EnterReturnsTrue);
-    if (submitted || ImGui::IsItemDeactivatedAfterEdit()) {
+    if (!structured) {
+      ImGui::PushTextWrapPos(ImGui::GetCursorPosX() +
+                             290.0F * canvasView_.zoom());
+      ImGui::TextUnformatted(source.c_str());
+      ImGui::PopTextWrapPos();
+      if (!ImGui::TreeNode("Edit note")) {
+        buffer = source;
+        break;
+      }
+    }
+    const bool submitted =
+        structured ? ImGui::InputText("##value", &buffer,
+                                      ImGuiInputTextFlags_EnterReturnsTrue)
+                   : ImGui::InputTextMultiline("##value", &buffer,
+                                               {290.0F * canvasView_.zoom(),
+                                                160.0F * canvasView_.zoom()});
+    if (!structured)
+      ImGui::TreePop();
+    if ((structured && submitted) || ImGui::IsItemDeactivatedAfterEdit()) {
       if (structured) {
         edited = Json::parse(buffer, nullptr, false);
         if (edited.is_discarded())
@@ -1091,6 +1149,22 @@ void EditorTerrainGraphPanel::draw(EditorWorkspace &workspace,
   }
   const auto surface = authoring.surface();
   const auto field = surface ? surface->heightField() : nullptr;
+  if (field && field->surfaceMaterials) {
+    ImGui::PushTextWrapPos(0);
+    for (const auto &role : field->surfaceMaterials->unboundRoles) {
+      if (role.empty()) {
+        ImGui::TextColored(
+            {1.0F, 0.75F, 0.35F, 1.0F},
+            "Some samples have no matching surface role; using biome tint.");
+        continue;
+      }
+      ImGui::TextColored(
+          {1.0F, 0.75F, 0.35F, 1.0F},
+          "Surface role '%s' has no material binding in %s; using biome tint.",
+          role.c_str(), field->surfaceMaterials->materialSet.c_str());
+    }
+    ImGui::PopTextWrapPos();
+  }
   if (field && field->graphArtifacts) {
     ImGui::PushTextWrapPos(0);
     for (const auto &warning : field->graphArtifacts->warnings)
@@ -1152,6 +1226,19 @@ void EditorTerrainGraphPanel::draw(EditorWorkspace &workspace,
       ImGui::CloseCurrentPopup();
     ImGui::EndPopup();
   }
+  nextToolbarItem(150);
+  int quality =
+      authoring.generationQuality == runtime::TerrainQuality::Preview ? 0 : 1;
+  ImGui::SetNextItemWidth(150.0F);
+  if (ImGui::Combo("##terrain-generation-quality", &quality,
+                   "Preview\0Final\0")) {
+    authoring.generationQuality = quality == 0
+                                      ? runtime::TerrainQuality::Preview
+                                      : runtime::TerrainQuality::Standard;
+  }
+  ImGui::SetItemTooltip(
+      "Preview reduces hydraulic erosion and skips thermal relaxation. "
+      "Both modes keep the same terrain grid. Generate Final before saving.");
   nextToolbarItem(30);
   if (editorIconButton(
           "graph-generate", EditorIcon::Generate,
@@ -1207,6 +1294,13 @@ void EditorTerrainGraphPanel::draw(EditorWorkspace &workspace,
             "graph-cancel-generation", EditorIcon::Stop,
             "Cancel terrain generation; keep the previously applied terrain."))
       authoring.cancel();
+  }
+  if (authoring.hasPreviewResult()) {
+    ImGui::TextUnformatted(
+        "Preview result: generate Final before Apply, Save or Play.");
+    if (ImGui::SmallButton("Discard preview")) {
+      authoring.cancel();
+    }
   }
   ImGui::BeginDisabled(authoring.busy() || authoring.stroking());
   ImGui::Separator();

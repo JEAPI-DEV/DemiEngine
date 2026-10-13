@@ -1,10 +1,17 @@
 #include "demi/runtime/scripting/LuaScriptHost.h"
 #include "demi/assets/TerrainAsset.h"
+#include "demi/assets/AssetHash.h"
+#include "demi/schema/Validation.h"
 #include "demi/runtime/terrain/TerrainScatterRuntime.h"
 #include "demi/runtime/terrain/TerrainWorld.h"
 #include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
 #include "demi/runtime/scene/SceneLoader.h"
 #include <filesystem>
+#include <chrono>
+#include <fstream>
+#include <nlohmann/json.hpp>
+#include <system_error>
+#include <stdexcept>
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/Transform3DComponent.h"
@@ -54,10 +61,10 @@ std::size_t scatterChildren(const World &world) {
 }
 
 TerrainScatterPlacement placementAt(std::size_t cell, float height,
-                                    TerrainPaletteRole role, float yaw) {
+                                    std::string ruleId, float yaw) {
   TerrainScatterPlacement placement;
-  placement.role = role;
-  placement.asset = "asset://terrain/props/tree";
+  placement.ruleId = ruleId;
+  placement.model = "asset://terrain/props/tree";
   placement.cell = cell;
   placement.position = {float(cell), height, 0};
   placement.yaw = yaw;
@@ -72,19 +79,14 @@ void flush(WorldCommandBuffer &commands, World &world) {
 // The key must be stable for a cell and must separate roles and palettes,
 // otherwise two roles landing in one cell would overwrite each other.
 void instanceIdIsStableAndSeparating() {
-  const auto a = terrainScatterInstanceId(OwnerId, PaletteId,
-                                           TerrainPaletteRole::Tree, 42);
-  const auto b = terrainScatterInstanceId(OwnerId, PaletteId,
-                                           TerrainPaletteRole::Tree, 42);
+  const auto a = terrainScatterInstanceId(OwnerId, PaletteId, "tree", 42);
+  const auto b = terrainScatterInstanceId(OwnerId, PaletteId, "tree", 42);
   assert(a == b);
-  assert(a != terrainScatterInstanceId(OwnerId, PaletteId,
-                                       TerrainPaletteRole::Bush, 42));
-  assert(a != terrainScatterInstanceId(OwnerId, PaletteId,
-                                       TerrainPaletteRole::Tree, 43));
-  assert(a != terrainScatterInstanceId("other", PaletteId,
-                                       TerrainPaletteRole::Tree, 42));
-  assert(a != terrainScatterInstanceId(OwnerId, "asset://other/palette",
-                                       TerrainPaletteRole::Tree, 42));
+  assert(a != terrainScatterInstanceId(OwnerId, PaletteId, "bush", 42));
+  assert(a != terrainScatterInstanceId(OwnerId, PaletteId, "tree", 43));
+  assert(a != terrainScatterInstanceId("other", PaletteId, "tree", 42));
+  assert(a != terrainScatterInstanceId(OwnerId, "asset://other/palette", "tree",
+                                       42));
   assert(a.find(OwnerId) == 0);
 }
 
@@ -96,8 +98,8 @@ void repeatSyncIsIdempotent() {
   RuntimePrefabService prefabs;
   HeightField field;
   field.paletteId = PaletteId;
-  field.scatterPlacements = {placementAt(1, 2.F, TerrainPaletteRole::Tree, 0.5F),
-                             placementAt(2, 3.F, TerrainPaletteRole::Tree, 1.5F)};
+  field.scatterPlacements = {placementAt(1, 2.F, "tree", 0.5F),
+                             placementAt(2, 3.F, "tree", 1.5F)};
 
   std::string error;
   const auto first = syncTerrainScatter(world, commands, OwnerId, field, &prefabs, error);
@@ -122,18 +124,17 @@ void movementUpdatesInPlace() {
   RuntimePrefabService prefabs;
   HeightField field;
   field.paletteId = PaletteId;
-  field.scatterPlacements = {placementAt(1, 2.F, TerrainPaletteRole::Tree, 0.5F)};
+  field.scatterPlacements = {placementAt(1, 2.F, "tree", 0.5F)};
   std::string error;
   (void)syncTerrainScatter(world, commands, OwnerId, field, &prefabs, error);
   flush(commands, world);
-  const auto id = terrainScatterInstanceId(OwnerId, PaletteId,
-                                           TerrainPaletteRole::Tree, 1);
+  const auto id = terrainScatterInstanceId(OwnerId, PaletteId, "tree", 1);
   const auto *before = findEntity(world, id);
   assert(before != nullptr);
   assert(before->component<Transform3DComponent>()->position.y == 2.F);
 
   // Same cell, new height and yaw: a sculpt moved the ground under it.
-  field.scatterPlacements = {placementAt(1, 7.F, TerrainPaletteRole::Tree, 2.5F)};
+  field.scatterPlacements = {placementAt(1, 7.F, "tree", 2.5F)};
   const auto stats = syncTerrainScatter(world, commands, OwnerId, field, &prefabs, error);
   assert(error.empty());
   assert(stats.updated == 1 && stats.created == 0 && stats.removed == 0);
@@ -153,24 +154,23 @@ void removedCellsAreCleanedUp() {
   RuntimePrefabService prefabs;
   HeightField field;
   field.paletteId = PaletteId;
-  field.scatterPlacements = {placementAt(1, 2.F, TerrainPaletteRole::Tree, 0.F),
-                             placementAt(2, 3.F, TerrainPaletteRole::Tree, 0.F),
-                             placementAt(3, 4.F, TerrainPaletteRole::Bush, 0.F)};
+  field.scatterPlacements = {placementAt(1, 2.F, "tree", 0.F),
+                             placementAt(2, 3.F, "tree", 0.F),
+                             placementAt(3, 4.F, "bush", 0.F)};
   std::string error;
   (void)syncTerrainScatter(world, commands, OwnerId, field, &prefabs, error);
   flush(commands, world);
   assert(scatterChildren(world) == 3);
 
-  // A role's weight dropped to zero, or its biome no longer matches.
-  field.scatterPlacements = {placementAt(1, 2.F, TerrainPaletteRole::Tree, 0.F)};
+  // A ruleId's weight dropped to zero, or its biome no longer matches.
+  field.scatterPlacements = {placementAt(1, 2.F, "tree", 0.F)};
   const auto stats = syncTerrainScatter(world, commands, OwnerId, field, &prefabs, error);
   assert(error.empty());
   assert(stats.removed == 2 && stats.retained == 1);
   flush(commands, world);
   assert(scatterChildren(world) == 1);
-  assert(findEntity(world, terrainScatterInstanceId(OwnerId, PaletteId,
-                                                    TerrainPaletteRole::Tree, 1)) !=
-         nullptr);
+  assert(findEntity(world, terrainScatterInstanceId(OwnerId, PaletteId, "tree",
+                                                    1)) != nullptr);
 }
 
 // Two roles in the same cell are two instances, not one overwriting the other.
@@ -180,19 +180,17 @@ void sameCellDifferentRolesCoexist() {
   RuntimePrefabService prefabs;
   HeightField field;
   field.paletteId = PaletteId;
-  field.scatterPlacements = {placementAt(9, 5.F, TerrainPaletteRole::Tree, 0.F),
-                             placementAt(9, 5.F, TerrainPaletteRole::Grass, 0.F)};
+  field.scatterPlacements = {placementAt(9, 5.F, "tree", 0.F),
+                             placementAt(9, 5.F, "grass", 0.F)};
   std::string error;
   const auto stats = syncTerrainScatter(world, commands, OwnerId, field, &prefabs, error);
   assert(stats.created == 2);
   flush(commands, world);
   assert(scatterChildren(world) == 2);
-  assert(findEntity(world, terrainScatterInstanceId(OwnerId, PaletteId,
-                                                    TerrainPaletteRole::Tree, 9)) !=
-         nullptr);
-  assert(findEntity(world, terrainScatterInstanceId(OwnerId, PaletteId,
-                                                    TerrainPaletteRole::Grass, 9)) !=
-         nullptr);
+  assert(findEntity(world, terrainScatterInstanceId(OwnerId, PaletteId, "tree",
+                                                    9)) != nullptr);
+  assert(findEntity(world, terrainScatterInstanceId(OwnerId, PaletteId, "grass",
+                                                    9)) != nullptr);
 }
 
 // A missing owner is an error, never a silent no-op that looks like a success.
@@ -202,7 +200,7 @@ void missingOwnerIsReported() {
   RuntimePrefabService prefabs;
   HeightField field;
   field.paletteId = PaletteId;
-  field.scatterPlacements = {placementAt(1, 2.F, TerrainPaletteRole::Tree, 0.F)};
+  field.scatterPlacements = {placementAt(1, 2.F, "tree", 0.F)};
   std::string error;
   const auto stats = syncTerrainScatter(world, commands, "no_such_terrain", field,
                                         &prefabs, error);
@@ -218,8 +216,8 @@ void unresolvablePrefabIsCounted() {
   RuntimePrefabService prefabs;
   HeightField field;
   field.paletteId = PaletteId;
-  field.scatterPlacements = {placementAt(1, 2.F, TerrainPaletteRole::Tree, 0.F),
-                             placementAt(2, 2.F, TerrainPaletteRole::Tree, 0.F)};
+  field.scatterPlacements = {placementAt(1, 2.F, "tree", 0.F),
+                             placementAt(2, 2.F, "tree", 0.F)};
   field.scatterPlacements[0].prefab = "prefab://does/not/exist";
   std::string error;
   const auto stats = syncTerrainScatter(world, commands, OwnerId, field, &prefabs, error);
@@ -244,8 +242,8 @@ void releaseClearsOnlyItsOwner() {
   RuntimePrefabService prefabs;
   HeightField field;
   field.paletteId = PaletteId;
-  field.scatterPlacements = {placementAt(1, 2.F, TerrainPaletteRole::Tree, 0.F),
-                             placementAt(2, 2.F, TerrainPaletteRole::Tree, 0.F)};
+  field.scatterPlacements = {placementAt(1, 2.F, "tree", 0.F),
+                             placementAt(2, 2.F, "tree", 0.F)};
   std::string error;
   (void)syncTerrainScatter(world, commands, OwnerId, field, &prefabs, error);
   flush(commands, world);
@@ -297,7 +295,7 @@ void noServiceSkipsPrefabRoles() {
   WorldCommandBuffer commands;
   HeightField field;
   field.paletteId = PaletteId;
-  field.scatterPlacements = {placementAt(1, 2.F, TerrainPaletteRole::Tree, 0.F)};
+  field.scatterPlacements = {placementAt(1, 2.F, "tree", 0.F)};
   field.scatterPlacements[0].prefab = "prefab://tree";
   std::string error;
   const auto stats = syncTerrainScatter(world, commands, OwnerId, field,
@@ -312,9 +310,8 @@ void unresolvedSceneScatterDoesNotCommitPartialEntities() {
   auto world = worldWithTerrain();
   auto field = std::make_shared<HeightField>();
   field->paletteId = PaletteId;
-  field->scatterPlacements = {
-      placementAt(1, 2.F, TerrainPaletteRole::Tree, 0.F),
-      placementAt(2, 3.F, TerrainPaletteRole::Grass, 0.F)};
+  field->scatterPlacements = {placementAt(1, 2.F, "tree", 0.F),
+                              placementAt(2, 3.F, "grass", 0.F)};
   field->scatterPlacements.back().prefab = "prefab://missing";
   Terrain3DComponent terrain;
   terrain.generated = field;
@@ -344,11 +341,10 @@ void prefabPrototypeKeepsGeometryAndStableCellId() {
   WorldCommandBuffer commands;
   HeightField field;
   field.paletteId = PaletteId;
-  field.scatterPlacements = {placementAt(7, 2.F, TerrainPaletteRole::Grass, 0.5F)};
-  field.scatterPlacements.front().asset = "asset://terrain/surfaces/grass";
+  field.scatterPlacements = {placementAt(7, 2.F, "grass", 0.5F)};
+  field.scatterPlacements.front().model = "asset://terrain/surfaces/grass";
   field.scatterPlacements.front().prefab = "prefab://scatter_prototype";
-  const auto id = terrainScatterInstanceId(OwnerId, PaletteId,
-                                            TerrainPaletteRole::Grass, 7);
+  const auto id = terrainScatterInstanceId(OwnerId, PaletteId, "grass", 7);
   std::string error;
   const auto created = syncTerrainScatter(world, commands, OwnerId, field,
                                            &prefabs, error);
@@ -378,10 +374,9 @@ void prefabPrototypeKeepsGeometryAndStableCellId() {
   flush(commands, world);
   assert(findEntity(world, id + "/body") == nullptr);
 
-  field.scatterPlacements = {placementAt(8, 1.F, TerrainPaletteRole::Grass, 0.F)};
+  field.scatterPlacements = {placementAt(8, 1.F, "grass", 0.F)};
   field.scatterPlacements.front().prefab = "prefab://scatter_prototype";
-  const auto nextId = terrainScatterInstanceId(OwnerId, PaletteId,
-                                                TerrainPaletteRole::Grass, 8);
+  const auto nextId = terrainScatterInstanceId(OwnerId, PaletteId, "grass", 8);
   const auto next = syncTerrainScatter(world, commands, OwnerId, field,
                                        &prefabs, error);
   assert(error.empty() && next.created == 1);
@@ -391,32 +386,157 @@ void prefabPrototypeKeepsGeometryAndStableCellId() {
 }
 
 void initialSceneScatterUsesConfiguredPrefabService() {
-  const auto project = exampleProjectPath();
-  demi::assets::prepareTerrainAssets(demi::loadAssetRegistry(project));
+  // The startup contract needs real authored loading, not the example's
+  // 512 x 512 terrain generation. Bound the fixture before preparing assets.
+  struct ProjectFixture {
+    std::filesystem::path directory;
+
+    ~ProjectFixture() {
+      std::error_code ignored;
+      std::filesystem::remove_all(directory, ignored);
+    }
+
+    void writeJson(const std::filesystem::path &relativePath,
+                   const nlohmann::json &document) const {
+      const auto path = directory / relativePath;
+      std::filesystem::create_directories(path.parent_path());
+      std::ofstream output(path);
+      output << document.dump(2);
+      if (!output.good()) {
+        throw std::runtime_error("Could not write fixture document: " +
+                                 path.string());
+      }
+    }
+
+    void write(const std::filesystem::path &relativePath,
+               std::string_view document) const {
+      writeJson(relativePath, nlohmann::json::parse(document));
+    }
+
+    void writeManifest(const std::filesystem::path &relativePath,
+                       std::string_view document) const {
+      auto manifest = nlohmann::json::parse(document);
+      const auto source = directory / relativePath.parent_path() /
+                          manifest.at("source").get<std::string>();
+      const auto hash = demi::assets::hashFiles({source});
+      if (!hash) {
+        throw std::runtime_error("Could not hash fixture source: " +
+                                 source.string());
+      }
+      manifest["source_hash"] = *hash;
+      writeJson(relativePath, manifest);
+    }
+  };
+  const auto fixtureId =
+      std::chrono::steady_clock::now().time_since_epoch().count();
+  const ProjectFixture fixture{
+      std::filesystem::temp_directory_path() /
+      ("demi-scatter-startup-" + std::to_string(fixtureId))};
+  fixture.write("demi.project.json", R"({
+    "format_version": 1,
+    "name": "Scatter startup probe",
+    "main_scene": "scene://scatter_probe/main",
+    "scenes": [{"id": "scene://scatter_probe/main"}]
+  })");
+  fixture.write("scenes/main.scene.json", R"({
+    "format_version": 1,
+    "id": "scene://scatter_probe/main",
+    "entities": [{
+      "id": "terrain",
+      "components": {
+        "Transform3D": {},
+        "Terrain3D": {"asset": "asset://terrain/startup"}
+      }
+    }]
+  })");
+
+  TerrainRecipe recipe;
+  recipe.size = {4, 4};
+  recipe.cellsX = 4;
+  recipe.cellsZ = 4;
+  recipe.chunkCells = 4;
+  recipe.paletteId = PaletteId;
+  recipe.landforms.at("default").baseHeight = 4;
+  recipe.landforms.at("default").heightVariation = 0;
+  auto terrainDocument = nlohmann::json::parse(R"({
+    "format_version": 1,
+    "id": "asset://terrain/startup",
+    "name": "Small startup terrain"
+  })");
+  terrainDocument["recipe"] = recipe.toJson();
+  fixture.writeJson("assets/startup.terrain.json", terrainDocument);
+  fixture.writeManifest("assets/startup.asset.json", R"({
+    "format_version": 1,
+    "id": "asset://terrain/startup",
+    "type": "Terrain",
+    "importer": "terrain_heightfield",
+    "importer_version": 1,
+    "source": "startup.terrain.json",
+    "dependencies": ["asset://terrain/palettes/test"]
+  })");
+  fixture.write("assets/palette.json", R"({
+    "format_version": 2,
+    "name": "Startup prefab placement",
+    "placements": {
+      "probe": {
+        "prefab": "prefab://startup_probe",
+        "weight": 1,
+        "spacing": 0,
+        "collision": "none"
+      }
+    }
+  })");
+  fixture.writeManifest("assets/palette.asset.json", R"({
+    "format_version": 1,
+    "id": "asset://terrain/palettes/test",
+    "type": "DataAsset",
+    "importer": "json_data",
+    "importer_version": 1,
+    "source": "palette.json",
+    "dependencies": [],
+    "settings": {"content_type": "terrain_palette"}
+  })");
+  fixture.write("prefabs/startup_probe.prefab.json", R"({
+    "format_version": 1,
+    "id": "prefab://startup_probe",
+    "entities": [{
+      "id": "body",
+      "components": {
+        "Transform3D": {},
+        "MeshRenderer": {"shape": "cube"}
+      }
+    }]
+  })");
+
+  demi::assets::prepareTerrainAssets(
+      demi::loadAssetRegistry(fixture.directory));
   std::string error;
-  auto loaded = loadProject(project / "demi.project.json", error);
-  assert(loaded.has_value() && error.empty());
-  auto *owner = findEntity(loaded->world, "terrain");
-  auto *terrain = owner == nullptr
-                      ? nullptr
-                      : owner->component<Terrain3DComponent>();
+  auto loaded = loadProject(fixture.directory / "demi.project.json", error);
+  if (!loaded || !error.empty()) {
+    const auto validation = demi::validatePath(fixture.directory);
+    for (const auto &diagnostic : validation.diagnostics) {
+      error += "\n" + diagnostic.code + ": " + diagnostic.message;
+    }
+    throw std::runtime_error("Scatter startup project load failed: " + error);
+  }
+  const auto *owner = findEntity(loaded->world, OwnerId);
+  const auto *terrain =
+      owner == nullptr ? nullptr : owner->component<Terrain3DComponent>();
   assert(terrain != nullptr && terrain->generated != nullptr);
+  assert(terrain->generated->cellsX == 4 && terrain->generated->cellsZ == 4);
   assert(!terrain->generated->scatterPlacements.empty());
-  const auto paletteId = terrain->generated->paletteId;
-  // This checks startup service wiring with one real placement. The full
-  // example's density belongs to runtime smoke/performance coverage.
-  auto probe = std::make_shared<HeightField>(*terrain->generated);
-  probe->scatterPlacements.resize(1);
-  terrain->generated = std::move(probe);
+  assert(terrain->generated->scatterPlacements.size() <= 25);
+  const auto expectedPlacements = terrain->generated->scatterPlacements.size();
 
   RuntimePrefabService prefabs;
   prefabs.configure(loaded->project.projectDirectory);
   const auto report = materializeTerrainScatter(loaded->world, &prefabs, error);
-  assert(error.empty() && report.unresolved == 0 && report.placed > 0);
-  const auto prefix = std::string("terrain/__scatter/") + paletteId + "/";
+  assert(error.empty() && report.unresolved == 0);
+  assert(report.placed == expectedPlacements);
+  const auto prefix = std::string("terrain/__scatter/") + PaletteId + "/";
   assert(std::ranges::any_of(loaded->world.entities, [&](const Entity &entity) {
-    return entity.id.starts_with(prefix) &&
-           !entity.prefabInstance.empty();
+    return entity.id.starts_with(prefix) && !entity.prefabInstance.empty() &&
+           entity.component<MeshRendererComponent>() != nullptr;
   }));
 }
 
@@ -429,22 +549,22 @@ void paletteSwapDoesNotCrossRemove() {
   std::string error;
   HeightField first;
   first.paletteId = PaletteId;
-  first.scatterPlacements = {placementAt(1, 2.F, TerrainPaletteRole::Tree, 0.F)};
+  first.scatterPlacements = {placementAt(1, 2.F, "tree", 0.F)};
   (void)syncTerrainScatter(world, commands, OwnerId, first, &prefabs, error);
   flush(commands, world);
   assert(scatterChildren(world) == 1);
 
   HeightField empty;
   empty.paletteId = "asset://terrain/palettes/another";
-  const auto stats = syncTerrainScatter(world, commands, OwnerId, empty, &prefabs, error);
+  const auto stats =
+      syncTerrainScatter(world, commands, OwnerId, empty, &prefabs, error);
   assert(error.empty());
   assert(stats.total() == 0);
   flush(commands, world);
   // The previous palette's instance is still there, and now unreachable by a
   // later sync, which is why releaseTerrainScatter is the explicit teardown.
-  assert(findEntity(world, terrainScatterInstanceId(OwnerId, PaletteId,
-                                                    TerrainPaletteRole::Tree, 1)) !=
-         nullptr);
+  assert(findEntity(world, terrainScatterInstanceId(OwnerId, PaletteId, "tree",
+                                                    1)) != nullptr);
 }
 } // namespace
 

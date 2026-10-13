@@ -1,0 +1,253 @@
+{
+  "format_version": 1,
+  "id": "asset://terrains/desert",
+  "name": "desert",
+  "recipe": {
+    "biomes": {
+      "default": {
+        "color": [
+          0.6499999761581421,
+          0.3199999928474426,
+          0.14000000059604645,
+          1.0
+        ]
+      }
+    },
+    "chunk_cells": 32,
+    "default_biome": "default",
+    "default_landform": "default",
+    "edits": [{"falloff":0.5,"layer":"sculpt","points":[[76.601318359375,76.68659973144531],[78.16036987304688,76.3269271850586],[79.71941375732422,75.96725463867188],[81.2784652709961,75.60758209228516],[82.83751678466797,75.2479019165039],[84.39656829833984,74.88822937011719]],"radius":8.0,"strength":1.0,"target_height":-0.3268401324748993,"type":"flatten"}, {"falloff": 0.5, "layer": "sculpt", "radius": 8.0, "strength": 1.0, "target_height": -0.32639485597610474, "type": "flatten", "center": [
+        84.16969299316406,
+        74.19071960449219
+      ]},
+    {
+      "falloff": 0.5,
+      "layer": "sculpt",
+      "radius": 8.0,
+      "strength": 1.0,
+      "target_height": -0.3263663947582245,
+      "type": "flatten",
+      "points": [
+        [
+          84.16972351074219,
+          74.19076538085938
+        ],
+        [
+          83.94601440429688,
+          75.7750473022461
+        ],
+        [
+          84.23023986816406,
+          77.34960174560547
+        ],
+        [
+          84.51445770263672,
+          78.92415618896484
+        ],
+        [
+          84.7986831665039,
+          80.49870300292969
+        ],
+        [
+          85.51490020751953,
+          81.92945098876953
+        ],
+        [
+          85.89000701904297,
+          83.48486328125
+        ],
+        [
+          87.00536346435547,
+          82.33769989013672
+        ]
+      ]
+    },
+    {
+      "falloff": 0.5,
+      "layer": "sculpt",
+      "radius": 8.0,
+      "strength": 1.0,
+      "target_height": -0.3267964720726013,
+      "type": "flatten",
+      "points": [
+        [
+          75.90270233154297,
+          76.43038940429688
+        ],
+        [
+          77.49394226074219,
+          76.26322174072266
+        ],
+        [
+          79.08518981933594,
+          76.0960464477539
+        ],
+        [
+          80.67642974853516,
+          75.92887878417969
+        ],
+        [
+          82.2676773071289,
+          75.76171112060547
+        ],
+        [
+          83.85891723632813,
+          75.59454345703125
+        ],
+        [
+          85.45016479492188,
+          75.4273681640625
+        ],
+        [
+          87.0414047241211,
+          75.26020050048828
+        ]
+      ]
+    }],
+    "exclusions": [],
+    "format_version": 1,
+    "landforms": {
+      "default": {
+        "base_height": 0.0,
+        "feature_size": 32.0,
+        "height_variation": 8.0,
+        "octaves": 4,
+        "roughness": 0.5
+      }
+    },
+    "layers": [
+      {
+        "id": "generation",
+        "kind": "generation",
+        "name": "Generation"
+      },
+      {
+        "id": "biomes",
+        "kind": "biome",
+        "name": "Biomes"
+      },
+      {
+        "id": "sculpt",
+        "kind": "sculpt",
+        "name": "Sculpt"
+      },
+      {
+        "id": "protection",
+        "kind": "protection",
+        "name": "Protection"
+      },
+      {
+        "id": "exclusions",
+        "kind": "exclusion",
+        "name": "Exclusions"
+      }
+    ],
+    "regions": [],
+    "resolution": [
+      64,
+      64
+    ],
+    "rules": [],
+    "seed": 1337,
+    "size": [
+      128.0,
+      128.0
+    ],
+    "graph": {
+      "format_version": 1,
+      "links": [
+        {
+          "from": {
+            "node": "shape",
+            "port": "field"
+          },
+          "id": "shape_to_appearance",
+          "to": {
+            "node": "appearance",
+            "port": "field"
+          }
+        },
+        {
+          "from": {
+            "node": "appearance",
+            "port": "field"
+          },
+          "id": "appearance_to_output",
+          "to": {
+            "node": "terrain_output",
+            "port": "field"
+          }
+        }
+      ],
+      "nodes": [
+        {
+          "id": "shape",
+          "parameters": {
+            "feature_size": 40.0,
+            "height_variation": 5.0,
+            "roughness": 0.20000000298023224
+          },
+          "position": [
+            40.0,
+            320.0
+          ],
+          "type": "noise"
+        },
+        {
+          "id": "appearance",
+          "parameters": {},
+          "position": [
+            380.0,
+            320.0
+          ],
+          "type": "biomes"
+        },
+        {
+          "id": "terrain_output",
+          "parameters": {},
+          "position": [
+            720.0,
+            320.0
+          ],
+          "type": "output"
+        },
+        {
+          "id": "shape_help",
+          "parameters": {
+            "text": "Soft sandy relief for a dry planet. Flatten a landing area with the viewport brush.\nHeight variation controls relief. Feature size controls the width of hills. Roughness adds smaller details."
+          },
+          "position": [
+            40.0,
+            20.0
+          ],
+          "type": "comment"
+        },
+        {
+          "id": "appearance_help",
+          "parameters": {
+            "text": "Biome Rules assigns surface appearances. Open its settings to change the default biome color or add rules for height and slope. The starter uses a tint and needs no imported textures."
+          },
+          "position": [
+            380.0,
+            20.0
+          ],
+          "type": "comment"
+        },
+        {
+          "id": "output_help",
+          "parameters": {
+            "text": "Terrain Output publishes the connected surface. Edit nodes, then Generate to preview. Apply changes to asset saves the shared terrain. Comments can be edited, moved or deleted without changing terrain."
+          },
+          "position": [
+            720.0,
+            20.0
+          ],
+          "type": "comment"
+        }
+      ],
+      "output": "terrain_output"
+    },
+    "preset_id": "builtin://terrain/desert-dunes",
+    "preset_version": 1
+  }
+}

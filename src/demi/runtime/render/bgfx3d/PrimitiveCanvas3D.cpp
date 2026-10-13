@@ -245,6 +245,14 @@ bool PrimitiveCanvas3D::line(const Vec3 start, const Vec3 end,
   return true;
 }
 
+void PrimitiveCanvas3D::cancel() {
+  frameOpen_ = false;
+  vertices_.clear();
+  indices_.clear();
+  lineVertices_.clear();
+  lineIndices_.clear();
+}
+
 bool PrimitiveCanvas3D::flush(std::string &error) {
   if (!frameOpen_) {
     error = "PrimitiveCanvas3D has no open frame to flush.";

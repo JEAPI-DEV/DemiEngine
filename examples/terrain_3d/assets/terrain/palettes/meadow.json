@@ -1,97 +1,69 @@
 {
-  "format_version": 1,
+  "format_version": 2,
   "name": "Meadow shoreline",
-  "roles": {
-    "exposed_rock": {
-      "asset": "asset://terrain/surfaces/exposed_rock",
-      "prefab": "prefab://scatter_prototype",
-      "weight": 0.3,
-      "scale": [0.8, 2.4],
-      "spacing": 6,
-      "lod": 1
-    },
-    "soil": {
-      "asset": "asset://terrain/surfaces/soil",
-      "prefab": "prefab://scatter_prototype",
-      "spacing": 0,
-      "collision": "none"
-    },
-    "sand": {
-      "asset": "asset://terrain/surfaces/sand",
-      "prefab": "prefab://scatter_prototype",
-      "weight": 0.8,
-      "spacing": 0,
-      "collision": "none"
-    },
-    "snow": {
-      "asset": "asset://terrain/surfaces/snow",
-      "prefab": "prefab://scatter_prototype",
-      "weight": 0.5,
-      "spacing": 0,
-      "collision": "none"
-    },
-    "wet_ground": {
-      "asset": "asset://terrain/surfaces/wet_ground",
-      "prefab": "prefab://scatter_prototype",
-      "weight": 0.6,
-      "spacing": 0,
-      "collision": "none"
-    },
+  "material_set": "asset://terrain/material_sets/meadow",
+  "placements": {
     "tree": {
-      "asset": "asset://terrain/surfaces/tree",
       "prefab": "prefab://scatter_prototype",
       "weight": 0.15,
-      "scale": [0.9, 1.3],
+      "scale": [
+        0.9,
+        1.3
+      ],
       "spacing": 12,
       "lod": 2
     },
     "bush": {
-      "asset": "asset://terrain/surfaces/bush",
       "prefab": "prefab://scatter_prototype",
       "weight": 0.5,
-      "scale": [0.7, 1.4],
+      "scale": [
+        0.7,
+        1.4
+      ],
       "spacing": 3,
       "collision": "trigger",
       "lod": 1
     },
     "grass": {
-      "asset": "asset://terrain/surfaces/grass",
       "prefab": "prefab://scatter_prototype",
       "weight": 1.5,
-      "scale": [0.8, 1.2],
+      "scale": [
+        0.8,
+        1.2
+      ],
       "spacing": 0.5,
       "collision": "none"
     },
     "reed": {
-      "asset": "asset://terrain/surfaces/reed",
       "prefab": "prefab://scatter_prototype",
       "weight": 0.7,
-      "scale": [0.85, 1.15],
+      "scale": [
+        0.85,
+        1.15
+      ],
       "spacing": 0.75,
       "collision": "none"
     },
     "cliff_piece": {
-      "asset": "asset://terrain/surfaces/cliff_piece",
       "prefab": "prefab://scatter_prototype",
       "weight": 0.25,
-      "scale": [1, 2.2],
+      "scale": [
+        1,
+        2.2
+      ],
       "spacing": 8,
       "lod": 2
     },
     "debris": {
-      "asset": "asset://terrain/surfaces/debris",
       "prefab": "prefab://scatter_prototype",
       "weight": 0.35,
-      "scale": [0.5, 1.1],
+      "scale": [
+        0.5,
+        1.1
+      ],
       "spacing": 2,
       "collision": "trigger",
       "lod": 1
     }
-  },
-  "required_roles": [
-    "exposed_rock",
-    "grass",
-    "soil",
-    "tree"
-  ]
+  }
 }

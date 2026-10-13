@@ -1,12 +1,13 @@
 #pragma once
 
+#include "demi/core/StringHash.h"
 #include "demi/runtime/scene/model/Entity.h"
 
 #include <nlohmann/json.hpp>
 
+#include <functional>
 #include <string>
 #include <string_view>
-#include <functional>
 #include <unordered_map>
 #include <variant>
 #include <vector>
@@ -38,8 +39,7 @@ public:
                            std::string newId);
   [[nodiscard]] bool destroy(const World &world, std::string entityId);
   [[nodiscard]] bool addComponent(const World &world, std::string entityId,
-                                  std::string component,
-                                  nlohmann::json values);
+                                  std::string component, nlohmann::json values);
   [[nodiscard]] bool removeComponent(const World &world, std::string entityId,
                                      std::string component);
   [[nodiscard]] bool setEnabled(const World &world, std::string entityId,
@@ -53,15 +53,8 @@ public:
   [[nodiscard]] bool empty() const;
 
 private:
-  struct StringHash {
-    using is_transparent = void;
-    std::size_t operator()(std::string_view value) const noexcept {
-      return std::hash<std::string_view>{}(value);
-    }
-  };
   using EntityIndex =
-      std::unordered_map<std::string, std::size_t, StringHash,
-                         std::equal_to<>>;
+      std::unordered_map<std::string, std::size_t, StringHash, std::equal_to<>>;
 
   struct Create {
     Entity entity;

@@ -1,8 +1,10 @@
 #include "editor/EditorModuleCatalog.h"
 
+#include "demi/filesystem/ProjectPaths.h"
+#include "demi/runtime/terrain/TerrainGraphRegistry.h"
+#include "demi/runtime/ui/UiPrefabResolver.h"
 #include "editor/EditorHudHierarchy.h"
 #include "editor/EditorWorkspace.h"
-#include "demi/runtime/terrain/TerrainGraphRegistry.h"
 
 #include <algorithm>
 #include <array>
@@ -43,6 +45,7 @@ std::string titleFromReference(std::string_view reference) {
   const auto slash = reference.find_last_of('/');
   std::string title(reference.substr(slash == std::string_view::npos ? 0 : slash + 1));
   std::replace(title.begin(), title.end(), '_', ' ');
+  std::replace(title.begin(), title.end(), '-', ' ');
   if (!title.empty())
     title[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(title[0])));
   return title;
@@ -94,14 +97,31 @@ editorModules(const EditorWorkspace &workspace) {
     modules.push_back({"hud:" + std::string(entry.type), EditorModuleKind::HudElement,
                        entry.category, entry.title, entry.description, entry.icon,
                        entry.type});
-  for (const auto &source : workspace.sources()) {
-    const auto reference = editorUiPrefabReference(workspace.projectPath().parent_path(), source);
-    if (!reference)
+  auto sources = workspace.sources();
+  const auto &packageFiles = workspace.assetIndex().registry().packageFiles;
+  sources.insert(sources.end(), packageFiles.begin(), packageFiles.end());
+  std::ranges::sort(sources);
+  sources.erase(std::unique(sources.begin(), sources.end()), sources.end());
+  for (const auto &source : sources) {
+    if (!isUiPrefabFile(source))
       continue;
+    auto reference =
+        editorUiPrefabReference(workspace.projectPath().parent_path(), source);
     std::ifstream input(source);
     const auto document = nlohmann::json::parse(input, nullptr, false);
     if (!document.is_object() || !document.contains("id") ||
-        !document["id"].is_string() || document["id"] != *reference)
+        !document["id"].is_string())
+      continue;
+    if (!reference) {
+      const auto id = document["id"].get<std::string>();
+      const auto resolved = runtime::ui::resolveUiPrefabReference(
+          workspace.projectPath().parent_path() / "palette.hud.json", id);
+      if (!resolved ||
+          resolved->lexically_normal() != source.lexically_normal())
+        continue;
+      reference = id;
+    }
+    if (document["id"] != *reference)
       continue;
     modules.push_back({"prefab:" + *reference, EditorModuleKind::UiPrefab,
                        "UI prefabs", titleFromReference(*reference),

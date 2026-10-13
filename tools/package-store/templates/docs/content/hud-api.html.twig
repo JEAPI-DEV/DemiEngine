@@ -26,7 +26,8 @@ end
 local kids = Hud.children("skyforge_menu")  -- array of child IDs
 Hud.clear_children("skyforge_menu")          -- invalidates handles to its children</code></pre>
 <ul>
-  <li><code>Hud.create(parent_id, def)</code> — creates a node under a parent ID string. The definition supports flat fields such as <code>id</code>, <code>type</code>, <code>text</code>, <code>style</code>, <code>x</code>, <code>y</code>, <code>width</code>, and <code>height</code>; nested <code>children</code> and layout shorthands are not accepted here. Returns handle or <code>nil</code>, plus an error string.</li>
+  <li><code>Hud.create(parent_id, def)</code> — atomically creates a native subtree or UI-prefab instance. It accepts HUD layout fields, nested <code>children</code>, colors and target-based <code>overrides</code>. Returns a root handle or <code>nil</code>, plus an error string. Older <code>x</code>/<code>y</code>/<code>width</code>/<code>height</code> fields remain available for native node definitions.</li>
+  <li><code>Hud.apply_action(name)</code> — applies declared show/hide/focus effects and relayouts the HUD. Returns whether the action exists; prefab-local names are qualified with the instance ID.</li>
   <li><code>Hud.clone(source_handle, new_root_id, parent_id?)</code> — copies a subtree. Returns handle or <code>nil</code>, plus an error string.</li>
   <li><code>Hud.remove(handle)</code> — deletes a node and its subtree. Returns success boolean plus an error string.</li>
   <li><code>Hud.reparent(handle, parent_id)</code> — moves a node. Returns success boolean plus an error string.</li>

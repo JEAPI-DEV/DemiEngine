@@ -52,9 +52,8 @@ packageContentHash(const std::filesystem::path &root,
     const auto hash = hashFile(file);
     if (!hash)
       return std::nullopt;
-    entries.push_back(
-        {{"path", std::filesystem::relative(file, root).generic_string()},
-         {"hash", *hash}});
+    entries.push_back({{"path", file.lexically_relative(root).generic_string()},
+                       {"hash", *hash}});
   }
   const std::string canonical = entries.dump();
   return hashBytes(
@@ -187,10 +186,10 @@ std::map<std::string, std::string> cookedTerrainSubstitutions(
 
 } // namespace
 
-LockedPackageContent
-loadLockedPackageContent(const std::filesystem::path &projectDirectory,
-                         const std::string_view platform,
-                         const AssetRegistry *projectAssets) {
+static LockedPackageContent
+loadLockedPackageContentImpl(const std::filesystem::path &projectDirectory,
+                             const std::string_view platform,
+                             const AssetRegistry *projectAssets) {
   LockedPackageContent result;
   const auto lockPath = projectDirectory / packages::PackageLockFilename;
   if (!std::filesystem::exists(lockPath))
@@ -362,6 +361,23 @@ loadLockedPackageContent(const std::filesystem::path &projectDirectory,
   }
   std::ranges::sort(result.assets, {}, &AssetManifest::id);
   return result;
+}
+
+LockedPackageContent
+loadLockedPackageContent(const std::filesystem::path &projectDirectory,
+                         const std::string_view platform,
+                         const AssetRegistry *projectAssets) {
+  try {
+    return loadLockedPackageContentImpl(projectDirectory, platform,
+                                        projectAssets);
+  } catch (const std::filesystem::filesystem_error &exception) {
+    LockedPackageContent result;
+    error(result.diagnostics, "PACKAGE_CONTENT_UNAVAILABLE",
+          "Package content changed or became inaccessible while being read: " +
+              exception.code().message(),
+          exception.path1().empty() ? projectDirectory : exception.path1());
+    return result;
+  }
 }
 
 Diagnostics

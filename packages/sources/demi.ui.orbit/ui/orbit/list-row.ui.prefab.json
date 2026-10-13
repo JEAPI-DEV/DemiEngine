@@ -1,0 +1,161 @@
+{
+  "format_version": 1,
+  "id": "ui-prefab://orbit/list-row",
+  "parameters": {
+    "accent": {
+      "type": "string",
+      "default": "#FFB66B"
+    },
+    "action": {
+      "type": "string",
+      "default": ""
+    },
+    "detail": {
+      "type": "string",
+      "default": "Manage your next assignment"
+    },
+    "muted": {
+      "type": "string",
+      "default": "#A3B5C5"
+    },
+    "raised": {
+      "type": "string",
+      "default": "#263748"
+    },
+    "size": {
+      "type": "array",
+      "default": [
+        320,
+        64
+      ]
+    },
+    "stroke": {
+      "type": "string",
+      "default": "#3B5166"
+    },
+    "surface": {
+      "type": "string",
+      "default": "#1B2735"
+    },
+    "symbol": {
+      "type": "string",
+      "default": "01"
+    },
+    "text": {
+      "type": "string",
+      "default": "#EEF4FA"
+    },
+    "title": {
+      "type": "string",
+      "default": "Surface operations"
+    }
+  },
+  "root": {
+    "id": "row",
+    "type": "button",
+    "size": "${size}",
+    "background_color": "${surface}",
+    "hover_color": "${raised}",
+    "color": "${accent}",
+    "border_color": "${stroke}",
+    "border_width": 1,
+    "corner_radius": 10,
+    "action": "${action}",
+    "accessibility_label": "${title}",
+    "children": [
+      {
+        "id": "symbol",
+        "type": "label",
+        "text": "${symbol}",
+        "at": [
+          12,
+          16
+        ],
+        "size": [
+          28,
+          28
+        ],
+        "text_color": "${accent}",
+        "font_size": 18,
+        "text_vertical_alignment": "center"
+      },
+      {
+        "id": "copy",
+        "type": "container",
+        "dock": "fill",
+        "margin": [
+          52,
+          8,
+          28,
+          8
+        ],
+        "stack": "column",
+        "gap": 0,
+        "children": [
+          {
+            "id": "title",
+            "type": "label",
+            "size": [
+              0,
+              25
+            ],
+            "text": "${title}",
+            "text_color": "${text}",
+            "font_size": 16,
+            "anchor_min": [
+              0,
+              0
+            ],
+            "anchor_max": [
+              1,
+              0
+            ]
+          },
+          {
+            "id": "detail",
+            "type": "label",
+            "size": [
+              0,
+              20
+            ],
+            "text": "${detail}",
+            "text_color": "${muted}",
+            "font_size": 12,
+            "anchor_min": [
+              0,
+              0
+            ],
+            "anchor_max": [
+              1,
+              0
+            ]
+          }
+        ],
+        "alignment": "stretch"
+      },
+      {
+        "id": "arrow",
+        "type": "image",
+        "anchor_min": [
+          1,
+          0.5
+        ],
+        "anchor_max": [
+          1,
+          0.5
+        ],
+        "at": [
+          -30,
+          -9
+        ],
+        "size": [
+          18,
+          18
+        ],
+        "texture": "asset://orbit/icons/chevron-right",
+        "color": "${muted}",
+        "accessibility_hidden": true
+      }
+    ]
+  }
+}

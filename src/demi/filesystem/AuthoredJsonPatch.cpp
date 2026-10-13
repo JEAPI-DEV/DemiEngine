@@ -307,7 +307,7 @@ bool addAtPointer(std::string &text, const SourceNode &root,
       const std::string insertion =
           multiline ? "\n" + childIndent + serialized + "\n" + parentIndent
                     : serialized;
-      text.insert(parent->end - 1, insertion);
+      text.replace(parent->begin + 1, parent->end - parent->begin - 2, insertion);
     } else if (index >= parent->elements.size()) {
       const SourceNode &last = parent->elements.back();
       text.insert(last.end, multiline ? ",\n" + childIndent + serialized
@@ -330,7 +330,7 @@ bool addAtPointer(std::string &text, const SourceNode &root,
       nlohmann::json(token).dump() + ": " +
       newValueText(value, multiline, childIndent, example, text);
   if (parent->members.empty()) {
-    text.insert(parent->end - 1,
+    text.replace(parent->begin + 1, parent->end - parent->begin - 2,
                 multiline ? "\n" + childIndent + member + "\n" + parentIndent
                           : member);
   } else {

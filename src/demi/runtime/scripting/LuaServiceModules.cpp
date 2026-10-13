@@ -30,7 +30,7 @@ constexpr LuaServiceModule serviceModules[] = {
     {"Input", "demi.input"},
     {"Mathf", "demi.math.scalar"},
     {"MeshDeformation", "demi.mesh.deformation"},
-    {"Navigation2D", "demi.navigation2d"},
+    {"Navigation", "demi.navigation"},
     {"Network", "demi.network"},
     {"NetworkSession", "demi.network.session"},
     {"Physics", "demi.physics"},

@@ -1,0 +1,35 @@
+{
+  "format_version": 1,
+  "id": "scene://lightweight-3d/main",
+  "name": "Main Scene",
+  "instances": [
+    {"id": "player", "prefab": "prefab://first_person_controller"},
+    {"id": "moving_platform", "prefab": "prefab://moving_platform",
+     "overrides": {"body": {"Transform3D": {"position": [0, 1.0, -4]}}}},
+    {"id": "pickup", "prefab": "prefab://pickup",
+     "overrides": {"body": {"Transform3D": {"position": [0, 2.0, -4]}}}},
+    {"id": "door", "prefab": "prefab://door",
+     "overrides": {"root": {"Transform3D": {"position": [4, 1.5, -4]}}}},
+    {"id": "daylight", "prefab": "prefab://presentation/daylight"}
+  ],
+  "entities": [
+    {
+      "id": "ground",
+      "name": "Ground",
+      "components": {
+        "Transform3D": {
+          "position": [0.0, -0.25, -2.0],
+          "rotation": [0.0, 0.0, 0.0],
+          "scale": [1.0, 1.0, 1.0]
+        },
+        "MeshRenderer": {
+          "shape": "cube",
+          "size": [16.0, 0.5, 16.0],
+          "color": [0.18, 0.28, 0.22, 1.0]
+        },
+        "BoxCollider3D": {"size": [16.0, 0.5, 16.0], "offset": [0, 0, 0], "layer": "world"},
+        "Rigidbody3D": {"body_type": "static", "use_gravity": false}
+      }
+    }
+  ]
+}

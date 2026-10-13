@@ -6,6 +6,66 @@ have qualification coverage. Blended landscape materials, advanced water and
 large-world vegetation/streaming still need their integration gates below.
 Evidence is recorded in [docs/terrain-qualification.md](docs/terrain-qualification.md).
 
+## Delivery checkpoint, 2026-10-12
+
+Authoring and persistence are substantially ahead of rendering quality. The
+current example is a functional integration probe, not a reference-quality
+landscape. The optimized-build frame-time result does not close the scalability
+or visual acceptance gates.
+
+| Area | Delivered in the active workflow | Remaining acceptance gap |
+| --- | --- | --- |
+| Authoring and persistence | Graphs, generation, local brushes, history, terrain assets and cooked loading | Extensive raster/tile authoring and complete reference-scene workflow qualification |
+| Landforms | Native noise, masks, erosion/drainage and water graph stages | Convincing coherent mountain masses, ridges and valleys at reference viewpoints |
+| Surfaces | Ordinary materials assigned by surface roles; explicit biome overrides | Rendered PBR texture maps, smooth layer blending, steep-slope mapping and detail variation |
+| Water | Finite coverage, carving, depth color, transparent geometry and gameplay queries | Reflections/refraction, waves, foam and underwater presentation |
+| Vegetation | Stable placement data and prototype objects | Production assets, integrated instancing/LOD/culling and bounded collision residency |
+| Terrain scale | Chunk publication, cooked data, camera-driven LOD, shared GPU patches and budgeted render-resource preparation | Heightfield/Full collision streaming, coordinated water/scatter residency and larger reference scenes |
+| Reference scenes | Functional probes and performance traces | Neither user reference has a visually qualified counterpart |
+
+`TerrainLod`, `TerrainStreaming`, material-blending and texture-residency modules
+must be judged by their live consumers. Helper implementations and unit tests do
+not count as renderer integration. Current terrain publication still creates
+ordinary mesh/collider entities for its surface groups.
+
+Live rendering now consumes prepared LOD geometry with shared chunk boundaries,
+camera pixel-error selection, multi-camera GPU residency and independent Full
+collision. The default tight budget retains Full detail in the current coarse
+landscape probe; triangle reduction is not the dominant CPU performance issue.
+See [LOD qualification](docs/terrain-lod-qualification.md).
+
+The GPU patch renderer now reduces submission cost at Full detail rather than
+relying on triangle reduction. Compatible opaque fields share topology and data
+textures; unsupported materials/devices use ordinary meshes. The implementation,
+intentional per-pixel material-boundary change and repeated native measurements
+are recorded in [GPU terrain qualification](docs/terrain-gpu-rendering-qualification.md).
+This is a rendering foundation, not completion of milestone 7 or the visual
+reference-scene goals.
+
+Next delivery order:
+
+1. Address measured shared-engine inefficiencies before increasing scene detail:
+   repeated resource/component lookups, frame preparation, allocations and static
+   physics synchronization. Rewrite dense code at its responsibility boundaries.
+   Compare the same optimized build and workload; LOD is not a substitute for
+   reducing unnecessary work. See [runtime efficiency qualification](docs/runtime-efficiency-qualification.md).
+2. Connect terrain LOD/residency to runtime and editor publication, preserving
+   seam safety, shared asset edits, history and gameplay-relevant collision.
+   Establish a repeatable moving-camera benchmark with CPU/GPU, draw count and
+   memory results. Reserve frame budget for gameplay and scene detail.
+3. Integrate a shared layered terrain material shader with PBR maps, smooth
+   transitions and steep-slope mapping. Validate it using coherent original or
+   appropriately licensed material/rock assets in a small reference scene.
+4. Connect vegetation instancing, culling and LOD before increasing grass/tree
+   density. Include representative foliage in the same performance gate.
+5. Develop atmospheric depth, environment lighting and advanced water against
+   the reference scenes. Qualify motion and frame-time percentiles alongside
+   still-image quality; do not postpone performance until all art is added.
+
+The visual references remain the goal, not a claim of current engine capability
+or evidence of parity with their source engines. See
+[measured baseline](docs/terrain-performance-qualification.md).
+
 ## In-scene authoring and graph settings
 
 - [x] Store shared brush parameters with ordered points instead of repeating
@@ -55,10 +115,10 @@ biome. The result remains editable and regenerable.
 
 Use the two user-provided landscape images as visual references:
 
-- Close-range rocky river valley: detailed rock and ground surfaces, shoreline
-  vegetation, convincing water, atmospheric depth and coherent lighting.
-- Wide mountain landscape: recognizable ridges and valleys, forests distributed
-  according to terrain conditions, shoreline transitions and distant detail.
+- Elden Ring reference: distinctive rock/cliff silhouettes, detailed surfaces,
+  dense ground cover, trees, architecture and atmospheric depth.
+- Unreal Engine 5 landscape reference: coherent mountain masses and valleys,
+  detailed foreground rocks and grass, distant snow and cloud/fog integration.
 
 Matching that direction requires landforms, erosion, materials, meshes,
 vegetation, water and rendering to work together. Increasing noise detail alone
@@ -163,20 +223,27 @@ editing, HUD drops, generated preview/runtime parity and preservation of manual
 work. The existing terrain example is retained; `examples/terrain_graph_3d`
 is the focused branching-graph probe.
 
-### Next design checkpoint: palette materials versus placements
+### Palette materials versus placements
 
-The current palette conflates surface-material roles with geometry placements.
-The prototype palette consequently produces soil/sand/snow proxy objects as
-well as vegetation and props. The full-density terrain example produces roughly
-295,000 renderables; removing quadratic queue/prune work improves startup but
-does not resolve that authoring model or qualify its visible performance.
+- [x] Separate surface bindings from object placement rules in palette format 2,
+  using a reusable `material_set` reference and named `placements` with exactly
+  one `model` or `prefab`. Surface bindings never create proxy entities.
+- [x] Migrate parsers, native validation/dependencies, editor creation/controls,
+  stable rule identity, cache keys, cooked data and the meadow example together.
+- [x] Connect the material set to automatic mask-based terrain surface rendering.
+  Indexed sections reuse terrain geometry; explicit biome Material bindings win.
+  Binding edits retain classification and collision. Finite water coverage drives
+  submerged roles. This is discrete assignment, not smooth PBR blending, and
+  does not complete milestone 4. See [qualification](docs/terrain-surface-materials-qualification.md).
 
-Proposed next contract: keep one reusable palette asset, with separate surface
-material bindings and named placement rules. Material bindings should not create
-entities; placements should explicitly name a model or prefab. Do not fix this
-by imposing another content cap or quietly reducing authored density. Agree the
-public format before migrating examples and schemas; alpha migrations are
-allowed, but the new format must remain usable for arbitrary materials and props.
+The agreed contract is recorded in
+[terrain palette separation](docs/terrain-palette-proposal.md).
+The full-density example retains the six vegetation/prop rules' authored weights
+and spacing. Its cooked output has 323,984 placements (324,330 renderables in a
+three-frame headless run). Removing ground entries changes the relative-weight
+normalizer; it does not guarantee fewer object placements. Editor startup at
+this density remains expensive and vegetation instancing/streaming is still
+an integration gate. No new content cap or density reduction was introduced.
 
 ## First delivery: usable finite heightfield terrain
 
@@ -253,14 +320,11 @@ are deliberate: a box is only ticked when the item's own wording is satisfied.
   all in the cache key, so the item's caching half is done. It stays unticked
   only because "generated-world metadata" has no standalone record; provenance
   currently lives on the field itself.
-- Biome rules: every condition the current generator can supply is implemented
-  with priority, blending and conflict resolution. One thing the item names is
-  not: drainage, which needs the flow accumulation of milestone 3, and
-  separability of appearance from landform shape. A `TerrainBiome` still carries
-  `base_height`, `height_variation`, `feature_size`, `roughness` and `octaves`
-  alongside its `color`, so changing how a biome looks still means changing how
-  it is shaped. Palettes separated appearance for scattered props, not for the
-  biome surface itself.
+- Biome rules: priority, blending, painted overrides and native rule conditions
+  are implemented. Biomes now reference separate landforms; surface appearance
+  is no longer stored together with the landform's noise controls. Complete
+  drainage-driven rule integration and reference-scene qualification remain
+  distinct from this authoring separation.
 - Automatic assignment: assignment, painted overrides, protected areas and the
   layer toggle all work through one evaluation path, and biome, elevation and
   slope masks preview in the editor. Two gaps: region constraints are not
@@ -268,17 +332,20 @@ are deliberate: a box is only ticked when the item's own wording is satisfied.
   because it is not stored on the field.
 - Asset palettes: definition, validation, biome filtering, generation-time
   scattering and instantiation are implemented. The example still points at
-  placeholder material assets because authoring mesh art was out of scope.
+  clearly identified prototype geometry. Format 2 separates surface material
+  sets from named object placement rules. Production art remains unfinished.
 - Palette dependencies: manifest declaration is enforced by the existing
   data-asset validator and covered by `demi validate`. Role requirements are
-  checked at load. Asset map, licence and compatibility validation is not
-  implemented, and the plan's instruction not to redistribute third-party art
-  silently is honoured only by documentation.
+  checked on material sets. Native terrain-asset validation also reports map,
+  compatibility and declared-licence findings; these are not a substitute for
+  checking the actual terms of third-party art.
 
 In progress. Sub-seeds, the generator-versioned cache, biome rules, the preset
 document and the palette document are implemented and tested, and the editor and
-CLI can author, apply and explain rules and presets. What is missing is anything
-that consumes a palette at generation time, and the drainage condition.
+CLI can author, apply and explain rules and presets. Palettes are consumed during
+generation: placements become scene objects, while surface roles select ordinary
+materials on existing terrain geometry. Layered PBR rendering and the remaining
+biome-rule integration are separate unfinished work.
 
 - [x] Add reusable versioned landscape presets with readable controls and
   previews. Initial targets: mountain range, river valley, rolling hills and
@@ -413,34 +480,25 @@ that consumes a palette at generation time, and the drainage condition.
   bushes, grass, reeds, cliff pieces and debris. Include variation weights,
   physical scale, spacing, collision policy and LOD metadata.
 
-  The document, loader and validation are implemented; placement is not. A
-  palette is a `DataAsset` with `settings.content_type: "terrain_palette"`, so
-  it inherits cook, packaging, dependency closure, `demi validate` coverage and
-  hot reload from the existing data-asset pipeline rather than needing a new
-  document kind. `TerrainPalette` covers all eleven roles with an
-  `asset://` reference, an optional `prefab://` prefab, a variation weight, a
-  physical scale range, spacing, a collision policy and a LOD level, and
-  rejects an unknown role, an inverted scale, a non-positive weight floor, a
-  negative spacing, an unknown collision policy, a negative LOD and an
-  unresolvable reference. The example palette in
-  `examples/terrain_3d` references material assets, because authoring real mesh
-  art is outside this milestone; the loader resolves references without checking
-  asset type, so meshes can replace them one for one without touching the
-  palette, its schema or the loader. Scattering and instancing those roles onto
-  the terrain is follow-up work and is why the item stays open.
+  Format-2 documents, native validation, source/cooked loading, editor authoring,
+  biome-filtered scatter and scene publication are implemented. The palette's
+  `material_set` references the existing surface-role contract; its independently
+  named object rules require a Model3D or prefab. Rules may reuse geometry with
+  different settings. Local sculpting retains cell/rule identity. LOD metadata
+  remains distinct from implemented vegetation LOD, and prototype art does not
+  satisfy the starter-art/visual-quality gates.
 - [ ] Resolve palette/package dependencies through normal asset discovery,
   cooking and packaging. Validate missing roles, maps, licenses and incompatible
   assets before generation. Do not download or redistribute third-party art
   silently; use developer-selected assets or explicitly installed licensed packs.
 
-  Half of this is done. A palette's `asset://` and `prefab://` references are
+  A palette's model/material-set `asset://` and `prefab://` references are
   retained by `TerrainPalette`. Typed import/reimport derives asset references
   into manifest dependencies, while prefab references remain in the native
   source-level prefab traversal rather than masquerading as asset IDs.
   Schema-declared references also receive `DATA_DEPENDENCY_UNDECLARED` checks.
-  Missing roles, map
-  compatibility and licence validation are not implemented, and the example
-  palette deliberately points at placeholder material assets. All four example
+  Native terrain-asset validation checks material-set roles, map compatibility
+  and declared licence metadata. The example still uses prototype object art. All four example
   presets declare their own dependencies and `demi validate` covers them, so the
   declaration path is exercised by real content rather than only by a fixture.
 
@@ -453,38 +511,70 @@ The acceptance line is met on the generation side and unmet on the asset side.
 band as inside or outside, which answers the "why is my terrain one biome"
 question; `demi terrain presets` and `demi terrain apply-preset` make presets
 reachable and prove that strokes survive; and `scatterableRoles` reports a
-palette that cannot contribute rather than failing generation silently. What is
-missing is that a selected asset is still only recorded, not spawned, so no
-developer can yet override an asset choice in a running world.
+palette that cannot contribute rather than failing generation silently. Generated placements are published as scene objects with stable cell/rule
+identities. Automatic surface shading, production art and vegetation rendering
+remain separate gates.
 
 ## Milestone 3: landforms, erosion and drainage
 
-In progress. `TerrainPipeline` now runs the landform, surface, sculpt, drainage,
-erosion, hydrology and mask stages in a declared order and reports which of them
-actually ran, so a caller asks rather than infers. Erosion is refused, and
-reported as not run, when a recipe has sculpt strokes, because the pipeline
-cannot yet replay them onto an eroded base and losing an author's sculpting
-silently is worse than not eroding. The checkboxes below still describe what is
-missing, not what is present.
+In progress. Production graph generation runs explicit stage dependencies,
+then replays authored sculpt strokes over the retained generated base. Local
+brush work reuses that checkpoint instead of restarting global erosion.
+Preview/Final quality now reaches the production generator and editor; Preview
+is temporary and cannot enter final saves, caches or cooked output. Hydraulic
+and thermal transport, corrected downstream accumulation and graph flow/cut/
+deposition masks are implemented. Downhill river routing and outlet policy,
+upstream solver comparison and reference-quality acceptance remain open.
+See [generation quality qualification](docs/terrain-generation-quality-qualification.md).
 
 - [ ] Build coherent macro features: connected ridges, mountain masses, valleys,
   basins, coastlines and plateaus. Layer smaller variation over that structure;
   expose feature size, relief and ridge/valley controls rather than only octaves.
+
+  The 2026-10-13 generation step adds FastNoiseLite ridged profiles, independently
+  seeded domain warp, directional stretch and heading to shared landforms and
+  graph noise nodes. A `path_distance_mask` supplies editable curved valley
+  corridors for height blending. `examples/rocky_valley_3d` exercises these at
+  the existing 500-by-500 resolution without modifying the sculpted example.
+  Filled polygon masks now compose with height blending to shape basin floors,
+  plateau tops and island outlines. Basin, Plateau and Coastal Island starter
+  presets expose those controls with explanatory graph comments; the island
+  includes sea-level water. These are authored macro-shape controls, not
+  drainage-derived basins or procedural watershed routing. Geological erosion,
+  drainage-driven rivers and the visual acceptance gate remain open.
+  See [polygon mask qualification](docs/terrain-polygon-mask-qualification.md).
+  See [landform qualification](docs/terrain-landform-qualification.md).
+
 - [ ] Evaluate maintained libraries/tools for erosion and terrain processing
   before writing custom implementations. Compare licensing, portability,
   cancellation, determinism and integration costs with representative probes.
-- [ ] Add hydraulic and thermal erosion stages with sediment transport/deposition
+  A pinned source-level [library survey](docs/terrain-erosion-library-evaluation.md)
+  now records HighMap and soillib tradeoffs. Native representative runs exist;
+  a qualified upstream solver comparison remains outstanding.
+
+- [x] Add hydraulic and thermal erosion stages with sediment transport/deposition
   where supported by the selected approach. Retain useful outputs such as flow,
   sediment, exposed-rock and wetness masks for later stages.
+  The native bounded solver now publishes signed balance and normalized cut/
+  deposition pins; Drainage also exposes flow. Reverse-tree accumulation and
+  anisotropic/diagonal thermal distances are corrected, with conservation,
+  cancellation, cache and original-grid Preview/Final probes. This establishes
+  the stage contract, not a full fluid solver or the visual acceptance gate.
+
 - [ ] Compute drainage/basin information for water generation. Define sea level,
   outlets, closed basins and river connectivity; do not generate rivers by
   placing arbitrary splines that flow uphill or end without an outlet policy.
 - [ ] Resolve the terrain/water dependency order: initial landform, drainage,
   optional channel/basin carving, final surface/rule masks. Bound any iterative
   refinement explicitly and make results independent of chunk processing order.
-- [ ] Support preview and final-quality generation settings with visible status.
+- [x] Support preview and final-quality generation settings with visible status.
   Expensive erosion is a generation/bake operation unless explicitly requested;
   local sculpting must not automatically restart a global erosion simulation.
+
+  Editor Preview reduces hydraulic work and skips thermal passes on the same
+  authored grid. Final uses authored work settings. Progress updates within
+  erosion; cancellation/discard restores Final, and Final history never stores
+  Preview geometry. Source, shared placements, caches and cooking are guarded.
 
 Acceptance: preset-generated mountains and river valleys have coherent shapes
 at wide and close views; watershed/chunk boundaries have no processing seams.
@@ -532,6 +622,13 @@ prefixed to avoid an ODR collision.
 - [ ] Replace discrete triangle tints with smooth, height-aware material-layer
   blending. Support suitable steep-slope mapping, macro variation to reduce
   visible repetition, and detail normals. Preserve authored overrides.
+  GPU-compatible solid palettes now interpolate neighboring sample colors in
+  linear space and blend metallic, roughness and lit/unlit contributions, while
+  keeping face eligibility categorical. This removes hard GPU sample boundaries
+  without changing terrain resolution. It is a first surface transition step:
+  height-aware weights, texture maps, triplanar mapping and the ordinary mesh
+  fallback's discrete boundaries remain unfinished.
+
 - [ ] Choose distance/platform quality settings for texture residency and
   surface detail. Parallax/height shading is not actual geometric displacement;
   distinguish them and use geometry where silhouettes or collision require it.
@@ -640,17 +737,26 @@ a hostile-input-safe deserializer, a content digest and per-cause staleness
 reasons, and `TerrainCookNode` routes it through the existing cook graph: the
 recipe is the source, the generator version and input fingerprint are the
 importer inputs, and the palette is recorded as a dependency. `TerrainLod`
-selects a level per chunk by distance to the chunk's NEAREST point and builds a
-reduced mesh with exact power-of-two cell steps, normals recomputed at the
-reduced resolution, and skirts at boundaries so a level mismatch is filled by
-geometry instead of showing sky. Cross-chunk edge stitching, camera-driven
-streaming, cross-system LOD coordination, the renderer audit and the performance
-qualification are not implemented.
+now feeds live pixel-error selection. Reduced interiors preserve the full
+boundary samples and shared normals; optional skirts are supplemental. Render
+LOD and GPU mesh residency are implemented, but CPU terrain/collision streaming,
+cross-system residency and the platform qualification gates remain open.
+Shared GPU-displaced patches and instanced material routing are now implemented
+for compatible opaque terrain. Reduced compatibility meshes and GPU field data
+are prepared on demand with memory/work budgets, cancellation and safe Full
+fallback. CPU sample/collision paging and coordinated water/scatter/material
+residency are still missing; see [GPU terrain design](docs/terrain-gpu-rendering-design.md).
 
 - [ ] Audit required renderer support for PBR layers, directional-shadow quality,
   indirect/environment lighting, reflections, atmospheric depth, anti-aliasing
   and water passes. Implement missing shared renderer capabilities instead of
   terrain-example-only shaders or baked screenshots.
+  Shared receiver-plane shadow correction now uses relative conditioning rather
+  than a camera-scale-dependent determinant cutoff. Direct production-math tests
+  and planar native captures pass; steep-cliff striping remains visible in GPU
+  and ordinary mesh paths, so this audit gate stays open. See
+  [shadow receiver qualification](docs/terrain-shadow-receiver-qualification.md).
+
 - [ ] Add seam-safe terrain LOD, camera-driven streaming and coordinated water,
   material and scatter residency. Preserve collisions near gameplay actors.
 - [ ] Add cooked heightfields/meshes, derived masks and placement caches through

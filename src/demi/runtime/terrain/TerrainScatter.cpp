@@ -36,15 +36,15 @@ struct BucketHash {
 // traversal order: a cell always draws the same numbers, wherever it is
 // visited from.
 simulation::DeterministicRandom cellRandom(int worldSeed, std::size_t cell,
-                                            TerrainPaletteRole role,
-                                            int sample) {
+                                           std::string_view ruleId,
+                                           int sample) {
   const auto channel = deriveTerrainSubSeed(worldSeed,
                                             TerrainSeedChannel::Scatter);
-  // Fold the cell, the role and the sample slot together so two roles, or two
+  // Fold the cell, the rule and the sample slot together so two roles, or two
   // candidates in the same cell, never share a stream.
   std::uint64_t state = static_cast<std::uint64_t>(std::uint32_t(channel));
   state ^= static_cast<std::uint64_t>(cell) * 0x9E3779B97F4A7C15ull;
-  state ^= static_cast<std::uint64_t>(role) * 0xC2B2AE3D27D4EB4Full;
+  state ^= terrainPlacementRuleHash(ruleId) * 0xC2B2AE3D27D4EB4Full;
   state ^= static_cast<std::uint64_t>(sample) * 0x165667B19E3779F9ull;
   return simulation::DeterministicRandom(state);
 }
@@ -101,20 +101,18 @@ bool refreshTerrainScatterPlacements(
   return true;
 }
 
-std::vector<TerrainPaletteRole>
-scatterableRoles(const HeightField &field, const TerrainRecipe &recipe,
-                 const TerrainPalette &palette) {
+std::vector<std::string> scatterableRoles(const HeightField &field,
+                                          const TerrainRecipe &recipe,
+                                          const TerrainPalette &palette) {
   const float sea = TerrainRuleContextBuilder::seaLevel(recipe);
-  std::vector<TerrainPaletteRole> roles;
-  for (const auto &[name, entry] : palette.roles) {
+  std::vector<std::string> roles;
+  for (const auto &[name, entry] : palette.placements) {
     if (entry.weight <= 0.F || entry.spacing < 0.F)
       continue;
-    const auto role = terrainPaletteRoleFromName(name);
-    if (!role.has_value())
-      continue;
-    // A role is scatterable when at least one eligible cell exists for it.
-    for (int z = 0; z <= recipe.cellsZ && roles.size() < palette.roles.size();
-         ++z)
+    const auto &ruleId = name;
+    // A rule is scatterable when at least one eligible cell exists for it.
+    for (int z = 0;
+         z <= recipe.cellsZ && roles.size() < palette.placements.size(); ++z)
       for (int x = 0; x <= recipe.cellsX; ++x) {
         const auto index = field.index(x, z);
         if (field.heights[index] <= sea)
@@ -123,7 +121,7 @@ scatterableRoles(const HeightField &field, const TerrainRecipe &recipe,
           continue;
         if (!roleAllowsBiome(entry, field.biomeIds[field.biomeIndices[index]]))
           continue;
-        roles.push_back(*role);
+        roles.push_back(ruleId);
         break;
       }
   }
@@ -146,10 +144,10 @@ TerrainScatterResult scatterTerrain(const HeightField &field,
   const float stepZ = field.size.y / float(recipe.cellsZ);
   const auto cellArea = std::max(1e-6F, stepX * stepZ);
 
-  // The bucket size is the coarsest spacing any role asks for, so one
+  // The bucket size is the coarsest spacing any rule asks for, so one
   // neighbourhood lookup is enough to reject an overlapping candidate.
   float coarsest = 0.F;
-  for (const auto &[name, entry] : palette.roles)
+  for (const auto &[name, entry] : palette.placements)
     if (entry.weight > 0.F && entry.spacing > 0.F)
       coarsest = std::max(coarsest, entry.spacing);
   coarsest = std::max(coarsest, stepX * 2.F);
@@ -159,27 +157,25 @@ TerrainScatterResult scatterTerrain(const HeightField &field,
   // accepted set never depends on authored array order.
   struct Active {
     const TerrainPaletteEntry *entry;
-    TerrainPaletteRole role;
+    std::string ruleId;
     std::string name;
   };
   std::vector<Active> active;
-  for (const auto &[name, entry] : palette.roles) {
+  for (const auto &[name, entry] : palette.placements) {
     if (entry.weight <= 0.F)
       continue;
-    const auto role = terrainPaletteRoleFromName(name);
-    if (!role.has_value())
-      continue;
-    active.push_back({&entry, *role, name});
+    const auto &ruleId = name;
+    active.push_back({&entry, ruleId, name});
   }
   if (active.empty())
     return result;
 
-  // Per-role spatial hashes, so one role's spacing never rejects another's.
-  std::map<TerrainPaletteRole, std::unordered_map<BucketKey, std::vector<Vec3>,
-                                                   BucketHash>>
+  // Per-rule spatial hashes, so one rule's spacing never rejects another's.
+  std::map<std::string,
+           std::unordered_map<BucketKey, std::vector<Vec3>, BucketHash>>
       occupied;
   for (const auto &entry : active)
-    occupied[entry.role];
+    occupied[entry.ruleId];
 
   float weightTotal = 0.F;
   for (const auto &entry : active)
@@ -220,7 +216,7 @@ TerrainScatterResult scatterTerrain(const HeightField &field,
         if (share <= 0.F)
           continue;
 
-        auto random = cellRandom(recipe.seed, cell, candidate.role, 0);
+        auto random = cellRandom(recipe.seed, cell, candidate.ruleId, 0);
         if (random.value() > std::min(1.F, share))
           continue;
 
@@ -228,7 +224,7 @@ TerrainScatterResult scatterTerrain(const HeightField &field,
                             height,
                             field.size.y * float(z) / float(recipe.cellsZ)};
         if (entry.spacing > 0.F) {
-          auto &grid = occupied[candidate.role];
+          auto &grid = occupied[candidate.ruleId];
           const float spacing = entry.spacing * settings.spacingScale;
           const auto bx = static_cast<int>(std::floor(position.x / bucketSize));
           const auto bz = static_cast<int>(std::floor(position.z / bucketSize));
@@ -253,10 +249,10 @@ TerrainScatterResult scatterTerrain(const HeightField &field,
           grid[BucketKey{bx, bz}].push_back(position);
         }
 
-        auto placed = cellRandom(recipe.seed, cell, candidate.role, 1);
+        auto placed = cellRandom(recipe.seed, cell, candidate.ruleId, 1);
         TerrainScatterPlacement output;
-        output.role = candidate.role;
-        output.asset = entry.asset;
+        output.ruleId = candidate.ruleId;
+        output.model = entry.model;
         output.prefab = entry.prefab;
         output.biome = biome;
         output.biomeName = biomeName;

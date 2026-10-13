@@ -13,4 +13,8 @@ editorHudEditableRect(const runtime::ui::UiNode &node);
 pickEditorHudNode(const runtime::ui::UiDocument &document,
                   runtime::Vec2 authoredPoint);
 
+[[nodiscard]] const runtime::ui::UiNode *
+pickEditorHudDropParent(const runtime::ui::UiDocument &document,
+                        runtime::Vec2 point);
+
 } // namespace demi::editor

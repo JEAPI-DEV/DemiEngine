@@ -16,6 +16,7 @@ namespace demi::runtime {
 // ordinals, are hashed.
 enum class TerrainSeedChannel {
   Landform,
+  LandformWarp,
   Erosion,
   Hydrology,
   BiomePlacement,

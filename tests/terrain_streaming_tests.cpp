@@ -17,9 +17,10 @@ using namespace demi::runtime;
 
 namespace {
 // A flat field is the controlled case for every rule here, exactly as it is for
-// TerrainLod: its decimation error is zero, so a chunk's level is decided by the
-// distance table alone and a hand computation can predict it. Every assertion
-// below about WHICH level a chunk holds would be unfalsifiable on a noisy field.
+// TerrainLod: its decimation error is zero, so a chunk's level is decided by
+// the distance table alone and a hand computation can predict it. Every
+// assertion below about WHICH level a chunk holds would be unfalsifiable on a
+// noisy field.
 TerrainRecipe flatRecipe(int cells, int chunkCells) {
   TerrainRecipe recipe;
   recipe.size = {float(cells), float(cells)};
@@ -36,13 +37,13 @@ HeightField generate(const TerrainRecipe &recipe) {
   return *field;
 }
 
-// The streaming module's own distance rule, restated here so the tests measure it
-// independently rather than trusting the module to grade its own homework.
+// The streaming module's own distance rule, restated here so the tests measure
+// it independently rather than trusting the module to grade its own homework.
 float nearestDistance(const HeightField &field, const TerrainChunk &chunk,
                       Vec2 camera) {
   const Vec2 first = field.position(chunk.firstCellX, chunk.firstCellZ);
-  const Vec2 last =
-      field.position(chunk.firstCellX + chunk.cellsX, chunk.firstCellZ + chunk.cellsZ);
+  const Vec2 last = field.position(chunk.firstCellX + chunk.cellsX,
+                                   chunk.firstCellZ + chunk.cellsZ);
   const float dx = std::max({0.F, first.x - camera.x, camera.x - last.x});
   const float dz = std::max({0.F, first.y - camera.y, camera.y - last.y});
   return std::hypot(dx, dz);
@@ -57,18 +58,21 @@ int levelIndexFor(float distance) {
   return index;
 }
 
-TerrainStreamingState settle(const HeightField &field, Vec2 camera, float viewDistance,
+TerrainStreamingState settle(const HeightField &field, Vec2 camera,
+                             float viewDistance,
                              const TerrainStreamingRelevance &relevance,
                              int steps = 30, float dt = 0.1F) {
   TerrainStreamingState state;
   for (int step = 0; step < steps; ++step)
-    state = updateTerrainStreaming(state, field, camera, viewDistance, dt, relevance);
+    state = updateTerrainStreaming(state, field, camera, viewDistance, dt,
+                                   relevance);
   return state;
 }
 
 bool sameState(const TerrainStreamingState &a, const TerrainStreamingState &b) {
-  if (a.resident != b.resident || a.evicted != b.evicted || a.promoted != b.promoted ||
-      a.demoted != b.demoted || a.chunks.size() != b.chunks.size())
+  if (a.resident != b.resident || a.evicted != b.evicted ||
+      a.promoted != b.promoted || a.demoted != b.demoted ||
+      a.chunks.size() != b.chunks.size())
     return false;
   if (a.triangles() != b.triangles())
     return false;
@@ -99,9 +103,9 @@ bool mentions(const std::string &text, const char *needle) {
   return text.find(needle) != std::string::npos;
 }
 
-// Determinism first, and everything else below is worthless without it: a policy
-// whose answer depends on anything but its inputs cannot be reasoned about, and
-// the hysteresis is only meaningful if it is reproducible.
+// Determinism first, and everything else below is worthless without it: a
+// policy whose answer depends on anything but its inputs cannot be reasoned
+// about, and the hysteresis is only meaningful if it is reproducible.
 void identicalInputsGiveAnIdenticalState() {
   const auto field = generate(flatRecipe(64, 16));
   TerrainStreamingRelevance relevance;
@@ -120,7 +124,8 @@ void identicalInputsGiveAnIdenticalState() {
   for (int step = 0; step < 40; ++step) {
     const Vec2 camera{4.F + float(step) * 1.4F, 4.F + float(step) * 1.1F};
     first = updateTerrainStreaming(first, field, camera, 45.F, 0.1F, relevance);
-    second = updateTerrainStreaming(second, field, camera, 45.F, 0.1F, relevance);
+    second =
+        updateTerrainStreaming(second, field, camera, 45.F, 0.1F, relevance);
     third = updateTerrainStreaming(third, twin, camera, 45.F, 0.1F, relevance);
     assert(sameState(first, second));
     assert(sameState(first, third));
@@ -138,9 +143,9 @@ void identicalInputsGiveAnIdenticalState() {
   assert(heldSeen > 0);
 }
 
-// A chunk's level is its distance's answer, so the order of the distances is the
-// order of the levels. viewDistance is 200 on a 64 unit field, so nothing is
-// evicted and eviction cannot be mistaken for a level change.
+// A chunk's level is its distance's answer, so the order of the distances is
+// the order of the levels. viewDistance is 200 on a 64 unit field, so nothing
+// is evicted and eviction cannot be mistaken for a level change.
 void nearerChunksHoldFinerLevels() {
   const auto field = generate(flatRecipe(64, 16));
   assert(field.chunks.size() == 16);
@@ -153,9 +158,9 @@ void nearerChunksHoldFinerLevels() {
   int previousIndex = -1;
   int finest = terrainLodIndex(TerrainLod::Off);
   int coarsest = terrainLodIndex(TerrainLod::Full);
-  // Chunk order is not distance order, so the pairs are sorted by distance before
-  // the ordering is checked. Checking it in chunk order would only assert that the
-  // generator emits chunks in some order.
+  // Chunk order is not distance order, so the pairs are sorted by distance
+  // before the ordering is checked. Checking it in chunk order would only
+  // assert that the generator emits chunks in some order.
   std::vector<std::pair<float, int>> byDistance;
   for (std::size_t index = 0; index < field.chunks.size(); ++index) {
     const float distance = nearestDistance(field, field.chunks[index], camera);
@@ -181,9 +186,9 @@ void nearerChunksHoldFinerLevels() {
   assert(coarsest == terrainLodIndex(TerrainLod::Half));
 }
 
-// `viewDistance` is the eviction radius and nothing else. Inside it a chunk lives,
-// outside it a chunk dies, and the level inside is the LOD selector's business
-// rather than a consequence of the radius.
+// `viewDistance` is the eviction radius and nothing else. Inside it a chunk
+// lives, outside it a chunk dies, and the level inside is the LOD selector's
+// business rather than a consequence of the radius.
 void chunksBeyondTheViewDistanceAreEvicted() {
   const auto field = generate(flatRecipe(64, 16));
   TerrainStreamingRelevance relevance;
@@ -198,12 +203,14 @@ void chunksBeyondTheViewDistanceAreEvicted() {
   assert(first.evicted == 0);
   assert(first.resident == field.chunks.size());
 
-  const TerrainStreamingState state = settle(field, camera, viewDistance, relevance);
+  const TerrainStreamingState state =
+      settle(field, camera, viewDistance, relevance);
   assert(state.evicted > 0);
   assert(state.resident > 0);
   assert(state.resident + state.evicted == field.chunks.size());
   for (std::size_t index = 0; index < field.chunks.size(); ++index) {
-    const bool wanted = nearestDistance(field, field.chunks[index], camera) <= viewDistance;
+    const bool wanted =
+        nearestDistance(field, field.chunks[index], camera) <= viewDistance;
     assert(state.chunks[index].resident == wanted);
     if (!wanted)
       assert(state.chunks[index].level == TerrainLod::Off);
@@ -223,7 +230,8 @@ void gameplayAnchorsOutrankTheCamera() {
   const auto field = generate(flatRecipe(64, 16));
   // The chunk in the opposite corner from the camera.
   const std::size_t far = 15;
-  assert(field.chunks[far].firstCellX == 48 && field.chunks[far].firstCellZ == 48);
+  assert(field.chunks[far].firstCellX == 48 &&
+         field.chunks[far].firstCellZ == 48);
 
   TerrainStreamingRelevance relevance;
   // Placed OUTSIDE the chunk it keeps, so shrinking the radius can actually let
@@ -234,12 +242,14 @@ void gameplayAnchorsOutrankTheCamera() {
   const Vec2 camera{2, 2};
   const float viewDistance = 18.F;
 
-  const TerrainStreamingState held = settle(field, camera, viewDistance, relevance);
+  const TerrainStreamingState held =
+      settle(field, camera, viewDistance, relevance);
   assert(held.chunks[far].resident);
   assert(held.chunks[far].gameplayHeld);
 
-  // The SAME camera and the SAME view distance with the anchor removed: the chunk
-  // the camera cannot see is gone, which is what makes the anchor the cause.
+  // The SAME camera and the SAME view distance with the anchor removed: the
+  // chunk the camera cannot see is gone, which is what makes the anchor the
+  // cause.
   TerrainStreamingRelevance cameraOnly;
   const TerrainStreamingState abandoned =
       settle(field, camera, viewDistance, cameraOnly);
@@ -247,8 +257,8 @@ void gameplayAnchorsOutrankTheCamera() {
   assert(!abandoned.chunks[far].gameplayHeld);
 
   // However far the camera moves, an anchored chunk stays resident and held.
-  for (const Vec2 position : std::vector<Vec2>{{2, 2},   {60, 4},   {4, 60},
-                                              {60, 60},  {30, 30}, {62, 30}}) {
+  for (const Vec2 position : std::vector<Vec2>{
+           {2, 2}, {60, 4}, {4, 60}, {60, 60}, {30, 30}, {62, 30}}) {
     const TerrainStreamingState state =
         settle(field, position, viewDistance, relevance, 8);
     assert(state.chunks[far].resident);
@@ -263,12 +273,13 @@ void gameplayAnchorsOutrankTheCamera() {
   // dropped once the anchor stops reaching it.
   TerrainStreamingRelevance shrunk = relevance;
   shrunk.gameplayRadius = 1.F;
-  const TerrainStreamingState lost = settle(field, camera, viewDistance, shrunk);
+  const TerrainStreamingState lost =
+      settle(field, camera, viewDistance, shrunk);
   assert(!lost.chunks[far].resident);
 }
 
-// A resident chunk always has geometry. The floor is what guarantees that, and an
-// `Off` floor is read as the coarsest level that still has some.
+// A resident chunk always has geometry. The floor is what guarantees that, and
+// an `Off` floor is read as the coarsest level that still has some.
 void minimumResidentLodIsAFloor() {
   const auto field = generate(flatRecipe(64, 16));
   const std::size_t far = 15;
@@ -282,22 +293,24 @@ void minimumResidentLodIsAFloor() {
   const Vec2 camera{2, 2};
   const float distance = nearestDistance(field, field.chunks[far], camera);
   assert(distance > 64.F);
-  assert(terrainLodForChunk(field, field.chunks[far], distance, relevance.lod) ==
-         TerrainLod::Off);
+  assert(terrainLodForChunk(field, field.chunks[far], distance,
+                            relevance.lod) == TerrainLod::Off);
 
   for (const TerrainLod floor : {TerrainLod::Full, TerrainLod::Half,
                                  TerrainLod::Quarter, TerrainLod::Coarse}) {
     relevance.minimumResidentLod = floor;
-    const TerrainStreamingState state = settle(field, camera, 18.F, relevance, 8);
+    const TerrainStreamingState state =
+        settle(field, camera, 18.F, relevance, 8);
     assert(state.chunks[far].resident);
     assert(state.chunks[far].gameplayHeld);
     assert(state.chunks[far].level == floor);
     assert(mentions(state.chunks[far].reason, "floored"));
   }
-  // `Off` is the absence of a mesh rather than a level of one, so it clamps to the
-  // coarsest level that still builds a mesh.
+  // `Off` is the absence of a mesh rather than a level of one, so it clamps to
+  // the coarsest level that still builds a mesh.
   relevance.minimumResidentLod = TerrainLod::Off;
-  const TerrainStreamingState clamped = settle(field, camera, 18.F, relevance, 8);
+  const TerrainStreamingState clamped =
+      settle(field, camera, 18.F, relevance, 8);
   assert(clamped.chunks[far].resident);
   assert(clamped.chunks[far].level == TerrainLod::Coarse);
   assert(mentions(clamped.chunks[far].reason, "floored"));
@@ -310,21 +323,25 @@ void promotionIsImmediateAndDemotionWaits() {
   const auto field = generate(flatRecipe(64, 16));
   TerrainStreamingRelevance relevance;
   const std::size_t near = 0; // the chunk the camera starts on
-  assert(field.chunks[near].firstCellX == 0 && field.chunks[near].firstCellZ == 0);
+  assert(field.chunks[near].firstCellX == 0 &&
+         field.chunks[near].firstCellZ == 0);
 
   TerrainStreamingState state = settle(field, Vec2{2, 2}, 200.F, relevance);
   assert(state.chunks[near].level == TerrainLod::Full);
 
-  // The camera jumps to the opposite corner. Every chunk now wants to be coarser,
-  // and NONE of them may move on the first update: the delay has not been served.
-  state = updateTerrainStreaming(state, field, Vec2{60, 60}, 200.F, 0.1F, relevance);
+  // The camera jumps to the opposite corner. Every chunk now wants to be
+  // coarser, and NONE of them may move on the first update: the delay has not
+  // been served.
+  state = updateTerrainStreaming(state, field, Vec2{60, 60}, 200.F, 0.1F,
+                                 relevance);
   assert(state.demoted == 0);
   assert(state.chunks[near].level == TerrainLod::Full);
   assert(state.chunks[near].coarserForSeconds > 0.F);
 
   int updates = 0;
   while (state.demoted == 0 && updates < 40) {
-    state = updateTerrainStreaming(state, field, Vec2{60, 60}, 200.F, 0.1F, relevance);
+    state = updateTerrainStreaming(state, field, Vec2{60, 60}, 200.F, 0.1F,
+                                   relevance);
     ++updates;
   }
   // Nothing moved for most of a second, and then it moved on its own.
@@ -341,8 +358,8 @@ void promotionIsImmediateAndDemotionWaits() {
   assert(returned.chunks[near].level == TerrainLod::Full);
 }
 
-// THE THRASH TEST. A camera parked exactly on a level boundary, then one orbiting
-// across it. Neither may make a chunk alternate between two levels.
+// THE THRASH TEST. A camera parked exactly on a level boundary, then one
+// orbiting across it. Neither may make a chunk alternate between two levels.
 void aCameraOnABoundaryDoesNotThrash() {
   const auto field = generate(flatRecipe(64, 16));
   TerrainStreamingRelevance relevance;
@@ -352,8 +369,9 @@ void aCameraOnABoundaryDoesNotThrash() {
   // that has reached a threshold as past it.
   const Vec2 boundary{8, 56};
   assert(nearestDistance(field, field.chunks[watched], boundary) == 40.F);
-  assert(terrainLodIndex(terrainLodForChunk(field, field.chunks[watched], 40.F)) ==
-         terrainLodIndex(TerrainLod::Half));
+  assert(
+      terrainLodIndex(terrainLodForChunk(field, field.chunks[watched], 40.F)) ==
+      terrainLodIndex(TerrainLod::Half));
 
   // Parked exactly on the boundary, a chunk may settle once and then must never
   // move again. Fifty updates, no changes at all.
@@ -365,8 +383,8 @@ void aCameraOnABoundaryDoesNotThrash() {
         updateTerrainStreaming(state, field, boundary, 200.F, 0.1F, relevance);
     assert(next.promoted == 0);
     assert(next.demoted == 0);
-    // Everything, reasons included, is byte-identical: a static camera produces a
-    // static state, so a caller can skip the work entirely.
+    // Everything, reasons included, is byte-identical: a static camera produces
+    // a static state, so a caller can skip the work entirely.
     assert(sameState(state, next));
     state = next;
   }
@@ -374,8 +392,10 @@ void aCameraOnABoundaryDoesNotThrash() {
 
   // Orbiting ACROSS the boundary, on both sides of it, every single frame. The
   // wanted level alternates and the settled level must not: the coarser request
-  // never survives long enough to be served, and the finer one is already there.
-  TerrainStreamingState inside = settle(field, Vec2{8, 55.75F}, 200.F, relevance);
+  // never survives long enough to be served, and the finer one is already
+  // there.
+  TerrainStreamingState inside =
+      settle(field, Vec2{8, 55.75F}, 200.F, relevance);
   assert(inside.chunks[watched].level == TerrainLod::Full);
   int changes = 0;
   int promotions = 0;
@@ -402,8 +422,8 @@ void aCameraOnABoundaryDoesNotThrash() {
   assert(promotions == 0 && demotions == 0);
 
   // The same orbit one level out, where the camera is asking for something
-  // FINER every other frame. The finer answer is taken at once and the coarser one
-  // is never served, so the orbit settles on the finer level instead of
+  // FINER every other frame. The finer answer is taken at once and the coarser
+  // one is never served, so the orbit settles on the finer level instead of
   // alternating between the two.
   TerrainStreamingState outside = settle(field, Vec2{8, 71}, 200.F, relevance);
   assert(outside.chunks[watched].level == TerrainLod::Half);
@@ -432,14 +452,15 @@ void aCameraOnABoundaryDoesNotThrash() {
 }
 
 // A reason is a diagnostic, and a diagnostic that cannot be checked is a
-// diagnostic nobody will read. Every chunk names its level, and the cause clause
-// matches what actually happened to it.
+// diagnostic nobody will read. Every chunk names its level, and the cause
+// clause matches what actually happened to it.
 void everyChunkExplainsItself() {
   const auto field = generate(flatRecipe(64, 16));
   TerrainStreamingRelevance relevance;
   relevance.gameplayAnchors = {Vec3{56, 0, 56}};
   relevance.gameplayRadius = 18.F;
-  const TerrainStreamingState state = settle(field, Vec2{20, 20}, 18.F, relevance);
+  const TerrainStreamingState state =
+      settle(field, Vec2{20, 20}, 18.F, relevance);
   assert(state.chunks.size() == field.chunks.size());
 
   bool sawHeld = false;
@@ -464,8 +485,8 @@ void everyChunkExplainsItself() {
   }
   assert(sawHeld && sawEvicted && sawHeldByView);
 
-  // A chunk still inside its eviction delay says it is still resident rather than
-  // claiming to have been thrown away, so an overlay cannot show a lie.
+  // A chunk still inside its eviction delay says it is still resident rather
+  // than claiming to have been thrown away, so an overlay cannot show a lie.
   const TerrainStreamingState cooling =
       updateTerrainStreaming({}, field, Vec2{2, 2}, 18.F, 0.1F, relevance);
   assert(cooling.evicted == 0);
@@ -475,21 +496,23 @@ void everyChunkExplainsItself() {
   }
 }
 
-// The budget a caller can take from a state alone: real chunk sizes, real levels,
-// `terrainLodStep`, and nothing loaded.
+// The budget a caller can take from a state alone: real chunk sizes, real
+// levels, `terrainLodStep`, and nothing loaded.
 void trianglesMatchTheChunkSizesAndLevels() {
   const auto field = generate(flatRecipe(512, 32));
   assert(field.chunks.size() == 256);
-  assert(field.chunks.front().cellsX == 32 && field.chunks.front().cellsZ == 32);
+  assert(field.chunks.front().cellsX == 32 &&
+         field.chunks.front().cellsZ == 32);
   TerrainStreamingRelevance relevance;
   const Vec2 camera{256, 256};
   const float viewDistance = 200.F;
-  const TerrainStreamingState state = settle(field, camera, viewDistance, relevance);
+  const TerrainStreamingState state =
+      settle(field, camera, viewDistance, relevance);
 
   // Hand-computed from the chunk rectangles, the distance table and the level
   // steps. Independent of the module under test, and exact because the field is
-  // flat: a reduced mesh of flat ground deviates by nothing, so the geometric walk
-  // never pulls a chunk finer than its distance asks for.
+  // flat: a reduced mesh of flat ground deviates by nothing, so the geometric
+  // walk never pulls a chunk finer than its distance asks for.
   std::size_t resident = 0;
   std::size_t expected = 0;
   for (const TerrainChunk &chunk : field.chunks) {
@@ -500,36 +523,171 @@ void trianglesMatchTheChunkSizesAndLevels() {
     const int index = levelIndexFor(distance);
     assert(index < terrainLodIndex(TerrainLod::Off));
     const TerrainLod level = TerrainLod(index);
-    assert(state.chunks[chunk.firstCellZ / 32 * 16 + chunk.firstCellX / 32].level == level);
+    assert(state.chunks[chunk.firstCellZ / 32 * 16 + chunk.firstCellX / 32]
+               .level == level);
     const int step = terrainLodStep(level);
     assert(step > 0);
     // 32 cells divides by every stride, so no trailing far-edge sample.
     assert(chunk.cellsX % step == 0);
     const auto columns = std::size_t(chunk.cellsX / step + 1);
     const auto rows = std::size_t(chunk.cellsZ / step + 1);
-    expected += (columns - 1) * (rows - 1) * 2;
+    const auto coarseTriangles = (columns - 1) * (rows - 1) * 2;
+    const auto addedBoundaryTriangles =
+        2 * (std::size_t(chunk.cellsX) - (columns - 1)) +
+        2 * (std::size_t(chunk.cellsZ) - (rows - 1));
+    expected += coarseTriangles + addedBoundaryTriangles;
   }
   assert(state.resident == resident);
   assert(state.triangles() == expected);
-  // The measured figure: 148 resident chunks, 12 full, 40 half and 96 quarter,
-  // which is 12 * 2048 + 40 * 512 + 96 * 128.
+  // Full perimeter samples add triangles to each reduced chunk boundary.
   assert(resident == 148);
-  assert(state.triangles() == 57344);
+  assert(state.triangles() == 69120);
 
-  // And the meshes agree: what the budget predicts is what a renderer would build,
-  // skirt-free, so the number is not a convenient approximation.
+  // And the meshes agree: what the budget predicts is what a renderer would
+  // build, skirt-free, so the number is not a convenient approximation.
   std::size_t fromMeshes = 0;
   for (std::size_t index = 0; index < field.chunks.size(); ++index) {
     const TerrainChunkResidency &chunk = state.chunks[index];
     if (!chunk.resident)
       continue;
-    const auto mesh = buildTerrainLodMesh(field, field.chunks[index], chunk.level, 0.F);
+    const auto mesh =
+        buildTerrainLodMesh(field, field.chunks[index], chunk.level, 0.F);
     assert(mesh.has_value());
     assert(mesh->indices.size() % 3 == 0);
     assert(mesh->skirtDepths.empty());
     fromMeshes += mesh->indices.size() / 3;
   }
   assert(fromMeshes == state.triangles());
+}
+
+void gameplayRetentionStillHonorsGeometricError() {
+  auto field = generate(flatRecipe(16, 16));
+  field.heights.set(field.index(3, 3), field.height(3, 3) + 20.0F);
+  TerrainStreamingRelevance relevance;
+  relevance.gameplayAnchors = {{8.0F, 0.0F, 8.0F}};
+  relevance.gameplayRadius = 2.0F;
+  relevance.minimumResidentLod = TerrainLod::Quarter;
+  relevance.lod.geometricError = 0.0F;
+  const Vec2 farCamera{1000.0F, 1000.0F};
+
+  const auto state =
+      updateTerrainStreaming({}, field, farCamera, 10.0F, 1.0F, relevance);
+  assert(state.chunks.size() == 1);
+  assert(state.chunks.front().gameplayHeld);
+  assert(state.chunks.front().resident);
+  assert(state.chunks.front().level == TerrainLod::Full);
+  assert(mentions(state.chunks.front().reason, "floored from off"));
+  const auto target = terrainChunkTargetLevel(
+      field, field.chunks.front(), farCamera, 10.0F, relevance, 10.0F);
+  assert(target == TerrainLod::Full);
+}
+
+void partialChunkBudgetsMatchSeamSafeMeshes() {
+  const auto field = generate(flatRecipe(19, 8));
+  for (const auto level : {TerrainLod::Full, TerrainLod::Half,
+                           TerrainLod::Quarter, TerrainLod::Coarse}) {
+    TerrainStreamingState state;
+    std::size_t actualTriangles = 0;
+    for (const auto &chunk : field.chunks) {
+      state.chunks.push_back(
+          {.cellsX = chunk.cellsX, .cellsZ = chunk.cellsZ, .level = level});
+      const auto mesh = buildTerrainLodMesh(field, chunk, level, 0.0F);
+      assert(mesh.has_value());
+      actualTriangles += mesh->indices.size() / 3;
+    }
+    assert(state.triangles() == actualTriangles);
+  }
+}
+
+void bothQueriesRejectNonfinitePolicyInputs() {
+  const auto field = generate(flatRecipe(16, 8));
+  const auto rejectPolicy = [&](const TerrainStreamingRelevance &relevance,
+                                const char *message) {
+    assert(mentions(refusalMessage([&] {
+                      (void)updateTerrainStreaming({}, field, {}, 30.0F, 0.1F,
+                                                   relevance);
+                    }),
+                    message));
+    assert(mentions(refusalMessage([&] {
+                      (void)terrainChunkTargetLevel(field, field.chunks.front(),
+                                                    {}, 30.0F, relevance, 0.0F);
+                    }),
+                    message));
+  };
+  for (const float invalid : {std::numeric_limits<float>::quiet_NaN(),
+                              std::numeric_limits<float>::infinity()}) {
+    TerrainStreamingRelevance relevance;
+    relevance.gameplayRadius = invalid;
+    rejectPolicy(relevance, "radius");
+    relevance = {};
+    relevance.hysteresisSeconds = invalid;
+    rejectPolicy(relevance, "hysteresis");
+    relevance = {};
+    relevance.gameplayAnchors = {{0.0F, invalid, 0.0F}};
+    rejectPolicy(relevance, "anchor");
+    relevance = {};
+    relevance.lod.distanceThresholds[0] = invalid;
+    rejectPolicy(relevance, "threshold");
+    relevance = {};
+    relevance.lod.geometricError = invalid;
+    rejectPolicy(relevance, "geometric error");
+    assert(mentions(refusalMessage([&] {
+                      (void)terrainChunkTargetLevel(
+                          field, field.chunks.front(), {}, 30.0F,
+                          TerrainStreamingRelevance{}, invalid);
+                    }),
+                    "duration"));
+  }
+  TerrainStreamingRelevance invalidLevel;
+  invalidLevel.minimumResidentLod = static_cast<TerrainLod>(-1);
+  rejectPolicy(invalidLevel, "resident LOD");
+
+  TerrainStreamingRelevance negative;
+  negative.gameplayRadius = -2.0F;
+  negative.hysteresisSeconds = -1.0F;
+  TerrainStreamingRelevance zero;
+  zero.gameplayRadius = 0.0F;
+  zero.hysteresisSeconds = 0.0F;
+  assert(sameState(updateTerrainStreaming({}, field, {}, 30.0F, 0.1F, negative),
+                   updateTerrainStreaming({}, field, {}, 30.0F, 0.1F, zero)));
+
+  auto invalidField = field;
+  invalidField.size.x = std::numeric_limits<float>::infinity();
+  assert(mentions(refusalMessage([&] {
+                    (void)updateTerrainStreaming({}, invalidField, {}, 30.0F,
+                                                 0.1F, zero);
+                  }),
+                  "field size"));
+  assert(mentions(refusalMessage([&] {
+                    (void)terrainChunkTargetLevel(invalidField,
+                                                  invalidField.chunks.front(),
+                                                  {}, 30.0F, zero, 0.0F);
+                  }),
+                  "field size"));
+}
+
+void terrainLocalCoordinatesAndClockResetAreConsistent() {
+  const auto field = generate(flatRecipe(16, 16));
+  TerrainStreamingRelevance relevance;
+  relevance.hysteresisSeconds = 1.0F;
+  relevance.gameplayAnchors = {{8.0F, 100.0F, 8.0F}};
+  relevance.gameplayRadius = 2.0F;
+  auto state = updateTerrainStreaming({}, field, {100.0F, 100.0F}, 1.0F, 2.0F,
+                                      relevance);
+  assert(state.chunks.front().gameplayHeld);
+  assert(state.chunks.front().resident);
+
+  relevance.gameplayAnchors.clear();
+  state = updateTerrainStreaming(state, field, {100.0F, 100.0F}, 1.0F, 0.6F,
+                                 relevance);
+  assert(state.chunks.front().resident);
+  assert(state.chunks.front().outsideForSeconds > 0.0F);
+  state =
+      updateTerrainStreaming(state, field, {8.0F, 8.0F}, 1.0F, 0.1F, relevance);
+  assert(state.chunks.front().outsideForSeconds == 0.0F);
+  state = updateTerrainStreaming(state, field, {100.0F, 100.0F}, 1.0F, 0.6F,
+                                 relevance);
+  assert(state.chunks.front().resident);
 }
 
 // One entry per field chunk, always, in the field's own order, whatever the
@@ -559,8 +717,9 @@ void theStateNeverLosesOrDuplicatesAChunk() {
     assert(state.promoted + state.demoted <= state.resident);
   }
 
-  // A previous state from a DIFFERENT chunking is ignored rather than applied to
-  // the wrong rectangle, so streaming two terrains cannot bleed into each other.
+  // A previous state from a DIFFERENT chunking is ignored rather than applied
+  // to the wrong rectangle, so streaming two terrains cannot bleed into each
+  // other.
   const auto coarse = generate(flatRecipe(64, 16));
   const auto fine = generate(flatRecipe(64, 8));
   assert(coarse.chunks.size() == 16 && fine.chunks.size() == 64);
@@ -575,59 +734,62 @@ void theStateNeverLosesOrDuplicatesAChunk() {
   assert(sameState(fromStale, fromNothing));
 
   // A field whose generator never chunked it is one chunk covering its own
-  // extent, exactly as TerrainLod reads it, so the two never disagree about what
-  // is being drawn.
+  // extent, exactly as TerrainLod reads it, so the two never disagree about
+  // what is being drawn.
   auto unchunked = field;
   unchunked.chunks.clear();
   const TerrainStreamingState whole =
       settle(unchunked, Vec2{2, 2}, 200.F, relevance, 4);
   assert(whole.chunks.size() == 1);
-  assert(whole.chunks.front().cellsX == 64 && whole.chunks.front().cellsZ == 64);
+  assert(whole.chunks.front().cellsX == 64 &&
+         whole.chunks.front().cellsZ == 64);
   assert(whole.chunks.front().resident);
 }
 
-// Every refusal names its problem. A policy that silently clamped a negative time
-// step or streamed a gap in the grid would produce plausible frames nobody could
-// explain.
+// Every refusal names its problem. A policy that silently clamped a negative
+// time step or streamed a gap in the grid would produce plausible frames nobody
+// could explain.
 void badInputIsRefused() {
   const auto field = generate(flatRecipe(64, 16));
   TerrainStreamingRelevance relevance;
   const Vec2 camera{2, 2};
 
   assert(mentions(refusalMessage([&] {
-                  (void)updateTerrainStreaming({}, field, camera, 30.F, -0.1F,
-                                              relevance);
-                }),
+                    (void)updateTerrainStreaming({}, field, camera, 30.F, -0.1F,
+                                                 relevance);
+                  }),
                   "negative"));
   assert(mentions(refusalMessage([&] {
-                  (void)updateTerrainStreaming({}, field, camera, -30.F, 0.1F,
-                                              relevance);
-                }),
+                    (void)updateTerrainStreaming({}, field, camera, -30.F, 0.1F,
+                                                 relevance);
+                  }),
                   "view distance"));
   assert(mentions(refusalMessage([&] {
-                  (void)updateTerrainStreaming({}, field, camera, 30.F,
-                                              std::numeric_limits<float>::quiet_NaN(),
-                                              relevance);
-                }),
+                    (void)updateTerrainStreaming(
+                        {}, field, camera, 30.F,
+                        std::numeric_limits<float>::quiet_NaN(), relevance);
+                  }),
                   "time step"));
   assert(mentions(refusalMessage([&] {
-                  TerrainStreamingRelevance broken = relevance;
-                  broken.gameplayAnchors = {
-                      Vec3{0, 0, std::numeric_limits<float>::infinity()}};
-                  (void)updateTerrainStreaming({}, field, camera, 30.F, 0.1F, broken);
-                }),
+                    TerrainStreamingRelevance broken = relevance;
+                    broken.gameplayAnchors = {
+                        Vec3{0, 0, std::numeric_limits<float>::infinity()}};
+                    (void)updateTerrainStreaming({}, field, camera, 30.F, 0.1F,
+                                                 broken);
+                  }),
                   "anchor"));
 
   // A chunk list with a hole: total area no longer matches the grid.
   auto missing = field;
   missing.chunks.pop_back();
   assert(mentions(refusalMessage([&] {
-                  (void)updateTerrainStreaming({}, missing, camera, 30.F, 0.1F,
-                                              relevance);
-                }),
+                    (void)updateTerrainStreaming({}, missing, camera, 30.F,
+                                                 0.1F, relevance);
+                  }),
                   "does not tile"));
 
-  // Correct total area, an overlap and a gap: only the overlap test can catch it.
+  // Correct total area, an overlap and a gap: only the overlap test can catch
+  // it.
   auto sheared = field;
   sheared.chunks[1].cellsX += 4;
   sheared.chunks[2].cellsX -= 4;
@@ -636,29 +798,31 @@ void badInputIsRefused() {
     area += std::size_t(chunk.cellsX) * std::size_t(chunk.cellsZ);
   assert(area == std::size_t(field.cellsX) * std::size_t(field.cellsZ));
   assert(mentions(refusalMessage([&] {
-                  (void)updateTerrainStreaming({}, sheared, camera, 30.F, 0.1F,
-                                              relevance);
-                }),
+                    (void)updateTerrainStreaming({}, sheared, camera, 30.F,
+                                                 0.1F, relevance);
+                  }),
                   "overlap"));
 
   // A chunk outside the grid cannot be streamed, from either entry point.
   TerrainChunk outside = field.chunks.front();
   outside.firstCellX = field.cellsX;
-  assert(mentions(
-      refusalMessage([&] {
-        (void)terrainChunkTargetLevel(field, outside, camera, 30.F, relevance, 10.F);
-      }),
-      "does not fit"));
+  assert(mentions(refusalMessage([&] {
+                    (void)terrainChunkTargetLevel(field, outside, camera, 30.F,
+                                                  relevance, 10.F);
+                  }),
+                  "does not fit"));
 
-  // The single-chunk query agrees with the whole-state update, which is the whole
-  // reason it exists: a tool can ask about one chunk without adopting a policy.
+  // The single-chunk query agrees with the whole-state update, which is the
+  // whole reason it exists: a tool can ask about one chunk without adopting a
+  // policy.
   TerrainStreamingState state;
   for (int step = 0; step < 20; ++step)
     state = updateTerrainStreaming(state, field, camera, 30.F, 0.1F, relevance);
   for (std::size_t index = 0; index < field.chunks.size(); ++index) {
     const TerrainChunkResidency &entry = state.chunks[index];
-    const auto target = terrainChunkTargetLevel(
-        field, field.chunks[index], camera, 30.F, relevance, entry.outsideForSeconds);
+    const auto target =
+        terrainChunkTargetLevel(field, field.chunks[index], camera, 30.F,
+                                relevance, entry.outsideForSeconds);
     if (target.has_value()) {
       // Either the level it holds, or a finer one it is still allowed to reach
       // after a demotion has been held back.
@@ -680,6 +844,10 @@ int main() {
   aCameraOnABoundaryDoesNotThrash();
   everyChunkExplainsItself();
   trianglesMatchTheChunkSizesAndLevels();
+  partialChunkBudgetsMatchSeamSafeMeshes();
+  gameplayRetentionStillHonorsGeometricError();
+  bothQueriesRejectNonfinitePolicyInputs();
+  terrainLocalCoordinatesAndClockResetAreConsistent();
   theStateNeverLosesOrDuplicatesAChunk();
   badInputIsRefused();
   std::cout << "Terrain streaming checks passed\n";

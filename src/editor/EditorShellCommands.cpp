@@ -44,7 +44,8 @@ EditorCommandContext EditorShell::commandContext() const {
   if (name.starts_with("Game View"))
     return gameViewFocused() ? EditorCommandContext::Game
                              : EditorCommandContext::None;
-  if (name.starts_with("Terrain Graph") || name.starts_with("Terrain Nodes"))
+  if (name.starts_with("Terrain Graph") || name.starts_with("Terrain Nodes") ||
+      name.starts_with("Terrain Presets"))
     return EditorCommandContext::TerrainGraph;
   if (showGameView_ && playSession_.runtimeWorld() &&
       (name.starts_with("Hierarchy") || name.starts_with("Inspector")))
@@ -69,7 +70,17 @@ void EditorShell::executeCommand(EditorCommand command,
     return;
   std::string error;
   bool success = false;
-  if (context == EditorCommandContext::TerrainGraph && graphCommand(command)) {
+  const auto *focused = ImGui::GetCurrentContext()->NavWindow;
+  if (context == EditorCommandContext::TerrainGraph && graphWorkspace_ &&
+      focused &&
+      std::string_view(focused->Name).starts_with("Terrain Presets") &&
+      (command == EditorCommand::Undo || command == EditorCommand::Redo)) {
+    success = command == EditorCommand::Undo ? graphWorkspace_->undo(error)
+                                             : graphWorkspace_->redo(error);
+    if (success)
+      terrainGraphPanel_.resetDraftHistory();
+  } else if (context == EditorCommandContext::TerrainGraph &&
+             graphCommand(command)) {
     success = graphWorkspace_ && terrainGraphPanel_.executeCommand(
                                      *graphWorkspace_, command, error);
   } else {
@@ -167,6 +178,15 @@ void EditorShell::dispatchShortcuts() {
     if (editorShortcutPressed(preferences_.keyBindings,
                               EditorCommand::ReleaseGameInput, context))
       executeCommand(EditorCommand::ReleaseGameInput, context);
+    return;
+  }
+  // HUD text updates are already in the document at this point in the frame.
+  // Save remains available while typing; editing shortcuts stay with the field.
+  if (!shortcutSettings_.recording &&
+      !ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId) &&
+      editorShortcutPressed(preferences_.keyBindings, EditorCommand::SaveAll,
+                            context)) {
+    executeCommand(EditorCommand::SaveAll, context);
     return;
   }
   if (input.WantTextInput || ImGui::IsAnyItemActive() ||

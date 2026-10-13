@@ -46,19 +46,6 @@ constexpr assets::TerrainMaterialRole MaterialRoles[] = {
     assets::TerrainMaterialRole::WetGround,
     assets::TerrainMaterialRole::Underwater};
 
-constexpr runtime::TerrainPaletteRole PaletteRoles[] = {
-    runtime::TerrainPaletteRole::ExposedRock,
-    runtime::TerrainPaletteRole::Soil,
-    runtime::TerrainPaletteRole::Sand,
-    runtime::TerrainPaletteRole::Snow,
-    runtime::TerrainPaletteRole::WetGround,
-    runtime::TerrainPaletteRole::Tree,
-    runtime::TerrainPaletteRole::Bush,
-    runtime::TerrainPaletteRole::Grass,
-    runtime::TerrainPaletteRole::Reed,
-    runtime::TerrainPaletteRole::CliffPiece,
-    runtime::TerrainPaletteRole::Debris};
-
 bool commit(EditorJsonDocument &document, const std::string &pointer,
             Json value, std::string &notice) {
   std::string error;
@@ -321,7 +308,7 @@ void drawMaterialSet(EditorWorkspace &workspace, EditorJsonDocument &document,
 void editPaletteRole(EditorWorkspace &workspace, EditorJsonDocument &document,
                      const std::string &key, const Json &snapshot,
                      std::string &notice) {
-  const Json roles = snapshot.value("roles", Json::object());
+  const Json roles = snapshot.value("placements", Json::object());
   const bool exists = roles.contains(key);
   Json entry = exists ? roles.at(key) : Json::object();
   ImGui::PushID(key.c_str());
@@ -330,16 +317,36 @@ void editPaletteRole(EditorWorkspace &workspace, EditorJsonDocument &document,
     return;
   }
 
-  std::string asset = entry.value("asset", "");
+  std::string renamed;
+  if (editText("Rule ID (Enter)", key, renamed)) {
+    if (!runtime::validTerrainPlacementRuleId(renamed) ||
+        roles.contains(renamed))
+      notice = "Choose a unique rule ID using letters, digits, underscores or "
+               "hyphens.";
+    else {
+      Json replacement = snapshot;
+      replacement["placements"].erase(key);
+      replacement["placements"][renamed] = entry;
+      (void)commitRoot(document, std::move(replacement), notice);
+    }
+    ImGui::TreePop();
+    ImGui::PopID();
+    return;
+  }
+  if (ImGui::IsItemHovered())
+    ImGui::SetTooltip(
+        "Renaming a rule changes the identities of its generated objects.");
+  std::string asset = entry.value("model", "");
   const std::string prefab = entry.value("prefab", "");
   if (chooseAsset(
-          "Asset", workspace,
+          "Model", workspace,
           [&](const AssetManifest &manifest) {
-            return !prefab.empty() || manifest.type == "Model3D";
+            return manifest.type == "Model3D";
           },
           asset, false)) {
-    entry["asset"] = asset;
-    (void)commit(document, "/roles/" + key, entry, notice);
+    entry["model"] = asset;
+    entry.erase("prefab");
+    (void)commit(document, "/placements/" + key, entry, notice);
     ImGui::TreePop();
     ImGui::PopID();
     return;
@@ -353,7 +360,9 @@ void editPaletteRole(EditorWorkspace &workspace, EditorJsonDocument &document,
         entry.erase("prefab");
       else
         entry["prefab"] = selectedPrefab;
-      (void)commit(document, "/roles/" + key, entry, notice);
+      if (!selectedPrefab.empty())
+        entry.erase("model");
+      (void)commit(document, "/placements/" + key, entry, notice);
       ImGui::TreePop();
       ImGui::PopID();
       return;
@@ -365,7 +374,7 @@ void editPaletteRole(EditorWorkspace &workspace, EditorJsonDocument &document,
                      replacement))
         return false;
       entry[field] = replacement;
-      (void)commit(document, "/roles/" + key, entry, notice);
+      (void)commit(document, "/placements/" + key, entry, notice);
       return true;
     };
     if (floatEntry("weight", 1.F, 0.F, std::numeric_limits<float>::max()) ||
@@ -388,7 +397,7 @@ void editPaletteRole(EditorWorkspace &workspace, EditorJsonDocument &document,
         notice = "Scale minimum must not exceed maximum.";
       else {
         entry["scale"] = Json::array({minimum, maximum});
-        (void)commit(document, "/roles/" + key, entry, notice);
+        (void)commit(document, "/placements/" + key, entry, notice);
       }
       ImGui::TreePop();
       ImGui::PopID();
@@ -399,7 +408,7 @@ void editPaletteRole(EditorWorkspace &workspace, EditorJsonDocument &document,
       for (const char *choice : {"none", "static", "trigger"})
         if (ImGui::Selectable(choice, collision == choice)) {
           entry["collision"] = choice;
-          (void)commit(document, "/roles/" + key, entry, notice);
+          (void)commit(document, "/placements/" + key, entry, notice);
         }
       ImGui::EndCombo();
     }
@@ -407,7 +416,7 @@ void editPaletteRole(EditorWorkspace &workspace, EditorJsonDocument &document,
     if (ImGui::DragInt("LOD", &lod, 1.F, 0, std::numeric_limits<int>::max(),
                        "%d", ImGuiSliderFlags_AlwaysClamp)) {
       entry["lod"] = lod;
-      (void)commit(document, "/roles/" + key, entry, notice);
+      (void)commit(document, "/placements/" + key, entry, notice);
     }
     const Json biomes = entry.value("biomes", Json::array());
     std::string biome;
@@ -417,7 +426,7 @@ void editPaletteRole(EditorWorkspace &workspace, EditorJsonDocument &document,
           replacement.end())
         replacement.push_back(biome);
       entry["biomes"] = replacement;
-      (void)commit(document, "/roles/" + key, entry, notice);
+      (void)commit(document, "/placements/" + key, entry, notice);
     }
     for (const std::string name : biomes.get<std::vector<std::string>>()) {
       ImGui::PushID(name.c_str());
@@ -429,7 +438,7 @@ void editPaletteRole(EditorWorkspace &workspace, EditorJsonDocument &document,
             std::remove(replacement.begin(), replacement.end(), name),
             replacement.end());
         entry["biomes"] = replacement;
-        (void)commit(document, "/roles/" + key, entry, notice);
+        (void)commit(document, "/placements/" + key, entry, notice);
         ImGui::PopID();
         ImGui::TreePop();
         ImGui::PopID();
@@ -437,9 +446,13 @@ void editPaletteRole(EditorWorkspace &workspace, EditorJsonDocument &document,
       }
       ImGui::PopID();
     }
-    ImGui::BeginDisabled(roles.size() <= 1);
-    if (ImGui::SmallButton("Remove role"))
-      removeRole(document, snapshot, key, notice);
+    ImGui::BeginDisabled(roles.size() <= 1 &&
+                         !snapshot.contains("material_set"));
+    if (ImGui::SmallButton("Remove placement")) {
+      Json replacement = snapshot;
+      replacement["placements"].erase(key);
+      (void)commitRoot(document, std::move(replacement), notice);
+    }
     ImGui::EndDisabled();
   }
   ImGui::TreePop();
@@ -450,15 +463,51 @@ void drawPalette(EditorWorkspace &workspace, EditorJsonDocument &document,
                  std::string &notice) {
   editHeader(document, false, notice);
   const Json snapshot = document.json();
-  ImGui::SeparatorText("Palette roles");
-  ImGui::TextDisabled("Biome names are free text and match names in the "
-                      "terrain recipe that uses this palette.");
-  for (const auto role : PaletteRoles) {
-    const std::string key(runtime::terrainPaletteRoleName(role));
-    editPaletteRole(workspace, document, key, snapshot, notice);
+  ImGui::SeparatorText("Surface Materials");
+  std::string materialSet = snapshot.value("material_set", "");
+  if (chooseAsset(
+          "Material set", workspace,
+          [](const AssetManifest &manifest) {
+            const auto metadata = assets::dataAssetMetadata(manifest);
+            return metadata && metadata->contentType == "terrain_material_set";
+          },
+          materialSet, true)) {
+    Json replacement = snapshot;
+    if (materialSet.empty())
+      replacement.erase("material_set");
+    else
+      replacement["material_set"] = materialSet;
+    (void)commitRoot(document, std::move(replacement), notice);
+    return;
   }
-  drawRequiredRoleList(document, document.json(), PaletteRoles,
-                       runtime::terrainPaletteRoleName, notice);
+  ImGui::SeparatorText("Object Placements");
+  const Json entries = snapshot.value("placements", Json::object());
+  for (const auto &[key, entry] : entries.items())
+    editPaletteRole(workspace, document, key, snapshot, notice);
+  const auto addPlacement = [&](const char *field,
+                                const std::string &reference) {
+    Json replacement = document.json();
+    auto &placements = replacement["placements"];
+    if (!placements.is_object())
+      placements = Json::object();
+    std::string id = "placement";
+    for (int suffix = 2; placements.contains(id); ++suffix)
+      id = "placement_" + std::to_string(suffix);
+    placements[id] = {{field, reference}};
+    (void)commitRoot(document, std::move(replacement), notice);
+  };
+  std::string model;
+  if (chooseAsset(
+          "Add model placement", workspace,
+          [](const AssetManifest &manifest) {
+            return manifest.type == "Model3D";
+          },
+          model, false))
+    addPlacement("model", model);
+  std::string prefab;
+  if (choosePrefab("Add prefab placement", workspace, prefab) &&
+      !prefab.empty())
+    addPlacement("prefab", prefab);
 }
 
 } // namespace

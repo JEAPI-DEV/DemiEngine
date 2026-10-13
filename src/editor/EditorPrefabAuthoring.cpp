@@ -39,6 +39,13 @@ void collectInlinePrefabInstances(const Json &entities,
 }
 
 bool ownsExpandedId(const Json &instance, const std::string_view selectedId) {
+  if (const auto mapping = instance.find("entity_ids");
+      mapping != instance.end() && mapping->is_object())
+    for (const auto &target : *mapping)
+      if (target.is_string() &&
+          (selectedId == target.get<std::string>() ||
+           selectedId.starts_with(target.get<std::string>() + "/")))
+        return true;
   const std::string instanceId = instance.value("id", std::string{});
   return !instanceId.empty() && selectedId.size() > instanceId.size() &&
          selectedId.starts_with(instanceId) &&

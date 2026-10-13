@@ -1,0 +1,11 @@
+{
+  "format_version": 1,
+  "id": "asset://rocky_valley/materials/rock",
+  "type": "Material",
+  "source": "rock.material.json",
+  "importer": "material",
+  "importer_version": 1,
+  "settings": {},
+  "dependencies": [],
+  "source_hash": "fnv1a64:b1c969b05094e00c"
+}

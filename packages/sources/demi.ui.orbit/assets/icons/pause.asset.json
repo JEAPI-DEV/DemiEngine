@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://orbit/icons/pause",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {},
+  "source": "pause.svg",
+  "source_hash": "fnv1a64:2ffcd9623dab47f4",
+  "type": "Icon2D"
+}

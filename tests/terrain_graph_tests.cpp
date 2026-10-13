@@ -1,6 +1,7 @@
 #include "demi/runtime/terrain/TerrainGenerationCache.h"
 #include "demi/runtime/terrain/TerrainGraph.h"
 #include "demi/runtime/terrain/TerrainGraphExecutor.h"
+#include "demi/runtime/terrain/TerrainGraphSpatialMasks.h"
 #include "demi/runtime/terrain/TerrainPipeline.h"
 #include "demi/runtime/terrain/TerrainUpdate.h"
 
@@ -511,7 +512,142 @@ void graphWaterAppearanceValidation() {
   assert(rejects(graph));
 }
 
+void commentNodesAreAuthoringOnly() {
+  const auto base = TerrainGraph::parse(defaultTerrainGraph());
+  auto annotated = base.toJson();
+  annotated["nodes"].push_back(
+      {{"id", "intro"},
+       {"type", "comment"},
+       {"parameters",
+        {{"text", "Noise shapes the ground.\nOutput publishes it."}}},
+       {"position", {10, -200}}});
+  const auto parsed = TerrainGraph::parse(annotated);
+  assert(parsed.toJson() == annotated);
+  assert(parsed.contentKey() == base.contentKey());
+  assert(parsed.executionOrder() == base.executionOrder());
+  annotated["nodes"].back()["parameters"]["text"] = "A revised explanation";
+  assert(TerrainGraph::parse(annotated).contentKey() == base.contentKey());
+  annotated["output"] = "intro";
+  bool rejected = false;
+  try {
+    (void)TerrainGraph::parse(annotated);
+  } catch (const std::invalid_argument &) {
+    rejected = true;
+  }
+  assert(rejected);
+}
+
+void pathDistanceMaskPreservesCorridorAndEndpoints() {
+  using namespace demi::runtime::terrain_graph_detail;
+  auto field = executeTerrainGraph(recipe());
+  assert(field);
+  const auto source = retained(std::move(*field));
+  const nlohmann::json parameters = {
+      {"points", {{4, 4}, {4, 4}, {12, 4}, {12, 12}}},
+      {"width", 1},
+      {"falloff", 2}};
+  const auto result = evaluateTerrainPathMask(parameters, source, {});
+  assert(result);
+  const auto mask =
+      std::get<std::shared_ptr<const GraphMask>>(result->outputs.at("mask"));
+  assert(mask->source == source);
+  assert(mask->samples[source->index(8, 4)] == 1.0F);
+  assert(mask->samples[source->index(8, 5)] == 1.0F);
+  assert(mask->samples[source->index(8, 6)] == 0.5F);
+  assert(mask->samples[source->index(8, 7)] == 0.0F);
+  assert(mask->samples[source->index(12, 8)] == 1.0F);
+  assert(mask->samples[source->index(2, 4)] == 0.5F);
+  assert(mask->samples[source->index(1, 4)] == 0.0F);
+  assert(source->height(8, 4) == 3.0F);
+
+  auto hardEdge = parameters;
+  hardEdge["falloff"] = 0;
+  const auto hardResult = evaluateTerrainPathMask(hardEdge, source, {});
+  const auto hardMask = std::get<std::shared_ptr<const GraphMask>>(
+      hardResult->outputs.at("mask"));
+  assert(hardMask->samples[source->index(8, 5)] == 1.0F);
+  assert(hardMask->samples[source->index(8, 6)] == 0.0F);
+
+  std::stop_source cancelled;
+  cancelled.request_stop();
+  assert(!evaluateTerrainPathMask(parameters, source, cancelled.get_token()));
+  auto oversized = parameters;
+  oversized["points"][0][0] = 1.0e300;
+  bool rejected = false;
+  try {
+    (void)evaluateTerrainPathMask(oversized, source, {});
+  } catch (const std::invalid_argument &) {
+    rejected = true;
+  }
+  assert(rejected);
+}
+
+void pathDistanceMaskBlendsValleyAndCachesIndependently() {
+  auto settings = recipe();
+  settings.graph = {
+      {"format_version", 1},
+      {"nodes",
+       {{{"id", "mountains"},
+         {"type", "constant"},
+         {"parameters", {{"height", 100}}}},
+        {{"id", "floor"},
+         {"type", "constant"},
+         {"parameters", {{"height", 10}}}},
+        {{"id", "path"},
+         {"type", "path_distance_mask"},
+         {"parameters",
+          {{"points", {{0, 8}, {16, 8}}}, {"width", 2}, {"falloff", 4}}}},
+        {{"id", "valley"},
+         {"type", "height_blend"},
+         {"parameters", {{"amount", 1}}}},
+        {{"id", "output"}, {"type", "output"}}}},
+      {"links",
+       {{{"id", "p"},
+         {"from", {{"node", "mountains"}, {"port", "field"}}},
+         {"to", {{"node", "path"}, {"port", "field"}}}},
+        {{"id", "a"},
+         {"from", {{"node", "mountains"}, {"port", "field"}}},
+         {"to", {{"node", "valley"}, {"port", "a"}}}},
+        {{"id", "b"},
+         {"from", {{"node", "floor"}, {"port", "field"}}},
+         {"to", {{"node", "valley"}, {"port", "b"}}}},
+        {{"id", "m"},
+         {"from", {{"node", "path"}, {"port", "mask"}}},
+         {"to", {{"node", "valley"}, {"port", "mask"}}}},
+        {{"id", "o"},
+         {"from", {{"node", "valley"}, {"port", "field"}}},
+         {"to", {{"node", "output"}, {"port", "field"}}}}}},
+      {"output", "output"}};
+  const auto generated = executeTerrainGraph(settings);
+  assert(generated);
+  assert(generated->height(8, 8) == 10.0F);
+  assert(generated->height(8, 12) == 55.0F);
+  assert(generated->height(8, 16) == 100.0F);
+  auto widened = settings;
+  widened.graph["nodes"][2]["parameters"]["width"] = 4;
+  const auto updated = executeTerrainGraph(
+      widened, {nullptr, {}, generated->graphArtifacts->cache});
+  assert(updated);
+  assert(wasCached(*updated, "mountains"));
+  assert(wasCached(*updated, "floor"));
+  assert(!wasCached(*updated, "path"));
+  assert(!wasCached(*updated, "valley"));
+  assert(updated->height(8, 12) == 10.0F);
+  auto oversized = settings.graph;
+  oversized["nodes"][2]["parameters"]["points"][0][0] = 1.0e300;
+  bool rejected = false;
+  try {
+    (void)TerrainGraph::parse(oversized);
+  } catch (const std::invalid_argument &) {
+    rejected = true;
+  }
+  assert(rejected);
+}
+
 int main() {
+  pathDistanceMaskPreservesCorridorAndEndpoints();
+  pathDistanceMaskBlendsValleyAndCachesIndependently();
+  commentNodesAreAuthoringOnly();
   paintedBiomesKeepGraphHeights();
   cacheIgnoresAppearanceAndRetainsRuleBoundary();
   paletteFingerprintOnlyInvalidatesScatter();

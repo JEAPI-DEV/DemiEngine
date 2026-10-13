@@ -22,6 +22,10 @@ using UiTextureLookup = std::function<TextureView2D(std::string_view)>;
 [[nodiscard]] Rect2D uiTextBounds(Rect2D authored, float measuredWidth,
                                   float measuredHeight);
 
+// Images fit within the authored rectangle without distorting their source.
+[[nodiscard]] Rect2D uiImageBounds(Rect2D bounds, float sourceWidth,
+                                   float sourceHeight);
+
 // A shared presentation policy keeps caret behavior deterministic in renderer
 // tests and consistent for every text input.
 [[nodiscard]] bool uiCaretVisible(float animationTime);

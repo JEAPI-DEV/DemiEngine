@@ -6,12 +6,14 @@
 #include "demi/assets/AssetHash.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
+#include "demi/runtime/terrain/TerrainRenderLod.h"
 #include "demi/runtime/terrain/TerrainGenerationCache.h"
 #include "demi/runtime/terrain/TerrainGenerator.h"
 #include "demi/runtime/terrain/TerrainUpdate.h"
 #include "demi/runtime/terrain/TerrainWorld.h"
 
 #include <chrono>
+#include <map>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
@@ -288,6 +290,62 @@ void checkIndependentObject(const editor::EditorWorkspace &workspace,
             transform->position.y == 6 && transform->position.z == 5 &&
             entity->hasComponent<runtime::BoxCollider3DComponent>(),
         "Terrain operation relocated or removed independent runtime object");
+}
+
+void testGenerationPreviewCannotPublishAsFinal() {
+  TemporaryProject project;
+  createProject(project.root);
+  editor::EditorWorkspace workspace;
+  std::string error;
+  check(workspace.open(project.root, error), error);
+  selectTerrain(workspace);
+  auto &authoring = workspace.terrainAuthoring();
+  const auto originalField = terrain(workspace).generated;
+  const auto originalDocument = workspace.sceneDocument().json();
+  const auto source = project.root / "scenes/main.scene.json";
+  const auto originalSource = readJson(source);
+  authoring.draft()["seed"] = 7211;
+  const auto previewDraft = authoring.draft();
+  authoring.generationQuality = runtime::TerrainQuality::Preview;
+  check(authoring.generate(std::nullopt, error), error);
+  pollCompletion(workspace);
+  check(terrain(workspace).generated->quality == "preview",
+        "Preview generation was not installed as a labeled temporary surface");
+  check(workspace.sceneDocument().json() == originalDocument,
+        "Preview generation committed authored scene data");
+  check(!workspace.save(error) && error.find("Final") != std::string::npos,
+        "Save treated Preview generation as Final");
+  check(readJson(source) == originalSource,
+        "Blocked Preview save changed the authored source");
+  error.clear();
+  authoring.cancel();
+  pollCompletion(workspace);
+  check(terrain(workspace).generated == originalField,
+        "Discard Preview failed to restore the original Final surface");
+  check(authoring.draft() == previewDraft,
+        "Discard Preview lost the unapplied generation draft");
+
+  authoring.generationQuality = runtime::TerrainQuality::Preview;
+  check(authoring.generate(std::nullopt, error), error);
+  pollCompletion(workspace);
+  authoring.generationQuality = runtime::TerrainQuality::Standard;
+  check(!workspace.save(error),
+        "Changing the quality choice allowed saving an existing Preview");
+  error.clear();
+  check(authoring.generate(std::nullopt, error), error);
+  pollCompletion(workspace);
+  check(terrain(workspace).generated->quality == "standard",
+        "Final generation reused a Preview checkpoint");
+  check(workspace.save(error), error);
+  check(workspace.sceneDocument().json() != originalDocument,
+        "Final generation did not commit the authored draft");
+  check(workspace.undo(error), error);
+  check(terrain(workspace).generated->quality == "standard" &&
+            terrain(workspace).generated->heights == originalField->heights,
+        "Undo Final generation restored transient Preview geometry");
+  check(workspace.redo(error), error);
+  check(terrain(workspace).generated->quality == "standard",
+        "Redo Final generation restored Preview quality");
 }
 
 void testGenerateRegenerateHistoryAndSave(const std::filesystem::path &root) {
@@ -745,10 +803,11 @@ void testTerrainPresetApplyHistoryAndGridDecision() {
   // Discovery comes from the asset registry, so the manifest's own id is what
   // the picker lists and what the loader resolves.
   const auto &presets = workspace.terrainAuthoring().presets();
-  check(presets.size() == 3,
+  check(presets.size() == 3 + runtime::builtinTerrainPresets().size(),
         "Preset discovery did not list the three loadable presets");
   check(presets.front().id == "asset://terrain/presets/alpine" &&
-            presets.back().id == "asset://terrain/presets/valley",
+            workspace.terrainAuthoring().preset(
+                "asset://terrain/presets/valley") != nullptr,
         "Preset discovery did not use the manifest asset ids");
   check(workspace.terrainAuthoring().preset("asset://terrain/presets/rolling") !=
             nullptr,
@@ -1107,6 +1166,64 @@ void testPinnedTerrainTarget() {
         "Unpinned selection lost its retained settings draft");
 }
 
+void testQualityEditRetainsGeneratedResources() {
+  TemporaryProject project;
+  createProject(project.root);
+  editor::EditorWorkspace workspace;
+  std::string error;
+  check(workspace.open(project.root, error),
+        "Quality probe open failed: " + error);
+  const auto generated = terrain(workspace).generated;
+  const auto recipe = terrain(workspace).recipe;
+  const auto entityCount = workspace.project().world.entities.size();
+  struct SurfaceResources {
+    std::uint64_t revision;
+    std::shared_ptr<const runtime::PreparedTerrainChunkLod> lod;
+  };
+  std::map<std::string, SurfaceResources> resources;
+  for (const auto &entity : workspace.project().world.entities) {
+    const auto *lod = entity.component<runtime::TerrainRenderLod>();
+    const auto *mesh = entity.component<runtime::MeshRendererComponent>();
+    if (lod && mesh) {
+      resources.emplace(entity.id,
+                        SurfaceResources{mesh->revision, lod->chunk});
+    }
+  }
+  check(!resources.empty(), "Quality probe has no prepared terrain surfaces");
+  const editor::SceneValueTarget target{.entityId = "terrain",
+                                        .component = "Terrain3D",
+                                        .field = "lod_error_pixels"};
+  check(workspace.editValue(target, 0.0, false, error),
+        "Quality edit failed: " + error);
+  check(terrain(workspace).lodErrorPixels == 0.0F &&
+            terrain(workspace).generated == generated &&
+            terrain(workspace).recipe == recipe &&
+            workspace.project().world.entities.size() == entityCount,
+        "Quality edit replaced terrain generation or entities");
+  for (const auto &[id, before] : resources) {
+    const auto *entity = runtime::findEntity(workspace.project().world, id);
+    const auto *mesh =
+        entity ? entity->component<runtime::MeshRendererComponent>() : nullptr;
+    const auto *lod =
+        entity ? entity->component<runtime::TerrainRenderLod>() : nullptr;
+    check(mesh && lod && mesh->revision == before.revision &&
+              lod->chunk == before.lod,
+          "Quality edit replaced prepared geometry resources");
+  }
+  check(workspace.undo(error), "Quality Undo failed: " + error);
+  check(terrain(workspace).lodErrorPixels == 2.0F,
+        "Quality Undo did not restore the omitted default");
+  check(workspace.redo(error), "Quality Redo failed: " + error);
+  check(terrain(workspace).lodErrorPixels == 0.0F,
+        "Quality Redo did not restore the authored override");
+  for (const auto &[id, before] : resources) {
+    const auto *entity = runtime::findEntity(workspace.project().world, id);
+    const auto *lod =
+        entity ? entity->component<runtime::TerrainRenderLod>() : nullptr;
+    check(lod && lod->chunk, "Quality history lost prepared terrain geometry");
+  }
+}
+
 void testInheritedPrefabRecipeHistory() {
   TemporaryProject project;
   createProject(project.root);
@@ -1173,6 +1290,7 @@ int main() {
   try {
     TemporaryProject project;
     createProject(project.root);
+    testGenerationPreviewCannotPublishAsFinal();
     testGenerateRegenerateHistoryAndSave(project.root);
     testCancellationAndStaleSelection(project.root);
     TemporaryProject liveProject;
@@ -1181,6 +1299,7 @@ int main() {
     testEmptyProceduralRecipeHistory();
     testTerrainPresetApplyHistoryAndGridDecision();
     testInheritedPrefabRecipeHistory();
+    testQualityEditRetainsGeneratedResources();
     testLiveSelectionAndSourceConflict();
     testPinnedTerrainTarget();
     testSceneSwitchPreservesTerrainDraft();

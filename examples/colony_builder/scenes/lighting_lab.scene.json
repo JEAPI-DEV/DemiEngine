@@ -1,0 +1,100 @@
+{
+  "entities": [
+    {
+      "components": {
+        "Camera3D": {
+          "target_offset": [
+            0,
+            -3,
+            -6
+          ]
+        },
+        "Transform3D": {
+          "position": [
+            0,
+            3,
+            6
+          ]
+        }
+      },
+      "id": "camera"
+    },
+    {
+      "components": {
+        "DirectionalLight": {
+          "casts_shadows": true
+        },
+        "Environment3D": {},
+        "Transform3D": {
+          "position": [
+            0,
+            5,
+            0
+          ]
+        }
+      },
+      "id": "sun",
+      "name": "Basic Lighting"
+    },
+    {
+      "components": {
+        "Transform3D": {
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "scale": [
+            20.0,
+            1.0,
+            20.0
+          ]
+        },
+        "BoxCollider3D": {
+          "size": [
+            1,
+            0.02,
+            1
+          ]
+        },
+        "MeshRenderer": {
+          "shape": "plane"
+        }
+      },
+      "id": "plane",
+      "name": "Lighting floor"
+    },
+    {
+      "id": "ent_new_instance",
+      "name": "Desk lamp",
+      "entity_ids": {
+        "ent_new": "ent_new"
+      },
+      "prefab": "prefab://desk_lamp"
+    },
+    {
+      "id": "ent_new_instance_copy",
+      "name": "Desk lamp",
+      "entity_ids": {
+        "ent_new": "ent_new_copy"
+      },
+      "prefab": "prefab://desk_lamp",
+      "overrides": {
+        "ent_new": {
+          "components": {
+            "Transform3D": {
+              "position": [
+                6.0,
+                2.0,
+                0.0
+              ]
+            }
+          }
+        }
+      }
+    }
+  ],
+  "format_version": 1,
+  "id": "scene://lighting_lab",
+  "name": "lighting_lab"
+}

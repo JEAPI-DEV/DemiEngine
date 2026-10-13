@@ -18,6 +18,7 @@ struct EditorPanelVisibility {
   bool inspector = true;
   bool uiPalette = true;
   bool terrainNodes = true;
+  bool terrainPresets = true;
   bool console = true;
   bool luaConsole = true;
   bool profiler = true;

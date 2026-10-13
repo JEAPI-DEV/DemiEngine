@@ -475,6 +475,53 @@ void verifySavedHudRefreshKeepsSceneHistory() {
           "data");
 }
 
+void verifySavedPrefabRefreshKeepsSceneDrafts() {
+  ProjectFixture fixture;
+  EditorWorkspace scene;
+  std::string error;
+  require(scene.open(fixture.root, error), error);
+  require(scene.instantiatePrefab(fixture.prefabSource, error), error);
+  const std::string instance(scene.selectedEntityId());
+  require(scene.saveAll(error), error);
+  EditorDocumentSessions sessions(scene);
+  require(sessions.openPrefab(fixture.prefabSource, error), error);
+  auto &prefab = *sessions.workspace(EditorDocumentSession::Prefab);
+  require(scene.editValue({.entityId = "main_entity", .field = "name"},
+                          "Unsaved scene name", false, error), error);
+  require(scene.editValue({.entityId = instance, .component = "Transform3D",
+                           .field = "position"}, Json::array({3, 0, 0}), false,
+                          error), error);
+  const auto draft = scene.sceneDocument().json();
+  scene.selectEntity(instance);
+  require(prefab.editValue({.entityId = "prop", .field = "name"},
+                           "Saved prefab name", false, error), error);
+  require(prefab.save(error), error);
+  require(sessions.refreshPrefabReferences(error), error);
+  const auto *expanded = demi::runtime::findEntity(scene.project().world, instance);
+  require(expanded && expanded->name == "Saved prefab name",
+          "Individual prefab Save left scene instances stale");
+  require(scene.sceneDocument().json() == draft && scene.hasUnsavedChanges() &&
+              scene.sceneDocument().canUndo() && scene.selectedEntityId() == instance,
+          "Prefab refresh discarded scene drafts, history or selection");
+  require(scene.undo(error), error);
+  require(prefab.undo(error), error);
+  require(sessions.saveAll(error), error);
+  expanded = demi::runtime::findEntity(scene.project().world, instance);
+  require(expanded && expanded->name != "Saved prefab name",
+          "Save All after prefab Undo left scene instances stale");
+  require(prefab.redo(error), error);
+  require(sessions.saveAll(error), error);
+  require(demi::runtime::findEntity(scene.project().world, instance)->name ==
+              "Saved prefab name",
+          "Save All after prefab Redo left scene instances stale");
+  // A malformed external source must leave the last usable preview intact.
+  std::ofstream(fixture.prefabSource) << "{";
+  require(!sessions.refreshPrefabReferences(error), "Invalid dependency was accepted");
+  require(demi::runtime::findEntity(scene.project().world, instance)->name ==
+              "Saved prefab name",
+          "Failed prefab refresh replaced the usable preview");
+}
+
 void verifySceneCreationFromSecondaryWorkspace() {
   ProjectFixture fixture;
   EditorWorkspace scene;
@@ -567,6 +614,7 @@ int main() {
     verifyIndependentHudEditing();
     verifyHudConflictAndRecoveryFailure();
     verifySavedHudRefreshKeepsSceneHistory();
+    verifySavedPrefabRefreshKeepsSceneDrafts();
     verifySceneCreationFromSecondaryWorkspace();
     verifyProjectMetadataDoesNotOverwriteDrafts();
     std::cout << "Document session tests passed\n";

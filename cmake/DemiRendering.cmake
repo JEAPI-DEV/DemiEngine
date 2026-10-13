@@ -153,6 +153,9 @@ add_custom_command(
     "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_skinned.sc"
     "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_lit.sc"
     "${DEMI_BGFX_SHADER_SOURCE_DIR}/fs_demi_lit.sc"
+    "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_surface_lighting.sh"
+    "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_shadow_receiver.sh"
+    "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_terrain_material.sh"
     "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_lit_instanced.sc"
     "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_post_process.sc"
     "${DEMI_BGFX_SHADER_SOURCE_DIR}/fs_demi_post_process.sc"
@@ -193,6 +196,53 @@ foreach(variant glsl essl spv)
 endforeach()
 
 
+# Height-displaced instanced terrain requires modern vertex texture sampling.
+# Older device paths keep the ordinary mesh shader programs above.
+foreach(terrain_variant glsl essl spv)
+  if(terrain_variant STREQUAL "glsl")
+    set(terrain_profile 150)
+    set(terrain_platform linux)
+  elseif(terrain_variant STREQUAL "essl")
+    set(terrain_profile 300_es)
+    set(terrain_platform android)
+  else()
+    set(terrain_profile spirv)
+    set(terrain_platform linux)
+  endif()
+  foreach(terrain_program vs_demi_terrain fs_demi_terrain fs_demi_terrain_directional)
+    set(terrain_defines)
+    if(terrain_program STREQUAL "vs_demi_terrain")
+      set(terrain_stage vertex)
+      set(terrain_source vs_demi_terrain.sc)
+    else()
+      set(terrain_stage fragment)
+      set(terrain_source fs_demi_terrain.sc)
+      if(terrain_program STREQUAL "fs_demi_terrain_directional")
+        set(terrain_defines --define DEMI_DIRECTIONAL_ONLY=1)
+      endif()
+    endif()
+    set(terrain_symbol "${terrain_program}_${terrain_variant}")
+    set(terrain_header "${DEMI_BGFX_BUILTIN_SHADER_DIR}/${terrain_symbol}.h")
+    add_custom_command(OUTPUT "${terrain_header}"
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${DEMI_BGFX_BUILTIN_SHADER_DIR}"
+      COMMAND "${DEMI_SHADERC_EXECUTABLE}"
+        -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/${terrain_source}"
+        -o "${terrain_header}" --type ${terrain_stage}
+        --platform ${terrain_platform} -p ${terrain_profile} ${terrain_defines}
+        --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
+        -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" -i "${DEMI_BGFX_SHADER_SOURCE_DIR}"
+        --bin2c ${terrain_symbol}
+      DEPENDS ${DEMI_SHADERC_DEPENDENCY}
+        "${DEMI_BGFX_SHADER_SOURCE_DIR}/${terrain_source}"
+        "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_surface_lighting.sh"
+        "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_shadow_receiver.sh"
+        "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_terrain_material.sh"
+        "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
+      VERBATIM)
+    list(APPEND DEMI_BGFX_BUILTIN_SHADER_HEADERS "${terrain_header}")
+  endforeach()
+endforeach()
+
 add_library(demi-graphics-bgfx STATIC
   ${DEMI_BGFX_BUILTIN_SHADER_HEADERS}
   "${DEMI_RENDER_GENERATED_INCLUDE_DIR}/demi/runtime/render/InterFontData.h"
@@ -202,6 +252,8 @@ add_library(demi-graphics-bgfx STATIC
   src/demi/runtime/render/backend/BgfxProfileCallback.cpp
   src/demi/runtime/render/backend/BgfxGpuResources.cpp
   src/demi/runtime/render/backend/BgfxRenderCommands.cpp
+  src/demi/runtime/render/backend/RenderCommands.cpp
+  src/demi/runtime/render/backend/BgfxDrawBindings.cpp
   src/demi/runtime/render/backend/BgfxVertexLayout.cpp
   src/demi/runtime/render/backend/CookedShaderLibrary.cpp
   src/demi/runtime/render/backend/Canvas2D.cpp
@@ -270,6 +322,19 @@ endif()
 add_library(demi-render3d-bgfx STATIC
   src/demi/runtime/render/bgfx3d/DeformedMeshCache3D.cpp
   src/demi/runtime/render/BgfxRenderer3D.cpp
+  src/demi/runtime/render/BgfxRenderer3DMeshes.cpp
+  src/demi/runtime/render/BgfxRenderer3DTerrain.cpp
+  src/demi/runtime/render/bgfx3d/TerrainDrawSelection3D.cpp
+  src/demi/runtime/render/bgfx3d/TerrainPatchTopology3D.cpp
+  src/demi/runtime/render/bgfx3d/TerrainGpuFieldData3D.cpp
+  src/demi/runtime/render/bgfx3d/TerrainGpuFieldCache3D.cpp
+  src/demi/runtime/render/bgfx3d/TerrainPatchBatch3D.cpp
+  src/demi/runtime/render/bgfx3d/TerrainCameraDemand3D.cpp
+  src/demi/runtime/render/bgfx3d/TerrainGpuMeshCache3D.cpp
+  src/demi/runtime/render/bgfx3d/MeshResourceRetention3D.cpp
+  src/demi/runtime/render/bgfx3d/PreparedMeshDraw3D.cpp
+  src/demi/runtime/render/bgfx3d/MeshInstanceBatch3D.cpp
+  src/demi/runtime/render/bgfx3d/MeshShadowSections3D.cpp
   src/demi/runtime/render/BgfxRenderer3DAssets.cpp
   src/demi/runtime/render/BgfxRenderer3DAnimation.cpp
   src/demi/runtime/render/BgfxRenderer3DDebris.cpp
@@ -288,6 +353,7 @@ add_library(demi-render3d-bgfx STATIC
   src/demi/runtime/render/bgfx3d/DirectionalShadow3D.cpp
   src/demi/runtime/render/bgfx3d/ShadowCascadeLayout3D.cpp
   src/demi/runtime/render/bgfx3d/ParticleBillboardRenderer3D.cpp
+  src/demi/runtime/render/bgfx3d/SceneLightBuffer3D.cpp
   src/demi/runtime/render/bgfx3d/SceneLighting3D.cpp
   src/demi/runtime/render/bgfx3d/SceneVisibility3D.cpp
   src/demi/runtime/render/bgfx3d/WorldTextProjection3D.cpp

@@ -22,12 +22,11 @@ struct World;
 namespace demi::editor {
 
 enum class EditorPlayState { Stopped, Starting, Running, Paused, Failed };
-enum class EditorPlayMode { Embedded, External };
 
 [[nodiscard]] std::string_view editorPlayStateLabel(EditorPlayState state);
 
-// Owns editor-facing lifecycle policy. Embedded play is the default; the
-// external process remains an explicit compatibility path.
+// Owns the isolated embedded runtime. Standalone runs and tests are managed
+// by the Run panel through the platform process service.
 class EditorPlaySession {
 public:
   EditorPlaySession();
@@ -36,9 +35,8 @@ public:
   ~EditorPlaySession();
 
   [[nodiscard]] bool startEmbedded(const std::filesystem::path &project,
-                                    std::string &error, const std::string &sceneId = {});
-  [[nodiscard]] bool startExternal(const std::filesystem::path &project,
-                                   std::string &error);
+                                   std::string &error,
+                                   const std::string &sceneId = {});
   [[nodiscard]] bool togglePause(std::string &error);
   [[nodiscard]] bool step(runtime::InputState input, std::uint16_t width,
                           std::uint16_t height, std::string &error);
@@ -47,10 +45,8 @@ public:
                             std::string &error);
   void reportFailure(std::string message);
   void stop();
-  void poll();
 
   [[nodiscard]] EditorPlayState state() const { return state_; }
-  [[nodiscard]] EditorPlayMode mode() const { return mode_; }
   [[nodiscard]] bool isRunning() const {
     return state_ == EditorPlayState::Running ||
            state_ == EditorPlayState::Paused;
@@ -58,9 +54,7 @@ public:
   [[nodiscard]] bool isPaused() const {
     return state_ == EditorPlayState::Paused;
   }
-  [[nodiscard]] bool isEmbedded() const {
-    return isRunning() && mode_ == EditorPlayMode::Embedded;
-  }
+  [[nodiscard]] bool isEmbedded() const { return isRunning(); }
   [[nodiscard]] const runtime::World *runtimeWorld() const;
   [[nodiscard]] std::string_view failure() const { return failure_; }
   [[nodiscard]] std::uint64_t fixedTickCount() const;
@@ -79,9 +73,7 @@ public:
 
 private:
   std::unique_ptr<runtime::EmbeddedRuntimeSession> embedded_;
-  int processId_ = 0;
   EditorPlayState state_ = EditorPlayState::Stopped;
-  EditorPlayMode mode_ = EditorPlayMode::Embedded;
   std::string failure_;
   std::vector<runtime::RuntimeLogEntry> retainedLogs_;
   bool gpuTimingAvailable_ = false;

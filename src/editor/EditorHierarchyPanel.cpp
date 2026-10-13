@@ -1,4 +1,13 @@
 #include "editor/EditorHierarchyPanel.h"
+#include "demi/runtime/scene/components/3dcomponents/Camera3DComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/DirectionalLightComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/PointLightComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/SpotLightComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
+
+#include <unordered_map>
+#include <unordered_set>
 
 #include "editor/EditorChrome.h"
 #include "editor/EditorDragDropPayloads.h"
@@ -75,6 +84,12 @@ bool hasChildren(const EditorWorkspace &workspace, const runtime::World &world,
          });
 }
 
+struct SelectionReveal {
+  bool hud = false;
+  std::string target;
+  std::unordered_set<std::string> ancestors;
+};
+
 struct HierarchyAction {
   enum class Kind {
     Create,
@@ -84,6 +99,8 @@ struct HierarchyAction {
     PlacePrefab,
     DuplicateHudNode,
     ReparentHudNode,
+    UnpackHudPrefab,
+    UnpackPrefab,
     Reparent,
     Delete,
     DeleteSelection,
@@ -164,6 +181,14 @@ bool applyHierarchyAction(EditorWorkspace &workspace,
   case HierarchyAction::Kind::DuplicateHudNode:
     succeeded = workspace.duplicateHudNode(action.entityId, error);
     notice = succeeded ? "HUD subtree duplicated" : error;
+    break;
+  case HierarchyAction::Kind::UnpackHudPrefab:
+    succeeded = workspace.unpackHudPrefab(action.entityId, error);
+    notice = succeeded ? "HUD prefab unpacked" : error;
+    break;
+  case HierarchyAction::Kind::UnpackPrefab:
+    succeeded = workspace.unpackPrefab(action.entityId, error);
+    notice = succeeded ? "Prefab unpacked" : error;
     break;
   case HierarchyAction::Kind::ReparentHudNode:
     succeeded = workspace.reparentHudNode(action.entityId,
@@ -249,7 +274,8 @@ void drawHudNode(const std::vector<EditorHudHierarchyNode> &nodes,
                  const EditorHudHierarchyNode &node,
                  const std::string_view filter, EditorWorkspace &workspace,
                  const std::string_view rootId,
-                 std::optional<HierarchyAction> &pending, std::string &notice) {
+                 std::optional<HierarchyAction> &pending, std::string &notice,
+                 const SelectionReveal &reveal) {
   if (!hudNodeMatches(nodes, node, filter))
     return;
   const bool hasChildren =
@@ -266,10 +292,14 @@ void drawHudNode(const std::vector<EditorHudHierarchyNode> &nodes,
     ImGui::PushStyleColor(ImGuiCol_Text,
                           ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
   const std::string widgetId = "##hud-node-" + node.id;
+  if (reveal.hud && reveal.ancestors.contains(node.id))
+    ImGui::SetNextItemOpen(true, ImGuiCond_Always);
   const bool open =
       ImGui::TreeNodeEx(widgetId.c_str(), flags, "   %s", node.label.c_str());
   if (!node.visible)
     ImGui::PopStyleColor();
+  if (reveal.hud && reveal.target == node.id && !ImGui::IsItemVisible())
+    ImGui::SetScrollHereY(0.5F);
   const ImVec2 rowMin = ImGui::GetItemRectMin();
   const ImVec2 rowMax = ImGui::GetItemRectMax();
   drawEditorGlyph(*ImGui::GetWindowDrawList(), EditorIcon::Hud,
@@ -290,15 +320,15 @@ void drawHudNode(const std::vector<EditorHudHierarchyNode> &nodes,
   const EditorHudDocument *document = workspace.hudDocument();
   const bool authored =
       document != nullptr && document->authoredNode(node.id) != nullptr;
-  const bool movable = authored && node.id != rootId;
+  const bool movable = document != nullptr && node.id != rootId;
   if (movable && ImGui::BeginDragDropSource()) {
     ImGui::SetDragDropPayload(HudNodePayload, node.id.c_str(),
                               node.id.size() + 1);
     ImGui::TextUnformatted(node.label.c_str());
-    ImGui::TextDisabled("Drop on an authored HUD node to reparent");
+    ImGui::TextDisabled("Drop on a HUD node to reparent");
     ImGui::EndDragDropSource();
   }
-  if (authored && ImGui::BeginDragDropTarget()) {
+  if (document && ImGui::BeginDragDropTarget()) {
     if (const ImGuiPayload *payload =
             ImGui::AcceptDragDropPayload(HudNodePayload);
         payload != nullptr && payload->Data != nullptr &&
@@ -315,7 +345,14 @@ void drawHudNode(const std::vector<EditorHudHierarchyNode> &nodes,
     ImGui::EndDragDropTarget();
   }
   if (ImGui::BeginPopupContextItem(widgetId.c_str())) {
-    if (ImGui::MenuItem("Duplicate UI subtree", nullptr, false, movable))
+    if (document &&
+        ((authored && document->authoredNode(node.id)->contains("prefab")) ||
+         document->prefabOrigin(node.id)) &&
+        ImGui::MenuItem("Unpack Prefab"))
+      pending = HierarchyAction{.kind = HierarchyAction::Kind::UnpackHudPrefab,
+                                .entityId = node.id};
+    if (ImGui::MenuItem("Duplicate UI subtree", nullptr, false,
+                        movable && authored))
       pending = HierarchyAction{.kind = HierarchyAction::Kind::DuplicateHudNode,
                                 .entityId = node.id};
     if (ImGui::MenuItem("Move to HUD root", nullptr, false,
@@ -335,14 +372,15 @@ void drawHudNode(const std::vector<EditorHudHierarchyNode> &nodes,
   if (hasChildren && open) {
     for (const EditorHudHierarchyNode &child : nodes)
       if (child.parent == node.id)
-        drawHudNode(nodes, child, filter, workspace, rootId, pending, notice);
+        drawHudNode(nodes, child, filter, workspace, rootId, pending, notice,
+                    reveal);
     ImGui::TreePop();
   }
 }
 
 void drawHudHierarchy(EditorWorkspace &workspace, const std::string_view filter,
                       std::optional<HierarchyAction> &pending,
-                      std::string &notice) {
+                      std::string &notice, const SelectionReveal &reveal) {
   const EditorHudDocument *hud = workspace.hudDocument();
   if (hud == nullptr)
     return;
@@ -355,6 +393,8 @@ void drawHudHierarchy(EditorWorkspace &workspace, const std::string_view filter,
   if (!hasMatch)
     return;
   const std::string label = "HUD (" + std::to_string(nodes.size()) + ")";
+  if (reveal.hud && !reveal.target.empty())
+    ImGui::SetNextItemOpen(true, ImGuiCond_Always);
   const bool open = ImGui::TreeNodeEx("##hud-root",
                                       ImGuiTreeNodeFlags_SpanAvailWidth |
                                           ImGuiTreeNodeFlags_DefaultOpen,
@@ -370,7 +410,8 @@ void drawHudHierarchy(EditorWorkspace &workspace, const std::string_view filter,
     const std::string rootId = root == nodes.end() ? std::string{} : root->id;
     for (const EditorHudHierarchyNode &node : nodes)
       if (node.parent.empty())
-        drawHudNode(nodes, node, filter, workspace, rootId, pending, notice);
+        drawHudNode(nodes, node, filter, workspace, rootId, pending, notice,
+                    reveal);
     if (nodes.empty())
       ImGui::TextDisabled("HUD contains no parsed nodes.");
     ImGui::TreePop();
@@ -380,7 +421,7 @@ void drawHudHierarchy(EditorWorkspace &workspace, const std::string_view filter,
 void drawEntityNode(EditorWorkspace &workspace, const runtime::Entity &entity,
                     const runtime::World &world, const std::string_view filter,
                     std::optional<HierarchyAction> &pending,
-                    std::string &notice) {
+                    std::string &notice, const SelectionReveal &reveal) {
   if (placementPreview(workspace, entity))
     return;
   const bool childMatch =
@@ -413,19 +454,34 @@ void drawEntityNode(EditorWorkspace &workspace, const runtime::Entity &entity,
   if (prefabRow && !selected) {
     const ImVec2 rowMin = ImGui::GetCursorScreenPos();
     const ImVec2 rowMax{rowMin.x + ImGui::GetContentRegionAvail().x,
-                        rowMin.y + ImGui::GetFrameHeight()};
+                        rowMin.y + ImGui::GetTextLineHeight()};
     ImGui::GetWindowDrawList()->AddRectFilled(rowMin, rowMax,
                                               IM_COL32(35, 67, 99, 105), 2.0F);
   }
   if (!entity.enabled)
     ImGui::PushStyleColor(ImGuiCol_Text,
                           ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+  if (!reveal.hud && reveal.ancestors.contains(entity.id))
+    ImGui::SetNextItemOpen(true, ImGuiCond_Always);
   const bool open =
-      ImGui::TreeNodeEx(entity.id.c_str(), flags, "%s", entity.name.c_str());
+      ImGui::TreeNodeEx(entity.id.c_str(), flags, "      %s", entity.name.c_str());
+  if (!reveal.hud && reveal.target == entity.id && !ImGui::IsItemVisible())
+    ImGui::SetScrollHereY(0.5F);
   if (!entity.enabled)
     ImGui::PopStyleColor();
   const ImVec2 rowMin = ImGui::GetItemRectMin();
   const ImVec2 rowMax = ImGui::GetItemRectMax();
+  EditorIcon icon = EditorIcon::Scene;
+  if (!entity.prefabInstance.empty()) icon = EditorIcon::Prefab;
+  else if (entity.hasComponent<runtime::Camera3DComponent>()) icon = EditorIcon::Camera;
+  else if (entity.hasComponent<runtime::DirectionalLightComponent>() ||
+           entity.hasComponent<runtime::PointLightComponent>() ||
+           entity.hasComponent<runtime::SpotLightComponent>()) icon = EditorIcon::Light;
+  else if (entity.hasComponent<runtime::Terrain3DComponent>()) icon = EditorIcon::Terrain;
+  else if (entity.hasComponent<runtime::MeshRendererComponent>()) icon = EditorIcon::Modules;
+  drawEditorGlyph(*ImGui::GetWindowDrawList(), icon,
+      {rowMin.x + ImGui::GetTreeNodeToLabelSpacing() + 6.0F, (rowMin.y + rowMax.y) * .5F},
+      ImGui::GetColorU32(ImGuiCol_TextDisabled), .75F);
   const ImVec2 visibilityCenter{rowMax.x - 13.0F, (rowMin.y + rowMax.y) * 0.5F};
   const ImVec2 mouse = ImGui::GetIO().MousePos;
   const bool overVisibility = mouse.x >= visibilityCenter.x - 10.0F &&
@@ -465,6 +521,9 @@ void drawEntityNode(EditorWorkspace &workspace, const runtime::Entity &entity,
 
   if (!pending.has_value() && ImGui::BeginPopupContextItem(entity.id.c_str())) {
     const bool prefabInstance = !entity.prefabInstance.empty();
+    if (prefabInstance && ImGui::MenuItem("Unpack Prefab"))
+      pending = HierarchyAction{.kind = HierarchyAction::Kind::UnpackPrefab,
+                                .entityId = entity.id};
     if (ImGui::MenuItem(prefabInstance ? "Duplicate prefab instance"
                                        : "Duplicate subtree"))
       pending = HierarchyAction{
@@ -488,7 +547,8 @@ void drawEntityNode(EditorWorkspace &workspace, const runtime::Entity &entity,
   if (open) {
     for (const runtime::Entity &candidate : world.entities)
       if (entityParent(candidate) == entity.id)
-        drawEntityNode(workspace, candidate, world, filter, pending, notice);
+        drawEntityNode(workspace, candidate, world, filter, pending, notice,
+                       reveal);
     drawPaintedCells(workspace, entity, filter, pending);
     ImGui::TreePop();
   }
@@ -550,43 +610,34 @@ void EditorHierarchyPanel::draw(EditorWorkspace &workspace,
                      ? std::string(preset) + " added"
                      : error;
       }
+      if (workspace.viewDimension() == EditorSceneViewDimension::ThreeDimensional) {
+        ImGui::Separator();
+        constexpr std::pair<const char *, EditorEntityKind> objects[]{
+            {"Cube", EditorEntityKind::Cube},
+            {"Sphere", EditorEntityKind::Sphere},
+            {"Cylinder", EditorEntityKind::Cylinder},
+            {"Plane", EditorEntityKind::Plane},
+            {"Camera", EditorEntityKind::Camera},
+            {"Basic Lighting", EditorEntityKind::BasicLighting},
+            {"Point Light", EditorEntityKind::PointLight},
+            {"Spot Light", EditorEntityKind::SpotLight},
+            {"Sun Light", EditorEntityKind::DirectionalLight},
+        };
+        for (const auto &[label, kind] : objects) {
+          if (ImGui::MenuItem(label))
+            pending = HierarchyAction{.kind = HierarchyAction::Kind::Create,
+                                      .entityKind = kind};
+          if (ImGui::BeginDragDropSource()) {
+            ImGui::SetDragDropPayload(EditorEntityCreationPayload, &kind, sizeof(kind));
+            ImGui::Text("Place %s", label);
+            ImGui::EndDragDropSource();
+          }
+        }
+      }
       ImGui::EndPopup();
     }
-    if (workspace.viewDimension() == EditorSceneViewDimension::ThreeDimensional) {
-      ImGui::TextDisabled("Create 3D  |  click or drag into Viewport");
-      constexpr std::pair<const char *, EditorEntityKind> shapes[]{
-          {"Cube", EditorEntityKind::Cube},
-          {"Sphere", EditorEntityKind::Sphere},
-          {"Cylinder", EditorEntityKind::Cylinder},
-          {"Plane", EditorEntityKind::Plane},
-      };
-      const float buttonWidth =
-          std::max(1.0F, (ImGui::GetContentRegionAvail().x -
-                          ImGui::GetStyle().ItemSpacing.x) * 0.5F);
-      for (std::size_t index = 0; index < std::size(shapes); ++index) {
-        const auto [label, kind] = shapes[index];
-        if (index % 2 == 1)
-          ImGui::SameLine();
-        ImGui::PushID(label);
-        if (ImGui::Button(label, {buttonWidth, 34.0F}))
-          pending = HierarchyAction{.kind = HierarchyAction::Kind::Create,
-                                    .entityKind = kind};
-        if (ImGui::IsItemHovered())
-          ImGui::SetTooltip("Click to create at the view center, or drag to "
-                            "place on terrain. Press F to frame the selection.");
-        if (ImGui::BeginDragDropSource()) {
-          ImGui::SetDragDropPayload(EditorEntityCreationPayload, &kind,
-                                    sizeof(kind));
-          ImGui::Text("Place %s", label);
-          ImGui::EndDragDropSource();
-        }
-        ImGui::PopID();
-      }
-    }
   }
-  if (workspace.hudDocument()) {
-    if (!hudOnly)
-      ImGui::SameLine();
+  if (workspace.hudDocument() && hudOnly) {
     if (editorIconButton("add-ui-element", EditorIcon::Hud, "Add UI element"))
       ImGui::OpenPopup("add-hud-element");
     if (ImGui::BeginPopup("add-hud-element")) {
@@ -641,9 +692,62 @@ void EditorHierarchyPanel::draw(EditorWorkspace &workspace,
   }
   ImGui::Spacing();
 
+  SelectionReveal reveal;
+  const bool hudSelection =
+      workspace.activeDocument() == EditorWorkspaceDocument::Hud;
+  const auto &selection = hudSelection ? workspace.selectedHudNodeIds()
+                                       : workspace.selectedEntityIds();
+  const auto *hudDocument = workspace.hudDocument();
+  const auto identity = workspace.sceneDocument().path().string() + "#" +
+                        (hudDocument ? hudDocument->path().string() : "");
+  if (selectionWorkspace_ != &workspace || selectionDocument_ != identity ||
+      selectionIsHud_ != hudSelection || selectionIds_ != selection ||
+      selectionRevision_ != workspace.selectionRevision()) {
+    selectionWorkspace_ = &workspace;
+    selectionDocument_ = identity;
+    selectionIsHud_ = hudSelection;
+    selectionIds_ = selection;
+    selectionRevision_ = workspace.selectionRevision();
+    reveal.hud = hudSelection;
+    if (!selection.empty()) {
+      reveal.target = selection.back();
+      std::unordered_map<std::string, std::string> parents;
+      bool matchesFilter = false;
+      if (hudSelection && hudDocument) {
+        const auto nodes = editorHudHierarchy(hudDocument->preview());
+        for (const auto &node : nodes) {
+          parents.emplace(node.id, node.parent);
+          if (node.id == reveal.target)
+            matchesFilter = hudNodeMatches(nodes, node, filter_.data());
+        }
+      } else {
+        for (const auto &entity : workspace.project().world.entities) {
+          parents.emplace(entity.id, entityParent(entity));
+          if (entity.id == reveal.target)
+            matchesFilter =
+                containsCaseInsensitive(entity.name, filter_.data());
+        }
+      }
+      for (const auto &id : selection) {
+        auto current = parents.find(id);
+        while (current != parents.end() && !current->second.empty() &&
+               reveal.ancestors.insert(current->second).second)
+          current = parents.find(current->second);
+      }
+      // An external selection must not remain hidden behind a stale search.
+      // Typing into the search alone does not trigger a reveal or clear it.
+      if (filter_[0] &&
+          (!matchesFilter ||
+           !ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)))
+        filter_[0] = '\0';
+    }
+  }
+
   if (hudOnly) {
-    drawHudHierarchy(workspace, filter_.data(), pending, notice);
+    drawHudHierarchy(workspace, filter_.data(), pending, notice, reveal);
   } else {
+    if (!reveal.target.empty())
+      ImGui::SetNextItemOpen(true, ImGuiCond_Always);
     const bool sceneOpen =
         ImGui::TreeNodeEx("Scene", ImGuiTreeNodeFlags_DefaultOpen |
                                        ImGuiTreeNodeFlags_SpanAvailWidth);
@@ -652,8 +756,8 @@ void EditorHierarchyPanel::draw(EditorWorkspace &workspace,
       for (const runtime::Entity &entity : workspace.project().world.entities)
         if (entityParent(entity).empty())
           drawEntityNode(workspace, entity, workspace.project().world,
-                         filter_.data(), pending, notice);
-      drawHudHierarchy(workspace, filter_.data(), pending, notice);
+                         filter_.data(), pending, notice, reveal);
+      drawHudHierarchy(workspace, filter_.data(), pending, notice, reveal);
       ImGui::TreePop();
     }
   }

@@ -1,0 +1,68 @@
+{
+  "format_version": 1,
+  "id": "ui-prefab://orbit/input",
+  "parameters": {
+    "accent": {
+      "type": "string",
+      "default": "#FFB66B"
+    },
+    "action": {
+      "type": "string",
+      "default": ""
+    },
+    "background": {
+      "type": "string",
+      "default": "#101822"
+    },
+    "placeholder": {
+      "type": "string",
+      "default": "Enter a name"
+    },
+    "raised": {
+      "type": "string",
+      "default": "#263748"
+    },
+    "size": {
+      "type": "array",
+      "default": [
+        280,
+        44
+      ]
+    },
+    "stroke": {
+      "type": "string",
+      "default": "#3B5166"
+    },
+    "text": {
+      "type": "string",
+      "default": "#EEF4FA"
+    },
+    "value": {
+      "type": "string",
+      "default": ""
+    }
+  },
+  "root": {
+    "id": "input",
+    "type": "text_input",
+    "size": "${size}",
+    "text": "${value}",
+    "placeholder": "${placeholder}",
+    "text_vertical_alignment": "center",
+    "action": "${action}",
+    "font_size": 16,
+    "background_color": "${background}",
+    "text_color": "${text}",
+    "color": "${accent}",
+    "hover_color": "${raised}",
+    "border_color": "${stroke}",
+    "border_width": 1,
+    "corner_radius": 9,
+    "pad": [
+      12,
+      8,
+      12,
+      8
+    ]
+  }
+}

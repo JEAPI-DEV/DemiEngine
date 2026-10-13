@@ -2,6 +2,7 @@
 #include "demi/assets/DataAsset.h"
 #include "demi/assets/DataDocument.h"
 #include "demi/assets/DataValueRead.h"
+#include "demi/runtime/terrain/TerrainGraph.h"
 #include <cmath>
 #include <nlohmann/json.hpp>
 #include <stdexcept>
@@ -164,6 +165,7 @@ nlohmann::json terrainPresetFragment(const TerrainPreset &preset) {
   recipe.chunkCells = preset.chunkCells;
   recipe.seed = preset.seed;
   recipe.defaultBiome = preset.defaultBiome;
+  recipe.graph = preset.graph;
   // Collections are replaced only when the preset actually supplies them, so a
   // preset that omits layers keeps the canonical default set instead of
   // producing a recipe with no generation layer. Scalars need no such guard:
@@ -229,6 +231,10 @@ parseTerrainPreset(const assets::DataDocument &document, std::string_view id) {
   preset.name = readString(root, "name", "name", true);
   preset.label = readString(root, "label", "label", false, preset.name);
   preset.description = readString(root, "description", "description", false);
+  if (const auto *graph = assets::data_read::field(root, "graph")) {
+    preset.graph = toJson(*graph);
+    (void)TerrainGraph::parse(preset.graph);
+  }
 
   preset.size = readVec2(root, "size", "size", preset.size);
   preset.cellsX = readInt(root, "cells_x", "cells_x", preset.cellsX);
@@ -268,22 +274,11 @@ parseTerrainPreset(const assets::DataDocument &document, std::string_view id) {
       const auto pointer = "landforms/" + name;
       requireAt(entry.isObject(), pointer, "must be an object");
       TerrainLandform shape;
-      shape.baseHeight =
-          readNumber(entry, "base_height", pointer + "/base_height", shape.baseHeight);
-      shape.heightVariation = readNumber(entry, "height_variation",
-                                         pointer + "/height_variation",
-                                         shape.heightVariation);
-      shape.featureSize = readNumber(entry, "feature_size",
-                                     pointer + "/feature_size", shape.featureSize);
-      shape.roughness =
-          readNumber(entry, "roughness", pointer + "/roughness", shape.roughness);
-      shape.octaves = readInt(entry, "octaves", pointer + "/octaves", shape.octaves);
-      requireAt(shape.featureSize > 0.F, pointer + "/feature_size",
-                "must be greater than 0");
-      requireAt(shape.octaves >= 1 && shape.octaves <= 16, pointer + "/octaves",
-                "must be between 1 and 16");
-      requireAt(shape.roughness >= 0.F && shape.roughness <= 1.F,
-                pointer + "/roughness", "must be within [0, 1]");
+      try {
+        shape = TerrainLandform::parse(toJson(entry));
+      } catch (const std::exception &failure) {
+        reject(pointer, failure.what());
+      }
       preset.landforms.emplace(name, shape);
     }
   }
@@ -299,6 +294,7 @@ parseTerrainPreset(const assets::DataDocument &document, std::string_view id) {
   probe.chunkCells = preset.chunkCells;
   probe.seed = preset.seed;
   probe.defaultBiome = preset.defaultBiome;
+  probe.graph = preset.graph;
   probe.defaultLandform = preset.defaultLandform;
   // Same emptiness guards as terrainPresetFragment: a preset that omits a
   // collection keeps the canonical default set rather than producing a recipe
@@ -317,6 +313,9 @@ parseTerrainPreset(const assets::DataDocument &document, std::string_view id) {
 
 std::optional<TerrainPreset> loadTerrainPreset(const AssetRegistry &registry,
                                                std::string_view id) {
+  for (const auto &preset : builtinTerrainPresets())
+    if (preset.id == id)
+      return preset;
   const auto *manifest = findAsset(registry, std::string(id));
   if (manifest == nullptr)
     throw std::invalid_argument("Terrain preset was not found: " +

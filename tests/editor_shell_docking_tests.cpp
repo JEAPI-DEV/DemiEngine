@@ -1,6 +1,7 @@
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/terrain/TerrainGraph.h"
 #include "demi/runtime/terrain/TerrainRecipe.h"
+#include "editor/EditorDragDropPayloads.h"
 #include "editor/EditorRecoveryStore.h"
 #include "editor/EditorShell.h"
 #include "editor/EditorWorkspace.h"
@@ -12,6 +13,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <optional>
 #include <sstream>
@@ -104,12 +106,14 @@ void createProject(const fs::path &root) {
        {"entities",
         Json::array({{{"id", "player"},
                       {"components", {{"Transform2D", Json::object()}}}}})}});
-  writeJson(root / "scenes/main.hud.json",
-            {{"format_version", 1},
-             {"canvas_size", {800, 600}},
-             {"children", Json::array({{{"id", "status"},
-                                        {"type", "label"},
-                                        {"text", "Shell HUD probe"}}})}});
+  writeJson(
+      root / "scenes/main.hud.json",
+      {{"format_version", 1},
+       {"canvas_size", {800, 600}},
+       {"children",
+        Json::array(
+            {{{"id", "status"}, {"type", "label"}, {"text", "Shell HUD probe"}},
+             {{"id", "other"}, {"type", "label"}, {"text", "Other label"}}})}});
 }
 
 class ImGuiFixture {
@@ -141,10 +145,13 @@ public:
 
   ~ImGuiFixture() { ImGui::DestroyContext(); }
 
-  void frame(EditorShell &shell, const char *focus = nullptr) {
+  void frame(EditorShell &shell, const char *focus = nullptr,
+             const std::function<void()> &beforeDraw = {}) {
     ImGui::NewFrame();
     if (focus)
       ImGui::SetWindowFocus(focus);
+    if (beforeDraw)
+      beforeDraw();
     shell.draw(1600, 1000, "Synthetic ImGui");
     ImGui::Render();
     const auto *context = ImGui::GetCurrentContext();
@@ -240,6 +247,13 @@ void checkFreshTerrainGraphStartupFocus() {
           << "\n  " << describeDockingWindow("Terrain Graph") << "\n  "
           << describeDockingWindow("Viewport");
   }
+  require(active("Terrain Presets") && active("Terrain Nodes"),
+          "Terrain graph did not expose its two palettes");
+  require(window("Terrain Presets").DockId == window("Inspector").DockId &&
+              window("Terrain Presets").ID != window("Terrain Nodes").ID,
+          "Terrain Presets is not an independent Inspector sibling");
+  require(workspace.terrainAuthoring().presets().size() >= 4,
+          "Fresh project has no starter presets");
   const auto &graph = window("Terrain Graph");
   const auto &viewport = window("Viewport");
   require(
@@ -267,7 +281,8 @@ void checkIndependentViews(ImGuiFixture &imgui, EditorShell &shell,
     imgui.frame(shell, "Viewport");
   require(active("Viewport") && active("HUD"),
           "Scene and its HUD did not create independent windows");
-  require(!active("UI Palette") && !active("Terrain Nodes"),
+  require(!active("UI Palette") && !active("Terrain Nodes") &&
+              !active("Terrain Presets"),
           "A scene opened a contextual palette without its editing context");
   for (const char *name : {"Viewport", "HUD"}) {
     const auto &view = window(name);
@@ -287,7 +302,8 @@ void checkIndependentViews(ImGuiFixture &imgui, EditorShell &shell,
   require(shell.openDocument(project / "scenes/main.hud.json", error), error);
   for (int frame = 0; frame < 3; ++frame)
     imgui.frame(shell, "HUD");
-  require(active("UI Palette") && !active("Terrain Nodes"),
+  require(active("UI Palette") && !active("Terrain Nodes") &&
+              !active("Terrain Presets"),
           "HUD context did not show only the UI Palette");
   const auto &palette = window("UI Palette");
   require((palette.ParentWindow == nullptr ||
@@ -340,6 +356,41 @@ void checkIndependentViews(ImGuiFixture &imgui, EditorShell &shell,
       imgui.frame(shell, tool);
     require(active("UI Palette"), "HUD tool focus hid its contextual palette");
   }
+  // Dragging out of Assets does not focus the target ImGui window. The drop
+  // itself must select the Scene document instead of retaining HUD Inspector.
+  const auto dropSource = project / "prefabs/drop.prefab.json";
+  writeJson(
+      dropSource,
+      {{"format_version", 1},
+       {"id", "prefab://drop"},
+       {"entities",
+        Json::array({{{"id", "body"},
+                      {"components", {{"Transform2D", Json::object()}}}}})}});
+  const auto payload = dropSource.string();
+  const auto dropArea = scene.area;
+  auto &io = ImGui::GetIO();
+  for (bool held : {true, true, false}) {
+    io.AddMousePosEvent(dropArea.x + dropArea.width / 2.0F,
+                        dropArea.y + dropArea.height / 2.0F);
+    io.AddMouseButtonEvent(ImGuiMouseButton_Left, held);
+    imgui.frame(shell, "Assets", [&] {
+      require(
+          ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceExtern |
+                                     ImGuiDragDropFlags_SourceNoPreviewTooltip),
+          "External prefab drag unavailable");
+      ImGui::SetDragDropPayload(EditorPrefabSourcePayload, payload.c_str(),
+                                payload.size() + 1);
+      ImGui::EndDragDropSource();
+    });
+  }
+  imgui.frame(shell, "Assets");
+  require(!shell.showingHudView() && !active("UI Palette"),
+          "Delivered Scene drop retained HUD focus");
+  require(scene.workspace->selectedEntityId() != "player",
+          "Placed prefab was not selected");
+  require(scene.workspace->undo(error), error);
+  for (int frame = 0; frame < 3; ++frame)
+    imgui.frame(shell, "HUD");
   for (int frame = 0; frame < 3; ++frame)
     imgui.frame(shell, "Game View");
   require(!active("UI Palette"), "Idle Game View exposed the HUD palette");
@@ -347,6 +398,73 @@ void checkIndependentViews(ImGuiFixture &imgui, EditorShell &shell,
     imgui.frame(shell, "Inspector");
   require(active("UI Palette"),
           "Returning to authored HUD properties hid its palette");
+}
+
+void checkHudTextEditing(ImGuiFixture &imgui, EditorShell &shell,
+                         const fs::path &project) {
+  auto *workspace =
+      shell.authoringViews()[static_cast<std::size_t>(EditorAuthoringView::Hud)]
+          .workspace;
+  require(workspace != nullptr, "Missing HUD workspace");
+  workspace->selectHudNode("status");
+  for (int frame = 0; frame < 3; ++frame)
+    imgui.frame(shell, "Inspector");
+  auto &inspector = window("Inspector");
+  inspector.StateStorage.SetInt(inspector.GetID("Layout"), 0);
+  inspector.StateStorage.SetInt(inspector.GetID("Appearance"), 0);
+  imgui.frame(shell, "Inspector");
+  const auto tableId = inspector.GetID("hud-content-properties");
+  const auto workspaceId = ImHashData(&workspace, sizeof(workspace), tableId);
+  const auto nodeId = ImHashStr("status", 0, workspaceId);
+  const auto textId = ImHashStr("##text", 0, nodeId);
+  ImGui::ActivateItemByID(textId);
+  ImGui::GetCurrentContext()->NavNextActivateFlags =
+      ImGuiActivateFlags_PreferInput;
+  imgui.frame(shell, "Inspector");
+  require(ImGui::GetCurrentContext()->InputTextState.ID == textId,
+          "Could not activate HUD Text input");
+  auto &input = ImGui::GetIO();
+  input.AddInputCharactersUTF8("Power: ");
+  imgui.frame(shell, "Inspector");
+  input.AddInputCharactersUTF8("12 kW");
+  imgui.frame(shell, "Inspector");
+  const auto edited =
+      workspace->hudDocument()->authoredNode("status")->at("text");
+  require(edited.get<std::string>().find("Power: 12 kW") != std::string::npos,
+          "Typing without Enter did not update HUD source");
+  require(input.WantTextInput, "Text field lost focus before Save all");
+  input.AddKeyEvent(ImGuiMod_Ctrl, true);
+  input.AddKeyEvent(ImGuiKey_S, true);
+  imgui.frame(shell, "Inspector");
+  input.AddKeyEvent(ImGuiKey_S, false);
+  input.AddKeyEvent(ImGuiMod_Ctrl, false);
+  imgui.frame(shell, "Inspector");
+  require(!workspace->hudDocument()->isDirty(),
+          "Ctrl+S while typing did not save HUD");
+  EditorHudDocument reopened;
+  std::string error;
+  require(reopened.open(project / "scenes/main.hud.json", error), error);
+  require(reopened.authoredNode("status")->at("text") == edited,
+          "Saved HUD omitted the active text edit");
+  const auto beforeSelection = workspace->hudDocument()->json();
+  workspace->selectHudNode("other");
+  imgui.frame(shell, "Hierarchy");
+  require(workspace->hudDocument()->json() == beforeSelection,
+          "Selection change rewrote HUD fields");
+  input.AddKeyEvent(ImGuiMod_Ctrl, true);
+  input.AddKeyEvent(ImGuiKey_Z, true);
+  imgui.frame(shell, "Hierarchy");
+  input.AddKeyEvent(ImGuiKey_Z, false);
+  input.AddKeyEvent(ImGuiMod_Ctrl, false);
+  imgui.frame(shell, "Hierarchy");
+  require(workspace->hudDocument()->authoredNode("status")->at("text") ==
+                  "Shell HUD probe" &&
+              !workspace->hudDocument()->canUndo(),
+          "A typing session did not undo in one step");
+  require(workspace->redo(error), error);
+  require(workspace->hudDocument()->authoredNode("status")->at("text") ==
+              edited,
+          "Redo lost the text edit");
 }
 
 void closeDockTab(ImGuiFixture &imgui, EditorShell &shell, const char *name) {
@@ -428,6 +546,12 @@ void checkRuntimePanelsRejectDelete(ImGuiFixture &imgui, EditorShell &shell,
   require(
       shell.playSession().startEmbedded(project / "demi.project.json", error),
       error);
+  require(shell.needsContinuousFrames(),
+          "Embedded Play was allowed to fall asleep");
+  require(shell.playSession().togglePause(error), error);
+  require(!shell.needsContinuousFrames(),
+          "Paused Play unnecessarily requests frames");
+  require(shell.playSession().togglePause(error), error);
   require(shell.playSession().runtimeWorld() != nullptr &&
               shell.playSession().runtimeWorld() != &workspace.project().world,
           "Embedded Play did not create an isolated runtime world");
@@ -471,10 +595,39 @@ void checkRuntimePanelsRejectDelete(ImGuiFixture &imgui, EditorShell &shell,
           "Stopping embedded Play changed authored scene data");
 }
 
+
+void checkMultiSelectionInspectorScopes() {
+  TestDirectory fixture;
+  ScopedEnvironment data("XDG_DATA_HOME", fixture.root / "data");
+  ScopedEnvironment cache("XDG_CACHE_HOME", fixture.root / "cache");
+  const auto project = fixture.root / "project";
+  createProject(project);
+  const auto scenePath = project / "scenes/main.scene.json";
+  std::ifstream input(scenePath);
+  Json source = Json::parse(input);
+  input.close();
+  source["entities"][0]["components"]["Transform2D"]["position"] = {0, 0};
+  source["entities"].push_back({{"id", "other"}, {"components",
+      {{"Transform2D", {{"position", {2, 0}}}}}}});
+  writeJson(scenePath, source);
+  EditorWorkspace workspace;
+  std::string error;
+  require(workspace.open(project, error), error);
+  ImGuiFixture imgui;
+  EditorShell shell(workspace);
+  workspace.selectEntity("player");
+  workspace.toggleEntitySelection("other");
+  for (int frame = 0; frame < 4; ++frame)
+    imgui.frame(shell, "Inspector");
+  require(workspace.sceneDocument().json() == source,
+          "Inspecting mixed values mutated the scene");
+}
+
 } // namespace
 
 int main() {
   try {
+    checkMultiSelectionInspectorScopes();
     checkFreshTerrainGraphStartupFocus();
     TestDirectory fixture;
     ScopedEnvironment data("XDG_DATA_HOME", fixture.root / "data");
@@ -492,6 +645,7 @@ int main() {
     ImGuiFixture imgui;
     EditorShell shell(workspace);
     checkIndependentViews(imgui, shell, project);
+    checkHudTextEditing(imgui, shell, project);
     checkHideAndReopen(imgui, shell, project);
     checkRuntimePanelsRejectDelete(imgui, shell, workspace, project);
     require(workspace.sceneDocument().json() == originalScene &&

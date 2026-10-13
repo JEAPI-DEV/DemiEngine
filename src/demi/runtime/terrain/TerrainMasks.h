@@ -9,6 +9,9 @@ struct TerrainMasks {
   TerrainSamples<float> slope;    // Degrees from horizontal.
   TerrainSamples<float> moisture; // Normalized saturation.
   TerrainSamples<float> waterDistance;
+  // Optional resolved body depth: negative means dry, zero means shoreline.
+  // Empty preserves the single-level policy for callers without authored water.
+  TerrainSamples<float> waterDepth;
   TerrainSamples<float> flow; // Normalized upstream accumulation, not velocity.
   TerrainSamples<float> sediment;
   TerrainSamples<std::size_t> substrate;

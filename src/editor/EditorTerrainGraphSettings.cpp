@@ -1,6 +1,7 @@
 #include "editor/EditorTerrainGraphSettings.h"
 #include "demi/assets/DataAsset.h"
 #include "demi/runtime/terrain/TerrainBrushStroke.h"
+#include "demi/runtime/terrain/TerrainLandform.h"
 #include "demi/runtime/terrain/TerrainRecipe.h"
 #include "editor/EditorAssetReferenceControl.h"
 #include "editor/EditorColorControl.h"
@@ -11,6 +12,7 @@
 #include <cmath>
 #include <imgui.h>
 #include <initializer_list>
+#include <limits>
 #include <optional>
 #include <ranges>
 #include <string>
@@ -69,6 +71,7 @@ bool chooseAsset(EditorWorkspace &workspace, const char *label,
 void drawLandforms(nlohmann::json &draft, nlohmann::json &biomes,
                    std::string &notice) {
   const auto defaults = defaultEditorTerrainRecipe();
+  const runtime::TerrainLandform shapeDefaults;
   auto landforms = draft.value("landforms", defaults.at("landforms"));
   const auto before = landforms;
   std::string defaultLandform =
@@ -107,14 +110,41 @@ void drawLandforms(nlohmann::json &draft, nlohmann::json &biomes,
         else if (replacement != id)
           rename = std::pair{id, replacement};
       }
-      floatField(shape, "base_height", "Base height", 0, 0.1F, -1e7F, 1e7F);
-      floatField(shape, "height_variation", "Height variation", 8, 0.1F, 0,
-                 1e7F);
-      floatField(shape, "feature_size", "Feature size", 32, 0.1F, 0.01F, 1e7F);
-      floatField(shape, "roughness", "Roughness", 0.5F, 0.01F, 0, 1);
-      int octaves = shape.value("octaves", 4);
-      if (ImGui::InputInt(terrainField("Octaves").c_str(), &octaves))
+      std::string profile = shape.value("profile", shapeDefaults.profile);
+      if (ImGui::BeginCombo(terrainField("Noise profile").c_str(),
+                            profile.c_str())) {
+        for (const auto choice : runtime::TerrainLandform::profileNames) {
+          if (ImGui::Selectable(choice.data(), profile == choice)) {
+            shape["profile"] = std::string(choice);
+          }
+        }
+        ImGui::EndCombo();
+      }
+      floatField(shape, "base_height", "Base height", shapeDefaults.baseHeight,
+                 0.1F, -1e7F, 1e7F);
+      floatField(shape, "height_variation", "Height variation",
+                 shapeDefaults.heightVariation, 0.1F, 0, 1e7F);
+      floatField(shape, "feature_size", "Feature size",
+                 shapeDefaults.featureSize, 0.1F, 0.01F, 1e7F);
+      floatField(shape, "roughness", "Roughness", shapeDefaults.roughness,
+                 0.01F, 0, 1);
+      int octaves = shape.value("octaves", shapeDefaults.octaves);
+      if (ImGui::InputInt(terrainField("Octaves").c_str(), &octaves)) {
         shape["octaves"] = octaves;
+      }
+      floatField(shape, "warp_amplitude", "Domain warp amplitude",
+                 shapeDefaults.warpAmplitude, 0.1F, 0,
+                 std::numeric_limits<float>::max());
+      floatField(shape, "warp_feature_size", "Domain warp feature size",
+                 shapeDefaults.warpFeatureSize, 0.1F,
+                 std::numeric_limits<float>::min(),
+                 std::numeric_limits<float>::max());
+      floatField(shape, "stretch", "Directional stretch", shapeDefaults.stretch,
+                 0.01F, std::numeric_limits<float>::min(),
+                 std::numeric_limits<float>::max());
+      floatField(shape, "heading", "Heading (degrees)", shapeDefaults.heading,
+                 0.5F, -std::numeric_limits<float>::max(),
+                 std::numeric_limits<float>::max());
 
       bool referenced = defaultLandform == id;
       for (const auto &[biomeId, biome] : biomes.items()) {
@@ -484,103 +514,6 @@ void drawRules(EditorTerrainAuthoring &authoring, std::string &notice) {
 
 } // namespace
 
-// A preset section stays outside every job-disabled scope: choosing a preset
-// must remain possible while a worker runs, and a refused apply reports why in
-// the notice instead of presenting a dead button.
-void drawTerrainPresets(EditorWorkspace &workspace, std::string &notice) {
-  auto &authoring = workspace.terrainAuthoring();
-  const auto &presets = authoring.presets();
-  if (presets.empty()) {
-    ImGui::TextDisabled("No terrain preset assets. Add a DataAsset whose "
-                        "settings.content_type is \"terrain_preset\".");
-  }
-  for (const std::string &failure : workspace.terrainPresetErrors())
-    ImGui::TextColored({1.0F, 0.45F, 0.45F, 1.0F}, "%s", failure.c_str());
-
-  static std::string selected;
-  const auto *chosen = authoring.preset(selected);
-  if (chosen == nullptr) {
-    selected.clear();
-    chosen = presets.empty() ? nullptr : &presets.front();
-  }
-  const auto &draft = authoring.draft();
-  if (!presets.empty()) {
-    std::vector<const char *> items;
-    items.reserve(presets.size());
-    for (const auto &preset : presets)
-      items.push_back(preset.label.empty() ? preset.name.c_str()
-                                           : preset.label.c_str());
-    const char *preview = "Choose a landscape preset";
-    for (std::size_t index = 0; index < presets.size(); ++index)
-      if (presets[index].id == selected)
-        preview = items[index];
-    if (ImGui::BeginCombo(terrainField("Read").c_str(), preview)) {
-      for (std::size_t index = 0; index < presets.size(); ++index) {
-        // Preset ids are the stable keys here; the row index is only a widget
-        // position, so a variable-keyed scope keeps the ids apart.
-        ImGui::PushID(presets[index].id.c_str());
-        if (ImGui::Selectable(items[index], presets[index].id == selected))
-          selected = presets[index].id;
-        ImGui::PopID();
-      }
-      ImGui::EndCombo();
-    }
-    chosen = authoring.preset(selected);
-  }
-
-  const auto stamped = draft.value("preset_id", std::string{});
-  const auto stampedVersion = draft.value("preset_version", 0);
-  if (stamped.empty())
-    ImGui::TextDisabled("No landscape preset applied.");
-  else
-    ImGui::TextWrapped("Applied: %s (version %d)", stamped.c_str(),
-                       stampedVersion);
-  if (chosen == nullptr)
-    return;
-
-  ImGui::TextWrapped("Name: %s", chosen->name.c_str());
-  ImGui::TextWrapped("Label: %s", chosen->label.c_str());
-  if (!chosen->description.empty())
-    ImGui::TextWrapped("%s", chosen->description.c_str());
-  ImGui::TextWrapped("Grid: %.1f x %.1f, %d x %d cells, seed %d",
-                     chosen->size.x, chosen->size.y, chosen->cellsX,
-                     chosen->cellsZ, chosen->seed);
-  // Protection snapshots belong to one grid, so the engine refuses a merge that
-  // would move it. Saying so before the click is what keeps a grid-changing
-  // preset from looking harmless.
-  bool protection = false;
-  if (const auto edits = draft.find("edits");
-      edits != draft.end() && edits->is_array())
-    for (const auto &edit : *edits)
-      protection = protection || edit.value("type", "") == "protect";
-  if (protection && authoring.presetChangesGrid(*chosen))
-    ImGui::TextColored(
-        {1.0F, 0.75F, 0.35F, 1.0F},
-        "This preset changes the grid, and protection snapshots require the "
-        "original grid. Applying it is refused until the protection is "
-        "cleared or recaptured.");
-
-  if (ImGui::Button("Apply")) {
-    std::string error;
-    if (!workspace.applyTerrainPreset(chosen->id, error)) {
-      // A grid-changing apply deliberately stops at the shared decision, so the
-      // existing popup answers it exactly as it does a hand-edited size.
-      if (authoring.needsResizeDecision())
-        ImGui::OpenPopup("Terrain grid changed");
-      else
-        notice = std::move(error);
-    }
-  }
-  ImGui::SameLine();
-  ImGui::BeginDisabled(stamped.empty() && stampedVersion == 0);
-  if (ImGui::Button("Clear")) {
-    std::string error;
-    if (!workspace.clearTerrainPreset(error))
-      notice = std::move(error);
-  }
-  ImGui::EndDisabled();
-}
-
 namespace {
 
 void drawGrid(EditorTerrainAuthoring &authoring) {
@@ -618,11 +551,7 @@ void drawBiomeColor(nlohmann::json &biome) {
       ImGuiColorEditFlags_AlphaBar;
   const bool changed = drawEditorColorControl(
       terrainField("Color (Hex RGBA)").c_str(), rgba,
-      {.flags = flags,
-       .showPrecision = true,
-       .precisionHelp = "Normalized red, green, blue and alpha (0 to 1). "
-                        "Hex edits use byte channels; these fields retain "
-                        "floating-point precision."});
+      {.flags = flags});
   if (changed)
     biome["color"] = {rgba[0], rgba[1], rgba[2], rgba[3]};
 }
@@ -862,9 +791,6 @@ void drawTerrainGraphSettings(EditorWorkspace &workspace, std::string &notice) {
       workspace.terrainEditingAsset()
           ? "Apply changes to asset saves its source."
           : "Save persists the generated procedural recipe in its document.");
-  // A refused preset application reports its reason while a worker is running.
-  if (ImGui::CollapsingHeader("Landscape preset"))
-    drawTerrainPresets(workspace, notice);
   ImGui::BeginDisabled(authoring.busy() || authoring.stroking());
   if (ImGui::CollapsingHeader("Appearance - biome surfaces",
                               ImGuiTreeNodeFlags_DefaultOpen))

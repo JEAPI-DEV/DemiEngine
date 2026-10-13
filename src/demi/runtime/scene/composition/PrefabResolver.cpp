@@ -1,8 +1,10 @@
 #include "demi/runtime/scene/composition/PrefabResolver.h"
 #include "demi/assets/FractureAuthoring.h"
 #include "demi/assets/MasonryGeneration.h"
+#include "demi/runtime/scene/ComponentRegistry.h"
 #include "demi/runtime/scene/EntityPresets.h"
 #include "demi/runtime/scene/composition/EntityHierarchy.h"
+#include "demi/runtime/scene/composition/PrefabEntityIdentity.h"
 
 #include <algorithm>
 #include <fstream>
@@ -137,6 +139,26 @@ void remapEntityReferences(
   if (!entity.contains("components") || !entity["components"].is_object()) {
     return;
   }
+  const auto remapReference = [&](auto &&self, Json &value) -> void {
+    if (value.is_string()) {
+      if (const auto found = ids.find(value.get<std::string>());
+          found != ids.end())
+        value = found->second;
+    } else if (value.is_array()) {
+      for (auto &entry : value)
+        self(self, entry);
+    }
+  };
+  for (const auto &descriptor : scene_loading::componentDescriptors()) {
+    auto component = entity["components"].find(descriptor.name);
+    if (component == entity["components"].end() || !component->is_object())
+      continue;
+    for (const auto &field : descriptor.fields)
+      if (field.referenceKind == ComponentReferenceKind::Entity &&
+          field.name != "parent")
+        if (auto value = component->find(field.name); value != component->end())
+          remapReference(remapReference, *value);
+  }
   for (auto &component : entity["components"].items()) {
     if (!component.value().is_object()) {
       continue;
@@ -185,8 +207,14 @@ void remapEntityReferences(
 class ExpansionContext {
 public:
   explicit ExpansionContext(Diagnostics &diagnostics,
-      std::filesystem::path overridePath = {}, std::optional<Json> overrideDocument = {}, bool compileFractures = true)
-      : diagnostics_(diagnostics), overridePath_(std::move(overridePath)), overrideDocument_(std::move(overrideDocument)), compileFractures_(compileFractures) {}
+                            std::filesystem::path overridePath = {},
+                            std::optional<Json> overrideDocument = {},
+                            bool compileFractures = true,
+                            bool expandProcedural = true)
+      : diagnostics_(diagnostics), overridePath_(std::move(overridePath)),
+        overrideDocument_(std::move(overrideDocument)),
+        compileFractures_(compileFractures),
+        expandProcedural_(expandProcedural) {}
 
   Json expandInstance(const std::filesystem::path &ownerPath,
                       const Json &instance, const std::string &parentPrefix) {
@@ -274,6 +302,25 @@ public:
       }
     }
     std::unordered_map<std::string, std::string> ids;
+    // Mapped identities are local to this owner just like ordinary entity IDs.
+    // Sibling entities may parent or refer to a nested instance's mapped body.
+    const auto collectMappedIds = [&](const Json &instances) {
+      for (const auto &nested : instances) {
+        const auto mapping = nested.find("entity_ids");
+        if (!nested.contains("prefab") || mapping == nested.end() ||
+            !mapping->is_object())
+          continue;
+        for (const auto &target : *mapping)
+          if (target.is_string()) {
+            const auto local = target.get<std::string>();
+            ids.emplace(local, prefix + "/" + local);
+          }
+      }
+    };
+    if (prefab->contains("entities") && (*prefab)["entities"].is_array())
+      collectMappedIds((*prefab)["entities"]);
+    if (prefab->contains("instances") && (*prefab)["instances"].is_array())
+      collectMappedIds((*prefab)["instances"]);
     if (prefab->contains("entities") && (*prefab)["entities"].is_array()) {
       for (const Json &item : (*prefab)["entities"]) {
         if (item.is_object() && item.contains("id") && item["id"].is_string()) {
@@ -321,20 +368,38 @@ public:
                    ownerPath);
     attachInstanceParent(ownerPath, instance, items);
     const bool finalizeInstance = parentPrefix.empty();
-    if (!compileFractures_ && finalizeInstance) {
+    if (expandProcedural_ && !compileFractures_ && finalizeInstance) {
       items = assets::expandMasonry(items, true);
     }
-    if (!compileFractures_ && finalizeInstance) {
+    if (expandProcedural_ && !compileFractures_ && finalizeInstance) {
       const auto authored = items;
       for (const auto &entity : authored)
         for (auto &preview : expandPlacement(canonical, entity))
           items.push_back(std::move(preview));
     }
-    if (compileFractures_ && finalizeInstance) {
+    if (expandProcedural_ && compileFractures_ && finalizeInstance) {
       try {
         items = assets::compileEntityFractures(*findProjectRoot(canonical), items, prefix);
       } catch (const std::exception &error) {
         report(canonical, "FRACTURE_GENERATION_FAILED", error.what());
+      }
+    }
+    if (instance.contains("entity_ids")) {
+      try {
+        std::vector<std::string> expandedIds;
+        for (const auto &item : items) {
+          expandedIds.push_back(item.at("id").get<std::string>());
+          collectDeferredIds(
+              item, [&](const auto &id) { expandedIds.push_back(id); });
+        }
+        const auto mapping = prefabEntityIdRemapping(
+            instance.at("entity_ids"), expandedIds, prefix, parentPrefix);
+        for (auto &item : items) {
+          item["id"] = mapping.at(item.at("id").get<std::string>());
+          remapEntityReferences(item, mapping);
+        }
+      } catch (const std::exception &error) {
+        report(ownerPath, "PREFAB_INVALID_ENTITY_IDS", error.what());
       }
     }
     stack_.pop_back();
@@ -503,6 +568,7 @@ private:
   std::vector<std::filesystem::path> stack_;
   std::filesystem::path overridePath_;
   std::optional<Json> overrideDocument_;
+  bool expandProcedural_ = true;
   bool compileFractures_ = true;
 };
 
@@ -538,6 +604,12 @@ PrefabOriginIndex::PrefabOriginIndex(const Json &ownerDocument) {
     const std::string &instanceId = id->get_ref<const std::string &>();
     if (!instanceId.empty())
       instances_.insert(instanceId);
+    if (const auto mapping = instance.find("entity_ids");
+        mapping != instance.end() && mapping->is_object())
+      for (const auto &[local, target] : mapping->items())
+        if (target.is_string())
+          explicitIds_.emplace(target.get<std::string>(),
+                               PrefabEntityOrigin{instanceId, local});
   };
   for (const char *field : {"instances", "prefab_origins"}) {
     const auto instances = ownerDocument.find(field);
@@ -566,11 +638,20 @@ PrefabOriginIndex::PrefabOriginIndex(const Json &ownerDocument) {
 
 std::optional<PrefabEntityOrigin>
 PrefabOriginIndex::find(const std::string_view expandedEntityId) const {
+  if (const auto found = explicitIds_.find(std::string(expandedEntityId));
+      found != explicitIds_.end())
+    return found->second;
   if (instances_.empty())
     return std::nullopt;
   auto separator = expandedEntityId.rfind('/');
   while (separator != std::string_view::npos) {
     const std::string prefix(expandedEntityId.substr(0, separator));
+    if (const auto mapped = explicitIds_.find(prefix);
+        mapped != explicitIds_.end())
+      return PrefabEntityOrigin{
+          mapped->second.instanceId,
+          mapped->second.localEntityId +
+              std::string(expandedEntityId.substr(separator))};
     if (separator + 1 < expandedEntityId.size() && instances_.contains(prefix))
       return PrefabEntityOrigin{prefix, std::string(expandedEntityId.substr(separator + 1))};
     if (separator == 0)
@@ -622,8 +703,10 @@ Json mergeOverride(Json inherited, const Json &overrideValue) {
   return inherited;
 }
 
-ExpansionResult expandScene(const std::filesystem::path &scenePath,
-                            const Json &sceneDocument, bool compileFractures) {
+static ExpansionResult expandSceneImpl(const std::filesystem::path &scenePath,
+                                       const Json &sceneDocument,
+                                       bool compileFractures,
+                                       bool expandProcedural) {
   ExpansionResult result{.document = sceneDocument, .diagnostics = {}};
   if (!sceneDocument.is_object()) {
     result.document.reset();
@@ -649,9 +732,12 @@ ExpansionResult expandScene(const std::filesystem::path &scenePath,
   }
   const Json authoredEntities = expanded.value("entities", Json::array());
   const bool prefabSource = sceneDocument.value("id", std::string{}).starts_with("prefab://");
-  ExpansionContext context(result.diagnostics,
-      prefabSource ? std::filesystem::weakly_canonical(scenePath) : std::filesystem::path{},
-      prefabSource ? std::optional<Json>(sceneDocument) : std::nullopt, compileFractures);
+  ExpansionContext context(
+      result.diagnostics,
+      prefabSource ? std::filesystem::weakly_canonical(scenePath)
+                   : std::filesystem::path{},
+      prefabSource ? std::optional<Json>(sceneDocument) : std::nullopt,
+      compileFractures, expandProcedural);
   if (expanded.contains("entities") && expanded["entities"].is_array()) {
     Json resolved = Json::array();
     for (const Json &entity : authoredEntities) {
@@ -683,14 +769,14 @@ ExpansionResult expandScene(const std::filesystem::path &scenePath,
       expanded["prefab_origins"].push_back(instance);
     expanded.erase("instances");
   }
-  if (!compileFractures && expanded.contains("entities")) {
+  if (expandProcedural && !compileFractures && expanded.contains("entities")) {
     for (const auto &entity : authoredEntities)
       for (auto &preview : context.expandPlacement(scenePath, entity))
         expanded["entities"].push_back(std::move(preview));
   }
-  if (!compileFractures && expanded.contains("entities"))
+  if (expandProcedural && !compileFractures && expanded.contains("entities"))
     expanded["entities"] = assets::expandMasonry(expanded["entities"], true);
-  if (compileFractures && expanded.contains("entities")) {
+  if (expandProcedural && compileFractures && expanded.contains("entities")) {
     try {
       expanded["entities"] = assets::compileEntityFractures(
           findProjectRoot(scenePath).value_or(scenePath.parent_path()), expanded["entities"]);
@@ -699,10 +785,28 @@ ExpansionResult expandScene(const std::filesystem::path &scenePath,
           .code = "FRACTURE_GENERATION_FAILED", .message = error.what(), .path = scenePath.string()});
     }
   }
+  std::set<std::string> expandedIds;
+  for (const auto &entity : expanded.value("entities", Json::array()))
+    if (!expandedIds.insert(entity.value("id", std::string{})).second)
+      result.diagnostics.push_back(
+          {.severity = Severity::Error,
+           .code = "PREFAB_ENTITY_ID_COLLISION",
+           .message = "Duplicate expanded entity ID: " +
+                      entity.value("id", std::string{}),
+           .path = scenePath.string()});
   if (hasErrors(result.diagnostics)) {
     result.document.reset();
   }
   return result;
+}
+
+ExpansionResult expandScene(const std::filesystem::path &path,
+                            const Json &document, bool compileFractures) {
+  return expandSceneImpl(path, document, compileFractures, true);
+}
+ExpansionResult expandSceneForAuthoring(const std::filesystem::path &path,
+                                        const Json &document) {
+  return expandSceneImpl(path, document, false, false);
 }
 
 ExpansionResult expandPrefabInstance(const std::filesystem::path &ownerPath,

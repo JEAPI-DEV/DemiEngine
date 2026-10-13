@@ -1,4 +1,7 @@
 #include "demi/runtime/terrain/TerrainMaterialLayers.h"
+#include "demi/runtime/terrain/TerrainPalette.h"
+#include "demi/runtime/terrain/TerrainGraphExecutor.h"
+#include "demi/runtime/terrain/TerrainSurfaceMaterials.h"
 
 #include <algorithm>
 #include <cassert>
@@ -779,9 +782,86 @@ void decisionsNameBothTheRoleAndTheMaterial() {
   assert(scene.field.biomeIds == std::vector<std::string>{"default"});
 }
 
+void surfaceRebindingPreservesClassificationAndHeights() {
+  auto scene = plainScene();
+  TerrainRecipe recipe;
+  recipe.size = scene.field.size;
+  recipe.cellsX = scene.field.cellsX;
+  recipe.cellsZ = scene.field.cellsZ;
+
+  const auto materialSet = fullSet();
+  TerrainPalette palette;
+  palette.materialSet = materialSet.id;
+  palette.surfaceMaterials = materialSet.roles;
+  const auto originalHeights = scene.field.heights;
+
+  assert(updateTerrainSurfaceMaterials(scene.field, recipe, &palette, true));
+  const auto originalClassification = scene.field.surfaceMaterials->classification;
+  assert(originalClassification->samples.size() == scene.field.heights.size());
+  assert(scene.field.surfaceMaterials->unboundRoles.empty());
+
+  const auto &usedRole = originalClassification->roles.front();
+  palette.surfaceMaterials[usedRole] = "asset://materials/replacement";
+  assert(updateTerrainSurfaceMaterials(scene.field, recipe, &palette, false));
+  assert(scene.field.surfaceMaterials->classification == originalClassification);
+  assert(scene.field.surfaceMaterials->bindings.at(usedRole) ==
+         "asset://materials/replacement");
+  assert(scene.field.heights == originalHeights);
+
+  const auto previousSurface = scene.field.surfaceMaterials;
+  std::stop_source cancellation;
+  cancellation.request_stop();
+  assert(!updateTerrainSurfaceMaterials(scene.field, recipe, &palette, true,
+                                        cancellation.get_token()));
+  assert(scene.field.surfaceMaterials == previousSurface);
+}
+
+void finiteWaterCoverageControlsSurfaceRoles() {
+  for (const float groundHeight : {8.F, -2.F}) {
+    auto scene = plainScene();
+    scene.field.heights.assign(sampleCount(), groundHeight);
+    TerrainRecipe recipe;
+    recipe.size = scene.field.size;
+    recipe.cellsX = scene.field.cellsX;
+    recipe.cellsZ = scene.field.cellsZ;
+
+    TerrainWaterBodySpec lake;
+    lake.id = "bounded_lake";
+    lake.kind = TerrainWaterBody::Lake;
+    lake.center = {32.F, 32.F};
+    lake.radius = 12.F;
+    lake.level = groundHeight + 2.F;
+    lake.shorelineSoftening = false;
+
+    auto artifacts = std::make_shared<TerrainGraphArtifacts>();
+    artifacts->water.authored = true;
+    artifacts->water.bodies.push_back(lake);
+    artifacts->waterResult = refreshTerrainWaterResult(
+        scene.field, artifacts->water, scene.field.heights);
+    assert(artifacts->waterResult);
+    scene.field.graphArtifacts = artifacts;
+
+    const auto materialSet = fullSet();
+    TerrainPalette palette;
+    palette.materialSet = materialSet.id;
+    palette.surfaceMaterials = materialSet.roles;
+    assert(updateTerrainSurfaceMaterials(scene.field, recipe, &palette, true));
+
+    const auto &classification = *scene.field.surfaceMaterials->classification;
+    const auto lakeSample = scene.field.index(4, 4);
+    const auto drySample = scene.field.index(0, 0);
+    const auto lakeRole = classification.roles.at(classification.samples[lakeSample]);
+    const auto dryRole = classification.roles.at(classification.samples[drySample]);
+    assert(lakeRole == "underwater");
+    assert(dryRole != "underwater");
+  }
+}
+
 } // namespace
 
 int main() {
+  surfaceRebindingPreservesClassificationAndHeights();
+  finiteWaterCoverageControlsSurfaceRoles();
   dryOpenGroundIsGround();
   steepGroundIsRock();
   flatWetCellIsWetGround();

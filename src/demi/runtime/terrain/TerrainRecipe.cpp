@@ -279,12 +279,9 @@ bool TerrainRecipe::sameGenerationInputs(const TerrainRecipe &other) const {
     const auto found = other.landforms.find(id);
     if (found == other.landforms.end())
       return false;
-    if (shape.baseHeight != found->second.baseHeight ||
-        shape.heightVariation != found->second.heightVariation ||
-        shape.featureSize != found->second.featureSize ||
-        shape.roughness != found->second.roughness ||
-        shape.octaves != found->second.octaves)
+    if (shape != found->second) {
       return false;
+    }
   }
   // Only a biome's landform reference is a generation input. Tint, material,
   // and texture scale are appearance. Restyling a biome stays a local surface
@@ -380,25 +377,7 @@ void TerrainRecipe::validate() const {
   }
   for (const auto &[id, shape] : landforms) {
     require(!id.empty(), "Terrain landform id must not be empty");
-    require(finite(shape.baseHeight) && finite(shape.heightVariation) &&
-                shape.heightVariation >= 0 && finite(shape.featureSize) &&
-                shape.featureSize > 0 && finite(shape.roughness) &&
-                shape.roughness >= 0 && shape.roughness <= 1 &&
-                shape.octaves > 0,
-            "Invalid terrain landform height/noise parameters");
-    require(double(std::abs(shape.baseHeight)) + shape.heightVariation <=
-                std::numeric_limits<float>::max(),
-            "Terrain landform height range overflows");
-    require(std::isfinite(1.F / shape.featureSize),
-            "Terrain feature_size produces an unrepresentable noise frequency");
-    // FastNoiseLite floors lattice positions into signed ints; its octave
-    // frequencies double. Reject inputs outside that representable domain.
-    const double frequency =
-        std::ldexp(1.0 / shape.featureSize, shape.octaves - 1);
-    require(std::isfinite(frequency) &&
-                frequency * std::max(size.x, size.y) <
-                    std::numeric_limits<int>::max() / 4.0,
-            "Terrain octave coordinates exceed noise lattice range");
+    shape.validate(size);
   }
   for (const auto &[id, biome] : biomes)
     for (float channel :
@@ -556,17 +535,7 @@ TerrainRecipe TerrainRecipe::parse(const nlohmann::json &json) {
         const auto &value = entry.value();
         requireMessage(value.is_object(),
                        "Terrain landform must be an object: " + entry.key());
-        checkKeys(value, {"base_height", "height_variation", "feature_size",
-                          "roughness", "octaves"});
-        TerrainLandform landform;
-        landform.baseHeight = value.value("base_height", landform.baseHeight);
-        landform.heightVariation =
-            value.value("height_variation", landform.heightVariation);
-        landform.featureSize =
-            value.value("feature_size", landform.featureSize);
-        landform.roughness = value.value("roughness", landform.roughness);
-        if (value.contains("octaves"))
-          landform.octaves = integer(value.at("octaves"));
+        const auto landform = TerrainLandform::parse(value);
         recipe.landforms.emplace(entry.key(), landform);
       }
     }
@@ -715,12 +684,9 @@ nlohmann::json TerrainRecipe::toJson() const {
       entry["texture_scale"] = biome.textureScale;
     json["biomes"][id] = std::move(entry);
   }
-  for (const auto &[id, shape] : landforms)
-    json["landforms"][id] = {{"base_height", shape.baseHeight},
-                             {"height_variation", shape.heightVariation},
-                             {"feature_size", shape.featureSize},
-                             {"roughness", shape.roughness},
-                             {"octaves", shape.octaves}};
+  for (const auto &[id, shape] : landforms) {
+    json["landforms"][id] = shape.toJson();
+  }
   for (const auto &region : regions) {
     nlohmann::json entry{{"biome", region.biome},
                          {"center", {region.center.x, region.center.y}},

@@ -168,12 +168,22 @@ count: 3
   const auto typedSources = root / "typed_sources";
   if (!write(typedSources / "reference.json",
              R"({"format_version":1,"note":"asset://not-a-dependency"})") ||
-      !write(typedSources / "material.json",
-             R"({"format_version":1,"name":"Stone","maps":[{"base_color":"asset://refs/texture"}]})") ||
-      !write(typedSources / "set.json",
-             R"({"format_version":1,"name":"Ground","roles":{"rock":"asset://terrain/stone"}})") ||
+      !write(
+          typedSources / "material.json",
+          R"({"format_version":1,"name":"Stone","maps":[{"base_color":"asset://refs/texture"}]})") ||
+      !write(
+          typedSources / "set.json",
+          R"({"format_version":1,"name":"Ground","roles":{"rock":"asset://terrain/stone"}})") ||
       !write(typedSources / "palette.json",
-             R"({"format_version":1,"name":"Props","roles":{"soil":{"asset":"asset://terrain/stone","prefab":"prefab://props/stone"}}})"))
+             R"({
+  "format_version": 2,
+  "name": "Props",
+  "placements": {
+    "soil": {
+      "prefab": "prefab://props/stone"
+    }
+  }
+})"))
     return 1;
   const auto reference = importAsset({.projectDirectory = typedProject,
                                       .source = typedSources / "reference.json",
@@ -202,8 +212,7 @@ count: 3
           std::vector<std::string>{"asset://refs/texture"} ||
       setManifest->dependencies !=
           std::vector<std::string>{"asset://terrain/stone"} ||
-      paletteManifest->dependencies !=
-          std::vector<std::string>{"asset://terrain/stone"}) {
+      !paletteManifest->dependencies.empty()) {
     std::cerr << "Typed DataAsset import lost its content type or dependencies.\n";
     return 1;
   }
@@ -213,8 +222,7 @@ count: 3
                                    loadAssetRegistry(typedProject),
                                    paletteManifest->id)
               .assetDependencies() !=
-          (std::vector<std::string>{"asset://terrain/stone",
-                                    "prefab://props/stone"})) {
+          (std::vector<std::string>{"prefab://props/stone"})) {
     std::cerr << "Terrain palette lost its prefab source reference.\n";
     return 1;
   }

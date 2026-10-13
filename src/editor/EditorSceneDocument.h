@@ -27,7 +27,15 @@ struct EditorDocumentIssue {
   std::string message;
 };
 
-enum class EditorEntityKind { Empty, Cube, Sphere, Cylinder, Plane };
+struct EditorFieldEdit {
+  SceneValueTarget target;
+  nlohmann::json value;
+};
+
+enum class EditorEntityKind {
+  Empty, Cube, Sphere, Cylinder, Plane, Camera, PointLight, SpotLight,
+  DirectionalLight, BasicLighting
+};
 
 // Owns the active authored scene JSON, its command history, and its
 // conflict-safe persistence. Structural mutations are built with reusable
@@ -77,8 +85,13 @@ public:
   [[nodiscard]] bool instantiatePrefab(std::string_view reference,
                                        nlohmann::json overrides,
                                        std::string &error);
+  [[nodiscard]] bool
+  replaceHierarchyWithPrefab(std::string_view selectedId,
+                             std::string_view prefabReference,
+                             nlohmann::json entityIds, std::string &error);
   [[nodiscard]] bool createPresetEntity(std::string_view preset,
                                         std::string &error);
+  [[nodiscard]] bool unpackPrefab(std::string_view id, std::string &error);
   [[nodiscard]] bool unpackPreset(std::string_view id, std::string &error);
   [[nodiscard]] bool deleteEntity(std::string_view id, std::string &error);
   [[nodiscard]] bool deleteEntities(std::span<const std::string> ids,
@@ -111,6 +124,10 @@ public:
   [[nodiscard]] bool removeComponent(std::string_view id,
                                      std::string_view componentName,
                                      std::string &error);
+
+  // Apply different field values as one validated, reversible command.
+  [[nodiscard]] bool setFieldValues(std::vector<EditorFieldEdit> edits,
+                                    std::string &error);
 
   // Object adds/configures a component, JSON null removes it, nullopt reverts
   // this component's local overrides to the prefab source.

@@ -26,11 +26,10 @@ TerrainRecipe flatRecipe() {
   return recipe;
 }
 
-TerrainPaletteEntry entry(TerrainPaletteRole role, std::string asset,
-                          float weight, float spacing) {
+TerrainPaletteEntry entry(std::string ruleId, std::string asset, float weight,
+                          float spacing) {
   TerrainPaletteEntry value;
-  value.role = role;
-  value.asset = std::move(asset);
+  value.model = std::move(asset);
   value.weight = weight;
   value.spacing = spacing;
   value.scaleMin = 1;
@@ -42,8 +41,8 @@ TerrainPalette paletteWith(TerrainPaletteEntry tree, TerrainPaletteEntry grass) 
   TerrainPalette palette;
   palette.id = "asset://terrain/palettes/test";
   palette.name = "Test";
-  palette.roles.emplace("tree", tree);
-  palette.roles.emplace("grass", grass);
+  palette.placements.emplace("tree", tree);
+  palette.placements.emplace("grass", grass);
   return palette;
 }
 
@@ -54,8 +53,8 @@ void placementIsDeterministic() {
   auto recipe = flatRecipe();
   recipe.paletteId = "asset://terrain/palettes/test";
   const auto field = *TerrainGenerator::generate(recipe);
-  const auto palette = paletteWith(entry(TerrainPaletteRole::Tree, "asset://t", 1, 3),
-                                   entry(TerrainPaletteRole::Grass, "asset://g", 1, 0));
+  const auto palette = paletteWith(entry("tree", "asset://t", 1, 3),
+                                   entry("grass", "asset://g", 1, 0));
   const auto first = scatterTerrain(field, recipe, palette);
   for (int i = 0; i < 4; ++i) {
     const auto again = scatterTerrain(field, recipe, palette);
@@ -63,7 +62,7 @@ void placementIsDeterministic() {
     for (std::size_t index = 0; index < first.placements.size(); ++index) {
       const auto &a = first.placements[index];
       const auto &b = again.placements[index];
-      assert(a.role == b.role && a.biome == b.biome && a.lod == b.lod);
+      assert(a.ruleId == b.ruleId && a.biome == b.biome && a.lod == b.lod);
       assert(a.position.x == b.position.x && a.position.y == b.position.y &&
              a.position.z == b.position.z);
       assert(a.yaw == b.yaw && a.scale == b.scale);
@@ -74,11 +73,39 @@ void placementIsDeterministic() {
 
 // A recipe with no palette is exactly the old behaviour, and a palette handed
 // to a recipe that does not name one must scatter nothing.
+void namedRulesRemainIndependent() {
+  const auto recipe = flatRecipe();
+  const auto field = *TerrainGenerator::generate(recipe);
+  TerrainPalette palette;
+  palette.id = "asset://palette";
+  auto sparse = entry("unused", "asset://shared_model", 1, 4);
+  auto dense = sparse;
+  dense.spacing = 1;
+  palette.placements.emplace("pine_sparse", sparse);
+  palette.placements.emplace("pine_dense", dense);
+  const auto original = scatterTerrain(field, recipe, palette);
+  TerrainPalette reordered;
+  reordered.id = palette.id;
+  reordered.placements.emplace("pine_dense", dense);
+  reordered.placements.emplace("pine_sparse", sparse);
+  const auto repeated = scatterTerrain(field, recipe, reordered);
+  assert(original.placements.size() == repeated.placements.size());
+  bool hasSparse = false, hasDense = false;
+  for (std::size_t i = 0; i < original.placements.size(); ++i) {
+    const auto &a = original.placements[i];
+    const auto &b = repeated.placements[i];
+    assert(a.ruleId == b.ruleId && a.cell == b.cell && a.yaw == b.yaw);
+    hasSparse |= a.ruleId == "pine_sparse";
+    hasDense |= a.ruleId == "pine_dense";
+  }
+  assert(hasSparse && hasDense);
+}
+
 void paletteIsOptIn() {
   const auto recipe = flatRecipe();
   const auto field = *TerrainGenerator::generate(recipe);
-  const auto palette = paletteWith(entry(TerrainPaletteRole::Tree, "asset://t", 1, 2),
-                                   entry(TerrainPaletteRole::Grass, "asset://g", 1, 0));
+  const auto palette = paletteWith(entry("tree", "asset://t", 1, 2),
+                                   entry("grass", "asset://g", 1, 0));
   const auto without = scatterTerrain(field, recipe, palette);
   assert(!without.placements.empty());
   // Density 0 is the documented opt-out.
@@ -87,20 +114,21 @@ void paletteIsOptIn() {
   assert(scatterTerrain(field, recipe, palette, off).placements.empty());
 }
 
-// Weight is a relative share: zero keeps a role available but never selects it.
+// Weight is a relative share: zero keeps a ruleId available but never selects
+// it.
 void zeroWeightNeverScatters() {
   auto recipe = flatRecipe();
   recipe.paletteId = "asset://terrain/palettes/test";
   const auto field = *TerrainGenerator::generate(recipe);
-  const auto palette = paletteWith(entry(TerrainPaletteRole::Tree, "asset://t", 0, 1),
-                                   entry(TerrainPaletteRole::Grass, "asset://g", 1, 0));
+  const auto palette = paletteWith(entry("tree", "asset://t", 0, 1),
+                                   entry("grass", "asset://g", 1, 0));
   const auto result = scatterTerrain(field, recipe, palette);
   for (const auto &placement : result.placements)
-    assert(placement.role != TerrainPaletteRole::Tree);
+    assert(placement.ruleId != "tree");
   assert(!result.placements.empty());
 }
 
-// A role restricted to biomes must never appear on any other biome.
+// A ruleId restricted to biomes must never appear on any other biome.
 void rolesRespectBiomeFilter() {
   auto recipe = flatRecipe();
   recipe.paletteId = "asset://terrain/palettes/test";
@@ -134,54 +162,54 @@ void rolesRespectBiomeFilter() {
       fieldBiomes.insert(field.biomeIds[field.biomeIndices[field.index(x, z)]]);
   assert(fieldBiomes.size() == 2);
 
-  auto tree = entry(TerrainPaletteRole::Tree, "asset://t", 1, 2);
+  auto tree = entry("tree", "asset://t", 1, 2);
   tree.biomes = {"meadow"};
-  auto grass = entry(TerrainPaletteRole::Grass, "asset://g", 1, 0);
+  auto grass = entry("grass", "asset://g", 1, 0);
   grass.biomes = {"rock"};
   const auto result = scatterTerrain(field, recipe, paletteWith(tree, grass));
   std::set<std::string> seen;
   for (const auto &placement : result.placements) {
     seen.insert(placement.biomeName);
-    if (placement.role == TerrainPaletteRole::Tree)
+    if (placement.ruleId == "tree")
       assert(placement.biomeName == "meadow");
-    if (placement.role == TerrainPaletteRole::Grass)
+    if (placement.ruleId == "grass")
       assert(placement.biomeName == "rock");
   }
   // Both roles must actually have placed, or the assertions above are vacuous.
   bool placedTree = false, placedGrass = false;
   for (const auto &placement : result.placements) {
-    placedTree |= placement.role == TerrainPaletteRole::Tree;
-    placedGrass |= placement.role == TerrainPaletteRole::Grass;
+    placedTree |= placement.ruleId == "tree";
+    placedGrass |= placement.ruleId == "grass";
   }
   assert(placedTree && placedGrass);
   assert(seen.size() == 2);
   // An empty biome list means every biome, which is the documented default.
-  auto anyBiome = entry(TerrainPaletteRole::Bush, "asset://b", 1, 1);
+  auto anyBiome = entry("bush", "asset://b", 1, 1);
   anyBiome.biomes.clear();
   TerrainPalette palette;
-  palette.roles.emplace("bush", anyBiome);
+  palette.placements.emplace("bush", anyBiome);
   const auto open = scatterTerrain(field, recipe, palette);
   assert(!open.placements.empty());
 }
 
-// Spacing is a real minimum distance, enforced per role rather than globally.
+// Spacing is a real minimum distance, enforced per ruleId rather than globally.
 void spacingIsEnforcedPerRole() {
   auto recipe = flatRecipe();
   recipe.paletteId = "asset://terrain/palettes/test";
   const auto field = *TerrainGenerator::generate(recipe);
-  const auto palette = paletteWith(entry(TerrainPaletteRole::Tree, "asset://t", 1, 6),
-                                   entry(TerrainPaletteRole::Bush, "asset://b", 1, 1));
+  const auto palette = paletteWith(entry("tree", "asset://t", 1, 6),
+                                   entry("bush", "asset://b", 1, 1));
   const auto result = scatterTerrain(field, recipe, palette);
-  auto checkSpacing = [&](TerrainPaletteRole role, float minimum) {
+  auto checkSpacing = [&](std::string ruleId, float minimum) {
     std::size_t count = 0;
     for (std::size_t i = 0; i < result.placements.size(); ++i)
       for (std::size_t j = i + 1; j < result.placements.size(); ++j) {
-        if (result.placements[i].role != role)
+        if (result.placements[i].ruleId != ruleId)
           continue;
         ++count;
         const auto &a = result.placements[i];
         const auto &b = result.placements[j];
-        if (a.role != b.role)
+        if (a.ruleId != b.ruleId)
           continue;
         const float reach =
             std::hypot(a.position.x - b.position.x, a.position.z - b.position.z);
@@ -192,8 +220,8 @@ void spacingIsEnforcedPerRole() {
       }
     return count;
   };
-  checkSpacing(TerrainPaletteRole::Tree, 6);
-  checkSpacing(TerrainPaletteRole::Bush, 1);
+  checkSpacing("tree", 6);
+  checkSpacing("bush", 1);
 }
 
 // Nothing may scatter into water, and nothing may scatter on an excluded cell.
@@ -208,8 +236,8 @@ void waterAndExclusionsAreRespected() {
   recipe.landforms.at("default").heightVariation = 1;
   const auto field = *TerrainGenerator::generate(recipe);
   const auto sea = TerrainRuleContextBuilder::seaLevel(recipe);
-  const auto palette = paletteWith(entry(TerrainPaletteRole::Tree, "asset://t", 1, 1),
-                                   entry(TerrainPaletteRole::Reed, "asset://r", 1, 0));
+  const auto palette = paletteWith(entry("tree", "asset://t", 1, 1),
+                                   entry("reed", "asset://r", 1, 0));
   const auto result = scatterTerrain(field, recipe, palette);
   assert(!result.placements.empty());
   for (const auto &placement : result.placements) {
@@ -229,14 +257,14 @@ void scaleAndRotationAreInRange() {
   auto recipe = flatRecipe();
   recipe.paletteId = "asset://terrain/palettes/test";
   const auto field = *TerrainGenerator::generate(recipe);
-  auto bush = entry(TerrainPaletteRole::Bush, "asset://b", 1, 0);
+  auto bush = entry("bush", "asset://b", 1, 0);
   bush.scaleMin = 0.5F;
   bush.scaleMax = 2.5F;
   bush.lod = 3;
   bush.collision = TerrainCollisionPolicy::Trigger;
   bush.prefab = "prefab://shrub";
   TerrainPalette palette;
-  palette.roles.emplace("bush", bush);
+  palette.placements.emplace("bush", bush);
   const auto result = scatterTerrain(field, recipe, palette);
   assert(!result.placements.empty());
   for (const auto &placement : result.placements) {
@@ -253,8 +281,8 @@ void ceilingIsReported() {
   auto recipe = flatRecipe();
   recipe.paletteId = "asset://terrain/palettes/test";
   const auto field = *TerrainGenerator::generate(recipe);
-  const auto palette = paletteWith(entry(TerrainPaletteRole::Grass, "asset://g", 1, 0),
-                                   entry(TerrainPaletteRole::Bush, "asset://b", 1, 0));
+  const auto palette = paletteWith(entry("grass", "asset://g", 1, 0),
+                                   entry("bush", "asset://b", 1, 0));
   TerrainScatterSettings limited;
   limited.maximumPlacements = 5;
   const auto result = scatterTerrain(field, recipe, palette, limited);
@@ -269,17 +297,17 @@ void scatterableRolesAreReported() {
   recipe.paletteId = "asset://terrain/palettes/test";
   recipe.landforms.at("default").baseHeight = 8;
   const auto field = *TerrainGenerator::generate(recipe);
-  auto rockOnly = entry(TerrainPaletteRole::Tree, "asset://t", 1, 1);
+  auto rockOnly = entry("tree", "asset://t", 1, 1);
   rockOnly.biomes = {"a_biome_that_does_not_exist"};
   TerrainPalette palette;
-  palette.roles.emplace("tree", rockOnly);
+  palette.placements.emplace("tree", rockOnly);
   assert(scatterableRoles(field, recipe, palette).empty());
   const auto result = scatterTerrain(field, recipe, palette);
   assert(result.placements.empty());
   assert(!result.truncated);
 
-  // Adding an eligible role makes it scatterable again.
-  palette.roles.emplace("bush", entry(TerrainPaletteRole::Bush, "asset://b", 1, 2));
+  // Adding an eligible ruleId makes it scatterable again.
+  palette.placements.emplace("bush", entry("bush", "asset://b", 1, 2));
   assert(scatterableRoles(field, recipe, palette).size() == 1);
 }
 
@@ -291,8 +319,8 @@ void generationConsumesThePalette() {
   assert(bare && bare->scatterPlacements.empty() && bare->paletteId.empty());
 
   recipe.paletteId = "asset://terrain/palettes/test";
-  auto palette = paletteWith(entry(TerrainPaletteRole::Tree, "asset://t", 1, 2),
-                             entry(TerrainPaletteRole::Grass, "asset://g", 1, 0));
+  auto palette = paletteWith(entry("tree", "asset://t", 1, 2),
+                             entry("grass", "asset://g", 1, 0));
   const auto nullPalette = TerrainGenerator::generate(recipe, nullptr);
   assert(nullPalette && nullPalette->scatterPlacements.empty());
 
@@ -310,6 +338,7 @@ void generationConsumesThePalette() {
 
 int main() {
   placementIsDeterministic();
+  namedRulesRemainIndependent();
   paletteIsOptIn();
   zeroWeightNeverScatters();
   rolesRespectBiomeFilter();

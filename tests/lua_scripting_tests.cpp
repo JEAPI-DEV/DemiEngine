@@ -264,6 +264,14 @@ function Probe:on_start()
     id = "runtime_row", type = "button", text = "Runtime",
     action = "inspect:runtime", width = 30, height = 12,
   })
+  local styled, styled_error = Hud.create("", {
+    id="styled_hud", type="panel", size={80,40}, background_color="#336699",
+    corner_radius=7, border_width=2, children={{id="styled_child",type="label",text="Styled",at={4,4},size={60,20}}},
+  })
+  local rejected = Hud.create("", {id="rejected_hud",type="container",children={{id="styled_child",type="label"}}})
+  if styled and styled_error == "" and not rejected and not Hud.find("rejected_hud") then
+    Save.set_string("test", "hud_tree", "passed")
+  end
   local clusters = Text.grapheme_count("Aé")
   local prefix = Text.grapheme_slice("Aé", 2, 1)
   local layout = Text.layout("one two three", 30, 10, 2)
@@ -522,7 +530,7 @@ PropProbe.property_schema = {
 }
 function PropProbe:on_start()
   local Entity = require("demi.entity")
-  if self.entity_id == "ent_prop" and self.speed == 12.5 and self.enabled == true and self.tags[1] == "runner" and self.spawn.x == 3.0 and self.lives == 3 and self.role == "runner" and self.target == "ent_prop" and Entity.exists(self.target) then
+  if self.entity_id == "ent_prop" and self.speed == 12.5 and self.enabled == true and self.tags[1] == "runner" and self.spawn.x == 3.0 and self.lives == 3 and math.type(self.lives) == "integer" and self.role == "runner" and self.target == "ent_prop" and Entity.exists(self.target) then
     Save.set_string("test", "script_properties", "generic")
   end
 end
@@ -807,6 +815,16 @@ return PropProbe
       !host.hudNodeHandle("runtime_row") ||
       host.hudNodeHandle("runtime_row_copy")) {
     std::cerr << "Dynamic HUD or Unicode Text Lua APIs failed.\n";
+    return 1;
+  }
+  const auto styled =
+      std::ranges::find(world.ui.nodes, "styled_hud", &ui::UiNode::id);
+  if (host.saveString("test", "hud_tree") != "passed" ||
+      styled == world.ui.nodes.end() || styled->cornerRadius != 7 ||
+      styled->borderWidth != 2 ||
+      std::abs(styled->backgroundColor.r - 0.2F) > 0.001F ||
+      !host.hudNodeHandle("styled_child")) {
+    std::cerr << "Declarative HUD tree creation lost styling or atomicity.\n";
     return 1;
   }
   const auto hudImageNode = std::ranges::find_if(

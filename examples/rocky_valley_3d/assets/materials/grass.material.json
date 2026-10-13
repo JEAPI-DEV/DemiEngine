@@ -1,0 +1,13 @@
+{
+  "format_version": 1,
+  "shader": "builtin://lit",
+  "parameters": {
+    "base_color": [
+      0.46,
+      0.55,
+      0.3,
+      1
+    ],
+    "roughness": 0.95
+  }
+}

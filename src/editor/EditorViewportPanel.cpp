@@ -1,8 +1,12 @@
 #include "editor/EditorViewportPanel.h"
+#include "demi/runtime/scene/Transform3DHierarchy.h"
+#include "demi/runtime/scene/components/3dcomponents/DirectionalLightComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/PointLightComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/SpotLightComponent.h"
+#include "editor/EditorChrome.h"
 
 #include "editor/EditorDragDropPayloads.h"
 #include "editor/EditorHudCanvas.h"
-#include "editor/EditorIsoGridCell.h"
 #include "editor/EditorModuleCatalog.h"
 #include "editor/EditorPanelStyle.h"
 #include "editor/EditorPrefabPlacement.h"
@@ -60,7 +64,7 @@ void drawOrientationGizmo(ImDrawList &draw, const ImVec2 center,
 
 } // namespace
 
-void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
+bool drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
                         const ImVec2 size, const std::uint16_t textureIndex,
                         EditorViewportArea &viewportArea,
                         EditorHudViewportState &hudState, const bool hudOnly,
@@ -72,8 +76,9 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
                             ImGuiWindowFlags_NoBackground)) {
     viewportArea = {};
     ImGui::End();
-    return;
+    return false;
   }
+  bool activated = false;
   const bool is2D = hudOnly || workspace.viewDimension() ==
                                    EditorSceneViewDimension::TwoDimensional;
   const ImVec2 canvasMin = ImGui::GetCursorScreenPos();
@@ -109,6 +114,10 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
     }
     // Capture the canvas item's hover state before drag/drop and overlays.
     canvasHovered = ImGui::IsItemHovered();
+    activated =
+        canvasHovered && (ImGui::IsMouseClicked(ImGuiMouseButton_Left) ||
+                          ImGui::IsMouseClicked(ImGuiMouseButton_Right) ||
+                          ImGui::IsMouseClicked(ImGuiMouseButton_Middle));
     const bool acceptsPrefabDrop =
         !hudOnly && !workspace.isPrefabDocument() &&
         workspace.activeDocument() == EditorWorkspaceDocument::Scene;
@@ -122,6 +131,7 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
                   ? ImGui::AcceptDragDropPayload(EditorPrefabSourcePayload)
                   : nullptr;
           payload != nullptr && payload->IsDelivery()) {
+        activated = true;
         const auto *data = static_cast<const char *>(payload->Data);
         const bool valid = data != nullptr && payload->DataSize > 1 &&
                            data[payload->DataSize - 1] == '\0';
@@ -150,6 +160,7 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
                   ? ImGui::AcceptDragDropPayload(EditorEntityCreationPayload)
                   : nullptr;
           payload != nullptr && payload->IsDelivery()) {
+        activated = true;
         if (is2D || payload->Data == nullptr ||
             payload->DataSize != sizeof(EditorEntityKind)) {
           notice = "The 3D creation drag payload is invalid for this view.";
@@ -172,6 +183,7 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
       if (const ImGuiPayload *payload =
               ImGui::AcceptDragDropPayload(EditorTerrainAssetPayload);
           payload != nullptr && payload->IsDelivery()) {
+        activated = true;
         const auto *data = static_cast<const char *>(payload->Data);
         if (data == nullptr || payload->DataSize < 2 ||
             data[payload->DataSize - 1] != '\0') {
@@ -198,6 +210,7 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
       if (const ImGuiPayload *payload =
               ImGui::AcceptDragDropPayload(EditorModulePayload);
           payload != nullptr && payload->IsDelivery()) {
+        activated = true;
         const auto *data = static_cast<const char *>(payload->Data);
         if (data == nullptr || payload->DataSize < 2 ||
             data[payload->DataSize - 1] != '\0') {
@@ -215,7 +228,8 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
                     canvasWidth,
                 (ImGui::GetIO().MousePos.y - canvasMin.y) * hud.canvasSize.y /
                     canvasHeight};
-            const runtime::ui::UiNode *picked = pickEditorHudNode(hud, point);
+            const runtime::ui::UiNode *picked =
+                pickEditorHudDropParent(hud, point);
             std::string target(workspace.selectedHudNodeId());
             if (picked)
               target = picked->id;
@@ -230,20 +244,6 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
     }
   }
   ImDrawList *draw = ImGui::GetWindowDrawList();
-  const char *viewLabel =
-      hudOnly ? "HUD"
-      : is2D  ? "2D"
-      : workspace.sceneView().projection() == EditorProjection::Perspective
-          ? "Perspective"
-          : "Orthographic";
-  const ImVec2 badgeMin{canvasMin.x + 9.0F, canvasMin.y + 9.0F};
-  const ImVec2 badgeText = ImGui::CalcTextSize(viewLabel);
-  const ImVec2 badgeMax{badgeMin.x + badgeText.x + 18.0F,
-                        badgeMin.y + badgeText.y + 10.0F};
-  draw->AddRectFilled(badgeMin, badgeMax, IM_COL32(50, 57, 69, 235), 3.0F);
-  draw->AddRect(badgeMin, badgeMax, IM_COL32(80, 88, 103, 255), 3.0F);
-  draw->AddText({badgeMin.x + 9.0F, badgeMin.y + 5.0F},
-                IM_COL32(224, 227, 235, 255), viewLabel);
   if (is2D && !hudOnly) {
     for (const EditorOverlayLine2D &line : buildEditorViewportOverlays2D(
              workspace.project().world, workspace.sceneView2D().camera(),
@@ -258,19 +258,6 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
     const ImVec2 orientation{canvasMax.x - 66.0F, canvasMin.y + 66.0F};
     drawOrientationGizmo(*draw, orientation, workspace.sceneView().camera());
   }
-  const runtime::Entity *selected = workspace.selectedEntity();
-  const runtime::ui::UiNode *selectedHudNode = workspace.selectedHudNode();
-  const std::string label =
-      hudOnly ? selectedHudNode == nullptr ? "No HUD element selected"
-                                           : "Selected: " + selectedHudNode->id
-      : workspace.selectedIsoGridCell()
-          ? "Selected: Cell " +
-                isoGridCellKey(workspace.selectedIsoGridCell()->x,
-                               workspace.selectedIsoGridCell()->y)
-      : selected == nullptr ? "No entity selected"
-                            : "Selected: " + selected->name;
-  draw->AddText({canvasMin.x + 14.0F, badgeMax.y + 10.0F},
-                IM_COL32(205, 209, 218, 255), label.c_str());
   if (canvasWidth >= 1.0F && canvasHeight >= 1.0F) {
     const bool hovered = canvasHovered;
     const bool focused = ImGui::IsWindowFocused();
@@ -282,6 +269,43 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
         (io.MousePos.x - canvasMin.x) / std::max(hudScaleX, 0.001F),
         (io.MousePos.y - canvasMin.y) / std::max(hudScaleY, 0.001F)};
     bool hudConsumed = false;
+    if (!is2D && workspace.sceneView().showLights) {
+      for (const auto &light : workspace.project().world.entities) {
+        if (!light.enabled ||
+            !(light.hasComponent<runtime::PointLightComponent>() ||
+              light.hasComponent<runtime::SpotLightComponent>() ||
+              light.hasComponent<runtime::DirectionalLightComponent>()))
+          continue;
+        const auto transform =
+            runtime::resolveWorldTransform3D(workspace.project().world, light);
+        const auto point =
+            transform ? projectScenePoint3D(workspace.sceneView().camera(),
+                                            transform->position,
+                                            {canvasWidth, canvasHeight})
+                      : std::nullopt;
+        if (!point)
+          continue;
+        const ImVec2 centre{canvasMin.x + point->x,
+                            canvasMin.y + point->y - 20};
+        if (centre.x < canvasMin.x || centre.x > canvasMax.x ||
+            centre.y < canvasMin.y || centre.y > canvasMax.y)
+          continue;
+        drawEditorGlyph(*draw, EditorIcon::Light, centre,
+                        IM_COL32(255, 202, 104, 255));
+        if (hovered && !io.KeyAlt &&
+            std::hypot(io.MousePos.x - centre.x, io.MousePos.y - centre.y) <
+                11) {
+          ImGui::SetTooltip("%s", light.name.c_str());
+          if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+            if (io.KeyCtrl)
+              workspace.toggleEntitySelection(light.id);
+            else
+              workspace.selectEntity(light.id);
+            hudConsumed = true;
+          }
+        }
+      }
+    }
     const runtime::ui::UiNode *selectedHud = workspace.selectedHudNode();
     if (hudOnly && hovered && !io.KeyAlt &&
         ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
@@ -326,12 +350,19 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
                                 std::max(hudState.startSize.y + delta.y, 1.0F)}
                 : runtime::Vec2{hudState.startPosition.x + delta.x,
                                 hudState.startPosition.y + delta.y};
-        std::string error;
-        notice = workspace.setHudNodeField(
-                     hudState.nodeId, resize ? "size" : "position",
-                     nlohmann::json::array({value.x, value.y}), error)
-                     ? resize ? "HUD element resized" : "HUD element moved"
-                     : error;
+        // Selection clicks must not materialize inherited position/size values.
+        const float screenDistance =
+            std::hypot(delta.x * hudScaleX, delta.y * hudScaleY);
+        if (screenDistance >= io.MouseDragThreshold) {
+          std::string error;
+          notice = workspace.setHudNodeField(
+                       hudState.nodeId, resize ? "size" : "position",
+                       nlohmann::json::array({value.x, value.y}), error)
+                       ? resize ? "HUD element resized" : "HUD element moved"
+                       : error;
+        } else if (workspace.previewHudAction(hudState.nodeId)) {
+          notice = "HUD action previewed; authored defaults are unchanged";
+        }
         hudState = {};
       } else if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
         hudState = {};
@@ -454,9 +485,11 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
                          canvasMin.y + line.start.y};
       const ImVec2 end{canvasMin.x + line.end.x, canvasMin.y + line.end.y};
       draw->AddLine(start, end, color(line.axis), 4.0F);
-      if (drawnOperation == EditorGizmoOperation::Rotate)
-        draw->AddCircle(end, 6.0F, color(line.axis), 16, 3.0F);
-      else if (drawnOperation == EditorGizmoOperation::Scale)
+      if (drawnOperation == EditorGizmoOperation::Rotate) {
+        if (is2D)
+          draw->AddCircle(end, 6.0F, color(line.axis), 16, 3.0F);
+        continue;
+      } else if (drawnOperation == EditorGizmoOperation::Scale)
         draw->AddRectFilled({end.x - 5.0F, end.y - 5.0F},
                             {end.x + 5.0F, end.y + 5.0F}, color(line.axis));
       else {
@@ -502,15 +535,7 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
       draw->AddText({rectMin.x, rectMin.y - 19.0F},
                     IM_COL32(210, 194, 255, 255), hudNode->id.c_str());
     }
-    if (hovered)
-      ImGui::SetTooltip(
-          hudOnly ? "Click to select | Ctrl+click toggles selection | Drag to "
-                    "move | Drag the "
-                    "corner handle to resize"
-          : is2D  ? "Click select (repeat to cycle overlaps) | Middle pan | "
-                    "Wheel zoom | F frame | Shift bypass snap"
-                  : "Alt+Left orbit | Middle pan | Wheel zoom | "
-                    "Right+WASDQE fly | F frame | Shift bypass snap");
+
   } else {
     if (is2D)
       workspace.sceneView2D().update({});
@@ -555,6 +580,7 @@ void drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
   }
   if (!embedded)
     ImGui::End();
+  return activated;
 }
 
 } // namespace demi::editor

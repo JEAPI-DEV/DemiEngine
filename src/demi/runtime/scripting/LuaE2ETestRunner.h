@@ -32,6 +32,7 @@ public:
   void shutdown();
   void start(const std::string &moduleName);
   void update(double deltaTime);
+  void abort(const std::string &reason);
   void drainSyntheticTouches(InputState &input);
   [[nodiscard]] bool active() const;
   [[nodiscard]] int passed() const;

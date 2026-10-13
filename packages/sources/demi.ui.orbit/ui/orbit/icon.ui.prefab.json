@@ -1,0 +1,33 @@
+{
+  "format_version": 1,
+  "id": "ui-prefab://orbit/icon",
+  "parameters": {
+    "texture": {
+      "type": "string",
+      "default": "asset://orbit/icons/rocket"
+    },
+    "size": {
+      "type": "array",
+      "default": [
+        24,
+        24
+      ]
+    },
+    "tint": {
+      "type": "string",
+      "default": "#EEF4FA"
+    },
+    "label": {
+      "type": "string",
+      "default": ""
+    }
+  },
+  "root": {
+    "id": "icon",
+    "type": "image",
+    "size": "${size}",
+    "texture": "${texture}",
+    "color": "${tint}",
+    "accessibility_label": "${label}"
+  }
+}

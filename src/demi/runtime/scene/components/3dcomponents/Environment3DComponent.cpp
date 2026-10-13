@@ -4,24 +4,59 @@
 #include "demi/runtime/scene/model/Entity.h"
 
 #include <algorithm>
+#include <cmath>
 #include <limits>
 #include <stdexcept>
-#include <cmath>
 
 namespace demi::runtime {
+namespace {
+
+std::size_t readTerrainBudget(const nlohmann::json &json, const char *name,
+                              std::size_t defaultValue, std::size_t maximum) {
+  const auto value = json.find(name);
+  if (value == json.end()) {
+    return defaultValue;
+  }
+  if (!value->is_number_integer() ||
+      (!value->is_number_unsigned() && value->get<std::int64_t>() < 0)) {
+    throw std::invalid_argument(std::string("Environment3D.") + name +
+                                " must be a nonnegative integer");
+  }
+  const auto requested = value->get<std::uint64_t>();
+  if (requested > maximum) {
+    throw std::invalid_argument(std::string("Environment3D.") + name +
+                                " exceeds addressable capacity");
+  }
+  return static_cast<std::size_t>(requested);
+}
+
+} // namespace
+
 bool Environment3DComponent::serializeField(
     const Environment3DComponent &component, std::string_view field,
     nlohmann::json &out) {
-  if (field != "relief_image_cache_mb")
-    return false;
-  out = component.reliefImageCacheBytes / (1024U * 1024U);
-  return true;
+  if (field == "relief_image_cache_mb") {
+    out = component.reliefImageCacheBytes / (1024U * 1024U);
+    return true;
+  }
+  if (field == "terrain_gpu_cache_mb") {
+    out = component.terrainGpuCacheBytes / (1024U * 1024U);
+    return true;
+  }
+  if (field == "terrain_lod_cache_mb") {
+    out = component.terrainLodCacheBytes / (1024U * 1024U);
+    return true;
+  }
+  return false;
 }
 
 nlohmann::json Environment3DComponent::defaults() {
   const Environment3DComponent c;
   return {
       {"msaa_samples", c.msaaSamples},
+      {"terrain_lod_cache_mb", c.terrainLodCacheBytes / (1024U * 1024U)},
+      {"terrain_lod_prepare_jobs", c.terrainLodPrepareJobs},
+      {"terrain_gpu_cache_mb", c.terrainGpuCacheBytes / (1024U * 1024U)},
       {"sky_texture", c.skyTexture},
       {"ambient_color",
        {c.ambientColor.r, c.ambientColor.g, c.ambientColor.b,
@@ -41,19 +76,36 @@ nlohmann::json Environment3DComponent::defaults() {
       {"relief_cache_meshes", c.reliefCacheMeshes},
       {"relief_image_cache_mb", c.reliefImageCacheBytes / (1024U * 1024U)}};
 }
-void Environment3DComponent::parse(const nlohmann::json &json,
-                                   Entity &entity) {
+void Environment3DComponent::parse(const nlohmann::json &json, Entity &entity) {
   Environment3DComponent component;
-  const double samples=json.value("msaa_samples",4.0);
-  if(std::ranges::none_of(msaaOptions,[&](int option){return samples==option;}))
-    throw std::invalid_argument("Environment3D.msaa_samples must be 0 (off), 2, 4, 8 or 16");
-  component.msaaSamples=int(samples);
-  const auto meshes=json.value("relief_cache_meshes",std::int64_t(256));
-  const auto megabytes=json.value("relief_image_cache_mb",std::int64_t(64));
-  if(meshes<0 || megabytes<0 || std::uint64_t(megabytes)>std::numeric_limits<std::size_t>::max()/(1024U*1024U))
-    throw std::invalid_argument("Relief retention budgets must be nonnegative and fit addressable memory");
-  component.reliefCacheMeshes=static_cast<std::size_t>(meshes);
-  component.reliefImageCacheBytes=static_cast<std::size_t>(megabytes)*1024U*1024U;
+  constexpr std::size_t MiB = 1024U * 1024U;
+  const auto memoryMegabytes = readTerrainBudget(
+      json, "terrain_lod_cache_mb", component.terrainLodCacheBytes / MiB,
+      std::numeric_limits<std::size_t>::max() / MiB);
+  component.terrainLodCacheBytes = memoryMegabytes * MiB;
+  const auto gpuMemoryMegabytes = readTerrainBudget(
+      json, "terrain_gpu_cache_mb", component.terrainGpuCacheBytes / MiB,
+      std::numeric_limits<std::size_t>::max() / MiB);
+  component.terrainGpuCacheBytes = gpuMemoryMegabytes * MiB;
+  component.terrainLodPrepareJobs = readTerrainBudget(
+      json, "terrain_lod_prepare_jobs", component.terrainLodPrepareJobs,
+      std::numeric_limits<std::size_t>::max());
+  const double samples = json.value("msaa_samples", 4.0);
+  if (std::ranges::none_of(msaaOptions,
+                           [&](int option) { return samples == option; }))
+    throw std::invalid_argument(
+        "Environment3D.msaa_samples must be 0 (off), 2, 4, 8 or 16");
+  component.msaaSamples = int(samples);
+  const auto meshes = json.value("relief_cache_meshes", std::int64_t(256));
+  const auto megabytes = json.value("relief_image_cache_mb", std::int64_t(64));
+  if (meshes < 0 || megabytes < 0 ||
+      std::uint64_t(megabytes) >
+          std::numeric_limits<std::size_t>::max() / (1024U * 1024U))
+    throw std::invalid_argument("Relief retention budgets must be nonnegative "
+                                "and fit addressable memory");
+  component.reliefCacheMeshes = static_cast<std::size_t>(meshes);
+  component.reliefImageCacheBytes =
+      static_cast<std::size_t>(megabytes) * 1024U * 1024U;
   component.skyTexture = json.value("sky_texture", std::string{});
   if (auto value = scene_loading::colorField(json, "ambient_color"))
     component.ambientColor = *value;

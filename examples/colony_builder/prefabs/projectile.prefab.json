@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "id": "prefab://projectile",
+  "name": "Continuous Projectile",
+  "entities": [{
+    "id": "body",
+    "components": {
+      "Transform3D": {"position": [0, 0, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1]},
+      "MeshRenderer": {"shape": "sphere", "size": [0.2, 0.2, 0.2], "color": [1, 0.25, 0.1, 1]},
+      "SphereCollider3D": {"radius": 0.1, "layer": "projectile"},
+      "Rigidbody3D": {"body_type": "dynamic", "use_gravity": false, "mass": 0.1, "continuous": true},
+      "LuaScript": {"module": "script://scripts/controllers/projectile.lua", "properties": {"lifetime": 3.0}}
+    }
+  }]
+}

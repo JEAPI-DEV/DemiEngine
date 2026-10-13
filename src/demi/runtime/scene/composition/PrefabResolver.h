@@ -8,6 +8,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <unordered_set>
 
 namespace demi::runtime::composition {
@@ -34,6 +35,7 @@ public:
 
 private:
   std::unordered_set<std::string> instances_;
+  std::unordered_map<std::string, PrefabEntityOrigin> explicitIds_;
 };
 
 [[nodiscard]] std::optional<PrefabEntityOrigin>
@@ -51,6 +53,10 @@ resolvePrefabReference(const std::filesystem::path &sourcePath,
 [[nodiscard]] ExpansionResult
 expandScene(const std::filesystem::path &scenePath,
             const nlohmann::json &sceneDocument, bool compileFractures = true);
+
+[[nodiscard]] ExpansionResult
+expandSceneForAuthoring(const std::filesystem::path &scenePath,
+                        const nlohmann::json &sceneDocument);
 
 [[nodiscard]] ExpansionResult
 expandPrefabInstance(const std::filesystem::path &ownerPath,

@@ -23,9 +23,10 @@ struct SpotLightComponent {
                                false, true, {}, 0.0, true, false, true, true,
                                false, 179.0, true},
       ComponentFieldDescriptor{"direction", ComponentFieldType::Vec3},
-      ComponentFieldDescriptor{"casts_shadows", ComponentFieldType::Boolean},
-      ComponentFieldDescriptor{"render_mask", ComponentFieldType::String}};
-  static constexpr ComponentEditorMetadata editor{"Lighting", "Spot Light"};
+      ComponentFieldDescriptor{"casts_shadows", ComponentFieldType::Boolean}.asAdvanced().withHelp("Reserved for local-light shadows; currently not rendered."),
+      ComponentFieldDescriptor{"render_mask", ComponentFieldType::String}.asAdvanced().withHelp("Optional camera mask match. Empty affects every camera.")};
+  static constexpr ComponentEditorMetadata editor{"Lighting", "Spot Light",
+      "Emits a cone from its Transform position. Move and rotate it with the gizmos; cone angles and range shape the beam. Local-light shadows are not implemented."};
   static void parse(const nlohmann::json &json, Entity &entity);
 
   Color color{1.0F, 0.9F, 0.75F, 1.0F};

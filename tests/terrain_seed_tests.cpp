@@ -11,9 +11,9 @@ using namespace demi::runtime;
 
 namespace {
 constexpr TerrainSeedChannel channels[]{
-    TerrainSeedChannel::Landform, TerrainSeedChannel::Erosion,
-    TerrainSeedChannel::Hydrology, TerrainSeedChannel::BiomePlacement,
-    TerrainSeedChannel::Scatter};
+    TerrainSeedChannel::Landform,       TerrainSeedChannel::LandformWarp,
+    TerrainSeedChannel::Erosion,        TerrainSeedChannel::Hydrology,
+    TerrainSeedChannel::BiomePlacement, TerrainSeedChannel::Scatter};
 
 constexpr int sampleSeeds[]{-2147483648, -70000, -1, 0, 1, 7, 1337, 2147483647};
 
@@ -63,7 +63,8 @@ void worldSeedsDiverge() {
 void derivationIsPinned() {
   assert(deriveTerrainSubSeed(1337, TerrainSeedChannel::Landform) == 239678297);
   assert(deriveTerrainSubSeed(1337, TerrainSeedChannel::Erosion) == 244313309);
-  assert(deriveTerrainSubSeed(1337, TerrainSeedChannel::Hydrology) == 773731491);
+  assert(deriveTerrainSubSeed(1337, TerrainSeedChannel::Hydrology) ==
+         773731491);
   assert(deriveTerrainSubSeed(1337, TerrainSeedChannel::BiomePlacement) ==
          669271665);
   assert(deriveTerrainSubSeed(1337, TerrainSeedChannel::Scatter) == 560400873);
@@ -82,8 +83,8 @@ void cacheKeyCarriesGeneratorVersion() {
   assert(key.rfind(std::to_string(terrainGeneratorVersion) + "\n", 0) == 0);
   // Equal recipes produce equal keys, including after a JSON round trip.
   assert(terrainGenerationCacheKey(recipe.toJson()) == key);
-  assert(terrainGenerationCacheKey(TerrainRecipe::parse(recipe.toJson()).toJson()) ==
-         key);
+  assert(terrainGenerationCacheKey(
+             TerrainRecipe::parse(recipe.toJson()).toJson()) == key);
   // A real recipe difference still separates entries.
   auto other = recipe;
   other.seed += 1;
@@ -91,9 +92,9 @@ void cacheKeyCarriesGeneratorVersion() {
 }
 
 // An asset id does not change when the file's contents do. Without a content
-// fingerprint in the key, editing a palette's weights or spacing would leave the
-// previous heightfield -- carrying the previous placements -- reachable under the
-// same key, and nothing would ever notice.
+// fingerprint in the key, editing a palette's weights or spacing would leave
+// the previous heightfield -- carrying the previous placements -- reachable
+// under the same key, and nothing would ever notice.
 void inputFingerprintMovesTheCacheKey() {
   TerrainRecipe recipe;
   recipe.paletteId = "asset://terrain/palettes/meadow";

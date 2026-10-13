@@ -4,6 +4,7 @@
 #include "demi/runtime/terrain/TerrainEvaluation.h"
 #include "demi/runtime/terrain/TerrainGraphExecutor.h"
 #include "demi/runtime/terrain/TerrainScatter.h"
+#include "demi/runtime/terrain/TerrainSurfaceMaterials.h"
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
@@ -253,9 +254,9 @@ bool TerrainGenerator::recomputeTerrainNormals(HeightField &field,
 
 std::optional<HeightField>
 TerrainGenerator::generate(const TerrainRecipe &recipe, std::stop_token stop,
-                           const Progress &progress) {
+                           const Progress &progress, TerrainQuality quality) {
   if (!recipe.graph.is_null())
-    return executeTerrainGraph(recipe, {}, stop, progress);
+    return executeTerrainGraph(recipe, {}, stop, progress, quality);
   const auto baseProgress = [&](float value) {
     if (progress)
       progress(value * 0.5F);
@@ -267,20 +268,28 @@ TerrainGenerator::generate(const TerrainRecipe &recipe, std::stop_token stop,
     if (progress)
       progress(0.5F + value * 0.5F);
   };
-  if (!applyTerrainSurfaceLayers(*field, recipe, stop, surfaceProgress))
+  if (!applyTerrainSurfaceLayers(*field, recipe, stop, surfaceProgress)) {
     return std::nullopt;
+  }
+  field->quality = terrainQualityName(quality);
   return field;
 }
 
-std::optional<HeightField>
-TerrainGenerator::generate(const TerrainRecipe &recipe,
-                           const TerrainPalette *palette, std::stop_token stop,
-                           const Progress &progress,
-                           std::string_view inputFingerprint) {
-  if (!recipe.graph.is_null())
-    return executeTerrainGraph(
-        recipe, {palette, std::string(inputFingerprint), {}}, stop, progress);
-  auto field = generate(recipe, stop, progress);
+std::optional<HeightField> TerrainGenerator::generate(
+    const TerrainRecipe &recipe, const TerrainPalette *palette,
+    std::stop_token stop, const Progress &progress,
+    std::string_view inputFingerprint, TerrainQuality quality) {
+  if (!recipe.graph.is_null()) {
+    auto field = executeTerrainGraph(
+        recipe, {palette, std::string(inputFingerprint), {}}, stop, progress,
+        quality);
+    if (field &&
+        !updateTerrainSurfaceMaterials(*field, recipe, palette, true, stop)) {
+      return std::nullopt;
+    }
+    return field;
+  }
+  auto field = generate(recipe, stop, progress, quality);
   if (!field)
     return field;
   field->inputFingerprint = inputFingerprint;
@@ -300,6 +309,9 @@ TerrainGenerator::generate(const TerrainRecipe &recipe,
   auto scattered = scatterTerrain(*field, recipe, *palette);
   field->scatterPlacements = std::move(scattered.placements);
   field->scatterTruncated = scattered.truncated;
+  if (!updateTerrainSurfaceMaterials(*field, recipe, palette, true, stop)) {
+    return std::nullopt;
+  }
   if (stop.stop_requested())
     return std::nullopt;
   return field;

@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://orbit/icons/chevron-down",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {},
+  "source": "chevron-down.svg",
+  "source_hash": "fnv1a64:86bca8bf0f507c34",
+  "type": "Icon2D"
+}

@@ -1,148 +1,27 @@
 {
   "format_version": 1,
   "type": "object",
-  "required": ["format_version", "name", "roles"],
+  "required": [
+    "format_version",
+    "name"
+  ],
   "properties": {
-    "format_version": { "type": "integer", "enum": [1] },
-    "name": { "type": "string" },
-    "roles": {
-      "type": "object",
-      "description": "Keyed by role name, so a duplicate role is structurally impossible and iteration order is deterministic. The role vocabulary and every range rule are enforced by the C++ loader too, because this validator ignores additionalProperties, minItems, maxItems, maxLength, pattern and uniqueItems.",
-      "properties": {
-        "exposed_rock": {
-          "type": "object", "required": ["asset"],
-          "properties": {
-            "asset": { "type": "string", "reference": "asset" },
-            "prefab": { "type": "string", "reference": "prefab" },
-            "weight": { "type": "number", "minimum": 0 },
-            "scale": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "exclusiveMinimum": 0 } },
-            "spacing": { "type": "number", "minimum": 0 },
-            "collision": { "enum": ["none", "static", "trigger"] },
-            "lod": { "type": "integer", "minimum": 0 }
-          }
-        },
-        "soil": {
-          "type": "object", "required": ["asset"],
-          "properties": {
-            "asset": { "type": "string", "reference": "asset" },
-            "prefab": { "type": "string", "reference": "prefab" },
-            "weight": { "type": "number", "minimum": 0 },
-            "scale": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "exclusiveMinimum": 0 } },
-            "spacing": { "type": "number", "minimum": 0 },
-            "collision": { "enum": ["none", "static", "trigger"] },
-            "lod": { "type": "integer", "minimum": 0 }
-          }
-        },
-        "sand": {
-          "type": "object", "required": ["asset"],
-          "properties": {
-            "asset": { "type": "string", "reference": "asset" },
-            "prefab": { "type": "string", "reference": "prefab" },
-            "weight": { "type": "number", "minimum": 0 },
-            "scale": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "exclusiveMinimum": 0 } },
-            "spacing": { "type": "number", "minimum": 0 },
-            "collision": { "enum": ["none", "static", "trigger"] },
-            "lod": { "type": "integer", "minimum": 0 }
-          }
-        },
-        "snow": {
-          "type": "object", "required": ["asset"],
-          "properties": {
-            "asset": { "type": "string", "reference": "asset" },
-            "prefab": { "type": "string", "reference": "prefab" },
-            "weight": { "type": "number", "minimum": 0 },
-            "scale": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "exclusiveMinimum": 0 } },
-            "spacing": { "type": "number", "minimum": 0 },
-            "collision": { "enum": ["none", "static", "trigger"] },
-            "lod": { "type": "integer", "minimum": 0 }
-          }
-        },
-        "wet_ground": {
-          "type": "object", "required": ["asset"],
-          "properties": {
-            "asset": { "type": "string", "reference": "asset" },
-            "prefab": { "type": "string", "reference": "prefab" },
-            "weight": { "type": "number", "minimum": 0 },
-            "scale": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "exclusiveMinimum": 0 } },
-            "spacing": { "type": "number", "minimum": 0 },
-            "collision": { "enum": ["none", "static", "trigger"] },
-            "lod": { "type": "integer", "minimum": 0 }
-          }
-        },
-        "tree": {
-          "type": "object", "required": ["asset"],
-          "properties": {
-            "asset": { "type": "string", "reference": "asset" },
-            "prefab": { "type": "string", "reference": "prefab" },
-            "weight": { "type": "number", "minimum": 0 },
-            "scale": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "exclusiveMinimum": 0 } },
-            "spacing": { "type": "number", "minimum": 0 },
-            "collision": { "enum": ["none", "static", "trigger"] },
-            "lod": { "type": "integer", "minimum": 0 }
-          }
-        },
-        "bush": {
-          "type": "object", "required": ["asset"],
-          "properties": {
-            "asset": { "type": "string", "reference": "asset" },
-            "prefab": { "type": "string", "reference": "prefab" },
-            "weight": { "type": "number", "minimum": 0 },
-            "scale": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "exclusiveMinimum": 0 } },
-            "spacing": { "type": "number", "minimum": 0 },
-            "collision": { "enum": ["none", "static", "trigger"] },
-            "lod": { "type": "integer", "minimum": 0 }
-          }
-        },
-        "grass": {
-          "type": "object", "required": ["asset"],
-          "properties": {
-            "asset": { "type": "string", "reference": "asset" },
-            "prefab": { "type": "string", "reference": "prefab" },
-            "weight": { "type": "number", "minimum": 0 },
-            "scale": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "exclusiveMinimum": 0 } },
-            "spacing": { "type": "number", "minimum": 0 },
-            "collision": { "enum": ["none", "static", "trigger"] },
-            "lod": { "type": "integer", "minimum": 0 }
-          }
-        },
-        "reed": {
-          "type": "object", "required": ["asset"],
-          "properties": {
-            "asset": { "type": "string", "reference": "asset" },
-            "prefab": { "type": "string", "reference": "prefab" },
-            "weight": { "type": "number", "minimum": 0 },
-            "scale": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "exclusiveMinimum": 0 } },
-            "spacing": { "type": "number", "minimum": 0 },
-            "collision": { "enum": ["none", "static", "trigger"] },
-            "lod": { "type": "integer", "minimum": 0 }
-          }
-        },
-        "cliff_piece": {
-          "type": "object", "required": ["asset"],
-          "properties": {
-            "asset": { "type": "string", "reference": "asset" },
-            "prefab": { "type": "string", "reference": "prefab" },
-            "weight": { "type": "number", "minimum": 0 },
-            "scale": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "exclusiveMinimum": 0 } },
-            "spacing": { "type": "number", "minimum": 0 },
-            "collision": { "enum": ["none", "static", "trigger"] },
-            "lod": { "type": "integer", "minimum": 0 }
-          }
-        },
-        "debris": {
-          "type": "object", "required": ["asset"],
-          "properties": {
-            "asset": { "type": "string", "reference": "asset" },
-            "prefab": { "type": "string", "reference": "prefab" },
-            "weight": { "type": "number", "minimum": 0 },
-            "scale": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "exclusiveMinimum": 0 } },
-            "spacing": { "type": "number", "minimum": 0 },
-            "collision": { "enum": ["none", "static", "trigger"] },
-            "lod": { "type": "integer", "minimum": 0 }
-          }
-        }
-      }
+    "format_version": {
+      "type": "integer",
+      "enum": [
+        2
+      ]
     },
-    "required_roles": { "type": "array", "items": { "type": "string" } }
+    "name": {
+      "type": "string"
+    },
+    "material_set": {
+      "type": "string",
+      "reference": "asset"
+    },
+    "placements": {
+      "type": "object",
+      "description": "Named placement rules. The native palette validator checks model/prefab exclusivity, ranges and dependencies."
+    }
   }
 }

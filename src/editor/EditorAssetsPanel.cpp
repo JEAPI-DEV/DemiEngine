@@ -166,9 +166,9 @@ bool drawAssetTile(const char *id, const std::string &label,
                    const ImVec2 size = {102.0F, 86.0F}) {
   ImGui::PushID(id);
   ImGui::PushStyleColor(ImGuiCol_Header, selected
-                                             ? ImVec4{0.27F, 0.21F, 0.40F, 1.0F}
+                                             ? ImGui::GetStyleColorVec4(ImGuiCol_Header)
                                              : ImVec4{0.0F, 0.0F, 0.0F, 0.0F});
-  ImGui::PushStyleColor(ImGuiCol_HeaderHovered, {0.18F, 0.18F, 0.22F, 1.0F});
+  ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImGui::GetStyleColorVec4(ImGuiCol_HeaderHovered));
   const bool pressed = ImGui::Selectable(
       "##tile", selected, ImGuiSelectableFlags_AllowDoubleClick, size);
   ImGui::PopStyleColor(2);
@@ -340,33 +340,42 @@ void EditorAssetsPanel::draw(EditorWorkspace &workspace, const ImVec2 position,
   if (ImGui::Button("+ Create"))
     ImGui::OpenPopup("asset-create-menu");
   if (ImGui::BeginPopup("asset-create-menu")) {
-    for (const auto &[name, kind] :
-         std::vector<std::pair<const char *, EditorSourceKind>>{
-             {"3D Scene...", EditorSourceKind::Scene3D},
-             {"2D Scene...", EditorSourceKind::Scene2D},
-             {"HUD...", EditorSourceKind::Hud},
-             {"3D Entity Prefab...", EditorSourceKind::Prefab},
-             {"2D Entity Prefab...", EditorSourceKind::Prefab2D},
-             {"UI Prefab...", EditorSourceKind::UiPrefab},
-             {"Lua Script...", EditorSourceKind::Lua},
-             {"Material...", EditorSourceKind::Material},
-             {"Terrain...", EditorSourceKind::Terrain},
-             {"Terrain Material...", EditorSourceKind::TerrainMaterial},
-             {"Terrain Material Set...", EditorSourceKind::TerrainMaterialSet},
-             {"Terrain Palette...", EditorSourceKind::TerrainPalette},
-             {"Data Asset...", EditorSourceKind::Data}})
-      if (ImGui::MenuItem(name))
-        dialogs_.openNewSource(kind);
-    const auto selection = workspace.selectedEntityId();
-    if (ImGui::MenuItem("Prefab from selected hierarchy...", nullptr, false,
-                        !selection.empty() &&
-                            workspace.sceneDocument().entity(selection)))
-      dialogs_.openNewSource(EditorSourceKind::PrefabFromSelection,
-                             std::string(selection));
+    const auto sourceItem = [&](const char *label, EditorSourceKind kind) {
+      if (ImGui::MenuItem(label))
+        dialogs_.openNewSource(kind, {}, editorSourceDirectory(kind, directory_));
+    };
+    if (ImGui::BeginMenu("Scene")) {
+      sourceItem("3D Scene", EditorSourceKind::Scene3D);
+      sourceItem("2D Scene", EditorSourceKind::Scene2D);
+      ImGui::EndMenu();
+    }
+    if (ImGui::BeginMenu("Prefab")) {
+      sourceItem("3D Entity Prefab", EditorSourceKind::Prefab);
+      sourceItem("2D Entity Prefab", EditorSourceKind::Prefab2D);
+      sourceItem("UI Prefab", EditorSourceKind::UiPrefab);
+      const auto selection = workspace.selectedEntityId();
+      if (ImGui::MenuItem("From selected hierarchy", nullptr, false,
+                          !selection.empty() && workspace.sceneDocument().entity(selection)))
+        dialogs_.openNewSource(EditorSourceKind::PrefabFromSelection,
+                               std::string(selection),
+                               editorSourceDirectory(EditorSourceKind::PrefabFromSelection, directory_));
+      ImGui::EndMenu();
+    }
+    sourceItem("HUD", EditorSourceKind::Hud);
+    sourceItem("Lua Script", EditorSourceKind::Lua);
+    sourceItem("Material", EditorSourceKind::Material);
+    if (ImGui::BeginMenu("Terrain")) {
+      sourceItem("Terrain", EditorSourceKind::Terrain);
+      sourceItem("Material", EditorSourceKind::TerrainMaterial);
+      sourceItem("Material Set", EditorSourceKind::TerrainMaterialSet);
+      sourceItem("Palette", EditorSourceKind::TerrainPalette);
+      ImGui::EndMenu();
+    }
+    sourceItem("Data Asset", EditorSourceKind::Data);
     ImGui::Separator();
-    if (ImGui::MenuItem("New Folder..."))
+    if (ImGui::MenuItem("New Folder"))
       dialogs_.openNewFolder(directory_);
-    if (ImGui::MenuItem("Asset group..."))
+    if (ImGui::MenuItem("Asset group"))
       dialogs_.openCreateGroup();
     ImGui::EndPopup();
   }

@@ -343,7 +343,23 @@ std::string uniqueEntityId(const nlohmann::json &document,
     if (reserved.contains(candidate) ||
         findEntity(document, candidate) != nullptr)
       return true;
+    const auto mappedId = [&](const auto &items) {
+      for (const auto &item : items)
+        if (const auto mapping = item.find("entity_ids");
+            mapping != item.end() && mapping->is_object())
+          for (const auto &id : *mapping)
+            if (id == candidate)
+              return true;
+      return false;
+    };
+    if (document.contains("entities") &&
+        mappedId(
+            runtime::composition::flattenEntityHierarchy(document["entities"])))
+      return true;
     const auto instances = document.find("instances");
+    if (instances != document.end() && instances->is_array() &&
+        mappedId(*instances))
+      return true;
     return instances != document.end() && instances->is_array() &&
            std::ranges::any_of(*instances, [&](const auto &instance) {
              return instance.is_object() &&

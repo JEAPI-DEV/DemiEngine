@@ -2,6 +2,10 @@
 add_test(NAME demi-prefab-origin-index-tests COMMAND demi-prefab-origin-index-tests)
 add_test(NAME demi-editor-game-authoring-tests COMMAND demi-editor-game-authoring-tests $<TARGET_FILE:demi-runtime>)
 set_tests_properties(demi-editor-game-authoring-tests PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1" TIMEOUT 60)
+add_test(NAME demi-editor-hierarchy-reveal-tests COMMAND demi-editor-hierarchy-reveal-tests)
+add_test(NAME demi-editor-hud-flow-placement-tests COMMAND demi-editor-hud-flow-placement-tests)
+add_test(NAME demi-editor-camera-alignment-tests COMMAND demi-editor-camera-alignment-tests)
+add_test(NAME demi-editor-prefab-conversion-tests COMMAND demi-editor-prefab-conversion-tests)
 add_test(NAME demi-editor-prefab-authoring-tests COMMAND demi-editor-prefab-authoring-tests)
 add_test(NAME demi-editor-prefab-components-tests COMMAND demi-editor-prefab-components-tests)
 add_test(NAME demi-editor-structured-value-tests COMMAND demi-editor-structured-value-tests)
@@ -28,6 +32,17 @@ add_test(NAME demi-prefab-template-cache-tests COMMAND demi-prefab-template-cach
 add_test(NAME demi-variable-font-tests COMMAND demi-variable-font-tests)
 add_test(NAME demi-cosmetic-debris3d-tests COMMAND demi-cosmetic-debris3d-tests)
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
+add_test(NAME demi-bgfx-vk-pipeline-ownership-tests
+  COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/bgfx_vk_pipeline_ownership_tests.py"
+    "${bgfx_SOURCE_DIR}/bgfx/src/renderer_vk.cpp" "${CMAKE_CXX_COMPILER}")
+add_test(NAME demi-bgfx-vk-program-bindings-tests
+  COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/bgfx_vk_program_bindings_tests.py"
+    "${bgfx_SOURCE_DIR}/bgfx/src/renderer_vk.cpp" "${CMAKE_CXX_COMPILER}")
+
+add_test(NAME demi-headless-e2e-tests
+  COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/headless_e2e_tests.py" $<TARGET_FILE:demi>)
+set_tests_properties(demi-headless-e2e-tests PROPERTIES TIMEOUT 60)
+
 add_test(NAME demi-doc-prefab-examples
   COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/docs_prefab_examples_tests.py"
     --binary $<TARGET_FILE:demi>)
@@ -172,6 +187,10 @@ add_test(NAME demi-ui-localization-package
     ${CMAKE_SOURCE_DIR}/packages/sources/demi.ui.localization)
 set_tests_properties(demi-ui-localization-package
   PROPERTIES LABELS "packages;ui;localization")
+add_test(NAME demi-ui-orbit-package
+  COMMAND demi package test
+    ${CMAKE_SOURCE_DIR}/packages/sources/demi.ui.orbit)
+set_tests_properties(demi-ui-orbit-package PROPERTIES LABELS "packages;ui")
 add_test(NAME demi-project-watch-reload-tests
   COMMAND demi-project-watch-reload-tests)
 add_test(NAME demi-capability-manifest-tests
@@ -249,6 +268,8 @@ set_tests_properties(demi-gpu-skinning3d-tests PROPERTIES ENVIRONMENT "DEMI_GPU_
 add_test(NAME demi-mesh-deformation3d-tests COMMAND demi-mesh-deformation3d-tests)
 add_test(NAME demi-mesh-geometry3d-tests COMMAND demi-mesh-geometry3d-tests)
 add_test(NAME demi-bgfx-renderer3d-tests COMMAND demi-bgfx-renderer3d-tests)
+add_test(NAME demi-shadow-receiver-gradient-tests
+  COMMAND demi-shadow-receiver-gradient-tests)
 add_test(NAME demi-shadow-cascade-layout-tests COMMAND demi-shadow-cascade-layout-tests)
 add_test(NAME demi-bgfx-scene-extraction-tests
   COMMAND demi-bgfx-scene-extraction-tests)
@@ -319,6 +340,31 @@ add_test(NAME demi-simulation-tests COMMAND demi-simulation-tests)
     set_tests_properties(demi-${async_test}-tests PROPERTIES TIMEOUT 30)
   endforeach()
   add_test(NAME demi-frame-timing-tests COMMAND demi-frame-timing-tests)
+  add_test(NAME demi-terrain-lod-residency-tests
+    COMMAND demi-terrain-lod-residency-tests)
+  set_tests_properties(demi-terrain-lod-residency-tests PROPERTIES TIMEOUT 30)
+  add_test(NAME demi-terrain-lod-publication-tests
+    COMMAND demi-terrain-lod-publication-tests)
+  set_tests_properties(demi-terrain-lod-publication-tests PROPERTIES TIMEOUT 30)
+  add_test(NAME demi-terrain-render-lod-tests COMMAND demi-terrain-render-lod-tests)
+  add_test(NAME demi-terrain-graph-sediment-masks-tests COMMAND demi-terrain-graph-sediment-masks-tests)
+  set_tests_properties(demi-terrain-graph-sediment-masks-tests PROPERTIES TIMEOUT 30)
+  add_test(NAME demi-terrain-graph-spatial-masks-tests COMMAND demi-terrain-graph-spatial-masks-tests)
+  set_tests_properties(demi-terrain-graph-spatial-masks-tests PROPERTIES TIMEOUT 30)
+  add_test(NAME demi-terrain-graph-landform-controls-tests
+    COMMAND demi-terrain-graph-landform-controls-tests)
+  set_tests_properties(demi-terrain-graph-landform-controls-tests PROPERTIES TIMEOUT 30)
+  add_test(NAME demi-terrain-landform-tests COMMAND demi-terrain-landform-tests)
+  set_tests_properties(demi-terrain-landform-tests PROPERTIES TIMEOUT 30)
+  add_test(NAME demi-terrain-patch-topology3d-tests COMMAND demi-terrain-patch-topology3d-tests)
+  add_test(NAME demi-terrain-gpu-field-data3d-tests COMMAND demi-terrain-gpu-field-data3d-tests)
+  add_test(NAME demi-terrain-gpu-field-cache3d-tests COMMAND demi-terrain-gpu-field-cache3d-tests)
+  add_test(NAME demi-terrain-patch-batch3d-tests COMMAND demi-terrain-patch-batch3d-tests)
+  set_tests_properties(demi-terrain-gpu-field-cache3d-tests demi-terrain-patch-batch3d-tests
+    PROPERTIES TIMEOUT 30)
+  set_tests_properties(demi-terrain-patch-topology3d-tests demi-terrain-gpu-field-data3d-tests
+    PROPERTIES TIMEOUT 30)
+  set_tests_properties(demi-terrain-render-lod-tests PROPERTIES TIMEOUT 30)
   add_test(NAME demi-visible-timing-summary-tests
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/visible_timing_summary_tests.py")
   add_test(NAME demi-profiler-hud-layout-tests COMMAND demi-profiler-hud-layout-tests)
@@ -355,3 +401,19 @@ endif()
 add_test(NAME demi-terrain-asset-world-tests COMMAND demi-terrain-asset-world-tests)
 add_test(NAME demi-terrain-asset-runtime-service-tests COMMAND demi-terrain-asset-runtime-service-tests)
 add_test(NAME demi-terrain-asset-tests COMMAND demi-terrain-asset-tests)
+
+add_test(NAME demi-hud-inspect-cli-tests
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/hud_inspect_cli_tests.py $<TARGET_FILE:demi>)
+
+add_test(NAME demi-navigation-ground-package
+  COMMAND demi package test ${CMAKE_SOURCE_DIR}/packages/sources/demi.navigation.ground)
+set_tests_properties(demi-navigation-ground-package PROPERTIES LABELS "packages;navigation")
+
+if(TARGET demi-desktop-test-commands-tests)
+  add_test(NAME demi-desktop-test-commands-tests COMMAND demi-desktop-test-commands-tests)
+endif()
+
+if(TARGET demi-managed-process-tests)
+  add_test(NAME demi-managed-process-tests COMMAND demi-managed-process-tests)
+  set_tests_properties(demi-managed-process-tests PROPERTIES TIMEOUT 20)
+endif()

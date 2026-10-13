@@ -1,8 +1,11 @@
 #include "demi/assets/TerrainAssetPayloadData.h"
 
 #include "demi/runtime/terrain/TerrainPalette.h"
+#include "demi/runtime/terrain/TerrainSurfaceMaterials.h"
+#include "demi/assets/MaterialSet.h"
 
 #include <algorithm>
+#include <set>
 #include <cmath>
 #include <cstdint>
 #include <limits>
@@ -61,8 +64,8 @@ Vec3 readVec3(const Json &value, std::string_view name) {
 
 Json placement(const TerrainScatterPlacement &value) {
   return {
-      {"role", std::string(terrainPaletteRoleName(value.role))},
-      {"asset", value.asset},
+      {"rule_id", std::string(value.ruleId)},
+      {"model", value.model},
       {"prefab", value.prefab},
       {"biome", value.biome},
       {"biome_name", value.biomeName},
@@ -91,13 +94,14 @@ TerrainScatterPlacement readPlacement(const Json &value,
                                       const HeightField &field) {
   require(value.is_object(), "placement must be an object");
   TerrainScatterPlacement result;
-  require(value.at("role").is_string(), "placement role must be a string");
-  const auto role =
-      terrainPaletteRoleFromName(value.at("role").get<std::string>());
-  require(role.has_value(), "placement has an unknown role");
-  result.role = *role;
-  result.asset = value.at("asset").get<std::string>();
+  require(value.at("rule_id").is_string(), "placement ruleId must be a string");
+  result.ruleId = value.at("rule_id").get<std::string>();
+  require(validTerrainPlacementRuleId(result.ruleId),
+          "placement has an invalid rule ID");
+  result.model = value.at("model").get<std::string>();
   result.prefab = value.at("prefab").get<std::string>();
+  require(result.model.empty() != result.prefab.empty(),
+          "placement requires exactly one model or prefab");
   result.biome = checkedSize(value.at("biome"), "placement biome");
   result.biomeName = value.at("biome_name").get<std::string>();
   result.cell = checkedSize(value.at("cell"), "placement cell");
@@ -134,9 +138,9 @@ std::vector<TerrainScatterPlacement> readPlacements(const Json &value,
 
 Json palette(const TerrainPalette &value) {
   Json roles = Json::object();
-  for (const auto &[name, entry] : value.roles) {
+  for (const auto &[name, entry] : value.placements) {
     roles[name] = {
-        {"asset", entry.asset},
+        {"model", entry.model},
         {"prefab", entry.prefab},
         {"weight", entry.weight},
         {"scale_min", entry.scaleMin},
@@ -149,28 +153,35 @@ Json palette(const TerrainPalette &value) {
   return {{"format_version", value.formatVersion},
           {"id", value.id},
           {"name", value.name},
-          {"roles", std::move(roles)},
-          {"required_roles", value.requiredRoles}};
+          {"placements", std::move(roles)},
+          {"material_set", value.materialSet},
+          {"surface_materials", value.surfaceMaterials},
+          {"unsupported_surface_roles", value.unsupportedSurfaceRoles}};
 }
 
 TerrainPalette readPalette(const Json &value) {
   require(value.is_object(), "palette must be an object");
   TerrainPalette result;
   result.formatVersion = value.at("format_version").get<int>();
-  require(result.formatVersion == 1, "palette format is unsupported");
+  require(result.formatVersion == TerrainPalette::CurrentFormatVersion,
+          "palette format is unsupported");
   result.id = value.at("id").get<std::string>();
   result.name = value.at("name").get<std::string>();
-  result.requiredRoles =
-      value.at("required_roles").get<std::vector<std::string>>();
-  const auto &roles = value.at("roles");
+  result.materialSet = value.at("material_set").get<std::string>();
+  result.surfaceMaterials =
+      value.at("surface_materials").get<decltype(result.surfaceMaterials)>();
+  result.unsupportedSurfaceRoles =
+      value.at("unsupported_surface_roles").get<std::vector<std::string>>();
+  const auto &roles = value.at("placements");
   require(roles.is_object(), "palette roles must be an object");
   for (const auto &[name, item] : roles.items()) {
-    const auto role = terrainPaletteRoleFromName(name);
-    require(role.has_value(), "palette has an unknown role");
+    require(validTerrainPlacementRuleId(name),
+            "palette has an invalid rule ID");
     TerrainPaletteEntry entry;
-    entry.role = *role;
-    entry.asset = item.at("asset").get<std::string>();
+    entry.model = item.at("model").get<std::string>();
     entry.prefab = item.at("prefab").get<std::string>();
+    require(entry.model.empty() != entry.prefab.empty(),
+            "palette placement requires exactly one model or prefab");
     entry.weight = finiteFloat(item.at("weight"), "palette weight");
     entry.scaleMin = finiteFloat(item.at("scale_min"), "palette minimum scale");
     entry.scaleMax = finiteFloat(item.at("scale_max"), "palette maximum scale");
@@ -181,7 +192,7 @@ TerrainPalette readPalette(const Json &value) {
     require(entry.weight >= 0 && entry.scaleMin > 0 &&
                 entry.scaleMin <= entry.scaleMax && entry.spacing >= 0,
             "palette contains invalid placement dimensions");
-    result.roles.emplace(name, std::move(entry));
+    result.placements.emplace(name, std::move(entry));
   }
   return result;
 }
@@ -442,6 +453,64 @@ TerrainWaterResult readWaterResult(const Json &value,
   return result;
 }
 
+Json encodeSurfaceMaterials(const HeightField &field) {
+  if (!field.surfaceMaterials) {
+    return nullptr;
+  }
+
+  const auto &classification = *field.surfaceMaterials->classification;
+  const std::vector<std::uint8_t> samples(classification.samples.begin(),
+                                          classification.samples.end());
+  return {{"roles", classification.roles}, {"samples", samples}};
+}
+
+std::shared_ptr<const TerrainSurfaceMaterials>
+decodeSurfaceMaterials(const Json &stored, const HeightField &field) {
+  if (stored.is_null()) {
+    return {};
+  }
+  require(field.resolvedPalette && !field.resolvedPalette->materialSet.empty(),
+          "surface materials require a resolved palette material set");
+
+  auto classification = std::make_shared<TerrainSurfaceClassification>();
+  classification->roles = stored.at("roles").get<std::vector<std::string>>();
+  const auto roleCount = classification->roles.size();
+  require(roleCount > 0 && roleCount <= 256,
+          "surface material role table has invalid entry count: " +
+              std::to_string(roleCount));
+  std::set<std::string> uniqueRoles;
+  for (const auto &role : classification->roles) {
+    // An empty role is the scorer's explicit unassigned result.
+    require(role.empty() || terrainMaterialRoleFromName(role).has_value(),
+            "unknown surface material role");
+    require(uniqueRoles.insert(role).second,
+            "surface material role table contains duplicates");
+  }
+
+  const auto &storedSamples = stored.at("samples");
+  require(storedSamples.is_array() && storedSamples.size() == field.heights.size(),
+          "surface material samples do not match the heightfield");
+  classification->samples.resize(field.heights.size());
+  for (std::size_t sample = 0; sample < field.heights.size(); ++sample) {
+    const auto roleIndex = checkedSize(storedSamples[sample],
+                                       "surface material role index");
+    require(roleIndex < roleCount,
+            "surface material role index is out of range");
+    classification->samples.set(sample, static_cast<std::uint8_t>(roleIndex));
+  }
+
+  auto surface = std::make_shared<TerrainSurfaceMaterials>();
+  surface->materialSet = field.resolvedPalette->materialSet;
+  surface->bindings = field.resolvedPalette->surfaceMaterials;
+  surface->classification = std::move(classification);
+  for (const auto &role : surface->classification->roles) {
+    if (!surface->bindings.contains(role)) {
+      surface->unboundRoles.push_back(role);
+    }
+  }
+  return surface;
+}
+
 } // namespace
 
 Json encodeDerived(const HeightField &field) {
@@ -451,6 +520,7 @@ Json encodeDerived(const HeightField &field) {
               {"palette", field.resolvedPalette
                               ? palette(*field.resolvedPalette)
                               : Json(nullptr)},
+              {"surface_materials", encodeSurfaceMaterials(field)},
               {"graph", nullptr}};
   if (field.graphArtifacts) {
     const auto &artifacts = *field.graphArtifacts;
@@ -488,6 +558,8 @@ void decodeDerived(const Json &document, HeightField &field) {
   } else {
     require(field.paletteId.empty(), "cooked field lost its resolved palette");
   }
+  field.surfaceMaterials = decodeSurfaceMaterials(
+      document.at("surface_materials"), field);
   const auto &graph = document.at("graph");
   if (!graph.is_null()) {
     auto artifacts = std::make_shared<TerrainGraphArtifacts>();

@@ -33,6 +33,7 @@ struct AppearancePublication {
   std::string material;
   std::string texture;
   std::optional<std::vector<Vec2>> uvs;
+  std::optional<MeshMaterialSections3D> sections;
 };
 
 Entity ownerSnapshot(const Entity &owner) {
@@ -67,6 +68,9 @@ Entity appearanceSnapshot(const Entity &surface, bool includeUvGeometry) {
       appearance.uvs = mesh->uvs;
     }
     snapshot.setComponent(std::move(appearance));
+  }
+  if (const auto *sections = surface.component<MeshMaterialSections3D>()) {
+    snapshot.setComponent(*sections);
   }
   if (const auto *collider = surface.component<ModelCollider3DComponent>())
     snapshot.setComponent(*collider);
@@ -309,6 +313,9 @@ public:
                                              std::nullopt};
             if (mesh->revision != previousMesh->revision)
               appearance.uvs = std::move(mesh->uvs);
+            if (const auto *sections = entity.component<MeshMaterialSections3D>()) {
+              appearance.sections = *sections;
+            }
             appearances.push_back(std::move(appearance));
           } else {
             replacements.emplace(existing->second, std::move(entity));
@@ -384,6 +391,11 @@ public:
           world.entities[appearance.index].component<MeshRendererComponent>();
       mesh->color = appearance.color;
       mesh->material.swap(appearance.material);
+      if (appearance.sections) {
+        auto *sections =
+            world.entities[appearance.index].component<MeshMaterialSections3D>();
+        *sections = std::move(*appearance.sections);
+      }
       mesh->texture.swap(appearance.texture);
       if (appearance.uvs) {
         mesh->uvs.swap(*appearance.uvs);

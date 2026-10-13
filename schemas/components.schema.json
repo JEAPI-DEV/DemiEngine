@@ -614,6 +614,7 @@
     },
     "Camera3D": {
       "additionalProperties": false,
+      "description": "Defines the game view. Advanced settings cover split-screen viewports, render targets and diagnostic shading.",
       "properties": {
         "clear_color": {
           "default": [
@@ -660,6 +661,7 @@
             "instancing"
           ],
           "type": "string",
+          "x-demi-editor-advanced": true,
           "x-demi-editor-label": "Debug Mode",
           "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
@@ -676,7 +678,8 @@
         "fov": {
           "default": 60.0,
           "type": "number",
-          "x-demi-editor-label": "Fov",
+          "x-demi-editor-help": "Vertical perspective angle in degrees.",
+          "x-demi-editor-label": "Field of view",
           "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
@@ -700,7 +703,8 @@
         "perspective": {
           "default": true,
           "type": "boolean",
-          "x-demi-editor-label": "Perspective",
+          "x-demi-editor-help": "Disable for an orthographic view without perspective foreshortening.",
+          "x-demi-editor-label": "Perspective projection",
           "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
@@ -708,6 +712,7 @@
         "position_x": {
           "default": 0.0,
           "type": "number",
+          "x-demi-editor-advanced": true,
           "x-demi-editor-label": "Position X",
           "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
@@ -724,6 +729,7 @@
         "priority": {
           "default": 0,
           "type": "integer",
+          "x-demi-editor-advanced": true,
           "x-demi-editor-label": "Priority",
           "x-demi-editor-step": 1.0,
           "x-demi-lua-readable": true,
@@ -740,6 +746,7 @@
         "render_hud_to_target": {
           "default": false,
           "type": "boolean",
+          "x-demi-editor-advanced": true,
           "x-demi-editor-label": "Render Hud To Target",
           "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
@@ -748,6 +755,7 @@
         "render_mask": {
           "default": "",
           "type": "string",
+          "x-demi-editor-advanced": true,
           "x-demi-editor-label": "Render Mask",
           "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
@@ -758,6 +766,7 @@
           "maximum": 2.0,
           "minimum": 0.25,
           "type": "number",
+          "x-demi-editor-advanced": true,
           "x-demi-editor-label": "Render Scale",
           "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
@@ -792,6 +801,7 @@
         "up_axis": {
           "default": 1.0,
           "type": "number",
+          "x-demi-editor-advanced": true,
           "x-demi-editor-label": "Up Axis",
           "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
@@ -801,6 +811,7 @@
           "default": 0.0,
           "minimum": 0.0,
           "type": "number",
+          "x-demi-editor-advanced": true,
           "x-demi-editor-label": "Update Interval",
           "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
@@ -811,6 +822,7 @@
           "maximum": 1.0,
           "minimum": 0.0,
           "type": "number",
+          "x-demi-editor-advanced": true,
           "x-demi-editor-label": "Viewport Height",
           "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
@@ -821,6 +833,7 @@
           "maximum": 1.0,
           "minimum": 0.0,
           "type": "number",
+          "x-demi-editor-advanced": true,
           "x-demi-editor-label": "Viewport Width",
           "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
@@ -831,6 +844,7 @@
           "maximum": 1.0,
           "minimum": 0.0,
           "type": "number",
+          "x-demi-editor-advanced": true,
           "x-demi-editor-label": "Viewport X",
           "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
@@ -841,6 +855,7 @@
           "maximum": 1.0,
           "minimum": 0.0,
           "type": "number",
+          "x-demi-editor-advanced": true,
           "x-demi-editor-label": "Viewport Y",
           "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
@@ -1355,10 +1370,12 @@
     },
     "DirectionalLight": {
       "additionalProperties": false,
+      "description": "Lights the whole scene from one direction. Rotate its Transform gizmo to aim it; moving a sun does not change illumination. Only the primary sun supplies cascaded shadows.",
       "properties": {
         "casts_shadows": {
           "default": false,
           "type": "boolean",
+          "x-demi-editor-help": "Enable cascaded shadows for the primary sun.",
           "x-demi-editor-label": "Casts Shadows",
           "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
@@ -1411,6 +1428,8 @@
         "render_mask": {
           "default": "",
           "type": "string",
+          "x-demi-editor-advanced": true,
+          "x-demi-editor-help": "Optional camera mask match. Empty affects every camera.",
           "x-demi-editor-label": "Render Mask",
           "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
@@ -1799,6 +1818,37 @@
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true,
           "x-demi-reference": "asset"
+        },
+        "terrain_gpu_cache_mb": {
+          "default": 128,
+          "maximum": 17592186044415.0,
+          "minimum": 0.0,
+          "type": "integer",
+          "x-demi-editor-help": "GPU budget for terrain field textures and shared patch buffers. Zero disables GPU terrain; the ordinary mesh renderer remains available.",
+          "x-demi-editor-label": "Terrain GPU Cache (MiB)",
+          "x-demi-editor-step": 1.0,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "terrain_lod_cache_mb": {
+          "default": 64,
+          "minimum": 0.0,
+          "type": "integer",
+          "x-demi-editor-help": "CPU budget for prepared reduced terrain meshes. Full terrain and collision remain available when this budget is exhausted.",
+          "x-demi-editor-label": "Terrain LOD Cache (MiB)",
+          "x-demi-editor-step": 1.0,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "terrain_lod_prepare_jobs": {
+          "default": 2,
+          "minimum": 0.0,
+          "type": "integer",
+          "x-demi-editor-help": "Maximum outstanding background terrain mesh jobs. Zero disables new preparation; available worker threads also limit concurrency.",
+          "x-demi-editor-label": "Terrain LOD Preparation Jobs",
+          "x-demi-editor-step": 1.0,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
         }
       },
       "type": "object"
@@ -2618,8 +2668,8 @@
         "material_properties": {
           "default": {},
           "type": "object",
-          "x-demi-editor-label": "Material Properties",
-          "x-demi-editor-read-only": true,
+          "x-demi-editor-help": "Per-mesh material overrides: base_color, metallic, roughness and opacity. Explicit surface fields above take precedence; other names are not consumed by the built-in shader.",
+          "x-demi-editor-label": "Material overrides",
           "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
@@ -3389,10 +3439,13 @@
     },
     "PointLight": {
       "additionalProperties": false,
+      "description": "Emits in every direction from its Transform position. Parent it under a lamp prefab to move the lamp and its light together. Range controls its reach. Local-light shadows are not implemented.",
       "properties": {
         "casts_shadows": {
           "default": false,
           "type": "boolean",
+          "x-demi-editor-advanced": true,
+          "x-demi-editor-help": "Reserved for local-light shadows; currently not rendered.",
           "x-demi-editor-label": "Casts Shadows",
           "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
@@ -3437,6 +3490,8 @@
         "render_mask": {
           "default": "",
           "type": "string",
+          "x-demi-editor-advanced": true,
+          "x-demi-editor-help": "Optional camera mask match. Empty affects every camera.",
           "x-demi-editor-label": "Render Mask",
           "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
@@ -4096,10 +4151,13 @@
     },
     "SpotLight": {
       "additionalProperties": false,
+      "description": "Emits a cone from its Transform position. Move and rotate it with the gizmos; cone angles and range shape the beam. Local-light shadows are not implemented.",
       "properties": {
         "casts_shadows": {
           "default": false,
           "type": "boolean",
+          "x-demi-editor-advanced": true,
+          "x-demi-editor-help": "Reserved for local-light shadows; currently not rendered.",
           "x-demi-editor-label": "Casts Shadows",
           "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
@@ -4181,6 +4239,8 @@
         "render_mask": {
           "default": "",
           "type": "string",
+          "x-demi-editor-advanced": true,
+          "x-demi-editor-help": "Optional camera mask match. Empty affects every camera.",
           "x-demi-editor-label": "Render Mask",
           "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
@@ -4621,6 +4681,16 @@
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true,
           "x-demi-reference": "asset"
+        },
+        "lod_error_pixels": {
+          "default": 2.0,
+          "minimum": 0.0,
+          "type": "number",
+          "x-demi-editor-help": "Maximum projected terrain error in pixels. Zero disables render LOD.",
+          "x-demi-editor-label": "LOD Error Pixels",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
         },
         "recipe": {
           "type": "object",

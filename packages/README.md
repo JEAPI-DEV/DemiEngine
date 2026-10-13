@@ -38,6 +38,7 @@ exports. See [core concepts](https://demiengine.de/docs/core-concepts) for the d
 
 | Package | Responsibility |
 |---|---|
+| [`demi.ui.orbit`](sources/demi.ui.orbit/README.md) | Native UI controls and compositions with configurable palettes and Lua bindings |
 | `kenney.textures.prototype` | 78 CC0 prototype textures with ready-to-use asset IDs (no Lua required) |
 | [`demi.gameplay.events`](sources/demi.gameplay.events/README.md) | Queued Lua events with ordered listeners and unsubscribe support; formerly `demi.gameplay.core` |
 | `demi.gameplay.health` | health, damage, invulnerability, defeat events |
@@ -46,7 +47,9 @@ exports. See [core concepts](https://demiengine.de/docs/core-concepts) for the d
 | `demi.gameplay.interactions` | deterministic interactions and pickups |
 | `demi.gameplay.checkpoints` | checkpoints, entrances, respawn data |
 | `demi.gameplay.camera` | follow, bounds, zones, shake, look-ahead |
-| `demi.gameplay.inventory` | stacks and equipment state |
+| `demi.gameplay.inventory` | stacks, capacity-aware transfers and equipment state |
+| `demi.gameplay.needs` | bounded needs, drain/recovery rates and thresholds |
+| `demi.navigation.ground` | terrain surveys, obstacle-aware routes and continuous-direction movement |
 | `demi.gameplay.encounters` | waves, spawn failures, objectives |
 | `demi.gameplay.controllers` | platform/top-down/click/isometric intents |
 | `demi.gameplay.third_person` | 3D orbit camera, movement/rolls, melee attack phases |

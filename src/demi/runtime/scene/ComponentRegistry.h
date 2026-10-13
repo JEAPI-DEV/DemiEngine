@@ -32,6 +32,8 @@ struct ComponentDescriptor {
   std::string_view name;
   ComponentParseFn parse;
   ComponentSerializeFn serialize;
+  // Read-only native values for inspection; never falls back to authored JSON.
+  ComponentSerializeFn inspect;
   ComponentDefaultsFn defaults;
   ComponentContainsFn contains;
   ComponentRemoveFn remove;
@@ -59,6 +61,28 @@ template <typename ComponentClass>
     return nlohmann::json::parse(serialized->second);
   }
   return nlohmann::json::object();
+}
+
+template <typename ComponentClass>
+[[nodiscard]] nlohmann::json inspectComponent(const Entity &entity) {
+  auto result = nlohmann::json::object();
+  const auto *component = entity.component<ComponentClass>();
+  if (!component)
+    return result;
+  for (const auto &binding : ComponentClass::runtimeFields) {
+    nlohmann::json value;
+    bool encoded = false;
+    if constexpr (requires {
+                    ComponentClass::serializeField(*component, binding.name,
+                                                   value);
+                  })
+      encoded = ComponentClass::serializeField(*component, binding.name, value);
+    if (!encoded && binding.read)
+      encoded = binding.read(*component, value);
+    if (encoded)
+      result[std::string(binding.name)] = std::move(value);
+  }
+  return result;
 }
 
 template <typename ComponentClass>
@@ -186,6 +210,7 @@ template <typename ComponentClass>
       .name = ComponentClass::typeName,
       .parse = &parseComponent<ComponentClass>,
       .serialize = &serializeComponent<ComponentClass>,
+      .inspect = &inspectComponent<ComponentClass>,
       .defaults = &defaultComponentJson<ComponentClass>,
       .contains = &containsComponent<ComponentClass>,
       .remove = &removeComponent<ComponentClass>,

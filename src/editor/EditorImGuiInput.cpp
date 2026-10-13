@@ -9,6 +9,26 @@
 #include <unordered_map>
 
 namespace demi::editor {
+runtime::Vec2 EditorPointerMotion::update(const runtime::InputState &input,
+                                          bool relative) {
+  if (!initialized_ || !relative)
+    position_ = input.mousePosition;
+  else {
+    auto delta = input.mouseDelta;
+    // Remote/absolute pointer devices can move without relative deltas.
+    // Prefer raw motion (which continues at screen edges), but retain these
+    // devices too. Ignore capture-entry cursor warps in the absolute fallback.
+    if (relative_ && delta.x == 0 && delta.y == 0)
+      delta = {input.mousePosition.x - absolutePosition_.x,
+               input.mousePosition.y - absolutePosition_.y};
+    position_.x += delta.x;
+    position_.y += delta.y;
+  }
+  absolutePosition_ = input.mousePosition;
+  relative_ = relative;
+  initialized_ = true;
+  return position_;
+}
 namespace {
 
 ImGuiKey imguiKey(const std::string_view key) {

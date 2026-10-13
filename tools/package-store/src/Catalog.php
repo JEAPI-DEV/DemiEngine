@@ -5,6 +5,19 @@ final class Catalog
 {
     public const NAME = '/^[a-z0-9][a-z0-9._-]{0,127}$/D';
     public const VERSION = '/^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/D';
+    // Published identities remain downloadable; only browse visibility changes.
+    public const REPLACEMENTS = [
+        'demi.gameplay.core' => 'demi.gameplay.events',
+        'demi.gameplay.traversal' => 'demi.gameplay.checkpoints',
+        'demi.ui.language_file' => 'demi.ui.localization',
+    ];
+
+    public function replacementFor(string $name): ?string
+    {
+        $replacement = self::REPLACEMENTS[$name] ?? null;
+        return $replacement !== null && $this->releases($replacement) !== [] ? $replacement : null;
+    }
+
     public const CATEGORIES = ['Gameplay', 'Tools', 'Networking', 'UI', '3D', '2D', 'Audio', 'Templates'];
 
     public function root(): string
@@ -37,7 +50,7 @@ final class Catalog
         $items = [];
         foreach (glob($this->root().'/packages/*', GLOB_ONLYDIR) ?: [] as $directory) {
             $releases = $this->releases(basename($directory));
-            if ($releases) {
+            if ($releases && $this->replacementFor(basename($directory)) === null) {
                 $items[] = $releases[0];
             }
         }

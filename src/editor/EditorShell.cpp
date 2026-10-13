@@ -34,7 +34,7 @@ void drawMenu(EditorWorkspace &workspace, EditorDocumentSessions &documents,
               EditorDockingWorkspace &dockingWorkspace, bool &showSettings,
               std::string &notice, const EditorKeyBindings &bindings,
               EditorCommandContext context, bool uiPaletteAvailable,
-              bool terrainNodesAvailable,
+              bool terrainNodesAvailable, bool allowCameraEdit,
               const std::function<void(EditorCommand)> &execute) {
   beginEditorShellPanel("MainMenu", {0.0F, 0.0F}, size,
                         ImGuiWindowFlags_MenuBar |
@@ -43,27 +43,33 @@ void drawMenu(EditorWorkspace &workspace, EditorDocumentSessions &documents,
     if (ImGui::BeginMenu("File")) {
       if (ImGui::MenuItem("New project..."))
         projectPanel.openCreateProject();
-      if (ImGui::BeginMenu("New document")) {
-        for (const auto &[label, kind] :
-             {std::pair{"2D scene...", EditorSourceKind::Scene2D},
-              std::pair{"3D scene...", EditorSourceKind::Scene3D},
-              std::pair{"HUD...", EditorSourceKind::Hud},
-              std::pair{"2D entity prefab...", EditorSourceKind::Prefab2D},
-              std::pair{"3D entity prefab...", EditorSourceKind::Prefab},
-              std::pair{"UI prefab...", EditorSourceKind::UiPrefab},
-              std::pair{"Terrain asset...", EditorSourceKind::Terrain},
-              std::pair{"Terrain surface material...",
-                        EditorSourceKind::TerrainMaterial},
-              std::pair{"Terrain material set...",
-                        EditorSourceKind::TerrainMaterialSet},
-              std::pair{"Terrain asset palette...",
-                        EditorSourceKind::TerrainPalette},
-              std::pair{"Lua behaviour...", EditorSourceKind::Lua}}) {
+      if (ImGui::BeginMenu("Create")) {
+        const auto sourceItem = [&](const char *label, EditorSourceKind kind) {
           if (ImGui::MenuItem(label)) {
             dockingWorkspace.visibility().assets = true;
             assetsPanel.openCreate(kind);
           }
+        };
+        if (ImGui::BeginMenu("Scene")) {
+          sourceItem("2D Scene", EditorSourceKind::Scene2D);
+          sourceItem("3D Scene", EditorSourceKind::Scene3D);
+          ImGui::EndMenu();
         }
+        if (ImGui::BeginMenu("Prefab")) {
+          sourceItem("2D Entity Prefab", EditorSourceKind::Prefab2D);
+          sourceItem("3D Entity Prefab", EditorSourceKind::Prefab);
+          sourceItem("UI Prefab", EditorSourceKind::UiPrefab);
+          ImGui::EndMenu();
+        }
+        sourceItem("HUD", EditorSourceKind::Hud);
+        if (ImGui::BeginMenu("Terrain")) {
+          sourceItem("Terrain", EditorSourceKind::Terrain);
+          sourceItem("Material", EditorSourceKind::TerrainMaterial);
+          sourceItem("Material Set", EditorSourceKind::TerrainMaterialSet);
+          sourceItem("Palette", EditorSourceKind::TerrainPalette);
+          ImGui::EndMenu();
+        }
+        sourceItem("Lua Script", EditorSourceKind::Lua);
         ImGui::EndMenu();
       }
       if (ImGui::MenuItem("Project settings..."))
@@ -81,6 +87,9 @@ void drawMenu(EditorWorkspace &workspace, EditorDocumentSessions &documents,
             workspace.hudDocument())
           saved = documents.refreshHudReferences(
               workspace.hudDocument()->path(), error);
+        if (saved && workspace.isPrefabDocument() &&
+            workspace.activeDocument() == EditorWorkspaceDocument::Scene)
+          saved = documents.refreshPrefabReferences(error);
         notice = saved ? "Document saved" : error;
       }
       if (ImGui::MenuItem("Save project", nullptr, false,
@@ -156,6 +165,14 @@ void drawMenu(EditorWorkspace &workspace, EditorDocumentSessions &documents,
         dockingWorkspace.visibility().assets = true;
         assetsPanel.openCreate(EditorSourceKind::PrefabFromSelection,
                                std::string(selected));
+      }
+      if (ImGui::MenuItem("Align selected camera to view", nullptr, false,
+                          allowCameraEdit &&
+                              workspace.canAlignSelectedCameraToView())) {
+        std::string error;
+        notice = workspace.alignSelectedCameraToView(error)
+                     ? "Camera aligned to view"
+                     : error;
       }
       if (ImGui::BeginMenu("HUD", !workspace.isPrefabDocument())) {
         std::string error;
@@ -257,6 +274,7 @@ EditorShell::EditorShell(EditorWorkspace &sceneWorkspace)
     notice_ = "Editor preferences: " + error;
     preferenceSyncBlocked_ = true;
   }
+  focusWindow_ = "Viewport";
   uiScale_ = preferences_.uiScale;
   persistedPreferences_ = preferences_;
   applyViewportPreferences(documents_.scene());
@@ -369,9 +387,37 @@ bool EditorShell::openTerrainNodeSettings(std::string_view nodeId,
   return terrainGraphPanel_.openNodeSettings(workspace(), nodeId, error);
 }
 
+bool EditorShell::pollBackgroundChanges() {
+  bool changed = false;
+  for (auto session :
+       {EditorDocumentSession::Scene, EditorDocumentSession::Prefab,
+        EditorDocumentSession::TerrainAsset, EditorDocumentSession::Hud}) {
+    if (auto *document = documents_.workspace(session)) {
+      const auto previous = document->sourceIndexRevision();
+      document->pollScriptSources();
+      changed |= previous != document->sourceIndexRevision();
+    }
+  }
+  return changed;
+}
+
+bool EditorShell::needsContinuousFrames() const {
+  if ((playSession_.isRunning() && !playSession_.isPaused()) ||
+      runPanel_.running() || buildPanel_.operation().running ||
+      specializedPanel_.needsContinuousFrames())
+    return true;
+  for (auto session :
+       {EditorDocumentSession::Scene, EditorDocumentSession::Prefab,
+        EditorDocumentSession::TerrainAsset, EditorDocumentSession::Hud})
+    if (const auto *document = documents_.workspace(session);
+        document && document->terrainAuthoring().busy())
+      return true;
+  return false;
+}
+
 void EditorShell::draw(const int width, const int height,
                        const std::string_view rendererName) {
-  playSession_.poll();
+  workspace().pollScriptSources();
   std::string terrainError;
   if (!documents_.pollTerrain(terrainError))
     notice_ = std::move(terrainError);
@@ -432,6 +478,8 @@ void EditorShell::draw(const int width, const int height,
            preferences_.keyBindings, menuContext,
            showHudView_ && !showGameView_,
            showTerrainGraphView_ && !showGameView_,
+           !showGameView_ && !playSession_.isRunning() &&
+               playSession_.state() != EditorPlayState::Starting,
            [this, menuContext](EditorCommand command) {
              executeCommand(command, menuContext);
            });
@@ -439,7 +487,7 @@ void EditorShell::draw(const int width, const int height,
                           shortcutSettings_);
   const auto previousPlayState = playSession_.state();
   drawEditorToolbar({0.0F, menuHeight}, {screenWidth, toolbarHeight},
-                    workspace(), documents_.scene(), playSession_,
+                    workspace(), documents_.scene(), playSession_, runPanel_,
                     showGameView_, stepRequested_, notice_,
                     preferences_.keyBindings, menuContext,
                     [this, menuContext](EditorCommand command) {
@@ -537,6 +585,11 @@ void EditorShell::draw(const int width, const int height,
     if (!openDocument(*source, error))
       documentOpenError_ = error;
   }
+  if (!showGameView_ && showTerrainGraphView_ && graphWorkspace_ &&
+      panels.terrainPresets &&
+      terrainPresetsPanel_.draw(*graphWorkspace_, notice_,
+                                &panels.terrainPresets))
+    terrainGraphPanel_.resetDraftHistory();
   if (panels.assets)
     assetsPanel_.draw(workspace(), {consoleWidth, contentTop + upperHeight},
                       {assetsWidth, bottomHeight}, notice_, &panels.assets);
@@ -557,6 +610,8 @@ void EditorShell::draw(const int width, const int height,
     ImGui::EndPopup();
   }
   buildPanel_.draw(workspace(), notice_);
+  runPanel_.draw(documents_.scene(), playSession_.isRunning(),
+                 [this](std::string &error) { return documents_.saveAll(error); }, notice_);
   drawStatus(workspace(), {0.0F, contentBottom}, {screenWidth, statusHeight},
              rendererName, notice_, buildPanel_.linuxTarget(),
              buildPanel_.androidTarget());

@@ -137,6 +137,75 @@ void renderFrame(EditorTerrainGraphPanel &panel, EditorWorkspace &workspace,
           "Terrain graph frame produced no ImGui draw data");
 }
 
+void checkIntroCommentLayout(EditorWorkspace &workspace) {
+  workspace.selectEntity("terrain");
+  workspace.syncTerrainAuthoring();
+  auto &draft = workspace.terrainAuthoring().draft();
+  draft["graph"] = demi::runtime::builtinTerrainPresets().front().graph;
+  EditorTerrainGraphPanel panel;
+  panel.open(workspace);
+  std::string notice, error;
+  renderFrame(panel, workspace, notice);
+  renderFrame(panel, workspace, notice);
+  require(panel.executeCommand(workspace, EditorCommand::SelectAll, error),
+          error);
+  renderFrame(panel, workspace, notice);
+  std::vector<int> ids(static_cast<std::size_t>(ImNodes::NumSelectedNodes()));
+  ImNodes::GetSelectedNodes(ids.data());
+  require(ids.size() == 6,
+          "Intro graph did not expose its comments and generators");
+  for (int id : ids)
+    require(ImNodes::GetNodeDimensions(id).x < 380.0F,
+            "Intro comment or edit control expanded across the graph canvas");
+}
+
+void checkPathPointNodeHasBoundedWidth(EditorWorkspace &workspace) {
+  workspace.selectEntity("terrain");
+  workspace.syncTerrainAuthoring();
+  auto &draft = workspace.terrainAuthoring().draft();
+  draft["graph"]["nodes"].push_back(
+      {{"id", "path_layout_probe"},
+       {"type", "path_distance_mask"},
+       {"parameters", {{"points", {{0, 0}, {10, 10}, {20, 0}}}}},
+       {"position", {360, 0}}});
+  draft["graph"]["nodes"].push_back(
+      {{"id", "polygon_layout_probe"},
+       {"type", "polygon_mask"},
+       {"parameters", {{"points", {{0, 0}, {30, 0}, {30, 20}, {0, 20}}}}},
+       {"position", {640, 0}}});
+  const auto before = draft;
+  EditorTerrainGraphPanel panel;
+  panel.open(workspace);
+  std::string notice;
+  std::string error;
+  renderFrame(panel, workspace, notice);
+  require(panel.executeCommand(workspace, EditorCommand::SelectAll, error),
+          error);
+  const auto checkWidths = [&] {
+    std::vector<int> ids(static_cast<std::size_t>(ImNodes::NumSelectedNodes()));
+    ImNodes::GetSelectedNodes(ids.data());
+    require(ids.size() == before["graph"]["nodes"].size(),
+            "Path layout fixture lost its selected nodes");
+    for (const int id : ids) {
+      const auto width = ImNodes::GetNodeDimensions(id).x;
+      require(std::isfinite(width) && width < 380.0F * panel.canvasZoom(),
+              "Expanded spatial mask points grew beyond a bounded graph node");
+    }
+  };
+  for (const float zoomWheel : {0.0F, 3.0F, -6.0F}) {
+    renderFrame(panel, workspace, notice, 1200, zoomWheel);
+    for (const float width : {1200.0F, 390.0F, 1700.0F}) {
+      for (int frame = 0; frame < 6; ++frame) {
+        renderFrame(panel, workspace, notice, width);
+        checkWidths();
+      }
+    }
+  }
+  require(workspace.terrainAuthoring().draft() == before,
+          "Measuring path node layout changed authored parameters");
+  panel.releaseUiResources();
+}
+
 void checkShortcutInput() {
   using namespace demi::editor;
   EditorKeyBindings bindings;
@@ -718,6 +787,12 @@ int main() {
     EditorWorkspace pinnedWorkspace;
     require(pinnedWorkspace.open(pinned.root, error), error);
     checkPinnedGraphCanvas(pinnedWorkspace);
+    checkIntroCommentLayout(pinnedWorkspace);
+    TemporaryProject pathProject;
+    createProject(pathProject.root);
+    EditorWorkspace pathWorkspace;
+    require(pathWorkspace.open(pathProject.root, error), error);
+    checkPathPointNodeHasBoundedWidth(pathWorkspace);
     ImGui::DestroyContext();
     std::cout << "Editor terrain graph UI passed\n";
     return 0;

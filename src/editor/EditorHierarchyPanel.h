@@ -1,11 +1,13 @@
 #pragma once
 
 #include <array>
+#include <cstdint>
 #include <filesystem>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 struct ImVec2;
 
@@ -22,6 +24,11 @@ public:
   void requestRename(std::string id) { pendingRename_ = std::move(id); }
 
 private:
+  const EditorWorkspace *selectionWorkspace_ = nullptr;
+  std::string selectionDocument_;
+  std::vector<std::string> selectionIds_;
+  std::uint64_t selectionRevision_ = 0;
+  bool selectionIsHud_ = false;
   std::array<char, 128> filter_{};
   std::array<char, 128> rename_{};
   std::optional<std::string> renamingEntityId_;

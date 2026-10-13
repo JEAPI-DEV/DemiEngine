@@ -7,6 +7,7 @@
 #include <barrier>
 #include <exception>
 #include <filesystem>
+#include <fstream>
 #include <limits>
 #include <stdexcept>
 #include <thread>
@@ -307,17 +308,35 @@ void paletteInputsAreResolvedBeforeGeneration() {
   check(acquireTerrain(recipe.toJson(), inputs) == field,
         "Identical palette inputs missed the generation cache");
   auto changedRegistry = registry;
-  const auto asset = std::ranges::find(changedRegistry.assets,
-                                       "asset://terrain/surfaces/grass",
-                                       &demi::AssetManifest::id);
-  check(asset != changedRegistry.assets.end(),
-        "Test palette dependency is missing");
-  asset->sourceHash = "changed-content-hash";
+  const auto surfaceSet = std::ranges::find(
+      changedRegistry.assets, "asset://terrain/material_sets/meadow",
+      &demi::AssetManifest::id);
+  check(surfaceSet != changedRegistry.assets.end(), "Surface set is missing");
+  surfaceSet->sourceHash = "changed-surface-content";
+  const auto appearance =
+      resolveTerrainGenerationInputs(recipe, changedRegistry);
+  check(appearance.fingerprint == inputs.fingerprint &&
+            acquireTerrain(recipe.toJson(), appearance) == field,
+        "Surface content unnecessarily invalidated terrain generation");
+
+  const auto manifest = std::ranges::find(
+      changedRegistry.assets, recipe.paletteId, &demi::AssetManifest::id);
+  std::ifstream source(manifest->sourcePath);
+  auto edited = nlohmann::json::parse(source);
+  edited["placements"]["grass"]["spacing"] = 7;
+  const auto temporary = std::filesystem::temp_directory_path() /
+                         "demi-terrain-cache-palette.json";
+  {
+    std::ofstream output(temporary);
+    output << edited.dump();
+  }
+  manifest->sourcePath = temporary;
   const auto changed = resolveTerrainGenerationInputs(recipe, changedRegistry);
+  std::filesystem::remove(temporary);
   check(changed.fingerprint != inputs.fingerprint,
-        "Dependency content did not change the palette input fingerprint");
+        "Placement edits did not invalidate the palette fingerprint");
   check(!findTerrain(recipe.toJson(), changed.fingerprint),
-        "Cache served a field from stale palette inputs");
+        "Cache served a field from stale placement rules");
 }
 } // namespace
 

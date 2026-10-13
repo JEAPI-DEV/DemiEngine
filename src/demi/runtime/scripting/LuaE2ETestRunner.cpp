@@ -56,6 +56,15 @@ void LuaE2ETestRunner::failStartup(const std::string &message) {
   complete();
 }
 
+void LuaE2ETestRunner::abort(const std::string &reason) {
+  if (!active_)
+    return;
+  if (activeTestName_.empty())
+    activeTestName_ = "runtime_stopped";
+  failTest(reason);
+  complete();
+}
+
 void LuaE2ETestRunner::complete() {
   deviceLog(
       deviceLogMessage("test", "SUMMARY passed=" + std::to_string(passed_) +

@@ -146,6 +146,48 @@ int main() {
     return 1;
   }
 
+  auto mapped = flatScene;
+  mapped["instances"][0]["entity_ids"] = {{"wall", "original_wall"}};
+  const auto mappedResult =
+      expandScene(root / "scenes/main.scene.json", mapped);
+  if (!mappedResult.document ||
+      (*mappedResult.document)["entities"][0]["id"] != "original_wall")
+    return 40;
+  const demi::runtime::composition::PrefabOriginIndex mappedOrigins(
+      *mappedResult.document);
+  const auto mappedOrigin = mappedOrigins.find("original_wall");
+  if (!mappedOrigin || mappedOrigin->instanceId != "prop" ||
+      mappedOrigin->localEntityId != "wall")
+    return 41;
+  for (const auto &badMap :
+       {nlohmann::json::array(), nlohmann::json{{"missing", "wall"}},
+        nlohmann::json{{"wall", ""}}, nlohmann::json{{"wall", 3}}}) {
+    auto invalidMap = mapped;
+    invalidMap["instances"][0]["entity_ids"] = badMap;
+    if (expandScene(root / "scenes/main.scene.json", invalidMap).document)
+      return 42;
+  }
+  auto collision = mapped;
+  collision["entities"].push_back(
+      {{"id", "original_wall"}, {"components", nlohmann::json::object()}});
+  if (expandScene(root / "scenes/main.scene.json", collision).document)
+    return 43;
+  auto mappedPrefab = nlohmann::json{{"format_version", 1},
+                                     {"id", "prefab://mapped"},
+                                     {"entities", mapped["instances"]}};
+  mappedPrefab["entities"].push_back(
+      {{"id", "follower"},
+       {"components", {{"Transform3D", {{"parent", "original_wall"}}}}}});
+  write(root / "prefabs/mapped.prefab.json", mappedPrefab.dump().c_str());
+  const auto nestedMapped = demi::runtime::composition::expandPrefabInstance(
+      root / "scenes/main.scene.json",
+      {{"id", "outer"}, {"prefab", "prefab://mapped"}});
+  if (!nestedMapped.document ||
+      (*nestedMapped.document)[0]["id"] != "outer/original_wall" ||
+      (*nestedMapped.document)[1]["components"]["Transform3D"]["parent"] !=
+          "outer/original_wall")
+    return 44;
+
   write(
       root / "prefabs/cycle_a.prefab.json",
       R"({"format_version":1,"id":"prefab://cycle_a","entities":[],"instances":[{"id":"b","prefab":"prefab://cycle_b"}]})");

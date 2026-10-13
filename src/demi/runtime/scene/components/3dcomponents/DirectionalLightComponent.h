@@ -15,10 +15,10 @@ struct DirectionalLightComponent {
       ComponentFieldDescriptor{"color", ComponentFieldType::Color},
       ComponentFieldDescriptor{"intensity", ComponentFieldType::Number, false,
                                true, {}, 0.0, true},
-      ComponentFieldDescriptor{"casts_shadows", ComponentFieldType::Boolean},
-      ComponentFieldDescriptor{"render_mask", ComponentFieldType::String}};
-  static constexpr ComponentEditorMetadata editor{"Lighting",
-                                                  "Directional Light"};
+      ComponentFieldDescriptor{"casts_shadows", ComponentFieldType::Boolean}.withHelp("Enable cascaded shadows for the primary sun."),
+      ComponentFieldDescriptor{"render_mask", ComponentFieldType::String}.asAdvanced().withHelp("Optional camera mask match. Empty affects every camera.")};
+  static constexpr ComponentEditorMetadata editor{"Lighting", "Sun Light",
+      "Lights the whole scene from one direction. Rotate its Transform gizmo to aim it; moving a sun does not change illumination. Only the primary sun supplies cascaded shadows."};
   static void parse(const nlohmann::json &json, Entity &entity);
 
   Vec3 direction = {-0.4F, -1.0F, -0.3F};

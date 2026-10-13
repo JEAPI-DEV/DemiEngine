@@ -15,7 +15,10 @@ NavigationCell2DHash::operator()(const NavigationCell2D &cell) const noexcept {
 
 bool NavigationGrid2D::configure(const int width, const int height,
                                  const float cellSize, const Vec2 origin) {
-  if (width <= 0 || height <= 0 || cellSize <= 0.0F)
+  if (width <= 0 || height <= 0 ||
+      width > std::numeric_limits<int>::max() / height ||
+      !std::isfinite(cellSize) || cellSize <= 0.0F ||
+      !std::isfinite(origin.x) || !std::isfinite(origin.y))
     return false;
   width_ = width;
   height_ = height;
@@ -55,7 +58,7 @@ bool NavigationGrid2D::setBlocked(const NavigationCell2D cell,
 }
 
 bool NavigationGrid2D::setCost(const NavigationCell2D cell, const float value) {
-  if (!contains(cell) || value < 1.0F)
+  if (!contains(cell) || !std::isfinite(value) || value < 1.0F)
     return false;
   if (value == 1.0F)
     costs_.erase(cell);
@@ -76,12 +79,14 @@ float NavigationGrid2D::cost(const NavigationCell2D cell) const {
 
 std::optional<NavigationCell2D>
 NavigationGrid2D::worldToCell(const Vec2 world) const {
-  if (!available())
+  if (!available() || !std::isfinite(world.x) || !std::isfinite(world.y))
     return std::nullopt;
-  const NavigationCell2D cell{
-      .x = static_cast<int>(std::floor((world.x - origin_.x) / cellSize_)),
-      .y = static_cast<int>(std::floor((world.y - origin_.y) / cellSize_))};
-  return contains(cell) ? std::optional{cell} : std::nullopt;
+  const double x = (static_cast<double>(world.x) - origin_.x) / cellSize_;
+  const double y = (static_cast<double>(world.y) - origin_.y) / cellSize_;
+  if (x < 0 || y < 0 || x >= width_ || y >= height_)
+    return std::nullopt;
+  return NavigationCell2D{static_cast<int>(std::floor(x)),
+                          static_cast<int>(std::floor(y))};
 }
 
 std::optional<Vec2>

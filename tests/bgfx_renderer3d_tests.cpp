@@ -1,23 +1,34 @@
-#include "demi/runtime/render/BgfxRenderer3D.h"
-#include "demi/runtime/render/bgfx3d/SceneVisibility3D.h"
-#include "demi/runtime/render/bgfx2d/ColorPacking2D.h"
-#include "demi/runtime/geometry/MeshDeformation3D.h"
-#include "demi/runtime/scene/components/3dcomponents/MeshInstances3DComponent.h"
 #include "demi/runtime/destruction/DestructionWorld3D.h"
 #include "demi/runtime/destruction/DetachedFragmentFade3D.h"
+#include "demi/runtime/geometry/MeshDeformation3D.h"
 #include "demi/runtime/physics/PhysicsWorld3D.h"
+#include "demi/runtime/profiling/RuntimeProfiler.h"
+#include "demi/runtime/render/BgfxRenderer3D.h"
+#include "demi/runtime/render/backend/BgfxGraphicsDevice.h"
+#include "demi/runtime/render/bgfx2d/ColorPacking2D.h"
+#include "demi/runtime/render/bgfx3d/MeshInstanceBatch3D.h"
+#include "demi/runtime/render/bgfx3d/PreparedMeshDraw3D.h"
+#include "demi/runtime/render/bgfx3d/SceneVisibility3D.h"
 #include "demi/runtime/scene/SceneLoader.h"
 #include "demi/runtime/scene/WorldQueries.h"
-#include "demi/runtime/profiling/RuntimeProfiler.h"
-#include "demi/runtime/render/backend/BgfxGraphicsDevice.h"
 #include "demi/runtime/scene/components/3dcomponents/AnimationPlayer3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/BoxCollider3DComponent.h"
-#include "demi/runtime/scene/components/3dcomponents/Environment3DComponent.h"
-#include "demi/runtime/scene/components/3dcomponents/DirectionalLightComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/Dentable3DComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/DirectionalLightComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/Environment3DComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/MeshInstances3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/ParticleEmitter3DComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/Transform3DComponent.h"
+#include "demi/runtime/scene/model/MeshMaterialSections3D.h"
+#include "demi/runtime/terrain/TerrainMeshBuilder.h"
+#include "demi/runtime/terrain/TerrainRenderLod.h"
+#include "demi/runtime/terrain/TerrainWorld.h"
+#include <chrono>
+#include <cmath>
+#include <numbers>
+#include <thread>
 
 #include <algorithm>
 #ifdef NDEBUG
@@ -38,7 +49,11 @@ class MeshUploadCapture final : public GpuResources {
 public:
   explicit MeshUploadCapture(GpuResources &target) : target_(target) {}
   std::vector<std::vector<GpuMeshVertex3D>> meshUploads;
+  bool failNextMeshUpload = false;
   RenderDeviceLimits limits() const override { return target_.limits(); }
+  TextureCapabilities textureCapabilities(TextureFormat format) const override {
+    return target_.textureCapabilities(format);
+  }
   TextureHandle createTexture(const TextureCreateInfo &info,
                               std::string &error) override {
     return target_.createTexture(info, error);
@@ -58,6 +73,12 @@ public:
   }
   BufferHandle createBuffer(const BufferCreateInfo &info,
                             std::string &error) override {
+    if (failNextMeshUpload && info.kind == BufferKind::Vertex &&
+        info.debugName == "3D mesh vertices") {
+      failNextMeshUpload = false;
+      error = "Injected terrain upload failure";
+      return {};
+    }
     const auto handle = target_.createBuffer(info, error);
     if (handle && info.kind == BufferKind::Vertex &&
         info.debugName == "3D mesh vertices") {
@@ -112,17 +133,23 @@ private:
 class TextureCapture final : public RenderCommands {
 public:
   explicit TextureCapture(RenderCommands &target) : target_(target) {}
+  std::uint32_t availableInstances(std::uint16_t stride,
+                                   std::uint32_t requested) const override {
+    return target_.availableInstances(stride, requested);
+  }
   std::vector<TextureHandle> textures;
   std::vector<DrawState> bufferedStates;
+  std::vector<BufferSlice> bufferedIndices;
   std::size_t instanceDrawCalls = 0;
+  bool forwardDraws = true;
   std::vector<float> bufferedAlpha;
   std::vector<std::array<float, 4>> bufferedTint;
   std::vector<std::array<float, 4>> bufferedMetalRough;
   std::vector<std::array<float, 16>> bufferedTransforms;
   std::vector<View2DConfig> views2D;
   std::vector<View3DConfig> views3D;
-  std::map<std::uint16_t,std::vector<std::array<float,16>>> transformsByView;
-  std::map<std::uint16_t,TextureHandle> shadowTextures;
+  std::map<std::uint16_t, std::vector<std::array<float, 16>>> transformsByView;
+  std::map<std::uint16_t, TextureHandle> shadowTextures;
   bool configureView2D(const View2DConfig &view, std::string &error) override {
     views2D.push_back(view);
     return target_.configureView2D(view, error);
@@ -136,30 +163,44 @@ public:
   }
   bool submit(const BufferedDraw &draw, std::string &error) override {
     transformsByView[draw.viewId].push_back(draw.transform);
-    for(const auto &texture:draw.textures) if(texture.stage==1)shadowTextures[draw.viewId]=texture.texture;
+    for (const auto &texture : draw.textures)
+      if (texture.stage == 1)
+        shadowTextures[draw.viewId] = texture.texture;
     textures.push_back(draw.texture);
     bufferedStates.push_back(draw.state);
-    bufferedAlpha.push_back(draw.uniforms.empty()?1.F:draw.uniforms.front().values[3]);
+    bufferedIndices.push_back(draw.indices);
+    bufferedAlpha.push_back(
+        draw.uniforms.empty() ? 1.F : draw.uniforms.front().values[3]);
     if (!draw.uniforms.empty())
-      bufferedTint.push_back({draw.uniforms.front().values[0],
-                              draw.uniforms.front().values[1],
-                              draw.uniforms.front().values[2],
-                              draw.uniforms.front().values[3]});
-    if (draw.uniforms.size() > 13)
-      bufferedMetalRough.push_back({draw.uniforms[13].values[0],
-                                  draw.uniforms[13].values[1],
-                                  draw.uniforms[13].values[2],
-                                  draw.uniforms[13].values[3]});
+      bufferedTint.push_back(
+          {draw.uniforms.front().values[0], draw.uniforms.front().values[1],
+           draw.uniforms.front().values[2], draw.uniforms.front().values[3]});
+    if (draw.uniforms.size() > 7)
+      bufferedMetalRough.push_back(
+          {draw.uniforms[7].values[0], draw.uniforms[7].values[1],
+           draw.uniforms[7].values[2], draw.uniforms[7].values[3]});
     bufferedTransforms.push_back(draw.transform);
-    return target_.submit(draw, error);
+    return forwardDraws ? target_.submit(draw, error) : true;
   }
   bool submit(const InstancedBufferedDraw &draw, std::string &error) override {
     ++instanceDrawCalls;
-    for(const auto &transform:draw.transforms)transformsByView[draw.viewId].push_back(transform);
-    for(const auto &texture:draw.textures)if(texture.stage==1)shadowTextures[draw.viewId]=texture.texture;
+    if (draw.instances.stride == sizeof(std::array<float, 16>) &&
+        draw.instances.data.size() % draw.instances.stride == 0) {
+      for (std::size_t offset = 0; offset < draw.instances.data.size();
+           offset += draw.instances.stride) {
+        std::array<float, 16> transform;
+        std::memcpy(transform.data(), draw.instances.data.data() + offset,
+                    sizeof(transform));
+        transformsByView[draw.viewId].push_back(transform);
+      }
+    }
+    for (const auto &texture : draw.textures)
+      if (texture.stage == 1)
+        shadowTextures[draw.viewId] = texture.texture;
     textures.push_back(draw.texture);
-    return target_.submit(draw, error);
+    return forwardDraws ? target_.submit(draw, error) : true;
   }
+
 private:
   RenderCommands &target_;
 };
@@ -177,6 +218,143 @@ Entity shape(std::string id, std::string shapeName, const Vec3 position) {
 } // namespace
 
 int main() {
+  {
+    MeshRendererComponent mesh;
+    mesh.color = {0.5F, 0.5F, 0.5F, 0.5F};
+    MaterialBinding material;
+    material.baseColor = {0.5F, 0.25F, 1, 0.5F};
+    material.opacity = 0.5F;
+    material.program = {.index = 1, .generation = 1};
+    std::array<DrawUniformValue, 8> lighting;
+    std::vector<DrawUniformValue> scratch;
+    PreparedMeshDraw3D custom(mesh, &material, std::nullopt, true, false, false,
+                              {});
+    auto moved = std::move(custom);
+    moved.fillUniforms(lighting, &material, scratch);
+    assert(scratch[0].values.data() == moved.surfaceTint.data());
+    assert(scratch[0].values[0] == 0.5F);
+    assert(scratch[0].values[3] == 0.25F);
+    assert(scratch[7].values[2] == 1.0F);
+    assert(scratch[3].values[0] == 0.0F);
+    assert(scratch[5].values[0] == 1.0F);
+
+    material.program = {};
+    PreparedMeshDraw3D builtin(mesh, &material, 0.5F, false, false, false, {});
+    builtin.fillUniforms(lighting, &material, scratch);
+    assert(scratch[0].values.data() == builtin.builtinSurfaceTint.data());
+    assert(scratch[0].values[0] == 0.25F);
+    assert(scratch[0].values[3] == 0.0625F);
+    assert(scratch[7].values[2] == 0.0F);
+    assert(builtin.state.blend == BlendMode::Alpha);
+    assert(!builtin.state.writeDepth);
+  }
+  {
+    auto chunk = std::make_shared<PreparedTerrainChunkLod>();
+    chunk->boundsMin = {-1, -1, -1};
+    chunk->boundsMax = {1, 1, 1};
+    chunk->geometricErrors = {0, 0.1F, 0.2F, 0.4F};
+    chunk->triangleCounts = {4, 3, 2, 1};
+    BgfxCameraFrame3D camera;
+    camera.cameraId = "hysteresis-camera";
+    camera.camera.perspective = false;
+    camera.camera.orthographicSize = 100;
+    camera.viewportHeight = 200;
+    WorldTransform3D transform;
+    assert(selectTerrainDrawLevel3D(*chunk, transform, {1, 1, 1}, camera,
+                                    0.5F) == 3);
+    transform.scale = {10, 1, 1};
+    assert(selectTerrainDrawLevel3D(*chunk, transform, {1, 1, 1}, camera,
+                                    0.5F) == 3);
+    transform.scale = {1, 10, 1};
+    assert(selectTerrainDrawLevel3D(*chunk, transform, {1, 1, 1}, camera,
+                                    2.0F) == 2);
+    transform = {};
+    TerrainDrawSelection3D selection;
+    selection.beginPresentation();
+    assert(selection.select(chunk, transform, {1, 1, 1}, camera, 0.38F) == 2);
+    assert(selection.select(chunk, transform, {1, 1, 1}, camera, 0.42F) == 2);
+    assert(selection.select(chunk, transform, {1, 1, 1}, camera, 0.5F) == 3);
+    assert(selection.select(chunk, transform, {1, 1, 1}, camera, 0.39F) == 2);
+    camera.cameraId = "independent-camera";
+    assert(selection.select(chunk, transform, {1, 1, 1}, camera, 0.42F) == 3);
+    // Two placements may share immutable prepared geometry, but not quality
+    // transition history. One owner's demotion band cannot hold back another.
+    camera.cameraId = "shared-placement-camera";
+    assert(selection.select(chunk, transform, {1, 1, 1}, camera, 0.38F,
+                            "owner-a") == 2);
+    assert(selection.select(chunk, transform, {1, 1, 1}, camera, 0.42F,
+                            "owner-a") == 2);
+    assert(selection.select(chunk, transform, {1, 1, 1}, camera, 0.42F,
+                            "owner-b") == 3);
+    chunk->triangleCounts = {4, 4, 4, 4};
+    assert(selectTerrainDrawLevel3D(*chunk, transform, {1, 1, 1}, camera,
+                                    100) == 0);
+  }
+  {
+    PreparedTerrainChunkLod chunk;
+    chunk.boundsMin = {-1000, -1, -1};
+    chunk.boundsMax = {1000, 1, 1};
+    chunk.geometricErrors = {0, 0.03F, 0.06F, 0.1F};
+    chunk.triangleCounts = {100, 60, 30, 15};
+    BgfxCameraFrame3D camera;
+    camera.position = {0, 0, 100};
+    camera.forward = {0, 0, -1};
+    camera.camera.fov = 60;
+    camera.viewportHeight = 1000;
+    // A wide chunk's bounding sphere crosses the camera plane even though its
+    // actual terrain bounds are entirely in front. Local Y error does not
+    // gain arbitrary horizontal/depth displacement merely from this width.
+    assert(selectTerrainDrawLevel3D(chunk, {}, {1, 1, 1}, camera, 1.0F) == 3);
+    chunk.boundsMin.z = 99.95F;
+    chunk.boundsMax.z = 101;
+    assert(selectTerrainDrawLevel3D(chunk, {}, {1, 1, 1}, camera, 1.0F) == 0);
+
+    chunk.boundsMin = {-2, -10, -2};
+    chunk.boundsMax = {2, 10, 2};
+    chunk.geometricErrors = {0, 0.05F, 0.1F, 0.25F};
+    camera.position = {0, 3, 100};
+    const auto project = [&camera](Vec3 point) {
+      const float x = point.x - camera.position.x;
+      const float y = point.y - camera.position.y;
+      if (!camera.camera.perspective) {
+        const float factor =
+            float(camera.viewportHeight) / (2 * camera.camera.orthographicSize);
+        return Vec2{x * factor, y * factor};
+      }
+      const float depth = camera.position.z - point.z;
+      const float factor =
+          float(camera.viewportHeight) /
+          (2 * std::tan(camera.camera.fov * std::numbers::pi_v<float> / 360));
+      return Vec2{x * factor / depth, y * factor / depth};
+    };
+    for (const bool perspective : {true, false}) {
+      camera.camera.perspective = perspective;
+      camera.camera.orthographicSize = 50;
+      for (const Vec3 rotation :
+           {Vec3{}, Vec3{35, 40, 25}, Vec3{80, 0, 10}, Vec3{0, 0, 90}}) {
+        WorldTransform3D transform;
+        transform.scale = {7, 3, 2};
+        transform.rotation = rotation;
+        const auto level = selectTerrainDrawLevel3D(chunk, transform, {1, 1, 1},
+                                                    camera, 12.0F);
+        assert(level == 3);
+        const float heightError = chunk.geometricErrors[level];
+        for (const float x : {-2.0F, 0.0F, 2.0F}) {
+          for (const float y : {-9.0F, 0.0F, 9.0F}) {
+            for (const float z : {-2.0F, 0.0F, 2.0F}) {
+              const auto full = project(transformPoint3D(transform, {x, y, z}));
+              for (const float direction : {-1.0F, 1.0F}) {
+                const auto reduced = project(transformPoint3D(
+                    transform, {x, y + direction * heightError, z}));
+                assert(std::hypot(full.x - reduced.x, full.y - reduced.y) <=
+                       12.0F);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
   BgfxGraphicsDevice graphics;
   std::string error;
   assert(graphics.initialize(GraphicsDeviceConfig{.api = GraphicsApi::Noop,
@@ -186,14 +364,62 @@ int main() {
                              error));
   auto resources = createBgfxGpuResources();
   auto commands = createBgfxRenderCommands(*resources);
+  {
+    // Capture command intent without backend validation so recycled texture
+    // generations can be compared together, including the stale generation.
+    TextureCapture batchCapture(*commands);
+    batchCapture.forwardDraws = false;
+    GpuMesh3D firstMesh(*resources);
+    GpuMesh3D secondMesh(*resources);
+    const std::array<Vec3, 3> positions{{{-1, 0, 0}, {1, 0, 0}, {0, 1, 0}}};
+    assert(firstMesh.upload(positions, {}, {}, 0xffffffffU, error));
+    assert(secondMesh.upload(positions, {}, {}, 0xffffffffU, error));
+    const TextureHandle texture{.index = 7, .generation = 1};
+    const TextureHandle recycled{.index = 7, .generation = 2};
+    const std::array<float, 4> tint{0.5F, 1, 1, 1};
+    auto distinctTint = tint;
+    distinctTint[0] = std::nextafter(tint[0], 1.0F);
+    const std::array<float, 4> metalRough{0, 0.8F, 0, 0};
+    auto distinctMetalRough = metalRough;
+    distinctMetalRough[1] = std::nextafter(metalRough[1], 1.0F);
+    const std::array<float, 16> transform{1, 0, 0, 0, 0, 1, 0, 0,
+                                          0, 0, 1, 0, 0, 0, 0, 1};
+    std::array<DrawUniformValue, 8> lighting;
+    for (auto &uniform : lighting) {
+      uniform.values = tint;
+    }
+    MeshInstanceBatch3D batches;
+    batches.add(firstMesh, texture, tint, metalRough, false, transform);
+    batches.add(secondMesh, texture, tint, metalRough, false, transform);
+    batches.add(firstMesh, recycled, tint, metalRough, false, transform);
+    batches.add(firstMesh, texture, distinctTint, metalRough, false, transform);
+    batches.add(firstMesh, texture, tint, metalRough, true, transform);
+    batches.add(firstMesh, texture, tint, distinctMetalRough, false, transform);
+    batches.add(firstMesh, texture, tint, metalRough, false, transform);
+    std::uint32_t draws = 0;
+    std::uint32_t triangles = 0;
+    assert(batches.flush(batchCapture, 0, {}, {}, {}, {}, lighting, draws,
+                         triangles, error));
+    assert(draws == 6);
+    assert(triangles == 7);
+    assert(batchCapture.instanceDrawCalls == 1);
+    assert(batchCapture.textures.size() == 6);
+    assert(batchCapture.textures[0] == texture);
+    assert(batchCapture.textures[1] == texture);
+    assert(batchCapture.textures[2] == recycled);
+    assert(batchCapture.bufferedTint[2][0] == distinctTint[0]);
+    assert(batchCapture.bufferedMetalRough.back()[1] == distinctMetalRough[1]);
+  }
   TextureCapture capture(*commands);
-  BgfxRenderer3D renderer(*resources, capture, false); // CPU fallback reference.
+  BgfxRenderer3D renderer(*resources, capture,
+                          false); // CPU fallback reference.
   assert(renderer.initialize(error));
   assert(renderer.initialize(error));
   std::vector<std::string> diagnostics;
   demi::AssetRegistry registry;
   registry.assets.push_back(
-      {.id = "asset://textures/override", .type = "Texture2D",
+      {.id = "asset://textures/override",
+       .type = "Texture2D",
        .sourcePath = std::filesystem::path(DEMI_SOURCE_DIR) /
                      "examples/minimal_3d/assets/textures/checker.png"});
   registry.assets.push_back(
@@ -268,6 +494,110 @@ int main() {
       renderer.statistics().batches;
   static_cast<void>(graphics.endFrame());
 
+  {
+    MeshUploadCapture uploads(*resources);
+    TextureCapture sectionDraws(*commands);
+    BgfxRenderer3D sectionRenderer(uploads, sectionDraws);
+    assert(sectionRenderer.initialize(error));
+
+    World sectionWorld;
+    auto panel = shape("sectioned_inline", "", {});
+    auto *mesh = panel.component<MeshRendererComponent>();
+    mesh->vertices = {{-1, 0, 0}, {0, 0, 0}, {-1, 1, 0},
+                      {0, 0, 0},  {1, 0, 0}, {1, 1, 0}};
+    mesh->normals.assign(6, {0, 0, 1});
+    mesh->uvs.assign(6, {0, 0});
+    mesh->markGeometryChanged();
+
+    MeshMaterialSections3D sections;
+    sections.indices = std::make_shared<const std::vector<std::uint32_t>>(
+        std::vector<std::uint32_t>{0, 1, 2, 3, 4, 5});
+    sections.sections = {{"left", {}, 0, 3}, {"right", {}, 3, 3}};
+    sections.indexRevision = 1;
+    panel.setComponent(sections);
+    sectionWorld.entities.push_back(std::move(panel));
+
+    assert(sectionRenderer.renderFrame(sectionWorld, frame, 0.016F, error));
+    assert(sectionDraws.bufferedIndices.size() == 2);
+    assert(sectionDraws.bufferedIndices[0].first == 0);
+    assert(sectionDraws.bufferedIndices[1].first == 3);
+    assert(sectionDraws.bufferedIndices[0].count == 3);
+    assert(sectionDraws.bufferedIndices[1].count == 3);
+    assert(uploads.meshUploads.size() == 1);
+    static_cast<void>(graphics.endFrame());
+
+    auto *published =
+        sectionWorld.entities.front().component<MeshMaterialSections3D>();
+    published->sections.front().material = "asset://changed_binding";
+    assert(sectionRenderer.renderFrame(sectionWorld, frame, 0.016F, error));
+    assert(uploads.meshUploads.size() == 1);
+    static_cast<void>(graphics.endFrame());
+
+    Entity sun;
+    sun.id = "section_shadow_light";
+    sun.setComponent(DirectionalLightComponent{.castsShadows = true});
+    sectionWorld.entities.push_back(std::move(sun));
+    assert(sectionRenderer.renderFrame(sectionWorld, frame, 0.016F, error));
+    assert(sectionRenderer.statistics().shadowPasses > 0);
+    assert(uploads.meshUploads.size() == 1);
+    static_cast<void>(graphics.endFrame());
+  }
+
+  {
+    MeshUploadCapture uploads(*resources);
+    BgfxRenderer3D retentionRenderer(uploads, *commands);
+    assert(retentionRenderer.initialize(error));
+    World retentionWorld;
+    auto triangle = shape("retained-inline", "", {});
+    auto *mesh = triangle.component<MeshRendererComponent>();
+    mesh->vertices = {{-1, 0, 0}, {1, 0, 0}, {0, 1, 0}};
+    mesh->hasBounds = true;
+    mesh->boundsMin = {-1, 0, 0};
+    mesh->boundsMax = {1, 1, 0};
+    mesh->markGeometryChanged();
+    retentionWorld.entities.push_back(std::move(triangle));
+
+    assert(retentionRenderer.renderFrame(retentionWorld, frame, 0.016F, error));
+    assert(uploads.meshUploads.size() == 1);
+    static_cast<void>(graphics.endFrame());
+
+    // Camera visibility must not control GPU resource ownership.
+    auto *transform =
+        retentionWorld.entities.front().component<Transform3DComponent>();
+    transform->position = {10000, 0, 0};
+    assert(extractVisibleMeshes3D(retentionWorld, frame).meshes.empty());
+    assert(retentionRenderer.renderFrame(retentionWorld, frame, 0.016F, error));
+    static_cast<void>(graphics.endFrame());
+    transform->position = {};
+    assert(retentionRenderer.renderFrame(retentionWorld, frame, 0.016F, error));
+    assert(uploads.meshUploads.size() == 1);
+    static_cast<void>(graphics.endFrame());
+
+    // A failed frame cannot evict absent resources: the authoring document
+    // may be restored immediately after an unsuccessful preview rebuild.
+    Entity retained = std::move(retentionWorld.entities.front());
+    retentionWorld.entities.clear();
+    retentionWorld.entities.push_back(shape("invalid-preview", "invalid", {}));
+    assert(
+        !retentionRenderer.renderFrame(retentionWorld, frame, 0.016F, error));
+    retentionWorld.entities.clear();
+    retentionWorld.entities.push_back(std::move(retained));
+    error.clear();
+    assert(retentionRenderer.renderFrame(retentionWorld, frame, 0.016F, error));
+    assert(uploads.meshUploads.size() == 1);
+    static_cast<void>(graphics.endFrame());
+
+    // Successful entity removal releases ownership; recreating the same ID
+    // must upload again instead of borrowing stale geometry.
+    retained = std::move(retentionWorld.entities.front());
+    retentionWorld.entities.clear();
+    assert(retentionRenderer.renderFrame(retentionWorld, frame, 0.016F, error));
+    static_cast<void>(graphics.endFrame());
+    retentionWorld.entities.push_back(std::move(retained));
+    assert(retentionRenderer.renderFrame(retentionWorld, frame, 0.016F, error));
+    assert(uploads.meshUploads.size() == 2);
+    static_cast<void>(graphics.endFrame());
+  }
   {
     MeshUploadCapture uploads(*resources);
     TextureCapture coloredDraws(*commands);
@@ -364,8 +694,8 @@ int main() {
     near.component<MeshRendererComponent>()->surfaceMode = "transparent";
     near.component<MeshRendererComponent>()->opacity = 0.5F;
     near.component<MeshRendererComponent>()->roughness = 0.25F;
-    near.component<MeshRendererComponent>()->materialColors["base_color"] =
-        {0.5F, 0.25F, 1.0F, 0.5F};
+    near.component<MeshRendererComponent>()->materialColors["base_color"] = {
+        0.5F, 0.25F, 1.0F, 0.5F};
     auto opaque = shape("opaque", "cube", {0, 0, 0});
     auto smoothOpaque = shape("smooth-opaque", "cube", {2, 0, 0});
     smoothOpaque.component<MeshRendererComponent>()->roughness = 0.0F;
@@ -411,45 +741,63 @@ int main() {
     assert(capture.bufferedMetalRough.back()[1] == 0.6F);
     static_cast<void>(graphics.endFrame());
   }
-  assert(collectSceneLighting3D(world,{}).msaaSamples==4);
+  assert(collectSceneLighting3D(world, {}).msaaSamples == 4);
   assert(capture.views3D.back().frameBuffer);
-  const auto defaultAaTarget=capture.views3D.back().frameBuffer;
-  auto nativeFrame=frame;nativeFrame.destinationSamples=4;nativeFrame.camera.renderHud=false;
-  capture.views3D.clear();capture.views2D.clear();
-  assert(renderer.renderFrame(world,nativeFrame,.016F,error));
-  auto overlayCamera=nativeFrame;overlayCamera.viewId+=CameraViewCount3D;
-  overlayCamera.camera.clearMode="depth";
-  assert(renderer.renderFrame(world,overlayCamera,.016F,error));
-  assert(capture.views3D.size()==2 && !capture.views3D[0].frameBuffer && !capture.views3D[1].frameBuffer);
+  const auto defaultAaTarget = capture.views3D.back().frameBuffer;
+  auto nativeFrame = frame;
+  nativeFrame.destinationSamples = 4;
+  nativeFrame.camera.renderHud = false;
+  capture.views3D.clear();
+  capture.views2D.clear();
+  assert(renderer.renderFrame(world, nativeFrame, .016F, error));
+  auto overlayCamera = nativeFrame;
+  overlayCamera.viewId += CameraViewCount3D;
+  overlayCamera.camera.clearMode = "depth";
+  assert(renderer.renderFrame(world, overlayCamera, .016F, error));
+  assert(capture.views3D.size() == 2 && !capture.views3D[0].frameBuffer &&
+         !capture.views3D[1].frameBuffer);
   assert(!capture.views3D[1].clearColor && capture.views3D[1].clearDepth);
-  assert(capture.views2D.empty()); // Camera stacks keep the shared native color/depth surface.
+  assert(capture.views2D.empty()); // Camera stacks keep the shared native
+                                   // color/depth surface.
   static_cast<void>(graphics.endFrame());
-  Entity quality;quality.id="quality";
-  quality.setComponent(Environment3DComponent{.msaaSamples=0});
+  Entity quality;
+  quality.id = "quality";
+  quality.setComponent(Environment3DComponent{.msaaSamples = 0});
   world.entities.push_back(std::move(quality));
-  capture.views3D.clear();capture.views2D.clear();
-  assert(renderer.renderFrame(world,frame,.016F,error));
+  capture.views3D.clear();
+  capture.views2D.clear();
+  assert(renderer.renderFrame(world, frame, .016F, error));
   assert(!capture.views3D.back().frameBuffer);
-  assert(!resources->destroy(defaultAaTarget)); // Disabled AA releases its attachments.
-  assert(std::ranges::none_of(capture.views2D,[&](const auto &view){return view.id==frame.viewId+2;}));
+  assert(!resources->destroy(
+      defaultAaTarget)); // Disabled AA releases its attachments.
+  assert(std::ranges::none_of(capture.views2D, [&](const auto &view) {
+    return view.id == frame.viewId + 2;
+  }));
   static_cast<void>(graphics.endFrame());
-  world.entities.back().component<Environment3DComponent>()->msaaSamples=8;
-  capture.views3D.clear();capture.views2D.clear();
-  assert(renderer.renderFrame(world,frame,.016F,error));
-  assert(capture.views3D.back().frameBuffer && capture.views3D.back().frameBuffer!=defaultAaTarget);
-  assert(std::ranges::any_of(capture.views2D,[&](const auto &view){return view.id==frame.viewId+2;}));
+  world.entities.back().component<Environment3DComponent>()->msaaSamples = 8;
+  capture.views3D.clear();
+  capture.views2D.clear();
+  assert(renderer.renderFrame(world, frame, .016F, error));
+  assert(capture.views3D.back().frameBuffer &&
+         capture.views3D.back().frameBuffer != defaultAaTarget);
+  assert(std::ranges::any_of(capture.views2D, [&](const auto &view) {
+    return view.id == frame.viewId + 2;
+  }));
   static_cast<void>(graphics.endFrame());
   world.entities.pop_back();
   {
     World skyWorld;
     Entity environment;
     environment.id = "environment";
-    Environment3DComponent::parse({{"sky_texture", "asset://textures/override"}}, environment);
-    assert(environment.component<Environment3DComponent>()->skyTexture == "asset://textures/override");
+    Environment3DComponent::parse(
+        {{"sky_texture", "asset://textures/override"}}, environment);
+    assert(environment.component<Environment3DComponent>()->skyTexture ==
+           "asset://textures/override");
     skyWorld.entities.push_back(std::move(environment));
     auto skyFrame = frame;
     skyFrame.position = {13, 2, -17};
-    skyFrame.lightingOverride = SceneLighting3D{}; // Editor lighting override preserves sky.
+    skyFrame.lightingOverride =
+        SceneLighting3D{}; // Editor lighting override preserves sky.
     capture.bufferedStates.clear();
     capture.bufferedTransforms.clear();
     assert(renderer.renderFrame(skyWorld, skyFrame, 0.016F, error));
@@ -541,9 +889,10 @@ int main() {
     assert(renderer.renderFrame(world, embeddedFrame, 0.016F, error));
     assert(capture.views3D.front().width == std::lround(320 * scale));
     assert(capture.views3D.front().frameBuffer != embeddedTarget.frameBuffer);
-    const auto present = std::ranges::find_if(capture.views2D, [&](const auto &view) {
-      return view.id == embeddedFrame.viewId + 2;
-    });
+    const auto present =
+        std::ranges::find_if(capture.views2D, [&](const auto &view) {
+          return view.id == embeddedFrame.viewId + 2;
+        });
     assert(present != capture.views2D.end());
     assert(present->frameBuffer == embeddedTarget.frameBuffer);
     assert(present->width == 320 && present->height == 180);
@@ -554,49 +903,66 @@ int main() {
   assert(resources->destroy(embeddedTarget.depth));
   assert(resources->destroy(embeddedTarget.color));
 
-  Entity sun;sun.id="shadow-sun";
-  sun.setComponent(DirectionalLightComponent{.castsShadows=true});
+  Entity sun;
+  sun.id = "shadow-sun";
+  sun.setComponent(DirectionalLightComponent{.castsShadows = true});
   sun.setComponent(Environment3DComponent{.shadowCascades = 1});
   world.entities.push_back(std::move(sun));
-  capture.views3D.clear();capture.transformsByView.clear();capture.shadowTextures.clear();
-  assert(renderer.renderFrame(world,frame,.016F,error));
-  assert(capture.views3D.size()==2 && capture.views3D[0].frameBuffer && capture.views3D[1].frameBuffer);
-  assert(capture.views3D[0].frameBuffer!=capture.views3D[1].frameBuffer);
-  assert(capture.views3D[0].id==frame.viewId && capture.views3D[1].id==frame.viewId+1);
-  assert(capture.views3D[0].width==1024 && !capture.views3D[0].perspective);
-  assert(capture.views3D[0].clearColor && capture.views3D[0].clearDepth && capture.views3D[0].clearRgba==0xffffffffU);
-  assert(capture.shadowTextures[frame.viewId]!=capture.shadowTextures[frame.viewId+1]);
-  const auto firstShadowTexture=capture.shadowTextures[frame.viewId+1];
-  const auto secondTarget=resources->createRenderTarget({.width=320,.height=180,.debugName="second shadow camera"},error);
-  auto secondCamera=frame;secondCamera.cameraId="second";secondCamera.viewId=CameraViewCount3D;
-  secondCamera.frameBuffer=secondTarget.frameBuffer;
-  assert(renderer.renderFrame(world,secondCamera,.016F,error));
-  assert(capture.shadowTextures[secondCamera.viewId+1]!=firstShadowTexture);
-  assert(capture.views3D.back().frameBuffer!=secondTarget.frameBuffer);
-  assert(std::ranges::any_of(capture.views2D,[&](const auto &v){return v.frameBuffer==secondTarget.frameBuffer && v.id==secondCamera.viewId+3;}));
-  const auto previousShadow=capture.transformsByView[frame.viewId];
+  capture.views3D.clear();
+  capture.transformsByView.clear();
+  capture.shadowTextures.clear();
+  assert(renderer.renderFrame(world, frame, .016F, error));
+  assert(capture.views3D.size() == 2 && capture.views3D[0].frameBuffer &&
+         capture.views3D[1].frameBuffer);
+  assert(capture.views3D[0].frameBuffer != capture.views3D[1].frameBuffer);
+  assert(capture.views3D[0].id == frame.viewId &&
+         capture.views3D[1].id == frame.viewId + 1);
+  assert(capture.views3D[0].width == 1024 && !capture.views3D[0].perspective);
+  assert(capture.views3D[0].clearColor && capture.views3D[0].clearDepth &&
+         capture.views3D[0].clearRgba == 0xffffffffU);
+  assert(capture.shadowTextures[frame.viewId] !=
+         capture.shadowTextures[frame.viewId + 1]);
+  const auto firstShadowTexture = capture.shadowTextures[frame.viewId + 1];
+  const auto secondTarget = resources->createRenderTarget(
+      {.width = 320, .height = 180, .debugName = "second shadow camera"},
+      error);
+  auto secondCamera = frame;
+  secondCamera.cameraId = "second";
+  secondCamera.viewId = CameraViewCount3D;
+  secondCamera.frameBuffer = secondTarget.frameBuffer;
+  assert(renderer.renderFrame(world, secondCamera, .016F, error));
+  assert(capture.shadowTextures[secondCamera.viewId + 1] != firstShadowTexture);
+  assert(capture.views3D.back().frameBuffer != secondTarget.frameBuffer);
+  assert(std::ranges::any_of(capture.views2D, [&](const auto &v) {
+    return v.frameBuffer == secondTarget.frameBuffer &&
+           v.id == secondCamera.viewId + 3;
+  }));
+  const auto previousShadow = capture.transformsByView[frame.viewId];
   assert(!previousShadow.empty());
   static_cast<void>(graphics.endFrame());
   assert(resources->destroy(secondTarget.frameBuffer));
   assert(resources->destroy(secondTarget.depth));
   assert(resources->destroy(secondTarget.color));
-  world.entities.front().component<Transform3DComponent>()->position.x+=.5F;
+  world.entities.front().component<Transform3DComponent>()->position.x += .5F;
   capture.transformsByView.clear();
-  assert(renderer.renderFrame(world,frame,.016F,error));
-  assert(capture.transformsByView[frame.viewId]!=previousShadow);
+  assert(renderer.renderFrame(world, frame, .016F, error));
+  assert(capture.transformsByView[frame.viewId] != previousShadow);
   static_cast<void>(graphics.endFrame());
-  world.entities.front().component<Transform3DComponent>()->position.x-=.5F;
-  Entity shadowSettings;shadowSettings.id="shadow-settings";
-  shadowSettings.setComponent(Environment3DComponent{.maxShadowLights=0});
+  world.entities.front().component<Transform3DComponent>()->position.x -= .5F;
+  Entity shadowSettings;
+  shadowSettings.id = "shadow-settings";
+  shadowSettings.setComponent(Environment3DComponent{.maxShadowLights = 0});
   world.entities.push_back(std::move(shadowSettings));
   capture.views3D.clear();
-  assert(renderer.renderFrame(world,frame,.016F,error));
-  assert(capture.views3D.size()==1);
+  assert(renderer.renderFrame(world, frame, .016F, error));
+  assert(capture.views3D.size() == 1);
   static_cast<void>(graphics.endFrame());
-  world.entities.back().component<Environment3DComponent>()->maxShadowLights=1;
-  world.entities.back().component<Environment3DComponent>()->shadowResolution=512;
+  world.entities.back().component<Environment3DComponent>()->maxShadowLights =
+      1;
+  world.entities.back().component<Environment3DComponent>()->shadowResolution =
+      512;
   capture.views3D.clear();
-  assert(renderer.renderFrame(world,frame,.016F,error));
+  assert(renderer.renderFrame(world, frame, .016F, error));
   assert(capture.views3D.size() == 5 && capture.views3D[0].width == 512);
   const auto atlas = capture.views3D[0].frameBuffer;
   for (int cascade = 0; cascade < 4; ++cascade) {
@@ -621,8 +987,8 @@ int main() {
   world.entities.pop_back();
   world.entities.pop_back();
   capture.views3D.clear();
-  assert(renderer.renderFrame(world,frame,.016F,error));
-  assert(capture.views3D.size()==1);
+  assert(renderer.renderFrame(world, frame, .016F, error));
+  assert(capture.views3D.size() == 1);
   static_cast<void>(graphics.endFrame());
 
   BgfxCameraFrame3D targetFrame = frame;
@@ -636,14 +1002,15 @@ int main() {
   targetFrame.updateContent = false;
   assert(renderer.renderFrame(world, targetFrame, 0.016F, error));
   static_cast<void>(graphics.endFrame());
-  Entity targetQuality;targetQuality.id="target-quality";
-  targetQuality.setComponent(Environment3DComponent{.msaaSamples=0});
+  Entity targetQuality;
+  targetQuality.id = "target-quality";
+  targetQuality.setComponent(Environment3DComponent{.msaaSamples = 0});
   world.entities.push_back(std::move(targetQuality));
-  targetFrame.updateContent=true;
-  assert(renderer.renderFrame(world,targetFrame,.016F,error));
+  targetFrame.updateContent = true;
+  assert(renderer.renderFrame(world, targetFrame, .016F, error));
   static_cast<void>(graphics.endFrame());
-  world.entities.back().component<Environment3DComponent>()->msaaSamples=8;
-  assert(renderer.renderFrame(world,targetFrame,.016F,error));
+  world.entities.back().component<Environment3DComponent>()->msaaSamples = 8;
+  assert(renderer.renderFrame(world, targetFrame, .016F, error));
   static_cast<void>(graphics.endFrame());
   world.entities.pop_back();
 
@@ -727,7 +1094,8 @@ int main() {
   for (int i = 0; i < 40; ++i) {
     Entity peer = shape("peer_" + std::to_string(i), "", {});
     peer.component<MeshRendererComponent>()->model = "asset://models/animated";
-    peer.setComponent(AnimationPlayer3DComponent{.clipName = "Walk_Loop", .time = float(i) * 0.01F});
+    peer.setComponent(AnimationPlayer3DComponent{.clipName = "Walk_Loop",
+                                                 .time = float(i) * 0.01F});
     world.entities.push_back(std::move(peer));
   }
   RuntimeProfiler::beginFrame();
@@ -738,10 +1106,12 @@ int main() {
     return entry.name == "Renderer3D.animation_rebuild" && entry.calls == 40;
   }));
   assert(std::any_of(crowd.begin(), crowd.end(), [](const auto &entry) {
-    return entry.name == "Renderer3D.animation_batch_meshes" && entry.gauge == 16;
+    return entry.name == "Renderer3D.animation_batch_meshes" &&
+           entry.gauge == 16;
   }));
   assert(std::any_of(crowd.begin(), crowd.end(), [](const auto &entry) {
-    return entry.name == "Renderer3D.animation_batch_vertices" && entry.gauge > 0 && entry.gauge <= 262144;
+    return entry.name == "Renderer3D.animation_batch_vertices" &&
+           entry.gauge > 0 && entry.gauge <= 262144;
   }));
   RuntimeProfiler::beginFrame();
   assert(renderer.renderFrame(world, frame, 0.016F, error));
@@ -756,11 +1126,13 @@ int main() {
   assert(renderer.renderFrame(world, frame, 0.016F, error));
   static_cast<void>(graphics.endFrame());
   const auto loopChanged = RuntimeProfiler::frameEntries();
-  assert(std::any_of(loopChanged.begin(), loopChanged.end(), [](const auto &entry) {
-    return entry.name == "Renderer3D.animation_rebuild" && entry.calls == 1;
-  }));
+  assert(std::any_of(
+      loopChanged.begin(), loopChanged.end(), [](const auto &entry) {
+        return entry.name == "Renderer3D.animation_rebuild" && entry.calls == 1;
+      }));
   auto *badPose = world.entities.back().component<AnimationPlayer3DComponent>();
-  badPose->boneSegments["missing_test_bone"] = {{0, 0, 0}, {0, 1, 0}, {0, 0, 1}};
+  badPose->boneSegments["missing_test_bone"] = {
+      {0, 0, 0}, {0, 1, 0}, {0, 0, 1}};
   ++badPose->proceduralPoseRevision;
   assert(!renderer.renderFrame(world, frame, 0.016F, error));
   assert(error.find("missing_test_bone") != std::string::npos);
@@ -777,30 +1149,45 @@ int main() {
   assert(std::any_of(reloaded.begin(), reloaded.end(), [](const auto &entry) {
     return entry.name == "Renderer3D.animation_rebuild" && entry.calls == 41;
   }));
+  World invalidShapeWorld;
+  invalidShapeWorld.entities.push_back(
+      shape("editable", "unfinished_shape", {}));
+  assert(!renderer.renderFrame(invalidShapeWorld, frame, .016F, error));
+  invalidShapeWorld.entities.front().component<MeshRendererComponent>()->shape =
+      "sphere";
+  error.clear();
+  assert(renderer.renderFrame(invalidShapeWorld, frame, .016F, error));
+  static_cast<void>(graphics.endFrame());
+
   auto lightingFrame = frame;
   for (int lightingCase = 0; lightingCase < 4; ++lightingCase) {
     lightingFrame.lightingOverride = SceneLighting3D{};
     if (lightingCase == 1) {
-      lightingFrame.lightingOverride->pointPositionRange[3] = 10;
-      lightingFrame.lightingOverride->pointColorIntensity[3] = 1;
+      lightingFrame.lightingOverride->lights.push_back({.range = 10});
     } else if (lightingCase == 2) {
-      lightingFrame.lightingOverride->spotPositionRange[15] = 10;
-      lightingFrame.lightingOverride->spotColorIntensity[15] = 1;
+      lightingFrame.lightingOverride->lights.push_back(
+          {.kind = SceneLightKind3D::Spot,
+           .range = 10,
+           .outerConeCos = .5F,
+           .innerConeCos = .8F});
     }
     RuntimeProfiler::beginFrame();
     assert(renderer.renderFrame(world, lightingFrame, 0.016F, error));
     static_cast<void>(graphics.endFrame());
     const auto entries = RuntimeProfiler::frameEntries();
     const double expected = lightingCase == 0 || lightingCase == 3 ? 1.0 : 0.0;
-    assert(std::any_of(entries.begin(), entries.end(), [expected](const auto &entry) {
-      return entry.name == "Renderer3D.directional_shader" && entry.gauge == expected;
-    }));
+    assert(std::any_of(entries.begin(), entries.end(),
+                       [expected](const auto &entry) {
+                         return entry.name == "Renderer3D.directional_shader" &&
+                                entry.gauge == expected;
+                       }));
   }
   RuntimeProfiler::setEnabled(false);
 
   World textureWorld;
   auto probe = shape("texture-probe", "cube", {});
-  probe.component<MeshRendererComponent>()->texture = "asset://textures/override";
+  probe.component<MeshRendererComponent>()->texture =
+      "asset://textures/override";
   textureWorld.entities.push_back(std::move(probe));
   capture.textures.clear();
   assert(renderer.renderFrame(textureWorld, frame, .016F, error));
@@ -812,15 +1199,17 @@ int main() {
   capture.textures.clear();
   assert(renderer.renderFrame(textureWorld, frame, .016F, error));
   static_cast<void>(graphics.endFrame());
-  assert(capture.textures.size() == 1 && capture.textures.front() != explicitTexture);
+  assert(capture.textures.size() == 1 &&
+         capture.textures.front() != explicitTexture);
   // Static models go through instancing; animated ones use buffered submission.
-  // Both must honor the same explicit texture as a primitive, not white/embedded.
+  // Both must honor the same explicit texture as a primitive, not
+  // white/embedded.
   mesh->model = "asset://models/animated";
   mesh->texture = "asset://textures/override";
   for (bool animated : {false, true}) {
     if (animated)
-      textureWorld.entities.front().setComponent(AnimationPlayer3DComponent{
-          .clipName = "Walk_Loop", .time = .2F});
+      textureWorld.entities.front().setComponent(
+          AnimationPlayer3DComponent{.clipName = "Walk_Loop", .time = .2F});
     capture.textures.clear();
     assert(renderer.renderFrame(textureWorld, frame, .016F, error));
     static_cast<void>(graphics.endFrame());
@@ -832,92 +1221,117 @@ int main() {
   // Relief geometry is generated from an image in a shared session cache,
   // not imported from a generated per-brick asset.
   textureWorld.entities.front().removeComponent<AnimationPlayer3DComponent>();
-  mesh=textureWorld.entities.front().component<MeshRendererComponent>();
+  mesh = textureWorld.entities.front().component<MeshRendererComponent>();
   mesh->model.clear();
-  SurfaceRelief3DComponent relief{.heightMap="asset://textures/override"};
+  SurfaceRelief3DComponent relief{.heightMap = "asset://textures/override"};
   textureWorld.entities.front().setComponent(relief);
   capture.textures.clear();
-  assert(renderer.renderFrame(textureWorld,frame,.016F,error));
+  assert(renderer.renderFrame(textureWorld, frame, .016F, error));
   static_cast<void>(graphics.endFrame());
-  assert(capture.textures.size()==1 && capture.textures.front()==explicitTexture);
+  assert(capture.textures.size() == 1 &&
+         capture.textures.front() == explicitTexture);
   ReliefMeshCache3D cache(*resources);
   cache.loadAssets(registry);
-  const auto *generated=cache.get(relief,{1,1,.115F},error);
-  assert(generated && generated->indexCount()>36 && cache.size()==1);
-  assert(cache.get(relief,{2,3,.115F},error)==generated && cache.size()==1);
-  auto regionRelief=relief;
-  regionRelief.tiles={4,3};regionRelief.atlasGrid={8,14};
-  const auto *regionMesh=cache.get(regionRelief,{4,3,.115F},error);
-  assert(regionMesh && regionMesh->indexCount()==12*generated->indexCount());
-  assert(cache.get(regionRelief,{8,6,.115F},error)==regionMesh);
-  auto flatRegion=regionRelief;flatRegion.heightMap.clear();flatRegion.depth=0;
-  assert(cache.get(flatRegion,{4,3,.115F},error)->indexCount()==12*36);
-  assert(!cache.get(relief,{1,1,.001F},error));
+  const auto *generated = cache.get(relief, {1, 1, .115F}, error);
+  assert(generated && generated->indexCount() > 36 && cache.size() == 1);
+  assert(cache.get(relief, {2, 3, .115F}, error) == generated &&
+         cache.size() == 1);
+  auto regionRelief = relief;
+  regionRelief.tiles = {4, 3};
+  regionRelief.atlasGrid = {8, 14};
+  const auto *regionMesh = cache.get(regionRelief, {4, 3, .115F}, error);
+  assert(regionMesh &&
+         regionMesh->indexCount() == 12 * generated->indexCount());
+  assert(cache.get(regionRelief, {8, 6, .115F}, error) == regionMesh);
+  auto flatRegion = regionRelief;
+  flatRegion.heightMap.clear();
+  flatRegion.depth = 0;
+  assert(cache.get(flatRegion, {4, 3, .115F}, error)->indexCount() == 12 * 36);
+  assert(!cache.get(relief, {1, 1, .001F}, error));
   cache.clear();
-  assert(cache.size()==0);
+  assert(cache.size() == 0);
   cache.loadAssets(registry);
-  auto tile=relief;tile.uvScale={1.F/16,1.F/16};
-  for(int i=0;i<300;++i) {
-    tile.uvOffset={float(i%16)/16,float(i/16)/16};
-    assert(cache.get(tile,{1,1,.115F},error));
+  auto tile = relief;
+  tile.uvScale = {1.F / 16, 1.F / 16};
+  for (int i = 0; i < 300; ++i) {
+    tile.uvOffset = {float(i % 16) / 16, float(i / 16) / 16};
+    assert(cache.get(tile, {1, 1, .115F}, error));
   }
-  assert(cache.get(relief,{1,1,.115F},error));
-  assert(cache.size()>256); // An active view can exceed the retention budget.
+  assert(cache.get(relief, {1, 1, .115F}, error));
+  assert(cache.size() > 256); // An active view can exceed the retention budget.
   cache.beginFrame();
   cache.beginFrame();
-  relief.uvOffset.y=.731F;
-  assert(cache.get(relief,{1,1,.115F},error) && cache.size()==256);
+  relief.uvOffset.y = .731F;
+  assert(cache.get(relief, {1, 1, .115F}, error) && cache.size() == 256);
   cache.clear();
 
   {
-    auto project=loadProject(std::filesystem::path(DEMI_SOURCE_DIR)/"examples/destruction_3d_lab/demi.project.json",error);
+    auto project =
+        loadProject(std::filesystem::path(DEMI_SOURCE_DIR) /
+                        "examples/destruction_3d_lab/demi.project.json",
+                    error);
     assert(project);
-    auto &debrisWorld=project->world;
+    auto &debrisWorld = project->world;
     FractureDebris3DComponent effect;
-    effect.count=4; effect.lifetime=2; effect.fadeDuration=1;
-    effect.speed=0; effect.gravity={};
-    findEntity(debrisWorld,"arch")->setComponent(effect);
-    auto &physics=ensurePhysicsWorld3D(debrisWorld);
-    physics.step(debrisWorld,1.F/60);
-    std::size_t affected=0;
-    assert(debrisWorld.destruction3D->impact(debrisWorld,physics,
-      {.position={-1.5F,1.5F,.49F},.radius=.2F,.energy=1,.entity="arch"},affected,error));
-    assert(debrisWorld.destruction3D->cosmeticFragments().size()==4);
-    debrisWorld.destruction3D->updateCosmetics(debrisWorld,1.5F);
-    capture.bufferedStates.clear(); capture.bufferedAlpha.clear();
-    assert(renderer.renderFrame(debrisWorld,frame,.016F,error));
+    effect.count = 4;
+    effect.lifetime = 2;
+    effect.fadeDuration = 1;
+    effect.speed = 0;
+    effect.gravity = {};
+    findEntity(debrisWorld, "arch")->setComponent(effect);
+    auto &physics = ensurePhysicsWorld3D(debrisWorld);
+    physics.step(debrisWorld, 1.F / 60);
+    std::size_t affected = 0;
+    assert(debrisWorld.destruction3D->impact(debrisWorld, physics,
+                                             {.position = {-1.5F, 1.5F, .49F},
+                                              .radius = .2F,
+                                              .energy = 1,
+                                              .entity = "arch"},
+                                             affected, error));
+    assert(debrisWorld.destruction3D->cosmeticFragments().size() == 4);
+    debrisWorld.destruction3D->updateCosmetics(debrisWorld, 1.5F);
+    capture.bufferedStates.clear();
+    capture.bufferedAlpha.clear();
+    assert(renderer.renderFrame(debrisWorld, frame, .016F, error));
     assert(capture.views3D.back().sequential);
-    assert(capture.bufferedStates.size()>=4);
-    for(std::size_t i=capture.bufferedStates.size()-4;i<capture.bufferedStates.size();++i) {
-      assert(capture.bufferedStates[i].blend==BlendMode::Alpha && !capture.bufferedStates[i].writeDepth);
-      assert(std::abs(capture.bufferedAlpha[i]-.5F)<1e-5F);
+    assert(capture.bufferedStates.size() >= 4);
+    for (std::size_t i = capture.bufferedStates.size() - 4;
+         i < capture.bufferedStates.size(); ++i) {
+      assert(capture.bufferedStates[i].blend == BlendMode::Alpha &&
+             !capture.bufferedStates[i].writeDepth);
+      assert(std::abs(capture.bufferedAlpha[i] - .5F) < 1e-5F);
     }
     (void)graphics.endFrame();
-    debrisWorld.destruction3D->updateCosmetics(debrisWorld,1);
-    assert(renderer.renderFrame(debrisWorld,frame,.016F,error));
+    debrisWorld.destruction3D->updateCosmetics(debrisWorld, 1);
+    assert(renderer.renderFrame(debrisWorld, frame, .016F, error));
     assert(!capture.views3D.back().sequential);
     (void)graphics.endFrame();
   }
-  for(int kind=0;kind<3;++kind) {
+  for (int kind = 0; kind < 3; ++kind) {
     World fading;
-    Entity fragment;fragment.id="actual_fragment";
+    Entity fragment;
+    fragment.id = "actual_fragment";
     fragment.setComponent(Transform3DComponent{});
     MeshRendererComponent mesh;
-    mesh.color={1,1,1,1};
-    if(kind==1) mesh.model="asset://models/lod_high";
+    mesh.color = {1, 1, 1, 1};
+    if (kind == 1)
+      mesh.model = "asset://models/lod_high";
     fragment.setComponent(mesh);
-    if(kind==2) {
-      SurfaceRelief3DComponent surface;surface.tiles={2,2};
+    if (kind == 2) {
+      SurfaceRelief3DComponent surface;
+      surface.tiles = {2, 2};
       fragment.setComponent(surface);
     }
-    fragment.setComponent(FragmentOpacity3D{.value=.5F});
+    fragment.setComponent(FragmentOpacity3D{.value = .5F});
     fading.entities.push_back(fragment);
-    capture.bufferedStates.clear();capture.bufferedAlpha.clear();
-    assert(renderer.renderFrame(fading,frame,.016F,error));
+    capture.bufferedStates.clear();
+    capture.bufferedAlpha.clear();
+    assert(renderer.renderFrame(fading, frame, .016F, error));
     assert(capture.views3D.back().sequential);
     assert(!capture.bufferedStates.empty());
-    assert(capture.bufferedStates.back().blend==BlendMode::Alpha && !capture.bufferedStates.back().writeDepth);
-    assert(std::abs(capture.bufferedAlpha.back()-.5F)<1e-5F);
+    assert(capture.bufferedStates.back().blend == BlendMode::Alpha &&
+           !capture.bufferedStates.back().writeDepth);
+    assert(std::abs(capture.bufferedAlpha.back() - .5F) < 1e-5F);
     (void)graphics.endFrame();
   }
   {
@@ -936,7 +1350,8 @@ int main() {
     instanceWorld.entities.push_back(owner);
 
     const auto visible = extractVisibleMeshes3D(instanceWorld, frame);
-    assert(visible.considered == 3 && visible.culled == 1 && visible.meshes.size() == 2);
+    assert(visible.considered == 3 && visible.culled == 1 &&
+           visible.meshes.size() == 2);
     capture.transformsByView.clear();
     capture.instanceDrawCalls = 0;
     assert(renderer.renderFrame(instanceWorld, frame, 0.016F, error));
@@ -944,8 +1359,411 @@ int main() {
     assert(capture.instanceDrawCalls == 1);
     (void)graphics.endFrame();
 
-    instanceWorld.entities.front().component<MeshInstances3DComponent>()->transforms.clear();
+    instanceWorld.entities.front()
+        .component<MeshInstances3DComponent>()
+        ->transforms.clear();
     assert(extractVisibleMeshes3D(instanceWorld, frame).meshes.empty());
+  }
+  {
+    MeshUploadCapture uploads(*resources);
+    BgfxRenderer3D terrainRenderer(uploads, *commands);
+    assert(terrainRenderer.initialize(error));
+    World terrainWorld;
+    Entity owner;
+    owner.id = "terrain-owner";
+    owner.setComponent(Transform3DComponent{});
+    owner.setComponent(Terrain3DComponent{});
+    terrainWorld.entities.push_back(std::move(owner));
+    auto surface = shape("terrain-surface", "", {});
+    auto *full = surface.component<MeshRendererComponent>();
+    auto source = std::make_shared<HeightField>();
+    source->size = {2, 2};
+    source->cellsX = 8;
+    source->cellsZ = 8;
+    source->biomeIds = {"grass"};
+    source->biomeColors = {{0.3F, 0.7F, 0.9F, 1}};
+    source->heights.resize(81);
+    source->normals.resize(81);
+    source->biomeIndices.resize(81);
+    for (int z = 0; z <= 8; ++z) {
+      for (int x = 0; x <= 8; ++x) {
+        const auto sample = source->index(x, z);
+        source->heights.set(sample, float((x + z) % 2) * 0.5F);
+        source->normals.set(sample, Vec3{0, 1, 0});
+        source->biomeIndices.set(sample, 0);
+      }
+    }
+    const TerrainChunk rectangle{0, 0, 8, 8};
+    source->chunks.push_back(rectangle);
+    const auto triangles =
+        terrain_detail::buildChunkTriangles(*source, rectangle);
+    full->vertices = triangles.at(0).vertices;
+    full->normals = triangles.at(0).normals;
+    full->uvs = triangles.at(0).uvs;
+    full->markGeometryChanged();
+    const auto fullRevision = full->revision;
+    const auto chunk = prepareTerrainRenderLod(source, rectangle);
+    const auto fullTriangles = chunk->triangleCounts[0];
+    const auto reducedTriangles = chunk->triangleCounts[3];
+    surface.setComponent(TerrainRenderLod{chunk, "grass", "terrain-owner"});
+    terrainWorld.entities.push_back(std::move(surface));
+    auto nearCamera = frame;
+    nearCamera.cameraId = "near-camera";
+    nearCamera.camera.renderHud = false;
+    auto farCamera = nearCamera;
+    farCamera.cameraId = "far-camera";
+    farCamera.position = {0, 0, 500};
+    farCamera.forward = {0, 0, -1};
+    farCamera.camera.farClip = 1000;
+    assert(terrainRenderer.renderFrame(terrainWorld, farCamera, 0.016F, error));
+    assert(terrainRenderer.terrainStatistics().selectedSurfaces[0] == 1);
+    assert(terrainRenderer.terrainStatistics().triangles == fullTriangles);
+    assert(terrainRenderer.terrainStatistics().uploads == 1);
+    assert(terrainRenderer.terrainPreparationPending());
+    static_cast<void>(graphics.endFrame());
+    const auto awaitReduced = [&](BgfxRenderer3D &target) {
+      const auto deadline =
+          std::chrono::steady_clock::now() + std::chrono::seconds(2);
+      do {
+        assert(target.renderFrame(terrainWorld, farCamera, 0.016F, error));
+        static_cast<void>(graphics.endFrame());
+        if (target.terrainStatistics().selectedSurfaces[3] == 1) {
+          assert(target.terrainStatistics().triangles == reducedTriangles);
+          assert(!target.terrainPreparationPending());
+          return;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      } while (std::chrono::steady_clock::now() < deadline);
+      assert(false &&
+             "Terrain preparation did not complete before its bounded timeout");
+    };
+    awaitReduced(terrainRenderer);
+    assert(terrainRenderer.terrainStatistics().cpuResidentBytes > 0);
+    assert(terrainRenderer.terrainStatistics().cpuReadyLevels == 1);
+    {
+      auto scheduled = farCamera;
+      scheduled.cameraId = "scheduled-terrain-camera";
+      assert(
+          terrainRenderer.renderFrame(terrainWorld, scheduled, 0.016F, error));
+      static_cast<void>(graphics.endFrame());
+      scheduled.updateContent = false;
+      for (int skipped = 0; skipped < 10; ++skipped) {
+        assert(terrainRenderer.renderFrame(terrainWorld, scheduled, 0.016F,
+                                           error));
+        assert(terrainRenderer.terrainStatistics().cpuReadyLevels == 1);
+        static_cast<void>(graphics.endFrame());
+      }
+      scheduled.updateContent = true;
+      assert(
+          terrainRenderer.renderFrame(terrainWorld, scheduled, 0.016F, error));
+      assert(terrainRenderer.terrainStatistics().selectedSurfaces[3] == 1);
+      static_cast<void>(graphics.endFrame());
+
+      // Reusing the same world address/camera ID cannot replay a replaced
+      // geometry source on intervening scheduled-target frames.
+      auto replaced = std::make_shared<PreparedTerrainChunkLod>(*chunk);
+      replaced->geometryIdentity =
+          std::make_shared<TerrainLodGeometryIdentity>();
+      terrainWorld.entities[1].setComponent(
+          TerrainRenderLod{replaced, "grass", "terrain-owner"});
+      scheduled.updateContent = false;
+      assert(
+          terrainRenderer.renderFrame(terrainWorld, scheduled, 0.016F, error));
+      assert(terrainRenderer.terrainStatistics().cpuReadyLevels == 0);
+      assert(!terrainRenderer.terrainPreparationPending());
+      static_cast<void>(graphics.endFrame());
+      terrainWorld.entities[1].setComponent(
+          TerrainRenderLod{chunk, "grass", "terrain-owner"});
+      // Removing the scheduled camera also retires its weak demand state.
+      assert(
+          terrainRenderer.renderFrame(terrainWorld, nearCamera, 0.016F, error));
+      assert(terrainRenderer.terrainStatistics().cpuReadyLevels == 0);
+      static_cast<void>(graphics.endFrame());
+      terrainRenderer.tickInactiveTerrain();
+      awaitReduced(terrainRenderer);
+    }
+    {
+      JobSystem shadowPreparationJobs(1);
+      TerrainLodResidency shadowResidency(shadowPreparationJobs);
+      shadowResidency.beginPresentation();
+      assert(!shadowResidency.request(chunk, 3));
+      shadowResidency.endPresentation();
+      // A worker queue fence is test synchronization only; renderer request
+      // paths never wait for terrain preparation.
+      shadowPreparationJobs.submit([] {}).wait();
+      shadowResidency.beginPresentation();
+      auto shadowCamera = farCamera;
+      shadowCamera.camera.perspective = false;
+      shadowCamera.camera.orthographicSize = 2;
+      shadowCamera.position = {0, 0, 5};
+      const auto shadowDraws =
+          extractVisibleMeshes3D(terrainWorld, shadowCamera, nullptr, nullptr,
+                                 &farCamera, &shadowResidency);
+      assert(!shadowDraws.meshes.empty());
+      for (const auto &draw : shadowDraws.meshes) {
+        assert(draw.terrainLevel == 3);
+        assert(draw.terrainPreparedLevel);
+      }
+      shadowResidency.endPresentation();
+    }
+    // Keep far-camera demand while testing the independent near Full decision.
+    terrainRenderer.beginPresentation();
+    assert(
+        terrainRenderer.renderFrame(terrainWorld, nearCamera, 0.016F, error));
+    assert(terrainRenderer.renderFrame(terrainWorld, farCamera, 0.016F, error));
+    terrainRenderer.endPresentation(true);
+    assert(terrainRenderer.terrainStatistics().selectedSurfaces[0] == 1);
+    assert(terrainRenderer.terrainStatistics().selectedSurfaces[3] == 1);
+    static_cast<void>(graphics.endFrame());
+    assert(
+        terrainWorld.entities[1].component<MeshRendererComponent>()->revision ==
+        fullRevision);
+    assert(terrainWorld.entities[1]
+               .component<MeshRendererComponent>()
+               ->vertices.size() == fullTriangles * 3);
+
+    // Multiple cameras retain the union of Full and reduced GPU demand.
+    for (int presentation = 0; presentation < 10; ++presentation) {
+      terrainRenderer.beginPresentation();
+      assert(
+          terrainRenderer.renderFrame(terrainWorld, nearCamera, 0.016F, error));
+      assert(
+          terrainRenderer.renderFrame(terrainWorld, farCamera, 0.016F, error));
+      terrainRenderer.endPresentation(true);
+      assert(terrainRenderer.terrainStatistics().residentMeshes == 2);
+      assert(terrainRenderer.terrainStatistics().uploads == 0);
+      static_cast<void>(graphics.endFrame());
+    }
+    // The Full CPU mesh survives when its unused GPU variant is evicted.
+    for (int presentation = 0; presentation < 10; ++presentation) {
+      assert(
+          terrainRenderer.renderFrame(terrainWorld, farCamera, 0.016F, error));
+      static_cast<void>(graphics.endFrame());
+    }
+    assert(terrainRenderer.terrainStatistics().residentMeshes == 1);
+    assert(
+        terrainRenderer.renderFrame(terrainWorld, nearCamera, 0.016F, error));
+    assert(terrainRenderer.terrainStatistics().uploads == 1);
+    static_cast<void>(graphics.endFrame());
+
+    // An upload failure after CPU preparation is ready must preserve Full.
+    BgfxRenderer3D fallbackRenderer(uploads, *commands);
+    assert(fallbackRenderer.initialize(error));
+    assert(
+        fallbackRenderer.renderFrame(terrainWorld, farCamera, 0.016F, error));
+    static_cast<void>(graphics.endFrame());
+    const auto failureDeadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    do {
+      uploads.failNextMeshUpload = true;
+      assert(
+          fallbackRenderer.renderFrame(terrainWorld, farCamera, 0.016F, error));
+      static_cast<void>(graphics.endFrame());
+      if (fallbackRenderer.terrainStatistics().cpuReadyLevels != 0 &&
+          !uploads.failNextMeshUpload) {
+        break;
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    } while (std::chrono::steady_clock::now() < failureDeadline);
+    assert(fallbackRenderer.terrainStatistics().cpuReadyLevels == 1);
+    assert(!uploads.failNextMeshUpload);
+    assert(fallbackRenderer.terrainStatistics().selectedSurfaces[0] == 1);
+    assert(fallbackRenderer.terrainStatistics().triangles == fullTriangles);
+    assert(error.empty());
+    awaitReduced(fallbackRenderer);
+
+    awaitReduced(terrainRenderer);
+    const auto residentBeforeSharedPlacement =
+        terrainRenderer.terrainStatistics().residentMeshes;
+    terrainWorld.entities.front()
+        .component<Terrain3DComponent>()
+        ->lodErrorPixels = 0;
+    Entity secondOwner;
+    secondOwner.id = "second-terrain-owner";
+    secondOwner.setComponent(Transform3DComponent{.position = {0, 0, -100}});
+    secondOwner.setComponent(Terrain3DComponent{});
+    auto secondSurface = terrainWorld.entities[1];
+    secondSurface.id = "second-terrain-surface";
+    secondSurface.setComponent(Transform3DComponent{.parent = secondOwner.id});
+    secondSurface.setComponent(
+        TerrainRenderLod{chunk, "grass", secondOwner.id});
+    terrainWorld.entities.push_back(std::move(secondOwner));
+    terrainWorld.entities.push_back(std::move(secondSurface));
+    assert(terrainRenderer.renderFrame(terrainWorld, farCamera, 0.016F, error));
+    assert(terrainRenderer.terrainStatistics().selectedSurfaces[0] == 1);
+    assert(terrainRenderer.terrainStatistics().selectedSurfaces[3] == 1);
+    // Shared immutable reduced geometry uses the existing GPU variant even
+    // though the placement, transform, quality and stable surface ID differ.
+    assert(terrainRenderer.terrainStatistics().uploads == 0);
+    assert(terrainRenderer.terrainStatistics().residentMeshes ==
+           residentBeforeSharedPlacement);
+    static_cast<void>(graphics.endFrame());
+    // A previous CPU eviction/rebuild may leave an older GPU variant in its
+    // short grace window. Sharing adds no entry, and all unused variants must
+    // retire while the two current placement demands remain active.
+    for (int presentation = 0; presentation < 10; ++presentation) {
+      assert(
+          terrainRenderer.renderFrame(terrainWorld, farCamera, 0.016F, error));
+      assert(terrainRenderer.terrainStatistics().uploads == 0);
+      static_cast<void>(graphics.endFrame());
+    }
+    assert(terrainRenderer.terrainStatistics().residentMeshes == 2);
+
+    // Worker failures are optional-render diagnostics, not frame failures.
+    // Report the actual reason once, then stop scheduling/retrying that source.
+    auto invalidDescriptor = std::make_shared<PreparedTerrainChunkLod>(*chunk);
+    invalidDescriptor->field.reset();
+    invalidDescriptor->geometryIdentity =
+        std::make_shared<TerrainLodGeometryIdentity>();
+    terrainWorld.entities.front()
+        .component<Terrain3DComponent>()
+        ->lodErrorPixels = 2;
+    terrainWorld.entities[1].setComponent(
+        TerrainRenderLod{invalidDescriptor, "grass", "terrain-owner"});
+    const auto diagnosticDeadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    std::string terrainDiagnostic;
+    do {
+      assert(
+          terrainRenderer.renderFrame(terrainWorld, farCamera, 0.016F, error));
+      static_cast<void>(graphics.endFrame());
+      terrainDiagnostic = terrainRenderer.takeTerrainDiagnostic();
+      if (!terrainDiagnostic.empty()) {
+        break;
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    } while (std::chrono::steady_clock::now() < diagnosticDeadline);
+    assert(terrainDiagnostic.find("Full terrain remains visible") !=
+           std::string::npos);
+    assert(terrainDiagnostic.find("field") != std::string::npos ||
+           terrainDiagnostic.find("source") != std::string::npos ||
+           terrainDiagnostic.find("descriptor") != std::string::npos);
+    assert(terrainRenderer.terrainStatistics().selectedSurfaces[0] == 1);
+    assert(!terrainRenderer.terrainPreparationPending());
+    assert(terrainRenderer.takeTerrainDiagnostic().empty());
+    assert(terrainRenderer.renderFrame(terrainWorld, farCamera, 0.016F, error));
+    assert(terrainRenderer.takeTerrainDiagnostic().empty());
+    static_cast<void>(graphics.endFrame());
+    terrainWorld.entities[1].setComponent(
+        TerrainRenderLod{chunk, "grass", "terrain-owner"});
+    terrainWorld.entities.front()
+        .component<Terrain3DComponent>()
+        ->lodErrorPixels = 0;
+
+    // Hidden-view maintenance releases geometry immediately. Its externally
+    // owned image target remains valid, so no redraw is needed for retirement.
+    const auto retainedImage = resources->createRenderTarget(
+        {.width = 320,
+         .height = 180,
+         .debugName = "Retained hidden terrain image"},
+        error);
+    assert(retainedImage.frameBuffer && retainedImage.color);
+    terrainRenderer.tickInactiveTerrain();
+    assert(terrainRenderer.terrainStatistics().cpuResidentBytes == 0);
+    assert(terrainRenderer.terrainStatistics().cpuReadyLevels == 0);
+    assert(terrainRenderer.terrainStatistics().residentMeshes == 0);
+    assert(
+        terrainWorld.entities[1].component<MeshRendererComponent>()->revision ==
+        fullRevision);
+    assert(resources->destroy(retainedImage.frameBuffer));
+    if (retainedImage.depth) {
+      assert(resources->destroy(retainedImage.depth));
+    }
+    assert(resources->destroy(retainedImage.color));
+
+    // A zero preparation budget is an explicit Full-only fallback and cannot
+    // keep an idle editor scheduling frames forever.
+    Entity environment;
+    environment.id = "disabled-terrain-preparation";
+    Environment3DComponent settings;
+    settings.terrainLodCacheBytes = 0;
+    settings.terrainLodPrepareJobs = 0;
+    environment.setComponent(settings);
+    terrainWorld.entities.push_back(std::move(environment));
+    terrainWorld.entities.front()
+        .component<Terrain3DComponent>()
+        ->lodErrorPixels = 2;
+    for (int presentation = 0; presentation < 3; ++presentation) {
+      assert(
+          terrainRenderer.renderFrame(terrainWorld, farCamera, 0.016F, error));
+      assert(terrainRenderer.terrainStatistics().selectedSurfaces[0] == 2);
+      assert(!terrainRenderer.terrainPreparationPending());
+      assert(terrainRenderer.terrainStatistics().cpuResidentBytes == 0);
+      static_cast<void>(graphics.endFrame());
+    }
+  }
+  {
+    MeshUploadCapture uploads(*resources);
+    TextureCapture terrainCommands(*commands);
+    BgfxRenderer3D gpuTerrain(uploads, terrainCommands);
+    assert(gpuTerrain.initialize(error));
+    TerrainRecipe recipe;
+    recipe.size = {16, 16};
+    recipe.cellsX = 16;
+    recipe.cellsZ = 16;
+    recipe.chunkCells = 8;
+    recipe.landforms.at("default").baseHeight = 0;
+    recipe.landforms.at("default").heightVariation = 0;
+    const auto generated = TerrainGenerator::generate(recipe);
+    assert(generated);
+    const auto source = std::make_shared<const HeightField>(*generated);
+    World terrain;
+    Entity owner;
+    owner.id = "gpu-terrain-owner";
+    owner.setComponent(Transform3DComponent{});
+    Terrain3DComponent component;
+    component.asset = "asset://test/gpu-terrain";
+    component.lodErrorPixels = 0;
+    owner.setComponent(component);
+    terrain.entities.push_back(std::move(owner));
+    const TerrainFieldResolver resolver = [&](std::string_view,
+                                              nlohmann::json &outRecipe) {
+      outRecipe = recipe.toJson();
+      return source;
+    };
+    assert(materializeTerrains(terrain, error, nullptr, {}, resolver));
+    auto camera = frame;
+    camera.cameraId = "gpu-full-detail";
+    camera.camera.perspective = false;
+    camera.camera.orthographicSize = 20;
+    camera.position = {8, 100, 8};
+    camera.forward = {0, -1, 0};
+    camera.up = {0, 0, -1};
+    camera.camera.renderHud = false;
+    const auto deadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    do {
+      assert(gpuTerrain.renderFrame(terrain, camera, 0.016F, error));
+      static_cast<void>(graphics.endFrame());
+      if (gpuTerrain.terrainStatistics().gpuPatchInstances == 4) {
+        break;
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    } while (std::chrono::steady_clock::now() < deadline);
+    assert(gpuTerrain.terrainStatistics().gpuPatchInstances == 4);
+    assert(gpuTerrain.terrainStatistics().gpuPatchDraws == 1);
+    assert(gpuTerrain.terrainStatistics().gpuSelectedLevels[0] == 4);
+    assert(gpuTerrain.terrainStatistics().selectedSurfaces[0] == 0);
+    assert(gpuTerrain.terrainStatistics().triangles == 16 * 16 * 2);
+    const auto fullGpuUploads = uploads.meshUploads.size();
+    assert(gpuTerrain.renderFrame(terrain, camera, 0.016F, error));
+    assert(uploads.meshUploads.size() == fullGpuUploads);
+    assert(gpuTerrain.statistics().batches <= 2);
+    static_cast<void>(graphics.endFrame());
+
+    // The deliberate compatibility switch returns to complete native Full
+    // geometry without changing the field, picking/collision or authored data.
+    Entity environment;
+    environment.id = "cpu-terrain-compatibility";
+    Environment3DComponent settings;
+    settings.terrainGpuCacheBytes = 0;
+    environment.setComponent(settings);
+    terrain.entities.push_back(std::move(environment));
+    assert(gpuTerrain.renderFrame(terrain, camera, 0.016F, error));
+    assert(gpuTerrain.terrainStatistics().gpuPatchInstances == 0);
+    assert(gpuTerrain.terrainStatistics().selectedSurfaces[0] == 4);
+    assert(gpuTerrain.terrainStatistics().triangles == 16 * 16 * 2);
+    static_cast<void>(graphics.endFrame());
   }
   renderer.shutdown();
   renderer.shutdown();

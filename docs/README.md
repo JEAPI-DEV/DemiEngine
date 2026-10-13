@@ -7,6 +7,61 @@ are registered in `tools/package-store/src/Docs.php`.
 
 This directory keeps material that has a different job:
 
+- [Terrain generation quality qualification](terrain-generation-quality-qualification.md)
+  records production Preview/Final safety, drainage/thermal fixes, simulation
+  masks and representative original-grid generation timings.
+- [Terrain erosion library evaluation](terrain-erosion-library-evaluation.md)
+  compares upstream dependencies, licensing evidence and integration gaps;
+  it does not claim an upstream performance qualification.
+- [Terrain polygon mask qualification](terrain-polygon-mask-qualification.md)
+  records shared spatial-mask validation, basin/plateau/island presets, graph
+  editing and native generation checks.
+- [Terrain shadow receiver qualification](terrain-shadow-receiver-qualification.md)
+  records scale-independent plane correction, direct shader-math tests and the
+  remaining cliff artifact in both terrain rendering paths.
+- [Terrain landform qualification](terrain-landform-qualification.md) records
+  shared ridge/warp controls, editable valley masks, deterministic generation
+  coverage and the new probe's remaining material and shadow limitations.
+- [GPU terrain qualification](terrain-gpu-rendering-qualification.md) records
+  native full-detail submission and frame-time comparisons, repeated runs and
+  the compatibility/material limitations of the implemented path.
+- [GPU terrain rendering design](terrain-gpu-rendering-design.md) explains
+  shared displaced patches, instanced material routing and capability fallbacks.
+- [Terrain LOD qualification](terrain-lod-qualification.md) records error bounds,
+  shared chunk boundaries, live camera selection, GPU residency and moving-camera
+  measurements, with CPU streaming still pending.
+- [Shared runtime efficiency qualification](runtime-efficiency-qualification.md)
+  records readable renderer/physics rewrites, same-build measurements, native
+  editor verification and mutation/lifetime regression coverage.
+- [Terrain performance qualification](terrain-performance-qualification.md)
+  records the CPU bottlenecks, Debug/Release comparison and native editor check.
+- [Terrain surface material qualification](terrain-surface-materials-qualification.md)
+  records automatic role assignment, finite water coverage, material rebinding,
+  cooked payloads, editor warnings and the remaining blending boundary.
+- [Terrain palette qualification](terrain-palette-qualification.md) records
+  format-2 migration, native editing, cooked loading and remaining rendering gates.
+
+- [Terrain palette separation proposal](terrain-palette-proposal.md) defines
+  the accepted surface-material versus object-placement format checkpoint.
+
+- [Editor usability redesign](editor-usability-redesign.md) records Inspector,
+  viewport, creation, execution and dynamic-lighting changes and qualification.
+
+- [Colony logistics qualification](colony-logistics-qualification.md) records
+  physical material conservation, needs, time controls and editor fixes.
+
+- [Colony navigation qualification](colony-navigation-qualification.md) records
+  utility connections, engineer jobs, reusable ground agents and API migration.
+
+- [Colony construction qualification](colony-construction-qualification.md) records
+  the playable utility-building probe, HUD click blocking and native verification.
+
+- [UI prefab authoring qualification](ui-prefab-authoring-qualification.md) records
+  target-based overrides, reparenting, Unpack, tab previews and native verification.
+
+- [Orbit UI qualification](orbit-ui-qualification.md) records package UI reuse,
+  shared docking/rendering fixes, native captures and store publication evidence.
+
 - [Shared authoring foundations](shared-authoring-foundations.md) describes
   reusable graph, history, palette and color responsibilities and their adapters.
 
@@ -17,6 +72,10 @@ This directory keeps material that has a different job:
 - [Mesh surface qualification](mesh-surface-qualification.md) records material
   inheritance, direct metallic/roughness lighting, transparent ordering and
   near-camera picking coverage.
+
+- [NVIDIA HUD lifecycle investigation](editor-nvidia-hud-lifecycle-investigation.md)
+  records the reduced Play/Stop reproducer, diagnostic comparisons and the
+  qualified Vulkan program/pipeline lifetime correction.
 
 - [Editor commands, clipboard and docking](editor-shortcut-qualification.md)
   records shortcut ownership, clipboard identity/remapping, independent panel

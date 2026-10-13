@@ -1,4 +1,5 @@
 #include "demi/runtime/terrain/TerrainPipeline.h"
+#include "demi/runtime/terrain/TerrainMaskBuilder.h"
 #include "demi/runtime/terrain/TerrainBiomeRules.h"
 #include "demi/runtime/terrain/TerrainDrainage.h"
 #include "demi/runtime/terrain/TerrainErosion.h"
@@ -42,75 +43,6 @@ std::uint64_t fingerprintOf(const std::vector<TerrainStage> &stages,
   return hash;
 }
 
-// The rule context supplies slope and moisture. Final drainage supplies water
-// distance and flow after processing has changed the surface.
-bool buildMasks(const HeightField &field, const TerrainRecipe &recipe,
-                const TerrainDrainage *drainage,
-                const TerrainSamples<float> *sediment, TerrainMasks &out,
-                bool includeFlow, std::stop_token stop) {
-  const auto count = field.heights.size();
-  if (count == 0)
-    return false;
-  std::vector<float> heights(count);
-  for (std::size_t index = 0; index < count; ++index) {
-    if ((index & 255) == 0 && stop.stop_requested())
-      return false;
-    heights[index] = field.heights[index];
-  }
-
-  if (stop.stop_requested())
-    return false;
-  TerrainRuleContextBuilder contexts(recipe);
-  contexts.build(recipe, heights, field.cellsX, field.cellsZ, field.size);
-  if (stop.stop_requested())
-    return false;
-  const auto &derived = contexts.contexts();
-  if (derived.size() != count)
-    return false;
-
-  out.slope.resize(count);
-  out.moisture.resize(count);
-  out.waterDistance.resize(count);
-  out.flow.resize(count);
-  out.sediment.resize(count);
-  out.substrate.resize(count);
-  const float shoreBand =
-      std::max(field.size.x / field.cellsX, field.size.y / field.cellsZ) * 2.F;
-  const bool useAuthoredSeaLevel =
-      drainage != nullptr &&
-      drainage->seaLevel != TerrainRuleContextBuilder::seaLevel(recipe);
-  for (std::size_t index = 0; index < count; ++index) {
-    if ((index & 255) == 0 && stop.stop_requested())
-      return false;
-    out.slope.set(index, derived[index].slope);
-    out.moisture.set(index, derived[index].moisture);
-    const float waterDistance = drainage != nullptr
-                                    ? drainage->waterDistance[index]
-                                    : derived[index].waterDistance;
-    out.waterDistance.set(index, waterDistance);
-    // Rule contexts use the recipe's inferred sea level. When the caller has
-    // authored another level, classify the final substrate against that level.
-    auto substrate = derived[index].substrate;
-    if (useAuthoredSeaLevel) {
-      if (heights[index] <= drainage->seaLevel)
-        substrate = TerrainSubstrate::Wet;
-      else if (derived[index].slope >= 38.F)
-        substrate = TerrainSubstrate::Rock;
-      else if (waterDistance <= shoreBand)
-        substrate = TerrainSubstrate::Sand;
-      else
-        substrate = TerrainSubstrate::Soil;
-    }
-    out.substrate.set(index, static_cast<std::size_t>(substrate));
-    out.flow.set(index, includeFlow && drainage != nullptr &&
-                                index < drainage->flow.size()
-                             ? drainage->flow[index]
-                             : 0.F);
-    out.sediment.set(index, sediment != nullptr ? (*sediment)[index] : 0.F);
-  }
-  return true;
-}
-
 void recordGraphStages(TerrainGenerationResult &result,
                        const TerrainGraph &graph,
                        const TerrainGraphArtifacts &artifacts) {
@@ -137,23 +69,22 @@ std::optional<TerrainGenerationResult> generateGraphStages(
     const TerrainRecipe &recipe, const TerrainPipelineSettings &settings,
     std::stop_token stop, const TerrainProgress &progress) {
   if (settings.erosion ||
-      (settings.waterAuthoring != nullptr && settings.waterAuthoring->authored) ||
-      settings.quality != TerrainQuality::Standard)
+      (settings.waterAuthoring != nullptr && settings.waterAuthoring->authored))
     throw std::invalid_argument(
-        "Graph terrain controls erosion, water and quality; pipeline overrides "
+        "Graph terrain controls erosion and water; pipeline overrides "
         "are unsupported");
   const auto graph = TerrainGraph::parse(recipe.graph);
   const auto graphProgress = [&](float value) {
     if (progress)
       progress(0.75F * value);
   };
-  auto field = executeTerrainGraph(
-      recipe, {settings.palette, {}, {}}, stop, graphProgress);
+  auto field = executeTerrainGraph(recipe, {settings.palette, {}, {}}, stop,
+                                   graphProgress, settings.quality);
   if (!field)
     return std::nullopt;
 
   TerrainGenerationResult result;
-  result.quality = TerrainQuality::Standard;
+  result.quality = settings.quality;
   result.water = settings.water;
   if (!result.water.authored)
     result.water.seaLevel = TerrainRuleContextBuilder::seaLevel(recipe);
@@ -171,7 +102,7 @@ std::optional<TerrainGenerationResult> generateGraphStages(
     if (!drainage)
       return std::nullopt;
   }
-  if (!buildMasks(*field, recipe, drainage ? &*drainage : nullptr, nullptr,
+  if (!buildTerrainMasks(*field, recipe, drainage ? &*drainage : nullptr, nullptr,
                   result.masks, settings.drainage, stop))
     return std::nullopt;
   record(result, TerrainStage::Masks);
@@ -311,7 +242,7 @@ generateTerrainStages(const TerrainRecipe &recipe,
       return std::nullopt;
   }
   TerrainMasks masks;
-  if (buildMasks(*field, recipe, finalDrainage ? &*finalDrainage : nullptr,
+  if (buildTerrainMasks(*field, recipe, finalDrainage ? &*finalDrainage : nullptr,
                  sediment.empty() ? nullptr : &sediment, masks,
                  settings.drainage, stop)) {
     result.masks = std::move(masks);
@@ -326,8 +257,7 @@ generateTerrainStages(const TerrainRecipe &recipe,
     field->stageOrder += terrainStageName(stage);
   }
 
-  if (result.quality == TerrainQuality::Standard &&
-      !recipe.paletteId.empty() && settings.palette != nullptr) {
+  if (!recipe.paletteId.empty() && settings.palette != nullptr) {
     if (stop.stop_requested())
       return std::nullopt;
     // One combined answer to "may something be placed here", so the editor's

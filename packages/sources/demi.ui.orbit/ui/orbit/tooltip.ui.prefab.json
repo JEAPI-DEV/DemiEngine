@@ -1,0 +1,53 @@
+{
+  "format_version": 1,
+  "id": "ui-prefab://orbit/tooltip",
+  "parameters": {
+    "message": {
+      "type": "string",
+      "default": "Helpful context appears here."
+    },
+    "raised": {
+      "type": "string",
+      "default": "#263748"
+    },
+    "size": {
+      "type": "array",
+      "default": [
+        280,
+        84
+      ]
+    },
+    "stroke": {
+      "type": "string",
+      "default": "#3B5166"
+    },
+    "text": {
+      "type": "string",
+      "default": "#EEF4FA"
+    }
+  },
+  "root": {
+    "id": "tooltip",
+    "type": "panel",
+    "size": "${size}",
+    "background_color": "${raised}",
+    "border_color": "${stroke}",
+    "border_width": 1,
+    "corner_radius": 8,
+    "pad": 12,
+    "layer": 300,
+    "visible": false,
+    "children": [
+      {
+        "id": "text",
+        "type": "text",
+        "dock": "fill",
+        "text": "${message}",
+        "text_color": "${text}",
+        "font_size": 14,
+        "text_wrap": "word",
+        "layer": 301
+      }
+    ]
+  }
+}

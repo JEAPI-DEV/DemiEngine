@@ -8,6 +8,24 @@
 
 namespace demi::runtime::ui {
 
+bool uiPointInsideScrollClip(const UiDocument &document, const UiNode &node,
+                             Vec2 point) {
+  std::string parent = node.parent;
+  for (std::size_t depth = 0; !parent.empty() && depth < document.nodes.size();
+       ++depth) {
+    const auto found = std::ranges::find(document.nodes, parent, &UiNode::id);
+    if (found == document.nodes.end())
+      return false;
+    const auto &rect = found->resolved;
+    if (found->type == "scroll" &&
+        (point.x < rect.x || point.y < rect.y ||
+         point.x > rect.x + rect.width || point.y > rect.y + rect.height))
+      return false;
+    parent = found->parent;
+  }
+  return parent.empty();
+}
+
 Color uiPanelFillColor(const UiNode &node) {
   return node.backgroundColor;
 }

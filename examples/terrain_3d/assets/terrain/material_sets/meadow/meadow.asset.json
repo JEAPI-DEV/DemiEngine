@@ -1,0 +1,19 @@
+{
+  "dependencies": [
+    "asset://terrain/surfaces/exposed_rock",
+    "asset://terrain/surfaces/sand",
+    "asset://terrain/surfaces/snow",
+    "asset://terrain/surfaces/soil",
+    "asset://terrain/surfaces/wet_ground"
+  ],
+  "format_version": 1,
+  "id": "asset://terrain/material_sets/meadow",
+  "importer": "json_data",
+  "importer_version": 1,
+  "settings": {
+    "content_type": "terrain_material_set"
+  },
+  "source": "meadow.json",
+  "source_hash": "fnv1a64:edf53912139126ce",
+  "type": "DataAsset"
+}

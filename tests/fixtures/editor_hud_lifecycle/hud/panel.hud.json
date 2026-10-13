@@ -1,0 +1,13 @@
+{
+  "format_version": 1,
+  "canvas_size": [960, 540],
+  "children": [
+    {
+      "id": "panel",
+      "type": "panel",
+      "dock": "top",
+      "size": [200, 64],
+      "background_color": "#303344"
+    }
+  ]
+}

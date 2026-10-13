@@ -29,6 +29,8 @@ std::string_view terrainSeedChannelName(TerrainSeedChannel channel) noexcept {
   switch (channel) {
   case TerrainSeedChannel::Landform:
     return "landform";
+  case TerrainSeedChannel::LandformWarp:
+    return "landform_warp";
   case TerrainSeedChannel::Erosion:
     return "erosion";
   case TerrainSeedChannel::Hydrology:

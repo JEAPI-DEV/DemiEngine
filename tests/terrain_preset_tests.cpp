@@ -1,6 +1,13 @@
-#include "demi/runtime/terrain/TerrainPreset.h"
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
+
 #include "demi/runtime/terrain/TerrainGenerator.h"
+#include "demi/runtime/terrain/TerrainGraph.h"
+#include "demi/runtime/terrain/TerrainGraphExecutor.h"
+#include "demi/runtime/terrain/TerrainPreset.h"
 #include <cassert>
+#include <cmath>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -62,7 +69,7 @@ TerrainPreset mountainPreset() {
 void fragmentSuppliesOnlyGenerationKeys() {
   const auto fragment = terrainPresetFragment(mountainPreset());
   for (const auto key : terrainPresetGenerationKeys)
-    assert(fragment.contains(key));
+    assert(key == "graph" || fragment.contains(key));
   // The fragment carries the preset's shapes and nothing else: a leftover
   // default landform would be an unreferenced entry the author never wrote.
   assert(fragment.at("landforms").size() == mountainPreset().landforms.size());
@@ -277,7 +284,110 @@ void malformedStrokeIsRejected() {
 }
 } // namespace
 
+void startersNeedNoProjectAssets() {
+  assert(builtinTerrainPresets().size() == 7);
+  for (const auto &preset : builtinTerrainPresets()) {
+    assert(loadTerrainPreset({}, preset.id)->id == preset.id);
+    const auto applied = applyTerrainPreset(TerrainRecipe{}.toJson(), preset);
+    const auto graph = TerrainGraph::parse(applied.at("graph"));
+    assert(graph.node("shape_help")->type == "comment");
+    auto recipe = TerrainRecipe::parse(applied);
+    recipe.validate();
+    const auto generated = TerrainGenerator::generate(recipe);
+    assert(generated && generated->cellsX == preset.cellsX);
+    auto withoutComments = recipe;
+    auto &nodes = withoutComments.graph["nodes"];
+    for (auto it = nodes.begin(); it != nodes.end();) {
+      if (it->at("type") == "comment")
+        it = nodes.erase(it);
+      else
+        ++it;
+    }
+    assert(recipe.sameGenerationInputs(withoutComments));
+    const auto document = demi::assets::parseDataDocument(nlohmann::json{
+        {"format_version", 1},
+        {"name", "Custom"},
+        {"graph", preset.graph}}.dump());
+    assert(document.document);
+    const auto imported =
+        parseTerrainPreset(*document.document, "asset://custom/preset");
+    assert(imported && imported->graph == preset.graph);
+    assert(terrainPresetFragment(*imported)["graph"] == preset.graph);
+  }
+}
+
+void polygonStartersPublishTheirAuthoredRegions() {
+  for (const std::string id : {"basin", "plateau", "coastal-island"}) {
+    const auto preset = loadTerrainPreset({}, "builtin://terrain/" + id);
+    assert(preset);
+    assert(preset->size.x == 128 && preset->size.y == 128);
+    const auto recipe = TerrainRecipe::parse(
+        applyTerrainPreset(TerrainRecipe{}.toJson(), *preset));
+    const auto graph = TerrainGraph::parse(recipe.graph);
+    assert(graph.node("region_mask")->type == "polygon_mask");
+    assert(graph.node("region_blend")->type == "height_blend");
+    assert(graph.node("region_help")->type == "comment");
+    assert(graph.node("blend_help")->type == "comment");
+    const auto generated = TerrainGenerator::generate(recipe);
+    assert(generated);
+    const auto middleX = recipe.cellsX / 2;
+    const auto middleZ = recipe.cellsZ / 2;
+    if (id == "basin") {
+      assert(generated->height(middleX, middleZ) == 2);
+      assert(generated->height(0, 0) >= 10);
+      assert(generated->height(0, 0) <= 26);
+    } else if (id == "plateau") {
+      assert(generated->height(middleX, middleZ) == 20);
+      assert(generated->height(0, 0) >= -1);
+      assert(generated->height(0, 0) <= 5);
+    } else {
+      assert(generated->height(middleX, middleZ) >= 6);
+      assert(generated->height(middleX, middleZ) <= 22);
+      assert(generated->height(0, 0) == -6);
+      assert(generated->graphArtifacts->waterResult);
+      assert(!generated->graphArtifacts->waterResult->surfaces.empty());
+      assert(graph.node("ocean")->parameters.at("radius") == 0);
+    }
+    for (const auto normal : generated->normals) {
+      assert(std::isfinite(normal.x));
+      assert(std::isfinite(normal.y));
+      assert(std::isfinite(normal.z));
+      const auto squaredLength =
+          normal.x * normal.x + normal.y * normal.y + normal.z * normal.z;
+      assert(std::abs(squaredLength - 1.0F) < 0.001F);
+    }
+    const auto cached = executeTerrainGraph(
+        recipe, {nullptr, {}, generated->graphArtifacts->cache});
+    assert(cached);
+    assert(cached->heights == generated->heights);
+    for (const auto &run : cached->graphArtifacts->nodes) {
+      assert(run.cached);
+    }
+  }
+}
+
+void presetLandformsUseSharedProfileAndWarpContract() {
+  auto preset = mountainPreset();
+  auto &shape = preset.landforms.at("rock");
+  shape.profile = "ridged";
+  shape.warpAmplitude = 20;
+  shape.warpFeatureSize = 128;
+  shape.stretch = 3;
+  shape.heading = 30;
+  auto source = terrainPresetFragment(preset);
+  source["name"] = "Ridged preset";
+  const auto document = demi::assets::parseDataDocument(source.dump());
+  assert(document.document);
+  const auto loaded =
+      parseTerrainPreset(*document.document, "asset://presets/ridged");
+  assert(loaded && loaded->landforms.at("rock") == shape);
+  assert(terrainPresetFragment(*loaded)["landforms"] == source["landforms"]);
+}
+
 int main() {
+  polygonStartersPublishTheirAuthoredRegions();
+  presetLandformsUseSharedProfileAndWarpContract();
+  startersNeedNoProjectAssets();
   fragmentSuppliesOnlyGenerationKeys();
   applyingPreservesStrokes();
   applyingToBareRecipeOmitsEmptyStrokes();

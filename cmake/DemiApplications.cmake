@@ -87,11 +87,16 @@ else()
     src/editor/EditorModuleCatalog.cpp
     src/editor/EditorHudHierarchy.cpp
     src/editor/EditorHudDocument.cpp
+    src/editor/EditorHudHierarchyCommands.cpp
+    src/editor/EditorHudPrefabOverrides.cpp
+    src/editor/EditorHudPreviewState.cpp
+    src/editor/EditorHudFlowPlacement.cpp
     src/editor/EditorHudCanvas.cpp
     src/editor/EditorIsoGridCell.cpp
     src/editor/EditorIsoGridCellDocument.cpp
     src/editor/EditorIsoScene2D.cpp
     src/editor/EditorJsonDocument.cpp
+    src/editor/EditorSourceIndex.cpp
     src/editor/EditorLuaComponentMetadata.cpp
     src/editor/EditorPlaySession.cpp
     src/editor/EditorProfilerModel.cpp
@@ -115,6 +120,8 @@ else()
     src/editor/EditorScenePreview.cpp
     src/editor/EditorSourceCreation.cpp
     src/editor/EditorPrefabAuthoring.cpp
+    src/editor/EditorPrefabConversion.cpp
+    src/editor/EditorPrefabUnpack.cpp
     src/editor/EditorEntityBounds3D.cpp
     src/editor/EditorCodeEditor.cpp
     src/editor/EditorSceneView2DState.cpp
@@ -129,6 +136,7 @@ else()
     src/editor/EditorWorkspace.cpp
     src/editor/EditorWorkspaceComponents.cpp
     src/editor/EditorWorkspacePrefab.cpp
+    src/editor/EditorCameraAlignment.cpp
     src/editor/EditorWorkspaceLayout.cpp
     src/editor/EditorWorkspaceAssets.cpp
     src/editor/EditorWorkspaceTerrainAsset.cpp)
@@ -149,9 +157,11 @@ else()
 
   add_library(demi-editor-ui STATIC
     "${imnodes_SOURCE_DIR}/imnodes.cpp"
+    src/editor/EditorMaterialPropertiesControl.cpp
     src/editor/EditorColorControl.cpp
     src/editor/EditorTerrainInspector.cpp
     src/editor/EditorTerrainGraphSettings.cpp
+    src/editor/EditorTerrainPresetsPanel.cpp
     src/editor/EditorTerrainGraphPanel.cpp
     src/editor/EditorTerrainGraphPorts.cpp
     src/editor/EditorGraphCanvasView.cpp
@@ -166,6 +176,7 @@ else()
     src/editor/EditorAnimationMachinePanel.cpp
     src/editor/EditorAssetDialogs.cpp
     src/editor/EditorAssetsPanel.cpp
+    src/editor/EditorRunPanel.cpp
     src/editor/EditorBuildPanel.cpp
     src/editor/EditorChrome.cpp
     src/editor/EditorConflictPanel.cpp

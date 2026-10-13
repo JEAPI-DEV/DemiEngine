@@ -37,23 +37,24 @@ struct GraphInstances {
   bool truncated = false;
 };
 
-using GraphValue =
-    std::variant<GraphField, std::shared_ptr<const GraphMask>,
-                 std::shared_ptr<const GraphDrainage>,
-                 std::shared_ptr<const GraphWater>,
-                 std::shared_ptr<const GraphInstances>>;
+using GraphValue = std::variant<GraphField, std::shared_ptr<const GraphMask>,
+                                std::shared_ptr<const GraphDrainage>,
+                                std::shared_ptr<const GraphWater>,
+                                std::shared_ptr<const GraphInstances>>;
 using GraphValues = std::map<std::string, GraphValue>;
 
 struct GraphNodeResult {
   GraphValues outputs;
   std::vector<std::string> warnings;
+  std::shared_ptr<const TerrainSamples<float>> sedimentBalance;
 };
 
-[[nodiscard]] nlohmann::json terrainGraphNodeParameters(
-    const TerrainGraphNode &node);
-[[nodiscard]] nlohmann::json terrainGraphNodeContext(
-    const TerrainRecipe &recipe, const TerrainGraphNode &node,
-    const TerrainGraphInputs &inputs);
+[[nodiscard]] nlohmann::json
+terrainGraphNodeParameters(const TerrainGraphNode &node);
+[[nodiscard]] nlohmann::json
+terrainGraphNodeContext(const TerrainRecipe &recipe,
+                        const TerrainGraphNode &node,
+                        const TerrainGraphInputs &inputs);
 
 // Empty only on cancellation. Invalid node inputs surface to the executor for
 // node-id attribution; graph topology and cache decisions stay outside here.
@@ -61,6 +62,7 @@ struct GraphNodeResult {
     const TerrainGraphNode &node, const nlohmann::json &parameters,
     const TerrainRecipe &sourceRecipe, const TerrainRecipe &authoredRecipe,
     const TerrainGraphInputs &inputs, const GraphValues &connected,
-    std::stop_token stop);
+    std::stop_token stop, TerrainQuality quality = TerrainQuality::Standard,
+    const TerrainGenerator::Progress &progress = {});
 
 } // namespace demi::runtime::terrain_graph_detail

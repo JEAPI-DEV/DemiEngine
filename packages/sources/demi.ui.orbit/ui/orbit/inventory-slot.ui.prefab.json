@@ -1,0 +1,99 @@
+{
+  "format_version": 1,
+  "id": "ui-prefab://orbit/inventory-slot",
+  "parameters": {
+    "accent": {
+      "type": "string",
+      "default": "#FFB66B"
+    },
+    "action": {
+      "type": "string",
+      "default": ""
+    },
+    "count": {
+      "type": "string",
+      "default": "24"
+    },
+    "disabled": {
+      "type": "boolean",
+      "default": false
+    },
+    "label": {
+      "type": "string",
+      "default": "ORE"
+    },
+    "raised": {
+      "type": "string",
+      "default": "#263748"
+    },
+    "size": {
+      "type": "array",
+      "default": [
+        76,
+        76
+      ]
+    },
+    "stroke": {
+      "type": "string",
+      "default": "#3B5166"
+    },
+    "text": {
+      "type": "string",
+      "default": "#EEF4FA"
+    }
+  },
+  "root": {
+    "id": "control",
+    "type": "button",
+    "size": "${size}",
+    "text": "",
+    "action": "${action}",
+    "disabled": "${disabled}",
+    "corner_radius": 9,
+    "font_size": 16,
+    "text_color": "${text}",
+    "background_color": "${raised}",
+    "hover_color": "${stroke}",
+    "border_color": "${stroke}",
+    "border_width": 1,
+    "color": "${accent}",
+    "accessibility_label": "${label}",
+    "children": [
+      {
+        "id": "item",
+        "type": "label",
+        "dock": "fill",
+        "margin": [
+          4,
+          4,
+          4,
+          18
+        ],
+        "text": "${label}",
+        "text_color": "${text}",
+        "font_size": 15,
+        "text_alignment": "center",
+        "text_vertical_alignment": "center"
+      },
+      {
+        "id": "count",
+        "type": "label",
+        "dock": "bottom",
+        "size": [
+          0,
+          20
+        ],
+        "margin": [
+          6,
+          0,
+          6,
+          4
+        ],
+        "text": "${count}",
+        "font_size": 12,
+        "text_color": "${accent}",
+        "text_alignment": "end"
+      }
+    ]
+  }
+}

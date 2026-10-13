@@ -27,7 +27,9 @@ public:
   [[nodiscard]] bool set(std::string_view pointer, nlohmann::json value,
                          std::string &error);
   [[nodiscard]] bool erase(std::string_view pointer, std::string &error);
-  [[nodiscard]] bool replace(nlohmann::json document, std::string &error);
+  [[nodiscard]] bool replace(nlohmann::json document, std::string &error,
+                             std::string_view continuousKey = {});
+  void endContinuousEdit() { continuousKey_.clear(); }
   [[nodiscard]] bool undo(std::string &error);
   [[nodiscard]] bool redo(std::string &error);
   [[nodiscard]] bool save(std::string &error);
@@ -40,8 +42,10 @@ public:
   [[nodiscard]] bool canRedo() const { return history_.canRedo(); }
 
 private:
-  [[nodiscard]] bool commit(nlohmann::json replacement, std::string &error);
+  [[nodiscard]] bool commit(nlohmann::json replacement, std::string &error,
+                            std::string_view continuousKey = {});
 
+  std::string continuousKey_;
   EditorDocumentStore store_;
   EditorJsonValidator validator_;
   std::filesystem::path path_;

@@ -1,4 +1,6 @@
 #include "demi/runtime/terrain/TerrainGraphNodeEvaluation.h"
+#include "demi/runtime/terrain/TerrainGraphSedimentMasks.h"
+#include "demi/runtime/terrain/TerrainGraphSpatialMasks.h"
 
 #include "demi/runtime/terrain/TerrainBiomeRules.h"
 #include "demi/runtime/terrain/TerrainErosion.h"
@@ -65,28 +67,29 @@ std::optional<GraphNodeResult> evaluateSource(const TerrainGraphNode &node,
       shape.baseHeight = values.at("height").get<float>();
       shape.heightVariation = 0;
     } else {
-      shape.baseHeight = values.at("base_height").get<float>();
-      shape.heightVariation = values.at("height_variation").get<float>();
-      shape.featureSize = values.at("feature_size").get<float>();
-      shape.roughness = values.at("roughness").get<float>();
-      shape.octaves = values.at("octaves").get<int>();
+      auto landformParameters = values;
+      landformParameters.erase("seed_offset");
+      shape = TerrainLandform::parse(landformParameters);
       const auto seed =
           std::int64_t(settings.seed) + values.at("seed_offset").get<int>();
-      if (seed < INT32_MIN || seed > INT32_MAX)
+      if (seed < INT32_MIN || seed > INT32_MAX) {
         throw std::invalid_argument("Seed offset overflows the seed range");
+      }
       settings.seed = static_cast<int>(seed);
     }
     settings.landforms = {{"graph", shape}};
     settings.defaultLandform = "graph";
-    for (auto &[id, biome] : settings.biomes)
+    for (auto &[id, biome] : settings.biomes) {
       biome.landform = "graph";
+    }
     settings.rules.clear();
     settings.regions.clear();
   }
   auto generated = TerrainGenerator::generateBase(settings, stop);
   if (!generated ||
-      !TerrainGenerator::recomputeTerrainNormals(*generated, stop))
+      !TerrainGenerator::recomputeTerrainNormals(*generated, stop)) {
     return std::nullopt;
+  }
   GraphNodeResult result;
   result.outputs["field"] =
       std::make_shared<const HeightField>(std::move(*generated));
@@ -168,7 +171,11 @@ evaluateDrainage(const nlohmann::json &values,
   if (stop.stop_requested() || !computed)
     return std::nullopt;
   drainage->data = std::move(*computed);
+  auto flow = std::make_shared<GraphMask>();
+  flow->source = drainage->source;
+  flow->samples = drainage->data.flow;
   GraphNodeResult result;
+  result.outputs["flow"] = std::shared_ptr<const GraphMask>(std::move(flow));
   result.outputs["drainage"] =
       std::shared_ptr<const GraphDrainage>(std::move(drainage));
   return result;
@@ -177,7 +184,9 @@ evaluateDrainage(const nlohmann::json &values,
 std::optional<GraphNodeResult>
 evaluateErosion(const nlohmann::json &values, const TerrainRecipe &sourceRecipe,
                 const TerrainRecipe &authoredRecipe,
-                const GraphValues &connected, std::stop_token stop) {
+                const GraphValues &connected, std::stop_token stop,
+                TerrainQuality quality,
+                const TerrainGenerator::Progress &progress) {
   const auto source = fieldInput(connected, "field");
   TerrainDrainage drainage;
   if (const auto *value = input(connected, "drainage")) {
@@ -197,15 +206,26 @@ evaluateErosion(const nlohmann::json &values, const TerrainRecipe &sourceRecipe,
   settings.iterations = values.at("iterations").get<int>();
   settings.thermalStrength = values.at("thermal_strength").get<float>();
   settings.seed = authoredRecipe.seed;
-  auto eroded = applyTerrainErosion(*source, drainage, settings, nullptr, stop);
+  settings.quality = quality;
+  TerrainSamples<float> balance;
+  auto eroded = applyTerrainErosion(*source, drainage, settings, &balance, stop,
+                                    progress);
   if (stop.stop_requested() || !eroded)
     return std::nullopt;
   auto field = std::make_shared<HeightField>(*source);
   field->heights = std::move(*eroded);
   if (!TerrainGenerator::recomputeTerrainNormals(*field, stop))
     return std::nullopt;
+  auto sediment =
+      prepareTerrainGraphSedimentMasks(field, std::move(balance), stop);
+  if (!sediment) {
+    return std::nullopt;
+  }
   GraphNodeResult result;
   result.outputs["field"] = GraphField(std::move(field));
+  result.outputs["deposition"] = std::move(sediment->deposition);
+  result.outputs["cut"] = std::move(sediment->cut);
+  result.sedimentBalance = std::move(sediment->balance);
   return result;
 }
 
@@ -373,10 +393,9 @@ nlohmann::json terrainGraphNodeContext(const TerrainRecipe &recipe,
     context["seed"] = recipe.seed;
     context["default_landform"] = recipe.defaultLandform;
     context["landforms"] = nlohmann::json::object();
-    for (const auto &[id, shape] : recipe.landforms)
-      context["landforms"][id] = {shape.baseHeight, shape.heightVariation,
-                                  shape.featureSize, shape.roughness,
-                                  shape.octaves};
+    for (const auto &[id, shape] : recipe.landforms) {
+      context["landforms"][id] = shape.toJson();
+    }
     context["biome_landforms"] = nlohmann::json::object();
     for (const auto &[id, biome] : recipe.biomes)
       context["biome_landforms"][id] = biome.landform;
@@ -410,12 +429,21 @@ std::optional<GraphNodeResult> evaluateTerrainGraphNode(
     const TerrainGraphNode &node, const nlohmann::json &values,
     const TerrainRecipe &sourceRecipe, const TerrainRecipe &authoredRecipe,
     const TerrainGraphInputs &inputs, const GraphValues &connected,
-    std::stop_token stop) {
+    std::stop_token stop, TerrainQuality quality,
+    const TerrainGenerator::Progress &progress) {
   if (stop.stop_requested())
     return std::nullopt;
   if (node.type == "landform" || node.type == "noise" ||
       node.type == "constant")
     return evaluateSource(node, values, sourceRecipe, stop);
+  if (node.type == "path_distance_mask") {
+    return evaluateTerrainPathMask(values, fieldInput(connected, "field"),
+                                   stop);
+  }
+  if (node.type == "polygon_mask") {
+    return evaluateTerrainPolygonMask(values, fieldInput(connected, "field"),
+                                      stop);
+  }
   if (node.type == "elevation_mask" || node.type == "slope_mask")
     return evaluateMask(node, values, connected, stop);
   if (node.type == "height_blend" || node.type == "offset")
@@ -424,7 +452,7 @@ std::optional<GraphNodeResult> evaluateTerrainGraphNode(
     return evaluateDrainage(values, sourceRecipe, connected, stop);
   if (node.type == "erosion")
     return evaluateErosion(values, sourceRecipe, authoredRecipe, connected,
-                           stop);
+                           stop, quality, progress);
   if (node.type == "biomes")
     return evaluateBiomes(sourceRecipe, authoredRecipe, connected, stop);
   if (node.type == "water")

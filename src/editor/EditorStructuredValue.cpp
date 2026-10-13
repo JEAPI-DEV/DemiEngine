@@ -241,21 +241,20 @@ void drawValue(Json &value, StructuredValueState &state, int vectorWidth,
         entry->size() == static_cast<std::size_t>(vectorWidth) &&
         std::ranges::all_of(
             *entry, [](const Json &item) { return item.is_number(); })) {
-      std::array<float, 4> values{};
-      for (int axis = 0; axis < vectorWidth; ++axis)
-        values[axis] = (*entry)[axis].get<float>();
+      std::array<double, 4> values{};
+      for (int axis = 0; axis < vectorWidth; ++axis) {
+        values[axis] = (*entry)[axis].get<double>();
+      }
       ImGui::SetNextItemWidth(-1);
       ImGui::BeginDisabled(readOnly);
-      bool changed = false;
-      if (vectorWidth == 2)
-        changed = ImGui::InputFloat2("##value", values.data(), "%.5g");
-      else if (vectorWidth == 3)
-        changed = ImGui::InputFloat3("##value", values.data(), "%.5g");
-      else if (vectorWidth == 4)
-        changed = ImGui::InputFloat4("##value", values.data(), "%.5g");
-      if (changed)
-        for (int axis = 0; axis < vectorWidth; ++axis)
+      const bool changed =
+          ImGui::InputScalarN("##value", ImGuiDataType_Double, values.data(),
+                              vectorWidth, nullptr, nullptr, "%.9g");
+      if (changed) {
+        for (int axis = 0; axis < vectorWidth; ++axis) {
           (*entry)[axis] = values[axis];
+        }
+      }
       capture(edit, changed);
       ImGui::EndDisabled();
     } else {

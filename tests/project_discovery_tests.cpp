@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <chrono>
 #include <fstream>
+#include <thread>
 #ifdef NDEBUG
 #undef NDEBUG
 #endif
@@ -140,6 +141,28 @@ int main() {
   write(package / "scripts/demi/test.lua", "return {}\n");
   const auto content = assets::loadLockedPackageContent(root, "");
   assert(!hasErrors(content.diagnostics) && content.files.size() == 2);
+  // Package installation replaces directories while Inspector source pickers
+  // are reading them. A transient gap must produce diagnostics, never escape.
+  const auto swapping = package.parent_path() / "demi.test-swapping";
+  {
+    std::jthread installer([&](std::stop_token stop) {
+      while (!stop.stop_requested()) {
+        std::error_code code;
+        fs::rename(package, swapping, code);
+        if (!code) {
+          std::this_thread::yield();
+          fs::rename(swapping, package, code);
+          assert(!code);
+        }
+      }
+    });
+    for (int attempt = 0; attempt < 1000; ++attempt)
+      (void)assets::loadLockedPackageContent(root, "");
+    installer.request_stop();
+  }
+  const auto restoredContent = assets::loadLockedPackageContent(root, "");
+  assert(!hasErrors(restoredContent.diagnostics) &&
+         restoredContent.files.size() == 2);
   project["assets"] = Json::array({"asset-group://test/package"});
   write(root / "demi.project.json", project.dump());
   const auto sources = collectProjectSourceFiles(loadAssetRegistry(root));

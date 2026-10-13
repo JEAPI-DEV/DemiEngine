@@ -2,6 +2,7 @@
 #include "demi/runtime/terrain/TerrainBrushStroke.h"
 #include "demi/runtime/terrain/TerrainGenerator.h"
 #include "demi/runtime/terrain/TerrainRecipe.h"
+#include "demi/runtime/terrain/TerrainUpdate.h"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -13,7 +14,15 @@ namespace demi::editor {
 
 EditorTerrainAuthoring::EditorTerrainAuthoring(Generator generator,
                                                Updater updater)
-    : generator_(std::move(generator)), updater_(std::move(updater)) {}
+    : generator_(std::move(generator)), updater_(std::move(updater)) {
+  if (!generator_) {
+    generator_ = [](const nlohmann::json &recipe, std::stop_token stop,
+                    const std::function<void(float)> &progress,
+                    std::string &error) {
+      return generateEditorTerrain(recipe, stop, progress, error);
+    };
+  }
+}
 EditorTerrainAuthoring::~EditorTerrainAuthoring() {
   cancel();
   if (worker_.joinable())
@@ -74,6 +83,9 @@ void EditorTerrainAuthoring::unbind() {
 }
 
 void EditorTerrainAuthoring::discardDraft() {
+  if (previewBaseline_) {
+    cancel();
+  }
   drafts_.erase({document_, draftIdentity_});
   draft_ = authored_;
   validateBrushBiome();
@@ -284,6 +296,7 @@ bool EditorTerrainAuthoring::generate(
   if (!inputs)
     return false;
   pendingBefore_ = authored_;
+  pendingQuality_ = generationQuality;
   progress_ = 0.0F;
   cancelled_ = false;
   incremental_ = false;
@@ -298,14 +311,26 @@ bool EditorTerrainAuthoring::generate(
     worker_ = std::jthread([this, recipe = pending_, before = authored_,
                             previous = surface_, inputs = std::move(*inputs),
                             resolvedUpdater, generator, updater,
-                            hasInputResolver, promise = std::move(promise)](
+                            hasInputResolver, quality = pendingQuality_,
+                            promise = std::move(promise)](
                                std::stop_token stop) mutable {
       Result result;
       try {
         const auto progress = [this](float value) {
           progress_ = std::clamp(value, 0.0F, 1.0F);
         };
-        if (previous && previous->heightField()) {
+        const auto previousField = previous ? previous->heightField() : nullptr;
+        const bool requiresQualityGeneration =
+            quality == runtime::TerrainQuality::Preview ||
+            (previousField && previousField->quality == "preview");
+        if (requiresQualityGeneration) {
+          auto update = regenerateEditorTerrainWithInputs(
+              recipe, previous, inputs, quality, stop, progress, result.error);
+          if (update) {
+            result.surface = std::move(update->surface);
+            result.patch = std::move(update->patch);
+          }
+        } else if (previousField) {
           auto update = resolvedUpdater
                             ? resolvedUpdater(before, recipe, previous, inputs,
                                               stop, progress, result.error)
@@ -344,6 +369,12 @@ bool EditorTerrainAuthoring::generate(
 void EditorTerrainAuthoring::cancel() {
   cancelled_ = true;
   worker_.request_stop();
+  if (previewBaseline_) {
+    rollback_ =
+        EditorTerrainCommit{document_,        entityId_, authored_, authored_,
+                            previewBaseline_, {},        false,     true};
+    surface_ = std::move(previewBaseline_);
+  }
   if (strokeSurface_) {
     if (strokePatch_)
       rollback_ = EditorTerrainCommit{
@@ -442,13 +473,40 @@ EditorTerrainAuthoring::poll(std::string &error) {
       cancel();
     return std::nullopt;
   }
-  if (!incremental_)
-    return EditorTerrainCommit{document_,
-                               entityId_,
-                               pendingBefore_,
-                               pending_,
-                               std::move(result.surface),
-                               std::move(result.patch)};
+  if (!incremental_) {
+    const bool preview = pendingQuality_ == runtime::TerrainQuality::Preview;
+    EditorTerrainCommit commit{document_, entityId_,      pendingBefore_,
+                               pending_,  result.surface, result.patch,
+                               !preview};
+    if (preview) {
+      if (!previewBaseline_) {
+        previewBaseline_ = surface_;
+      }
+    } else if (previewBaseline_ && result.patch) {
+      // Publication replaces the displayed Preview; history must return to
+      // the applied Final surface, never to transient Preview geometry.
+      auto historyPatch =
+          std::make_shared<runtime::TerrainPatch>(*result.patch);
+      historyPatch->fullBefore = previewBaseline_->heightField();
+      const auto &before = *historyPatch->fullBefore;
+      const auto &after = *historyPatch->fullAfter;
+      const bool sameChunks = std::ranges::equal(
+          before.chunks, after.chunks, [](const auto &left, const auto &right) {
+            return left.firstCellX == right.firstCellX &&
+                   left.firstCellZ == right.firstCellZ &&
+                   left.cellsX == right.cellsX && left.cellsZ == right.cellsZ;
+          });
+      historyPatch->invalidation.layoutChanged =
+          before.size.x != after.size.x || before.size.y != after.size.y ||
+          before.cellsX != after.cellsX || before.cellsZ != after.cellsZ ||
+          !sameChunks;
+      commit.patch = std::move(historyPatch);
+      commit.publicationPatch = result.patch;
+      previewBaseline_.reset();
+    }
+    surface_ = result.surface;
+    return commit;
+  }
   surface_ = std::move(result.surface);
   evaluated_ = pending_;
   try {

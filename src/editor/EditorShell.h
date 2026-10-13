@@ -4,6 +4,7 @@
 #include "editor/EditorAnimationMachinePanel.h"
 #include "editor/EditorAssetsPanel.h"
 #include "editor/EditorBuildPanel.h"
+#include "editor/EditorRunPanel.h"
 #include "editor/EditorConflictPanel.h"
 #include "editor/EditorConsolePanel.h"
 #include "editor/EditorDockingWorkspace.h"
@@ -19,6 +20,7 @@
 #include "editor/EditorShortcutSettings.h"
 #include "editor/EditorSpecializedPanel.h"
 #include "editor/EditorTerrainGraphPanel.h"
+#include "editor/EditorTerrainPresetsPanel.h"
 #include "editor/EditorUiHost.h"
 #include "editor/EditorViewportPanel.h"
 #include "editor/EditorWorkspace.h"
@@ -42,9 +44,12 @@ public:
   void draw(int width, int height, std::string_view rendererName);
   // Release ImGui-dependent panel state before the UI host destroys ImGui.
   void releaseUiResources() noexcept {
+    runPanel_.stop();
     terrainGraphPanel_.releaseUiResources();
   }
   [[nodiscard]] float uiScale() const { return uiScale_; }
+  [[nodiscard]] bool pollBackgroundChanges();
+  [[nodiscard]] bool needsContinuousFrames() const;
   [[nodiscard]] bool wantsExit() const { return wantsExit_; }
   void requestExit() { exitRequested_ = true; }
   [[nodiscard]] const auto &authoringViews() const { return authoringViews_; }
@@ -106,7 +111,9 @@ private:
   EditorAboutPanel aboutPanel_;
   EditorAnimationMachinePanel animationMachinePanel_;
   EditorTerrainGraphPanel terrainGraphPanel_;
+  EditorTerrainPresetsPanel terrainPresetsPanel_;
   EditorBuildPanel buildPanel_;
+  EditorRunPanel runPanel_;
   EditorProjectPanel projectPanel_;
   EditorSpecializedPanel specializedPanel_;
   EditorHierarchyPanel hierarchyPanel_;

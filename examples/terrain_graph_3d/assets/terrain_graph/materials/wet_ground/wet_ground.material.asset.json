@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://terrain_graph/materials/wet_ground",
+  "importer": "material",
+  "importer_version": 1,
+  "settings": {},
+  "source": "wet_ground.material.json",
+  "source_hash": "fnv1a64:3723371f0c1fdb23",
+  "type": "Material"
+}

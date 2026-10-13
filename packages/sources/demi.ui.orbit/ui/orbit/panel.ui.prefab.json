@@ -1,0 +1,108 @@
+{
+  "format_version": 1,
+  "id": "ui-prefab://orbit/panel",
+  "parameters": {
+    "accent": {
+      "type": "string",
+      "default": "#FFB66B"
+    },
+    "content": {
+      "type": "array",
+      "default": []
+    },
+    "size": {
+      "type": "array",
+      "default": [
+        320,
+        260
+      ]
+    },
+    "stroke": {
+      "type": "string",
+      "default": "#3B5166"
+    },
+    "surface": {
+      "type": "string",
+      "default": "#1B2735"
+    },
+    "text": {
+      "type": "string",
+      "default": "#EEF4FA"
+    },
+    "title": {
+      "type": "string",
+      "default": "Panel"
+    }
+  },
+  "root": {
+    "id": "panel",
+    "type": "panel",
+    "size": "${size}",
+    "background_color": "${surface}",
+    "border_color": "${stroke}",
+    "border_width": 1,
+    "corner_radius": 14,
+    "children": [
+      {
+        "id": "header",
+        "type": "container",
+        "dock": "top",
+        "size": [
+          0,
+          32
+        ],
+        "margin": [
+          20,
+          16,
+          20,
+          0
+        ],
+        "children": [
+          {
+            "id": "rail",
+            "type": "panel",
+            "dock": "left",
+            "size": [
+              3,
+              0
+            ],
+            "margin": [
+              0,
+              7,
+              0,
+              7
+            ],
+            "background_color": "${accent}"
+          },
+          {
+            "id": "title",
+            "type": "label",
+            "dock": "fill",
+            "margin": [
+              16,
+              0,
+              0,
+              0
+            ],
+            "text": "${title}",
+            "font_size": 20,
+            "text_color": "${text}",
+            "text_vertical_alignment": "center"
+          }
+        ]
+      },
+      {
+        "id": "body",
+        "type": "container",
+        "dock": "fill",
+        "margin": [
+          20,
+          64,
+          20,
+          20
+        ],
+        "children": "${content}"
+      }
+    ]
+  }
+}

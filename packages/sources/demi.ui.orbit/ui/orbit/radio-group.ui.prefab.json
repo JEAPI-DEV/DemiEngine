@@ -1,0 +1,135 @@
+{
+  "format_version": 1,
+  "id": "ui-prefab://orbit/radio-group",
+  "parameters": {
+    "accent": {
+      "type": "string",
+      "default": "#FFB66B"
+    },
+    "label1": {
+      "type": "string",
+      "default": "Balanced"
+    },
+    "label2": {
+      "type": "string",
+      "default": "Performance"
+    },
+    "label3": {
+      "type": "string",
+      "default": "Quality"
+    },
+    "raised": {
+      "type": "string",
+      "default": "#263748"
+    },
+    "size": {
+      "type": "array",
+      "default": [
+        280,
+        132
+      ]
+    },
+    "stroke": {
+      "type": "string",
+      "default": "#3B5166"
+    },
+    "text": {
+      "type": "string",
+      "default": "#EEF4FA"
+    }
+  },
+  "root": {
+    "id": "choices",
+    "type": "container",
+    "size": "${size}",
+    "stack": "column",
+    "gap": 6,
+    "children": [
+      {
+        "id": "option1",
+        "type": "toggle",
+        "size": [
+          0,
+          40
+        ],
+        "text": "${label1}",
+        "action": "",
+        "disabled": false,
+        "corner_radius": 8,
+        "font_size": 16,
+        "text_color": "${text}",
+        "background_color": "${raised}",
+        "hover_color": "${stroke}",
+        "border_color": "${stroke}",
+        "border_width": 1,
+        "color": "${accent}",
+        "checked": true,
+        "anchor_min": [
+          0,
+          0
+        ],
+        "anchor_max": [
+          1,
+          0
+        ]
+      },
+      {
+        "id": "option2",
+        "type": "toggle",
+        "size": [
+          0,
+          40
+        ],
+        "text": "${label2}",
+        "action": "",
+        "disabled": false,
+        "corner_radius": 8,
+        "font_size": 16,
+        "text_color": "${text}",
+        "background_color": "${raised}",
+        "hover_color": "${stroke}",
+        "border_color": "${stroke}",
+        "border_width": 1,
+        "color": "${accent}",
+        "checked": false,
+        "anchor_min": [
+          0,
+          0
+        ],
+        "anchor_max": [
+          1,
+          0
+        ]
+      },
+      {
+        "id": "option3",
+        "type": "toggle",
+        "size": [
+          0,
+          40
+        ],
+        "text": "${label3}",
+        "action": "",
+        "disabled": false,
+        "corner_radius": 8,
+        "font_size": 16,
+        "text_color": "${text}",
+        "background_color": "${raised}",
+        "hover_color": "${stroke}",
+        "border_color": "${stroke}",
+        "border_width": 1,
+        "color": "${accent}",
+        "checked": false,
+        "anchor_min": [
+          0,
+          0
+        ],
+        "anchor_max": [
+          1,
+          0
+        ]
+      }
+    ],
+    "alignment": "stretch"
+  }
+}

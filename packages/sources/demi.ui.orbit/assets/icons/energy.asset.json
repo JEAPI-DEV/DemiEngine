@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://orbit/icons/energy",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {},
+  "source": "energy.svg",
+  "source_hash": "fnv1a64:9f92be3e3f845b78",
+  "type": "Icon2D"
+}

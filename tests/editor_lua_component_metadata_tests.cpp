@@ -1,4 +1,7 @@
+#include "editor/EditorDocumentSessions.h"
 #include "editor/EditorLuaComponentMetadata.h"
+#include "editor/EditorSourceCreation.h"
+#include "editor/EditorSourceIndex.h"
 #include "editor/EditorWorkspace.h"
 
 #include <algorithm>
@@ -13,6 +16,106 @@ void write(const std::filesystem::path &path, const std::string &text) {
   std::ofstream output(path);
   output << text;
   assert(output.good());
+}
+
+void checkLiveDiscovery(const std::filesystem::path &root) {
+  namespace fs = std::filesystem;
+  using namespace demi::editor;
+  const std::string component =
+      "---@demi_component\nlocal Camera = {}\nreturn Camera\n";
+  write(root / "scripts/initial.lua", component);
+  EditorSourceIndex index;
+  index.rescan(root);
+  assert(index.scripts().components.size() == 1);
+  const auto initialParses = index.parseCount();
+  const auto initialRevision = index.revision();
+  for (int frame = 0; frame < 100; ++frame)
+    index.poll();
+  assert(index.parseCount() == initialParses &&
+         index.revision() == initialRevision);
+  auto now = EditorSourceIndex::Clock::now();
+  auto flush = [&] {
+    now += std::chrono::seconds(1);
+    index.poll(now);
+    index.poll(now + std::chrono::milliseconds(200));
+  };
+  write(root / "scripts/new.lua", component);
+  flush();
+  assert(index.scripts().components.size() == 2);
+  assert(index.parseCount() == initialParses + 1);
+  // Duplicate notifications or saves with identical contents do not reparse.
+  write(root / "scripts/new.lua", component);
+  flush();
+  assert(index.parseCount() == initialParses + 1);
+  write(root / "scripts/.save.tmp", component + "-- changed\n");
+  fs::rename(root / "scripts/.save.tmp", root / "scripts/new.lua");
+  flush();
+  assert(index.parseCount() == initialParses + 2);
+  fs::rename(root / "scripts/new.lua", root / "scripts/renamed.lua");
+  flush();
+  assert(index.scripts().components.size() == 2);
+  assert(std::ranges::find(index.sources(), root / "scripts/new.lua") ==
+         index.sources().end());
+  fs::remove(root / "scripts/renamed.lua");
+  flush();
+  assert(index.scripts().components.size() == 1);
+  write(root / "scripts/nested/deeper.lua", component);
+  flush();
+  assert(index.scripts().components.size() == 2);
+  fs::rename(root / "scripts/nested", root / "scripts/moved");
+  flush();
+  assert(
+      std::ranges::find(index.sources(), root / "scripts/moved/deeper.lua") !=
+      index.sources().end());
+  const auto beforeIgnored = index.parseCount();
+  write(root / "generated/ignored.lua", component);
+  write(root / "scripts/readme.txt", "unrelated");
+  flush();
+  assert(index.parseCount() == beforeIgnored);
+  write(root / "scripts/initial.lua",
+        "---@demi_component\nlocal Broken = "
+        "{}\n---@demi_property\nBroken.speed = nope\nreturn Broken\n");
+  flush();
+  assert(!index.scripts().diagnostics.empty());
+  write(root / "scripts/initial.lua", component);
+  flush();
+  assert(index.scripts().diagnostics.empty());
+  // Explicit rescan follows the same cache path used after notification
+  // overflow.
+  index.rescan(root);
+  assert(index.scripts().components.size() == 2);
+
+  write(
+      root / "demi.project.json",
+      R"({"format_version":1,"name":"Shared","main_scene":"scene://main","scenes":[{"id":"scene://main","path":"scenes/main.scene.json"}]})");
+  write(
+      root / "scenes/main.scene.json",
+      R"({"format_version":1,"id":"scene://main","entities":[{"id":"camera","components":{"Transform3D":{}}}]})");
+  write(
+      root / "hud/main.hud.json",
+      R"({"format_version":1,"children":[{"id":"label","type":"label","text":"Original"}]})");
+  EditorWorkspace scene;
+  std::string error;
+  assert(scene.open(root, error));
+  EditorDocumentSessions sessions(scene);
+  assert(sessions.openHud(root / "hud/main.hud.json", error));
+  auto &hud = sessions.focused();
+  assert(hud.setHudNodeField("label", "text", "Unsaved", error));
+  const auto dirtyHud = hud.hudDocument()->json();
+  const auto sceneSource = scene.sceneDocument().json();
+  fs::path created;
+  assert(createEditorSource(hud, EditorSourceKind::Lua, "colony_camera",
+                            created, error));
+  assert(&scene.scriptCatalog() == &hud.scriptCatalog());
+  assert(std::ranges::find(scene.sources(), created) != scene.sources().end());
+  assert(std::ranges::find(scene.scriptCatalog().components, created,
+                           &EditorLuaComponentMetadata::sourcePath) !=
+         scene.scriptCatalog().components.end());
+  assert(hud.hudDocument()->json() == dirtyHud && hud.hudDocument()->isDirty());
+  assert(scene.sceneDocument().json() == sceneSource &&
+         !scene.sceneDocument().canUndo());
+  assert(hud.undo(error));
+  assert(hud.hudDocument()->authoredNode("label")->at("text") == "Original");
 }
 
 } // namespace
@@ -117,5 +220,6 @@ return Mover)");
   assert(workspace.sceneDocument().component(targetId, "LuaScript") == nullptr);
   assert(workspace.redo(error));
 
+  checkLiveDiscovery(root / "live");
   fs::remove_all(root, ignored);
 }

@@ -259,12 +259,15 @@ bool EditorWorkspace::placeTerrainAsset(
     error = failure.what();
     return false;
   }
-  return mutateAndRebuild(
-      [id = record->manifest.id, position](EditorSceneDocument &scene,
-                                           std::string &issue) {
-        return scene.createTerrainAssetEntity(id, position, issue);
-      },
-      error);
+  if (!mutateAndRebuild(
+          [id = record->manifest.id, position](EditorSceneDocument &scene,
+                                               std::string &issue) {
+            return scene.createTerrainAssetEntity(id, position, issue);
+          },
+          error))
+    return false;
+  selectEntity(std::string(sceneDocument_.lastChangedEntityId()));
+  return true;
 }
 
 bool EditorWorkspace::assignTerrainAsset(const std::string_view entityId,
@@ -364,6 +367,56 @@ bool EditorWorkspace::pollTerrainAssetAuthoring(EditorTerrainCommit commit,
   terrainPreviewSurface_.reset();
   syncTerrainAuthoring();
   return true;
+}
+
+bool EditorWorkspace::restoreTerrainAssetPreview(std::string &error) {
+  const auto &source = *terrainAssetDocument_;
+  const auto displayed = terrainPreview_->surface->heightField();
+  const auto owner =
+      std::ranges::find_if(project_->world.entities, [&](const auto &entity) {
+        const auto *terrain =
+            entity.template component<runtime::Terrain3DComponent>();
+        return terrain && terrain->asset == source.id() &&
+               terrain->generated == displayed;
+      });
+  if (owner == project_->world.entities.end()) {
+    // A source reload or owner removal already replaced the transient field.
+    // Never install its old baseline over a newer world.
+    return true;
+  }
+
+  try {
+    EditorTerrainUpdate replacement;
+    if (source.recipe() == terrainPreview_->before && terrainPreviewSurface_) {
+      // Discard is publication of retained Final data, not a synchronous
+      // erosion run. This also restores every placement of the shared asset.
+      replacement =
+          replacementSurface(currentEditorTerrain(project_->world, owner->id),
+                             terrainPreviewSurface_);
+    } else {
+      // The authored asset changed while Preview was visible. Its previous
+      // baseline is stale; generate the current source at Final quality.
+      const auto inputs = assets::resolveTerrainAssetGenerationInputs(
+          assetIndex_.registry(),
+          runtime::TerrainRecipe::parse(source.recipe()));
+      auto generated = regenerateEditorTerrainWithInputs(
+          source.recipe(), currentEditorTerrain(project_->world, owner->id),
+          inputs, runtime::TerrainQuality::Standard, {}, {}, error);
+      if (!generated) {
+        return false;
+      }
+      replacement = std::move(*generated);
+    }
+    if (!installSharedTerrain(project_->world, source.id(), source.recipe(),
+                              replacement, error, &terrainPreviewPrefabs_)) {
+      return false;
+    }
+    terrainAssetSurface_ = replacement.surface;
+    return true;
+  } catch (const std::exception &failure) {
+    error = failure.what();
+    return false;
+  }
 }
 
 bool EditorWorkspace::refreshTerrainAssetPreview(const nlohmann::json &recipe,

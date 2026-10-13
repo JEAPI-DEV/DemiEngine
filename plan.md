@@ -1,5 +1,111 @@
 # DemiEngine Roadmap
 
+Milestone 3 now has production Preview/Final generation, intermediate erosion
+progress and safe preview rollback/history. Drainage accumulation and thermal
+transport distances are corrected; flow, deposition and cut masks are exposed.
+Downhill river routing and erosion/reference qualification remain open. See
+[generation quality qualification](docs/terrain-generation-quality-qualification.md).
+
+Terrain Graph now supports filled polygon masks for shaped basins, plateaus and
+island coastlines. Three built-in presets demonstrate editable outlines,
+falloffs, height blending and ocean water. Shadow-striping investigation is
+recorded and deferred while terrain features progress. See
+[polygon mask qualification](docs/terrain-polygon-mask-qualification.md).
+
+GPU terrain now blends neighboring solid material colors and lighting properties
+across cells, removing hard sample borders while preserving exact material IDs
+and categorical face culling. Height-aware layers, PBR textures and ordinary mesh
+fallback blending remain unfinished. See
+[GPU terrain qualification](docs/terrain-gpu-rendering-qualification.md).
+
+Terrain generation now exposes ridged profiles, domain warp and directional
+stretch through shared recipe, preset and graph controls. Editable path masks
+shape curved valleys; a separate rocky-valley example preserves the sculpted
+terrain probe. Material blending and steep-surface shadow quality remain open.
+See [landform qualification](docs/terrain-landform-qualification.md).
+
+Compatible terrain now uses GPU height/normal sampling, shared instanced patches
+and per-pixel material routing. Same-build native measurements show substantially
+less CPU submission work at Full detail; unsupported materials/devices retain
+ordinary meshes. Resource preparation is demand-driven and budgeted. See
+[GPU terrain qualification](docs/terrain-gpu-rendering-qualification.md).
+
+Terrain render LOD now shares prepared chunk data between runtime and editor,
+with a pixel-error setting, camera-specific selection and bounded GPU residency.
+Full collision remains resident; CPU streaming is still pending. The landscape
+probe now uses a 5,000-unit far clip. See [terrain LOD qualification](docs/terrain-lod-qualification.md).
+
+The editor now waits for events when authoring is unchanged, retaining its last
+frame while source-watch maintenance continues. Play and active work keep
+updating without a default interaction FPS cap; see
+[editor qualification](docs/editor-usability-redesign.md).
+
+Shared runtime efficiency work now separates mesh preparation, batching and
+cache ownership, eliminates repeated draw-path lookups, and reuses physics input
+snapshots while preserving native mutation checks. Same-Release measurements
+and correctness fixes are recorded in
+[runtime efficiency qualification](docs/runtime-efficiency-qualification.md).
+
+Terrain palettes now separate surface material sets from named object placement
+rules. Material sets now drive discrete surface-role assignment using indexed
+sections of existing terrain meshes, with explicit biome overrides and finite
+water coverage. Smooth blending and terrain PBR texture maps remain integration
+gates. See [terrain plan](terrain-plan.md).
+
+Editor usability work adds typed material overrides, searchable layers, compact
+creation, rotation rings, display scaling and Debug/Release Run & Test. Dynamic
+light storage replaces fixed point/spot arrays. Qualification is recorded in
+[editor usability redesign](docs/editor-usability-redesign.md).
+
+Colony Lua is expanded for readability, with a module-reading guide. Reusable
+Character Needs 0.1.0 is published; prefab source saves now refresh open
+instances without discarding scene history.
+
+Ground Navigation 0.3.1 simplifies routes into clear straight segments, preserving
+obstacle clearance while removing visible grid stepping.
+
+The colony now exercises depot hauling, recoverable construction materials,
+basic habitat breaks and pause/1x/3x controls. See
+[logistics qualification](docs/colony-logistics-qualification.md).
+
+Colony utilities now require completed connections to the habitat. An engineer
+walks to queued sites and builds them; cancellations release uncollected reservations.
+The Ground Navigation package uses independent native grids and character
+controller movement. See [navigation qualification](docs/colony-navigation-qualification.md).
+
+The colony editor probe now supports terrain-aware utility construction with
+Orbit controls, metal costs and live resource production. HUD panels can explicitly
+block world clicks without keyboard focus. See
+[construction qualification](docs/colony-construction-qualification.md).
+
+Orbit UI 1.1.0 adds a single target-based overrides map and declarative tab
+previews. HUD and scene prefab content supports local edits, reparenting and
+explicit Unpack with stable IDs and Undo. See
+[authoring qualification](docs/ui-prefab-authoring-qualification.md).
+
+Orbit UI 1.0.0 is published with 39 native prefabs/compositions and 32 tintable
+SVG icons. Installed package prefabs and declarative HUD creation share the
+authoring loader; docking alignment and image/input rendering are corrected.
+See [qualification](docs/orbit-ui-qualification.md) for native captures, scoped
+tests, cooked-runtime checks and store deployment evidence.
+
+Authored Hierarchy selection reveals ancestors and scrolls the selected scene
+entity or HUD control into view. Explicit reselection reveals collapsed paths;
+idle selection respects manual collapse. Redundant canvas badges and selection
+status captions have been removed.
+
+Selected 2D/3D cameras can align to the authored Viewport through the Scene menu
+and toolbar. Pose/projection edits share one validated Undo command and preserve
+parenting, camera scale, unrelated camera settings and prefab override history.
+
+Prefab creation now replaces the selected hierarchy with a linked instance by
+default. Explicit instance entity_ids preserve the original entity identities;
+scene Undo restores the hierarchy while retaining the new reusable source file.
+
+Terrain Presets provides four built-in learning landscapes beside Inspector and
+Terrain Nodes. Versioned presets may include graphs; editable comment nodes
+explain generation without affecting terrain output or generation cache keys.
+
 Entity-reference Inspector controls share a picker and validated hierarchy-drop
 adapter for native fields and annotated Lua `entity` properties. Hierarchy drags
 preserve the inspected selection; assignment uses existing reversible document

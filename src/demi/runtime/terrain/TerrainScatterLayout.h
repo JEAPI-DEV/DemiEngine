@@ -29,9 +29,9 @@ struct TerrainScatterInstance {
   // instead of a second one that would not match after a regeneration.
   std::uint64_t seed = 0;
   std::size_t cell = 0;
-  TerrainPaletteRole role = TerrainPaletteRole::Soil;
+  std::string ruleId;
   std::size_t biome = 0;
-  std::string asset;
+  std::string model;
   std::string prefab;
   Vec3 position;
   float yaw = 0;
@@ -61,7 +61,7 @@ struct TerrainScatterInstance {
 // separator would otherwise let two different input sets produce one identical
 // key.
 [[nodiscard]] std::string
-terrainScatterInstanceKey(std::string_view paletteId, TerrainPaletteRole role,
+terrainScatterInstanceKey(std::string_view paletteId, std::string_view ruleId,
                           std::size_t cell, std::string_view regionId = {},
                           std::string_view layerId = {});
 
@@ -71,9 +71,9 @@ terrainScatterInstanceKey(std::string_view paletteId, TerrainPaletteRole role,
 // the sample slot that produces yaw and scale, so an instance's recorded seed is
 // the seed its own numbers came from rather than a plausible-looking unrelated
 // value.
-[[nodiscard]] std::uint64_t
-terrainScatterInstanceSeed(int worldSeed, TerrainPaletteRole role,
-                           std::size_t cell);
+[[nodiscard]] std::uint64_t terrainScatterInstanceSeed(int worldSeed,
+                                                       std::string_view ruleId,
+                                                       std::size_t cell);
 
 // Fills an instance from a placement, deriving the id and the seed.
 [[nodiscard]] TerrainScatterInstance
@@ -103,7 +103,7 @@ struct TerrainScatterInstanceGroup {
   // The drawable this batch draws, which is the asset when the palette named
   // one and the prefab when it did not. Two instances are batchable when this
   // matches, which is the question an instancer actually asks.
-  std::string asset;
+  std::string model;
   std::size_t instances = 0;
   // Indices into the vector passed in, ascending by instance id so a batch is
   // deterministic whatever order the placements arrived in.
@@ -129,7 +129,7 @@ terrainScatterGroupInstances(std::vector<TerrainScatterInstance> &instances);
 terrainScatterWantsCollision(const TerrainScatterInstance &instance);
 
 // Why collision was skipped, for a density report. Empty when collision is
-// wanted. Never empty-and-silent: a decorative role that produces no collider
+// wanted. Never empty-and-silent: a decorative rule that produces no collider
 // is a decision, and a report that cannot name it is indistinguishable from a
 // bug.
 [[nodiscard]] std::string_view

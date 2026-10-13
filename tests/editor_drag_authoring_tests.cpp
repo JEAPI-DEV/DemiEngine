@@ -157,28 +157,33 @@ void checkAssetsBackgroundDrop(EditorWorkspace &workspace,
   renderExternalDragFrame(demi::editor::EditorSceneEntityPayload, entityId,
                           gridBackground, false, drawAssets);
 
-  ImGuiWindow *dialog = ImGui::FindWindowByName("New document");
+  ImGuiWindow *dialog = ImGui::FindWindowByName("Create Prefab###CreateSource");
   require(dialog != nullptr && dialog->Active,
           "Entity drop did not open the prefab naming dialog");
   // Let the newly opened dialog's name-field focus request settle before
   // activating another widget through keyboard navigation.
   renderFrame(drawAssets);
-  ImGui::ActivateItemByID(dialog->GetID("Create prefab copy"));
+  ImGui::ActivateItemByID(dialog->GetID("Create prefab"));
   renderFrame(drawAssets);
 
   const fs::path created = root / "prefabs/Player_Prefab.prefab.json";
   require(fs::is_regular_file(created),
-          "Create prefab copy did not write the expected source");
+          "Create prefab did not write the expected source");
   const json prefab = readJson(created);
   require(prefab.at("id") == "prefab://Player_Prefab",
           "Created prefab has the wrong stable ID");
   require(prefab.at("entities") ==
               json::array({sceneBefore.at("entities").at(0)}),
           "Created prefab did not copy the dragged authored entity");
+  const auto &instance = workspace.sceneDocument().json().at("entities").at(0);
+  require(instance.at("prefab") == "prefab://Player_Prefab" &&
+              instance.at("entity_ids").at("player") == "player",
+          "Default creation did not replace the dragged hierarchy with "
+          "preserved IDs");
+  std::string error;
+  require(workspace.undo(error), error);
   require(workspace.sceneDocument().json() == sceneBefore,
-          "Creating a prefab copy changed the authored scene");
-  require(!workspace.sceneDocument().canUndo(),
-          "Creating a prefab copy inserted a scene undo command");
+          "Prefab replacement Undo did not restore the original hierarchy");
 }
 
 void checkViewportPrefabDrop(EditorWorkspace &workspace,
@@ -304,6 +309,32 @@ void checkElevatedTerrainPlacement(const fs::path &prefabPath) {
   require(overrides->at("body").at("components").at("Transform3D")
               .at("position")[1] == 6,
           "Prefab drop lost its source height over elevated terrain");
+  const auto rounded = demi::editor::prefabPlacementOverrides(
+      prefabPath, demi::runtime::Vec3{5.123456F, 5.234567F, 5.345678F}, error);
+  require(rounded && rounded->at("body").at("components").at("Transform3D")
+                         .at("position") == json({5.123, 6.235, 5.346}),
+          "Prefab placement retained floating point noise");
+}
+
+void checkLightCreation(EditorWorkspace &workspace) {
+  std::string error;
+  const auto before = workspace.sceneDocument().json();
+  for (const auto kind : {demi::editor::EditorEntityKind::PointLight,
+                          demi::editor::EditorEntityKind::SpotLight,
+                          demi::editor::EditorEntityKind::BasicLighting}) {
+    require(workspace.createEntity(error, {}, kind, demi::runtime::Vec3{2, 3, 4}), error);
+    const auto *created = workspace.sceneDocument().entity(workspace.selectedEntityId());
+    require(created && created->at("components").contains("Transform3D"),
+            "Created light has no editable transform");
+    const char *component = kind == demi::editor::EditorEntityKind::PointLight ? "PointLight"
+                            : kind == demi::editor::EditorEntityKind::SpotLight ? "SpotLight"
+                            : "Environment3D";
+    require(created->at("components").contains(component), "Wrong light component");
+    require(workspace.gizmoPresentation({800, 600}).axes.size() == 3,
+            "Created light cannot be moved with a gizmo");
+    require(workspace.undo(error) && workspace.sceneDocument().json() == before,
+            "Light creation did not undo in one command");
+  }
 }
 
 void checkParentedPlacement(EditorWorkspace &workspace) {
@@ -439,6 +470,24 @@ void checkHudModuleDrop(EditorWorkspace &workspace, const fs::path &hudPath) {
               workspace.hudDocument()->json() == before &&
               !workspace.hudDocument()->canUndo(),
           "Unterminated module payload changed the HUD source");
+
+  require(workspace.setHudNodeField("root", "stack", "row", error), error);
+  workspace.selectHudNode("root");
+  const auto beforeFlow = workspace.hudDocument()->json();
+  renderFrame(drawHud);
+  renderExternalDragFrame(demi::editor::EditorModulePayload, button->id, drop,
+                          true, drawHud);
+  renderExternalDragFrame(demi::editor::EditorModulePayload, button->id, drop,
+                          false, drawHud);
+  const auto &flowChild =
+      workspace.hudDocument()->json().at("root").at("children").front();
+  require(!flowChild.contains("position") &&
+              workspace.displayedHud().nodes[1].layout.position.x == 0 &&
+              workspace.displayedHud().nodes[1].layout.position.y == 0,
+          "Palette drop into a row authored pointer offsets");
+  require(workspace.undo(error) &&
+              workspace.hudDocument()->json() == beforeFlow,
+          "Flow drop Undo did not restore the container");
 }
 
 } // namespace
@@ -494,6 +543,7 @@ int main() {
     checkViewportPrefabDrop(workspace, dropPrefab);
     checkViewportPrimitiveDrop(workspace);
     checkParentedPlacement(workspace);
+    checkLightCreation(workspace);
     workspace.selectEntity("player");
     checkInspectorTabs(workspace, "scene");
     checkHudModuleDrop(workspace, hud);

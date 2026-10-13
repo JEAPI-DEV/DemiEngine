@@ -414,6 +414,7 @@ public:
   [[nodiscard]] bool setHudColor(const std::string &id, Color color);
   [[nodiscard]] bool setHudBackgroundColor(const std::string &id, Color color);
   [[nodiscard]] bool setHudOpacity(const std::string &id, float opacity);
+  [[nodiscard]] bool applyHudAction(const std::string &action);
   [[nodiscard]] bool setHudVisible(const std::string &id, bool visible);
   [[nodiscard]] bool setHudValue(const std::string &id, float value);
   [[nodiscard]] bool setHudChecked(const std::string &id, bool checked);
@@ -424,6 +425,9 @@ public:
   [[nodiscard]] std::optional<std::string> hudText(const std::string &id) const;
   [[nodiscard]] std::optional<ui::UiNodeHandle>
   createHudNode(const std::string &parent, ui::UiNode node, std::string &error);
+  [[nodiscard]] std::optional<ui::UiNodeHandle>
+  createHudDefinition(const std::string &parent,
+                      const nlohmann::json &definition, std::string &error);
   [[nodiscard]] std::optional<ui::UiNodeHandle>
   hudNodeHandle(const std::string &id) const;
   [[nodiscard]] std::optional<ui::UiNodeHandle>

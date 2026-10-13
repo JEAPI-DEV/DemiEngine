@@ -13,8 +13,8 @@ namespace demi::runtime {
 // something belongs is a generation concern that must stay testable without a
 // renderer or a world; turning a placement into an entity is the consumer's job.
 struct TerrainScatterPlacement {
-  TerrainPaletteRole role = TerrainPaletteRole::Soil;
-  std::string asset;
+  std::string ruleId;
+  std::string model;
   std::string prefab;
   // Index into the generated field's biomeIds, kept as the name for diagnostics.
   std::size_t biome = 0;

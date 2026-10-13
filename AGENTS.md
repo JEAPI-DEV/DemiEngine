@@ -46,6 +46,14 @@ the actual capability matrix rather than implying Unity-scale 3D features.
   newer or the APK is missing. Add `--watch` for cooked source hot reload.
 - Attached Android device: `./build/linux-debug/demi test android --project <project> --serial <device>`
 
+Use the optimized `linux-release` native editor for routine desktop authoring
+and performance checks. Keep `linux-debug` for focused tests and native engine
+debugging. Embedded Play uses the editor binary's build, independently of the
+standalone Run & Test configuration. Always record build configuration alongside
+performance results; an unoptimized native Debug run is not a hardware limit.
+After rebuilding native code, relaunch the editor/runtime before measuring it.
+Restarting embedded Play does not reload an already-running editor executable.
+
 Run the narrowest relevant tests while iterating, then broaden validation in
 proportion to risk. Never report a full green gate if unrelated or newly added
 tests are failing; identify the exact failing test and whether it predates the
@@ -83,6 +91,19 @@ Important owners:
 Split large files by responsibility and reason to change, not arbitrary line
 count. Keep coordinators thin; parsing, persistence, platform integration,
 rendering, validation, and presentation should not accumulate in one class.
+
+## Readable Implementation
+
+- Write code for developers to read, learn from, and extend. Do not compress
+  statements, branches, loops, or test setup to save lines or tokens.
+- Use braces for new control flow, descriptive names, and one operation per line.
+  Name intermediate decisions when an expression combines several concerns.
+- Keep coordinators readable as a sequence of named operations. Give parsing,
+  classification, binding, persistence, and publication their own cohesive owners.
+- Explain non-obvious invariants and tradeoffs in comments; do not narrate syntax.
+- Review readability while implementing, including tests. Formatting alone does
+  not fix mixed responsibilities or dense logic. Do not leave cleanup for the
+  user or a later agent.
 
 ## Source, Generated, And Writable Data
 

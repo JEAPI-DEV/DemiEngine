@@ -1,0 +1,149 @@
+{
+  "entities": [
+    {
+      "components": {
+        "Camera3D": {
+          "target_offset": [
+            0,
+            0,
+            48.0
+          ],
+          "near_clip": 1.0
+        },
+        "Transform3D": {
+          "position": [
+            112.0,
+            28.0,
+            112.0
+          ],
+          "rotation": [
+            0.62,
+            -2.356,
+            0.0
+          ]
+        },
+        "LuaScript": {
+          "module": "script://scripts/colony_camera.lua",
+          "properties": {
+            "pan_speed": 35.0
+          }
+        },
+        "Environment3D": {
+          "shadow_bias": 0.01
+        }
+      },
+      "id": "camera"
+    },
+    {
+      "components": {
+        "DirectionalLight": {"intensity": 3.0}
+      },
+      "id": "sun"
+    },
+    {
+      "components": {
+        "Terrain3D": {
+          "asset": "asset://terrains/desert"
+        },
+        "Transform3D": {
+          "position": [
+            0.31491804122924805,
+            0.0,
+            1.0720882415771484
+          ]
+        }
+      },
+      "id": "terrain",
+      "name": "Terrain"
+    },
+    {
+      "id": "cylinder_instance",
+      "name": "Habitat",
+      "entity_ids": {
+        "cylinder": "cylinder"
+      },
+      "prefab": "prefab://habitat_linked"
+    },
+    {
+      "id": "ent_new",
+      "name": "Colony Simulation",
+      "components": {
+        "LuaScript": {
+          "module": "script://scripts/colony_simulation.lua",
+          "properties": {
+            "power_demand": 6.0,
+            "power_supply": 12.0,
+            "water_capacity": 100.0,
+            "water_production": 2.0,
+            "solar_array": "cube",
+            "water_extractor": "cylinder_2"
+          }
+        },
+        "Transform3D": {
+          "position": [
+            65.62602233886719,
+            0.7105817794799805,
+            66.38319396972656
+          ]
+        }
+      }
+    },
+    {
+      "id": "cube_instance",
+      "name": "Solar Array",
+      "entity_ids": {
+        "cube": "cube"
+      },
+      "prefab": "prefab://solar_array"
+    },
+    {
+      "id": "cylinder_2",
+      "name": "Water Extractor",
+      "components": {
+        "Transform3D": {
+          "position": [
+            75.502,
+            1.194,
+            83.85
+          ],
+          "scale": [
+            3.0,
+            3.0,
+            3.0
+          ]
+        },
+        "MeshRenderer": {"color": [0.2,0.6,0.65,1.0], "shape": "cylinder"},
+        "CapsuleCollider3D": {
+          "height": 1.0
+        }
+      }
+    },
+    {
+      "id": "construction",
+      "name": "Engineer Mara",
+      "prefab": "prefab://colonists/engineer",
+      "entity_ids": {"body": "engineer"}
+    },
+    {
+      "id": "depot",
+      "prefab": "prefab://utilities/depot",
+      "overrides": {
+        "base": {
+          "components": {
+            "Transform3D": {
+              "position": [
+                60.775,
+                1.188,
+                67.981
+              ]
+            }
+          }
+        }
+      }
+    }
+  ],
+  "format_version": 1,
+  "id": "scene://colony",
+  "name": "colony",
+  "hud": "../hud/colony.hud.json"
+}

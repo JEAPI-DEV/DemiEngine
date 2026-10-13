@@ -13,6 +13,6 @@ struct EditorWorkspaceLayout {
 
 [[nodiscard]] EditorWorkspaceLayout editorWorkspaceLayout(float width,
                                                           float height);
-[[nodiscard]] float editorFontSize(float logicalDpi);
+[[nodiscard]] float editorDisplayScale(float logicalDpi, float userZoom = 1.0F);
 
 } // namespace demi::editor

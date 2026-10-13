@@ -6,6 +6,7 @@
 #include <cstring>
 #include <iostream>
 #include <limits>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -711,6 +712,24 @@ void corruptionIsAlwaysRefused() {
 
 } // namespace
 
+void nonFinalCookedQualityCannotLoad() {
+  const auto field = generateField();
+  std::string error;
+  const auto cooked = cookTerrainField(inputFor(*field, nullptr), &error);
+  assert(cooked && error.empty());
+  for (const std::string quality : {"preview", "unknown", ""}) {
+    auto invalid = *cooked;
+    invalid.quality = quality;
+    bool refused = false;
+    try {
+      (void)loadTerrainCookedField(invalid);
+    } catch (const std::logic_error &failure) {
+      refused = std::string(failure.what()).find("Final") != std::string::npos;
+    }
+    assert(refused);
+  }
+}
+
 int main() {
   TerrainRecipe graphRecipe;
   graphRecipe.graph = defaultTerrainGraph();
@@ -719,6 +738,7 @@ int main() {
   assert(terrainCookRecipeDigest(graphRecipe) == graphDigest);
   graphRecipe.seed += 1;
   assert(terrainCookRecipeDigest(graphRecipe) != graphDigest);
+  nonFinalCookedQualityCannotLoad();
   roundTripsEveryField();
   emptyBiomesAndEmptyMasksRoundTrip();
   maskPresenceIsRecorded();

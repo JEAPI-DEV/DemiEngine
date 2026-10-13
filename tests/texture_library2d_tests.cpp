@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <string_view>
 
 using namespace demi::runtime::render;
 
@@ -67,6 +68,16 @@ int main() {
   assert(textures.upload("asset://red", image, error, sampling));
   const TextureView2D first = textures.find("asset://red");
   assert(first.handle && first.width == 1 && first.height == 1);
+  constexpr std::string_view textureId = "asset://red";
+  const std::string wrappedTextureId = "prefix:asset://red:suffix";
+  const auto textureIdView =
+      std::string_view(wrappedTextureId).substr(7, textureId.size());
+  assert(textures.find(textureIdView).handle == first.handle);
+  assert(!textures
+              .find(std::string_view(wrappedTextureId)
+                        .substr(7, textureId.size() + 1))
+              .handle);
+  assert(!textures.find(std::string_view{}).handle);
 
   ImageData2D invalid = image;
   invalid.rgba.pop_back();
@@ -80,7 +91,10 @@ int main() {
   assert(replacement.handle && replacement.handle != first.handle);
   assert(replacement.width == 2);
   assert(textures.size() == 1);
-  assert(textures.remove("asset://red"));
+  assert(!textures.remove(
+      std::string_view(wrappedTextureId).substr(7, textureId.size() + 1)));
+  assert(textures.find(textureIdView).handle == replacement.handle);
+  assert(textures.remove(textureIdView));
   assert(!textures.remove("asset://red"));
   assert(!textures.find("asset://red").handle);
 

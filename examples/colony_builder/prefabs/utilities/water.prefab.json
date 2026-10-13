@@ -1,0 +1,131 @@
+{
+  "format_version": 1,
+  "id": "prefab://utilities/water",
+  "entities": [
+    {
+      "id": "base",
+      "components": {
+        "Transform3D": {
+          "position": [
+            0,
+            0,
+            0
+          ]
+        },
+        "BoxCollider3D": {
+          "size": [
+            4,
+            3,
+            4
+          ],
+          "offset": [
+            0,
+            1.5,
+            0
+          ]
+        }
+      },
+      "children": [
+        {
+          "id": "foundation",
+          "components": {
+            "Transform3D": {
+              "scale": [
+                4,
+                0.35,
+                4
+              ]
+            },
+            "MeshRenderer": {
+              "shape": "cube",
+              "color": [
+                0.32,
+                0.34,
+                0.36,
+                1
+              ]
+            }
+          }
+        },
+        {
+          "id": "tank",
+          "components": {
+            "Transform3D": {
+              "position": [
+                0,
+                1.45,
+                0
+              ],
+              "scale": [
+                2.5,
+                2.5,
+                2.5
+              ]
+            },
+            "MeshRenderer": {
+              "shape": "cylinder",
+              "color": [
+                0.2,
+                0.55,
+                0.6,
+                1
+              ]
+            }
+          }
+        },
+        {
+          "id": "cap",
+          "components": {
+            "Transform3D": {
+              "position": [
+                0,
+                2.8,
+                0
+              ],
+              "scale": [
+                2.7,
+                0.2,
+                2.7
+              ]
+            },
+            "MeshRenderer": {
+              "shape": "cylinder",
+              "color": [
+                0.65,
+                0.75,
+                0.78,
+                1
+              ]
+            }
+          }
+        },
+        {
+          "id": "pipe",
+          "components": {
+            "Transform3D": {
+              "position": [
+                1.5,
+                0.7,
+                0
+              ],
+              "scale": [
+                0.4,
+                1.4,
+                0.4
+              ]
+            },
+            "MeshRenderer": {
+              "shape": "cube",
+              "color": [
+                0.6,
+                0.7,
+                0.75,
+                1
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

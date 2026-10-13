@@ -1,4 +1,5 @@
 #include "demi/assets/TerrainAsset.h"
+#include "demi/runtime/terrain/TerrainSurfaceMaterials.h"
 #include "demi/assets/TerrainSurfaceReferences.h"
 
 #include "demi/assets/TerrainAssetPayload.h"
@@ -56,7 +57,9 @@ SourceInputs resolveSource(const AssetRegistry &registry,
 void verifyPrepared(const SourceInputs &source,
                     const terrain_storage::PreparedField &prepared) {
   if (prepared.recipeDigest != source.recipeDigest ||
-      prepared.inputFingerprint != source.inputFingerprint)
+      prepared.inputFingerprint != source.inputFingerprint ||
+      !runtime::terrainSurfaceBindingsMatch(
+          *prepared.field, source.generation.palette.get()))
     throw std::runtime_error(
         "Prepared terrain is stale after its recipe or asset inputs changed");
   runtime::publishTerrain(source.source.recipe, source.inputFingerprint,
@@ -127,6 +130,15 @@ std::filesystem::path prepareTerrainAsset(const AssetRegistry &registry,
   if (std::filesystem::exists(source.cachePath)) {
     try {
       const auto prepared = terrain_storage::read(source.cachePath);
+      const bool generationInputsMatch =
+          prepared.recipeDigest == source.recipeDigest &&
+          prepared.inputFingerprint == source.inputFingerprint;
+      const bool surfaceBindingsMatch = runtime::terrainSurfaceBindingsMatch(
+          *prepared.field, source.generation.palette.get());
+      if (generationInputsMatch && !surfaceBindingsMatch) {
+        return storeTerrainAssetPreview(registry, assetId, source.source.recipe,
+                                        prepared.field);
+      }
       verifyPrepared(source, prepared);
       return source.cachePath;
     } catch (const std::exception &) {
@@ -164,11 +176,19 @@ storeTerrainAssetPreview(const AssetRegistry &registry,
       registry, assetId, recipeDigest, inputFingerprint);
   auto prepared = std::make_shared<runtime::HeightField>(*field);
   prepared->inputFingerprint = inputFingerprint;
-  if (generation.palette) {
-    if (!prepared->resolvedPalette || prepared->paletteId != proposed.paletteId)
-      throw std::invalid_argument(
-          "Terrain preview does not contain its resolved palette");
+  if (!runtime::terrainSurfaceBindingsMatch(*prepared, generation.palette.get())) {
+    const bool updated = runtime::updateTerrainSurfaceMaterials(
+        *prepared, proposed, generation.palette.get(), false);
+    if (!updated) {
+      throw std::runtime_error("Terrain appearance preparation cancelled");
+    }
   }
+  if (generation.palette &&
+      (!prepared->resolvedPalette || prepared->paletteId != proposed.paletteId)) {
+    throw std::invalid_argument(
+        "Terrain preview does not contain its resolved palette");
+  }
+  prepared->resolvedPalette = generation.palette;
   runtime::publishTerrain(recipe, inputFingerprint, prepared);
   const auto bytes =
       serializeTerrainAssetPayload(*prepared, recipeDigest, inputFingerprint);

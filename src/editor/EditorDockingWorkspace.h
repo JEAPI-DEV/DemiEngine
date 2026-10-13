@@ -9,6 +9,10 @@ struct ImVec2;
 
 namespace demi::editor {
 
+// Keep saved docking coordinates coherent when DPI or user zoom changes.
+void installEditorLayoutScaleTracking(float &scale);
+void rescaleEditorLayout(float factor);
+
 class EditorDockingWorkspace {
 public:
   explicit EditorDockingWorkspace(std::filesystem::path editorDataRoot);

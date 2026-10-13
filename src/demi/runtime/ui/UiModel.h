@@ -36,6 +36,9 @@ struct LayoutSpec {
   Vec2 size{};
   Vec2 anchorMin{};
   Vec2 anchorMax{};
+  // Derived from dock shorthand; explicit anchors retain their origin
+  // semantics.
+  Vec2 dockPivot{};
   Vec2 minSize{};
   Vec2 maxSize{};
   Insets margin{};
@@ -44,6 +47,12 @@ struct LayoutSpec {
   Alignment alignment = Alignment::Start;
   float gap = 0.0F;
   int columns = 1;
+};
+
+struct UiActionEffect {
+  std::vector<std::string> show;
+  std::vector<std::string> hide;
+  std::string focus;
 };
 
 struct UiNode {
@@ -62,6 +71,7 @@ struct UiNode {
   std::string texture;
   std::string animation;
   std::string action;
+  std::unordered_map<std::string, UiActionEffect> actionEffects;
   std::string control;
   std::string accessibilityLabel;
   std::string accessibilityDescription;
@@ -95,6 +105,7 @@ struct UiNode {
   bool visible = true;
   bool disabled = false;
   bool focusable = false;
+  bool blocksPointer = false;
   bool checked = false;
   bool hovered = false;
   bool accessibilityHidden = false;
@@ -129,12 +140,6 @@ struct UiStyle {
   bool hasControlHeight = false;
   float rowHeight = 0.0F;
   bool hasRowHeight = false;
-};
-
-struct UiActionEffect {
-  std::vector<std::string> show;
-  std::vector<std::string> hide;
-  std::string focus;
 };
 
 struct UiDocument {

@@ -6,7 +6,8 @@
 
 namespace demi::cli {
 
-// `demi test linux [path] [--timeout seconds]`: the desktop counterpart of
+// Desktop runtime tests with a wall timeout and forwarded frame/viewport options;
+// the desktop counterpart of
 // `demi test android`. Launches the project with the Lua mobile test harness
 // enabled, waits for the `[test] SUMMARY` marker, and writes the same report
 // family under `<project>/build/linux/qualification/`.

@@ -20,6 +20,10 @@ public:
   std::span<const BgfxCameraFrame3D> depthFrames() const { return frames_; }
   void cast(std::size_t cascade);
   void receive();
+  std::uint32_t availableInstances(std::uint16_t stride,
+                                   std::uint32_t requested) const override {
+    return commands_.availableInstances(stride, requested);
+  }
   bool configureView2D(const View2DConfig &v, std::string &e) override {
     return commands_.configureView2D(v, e);
   }

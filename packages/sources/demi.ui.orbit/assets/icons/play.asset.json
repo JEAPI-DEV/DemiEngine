@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://orbit/icons/play",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {},
+  "source": "play.svg",
+  "source_hash": "fnv1a64:5a03a81711e39cff",
+  "type": "Icon2D"
+}

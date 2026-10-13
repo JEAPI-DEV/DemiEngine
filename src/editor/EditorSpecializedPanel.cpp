@@ -148,8 +148,7 @@ void drawMaterialControls(EditorSpecializedDocument &editor,
         (*color)[2].get<float>(), (*color)[3].get<float>()};
     if (drawEditorColorControl(
             "Base color", edited.data(),
-            {.flags = ImGuiColorEditFlags_AlphaBar | ImGuiColorEditFlags_Float,
-             .showPrecision = true})) {
+            {.flags = ImGuiColorEditFlags_AlphaBar | ImGuiColorEditFlags_Float})) {
       std::string error;
       notice = document.set("/parameters/base_color", edited, error)
                    ? "Material color modified"
@@ -320,6 +319,7 @@ bool EditorSpecializedPanel::restore(const EditorRecoveryDocument &recovery,
 
 void EditorSpecializedPanel::draw(EditorWorkspace &workspace,
                                   std::string &notice) {
+  animatedPreviewVisible_ = false;
   if (!active_)
     return;
   ImGui::SetNextWindowSize({1120.0F, 760.0F}, ImGuiCond_FirstUseEver);
@@ -328,6 +328,7 @@ void EditorSpecializedPanel::draw(EditorWorkspace &workspace,
     return;
   }
 
+  animatedPreviewVisible_ = active_->kind() == EditorSpecializedKind::Animation;
   EditorJsonDocument &document = active_->document();
   // Measure the toolbar first so the title row is clipped to leave room for
   // it regardless of window width or path length.

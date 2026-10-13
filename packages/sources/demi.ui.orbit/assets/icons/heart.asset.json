@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://orbit/icons/heart",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {},
+  "source": "heart.svg",
+  "source_hash": "fnv1a64:24c73f452d2683cd",
+  "type": "Icon2D"
+}

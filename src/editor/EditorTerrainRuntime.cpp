@@ -60,14 +60,13 @@ updateEditorTerrain(const nlohmann::json &before, const nlohmann::json &after,
     error = "Terrain brush requires the current native surface.";
     return std::nullopt;
   }
-  return wrapTerrainUpdate(runtime::updateTerrain(
-      runtime::TerrainRecipe::parse(before),
-      runtime::TerrainRecipe::parse(after), previous->heightField(), stop,
-      progress));
+  return wrapTerrainUpdate(
+      runtime::updateTerrain(runtime::TerrainRecipe::parse(before),
+                             runtime::TerrainRecipe::parse(after),
+                             previous->heightField(), stop, progress));
 }
 
-std::optional<EditorTerrainUpdate>
-updateEditorTerrainWithInputs(
+std::optional<EditorTerrainUpdate> updateEditorTerrainWithInputs(
     const nlohmann::json &before, const nlohmann::json &after,
     EditorTerrainSurfacePtr previous,
     const runtime::TerrainGenerationInputs &inputs, std::stop_token stop,
@@ -136,16 +135,17 @@ nlohmann::json defaultEditorTerrainRecipe() {
 EditorTerrainSurfacePtr
 generateEditorTerrain(const nlohmann::json &recipe, std::stop_token stop,
                       const std::function<void(float)> &progress,
-                      std::string &error) {
-  return generateEditorTerrainWithInputs(
-      recipe, runtime::TerrainGenerationInputs{}, stop, progress, error);
+                      std::string &error, runtime::TerrainQuality quality) {
+  return generateEditorTerrainWithInputs(recipe,
+                                         runtime::TerrainGenerationInputs{},
+                                         stop, progress, error, quality);
 }
 
-EditorTerrainSurfacePtr
-generateEditorTerrainWithInputs(
+EditorTerrainSurfacePtr generateEditorTerrainWithInputs(
     const nlohmann::json &recipe,
     const runtime::TerrainGenerationInputs &inputs, std::stop_token stop,
-    const std::function<void(float)> &progress, std::string &error) {
+    const std::function<void(float)> &progress, std::string &error,
+    runtime::TerrainQuality quality) {
   error.clear();
   const auto parsed = runtime::TerrainRecipe::parse(recipe);
   if (parsed.paletteId.empty() && inputs.palette) {
@@ -159,14 +159,32 @@ generateEditorTerrainWithInputs(
             parsed.paletteId;
     return {};
   }
-  auto field = runtime::TerrainGenerator::generate(
-      parsed, inputs.palette.get(), stop, progress, inputs.fingerprint);
+  auto field = runtime::TerrainGenerator::generate(parsed, inputs.palette.get(),
+                                                   stop, progress,
+                                                   inputs.fingerprint, quality);
   if (!field) {
     error = "Terrain generation cancelled.";
     return {};
   }
   return std::make_shared<HeightFieldSurface>(
       std::make_shared<const runtime::HeightField>(std::move(*field)));
+}
+
+std::optional<EditorTerrainUpdate> regenerateEditorTerrainWithInputs(
+    const nlohmann::json &recipe, EditorTerrainSurfacePtr previous,
+    const runtime::TerrainGenerationInputs &inputs,
+    runtime::TerrainQuality quality, std::stop_token stop,
+    const std::function<void(float)> &progress, std::string &error) {
+  error.clear();
+  auto update = runtime::regenerateTerrainWithInputs(
+      runtime::TerrainRecipe::parse(recipe),
+      previous ? previous->heightField() : nullptr,
+      "Generation quality request", inputs, stop, progress, quality);
+  if (!update) {
+    error = "Terrain generation cancelled.";
+    return std::nullopt;
+  }
+  return wrapTerrainUpdate(std::move(update));
 }
 
 EditorTerrainSurfacePtr currentEditorTerrain(const runtime::World &world,
@@ -192,6 +210,6 @@ void publishEditorTerrain(const nlohmann::json &recipe,
   // Key on the palette content, not just its id, so an edited palette
   // cannot leave a stale field reachable in the editor.
   runtime::publishTerrain(recipe, generated->field->inputFingerprint,
-                       generated->field);
+                          generated->field);
 }
 } // namespace demi::editor

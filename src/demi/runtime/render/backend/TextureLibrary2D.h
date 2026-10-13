@@ -1,5 +1,7 @@
 #pragma once
 
+#include "demi/core/StringHash.h"
+
 #include "demi/runtime/render/backend/GpuResources.h"
 #include "demi/runtime/render/backend/ImageDecoder2D.h"
 
@@ -31,12 +33,11 @@ public:
   TextureLibrary2D(const TextureLibrary2D &) = delete;
   TextureLibrary2D &operator=(const TextureLibrary2D &) = delete;
 
-  [[nodiscard]] bool
-  load(std::string id, std::span<const std::byte> encoded, std::string &error,
-       TextureSampling2D sampling = {});
-  [[nodiscard]] bool
-  upload(std::string id, const ImageData2D &image, std::string &error,
-         TextureSampling2D sampling = {});
+  [[nodiscard]] bool load(std::string id, std::span<const std::byte> encoded,
+                          std::string &error, TextureSampling2D sampling = {});
+  [[nodiscard]] bool upload(std::string id, const ImageData2D &image,
+                            std::string &error,
+                            TextureSampling2D sampling = {});
   [[nodiscard]] TextureView2D find(std::string_view id) const;
   [[nodiscard]] bool remove(std::string_view id);
   void clear();
@@ -44,7 +45,8 @@ public:
 
 private:
   GpuResources &resources_;
-  std::unordered_map<std::string, TextureView2D> textures_;
+  std::unordered_map<std::string, TextureView2D, StringHash, std::equal_to<>>
+      textures_;
 };
 
 } // namespace demi::runtime::render

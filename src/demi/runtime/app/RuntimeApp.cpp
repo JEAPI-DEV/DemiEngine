@@ -610,16 +610,19 @@ int runProject(const RuntimeOptions &options) {
     const int targetFrames =
         options.maxFrames > 0
             ? options.maxFrames
-            : (inputReplay ? static_cast<int>(inputReplay->frames.size()) : 1);
+            : (options.e2eTests ? static_cast<int>(std::ceil(120.0 / fixedStep))
+               : inputReplay    ? static_cast<int>(inputReplay->frames.size())
+                                : 1);
     bool running = true;
-    const bool unboundedServer = options.serve && options.maxFrames == 0;
+    const bool unboundedServer =
+        options.serve && !options.e2eTests && options.maxFrames == 0;
     while (running && (unboundedServer || frameCount < targetFrames)) {
       if (options.watch)
         reportReload(reloadCoordinator.process(watcher.poll()));
       if (inputReplay) {
         // A max-frame replay run commonly needs extra neutral frames for a
         // simulation to settle after its final recorded input.
-        if (options.maxFrames <= 0 &&
+        if (!options.e2eTests && options.maxFrames <= 0 &&
             static_cast<std::size_t>(frameCount) >= inputReplay->frames.size())
           break;
         inputReplay->applyOrNeutral(static_cast<std::size_t>(frameCount),
@@ -630,6 +633,10 @@ int runProject(const RuntimeOptions &options) {
       RuntimeProfiler::beginFrame();
       const auto frameStart = std::chrono::steady_clock::now();
       const auto updateStart = std::chrono::steady_clock::now();
+      if (options.e2eTests) {
+        luaHost.drainSyntheticTouches(input);
+        luaHost.updateE2ETests(fixedStep);
+      }
       stepSimulation(loaded, luaHost, input, audioSystem, mediaSystem,
                      networkSystem, assetRegistry,
                      static_cast<float>(fixedStep),
@@ -671,12 +678,18 @@ int runProject(const RuntimeOptions &options) {
       }
     }
     writeProfileReport(options.profileReportPath);
+    if (options.e2eTests && luaHost.e2eTestsActive())
+      luaHost.e2eTestRunner().abort(
+          "Headless runtime stopped before the test suite completed");
+    const bool testsFailed =
+        options.e2eTests &&
+        (luaHost.e2eTestsFailed() != 0 || luaHost.e2eTestsPassed() == 0);
     luaHost.destroy();
     runtimeAssets.shutdown();
     networkSystem.shutdown();
     mediaSystem.shutdown();
     audioSystem.shutdown();
-    return traceFailed ? RuntimeFailure : 0;
+    return traceFailed || testsFailed ? RuntimeFailure : 0;
   }
 
 #if !DEMI_ENABLE_GRAPHICS_RUNTIME

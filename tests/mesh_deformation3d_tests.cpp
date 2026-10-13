@@ -165,9 +165,9 @@ int main() {
     assert(cache.uploads() == 2 && cache.size() == 2);
     assert(cache.get("one", "model", 2, triangle, {}, {}, {}, dents, error));
     assert(cache.uploads() == 3);
-    cache.retain({"one"});
+    cache.retain([](const std::string &id) { return id == "one"; });
     assert(cache.size() == 1);
-    cache.retain({});
+    cache.retain([](const std::string &) { return false; });
     assert(cache.size() == 0 && triangle[0].z == 0);
   }
   resources->clear();

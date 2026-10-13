@@ -123,6 +123,63 @@ bool Canvas2D::solid(const Rect2D &destination, const std::uint32_t rgba,
              uniformSet);
 }
 
+bool Canvas2D::roundedRect(const Rect2D &rect, float radius,
+                           const std::uint32_t rgba, const ScissorRect scissor,
+                           float strokeWidth) {
+  if (!positive(rect) || !std::isfinite(rect.x) || !std::isfinite(rect.y) ||
+      !std::isfinite(rect.width) || !std::isfinite(rect.height) ||
+      !std::isfinite(radius) || !std::isfinite(strokeWidth))
+    return false;
+  radius = std::clamp(radius, 0.0F, std::min(rect.width, rect.height) * 0.5F);
+  strokeWidth =
+      std::clamp(strokeWidth, 0.0F, std::min(rect.width, rect.height) * 0.5F);
+  if (radius == 0.0F && strokeWidth == 0.0F)
+    return solid(rect, rgba, BlendMode::Alpha, scissor);
+  const int segments =
+      std::clamp(static_cast<int>(std::ceil(radius / 3.0F)), 2, 8);
+  const int count = 4 * (segments + 1);
+  const auto point = [&](int index, float inset) {
+    const float r = std::max(radius - inset, 0.0F);
+    const int corner = index / (segments + 1);
+    const float angle =
+        (-1.0F + corner +
+         static_cast<float>(index % (segments + 1)) / segments) *
+        std::numbers::pi_v<float> * 0.5F;
+    const float x = (corner == 0 || corner == 1)
+                        ? rect.x + rect.width - inset - r
+                        : rect.x + inset + r;
+    const float y = (corner == 1 || corner == 2)
+                        ? rect.y + rect.height - inset - r
+                        : rect.y + inset + r;
+    return QuadVertex{.x = x + std::cos(angle) * r,
+                      .y = y + std::sin(angle) * r,
+                      .u = 0.5F,
+                      .v = 0.5F,
+                      .rgba = rgba};
+  };
+  const QuadBatchKey key{.texture = whiteTexture_,
+                         .program = program_,
+                         .blend = BlendMode::Alpha,
+                         .scissor = scissor};
+  const QuadVertex center{.x = rect.x + rect.width * 0.5F,
+                          .y = rect.y + rect.height * 0.5F,
+                          .u = 0.5F,
+                          .v = 0.5F,
+                          .rgba = rgba};
+  for (int i = 0; i < count; ++i) {
+    const int next = (i + 1) % count;
+    const auto a = point(i, 0), b = point(next, 0);
+    if (strokeWidth > 0.0F) {
+      const auto c = point(next, strokeWidth), d = point(i, strokeWidth);
+      if (!batch_.addTriangle(key, {.a = a, .b = b, .c = c}) ||
+          !batch_.addTriangle(key, {.a = a, .b = c, .c = d}))
+        return false;
+    } else if (!batch_.addTriangle(key, {.a = center, .b = a, .c = b}))
+      return false;
+  }
+  return true;
+}
+
 bool Canvas2D::image(const TextureHandle texture, const Rect2D &destination,
                      const TextureRegion2D &source, const std::uint32_t rgba,
                      const BlendMode blend, const ScissorRect scissor,

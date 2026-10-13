@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://orbit/icons/lock",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {},
+  "source": "lock.svg",
+  "source_hash": "fnv1a64:86df211597cd1eaa",
+  "type": "Icon2D"
+}

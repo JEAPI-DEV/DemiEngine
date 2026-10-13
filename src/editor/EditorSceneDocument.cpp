@@ -500,6 +500,59 @@ bool EditorSceneDocument::setValues(std::vector<SceneValueTarget> targets,
   return stageAndCommit(std::move(command), error);
 }
 
+bool EditorSceneDocument::setFieldValues(std::vector<EditorFieldEdit> edits,
+                                         std::string &error) {
+  SetValuesCommand command;
+  auto staged = document_;
+  for (auto &edit : edits) {
+    if (std::ranges::any_of(command.values, [&](const auto &value) {
+          return value.target == edit.target;
+        })) {
+      error = "A field transaction cannot contain the same field twice.";
+      reject(edit.target, error);
+      return false;
+    }
+    const auto *current = value(edit.target);
+    auto replacement =
+        normalizeFieldValue(edit.target, std::move(edit.value), current);
+    if (current && *current == replacement)
+      continue;
+    if (!validate(edit.target, replacement, error)) {
+      reject(edit.target, error);
+      return false;
+    }
+    SetValueCommand next{.target = edit.target,
+                         .before = current
+                                       ? std::optional<nlohmann::json>(*current)
+                                       : std::nullopt,
+                         .after = std::move(replacement)};
+    if (edit.target.isPrefabOverride()) {
+      const auto *instance =
+          findPrefabInstance(document_, edit.target.prefabInstanceId);
+      if (instance && instance->contains("overrides"))
+        next.prefabOverridesBefore = instance->at("overrides");
+    } else if (!edit.target.component.empty()) {
+      const auto *owner = entity(edit.target.entityId);
+      next.createdComponent =
+          owner &&
+          component(edit.target.entityId, edit.target.component) == nullptr;
+      next.createdComponentsContainer =
+          next.createdComponent && !owner->contains("components");
+    }
+    if (!assignValueInDocument(staged, edit.target, next.after)) {
+      error = "A field transaction target no longer exists.";
+      reject(edit.target, error);
+      return false;
+    }
+    command.values.push_back(std::move(next));
+  }
+  if (command.values.empty()) {
+    clearIssue();
+    return true;
+  }
+  return stageAndCommit(std::move(command), error);
+}
+
 void EditorSceneDocument::endContinuousEdit() {
   continuousTarget_.reset();
   continuousRedoBackup_.clear();
@@ -577,6 +630,11 @@ bool EditorSceneDocument::createEntity(std::string &error,
   switch (kind) {
   case EditorEntityKind::Empty:
     break;
+  case EditorEntityKind::Camera: label = "Camera"; break;
+  case EditorEntityKind::PointLight: label = "Point Light"; break;
+  case EditorEntityKind::SpotLight: label = "Spot Light"; break;
+  case EditorEntityKind::DirectionalLight: label = "Sun Light"; break;
+  case EditorEntityKind::BasicLighting: label = "Basic Lighting"; break;
   case EditorEntityKind::Cube:
     label = "Cube";
     shape = "cube";
@@ -598,6 +656,21 @@ bool EditorSceneDocument::createEntity(std::string &error,
   nlohmann::json entity{{"id", id},
                         {"name", label},
                         {"components", nlohmann::json::object()}};
+  auto &components = entity["components"];
+  if (kind == EditorEntityKind::Camera)
+    components["Camera3D"] = nlohmann::json::object();
+  if (kind == EditorEntityKind::PointLight)
+    components["PointLight"] = nlohmann::json::object();
+  if (kind == EditorEntityKind::SpotLight)
+    components["SpotLight"] = nlohmann::json::object();
+  if (kind == EditorEntityKind::DirectionalLight || kind == EditorEntityKind::BasicLighting)
+    components["DirectionalLight"] = {{"casts_shadows", true}};
+  if (kind == EditorEntityKind::BasicLighting)
+    components["Environment3D"] = nlohmann::json::object();
+  if (kind == EditorEntityKind::Camera || kind == EditorEntityKind::PointLight ||
+      kind == EditorEntityKind::SpotLight || kind == EditorEntityKind::DirectionalLight ||
+      kind == EditorEntityKind::BasicLighting)
+    components["Transform3D"] = nlohmann::json::object();
   if (shape != nullptr) {
     entity["components"]["MeshRenderer"] =
         kind == EditorEntityKind::Cube ? nlohmann::json::object()
@@ -904,6 +977,17 @@ bool EditorSceneDocument::pasteEntities(const nlohmann::json &payload,
         instances != document_.end())
       for (const auto &instance : *instances)
         reserved.insert(instance.at("id").get<std::string>());
+    const auto reserveMapped = [&](const auto &items) {
+      for (const auto &item : items)
+        if (const auto mapping = item.find("entity_ids");
+            mapping != item.end() && mapping->is_object())
+          for (const auto &id : *mapping)
+            if (id.is_string())
+              reserved.insert(id.template get<std::string>());
+    };
+    reserveMapped(flat);
+    if (document_.contains("instances"))
+      reserveMapped(document_["instances"]);
     const auto remapping = allocateClipboardIds(copiedIds, std::move(reserved));
     auto copies = payload;
     remapClipboardEntities(copies, remapping);

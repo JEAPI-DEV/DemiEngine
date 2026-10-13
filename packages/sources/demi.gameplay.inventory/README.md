@@ -24,8 +24,8 @@ assert(restored:load(saved))
 `add(item, count, maximum)` takes a per-item cap on each call; the cap is not
 stored as an item definition. `remove(item, count)` returns the amount removed.
 `equip(slot, nil)` clears a slot. Removing the last item does not automatically
-unequip it, so the game must enforce that rule if needed. Supply valid counts
-and caps; a cap below the existing count can make `add` return a negative value.
+unequip it, so the game must enforce that rule if needed. Invalid or nonfinite counts transfer nothing. A cap below the current count also
+adds nothing and never removes existing items.
 
 The caller owns and flushes the event bus. Successful additions/removals queue
 `inventory_changed` with the resulting count; accepted equip calls queue
@@ -45,3 +45,20 @@ From the repository root, test with:
 ```sh
 ./build/linux-debug/demi package test packages/sources/demi.gameplay.inventory
 ```
+
+## Count queries and transfers (1.2)
+
+`count(item)` returns the current quantity or zero. `transfer_to(destination,
+item, count, maximum)` moves only what the destination can accept, respecting its
+item capacity and optional per-item cap. It returns the amount moved. Rejected
+transfers and self-transfers return zero without removing anything. The caller
+still owns and flushes event buses; observers see both inventories updated.
+
+```lua
+local cargo = Inventory.new(events, 1)
+local moved = inventory:transfer_to(cargo, "metal", 4, 4)
+print(inventory:count("metal"), cargo:count("metal"), moved)
+```
+
+Reservation and hauling policy belongs to the game; inventory transfers do not
+teleport entities or choose carriers.

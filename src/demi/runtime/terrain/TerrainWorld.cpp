@@ -1,6 +1,7 @@
 #include "demi/runtime/terrain/TerrainWorld.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/terrain/TerrainScatterRuntime.h"
+#include "demi/runtime/terrain/TerrainSurfaceMaterials.h"
 #include "demi/runtime/terrain/TerrainWorldBatch.h"
 
 #include "demi/runtime/physics/ColliderAsset3D.h"
@@ -12,6 +13,7 @@
 #include "demi/runtime/terrain/TerrainGenerationCache.h"
 #include "demi/runtime/terrain/TerrainGenerator.h"
 #include "demi/runtime/terrain/TerrainMeshBuilder.h"
+#include "demi/runtime/terrain/TerrainRenderLod.h"
 #include "demi/runtime/terrain/TerrainUpdate.h"
 #include "demi/runtime/terrain/TerrainWaterMesh.h"
 
@@ -93,6 +95,13 @@ struct PreparedTerrainWorldUpdate::State {
     std::optional<Color> tint;
     std::optional<std::string> material;
     std::optional<std::vector<Vec2>> uvs;
+    std::optional<MeshMaterialSections3D> sections;
+    std::optional<MeshMaterialSections3D> beforeSections;
+    std::shared_ptr<const PreparedTerrainChunkLod> beforeLod;
+    std::string beforeLodOwner;
+    std::string beforeLodBiome;
+    std::uint64_t beforeLodGeometryRevision = 0;
+    std::shared_ptr<const PreparedTerrainChunkLod> renderLod;
     bool remove = false;
   };
 
@@ -355,6 +364,10 @@ std::optional<PreparedTerrainWorldUpdate> prepareTerrainWorldUpdate(
       serialized.erase("recipe");
       serialized["asset"] = terrain->asset;
     }
+    if (serialized.contains("lod_error_pixels") ||
+        terrain->lodErrorPixels != 2.0F) {
+      serialized["lod_error_pixels"] = terrain->lodErrorPixels;
+    }
     state->serializedTerrain = serialized.dump();
     if (!state->beforeSerializedTerrain) {
       // A prepared node permits first publication on native-created owners
@@ -429,8 +442,21 @@ std::optional<PreparedTerrainWorldUpdate> prepareTerrainWorldUpdate(
            .collider = collider ? collider->inlineGeometry : nullptr,
            .beforeColor = mesh->color,
            .beforeMaterial = mesh->material});
+      if (const auto *sections = entity.component<MeshMaterialSections3D>()) {
+        state->changes.back().beforeSections = *sections;
+      }
+      if (const auto *lod = entity.component<TerrainRenderLod>()) {
+        state->changes.back().beforeLod = lod->chunk;
+        state->changes.back().beforeLodOwner = lod->owner;
+        state->changes.back().beforeLodBiome = lod->biome;
+        state->changes.back().beforeLodGeometryRevision =
+            lod->fullGeometryRevision;
+      }
       return state->changes.back();
     };
+    std::map<std::pair<int, int>,
+             std::shared_ptr<const PreparedTerrainChunkLod>>
+        preparedLods;
     if (full)
       for (const auto index : ownerSurfaces)
         stage(index).remove = true;
@@ -450,10 +476,12 @@ std::optional<PreparedTerrainWorldUpdate> prepareTerrainWorldUpdate(
           stage(index).remove = true;
 
       const auto surfaces = buildChunkTriangles(field, chunk, stop);
-      if (stop.stop_requested()) {
+      const auto renderLod = prepareTerrainRenderLod(update.field, chunk, stop);
+      if (stop.stop_requested() || !renderLod) {
         error = "Terrain publication cancelled";
         return std::nullopt;
       }
+      preparedLods[{chunk.firstCellX, chunk.firstCellZ}] = renderLod;
       for (const auto &[biome, triangles] : surfaces) {
         const auto &biomeId = field.biomeIds.at(biome);
         const auto color = field.biomeColors.at(biome);
@@ -467,6 +495,9 @@ std::optional<PreparedTerrainWorldUpdate> prepareTerrainWorldUpdate(
               "Generated terrain entity ID conflicts with existing entity: " +
               id);
 
+        const auto sections = terrain_detail::buildTerrainMaterialSections(
+            field, biome, triangles.samples,
+            old ? old->component<MeshMaterialSections3D>() : nullptr);
         std::shared_ptr<const ColliderAsset3D> retainedCollider;
         if (old) {
           auto &change = stage(existing->second);
@@ -477,7 +508,13 @@ std::optional<PreparedTerrainWorldUpdate> prepareTerrainWorldUpdate(
                                  samePoint) &&
               std::ranges::equal(mesh->normals, triangles.normals, samePoint) &&
               std::ranges::equal(mesh->uvs, triangles.uvs, sameUv);
-          if (sameGeometry) {
+          if (sameGeometry && old->hasComponent<TerrainRenderLod>()) {
+            change.renderLod = renderLod;
+            const auto *previousSections =
+                old->component<MeshMaterialSections3D>();
+            if (!previousSections || *previousSections != sections) {
+              change.sections = sections;
+            }
             if (!sameColor(mesh->color, color))
               change.tint = color;
             if (mesh->material != material)
@@ -504,8 +541,12 @@ std::optional<PreparedTerrainWorldUpdate> prepareTerrainWorldUpdate(
         if (!entity)
           return std::nullopt;
         entity->enabled = enabled;
+        entity->setComponent(sections);
         entity->setComponent(TerrainGeneratedSurface{
             owner.id, chunk.firstCellX, chunk.firstCellZ, biomeId});
+        entity->setComponent(TerrainRenderLod{
+            renderLod, biomeId, owner.id,
+            entity->component<MeshRendererComponent>()->revision});
         if (old)
           stage(existing->second).replacement = std::move(*entity);
         else {
@@ -538,6 +579,36 @@ std::optional<PreparedTerrainWorldUpdate> prepareTerrainWorldUpdate(
               "Removed biome still owns unchanged terrain triangles: " +
               surface->biome);
         const auto biomeIndex = std::size_t(biome - field.biomeIds.begin());
+        const auto *previousLod =
+            world.entities[index].component<TerrainRenderLod>();
+        if (previousLod && previousLod->chunk) {
+          const auto key = std::pair{surface->firstCellX, surface->firstCellZ};
+          auto [prepared, inserted] = preparedLods.try_emplace(key);
+          if (inserted) {
+            const bool textureScaleChanged =
+                state->beforeField->biomeTextureScales !=
+                field.biomeTextureScales;
+            if (textureScaleChanged) {
+              const auto chunk = std::ranges::find_if(
+                  field.chunks, [&](const TerrainChunk &candidate) {
+                    return candidate.firstCellX == key.first &&
+                           candidate.firstCellZ == key.second;
+                  });
+              if (chunk == field.chunks.end()) {
+                throw std::invalid_argument("Terrain LOD chunk is missing");
+              }
+              prepared->second =
+                  prepareTerrainRenderLod(update.field, *chunk, stop);
+              if (!prepared->second) {
+                throw std::runtime_error("Terrain publication cancelled");
+              }
+            } else {
+              prepared->second =
+                  rebindTerrainRenderLod(update.field, *previousLod->chunk);
+            }
+          }
+          stage(index).renderLod = prepared->second;
+        }
         const auto color = field.biomeColors.at(biomeIndex);
         const auto *mesh =
             world.entities[index].component<MeshRendererComponent>();
@@ -546,6 +617,20 @@ std::optional<PreparedTerrainWorldUpdate> prepareTerrainWorldUpdate(
                                       world.entities[index].id);
         if (!sameColor(mesh->color, color))
           stage(index).tint = color;
+        const auto *sections =
+            world.entities[index].component<MeshMaterialSections3D>();
+        const auto pending = staged.find(index);
+        const bool sectionsAlreadyRebuilt =
+            pending != staged.end() && state->changes[pending->second].sections;
+        // A rebuilt section table already uses the new bindings. Rebinding the
+        // live table here would overwrite classification or override changes.
+        if (sections && !sectionsAlreadyRebuilt) {
+          auto rebound = terrain_detail::rebindTerrainMaterialSections(
+              field, biomeIndex, *sections);
+          if (rebound != *sections) {
+            stage(index).sections = std::move(rebound);
+          }
+        }
         if (mesh->material != field.biomeMaterial(biomeIndex))
           stage(index).material = field.biomeMaterial(biomeIndex);
         const auto oldBiome =
@@ -658,6 +743,30 @@ bool publishTerrainWorldUpdate(World &world,
       const auto *collider = entity.component<ModelCollider3DComponent>();
       const auto currentCollider =
           collider ? collider->inlineGeometry : nullptr;
+      const auto *sections = entity.component<MeshMaterialSections3D>();
+      const bool sectionsChanged =
+          change.beforeSections &&
+          (!sections || *sections != *change.beforeSections);
+      if (sectionsChanged) {
+        throw std::invalid_argument(
+            "Terrain preparation is stale: material sections changed");
+      }
+      if (change.sections && !sections) {
+        throw std::invalid_argument(
+            "Terrain surface is missing native material sections");
+      }
+      const auto *renderLod = entity.component<TerrainRenderLod>();
+      const auto currentLod = renderLod ? renderLod->chunk : nullptr;
+      const bool lodIdentityChanged =
+          renderLod &&
+          (renderLod->owner != change.beforeLodOwner ||
+           renderLod->biome != change.beforeLodBiome ||
+           renderLod->fullGeometryRevision != change.beforeLodGeometryRevision);
+      if (currentLod != change.beforeLod || lodIdentityChanged ||
+          (change.renderLod && !renderLod)) {
+        throw std::invalid_argument(
+            "Terrain preparation is stale: render LOD changed");
+      }
       if (entity.id != change.id ||
           terrainSurfaceOwner(entity) != state.ownerId || !mesh ||
           mesh->revision != change.revision ||
@@ -719,6 +828,16 @@ bool publishTerrainWorldUpdate(World &world,
       } else {
         auto *mesh =
             world.entities[change.index].component<MeshRendererComponent>();
+        if (change.renderLod) {
+          auto *lod =
+              world.entities[change.index].component<TerrainRenderLod>();
+          lod->chunk.swap(change.renderLod);
+        }
+        if (change.sections) {
+          auto *sections =
+              world.entities[change.index].component<MeshMaterialSections3D>();
+          *sections = std::move(*change.sections);
+        }
         if (change.tint)
           mesh->color = *change.tint;
         if (change.material)
@@ -726,6 +845,11 @@ bool publishTerrainWorldUpdate(World &world,
         if (change.uvs) {
           mesh->uvs.swap(*change.uvs);
           mesh->markGeometryChanged();
+          auto *lod =
+              world.entities[change.index].component<TerrainRenderLod>();
+          if (lod && change.revision == change.beforeLodGeometryRevision) {
+            lod->fullGeometryRevision = mesh->revision;
+          }
         }
       }
     }
@@ -786,6 +910,11 @@ bool materializeTerrains(World &world, std::string &error,
                          const TerrainFieldResolver &resolveField) {
   error.clear();
   std::vector<Entity> generated;
+  using ChunkLods = std::map<std::pair<int, int>,
+                             std::shared_ptr<const PreparedTerrainChunkLod>>;
+  // Shared asset placements use one immutable preparation within this load.
+  // The retained field list below keeps these pointer keys alive throughout it.
+  std::map<const HeightField *, ChunkLods, std::less<>> preparedLods;
   std::vector<TerrainRuntimeOwner> owners;
   std::unordered_set<std::string> ids;
   for (const auto &entity : world.entities)
@@ -844,6 +973,14 @@ bool materializeTerrains(World &world, std::string &error,
       const bool enabled = terrainHierarchyEnabled(world, owner);
       for (const TerrainChunk &chunk : field->chunks) {
         const auto surfaces = buildChunkTriangles(*field, chunk);
+        auto &renderLod =
+            preparedLods[field.get()][{chunk.firstCellX, chunk.firstCellZ}];
+        if (!renderLod) {
+          renderLod = prepareTerrainRenderLod(field, chunk);
+          if (!renderLod) {
+            throw std::runtime_error("Terrain LOD preparation failed");
+          }
+        }
         for (const auto &[biome, surface] : surfaces) {
           std::string id =
               surfaceId(owner.id, chunk, field->biomeIds.at(biome));
@@ -859,9 +996,14 @@ bool materializeTerrains(World &world, std::string &error,
               field->biomeMaterial(biome), error);
           if (!entity)
             return false;
+          entity->setComponent(terrain_detail::buildTerrainMaterialSections(
+              *field, biome, surface.samples));
           entity->setComponent(TerrainGeneratedSurface{
               owner.id, chunk.firstCellX, chunk.firstCellZ,
               field->biomeIds.at(biome)});
+          entity->setComponent(TerrainRenderLod{
+              renderLod, field->biomeIds.at(biome), owner.id,
+              entity->component<MeshRendererComponent>()->revision});
           entity->enabled = enabled;
           owners.back().surfaces.push_back(entity->id);
           generated.push_back(std::move(*entity));

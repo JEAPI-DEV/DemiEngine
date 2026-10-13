@@ -17,16 +17,15 @@ namespace {
 // never measured.
 constexpr float DiagonalWeight = 0.70710678F;
 
-// Raised on every level a flood closes. It is what makes a flat region and a
-// closed basin terminate with a well-defined direction: without it a perfectly
-// flat field would offer every cell to its neighbours at the same level with no
-// downhill step, and the drainage tree would have cycles in it.
+// Raised on every level a flood closes to order flat regions consistently.
+// Parent links remain acyclic even when float precision absorbs this increment:
+// each parent is already discovered before its child can be assigned.
 constexpr float FloodEpsilon = 1e-5F;
 
 constexpr int NeighbourX[8] = {-1, 0, 1, -1, 1, -1, 0, 1};
 constexpr int NeighbourZ[8] = {-1, -1, -1, 0, 0, 1, 1, 1};
-constexpr bool NeighbourDiagonal[8] = {true, false, true, false, false,
-                                       true, false, true};
+constexpr bool NeighbourDiagonal[8] = {true,  false, true,  false,
+                                       false, true,  false, true};
 
 struct Grid {
   int width = 0;
@@ -51,10 +50,10 @@ Grid gridOf(const HeightField &field) {
 }
 
 // The multi-source chamfer distance transform, reproduced from
-// TerrainBiomeRules.cpp so the rule condition and the drainage mask are the same
-// measurement rather than two similar-looking ones.
-std::vector<float> waterDistances(const std::vector<float> &heights,
-                                  const Grid &grid, Vec2 size, float seaLevel,
+// TerrainBiomeRules.cpp so the rule condition and the drainage mask are the
+// same measurement rather than two similar-looking ones.
+std::vector<float> waterDistances(std::span<const std::uint8_t> wetSamples,
+                                  const Grid &grid, Vec2 size,
                                   std::stop_token stop) {
   constexpr float Unreachable = std::numeric_limits<float>::max() / 4.F;
   std::vector<float> distance(grid.count, std::numeric_limits<float>::max());
@@ -63,7 +62,7 @@ std::vector<float> waterDistances(const std::vector<float> &heights,
     if (stop.stop_requested())
       return {};
     for (int x = 0; x < grid.width; ++x)
-      if (heights[grid.at(x, z)] <= seaLevel) {
+      if (wetSamples[grid.at(x, z)] != 0) {
         const auto cell = grid.at(x, z);
         distance[cell] = 0;
         frontier.push(cell);
@@ -120,6 +119,19 @@ struct FloodGreater {
 
 } // namespace
 
+std::vector<float>
+computeTerrainWaterDistances(const HeightField &field,
+                             std::span<const std::uint8_t> wetSamples,
+                             std::stop_token stop) {
+  const auto grid = gridOf(field);
+  if (field.cellsX <= 0 || field.cellsZ <= 0 ||
+      wetSamples.size() != grid.count) {
+    throw std::invalid_argument(
+        "Water coverage does not match the terrain grid");
+  }
+  return waterDistances(wetSamples, grid, field.size, stop);
+}
+
 std::optional<TerrainDrainage>
 computeTerrainDrainage(const HeightField &field, const TerrainRecipe &recipe,
                        const TerrainDrainageSettings &settings,
@@ -152,15 +164,19 @@ computeTerrainDrainage(const HeightField &field, const TerrainRecipe &recipe,
   //
   // Termination does not depend on the surface being well behaved. The closed
   // flag admits each cell to the heap exactly once, so the loop runs at most
-  // grid.count times whatever the heights are; the epsilon keeps every level
-  // strictly above the level it was closed from, which is what stops a flat
-  // region or a closed basin from forming a cycle in the drainage tree.
+  // grid.count times whatever the heights are. Parent assignment follows
+  // discovery order, so a flat region or closed basin cannot form a cycle.
   std::priority_queue<FloodNode, std::vector<FloodNode>, FloodGreater> frontier;
   std::vector<char> closed(grid.count, 0);
   std::vector<std::size_t> parent(grid.count, terrainNoDownstream);
   // The level each sample was closed at. The gap between this and the sample's
   // own height is what identifies a depression.
   std::vector<float> filled(grid.count, 0.F);
+  // Discovery order is topological: each parent is recorded before its
+  // children. Unlike height sorting, this remains valid when epsilon rounds
+  // away.
+  std::vector<std::size_t> discoveryOrder;
+  discoveryOrder.reserve(grid.count);
   // Every sample is one unit of upstream area, including the border's.
   std::vector<double> accumulation(grid.count, 1.0);
 
@@ -172,6 +188,7 @@ computeTerrainDrainage(const HeightField &field, const TerrainRecipe &recipe,
         continue;
       const auto cell = grid.at(x, z);
       closed[cell] = 1;
+      discoveryOrder.push_back(cell);
       filled[cell] = heights[cell];
       frontier.push({heights[cell], cell});
     }
@@ -182,11 +199,6 @@ computeTerrainDrainage(const HeightField &field, const TerrainRecipe &recipe,
       return std::nullopt;
     const FloodNode node = frontier.top();
     frontier.pop();
-    // This cell's own upstream area is final here: everything draining into it
-    // was closed at a strictly lower level and has already been popped. It is
-    // added to the cell it drains into, which is the one that found it.
-    if (parent[node.index] != terrainNoDownstream)
-      accumulation[parent[node.index]] += accumulation[node.index];
     const int x = int(node.index % std::size_t(grid.width));
     const int z = int(node.index / std::size_t(grid.width));
     for (int neighbour = 0; neighbour < 8; ++neighbour) {
@@ -200,6 +212,7 @@ computeTerrainDrainage(const HeightField &field, const TerrainRecipe &recipe,
       // First to close this cell owns it, which is what gives every sample
       // exactly one downstream neighbour even where the surface is flat.
       closed[target] = 1;
+      discoveryOrder.push_back(target);
       parent[target] = node.index;
       filled[target] = std::max(node.level, heights[target]) + FloodEpsilon;
       frontier.push({filled[target], target});
@@ -219,6 +232,7 @@ computeTerrainDrainage(const HeightField &field, const TerrainRecipe &recipe,
     std::queue<std::size_t> group;
     group.push(start);
     closed[start] = 1;
+    discoveryOrder.push_back(start);
     pooled[start] = 1;
     while (!group.empty()) {
       if (stop.stop_requested())
@@ -236,10 +250,24 @@ computeTerrainDrainage(const HeightField &field, const TerrainRecipe &recipe,
         if (closed[target])
           continue;
         closed[target] = 1;
+        discoveryOrder.push_back(target);
         pooled[target] = 1;
         parent[target] = current;
         group.push(target);
       }
+    }
+  }
+
+  // Children must finish contributing before their parent forwards its total.
+  // Reverse discovery order guarantees this independently of heap height ties.
+  for (auto current = discoveryOrder.rbegin(); current != discoveryOrder.rend();
+       ++current) {
+    if (stop.stop_requested()) {
+      return std::nullopt;
+    }
+    const auto downstream = parent[*current];
+    if (downstream != terrainNoDownstream) {
+      accumulation[downstream] += accumulation[*current];
     }
   }
 
@@ -263,8 +291,8 @@ computeTerrainDrainage(const HeightField &field, const TerrainRecipe &recipe,
     lowest = std::min(lowest, heights[i]);
     highest = std::max(highest, heights[i]);
   }
-  const float tolerance = std::max(16.F * FloodEpsilon,
-                                   0.001F * (highest - lowest));
+  const float tolerance =
+      std::max(16.F * FloodEpsilon, 0.001F * (highest - lowest));
   for (std::size_t i = 0; i < grid.count; ++i) {
     if ((i & 255) == 0 && stop.stop_requested())
       return std::nullopt;
@@ -294,9 +322,8 @@ computeTerrainDrainage(const HeightField &field, const TerrainRecipe &recipe,
           edge = cell;
       }
     }
-    const auto position =
-        field.position(int(edge % std::size_t(grid.width)),
-                       int(edge / std::size_t(grid.width)));
+    const auto position = field.position(int(edge % std::size_t(grid.width)),
+                                         int(edge / std::size_t(grid.width)));
     outlets.push_back({position.x, heights[edge], position.y});
   }
   // The pool doubles as the traversal queue, so a depression is walked once.
@@ -378,8 +405,11 @@ computeTerrainDrainage(const HeightField &field, const TerrainRecipe &recipe,
     }
   }
 
-  const auto distances = waterDistances(heights, grid, field.size,
-                                        settings.seaLevel, stop);
+  std::vector<std::uint8_t> wetSamples(grid.count);
+  for (std::size_t sample = 0; sample < grid.count; ++sample) {
+    wetSamples[sample] = heights[sample] <= settings.seaLevel;
+  }
+  const auto distances = waterDistances(wetSamples, grid, field.size, stop);
   if (stop.stop_requested())
     return std::nullopt;
   drainage.waterDistance.resize(grid.count);

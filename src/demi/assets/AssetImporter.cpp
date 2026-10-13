@@ -67,12 +67,15 @@ DataAssetContentResult inspectSource(const std::filesystem::path &source,
     return result;
   const DataValue *version = parsed.document->root().find("format_version");
   if (version == nullptr || !version->isInteger() ||
-      std::get<std::int64_t>(version->value) != 1) {
-    result.diagnostics.push_back({.severity = Severity::Error,
-                                  .code = "DATA_FORMAT_VERSION_UNSUPPORTED",
-                                  .message =
-                                      "Data documents require format_version 1.",
-                                  .path = source.string() + "#/format_version"});
+      std::get<std::int64_t>(version->value) !=
+          dataAssetContentFormatVersion(contentType)) {
+    result.diagnostics.push_back(
+        {.severity = Severity::Error,
+         .code = "DATA_FORMAT_VERSION_UNSUPPORTED",
+         .message = "This data content requires format_version " +
+                    std::to_string(dataAssetContentFormatVersion(contentType)) +
+                    ".",
+         .path = source.string() + "#/format_version"});
     return result;
   }
   DataAssetContentResult content =

@@ -11,6 +11,7 @@
 {% block body %}
 <div class="detail-wrap"><a class="back" href="{{ path('catalog') }}">← Explore packages</a>
 <div class="detail-heading"><div class="eyebrow muted">{{ package.category }}</div><h1>{{ package.title }}</h1><p>Published by <strong>{{ package.publisher }}</strong> · Version {{ package.manifest.version }}</p></div>
+{% if replacement %}<p class="package-replacement">This package has moved to <a href="{{ path('package', {name:replacement}) }}">{{ replacement }}</a>. These older releases remain available for existing projects.</p>{% endif %}
 <div class="detail-layout"><div>
 <div class="gallery-main category-{{ package.category|lower }}"><img id="gallery-image" src="{{ package.images[0] }}" alt="{{ package.title }} preview" data-fallback="/images/demi-asset.svg"></div>
 {% if package.images|length > 1 %}<div class="thumbnails" aria-label="Asset gallery">{% for image in package.images %}<button type="button" data-gallery="{{ image }}" aria-label="Show preview {{ loop.index }}"><img src="{{ image }}" alt="" data-fallback="/images/demi-asset.svg"></button>{% endfor %}</div>{% endif %}

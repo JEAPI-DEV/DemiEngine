@@ -6,8 +6,10 @@
 
 #include <array>
 #include <chrono>
+#include <cmath>
 #include <csignal>
 #include <cstring>
+#include <fcntl.h>
 #include <filesystem>
 #include <fstream>
 #include <optional>
@@ -15,8 +17,8 @@
 #include <regex>
 #include <spawn.h>
 #include <sstream>
+#include <stdexcept>
 #include <sys/wait.h>
-#include <fcntl.h>
 #include <thread>
 #include <unistd.h>
 #include <vector>
@@ -43,7 +45,8 @@ struct TestOutcome {
   std::string line;
   static const std::regex summaryPattern(R"(passed=(\d+) failed=(\d+))");
   while (std::getline(lines, line)) {
-    if (!outcome.summaryFound && line.find("SUMMARY passed=") != std::string::npos) {
+    if (!outcome.summaryFound &&
+        line.find("SUMMARY passed=") != std::string::npos) {
       std::smatch digits;
       if (std::regex_search(line, digits, summaryPattern)) {
         outcome.passed = std::atoi(digits[1].str().c_str());
@@ -74,21 +77,21 @@ struct TestOutcome {
 
 [[nodiscard]] std::filesystem::path
 resolveTestProject(const std::vector<std::string> &args) {
-  const std::filesystem::path project =
-      projectFileFromArgs(args, std::filesystem::current_path());
-  if (!project.empty())
-    return project;
+  if (hasArg(args, "--project"))
+    return projectFileFromArgs(args, std::filesystem::current_path());
   for (std::size_t index = 2; index < args.size(); ++index) {
-    const std::string &argument = args[index];
-    if (argument == "--timeout" || argument.starts_with("--"))
+    const auto &argument = args[index];
+    if (argument.starts_with("--")) {
+      ++index;
       continue;
+    }
     std::filesystem::path path = argument;
     std::error_code error;
     if (std::filesystem::is_directory(path, error))
       path /= "demi.project.json";
     return path;
   }
-  return {};
+  return projectFileFromArgs(args, std::filesystem::current_path());
 }
 
 } // namespace
@@ -96,6 +99,43 @@ resolveTestProject(const std::vector<std::string> &args) {
 int runTestLinuxCommand(const std::vector<std::string> &args, std::ostream &out,
                         std::ostream &error,
                         const std::string &selfExecutable) {
+  std::vector<std::string> forwarded;
+  for (std::size_t index = 2; index < args.size(); ++index) {
+    const auto &option = args[index];
+    if (!option.starts_with("--"))
+      continue;
+    const bool runtime = option == "--max-frames" ||
+                         option == "--window-size" ||
+                         option == "--profile-frames";
+    if (!runtime && option != "--project" && option != "--timeout") {
+      error << "Unknown desktop test option: " << option << '\n';
+      return 2;
+    }
+    if (index + 1 == args.size() || args[index + 1].starts_with("--")) {
+      error << option << " requires a value.\n";
+      return 2;
+    }
+    const auto &value = args[++index];
+    if (option == "--window-size" && !parseWindowSize(value)) {
+      error
+          << "--window-size requires WIDTHxHEIGHT, each between 1 and 65535.\n";
+      return 2;
+    }
+    if (option == "--max-frames") {
+      int count = 0;
+      const auto parsed =
+          std::from_chars(value.data(), value.data() + value.size(), count);
+      if (parsed.ec != std::errc{} ||
+          parsed.ptr != value.data() + value.size() || count <= 0) {
+        error << "--max-frames must be a positive integer.\n";
+        return 2;
+      }
+    }
+    if (runtime) {
+      forwarded.push_back(option);
+      forwarded.push_back(value);
+    }
+  }
   const std::filesystem::path project = resolveTestProject(args);
   if (project.empty()) {
     error << "demi test linux requires --project <project>, a project "
@@ -118,9 +158,13 @@ int runTestLinuxCommand(const std::vector<std::string> &args, std::ostream &out,
   const std::string timeoutValue = valueAfter(args, "--timeout");
   if (!timeoutValue.empty()) {
     try {
-      timeoutSeconds = std::stod(timeoutValue);
-    } catch (const std::invalid_argument &) {
-      error << "--timeout must be a number of seconds.\n";
+      std::size_t consumed = 0;
+      timeoutSeconds = std::stod(timeoutValue, &consumed);
+      if (consumed != timeoutValue.size() || !std::isfinite(timeoutSeconds) ||
+          timeoutSeconds <= 0)
+        throw std::invalid_argument("invalid timeout");
+    } catch (const std::exception &) {
+      error << "--timeout must be a positive finite number of seconds.\n";
       return 2;
     }
   }
@@ -131,8 +175,10 @@ int runTestLinuxCommand(const std::vector<std::string> &args, std::ostream &out,
     return 1;
   }
 
-  std::vector<std::string> childArguments{
-      selfExecutable, "run", "--project", project.string(), "--e2e-tests"};
+  std::vector<std::string> childArguments{selfExecutable, "run", "--project",
+                                          project.string(), "--e2e-tests"};
+  childArguments.insert(childArguments.end(), forwarded.begin(),
+                        forwarded.end());
   std::vector<char *> childArgv;
   childArgv.reserve(childArguments.size() + 1);
   for (std::string &argument : childArguments)
@@ -216,9 +262,8 @@ int runTestLinuxCommand(const std::vector<std::string> &args, std::ostream &out,
   }
 
   const TestOutcome outcome = parseTestOutput(captured);
-  const bool success =
-      outcome.summaryFound && !timedOut && outcome.passed > 0 &&
-      outcome.failed == 0;
+  const bool success = outcome.summaryFound && !timedOut &&
+                       outcome.passed > 0 && outcome.failed == 0;
   Json results = Json::array();
   for (const Json &result : outcome.results)
     results.push_back(result);
@@ -231,9 +276,9 @@ int runTestLinuxCommand(const std::vector<std::string> &args, std::ostream &out,
        Json::array({Json{
            {"name", "lua_tests"},
            {"status", success ? "passed" : "failed"},
-           {"detail",
-            timedOut ? std::string("No [test] SUMMARY within the timeout.")
-                     : std::string()}}})},
+           {"detail", timedOut
+                          ? std::string("No [test] SUMMARY within the timeout.")
+                          : std::string()}}})},
       {"lua_tests",
        {{"passed", outcome.passed},
         {"failed", outcome.failed},

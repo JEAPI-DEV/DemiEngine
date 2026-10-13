@@ -9,6 +9,12 @@
 
 namespace demi::assets {
 
+int dataAssetContentFormatVersion(std::string_view contentType) {
+  return contentType == "terrain_palette"
+             ? runtime::TerrainPalette::CurrentFormatVersion
+             : 1;
+}
+
 DataAssetContentResult inspectDataAssetContent(
     const std::string_view contentType, const DataDocument &document,
     const AssetRegistry &registry, const std::string_view assetId) {

@@ -5,6 +5,7 @@
 #include "demi/assets/DataAssetContent.h"
 #include "demi/assets/DataDocument.h"
 #include "demi/assets/MaterialAsset.h"
+#include "demi/assets/MaterialSet.h"
 #include "demi/assets/RenderAsset.h"
 #include "editor/EditorDocumentStore.h"
 #include "editor/EditorPrefabAuthoring.h"
@@ -56,16 +57,19 @@ bool validateTypedSource(const EditorSourceKind kind,
       path.parent_path() / (path.stem().string() + ".asset.json");
   proposed.settingsJson =
       nlohmann::json{{"content_type", std::string(contentType(kind))}}.dump();
-  const Diagnostics diagnostics =
-      assets::validateDataAssetDocument(proposed, *parsed.document, registry);
-  if (hasErrors(diagnostics)) {
-    error = diagnostics.front().message;
-    return false;
-  }
   const auto inspected = assets::inspectDataAssetContent(
       contentType(kind), *parsed.document, registry, id);
   if (hasErrors(inspected.diagnostics)) {
     error = inspected.diagnostics.front().message;
+    return false;
+  }
+  // Import will write these dependencies; validate the same prospective
+  // manifest.
+  proposed.dependencies = inspected.dependencies;
+  const auto diagnostics =
+      assets::validateDataAssetDocument(proposed, *parsed.document, registry);
+  if (hasErrors(diagnostics)) {
+    error = diagnostics.front().message;
     return false;
   }
   return true;
@@ -91,6 +95,14 @@ editorSourceAssetChoices(const EditorWorkspace &workspace) {
     if (manifest.type != "DataAsset")
       continue;
     const auto metadata = assets::dataAssetMetadata(manifest);
+    if (metadata && metadata->contentType == "terrain_material_set") {
+      try {
+        if (assets::loadTerrainMaterialSet(registry, manifest.id))
+          choices.materialSets.push_back(manifest.id);
+      } catch (const std::exception &) {
+        // Invalid sources remain visible through diagnostics.
+      }
+    }
     if (!metadata || metadata->contentType != "terrain_material")
       continue;
     try {
@@ -132,6 +144,47 @@ editorSourceAssetChoices(const EditorWorkspace &workspace) {
   return choices;
 }
 
+EditorSourceDescription editorSourceDescription(const EditorSourceKind kind) {
+  switch (kind) {
+  case EditorSourceKind::Scene2D: return {"2D Scene", "scenes", ".scene.json"};
+  case EditorSourceKind::Scene3D: return {"3D Scene", "scenes", ".scene.json"};
+  case EditorSourceKind::Hud: return {"HUD", "hud", ".hud.json"};
+  case EditorSourceKind::Prefab2D: return {"2D Prefab", "prefabs", ".prefab.json"};
+  case EditorSourceKind::Prefab: return {"3D Prefab", "prefabs", ".prefab.json"};
+  case EditorSourceKind::PrefabFromSelection: return {"Prefab", "prefabs", ".prefab.json"};
+  case EditorSourceKind::UiPrefab: return {"UI Prefab", "ui", ".ui.prefab.json"};
+  case EditorSourceKind::Lua: return {"Lua Behaviour", "scripts", ".lua"};
+  case EditorSourceKind::Material: return {"Material", "assets/materials", ".material.json", true};
+  case EditorSourceKind::Terrain:
+  case EditorSourceKind::TerrainFromSelection: return {"Terrain", "assets/terrains", ".terrain.json", true};
+  case EditorSourceKind::Data: return {"Data Asset", "assets/data", ".json", true};
+  case EditorSourceKind::TerrainMaterial: return {"Terrain Material", "assets/terrain_materials", ".json", true};
+  case EditorSourceKind::TerrainMaterialSet: return {"Terrain Material Set", "assets/terrain_material_sets", ".json", true};
+  case EditorSourceKind::TerrainPalette: return {"Terrain Palette", "assets/terrain_palettes", ".json", true};
+  }
+  return {};
+}
+
+std::filesystem::path editorSourceDirectory(
+    EditorSourceKind kind, const std::filesystem::path &selectedFolder) {
+  const auto description = editorSourceDescription(kind);
+  const auto relative = selectedFolder.lexically_normal().lexically_relative(description.folder);
+  if (!selectedFolder.is_absolute() && !relative.empty() &&
+      *relative.begin() != "..")
+    return selectedFolder;
+  return std::filesystem::path(description.folder);
+}
+
+std::filesystem::path editorSourceRelativePath(
+    EditorSourceKind kind, std::string_view name, const std::filesystem::path &directory) {
+  const auto description = editorSourceDescription(kind);
+  const auto folder = directory.empty() ? std::filesystem::path(description.folder) : directory;
+  const auto filename = std::string(name) + std::string(description.suffix);
+  return description.assetDirectory
+      ? folder / name / (std::filesystem::path(name).filename().string() + std::string(description.suffix))
+      : folder / filename;
+}
+
 bool createEditorSource(EditorWorkspace &workspace, EditorSourceKind kind,
                         const std::string &name, std::filesystem::path &created,
                         std::string &error, std::string_view selectedEntity,
@@ -162,29 +215,8 @@ bool createEditorSource(EditorWorkspace &workspace, EditorSourceKind kind,
       error = "Save or undo changes before creating a registered scene.";
       return false;
     }
-    const std::string folder =
-        kind == EditorSourceKind::TerrainMaterial ? "assets/terrain_materials"
-        : kind == EditorSourceKind::TerrainMaterialSet
-            ? "assets/terrain_material_sets"
-        : kind == EditorSourceKind::TerrainPalette ? "assets/terrain_palettes"
-        : kind == EditorSourceKind::Material       ? "assets/materials"
-        : terrain                                  ? "assets/terrains"
-        : kind == EditorSourceKind::Data           ? "assets/data"
-        : scene                                    ? "scenes"
-        : kind == EditorSourceKind::Hud            ? "hud"
-        : kind == EditorSourceKind::Lua            ? "scripts"
-        : kind == EditorSourceKind::UiPrefab       ? "ui"
-                                                   : "prefabs";
-    const std::string suffix =
-        isTypedDataAsset(kind)               ? ".json"
-        : kind == EditorSourceKind::Material ? ".material.json"
-        : terrain                            ? ".terrain.json"
-        : kind == EditorSourceKind::Data     ? ".json"
-        : scene                              ? ".scene.json"
-        : kind == EditorSourceKind::Hud      ? ".hud.json"
-        : kind == EditorSourceKind::Lua      ? ".lua"
-        : kind == EditorSourceKind::UiPrefab ? ".ui.prefab.json"
-                                             : ".prefab.json";
+    const auto description = editorSourceDescription(kind);
+    const std::string folder(description.folder);
     const auto root = std::filesystem::weakly_canonical(
         workspace.project().project.projectDirectory);
     std::filesystem::path sourceDirectory(folder);
@@ -193,7 +225,7 @@ bool createEditorSource(EditorWorkspace &workspace, EditorSourceKind kind,
       destinationDirectory = destinationDirectory.lexically_normal();
       const auto withinSourceDirectory =
           destinationDirectory.lexically_relative(sourceDirectory);
-      if (asset || destinationDirectory.is_absolute() ||
+      if (destinationDirectory.is_absolute() ||
           withinSourceDirectory.empty() ||
           withinSourceDirectory.is_absolute() ||
           *withinSourceDirectory.begin() == "..") {
@@ -205,10 +237,7 @@ bool createEditorSource(EditorWorkspace &workspace, EditorSourceKind kind,
       if (withinSourceDirectory != ".")
         qualifiedName = withinSourceDirectory / qualifiedName;
     }
-    const auto relative =
-        asset ? sourceDirectory / name /
-                    (std::filesystem::path(name).filename().string() + suffix)
-              : sourceDirectory / (name + suffix);
+    const auto relative = editorSourceRelativePath(kind, name, sourceDirectory);
     const auto target = std::filesystem::weakly_canonical(root / relative);
     const auto within = target.lexically_relative(root);
     if (within.empty() || within.is_absolute() || *within.begin() == "..") {
@@ -279,9 +308,12 @@ bool createEditorSource(EditorWorkspace &workspace, EditorSourceKind kind,
         const std::string role =
             assetOptions.initialRole.empty()
                 ? kind == EditorSourceKind::TerrainMaterialSet ? "ground"
-                                                               : "soil"
+                                                               : "placement"
                 : assetOptions.initialRole;
-        if (assetOptions.initialAsset.empty()) {
+        if (assetOptions.initialAsset.empty() &&
+            assetOptions.initialPrefab.empty() &&
+            (kind != EditorSourceKind::TerrainPalette ||
+             assetOptions.initialMaterialSet.empty())) {
           error = "Choose an existing asset for the first role.";
           return false;
         }
@@ -294,29 +326,35 @@ bool createEditorSource(EditorWorkspace &workspace, EditorSourceKind kind,
           }
           document["roles"] = {{role, assetOptions.initialAsset}};
         } else {
-          const bool isModel =
-              std::ranges::find(choices.models, assetOptions.initialAsset) !=
-              choices.models.end();
-          const bool isMaterial =
-              std::ranges::find(choices.materials, assetOptions.initialAsset) !=
-              choices.materials.end();
-          if (!isModel && (!isMaterial || assetOptions.initialPrefab.empty())) {
-            error = "Choose a Model3D asset, or a terrain material with an "
-                    "entity prefab.";
-            return false;
-          }
-          nlohmann::json entry{{"asset", assetOptions.initialAsset}};
-          if (!assetOptions.initialPrefab.empty()) {
-            if (!assetOptions.initialPrefab.starts_with("prefab://") ||
-                std::ranges::find(choices.prefabs,
-                                  assetOptions.initialPrefab) ==
-                    choices.prefabs.end()) {
-              error = "Choose an existing entity prefab for the first role.";
+          document["format_version"] = 2;
+          if (!assetOptions.initialMaterialSet.empty()) {
+            if (std::ranges::find(choices.materialSets,
+                                  assetOptions.initialMaterialSet) ==
+                choices.materialSets.end()) {
+              error = "Choose an existing terrain material set.";
               return false;
             }
-            entry["prefab"] = assetOptions.initialPrefab;
+            document["material_set"] = assetOptions.initialMaterialSet;
           }
-          document["roles"] = {{role, std::move(entry)}};
+          nlohmann::json entry;
+          if (!assetOptions.initialPrefab.empty()) {
+            if (std::ranges::find(choices.prefabs,
+                                  assetOptions.initialPrefab) ==
+                choices.prefabs.end()) {
+              error = "Choose an existing entity prefab.";
+              return false;
+            }
+            entry = {{"prefab", assetOptions.initialPrefab}};
+          } else if (!assetOptions.initialAsset.empty()) {
+            if (std::ranges::find(choices.models, assetOptions.initialAsset) ==
+                choices.models.end()) {
+              error = "Choose a Model3D asset or an entity prefab.";
+              return false;
+            }
+            entry = {{"model", assetOptions.initialAsset}};
+          }
+          if (!entry.is_null())
+            document["placements"] = {{role, std::move(entry)}};
         }
       }
       const auto registry = loadAssetRegistry(root);
@@ -356,7 +394,10 @@ bool createEditorSource(EditorWorkspace &workspace, EditorSourceKind kind,
                {"Camera3D", {{"target_offset", {0, -3, -6}}}}}}});
         document["entities"].push_back(
             {{"id", "sun"},
-             {"components", {{"DirectionalLight", nlohmann::json::object()}}}});
+             {"name", "Basic Lighting"},
+             {"components", {{"Transform3D", {{"position", {0, 5, 0}}}},
+                              {"Environment3D", nlohmann::json::object()},
+                              {"DirectionalLight", {{"casts_shadows", true}}}}}});
       } else if (kind == EditorSourceKind::Scene2D)
         document["entities"].push_back(
             {{"id", "camera"},
@@ -379,6 +420,31 @@ bool createEditorSource(EditorWorkspace &workspace, EditorSourceKind kind,
     if (!store.writeNew(target, content, error))
       return false;
     created = target;
+    if (kind == EditorSourceKind::PrefabFromSelection &&
+        assetOptions.replaceSelectionWithPrefab) {
+      const auto sourceId =
+          document.at("entities").front().at("id").get<std::string>();
+      if (!workspace.replaceHierarchyWithPrefab(sourceId, target, error)) {
+        // Roll back only the source we just created; never remove a concurrent
+        // edit.
+        std::string current;
+        FileRevision revision;
+        std::string readError;
+        std::error_code filesystemError;
+        if (!std::filesystem::is_symlink(target, filesystemError) &&
+            !filesystemError &&
+            store.read(target, current, revision, readError) &&
+            current == content &&
+            std::filesystem::remove(target, filesystemError) &&
+            !filesystemError)
+          created.clear();
+        else
+          error += " The created prefab remains at " + target.string() +
+                   "; inspect it before retrying.";
+        workspace.refreshAssetMetadata();
+        return false;
+      }
+    }
     if (asset) {
       const auto imported = assets::importAsset(
           {.projectDirectory = root,
@@ -436,7 +502,10 @@ bool createEditorSource(EditorWorkspace &workspace, EditorSourceKind kind,
       workspace.refreshAssetMetadata();
       return false;
     }
-    workspace.refreshAssetMetadata();
+    if (target.extension() == ".lua")
+      workspace.notifyScriptCreated(target);
+    else
+      workspace.refreshAssetMetadata();
     return true;
   } catch (const std::exception &failure) {
     error = failure.what();

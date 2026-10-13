@@ -45,6 +45,7 @@ bool EditorJsonDocument::open(std::filesystem::path path,
     savedCanonical_ = document_.dump();
     diagnostics_ = std::move(diagnostics);
     history_.clear();
+    endContinuousEdit();
     return true;
   } catch (const nlohmann::json::exception &exception) {
     error = exception.what();
@@ -99,11 +100,13 @@ bool EditorJsonDocument::erase(const std::string_view pointer,
   }
 }
 
-bool EditorJsonDocument::replace(nlohmann::json document, std::string &error) {
-  return commit(std::move(document), error);
+bool EditorJsonDocument::replace(nlohmann::json document, std::string &error,
+                                 std::string_view continuousKey) {
+  return commit(std::move(document), error, continuousKey);
 }
 
 bool EditorJsonDocument::undo(std::string &error) {
+  endContinuousEdit();
   if (!history_.canUndo()) {
     error = "There is no document edit to undo.";
     return false;
@@ -117,6 +120,7 @@ bool EditorJsonDocument::undo(std::string &error) {
 }
 
 bool EditorJsonDocument::redo(std::string &error) {
+  endContinuousEdit();
   if (!history_.canRedo()) {
     error = "There is no document edit to redo.";
     return false;
@@ -130,6 +134,7 @@ bool EditorJsonDocument::redo(std::string &error) {
 }
 
 bool EditorJsonDocument::save(std::string &error) {
+  endContinuousEdit();
   const std::string serialized =
       patchAuthoredJsonSource(originalText_, savedDocument_, document_)
           .value_or(document_.dump(2) + '\n');
@@ -148,8 +153,12 @@ bool EditorJsonDocument::isDirty() const {
   return document_.dump() != savedCanonical_;
 }
 
-bool EditorJsonDocument::commit(nlohmann::json replacement,
-                                std::string &error) {
+bool EditorJsonDocument::commit(nlohmann::json replacement, std::string &error,
+                                std::string_view continuousKey) {
+  const bool coalesce =
+      !continuousKey.empty() && continuousKey == continuousKey_;
+  if (!coalesce)
+    endContinuousEdit();
   if (replacement == document_)
     return true;
   Diagnostics diagnostics =
@@ -159,7 +168,13 @@ bool EditorJsonDocument::commit(nlohmann::json replacement,
     diagnostics_ = std::move(diagnostics);
     return false;
   }
-  (void)history_.record(document_, replacement);
+  const auto previousDepth = history_.undoCount();
+  (void)history_.record(document_, replacement, coalesce);
+  // Returning to the session's original value removes its Undo entry. A later
+  // keystroke must not merge into an older, unrelated command beneath it.
+  continuousKey_ = coalesce && history_.undoCount() < previousDepth
+                       ? std::string{}
+                       : std::string(continuousKey);
   document_ = std::move(replacement);
   diagnostics_ = std::move(diagnostics);
   return true;

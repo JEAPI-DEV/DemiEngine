@@ -1,0 +1,62 @@
+{
+  "format_version": 1,
+  "id": "ui-prefab://orbit/toggle",
+  "parameters": {
+    "accent": {
+      "type": "string",
+      "default": "#FFB66B"
+    },
+    "action": {
+      "type": "string",
+      "default": ""
+    },
+    "background": {
+      "type": "string",
+      "default": "#101822"
+    },
+    "checked": {
+      "type": "boolean",
+      "default": true
+    },
+    "disabled": {
+      "type": "boolean",
+      "default": false
+    },
+    "label": {
+      "type": "string",
+      "default": "Notifications"
+    },
+    "size": {
+      "type": "array",
+      "default": [
+        280,
+        44
+      ]
+    },
+    "stroke": {
+      "type": "string",
+      "default": "#3B5166"
+    },
+    "text": {
+      "type": "string",
+      "default": "#EEF4FA"
+    }
+  },
+  "root": {
+    "id": "control",
+    "type": "toggle",
+    "size": "${size}",
+    "text": "${label}",
+    "action": "${action}",
+    "disabled": "${disabled}",
+    "corner_radius": 9,
+    "font_size": 16,
+    "text_color": "${text}",
+    "background_color": "${background}",
+    "hover_color": "${stroke}",
+    "border_color": "${stroke}",
+    "border_width": 1,
+    "color": "${accent}",
+    "checked": "${checked}"
+  }
+}

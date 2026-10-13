@@ -17,6 +17,12 @@ and the combined water data. This keeps both authored bodies in the cooked
 asset. River points are terrain-local XYZ bed positions; the water plane is
 authored separately from the river bed. Both bodies use a fixed water level;
 downhill river flow is not simulated. Water-body coordinates are terrain-local.
+
+The game camera's 5,000-unit far clip covers the landscape instead of cutting
+it off after 500 units. Terrain detail uses the shared renderer's default
+two-pixel error allowance. Set **LOD Error Pixels** to zero in the Terrain
+Inspector to compare Full detail. This changes rendered geometry only;
+terrain collision and surface queries retain the Full heightfield.
 The sediment rule uses elevation and slope;
 graph water does not yet supply shoreline-distance context to biome rules.
 
@@ -56,3 +62,15 @@ The payload contains `entity_id` and `water`. Set `offset_y` to sample feet or a
 head instead of the entity origin; disable `emit_stay` if only transitions are
 needed. The sensor follows parented transforms. It is optional and is not added
 to the scene automatically. Swimming, splashes and damage are game-defined.
+
+## Automatic surface materials
+
+The recipe uses `asset://terrain_graph/surface_palette`, a surface-only palette.
+Its material set binds all nine surface roles to ordinary lit Material assets.
+Generate assigns triangle materials from the final terrain masks and resolved
+water coverage. Biome colors remain tints; an explicit biome material overrides
+automatic assignment. Role boundaries are discrete, without texture blending.
+
+Edit the material set and reimport it, then Generate to refresh the preview.
+Binding-only changes retain terrain heights and collision geometry. The Terrain
+Graph panel reports missing bindings or samples without a matching role.

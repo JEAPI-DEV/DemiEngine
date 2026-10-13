@@ -133,7 +133,29 @@ UiMutationResult UiMutationQueue::apply(UiDocument &document) {
       for (const auto &node : result.nodes)
         if (isDescendant(result, node.id, value->source.id))
           copies.push_back(node);
+      std::unordered_map<std::string, std::string> nodeIds, actions;
+      for (const auto &node : copies) {
+        nodeIds[node.id] = node.id == value->source.id
+                               ? value->root
+                               : value->root + "." + node.id;
+        for (const auto &[action, effect] : node.actionEffects)
+          actions[action] = value->root + "." + action;
+      }
       for (auto &node : copies) {
+        if (const auto action = actions.find(node.action);
+            action != actions.end())
+          node.action = action->second;
+        std::unordered_map<std::string, UiActionEffect> remapped;
+        for (auto &[action, effect] : node.actionEffects) {
+          for (auto *ids : {&effect.show, &effect.hide})
+            for (auto &id : *ids)
+              if (nodeIds.contains(id))
+                id = nodeIds.at(id);
+          if (nodeIds.contains(effect.focus))
+            effect.focus = nodeIds.at(effect.focus);
+          remapped[actions.at(action)] = std::move(effect);
+        }
+        node.actionEffects = std::move(remapped);
         const std::string oldId = node.id;
         node.hovered = false;
         node.textEdit = {};

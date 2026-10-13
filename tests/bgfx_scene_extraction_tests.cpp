@@ -3,6 +3,8 @@
 #include "demi/runtime/scene/components/3dcomponents/DirectionalLightComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/Environment3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/PointLightComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/SpotLightComponent.h"
+#include <cmath>
 #include "demi/runtime/scene/components/3dcomponents/Transform3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/WorldText3DComponent.h"
 
@@ -15,22 +17,6 @@ using namespace demi::runtime;
 using namespace demi::runtime::render;
 
 int main() {
-  for (std::size_t slot = 3; slot < 16; slot += 4) {
-    SceneLighting3D lighting;
-    if (lighting.hasLocalLights()) return 1;
-    lighting.pointPositionRange[slot] = 1;
-    if (lighting.hasLocalLights()) return 1;
-    lighting.pointColorIntensity[slot] = 1;
-    if (!lighting.hasLocalLights()) return 1;
-    lighting.pointColorIntensity[slot] = -1;
-    if (lighting.hasLocalLights()) return 1;
-    lighting.spotColorIntensity[slot] = 1;
-    if (lighting.hasLocalLights()) return 1;
-    lighting.spotPositionRange[slot] = 1;
-    if (!lighting.hasLocalLights()) return 1;
-    lighting.spotPositionRange[slot] = 0;
-    if (lighting.hasLocalLights()) return 1;
-  }
   World world;
   const SceneLighting3D defaults = collectSceneLighting3D(world, {});
   assert(defaults.ambient[0] == 1.0F);
@@ -85,9 +71,8 @@ int main() {
   assert(foreground.shadowBudget == 2);
   assert(foreground.directionalColor[0] == 1.0F);
 
-  // The shader has a documented four-light budget. Extra lights must be
-  // ignored deterministically rather than writing beyond the packed arrays.
-  for (int index = 0; index < 6; ++index) {
+  // Every active light is retained; there is no four-light truncation.
+  for (int index = 0; index < 32; ++index) {
     Entity point;
     point.id = "point-" + std::to_string(index);
     point.setComponent(Transform3DComponent{
@@ -96,9 +81,32 @@ int main() {
         PointLightComponent{.intensity = 2.0F, .range = 10.0F + index});
     world.entities.push_back(std::move(point));
   }
-  const SceneLighting3D capped = collectSceneLighting3D(world, {});
-  assert(capped.pointPositionRange[12] == 3.0F);
-  assert(capped.pointPositionRange[15] == 13.0F);
+  const SceneLighting3D complete = collectSceneLighting3D(world, {});
+  assert(complete.lights.size() == 32);
+  assert(complete.lights.back().position.x == 31.0F);
+  assert(complete.lights.back().range == 41.0F);
+  assert(complete.hasAdditionalLights());
+  world.entities[1].setComponent(Transform3DComponent{.rotation = {0, 1.570796327F, 0}});
+  const auto rotated = collectSceneLighting3D(world, "foreground");
+  assert(std::abs(rotated.direction[0] + .3F) < .0001F);
+  assert(std::abs(rotated.direction[2] - .4F) < .0001F);
+  for (int index = 0; index < 12; ++index) {
+    Entity spot;
+    spot.id = "spot-" + std::to_string(index);
+    spot.setComponent(Transform3DComponent{});
+    spot.setComponent(SpotLightComponent{});
+    world.entities.push_back(std::move(spot));
+  }
+  Entity secondSun;
+  secondSun.id = "second-sun";
+  secondSun.setComponent(DirectionalLightComponent{.intensity = 2});
+  world.entities.push_back(std::move(secondSun));
+  const auto many = collectSceneLighting3D(world, {});
+  assert(many.lights.size() == 45);
+  assert(many.lights.back().kind == SceneLightKind3D::Directional);
+  assert(many.lights.back().intensity == 2);
+  assert(many.direction[3] == 3); // The first matching sun retains shadow ownership.
+
 
   World textWorld;
   Entity visible;

@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://terrain_graph/materials/cliff",
+  "importer": "material",
+  "importer_version": 1,
+  "settings": {},
+  "source": "cliff.material.json",
+  "source_hash": "fnv1a64:c0ee8a3135eb587f",
+  "type": "Material"
+}

@@ -50,7 +50,7 @@ int main() {
   assert(loaded == EditorPanelVisibility{});
   std::set<std::string_view> names;
   std::set<std::string_view> keys;
-  assert(editorPanelDefinitions().size() == 15);
+  assert(editorPanelDefinitions().size() == 16);
   for (const EditorPanelDefinition &panel : editorPanelDefinitions()) {
     assert(names.insert(panel.windowName).second);
     assert(keys.insert(panel.visibilityKey).second);
@@ -65,7 +65,8 @@ int main() {
   for (const EditorPanelDefinition &panel : editorPanelDefinitions()) {
     if (panel.visibilityKey == "ui_palette")
       assert(panel.availability == EditorPanelAvailability::Hud);
-    else if (panel.visibilityKey == "terrain_nodes")
+    else if (panel.visibilityKey == "terrain_nodes" ||
+             panel.visibilityKey == "terrain_presets")
       assert(panel.availability == EditorPanelAvailability::TerrainGraph);
     else
       assert(panel.availability == EditorPanelAvailability::Always);
@@ -79,7 +80,7 @@ int main() {
     std::ifstream input(store.visibilityPath());
     const auto document = nlohmann::json::parse(input);
     assert(document.at("format_version") == 2);
-    assert(document.at("panels").size() == 15);
+    assert(document.at("panels").size() == 16);
     assert(!document.at("panels").contains("stage"));
   }
   EditorDockingStateStore otherUser(root / "other-user");

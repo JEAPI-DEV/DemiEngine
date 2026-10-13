@@ -1,0 +1,11 @@
+{
+  "format_version": 1,
+  "name": "Meadow surfaces",
+  "roles": {
+    "rock": "asset://terrain/surfaces/exposed_rock",
+    "ground": "asset://terrain/surfaces/soil",
+    "sand": "asset://terrain/surfaces/sand",
+    "snow": "asset://terrain/surfaces/snow",
+    "wet_ground": "asset://terrain/surfaces/wet_ground"
+  }
+}

@@ -26,6 +26,7 @@ struct TerrainInvalidation {
   TerrainRect normalSamples;
   TerrainRect biomeSamples;
   TerrainRect exclusionSamples;
+  TerrainRect surfaceSamples;
   std::string reason;
   TerrainRect geometrySamples() const;
 };
@@ -52,7 +53,13 @@ struct TerrainDerivedState {
   std::vector<TerrainScatterPlacement> placements;
   bool scatterTruncated = false;
   std::shared_ptr<const TerrainGraphArtifacts> graphArtifacts;
+  std::shared_ptr<const TerrainSurfaceMaterials> surfaceMaterials;
+  std::shared_ptr<const TerrainPalette> palette;
 };
+inline TerrainDerivedState terrainDerivedState(const HeightField &field) {
+  return {field.scatterPlacements, field.scatterTruncated, field.graphArtifacts,
+          field.surfaceMaterials, field.resolvedPalette};
+}
 
 struct TerrainPatch {
   Vec2 size{};
@@ -98,7 +105,7 @@ updateTerrainWithInputs(const TerrainRecipe &before, const TerrainRecipe &after,
                         const TerrainGenerator::Progress &progress = {});
 
 TerrainUpdate applyTerrainPatch(std::shared_ptr<const HeightField> current,
-                               const TerrainPatch &patch, bool forward);
+                                const TerrainPatch &patch, bool forward);
 bool terrainFieldsEqual(const HeightField &left, const HeightField &right);
 std::shared_ptr<const TerrainPatch>
 mergeTerrainPatches(const TerrainPatch &first, const TerrainPatch &next);
@@ -110,11 +117,9 @@ regenerateTerrain(const TerrainRecipe &recipe,
                   std::shared_ptr<const HeightField> previous,
                   std::string reason, std::stop_token stop = {},
                   const TerrainGenerator::Progress &progress = {});
-std::optional<TerrainUpdate>
-regenerateTerrainWithInputs(const TerrainRecipe &recipe,
-                            std::shared_ptr<const HeightField> previous,
-                            std::string reason,
-                            const TerrainGenerationInputs &inputs,
-                            std::stop_token stop = {},
-                            const TerrainGenerator::Progress &progress = {});
+std::optional<TerrainUpdate> regenerateTerrainWithInputs(
+    const TerrainRecipe &recipe, std::shared_ptr<const HeightField> previous,
+    std::string reason, const TerrainGenerationInputs &inputs,
+    std::stop_token stop = {}, const TerrainGenerator::Progress &progress = {},
+    TerrainQuality quality = TerrainQuality::Standard);
 } // namespace demi::runtime

@@ -17,8 +17,10 @@ require hand-editing their JSON files.
    Preset-inherited components are also editable without expanding the preset
    into source defaults. **Unpack preset** makes them independent components
    when you want to remove or restructure them; Undo restores the compact source.
-3. Use **Scene → Create prefab from selection** to copy an authored hierarchy
-   into a reusable prefab. The original remains in the scene. Choose a prefab
+3. Use **Scene → Create prefab from selection** to create a reusable prefab.
+   Replacement with a linked instance is enabled by default and preserves entity
+   IDs and placement. Disable the checkbox to keep an unlinked original. Undo
+   restores the hierarchy; the prefab file remains available. Choose a prefab
    in **Scene → Add prefab instance**, use its Assets action, or drag it onto
    **Scene** in the Hierarchy. Instances support property overrides, component
    additions/removals, duplication and Undo/Redo, including nested instances in
@@ -33,7 +35,8 @@ require hand-editing their JSON files.
    retains the prefab's authored height above the ground. Dropping inserts and
    positions it in one Undo step without moving the editor camera.
    Drag an authored Hierarchy entity onto the Assets background or a `prefabs/`
-   folder to create a prefab copy. Confirm its name in the dialog; existing files
+   folder to create a prefab. The dialog defaults to replacing the selection with
+   a linked instance; disable that checkbox for a copy. Confirm its name; existing files
    are never overwritten. Drops elsewhere in the asset grid default to `prefabs/`.
    Scene, prefab and HUD files have distinct icons; prefab hierarchy rows have a
    blue tint, while selection keeps the normal highlight.

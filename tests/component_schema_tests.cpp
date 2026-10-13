@@ -1,11 +1,217 @@
 #include "demi/runtime/scene/ComponentRegistry.h"
+#include "demi/runtime/scene/components/3dcomponents/Environment3DComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
+#include "demi/runtime/terrain/TerrainGenerator.h"
+
+#include <limits>
 
 #include <fstream>
 #include <iostream>
 #include <nlohmann/json.hpp>
+#include <stdexcept>
+
+namespace {
+
+void testTerrainPreparationBudgets() {
+  using namespace demi::runtime;
+  const auto *descriptor =
+      scene_loading::findComponentDescriptor("Environment3D");
+  if (!descriptor) {
+    throw std::runtime_error("Environment descriptor is missing");
+  }
+  Entity entity;
+  const nlohmann::json authored{{"terrain_lod_cache_mb", 12},
+                                {"terrain_lod_prepare_jobs", 3},
+                                {"terrain_gpu_cache_mb", 24}};
+  descriptor->parse(authored, entity);
+  auto *environment = entity.component<Environment3DComponent>();
+  constexpr std::size_t MiB = 1024U * 1024U;
+  if (!environment || environment->terrainLodCacheBytes != 12 * MiB ||
+      environment->terrainLodPrepareJobs != 3 ||
+      environment->terrainGpuCacheBytes != 24 * MiB ||
+      descriptor->serialize(entity) != authored) {
+    throw std::runtime_error("Terrain preparation budget round trip failed");
+  }
+  environment->shadowDistance = 42.0F;
+  const nlohmann::json patched{{"terrain_lod_cache_mb", 0},
+                               {"terrain_lod_prepare_jobs", 3},
+                               {"terrain_gpu_cache_mb", 24}};
+  if (!descriptor->patch(entity, "terrain_lod_cache_mb", patched) ||
+      environment->terrainLodCacheBytes != 0 ||
+      environment->terrainLodPrepareJobs != 3 ||
+      environment->terrainGpuCacheBytes != 24 * MiB ||
+      environment->shadowDistance != 42.0F ||
+      descriptor->inspect(entity).at("terrain_lod_cache_mb") != 0) {
+    throw std::runtime_error(
+        "Terrain preparation budget patch lost native state");
+  }
+  const nlohmann::json gpuDisabled{{"terrain_lod_cache_mb", 0},
+                                   {"terrain_lod_prepare_jobs", 3},
+                                   {"terrain_gpu_cache_mb", 0}};
+  if (!descriptor->patch(entity, "terrain_gpu_cache_mb", gpuDisabled) ||
+      environment->terrainGpuCacheBytes != 0 ||
+      environment->terrainLodCacheBytes != 0 ||
+      environment->terrainLodPrepareJobs != 3 ||
+      environment->shadowDistance != 42.0F ||
+      descriptor->inspect(entity).at("terrain_gpu_cache_mb") != 0 ||
+      descriptor->serialize(entity) != gpuDisabled) {
+    throw std::runtime_error(
+        "Terrain GPU budget mutation changed unrelated native state");
+  }
+  Entity omitted;
+  descriptor->parse(nlohmann::json::object(), omitted);
+  if (omitted.component<Environment3DComponent>()->terrainGpuCacheBytes !=
+          128 * MiB ||
+      descriptor->defaults().at("terrain_gpu_cache_mb") != 128 ||
+      !descriptor->serialize(omitted).empty()) {
+    throw std::runtime_error(
+        "Terrain GPU budget canonical default was materialized or changed");
+  }
+  const auto schema = scene_loading::componentSchema(*descriptor);
+  const auto &gpuSchema = schema.at("properties").at("terrain_gpu_cache_mb");
+  const auto maximumMiB = std::numeric_limits<std::size_t>::max() / MiB;
+  if (gpuSchema.at("minimum") != 0 || gpuSchema.at("maximum") != maximumMiB ||
+      gpuSchema.at("default") != 128) {
+    throw std::runtime_error(
+        "Terrain GPU budget schema differs from its native contract");
+  }
+  Entity maximum;
+  const nlohmann::json maximumAuthored{{"terrain_gpu_cache_mb", maximumMiB}};
+  descriptor->parse(maximumAuthored, maximum);
+  if (maximum.component<Environment3DComponent>()->terrainGpuCacheBytes !=
+          maximumMiB * MiB ||
+      descriptor->serialize(maximum) != maximumAuthored) {
+    throw std::runtime_error(
+        "Maximum addressable terrain GPU budget did not round trip");
+  }
+  bool overflowRejected = false;
+  try {
+    Entity invalid;
+    descriptor->parse({{"terrain_gpu_cache_mb", std::uint64_t(maximumMiB) + 1}},
+                      invalid);
+  } catch (const std::exception &) {
+    overflowRejected = true;
+  }
+  if (!overflowRejected) {
+    throw std::runtime_error("Overflowing terrain GPU budget was accepted");
+  }
+  for (const char *field : {"terrain_lod_cache_mb", "terrain_lod_prepare_jobs",
+                            "terrain_gpu_cache_mb"}) {
+    for (const nlohmann::json &invalid :
+         {nlohmann::json(-1), nlohmann::json(0.5), nlohmann::json("invalid")}) {
+      bool rejected = false;
+      try {
+        Entity invalidEntity;
+        Environment3DComponent::parse({{field, invalid}}, invalidEntity);
+      } catch (const std::exception &) {
+        rejected = true;
+      }
+      if (!rejected) {
+        throw std::runtime_error(
+            "Invalid terrain preparation budget was accepted");
+      }
+    }
+  }
+}
+
+void testTerrainLodQualityContract() {
+  using namespace demi::runtime;
+  using namespace demi::runtime::scene_loading;
+  const auto require = [](bool condition, const char *message) {
+    if (!condition) {
+      throw std::runtime_error(message);
+    }
+  };
+  const auto *descriptor = findComponentDescriptor("Terrain3D");
+  require(descriptor != nullptr, "Terrain3D descriptor is missing");
+  require(descriptor->defaults().at("lod_error_pixels") == 2.0F,
+          "Terrain3D quality default differs from native values");
+  const auto schema = componentSchema(*descriptor);
+  const auto &qualitySchema = schema.at("properties").at("lod_error_pixels");
+  require(qualitySchema.at("minimum") == 0.0,
+          "Terrain3D quality schema lost its nonnegative constraint");
+  require(qualitySchema.at("default") == 2.0,
+          "Terrain3D quality schema lost its default");
+
+  Entity entity;
+  const nlohmann::json authored{{"asset", "asset://terrain/test"},
+                                {"lod_error_pixels", 3.5}};
+  descriptor->parse(authored, entity);
+  auto *terrain = entity.component<Terrain3DComponent>();
+  require(terrain != nullptr && terrain->lodErrorPixels == 3.5F,
+          "Terrain3D quality parsing failed");
+  require(descriptor->serialize(entity) == authored,
+          "Terrain3D quality authored round trip failed");
+  auto retained = std::make_shared<const HeightField>();
+  terrain->generated = retained;
+  terrain->recipe = {{"retained_input", true}};
+  const auto nativeRecipe = terrain->recipe;
+  const nlohmann::json patched{{"asset", "asset://terrain/test"},
+                               {"lod_error_pixels", 0.0}};
+  require(descriptor->patch(entity, "lod_error_pixels", patched),
+          "Terrain3D quality field binding failed");
+  require(terrain->lodErrorPixels == 0.0F && terrain->generated == retained &&
+              terrain->recipe == nativeRecipe &&
+              terrain->asset == "asset://terrain/test",
+          "Terrain3D quality mutation invalidated unrelated terrain state");
+  require(descriptor->serialize(entity) == patched,
+          "Terrain3D field patch did not publish its authored values");
+  terrain->lodErrorPixels = 1.25F;
+  require(descriptor->inspect(entity).at("lod_error_pixels") == 1.25F,
+          "Terrain3D inspection missed current native quality");
+  require(descriptor->serialize(entity) == patched,
+          "Terrain3D native quality mutation rewrote patched authored source");
+
+  for (const auto &invalid :
+       {nlohmann::json(-1.0), nlohmann::json("invalid"),
+        nlohmann::json(std::numeric_limits<double>::infinity()),
+        nlohmann::json(std::numeric_limits<double>::quiet_NaN())}) {
+    std::string error;
+    require(!Terrain3DComponent::validateAuthored(
+                {{"lod_error_pixels", invalid}}, error) &&
+                error.find("lod_error_pixels") != std::string::npos,
+            "Terrain3D accepted invalid render quality");
+  }
+  Entity omitted;
+  descriptor->parse(nlohmann::json::object(), omitted);
+  require(omitted.component<Terrain3DComponent>()->lodErrorPixels == 2.0F &&
+              descriptor->serialize(omitted).empty(),
+          "Terrain3D omission materialized authored defaults");
+}
+
+} // namespace
 
 int main() {
   try {
+    testTerrainPreparationBudgets();
+    testTerrainLodQualityContract();
+    using namespace demi::runtime;
+    using namespace demi::runtime::scene_loading;
+    Entity entity;
+    const auto *transform = findComponentDescriptor("Transform3D");
+    const auto *body = findComponentDescriptor("Rigidbody3D");
+    transform->parse({{"position", {1, 2, 3}}}, entity);
+    body->parse(nlohmann::json::object(), entity);
+    const auto authored = entity.serializedComponents;
+    entity.component<Transform3DComponent>()->position = {7, 8, 9};
+    entity.component<Rigidbody3DComponent>()->velocity = {4, 5, 6};
+    if (transform->inspect(entity).at("position") !=
+            nlohmann::json({7, 8, 9}) ||
+        body->inspect(entity).at("velocity") != nlohmann::json({4, 5, 6}) ||
+        body->inspect(entity).at("body_type") != "dynamic" ||
+        transform->inspect(entity).at("scale") != nlohmann::json({1, 1, 1}) ||
+        entity.serializedComponents != authored ||
+        transform->serialize(entity).at("position") !=
+            nlohmann::json({1, 2, 3}))
+      throw std::runtime_error("Runtime inspection must read native values "
+                               "without changing authored serialization");
+    entity.component<Transform3DComponent>()->position.x = 12;
+    if (transform->inspect(entity).at("position")[0] != 12)
+      throw std::runtime_error("Runtime inspection cached an earlier snapshot");
+    Entity absent;
+    if (!transform->inspect(absent).empty())
+      throw std::runtime_error("Absent component produced inspection values");
+
     std::ifstream input(DEMI_SOURCE_DIR "/schemas/components.schema.json");
     if (!input) {
       std::cerr << "Could not read checked-in component schema.\n";

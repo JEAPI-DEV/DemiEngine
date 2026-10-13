@@ -1,0 +1,44 @@
+{
+  "format_version": 1,
+  "id": "ui-prefab://orbit/badge",
+  "parameters": {
+    "accent": {
+      "type": "string",
+      "default": "#FFB66B"
+    },
+    "label": {
+      "type": "string",
+      "default": "ONLINE"
+    },
+    "raised": {
+      "type": "string",
+      "default": "#263748"
+    },
+    "size": {
+      "type": "array",
+      "default": [
+        128,
+        30
+      ]
+    }
+  },
+  "root": {
+    "id": "badge",
+    "type": "panel",
+    "size": "${size}",
+    "background_color": "${raised}",
+    "corner_radius": 16,
+    "children": [
+      {
+        "id": "text",
+        "type": "label",
+        "dock": "fill",
+        "text": "${label}",
+        "font_size": 13,
+        "text_color": "${accent}",
+        "text_alignment": "center",
+        "text_vertical_alignment": "center"
+      }
+    ]
+  }
+}
