@@ -1,4 +1,5 @@
 #include "demi/runtime/terrain/TerrainGraphNodeEvaluation.h"
+#include "demi/runtime/terrain/TerrainGraphSedimentMasks.h"
 #include "demi/runtime/terrain/TerrainGraphSpatialMasks.h"
 
 #include "demi/runtime/terrain/TerrainBiomeRules.h"
@@ -170,7 +171,11 @@ evaluateDrainage(const nlohmann::json &values,
   if (stop.stop_requested() || !computed)
     return std::nullopt;
   drainage->data = std::move(*computed);
+  auto flow = std::make_shared<GraphMask>();
+  flow->source = drainage->source;
+  flow->samples = drainage->data.flow;
   GraphNodeResult result;
+  result.outputs["flow"] = std::shared_ptr<const GraphMask>(std::move(flow));
   result.outputs["drainage"] =
       std::shared_ptr<const GraphDrainage>(std::move(drainage));
   return result;
@@ -179,7 +184,9 @@ evaluateDrainage(const nlohmann::json &values,
 std::optional<GraphNodeResult>
 evaluateErosion(const nlohmann::json &values, const TerrainRecipe &sourceRecipe,
                 const TerrainRecipe &authoredRecipe,
-                const GraphValues &connected, std::stop_token stop) {
+                const GraphValues &connected, std::stop_token stop,
+                TerrainQuality quality,
+                const TerrainGenerator::Progress &progress) {
   const auto source = fieldInput(connected, "field");
   TerrainDrainage drainage;
   if (const auto *value = input(connected, "drainage")) {
@@ -199,15 +206,26 @@ evaluateErosion(const nlohmann::json &values, const TerrainRecipe &sourceRecipe,
   settings.iterations = values.at("iterations").get<int>();
   settings.thermalStrength = values.at("thermal_strength").get<float>();
   settings.seed = authoredRecipe.seed;
-  auto eroded = applyTerrainErosion(*source, drainage, settings, nullptr, stop);
+  settings.quality = quality;
+  TerrainSamples<float> balance;
+  auto eroded = applyTerrainErosion(*source, drainage, settings, &balance, stop,
+                                    progress);
   if (stop.stop_requested() || !eroded)
     return std::nullopt;
   auto field = std::make_shared<HeightField>(*source);
   field->heights = std::move(*eroded);
   if (!TerrainGenerator::recomputeTerrainNormals(*field, stop))
     return std::nullopt;
+  auto sediment =
+      prepareTerrainGraphSedimentMasks(field, std::move(balance), stop);
+  if (!sediment) {
+    return std::nullopt;
+  }
   GraphNodeResult result;
   result.outputs["field"] = GraphField(std::move(field));
+  result.outputs["deposition"] = std::move(sediment->deposition);
+  result.outputs["cut"] = std::move(sediment->cut);
+  result.sedimentBalance = std::move(sediment->balance);
   return result;
 }
 
@@ -411,7 +429,8 @@ std::optional<GraphNodeResult> evaluateTerrainGraphNode(
     const TerrainGraphNode &node, const nlohmann::json &values,
     const TerrainRecipe &sourceRecipe, const TerrainRecipe &authoredRecipe,
     const TerrainGraphInputs &inputs, const GraphValues &connected,
-    std::stop_token stop) {
+    std::stop_token stop, TerrainQuality quality,
+    const TerrainGenerator::Progress &progress) {
   if (stop.stop_requested())
     return std::nullopt;
   if (node.type == "landform" || node.type == "noise" ||
@@ -433,7 +452,7 @@ std::optional<GraphNodeResult> evaluateTerrainGraphNode(
     return evaluateDrainage(values, sourceRecipe, connected, stop);
   if (node.type == "erosion")
     return evaluateErosion(values, sourceRecipe, authoredRecipe, connected,
-                           stop);
+                           stop, quality, progress);
   if (node.type == "biomes")
     return evaluateBiomes(sourceRecipe, authoredRecipe, connected, stop);
   if (node.type == "water")

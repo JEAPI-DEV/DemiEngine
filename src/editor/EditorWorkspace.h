@@ -506,6 +506,7 @@ private:
   [[nodiscard]] bool terrainAssetHistory(bool forward, std::string &error);
   [[nodiscard]] bool refreshTerrainAssetPreview(
       const nlohmann::json &recipe, std::string &error);
+  [[nodiscard]] bool restoreTerrainAssetPreview(std::string &error);
   [[nodiscard]] bool saveTerrainAsset(std::string &error);
   [[nodiscard]] bool bindTerrainAsset(std::string_view assetId,
                                       std::string &error);

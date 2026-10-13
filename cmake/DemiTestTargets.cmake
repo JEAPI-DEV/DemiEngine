@@ -1,4 +1,8 @@
 # Native test executables. Test registration lives in dedicated modules.
+  # Explicitly requested generation probe; not part of the default test build.
+  add_executable(demi-terrain-generation-benchmark EXCLUDE_FROM_ALL
+    scripts/benchmark_terrain_generation.cpp)
+  target_link_libraries(demi-terrain-generation-benchmark PRIVATE demi-core)
   add_executable(demi-editor-data-asset-creation-tests tests/editor_data_asset_creation_tests.cpp)
   target_link_libraries(demi-editor-data-asset-creation-tests PRIVATE demi-editor-model)
   add_executable(demi-editor-data-asset-controls-tests tests/editor_data_asset_controls_tests.cpp)
@@ -717,6 +721,8 @@
   add_executable(demi-terrain-cook-tests tests/terrain_cook_tests.cpp)
   add_executable(demi-terrain-pipeline-tests tests/terrain_pipeline_tests.cpp)
   add_executable(demi-terrain-graph-tests tests/terrain_graph_tests.cpp)
+  add_executable(demi-terrain-graph-sediment-masks-tests tests/terrain_graph_sediment_masks_tests.cpp)
+  target_link_libraries(demi-terrain-graph-sediment-masks-tests PRIVATE demi-core)
   add_executable(demi-terrain-graph-spatial-masks-tests tests/terrain_graph_spatial_masks_tests.cpp)
   target_link_libraries(demi-terrain-graph-spatial-masks-tests PRIVATE demi-core)
   add_executable(demi-terrain-graph-landform-controls-tests

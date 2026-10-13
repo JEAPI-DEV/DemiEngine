@@ -292,6 +292,62 @@ void checkIndependentObject(const editor::EditorWorkspace &workspace,
         "Terrain operation relocated or removed independent runtime object");
 }
 
+void testGenerationPreviewCannotPublishAsFinal() {
+  TemporaryProject project;
+  createProject(project.root);
+  editor::EditorWorkspace workspace;
+  std::string error;
+  check(workspace.open(project.root, error), error);
+  selectTerrain(workspace);
+  auto &authoring = workspace.terrainAuthoring();
+  const auto originalField = terrain(workspace).generated;
+  const auto originalDocument = workspace.sceneDocument().json();
+  const auto source = project.root / "scenes/main.scene.json";
+  const auto originalSource = readJson(source);
+  authoring.draft()["seed"] = 7211;
+  const auto previewDraft = authoring.draft();
+  authoring.generationQuality = runtime::TerrainQuality::Preview;
+  check(authoring.generate(std::nullopt, error), error);
+  pollCompletion(workspace);
+  check(terrain(workspace).generated->quality == "preview",
+        "Preview generation was not installed as a labeled temporary surface");
+  check(workspace.sceneDocument().json() == originalDocument,
+        "Preview generation committed authored scene data");
+  check(!workspace.save(error) && error.find("Final") != std::string::npos,
+        "Save treated Preview generation as Final");
+  check(readJson(source) == originalSource,
+        "Blocked Preview save changed the authored source");
+  error.clear();
+  authoring.cancel();
+  pollCompletion(workspace);
+  check(terrain(workspace).generated == originalField,
+        "Discard Preview failed to restore the original Final surface");
+  check(authoring.draft() == previewDraft,
+        "Discard Preview lost the unapplied generation draft");
+
+  authoring.generationQuality = runtime::TerrainQuality::Preview;
+  check(authoring.generate(std::nullopt, error), error);
+  pollCompletion(workspace);
+  authoring.generationQuality = runtime::TerrainQuality::Standard;
+  check(!workspace.save(error),
+        "Changing the quality choice allowed saving an existing Preview");
+  error.clear();
+  check(authoring.generate(std::nullopt, error), error);
+  pollCompletion(workspace);
+  check(terrain(workspace).generated->quality == "standard",
+        "Final generation reused a Preview checkpoint");
+  check(workspace.save(error), error);
+  check(workspace.sceneDocument().json() != originalDocument,
+        "Final generation did not commit the authored draft");
+  check(workspace.undo(error), error);
+  check(terrain(workspace).generated->quality == "standard" &&
+            terrain(workspace).generated->heights == originalField->heights,
+        "Undo Final generation restored transient Preview geometry");
+  check(workspace.redo(error), error);
+  check(terrain(workspace).generated->quality == "standard",
+        "Redo Final generation restored Preview quality");
+}
+
 void testGenerateRegenerateHistoryAndSave(const std::filesystem::path &root) {
   editor::EditorWorkspace workspace;
   std::string error;
@@ -1234,6 +1290,7 @@ int main() {
   try {
     TemporaryProject project;
     createProject(project.root);
+    testGenerationPreviewCannotPublishAsFinal();
     testGenerateRegenerateHistoryAndSave(project.root);
     testCancellationAndStaleSelection(project.root);
     TemporaryProject liveProject;

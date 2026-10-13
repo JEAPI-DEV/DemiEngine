@@ -7,6 +7,12 @@ are registered in `tools/package-store/src/Docs.php`.
 
 This directory keeps material that has a different job:
 
+- [Terrain generation quality qualification](terrain-generation-quality-qualification.md)
+  records production Preview/Final safety, drainage/thermal fixes, simulation
+  masks and representative original-grid generation timings.
+- [Terrain erosion library evaluation](terrain-erosion-library-evaluation.md)
+  compares upstream dependencies, licensing evidence and integration gaps;
+  it does not claim an upstream performance qualification.
 - [Terrain polygon mask qualification](terrain-polygon-mask-qualification.md)
   records shared spatial-mask validation, basin/plateau/island presets, graph
   editing and native generation checks.

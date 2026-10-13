@@ -517,13 +517,15 @@ remain separate gates.
 
 ## Milestone 3: landforms, erosion and drainage
 
-In progress. `TerrainPipeline` now runs the landform, surface, sculpt, drainage,
-erosion, hydrology and mask stages in a declared order and reports which of them
-actually ran, so a caller asks rather than infers. Erosion is refused, and
-reported as not run, when a recipe has sculpt strokes, because the pipeline
-cannot yet replay them onto an eroded base and losing an author's sculpting
-silently is worse than not eroding. The checkboxes below still describe what is
-missing, not what is present.
+In progress. Production graph generation runs explicit stage dependencies,
+then replays authored sculpt strokes over the retained generated base. Local
+brush work reuses that checkpoint instead of restarting global erosion.
+Preview/Final quality now reaches the production generator and editor; Preview
+is temporary and cannot enter final saves, caches or cooked output. Hydraulic
+and thermal transport, corrected downstream accumulation and graph flow/cut/
+deposition masks are implemented. Downhill river routing and outlet policy,
+upstream solver comparison and reference-quality acceptance remain open.
+See [generation quality qualification](docs/terrain-generation-quality-qualification.md).
 
 - [ ] Build coherent macro features: connected ridges, mountain masses, valleys,
   basins, coastlines and plateaus. Layer smaller variation over that structure;
@@ -546,18 +548,33 @@ missing, not what is present.
 - [ ] Evaluate maintained libraries/tools for erosion and terrain processing
   before writing custom implementations. Compare licensing, portability,
   cancellation, determinism and integration costs with representative probes.
-- [ ] Add hydraulic and thermal erosion stages with sediment transport/deposition
+  A pinned source-level [library survey](docs/terrain-erosion-library-evaluation.md)
+  now records HighMap and soillib tradeoffs. Native representative runs exist;
+  a qualified upstream solver comparison remains outstanding.
+
+- [x] Add hydraulic and thermal erosion stages with sediment transport/deposition
   where supported by the selected approach. Retain useful outputs such as flow,
   sediment, exposed-rock and wetness masks for later stages.
+  The native bounded solver now publishes signed balance and normalized cut/
+  deposition pins; Drainage also exposes flow. Reverse-tree accumulation and
+  anisotropic/diagonal thermal distances are corrected, with conservation,
+  cancellation, cache and original-grid Preview/Final probes. This establishes
+  the stage contract, not a full fluid solver or the visual acceptance gate.
+
 - [ ] Compute drainage/basin information for water generation. Define sea level,
   outlets, closed basins and river connectivity; do not generate rivers by
   placing arbitrary splines that flow uphill or end without an outlet policy.
 - [ ] Resolve the terrain/water dependency order: initial landform, drainage,
   optional channel/basin carving, final surface/rule masks. Bound any iterative
   refinement explicitly and make results independent of chunk processing order.
-- [ ] Support preview and final-quality generation settings with visible status.
+- [x] Support preview and final-quality generation settings with visible status.
   Expensive erosion is a generation/bake operation unless explicitly requested;
   local sculpting must not automatically restart a global erosion simulation.
+
+  Editor Preview reduces hydraulic work and skips thermal passes on the same
+  authored grid. Final uses authored work settings. Progress updates within
+  erosion; cancellation/discard restores Final, and Final history never stores
+  Preview geometry. Source, shared placements, caches and cooking are guarded.
 
 Acceptance: preset-generated mountains and river valleys have coherent shapes
 at wide and close views; watershed/chunk boundaries have no processing seams.

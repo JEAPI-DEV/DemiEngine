@@ -292,6 +292,10 @@ bool validateField(const TerrainCookedField &field, std::size_t &samples,
     error = "Terrain water level must be finite.";
     return false;
   }
+  if (field.quality != terrainQualityName(TerrainQuality::Standard)) {
+    error = "Cooked terrain must have Final generation quality.";
+    return false;
+  }
   if (field.recipeDigest.empty()) {
     error = "Terrain cook recipe digest is missing.";
     return false;

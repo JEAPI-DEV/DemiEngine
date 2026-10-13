@@ -98,9 +98,52 @@ runtime::TerrainPreset preset(std::string id = "asset://terrain/presets/alpine",
       runtime::TerrainBiome{.landform = "scree", .color = {.6F, .6F, .6F, 1}});
   return value;
 }
+void previewGenerationRemainsTransientUntilFinalOrDiscard() {
+  runtime::TerrainRecipe recipe;
+  recipe.size = {8, 8};
+  recipe.cellsX = recipe.cellsZ = 8;
+  recipe.chunkCells = 4;
+  std::string error;
+  const auto original =
+      editor::generateEditorTerrain(recipe.toJson(), {}, {}, error);
+  assert(original && error.empty());
+  editor::EditorTerrainAuthoring authoring;
+  authoring.bind("quality", "terrain", recipe.toJson(), original);
+  authoring.draft()["seed"] = 4242;
+  const auto draft = authoring.draft();
+  authoring.generationQuality = runtime::TerrainQuality::Preview;
+  assert(authoring.generate(std::nullopt, error));
+  const auto preview = nextBatch(authoring, error);
+  assert(preview && !preview->final && !preview->restore);
+  assert(preview->before == recipe.toJson() && preview->recipe == draft);
+  assert(preview->surface->heightField()->quality == "preview");
+  assert(authoring.hasPreviewResult() && authoring.hasDraftChanges());
+  authoring.setBrushTargetSelected(true);
+  authoring.brush.mode = editor::EditorTerrainBrush::Raise;
+  assert(!authoring.brushActive());
+  authoring.cancel();
+  const auto restore = authoring.takeRollback();
+  assert(restore && restore->restore && restore->surface == original);
+  assert(!authoring.hasPreviewResult());
+  assert(authoring.draft() == draft);
+
+  authoring.generationQuality = runtime::TerrainQuality::Preview;
+  assert(authoring.generate(std::nullopt, error));
+  const auto anotherPreview = nextBatch(authoring, error);
+  assert(anotherPreview && !anotherPreview->final);
+  authoring.generationQuality = runtime::TerrainQuality::Standard;
+  assert(authoring.generate(std::nullopt, error));
+  const auto final = nextBatch(authoring, error);
+  assert(final && final->final && !final->restore);
+  assert(final->surface->heightField()->quality == "standard");
+  assert(final->before == recipe.toJson() && final->recipe == draft);
+  assert(!authoring.takeRollback());
+}
+
 } // namespace
 
 int main() {
+  previewGenerationRemainsTransientUntilFinalOrDiscard();
   using namespace demi;
   const auto surface = std::make_shared<TestSurface>();
   const auto recipe = runtime::TerrainRecipe::defaults();

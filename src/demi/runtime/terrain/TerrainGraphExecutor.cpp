@@ -111,7 +111,8 @@ std::size_t TerrainGraphBiomeOverlay::biomeAt(int x, int z) const {
 std::optional<HeightField>
 executeTerrainGraph(const TerrainRecipe &recipe,
                     const TerrainGraphInputs &inputs, std::stop_token stop,
-                    const TerrainGenerator::Progress &progress) {
+                    const TerrainGenerator::Progress &progress,
+                    TerrainQuality quality) {
   const auto graph = TerrainGraph::parse(recipe.graph);
   const auto order = graph.executionOrder();
   auto cache = std::make_shared<TerrainGraphEvaluationCache>();
@@ -133,6 +134,9 @@ executeTerrainGraph(const TerrainRecipe &recipe,
         {"type", node.type},
         {"parameters", values},
         {"context", terrainGraphNodeContext(sourceRecipe, node, inputs)}};
+    if (node.type == "erosion") {
+      signature["quality"] = terrainQualityName(quality);
+    }
     if (node.type == "biomes")
       signature["context"] = terrainGraphNodeContext(recipe, node, inputs);
 
@@ -170,8 +174,15 @@ executeTerrainGraph(const TerrainRecipe &recipe,
 
     std::optional<GraphNodeResult> evaluated;
     try {
-      evaluated = evaluateTerrainGraphNode(node, values, sourceRecipe, recipe,
-                                           inputs, connected, stop);
+      const auto nodeProgress = [&](float fraction) {
+        if (progress) {
+          progress((float(completed) + std::clamp(fraction, 0.0F, 1.0F)) /
+                   float(order.size()));
+        }
+      };
+      evaluated =
+          evaluateTerrainGraphNode(node, values, sourceRecipe, recipe, inputs,
+                                   connected, stop, quality, nodeProgress);
     } catch (const std::exception &error) {
       throw std::invalid_argument("Node " + nodeId + ": " + error.what());
     }
@@ -190,9 +201,15 @@ executeTerrainGraph(const TerrainRecipe &recipe,
       progress(float(++completed) / order.size());
   }
 
+  for (const auto &[id, entry] : cache->nodes) {
+    if (entry.result.sedimentBalance) {
+      artifacts->sedimentBalance.emplace(id, entry.result.sedimentBalance);
+    }
+  }
   const auto &outputs = cache->nodes.at(graph.output).result.outputs;
   artifacts->baseField = std::get<GraphField>(outputs.at("field"));
   auto result = *artifacts->baseField;
+  result.quality = terrainQualityName(quality);
   result.baseHeights = result.heights;
   refreshOutputMetadata(result, recipe);
   if (stop.stop_requested())

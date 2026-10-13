@@ -208,6 +208,10 @@ void publishTerrain(const nlohmann::json &recipe,
                     std::shared_ptr<const HeightField> field) {
   if (!field)
     throw std::invalid_argument("Cannot publish an empty terrain result");
+  if (field->quality != terrainQualityName(TerrainQuality::Standard)) {
+    throw std::invalid_argument(
+        "Preview terrain cannot enter the final recipe cache");
+  }
   const auto parsed = TerrainRecipe::parse(recipe);
   validateField(parsed, *field);
   if (!parsed.paletteId.empty() &&

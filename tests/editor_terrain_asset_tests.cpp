@@ -12,6 +12,7 @@
 #include "demi/runtime/terrain/TerrainRecipe.h"
 #include "demi/runtime/terrain/TerrainScatterRuntime.h"
 #include "demi/runtime/terrain/TerrainUpdate.h"
+#include "demi/schema/Validation.h"
 
 #include <chrono>
 #include <cstdlib>
@@ -127,6 +128,67 @@ void raiseTerrain(editor::EditorWorkspace &workspace) {
                        runtime::Vec3{20, 0, 20}, error),
       error);
   awaitTerrain(workspace);
+}
+
+void verifySharedAssetPreviewDiscardRestoresFinal() {
+  TemporaryProject temporary;
+  createProject(temporary.root);
+  editor::EditorWorkspace workspace;
+  std::string error;
+  require(workspace.open(temporary.root, error), error);
+  std::filesystem::path manifest;
+  require(editor::createEditorSource(workspace,
+                                     editor::EditorSourceKind::Terrain,
+                                     "quality", manifest, error),
+          error);
+  const auto sourcePath =
+      workspace.assetIndex().findByManifest(manifest)->manifest.sourcePath;
+  require(workspace.placeTerrainAsset(manifest, runtime::Vec3{}, error), error);
+  const auto first = std::string(workspace.selectedEntityId());
+  require(
+      workspace.placeTerrainAsset(manifest, runtime::Vec3{150, 0, 0}, error),
+      error);
+  const auto second = std::string(workspace.selectedEntityId());
+  const auto authored = workspace.terrainAssetDocument()->recipe();
+  const auto sourceBefore = readJson(sourcePath);
+  const auto sceneBefore = workspace.sceneDocument().json();
+  const auto finalField = terrainIn(workspace.project().world, first).generated;
+  require(terrainIn(workspace.project().world, second).generated == finalField,
+          "Shared placements did not start with one Final field");
+  auto &authoring = workspace.terrainAuthoring();
+  authoring.draft()["seed"] = 7231;
+  const auto draft = authoring.draft();
+  authoring.generationQuality = runtime::TerrainQuality::Preview;
+  require(authoring.generate(std::nullopt, error), error);
+  awaitTerrain(workspace);
+  const auto preview = terrainIn(workspace.project().world, first).generated;
+  require(preview != finalField && preview->quality == "preview" &&
+              terrainIn(workspace.project().world, second).generated == preview,
+          "Preview did not update both shared placements");
+  require(!workspace.applyTerrainAssetChanges(error),
+          "Shared Preview was allowed to enter the authored asset");
+  error.clear();
+  authoring.cancel();
+  awaitTerrain(workspace);
+  require(terrainIn(workspace.project().world, first).generated == finalField &&
+              terrainIn(workspace.project().world, second).generated ==
+                  finalField,
+          "Discard regenerated or lost the retained shared Final field");
+  require(authoring.draft() == draft && workspace.terrainReady(error),
+          "Discard lost the draft or kept Preview readiness blocked");
+  require(workspace.terrainAssetDocument()->recipe() == authored &&
+              readJson(sourcePath) == sourceBefore &&
+              workspace.sceneDocument().json() == sceneBefore,
+          "Preview or Discard modified authored asset/scene data");
+
+  require(authoring.generate(std::nullopt, error), error);
+  awaitTerrain(workspace);
+  workspace.selectEntity("camera");
+  require(terrainIn(workspace.project().world, first).generated == finalField &&
+              terrainIn(workspace.project().world, second).generated ==
+                  finalField,
+          "Selection change retained shared Preview geometry");
+  require(workspace.terrainReady(error), error);
 }
 
 void verifyStarterPresetAndComments() {
@@ -459,14 +521,8 @@ void writeAsset(const std::filesystem::path &root, const std::string &name,
 void verifyPrefabScatterInScene() {
   TemporaryProject temporary;
   createProject(temporary.root);
-  const std::string materialId = "asset://test/tree_material";
   const std::string paletteId = "asset://test/palette";
   const std::string terrainId = "asset://test/terrain";
-  writeAsset(temporary.root, "tree_material", materialId, "Material",
-             "material",
-             {{"format_version", 1},
-              {"shader", "builtin://lit"},
-              {"parameters", {{"base_color", {0.2, 0.4, 0.2, 1}}}}});
   writeJson(temporary.root / "prefabs/tree.prefab.json", Json::parse(R"json({
     "format_version": 1, "id": "prefab://tree",
     "entities": [{"id": "body", "components": {
@@ -474,16 +530,14 @@ void verifyPrefabScatterInScene() {
       "GameplayData": {"values": {"counter": 0}}
     }}]
   })json"));
-  writeAsset(temporary.root, "palette", paletteId, "DataAsset", "json_data",
-             {{"format_version", 1},
-              {"name", "Prefab palette"},
-              {"roles",
-               {{"tree",
-                 {{"asset", materialId},
-                  {"prefab", "prefab://tree"},
-                  {"spacing", 0},
-                  {"scale", {1, 1}}}}}}},
-             {{"content_type", "terrain_palette"}}, Json::array({materialId}));
+  writeAsset(
+      temporary.root, "palette", paletteId, "DataAsset", "json_data",
+      {{"format_version", 2},
+       {"name", "Prefab palette"},
+       {"placements",
+        {{"tree",
+          {{"prefab", "prefab://tree"}, {"spacing", 0}, {"scale", {1, 1}}}}}}},
+      {{"content_type", "terrain_palette"}}, Json::array());
   auto recipe = runtime::TerrainRecipe{};
   recipe.size = {8, 8};
   recipe.cellsX = recipe.cellsZ = 4;
@@ -503,12 +557,16 @@ void verifyPrefabScatterInScene() {
   writeJson(temporary.root / "scenes/main.scene.json", scene);
   editor::EditorWorkspace workspace;
   std::string error;
-  require(workspace.open(temporary.root, error), error);
+  if (!workspace.open(temporary.root, error)) {
+    const auto validation = validateProjectPath(temporary.root);
+    printDiagnosticsText(std::cerr, validation.diagnostics);
+    throw std::runtime_error(error);
+  }
   const auto preparedField =
       terrainIn(workspace.project().world, "land").generated;
   const auto placement = preparedField->scatterPlacements.at(12);
   const auto instanceId = runtime::terrainScatterInstanceId(
-      "land", paletteId, placement.role, placement.cell);
+      "land", paletteId, placement.ruleId, placement.cell);
   const std::string rootId = instanceId + "/body";
   auto *root = runtime::findEntity(workspace.project().world, rootId);
   require(root && root->prefabInstance == instanceId,
@@ -797,6 +855,8 @@ int main() {
     };
     run("in-scene asset authoring", verifyInSceneTerrainAssetAuthoring);
     run("pinned shared asset graph", verifyPinnedAssetGraph);
+    run("shared asset Preview discard",
+        verifySharedAssetPreviewDiscardRestoresFinal);
     run("prefab scatter in scene", verifyPrefabScatterInScene);
     run("standalone asset authoring", verifyTerrainAssetAuthoring);
     run("inline extraction", verifyInlineExtraction);

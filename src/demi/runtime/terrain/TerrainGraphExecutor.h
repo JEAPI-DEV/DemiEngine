@@ -2,6 +2,7 @@
 
 #include "demi/runtime/terrain/TerrainGenerator.h"
 #include "demi/runtime/terrain/TerrainWater.h"
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -17,17 +18,22 @@ struct TerrainGraphArtifacts {
   // Graph output before manual regions, sculpt and exclusions. Cache fields do
   // not own artifacts, so retaining this checkpoint cannot form a cycle.
   std::shared_ptr<const HeightField> baseField;
-  // Aliases cached Instances output; artifact copies share immutable candidates.
+  // Aliases cached Instances output; artifact copies share immutable
+  // candidates.
   std::shared_ptr<const std::vector<TerrainScatterPlacement>> basePlacements;
   std::optional<TerrainWaterResult> waterResult;
   TerrainWaterAuthoring water;
   std::vector<TerrainGraphNodeRun> nodes;
   std::vector<std::string> warnings;
+  // Signed transport is retained per erosion node, including cache hits.
+  std::map<std::string, std::shared_ptr<const TerrainSamples<float>>>
+      sedimentBalance;
   std::shared_ptr<const TerrainGraphEvaluationCache> cache;
 };
 
 // Replays enabled painted regions over the labels from a graph output. Heights
-// remain owned by graph nodes, even when a painted biome names another landform.
+// remain owned by graph nodes, even when a painted biome names another
+// landform.
 class TerrainGraphBiomeOverlay {
 public:
   TerrainGraphBiomeOverlay(const HeightField &base,
@@ -46,5 +52,6 @@ struct TerrainGraphInputs {
 };
 std::optional<HeightField> executeTerrainGraph(
     const TerrainRecipe &recipe, const TerrainGraphInputs &inputs = {},
-    std::stop_token stop = {}, const TerrainGenerator::Progress &progress = {});
+    std::stop_token stop = {}, const TerrainGenerator::Progress &progress = {},
+    TerrainQuality quality = TerrainQuality::Standard);
 } // namespace demi::runtime

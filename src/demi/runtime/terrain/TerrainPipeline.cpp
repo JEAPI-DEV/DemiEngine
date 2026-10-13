@@ -69,23 +69,22 @@ std::optional<TerrainGenerationResult> generateGraphStages(
     const TerrainRecipe &recipe, const TerrainPipelineSettings &settings,
     std::stop_token stop, const TerrainProgress &progress) {
   if (settings.erosion ||
-      (settings.waterAuthoring != nullptr && settings.waterAuthoring->authored) ||
-      settings.quality != TerrainQuality::Standard)
+      (settings.waterAuthoring != nullptr && settings.waterAuthoring->authored))
     throw std::invalid_argument(
-        "Graph terrain controls erosion, water and quality; pipeline overrides "
+        "Graph terrain controls erosion and water; pipeline overrides "
         "are unsupported");
   const auto graph = TerrainGraph::parse(recipe.graph);
   const auto graphProgress = [&](float value) {
     if (progress)
       progress(0.75F * value);
   };
-  auto field = executeTerrainGraph(
-      recipe, {settings.palette, {}, {}}, stop, graphProgress);
+  auto field = executeTerrainGraph(recipe, {settings.palette, {}, {}}, stop,
+                                   graphProgress, settings.quality);
   if (!field)
     return std::nullopt;
 
   TerrainGenerationResult result;
-  result.quality = TerrainQuality::Standard;
+  result.quality = settings.quality;
   result.water = settings.water;
   if (!result.water.authored)
     result.water.seaLevel = TerrainRuleContextBuilder::seaLevel(recipe);
@@ -258,8 +257,7 @@ generateTerrainStages(const TerrainRecipe &recipe,
     field->stageOrder += terrainStageName(stage);
   }
 
-  if (result.quality == TerrainQuality::Standard &&
-      !recipe.paletteId.empty() && settings.palette != nullptr) {
+  if (!recipe.paletteId.empty() && settings.palette != nullptr) {
     if (stop.stop_requested())
       return std::nullopt;
     // One combined answer to "may something be placed here", so the editor's

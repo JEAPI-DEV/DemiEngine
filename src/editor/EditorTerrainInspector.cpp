@@ -237,6 +237,10 @@ void drawEditorTerrainInspector(EditorWorkspace &workspace,
       authoring.cancel();
     ImGui::TextWrapped("Save and Play wait for terrain and collision updates.");
   }
+  if (authoring.hasPreviewResult()) {
+    ImGui::TextWrapped(
+        "Preview quality: generate Final before editing, Apply, Save or Play.");
+  }
   drawBrush(authoring);
 }
 

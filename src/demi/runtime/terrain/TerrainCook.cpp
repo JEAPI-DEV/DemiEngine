@@ -38,6 +38,11 @@ cookTerrainField(const TerrainCookInput &input, std::string *error) {
     return std::nullopt;
   }
   const HeightField &field = *input.field;
+  if (field.quality != terrainQualityName(TerrainQuality::Standard)) {
+    cook_format::setError(error,
+                          "Generate Final terrain before cooking a field.");
+    return std::nullopt;
+  }
   std::string reason;
   std::size_t samples = 0;
   if (!cook_format::gridSampleCount(field.cellsX, field.cellsZ, samples,

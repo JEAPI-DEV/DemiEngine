@@ -17,7 +17,7 @@ struct TerrainPipelineSettings {
   TerrainQuality quality = TerrainQuality::Standard;
   // For graph recipes, controls final derived flow masks, not graph nodes.
   bool drainage = true;
-  // Explicit erosion and preview overrides conflict with graph recipes.
+  // Graph nodes own erosion enablement; quality selects its work policy.
   bool erosion = false;
   // Supplies the palette to scatter. Generation never loads assets, so the
   // caller passes the resolved palette it already holds.

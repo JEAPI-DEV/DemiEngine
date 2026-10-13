@@ -347,6 +347,8 @@ add_test(NAME demi-simulation-tests COMMAND demi-simulation-tests)
     COMMAND demi-terrain-lod-publication-tests)
   set_tests_properties(demi-terrain-lod-publication-tests PROPERTIES TIMEOUT 30)
   add_test(NAME demi-terrain-render-lod-tests COMMAND demi-terrain-render-lod-tests)
+  add_test(NAME demi-terrain-graph-sediment-masks-tests COMMAND demi-terrain-graph-sediment-masks-tests)
+  set_tests_properties(demi-terrain-graph-sediment-masks-tests PROPERTIES TIMEOUT 30)
   add_test(NAME demi-terrain-graph-spatial-masks-tests COMMAND demi-terrain-graph-spatial-masks-tests)
   set_tests_properties(demi-terrain-graph-spatial-masks-tests PROPERTIES TIMEOUT 30)
   add_test(NAME demi-terrain-graph-landform-controls-tests

@@ -7,6 +7,7 @@ add_library(demi-core STATIC
   src/demi/runtime/terrain/TerrainGraphExecutor.cpp
   src/demi/runtime/terrain/TerrainGraphNodeEvaluation.cpp
   src/demi/runtime/terrain/TerrainGraphSpatialMasks.cpp
+  src/demi/runtime/terrain/TerrainGraphSedimentMasks.cpp
   src/demi/runtime/terrain/TerrainLandform.cpp
   src/demi/runtime/terrain/TerrainRecipe.cpp
   src/demi/runtime/terrain/TerrainBrushStroke.cpp

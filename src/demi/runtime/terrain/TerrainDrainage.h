@@ -2,10 +2,10 @@
 
 #include "demi/runtime/terrain/TerrainGeneration.h"
 #include <cstddef>
-#include <optional>
-#include <stop_token>
-#include <span>
 #include <cstdint>
+#include <optional>
+#include <span>
+#include <stop_token>
 #include <vector>
 
 namespace demi::runtime {
@@ -18,8 +18,8 @@ inline constexpr std::size_t terrainNoDownstream = ~std::size_t{0};
 
 // Where water on a finished surface would go, and what it would collect on the
 // way. Computed once by the Drainage stage because every later consumer needs
-// the same answer: hydrology carves channels along it, biome rules band on flow,
-// erosion walks it, and scattering keeps off the water it drains to.
+// the same answer: hydrology carves channels along it, biome rules band on
+// flow, erosion walks it, and scattering keeps off the water it drains to.
 //
 // Flow is accumulation normalised to 0..1 against the field's own maximum, so
 // it is comparable between fields without either field's absolute area leaking
@@ -27,6 +27,8 @@ inline constexpr std::size_t terrainNoDownstream = ~std::size_t{0};
 struct TerrainDrainage {
   // Normalised accumulation, 0..1. Zero at the border: a border sample is the
   // field's own outlet, and it has no upstream area inside the field to report.
+  // Each interior value includes the complete upstream subtree, including the
+  // sample itself; accumulation is reduced in reverse discovery order.
   TerrainSamples<float> flow;
   // World units to the nearest sample at or below sea level. With no water
   // anywhere in the field every sample is left maximally distant rather than
@@ -39,9 +41,10 @@ struct TerrainDrainage {
   // Number of closed basins. Basin ids therefore run 1..basinCount, and a field
   // that drains entirely off its edge has none.
   std::size_t basinCount = 0;
-  // Where each basin's water collects: basinOutlets[0] is the field's own outlet
-  // and basinOutlets[b] is the lowest sample of basin b. So basinOutlets[b] is a
-  // valid read for any id found in `basin`, and it holds basinCount + 1 entries.
+  // Where each basin's water collects: basinOutlets[0] is the field's own
+  // outlet and basinOutlets[b] is the lowest sample of basin b. So
+  // basinOutlets[b] is a valid read for any id found in `basin`, and it holds
+  // basinCount + 1 entries.
   std::vector<Vec3> basinOutlets;
   // The sample below which water stands, in world units.
   float seaLevel = 0;
@@ -57,16 +60,17 @@ struct TerrainDrainageSettings {
   // Recorded for the caller to attribute the result to a tier. It deliberately
   // does not change the numbers: flow, basins and water distance are all
   // consumed by rules, hydrology and masks, which run in Preview too, and a
-  // coarser drainage would label basins against the full-resolution surface they
-  // get joined to. Preview buys its iteration speed in the Erosion stage.
+  // coarser drainage would label basins against the full-resolution surface
+  // they get joined to. Preview buys its iteration speed in the Erosion stage.
   TerrainQuality quality = TerrainQuality::Standard;
 };
 
 // Uses the same distance metric as drainage with explicit finite-body coverage.
 // Returns an empty vector on cancellation.
-std::vector<float> computeTerrainWaterDistances(
-    const HeightField &field, std::span<const std::uint8_t> wetSamples,
-    std::stop_token stop = {});
+std::vector<float>
+computeTerrainWaterDistances(const HeightField &field,
+                             std::span<const std::uint8_t> wetSamples,
+                             std::stop_token stop = {});
 
 // Empty only when the field holds no samples. A field whose sample storage does
 // not match its own grid throws std::invalid_argument rather than computing

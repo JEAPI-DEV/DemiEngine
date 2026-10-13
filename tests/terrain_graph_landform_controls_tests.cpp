@@ -1,10 +1,15 @@
+#include "demi/runtime/terrain/TerrainCook.h"
+#include "demi/runtime/terrain/TerrainDrainage.h"
+#include "demi/runtime/terrain/TerrainGenerationCache.h"
 #include "demi/runtime/terrain/TerrainGraph.h"
 #include "demi/runtime/terrain/TerrainGraphExecutor.h"
 #include "demi/runtime/terrain/TerrainGraphRegistry.h"
 #include "demi/runtime/terrain/TerrainLandform.h"
 #include "demi/runtime/terrain/TerrainRecipe.h"
+#include "demi/runtime/terrain/TerrainUpdate.h"
 
 #include <algorithm>
+#include <cmath>
 #ifdef NDEBUG
 #undef NDEBUG
 #endif
@@ -169,9 +174,8 @@ void polygonMetadataAndParserShareTheCoordinateContract() {
   }
   assert(defaults["falloff"] == 20);
   auto graph = defaultTerrainGraph();
-  graph["nodes"].push_back({{"id", "polygon"},
-                            {"type", "polygon_mask"},
-                            {"parameters", defaults}});
+  graph["nodes"].push_back(
+      {{"id", "polygon"}, {"type", "polygon_mask"}, {"parameters", defaults}});
   assert(!rejected(graph));
   auto omittedDefaults = graph;
   omittedDefaults["nodes"].back()["parameters"] = nlohmann::json::object();
@@ -189,7 +193,8 @@ void polygonMetadataAndParserShareTheCoordinateContract() {
     assert(parsed.node("polygon"));
     assert(parsed.node("polygon")->parameters ==
            graph["nodes"].back()["parameters"]);
-    assert(TerrainGraph::parse(parsed.toJson()).contentKey() == parsed.contentKey());
+    assert(TerrainGraph::parse(parsed.toJson()).contentKey() ==
+           parsed.contentKey());
   }
   const auto invalidPolygons = nlohmann::json::parse(R"([
     [],
@@ -208,9 +213,194 @@ void polygonMetadataAndParserShareTheCoordinateContract() {
   assert(rejected(graph));
 }
 
+TerrainRecipe erosionQualityRecipe() {
+  auto recipe = smallRecipe();
+  recipe.graph = noiseGraph({{"height_variation", 20}, {"feature_size", 8}});
+  recipe.graph["nodes"].push_back({
+      {"id", "erosion"},
+      {"type", "erosion"},
+      {"parameters", {{"iterations", 8}, {"thermal_strength", 0.35}}},
+  });
+  recipe.graph["links"][0]["from"]["node"] = "erosion";
+  recipe.graph["links"].push_back({
+      {"id", "source_erosion"},
+      {"from", {{"node", "source"}, {"port", "field"}}},
+      {"to", {{"node", "erosion"}, {"port", "field"}}},
+  });
+  return recipe;
+}
+
+void generationQualitySeparatesErosionCachesAndPreservesAuthoredStrokes() {
+  auto recipe = erosionQualityRecipe();
+  const auto preview =
+      TerrainGenerator::generate(recipe, {}, {}, TerrainQuality::Preview);
+  assert(preview && preview->quality == "preview");
+  TerrainGraphInputs retained;
+  retained.previousCache = preview->graphArtifacts->cache;
+  const auto final = executeTerrainGraph(recipe, retained);
+  assert(final && final->quality == "standard");
+  const auto balance = final->graphArtifacts->sedimentBalance.at("erosion");
+  assert(balance && balance->size() == final->heights.size());
+  assert(final->cellsX == preview->cellsX && final->size.x == preview->size.x);
+  assert(final->heights != preview->heights);
+  const auto cached = [&](std::string_view id) {
+    const auto run = std::ranges::find(final->graphArtifacts->nodes, id,
+                                       &TerrainGraphNodeRun::id);
+    assert(run != final->graphArtifacts->nodes.end());
+    return run->cached;
+  };
+  assert(cached("source"));
+  assert(!cached("erosion"));
+  assert(!cached("terrain_output"));
+  retained.previousCache = final->graphArtifacts->cache;
+  TerrainEdit edit;
+  edit.kind = TerrainEditKind::Raise;
+  edit.center = {8, 8};
+  edit.radius = 2;
+  edit.strength = 0.5F;
+  recipe.edits.push_back(edit);
+  const auto sculpted = executeTerrainGraph(recipe, retained);
+  assert(sculpted);
+  assert(sculpted->baseHeights == final->heights);
+  assert(sculpted->graphArtifacts->sedimentBalance.at("erosion") == balance);
+  assert(sculpted->height(8, 8) > final->height(8, 8));
+  for (const auto &run : sculpted->graphArtifacts->nodes) {
+    assert(run.cached);
+  }
+}
+
+void erosionMasksDriveDownstreamNodesAndIgnoreChunkPartition() {
+  const auto recipe = erosionQualityRecipe();
+  const auto baseline = executeTerrainGraph(recipe);
+  assert(baseline);
+  auto partitioned = recipe;
+  partitioned.chunkCells = 4;
+  const auto repartitioned = executeTerrainGraph(partitioned);
+  assert(repartitioned && repartitioned->heights == baseline->heights);
+
+  const auto &balance =
+      *baseline->graphArtifacts->sedimentBalance.at("erosion");
+  for (const std::string port : {"deposition", "cut"}) {
+    auto masked = recipe;
+    masked.graph["nodes"].push_back({
+        {"id", "mask_offset"},
+        {"type", "offset"},
+        {"parameters", {{"amount", 3}}},
+    });
+    masked.graph["links"][0]["from"]["node"] = "mask_offset";
+    masked.graph["links"].push_back({
+        {"id", "erosion_offset_field"},
+        {"from", {{"node", "erosion"}, {"port", "field"}}},
+        {"to", {{"node", "mask_offset"}, {"port", "field"}}},
+    });
+    masked.graph["links"].push_back({
+        {"id", "erosion_offset_mask"},
+        {"from", {{"node", "erosion"}, {"port", port}}},
+        {"to", {{"node", "mask_offset"}, {"port", "mask"}}},
+    });
+    const auto result = executeTerrainGraph(masked);
+    assert(result);
+    const float sign = port == "deposition" ? 1.0F : -1.0F;
+    float maximum = 0;
+    for (std::size_t sample = 0; sample < balance.size(); ++sample) {
+      maximum = std::max(maximum, sign * balance[sample]);
+    }
+    for (std::size_t sample = 0; sample < balance.size(); ++sample) {
+      const float weight =
+          maximum > 0 ? std::max(0.0F, sign * balance[sample]) / maximum : 0.0F;
+      const float expected = baseline->heights[sample] + 3.0F * weight;
+      assert(std::abs(result->heights[sample] - expected) < 0.00001F);
+    }
+  }
+}
+
+void drainageFlowMaskDrivesGraphModifiers() {
+  auto recipe = smallRecipe();
+  recipe.graph = noiseGraph({{"height_variation", 20}, {"feature_size", 8}});
+  const auto baseline = executeTerrainGraph(recipe);
+  assert(baseline);
+  const auto drainage = computeTerrainDrainage(*baseline, recipe, {});
+  assert(drainage);
+  recipe.graph["nodes"].push_back({{"id", "drainage"}, {"type", "drainage"}});
+  recipe.graph["nodes"].push_back({
+      {"id", "flow_offset"},
+      {"type", "offset"},
+      {"parameters", {{"amount", 2}}},
+  });
+  recipe.graph["links"][0]["from"]["node"] = "flow_offset";
+  recipe.graph["links"].push_back({
+      {"id", "source_drainage"},
+      {"from", {{"node", "source"}, {"port", "field"}}},
+      {"to", {{"node", "drainage"}, {"port", "field"}}},
+  });
+  recipe.graph["links"].push_back({
+      {"id", "source_offset"},
+      {"from", {{"node", "source"}, {"port", "field"}}},
+      {"to", {{"node", "flow_offset"}, {"port", "field"}}},
+  });
+  recipe.graph["links"].push_back({
+      {"id", "flow_mask"},
+      {"from", {{"node", "drainage"}, {"port", "flow"}}},
+      {"to", {{"node", "flow_offset"}, {"port", "mask"}}},
+  });
+  const auto result = executeTerrainGraph(recipe);
+  assert(result);
+  for (std::size_t sample = 0; sample < baseline->heights.size(); ++sample) {
+    const float expected =
+        baseline->heights[sample] + 2 * drainage->flow[sample];
+    assert(std::abs(result->heights[sample] - expected) < 0.00001F);
+  }
+}
+
+void erosionReportsIntermediateProgressAndCancelsWithoutPublication() {
+  const auto recipe = erosionQualityRecipe();
+  std::stop_source cancellation;
+  float previousProgress = 0;
+  bool interruptedErosion = false;
+  const auto cancelled = executeTerrainGraph(
+      recipe, {}, cancellation.get_token(), [&](float progress) {
+        assert(progress >= previousProgress && progress <= 1);
+        previousProgress = progress;
+        if (progress > 1.0F / 3 && progress < 2.0F / 3) {
+          interruptedErosion = true;
+          cancellation.request_stop();
+        }
+      });
+  assert(!cancelled && interruptedErosion);
+  const auto first = TerrainGenerator::generate(recipe);
+  const auto second = TerrainGenerator::generate(recipe);
+  assert(first && second && first->heights == second->heights);
+  const auto preview = std::make_shared<const HeightField>(
+      *TerrainGenerator::generate(recipe, {}, {}, TerrainQuality::Preview));
+  bool rejectedPreview = false;
+  try {
+    publishTerrain(recipe.toJson(), {}, preview);
+  } catch (const std::invalid_argument &) {
+    rejectedPreview = true;
+  }
+  assert(rejectedPreview);
+  rejectedPreview = false;
+  try {
+    (void)updateTerrain(recipe, recipe, preview);
+  } catch (const std::invalid_argument &) {
+    rejectedPreview = true;
+  }
+  assert(rejectedPreview);
+  TerrainCookInput cook;
+  cook.field = preview.get();
+  cook.recipeDigest = terrainCookRecipeDigest(recipe);
+  std::string error;
+  assert(!cookTerrainField(cook, &error));
+  assert(error.find("Final") != std::string::npos);
+}
+
 } // namespace
 
 int main() {
+  generationQualitySeparatesErosionCachesAndPreservesAuthoredStrokes();
+  erosionMasksDriveDownstreamNodesAndIgnoreChunkPartition();
+  drainageFlowMaskDrivesGraphModifiers();
+  erosionReportsIntermediateProgressAndCancelsWithoutPublication();
   metadataUsesCanonicalNativeDefaults();
   graphNoiseUsesTheSharedLandformEvaluator();
   noiseParameterDomainsAreValidatedBeforeExecution();

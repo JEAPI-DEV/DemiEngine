@@ -1,5 +1,11 @@
 # DemiEngine Roadmap
 
+Milestone 3 now has production Preview/Final generation, intermediate erosion
+progress and safe preview rollback/history. Drainage accumulation and thermal
+transport distances are corrected; flow, deposition and cut masks are exposed.
+Downhill river routing and erosion/reference qualification remain open. See
+[generation quality qualification](docs/terrain-generation-quality-qualification.md).
+
 Terrain Graph now supports filled polygon masks for shaped basins, plateaus and
 island coastlines. Three built-in presets demonstrate editable outlines,
 falloffs, height blending and ocean water. Shadow-striping investigation is

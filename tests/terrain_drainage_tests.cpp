@@ -1,4 +1,8 @@
 #include "demi/runtime/terrain/TerrainDrainage.h"
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
+#include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <iostream>
@@ -12,7 +16,8 @@ namespace {
 // Fields are built to a named shape rather than generated from noise, so each
 // test asserts on the surface it asked for instead of on whatever the generator
 // happened to produce for a seed.
-template <class Shape> HeightField makeField(int cellsX, int cellsZ, Shape shape) {
+template <class Shape>
+HeightField makeField(int cellsX, int cellsZ, Shape shape) {
   HeightField field;
   field.size = {float(cellsX), float(cellsZ)};
   field.cellsX = cellsX;
@@ -40,8 +45,7 @@ TerrainRecipe recipeFor(const HeightField &field) {
 TerrainDrainage drain(const HeightField &field, float seaLevel = 0.F) {
   TerrainDrainageSettings settings;
   settings.seaLevel = seaLevel;
-  const auto result =
-      computeTerrainDrainage(field, recipeFor(field), settings);
+  const auto result = computeTerrainDrainage(field, recipeFor(field), settings);
   assert(result);
   return *result;
 }
@@ -55,8 +59,8 @@ bool border(const HeightField &field, int x, int z) {
 float tilted(int x, int z) { return float(x + z); }
 
 // A slope draining outward, with one rimmed pit dug into it: the ground climbs
-// from the pit floor to a rim at d = 3 and then falls away to the border, so the
-// pit ponds and nothing else does.
+// from the pit floor to a rim at d = 3 and then falls away to the border, so
+// the pit ponds and nothing else does.
 //
 // A plain bowl is not enough to test a basin here. The border is the outlet, so
 // a bowl whose floor is the lowest point in the field just drains off the
@@ -64,15 +68,15 @@ float tilted(int x, int z) { return float(x + z); }
 float slopeWithPit(int x, int z) {
   const auto d = std::hypot(float(x) - 8.F, float(z) - 8.F);
   const float rim = 3.F;
-  const auto g = d <= rim ? 10.F * ((d / rim) * (d / rim) - 1.F)
-                          : -2.F * (d - rim);
+  const auto g =
+      d <= rim ? 10.F * ((d / rim) * (d / rim) - 1.F) : -2.F * (d - rim);
   return 0.35F * (float(x) + float(z)) + g;
 }
 
 // Two pits, each draining outward past its own side of the border, with a ridge
-// between them standing above both spill levels. min() of two pit profiles would
-// not do: the saddle between them would fall below the fill level and weld the
-// two into one basin, which would make the labelling untestable.
+// between them standing above both spill levels. min() of two pit profiles
+// would not do: the saddle between them would fall below the fill level and
+// weld the two into one basin, which would make the labelling untestable.
 float twinPits(int x, int z) {
   const auto dx = float(x);
   const auto dz = float(z) - 8.F;
@@ -166,8 +170,8 @@ void aSingleBowlHasExactlyOneBasin() {
       assert(drainage.basin[cell] <= drainage.basinCount);
     }
   assert(pooled > 0 && drained > 0);
-  // The outlet is the pit floor: the lowest sample of the depression, and so the
-  // one that identifies where its water collects.
+  // The outlet is the pit floor: the lowest sample of the depression, and so
+  // the one that identifies where its water collects.
   const auto &outlet = drainage.basinOutlets[1];
   assert(outlet.x == field.position(8, 8).x);
   assert(outlet.z == field.position(8, 8).y);
@@ -203,8 +207,8 @@ void aFlatFieldTerminates() {
 }
 
 // Identical input must produce identical ids. Basin numbering is assigned by
-// scanning, so it cannot depend on the order the flood happened to pop cells in,
-// which a hash-ordered frontier would.
+// scanning, so it cannot depend on the order the flood happened to pop cells
+// in, which a hash-ordered frontier would.
 void basinLabelsAreIdenticalAcrossRuns() {
   const auto field = makeField(16, 16, twinPits);
   const auto first = drain(field);
@@ -221,8 +225,8 @@ void basinLabelsAreIdenticalAcrossRuns() {
     const auto &b = second.basinOutlets[i];
     assert(a.x == b.x && a.y == b.y && a.z == b.z);
   }
-  // Id 0 is the field's own outlet; the two pits are basins 1 and 2, numbered in
-  // row-major order of first encounter.
+  // Id 0 is the field's own outlet; the two pits are basins 1 and 2, numbered
+  // in row-major order of first encounter.
   assert(first.basin[field.index(5, 8)] == 1);
   assert(first.basin[field.index(12, 8)] == 2);
   assert(first.basin[field.index(0, 0)] == 0);
@@ -249,6 +253,70 @@ void downstreamChainsAlwaysTerminate() {
         assert(step < field.heights.size());
       }
     }
+}
+
+// Count each source's contribution by walking its complete downstream chain.
+// This independent oracle does not repeat the production topological reduction.
+void assertExactUpstreamFlow(const HeightField &field,
+                             const TerrainDrainage &drainage) {
+  std::vector<std::size_t> upstream(field.heights.size(), 0);
+  for (std::size_t source = 0; source < upstream.size(); ++source) {
+    auto current = source;
+    std::size_t steps = 0;
+    while (current != terrainNoDownstream) {
+      assert(current < upstream.size());
+      assert(steps++ < upstream.size());
+      ++upstream[current];
+      current = drainage.downstream[current];
+    }
+  }
+  std::size_t peak = 1;
+  for (int z = 1; z < field.cellsZ; ++z) {
+    for (int x = 1; x < field.cellsX; ++x) {
+      peak = std::max(peak, upstream[field.index(x, z)]);
+    }
+  }
+  for (int z = 0; z <= field.cellsZ; ++z) {
+    for (int x = 0; x <= field.cellsX; ++x) {
+      const auto sample = field.index(x, z);
+      const float expected =
+          border(field, x, z) ? 0.0F
+                              : float(double(upstream[sample]) / double(peak));
+      assert(drainage.flow[sample] == expected);
+    }
+  }
+}
+
+void chainAccumulatesAllUpstreamSources() {
+  const auto field = makeField(
+      5, 2, [](int x, int z) { return z == 1 && x < 5 ? float(x) : 100.0F; });
+  const auto drainage = drain(field);
+  for (int x = 1; x < 5; ++x) {
+    assert(drainage.downstream[field.index(x, 1)] == field.index(x - 1, 1));
+    assert(drainage.flow[field.index(x, 1)] == float(5 - x) / 4.0F);
+  }
+  assertExactUpstreamFlow(field, drainage);
+}
+
+void branchingAndRoundedFloodLevelsAccumulateExactly() {
+  const auto branching = makeField(5, 5, [](int x, int z) {
+    if (z == 2 && x < 3) {
+      return float(x);
+    }
+    return 10.0F + float(x + z);
+  });
+  const auto drainage = drain(branching);
+  const auto junction = branching.index(1, 2);
+  assert(drainage.downstream[branching.index(2, 1)] == junction);
+  assert(drainage.downstream[branching.index(2, 3)] == junction);
+  assertExactUpstreamFlow(branching, drainage);
+  // At this magnitude FloodEpsilon cannot advance the stored float level.
+  const auto plateau = makeField(8, 8, [](int, int) { return 1.0e8F; });
+  assertExactUpstreamFlow(plateau, drain(plateau));
+  std::stop_source cancelled;
+  cancelled.request_stop();
+  assert(!computeTerrainDrainage(branching, recipeFor(branching), {},
+                                 cancelled.get_token()));
 }
 
 // Water distance is a real distance field: zero in the water, growing inland,
@@ -290,8 +358,8 @@ void dryFieldIsMaximallyDistantFromWater() {
     assert(dryTilted.waterDistance[i] == unreachable);
 }
 
-// Drainage is computed over a grid, so a field whose samples do not fill its own
-// grid has to be refused rather than silently half-processed.
+// Drainage is computed over a grid, so a field whose samples do not fill its
+// own grid has to be refused rather than silently half-processed.
 void gridMismatchIsRejected() {
   const auto field = makeField(16, 16, slopeWithPit);
   HeightField broken = field;
@@ -326,6 +394,8 @@ int main() {
   aFlatFieldTerminates();
   basinLabelsAreIdenticalAcrossRuns();
   downstreamChainsAlwaysTerminate();
+  chainAccumulatesAllUpstreamSources();
+  branchingAndRoundedFloodLevelsAccumulateExactly();
   waterDistanceIsZeroInWaterAndGrowsInland();
   dryFieldIsMaximallyDistantFromWater();
   gridMismatchIsRejected();

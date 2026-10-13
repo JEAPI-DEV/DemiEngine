@@ -82,7 +82,7 @@ public:
       const nlohmann::json &, const nlohmann::json &, EditorTerrainSurfacePtr,
       const runtime::TerrainGenerationInputs &, std::stop_token,
       const std::function<void(float)> &, std::string &)>;
-  explicit EditorTerrainAuthoring(Generator generator = generateEditorTerrain,
+  explicit EditorTerrainAuthoring(Generator generator = {},
                                   Updater updater = updateEditorTerrain);
   // Called on the editor thread before dispatch. The worker captures only the
   // returned palette snapshot and fingerprint, never the asset registry.
@@ -118,7 +118,7 @@ public:
   }
   bool brushActive() const {
     return brushTargetSelected_ && !entityId_.empty() &&
-           brush.mode != EditorTerrainBrush::Select;
+           brush.mode != EditorTerrainBrush::Select && !hasPreviewResult();
   }
   bool needsResizeDecision() const;
   bool generate(std::optional<EditorTerrainResize> decision,
@@ -127,6 +127,12 @@ public:
   std::optional<EditorTerrainCommit> poll(std::string &error);
   std::optional<EditorTerrainCommit> takeRollback();
   float progress() const { return progress_.load(); }
+  runtime::TerrainQuality generationQuality = runtime::TerrainQuality::Standard;
+  bool hasPreviewResult() const {
+    const auto field = surface_ ? surface_->heightField() : nullptr;
+    return field && field->quality == "preview";
+  }
+
   bool update(const EditorViewportToolInput &input,
               std::optional<runtime::Vec3> localHit, std::string &error);
   std::vector<runtime::Vec3> brushRing() const;
@@ -205,6 +211,8 @@ private:
   std::string draftIdentity_;
   nlohmann::json authored_, draft_, pending_, pendingBefore_;
   EditorTerrainSurfacePtr surface_;
+  EditorTerrainSurfacePtr previewBaseline_;
+  runtime::TerrainQuality pendingQuality_ = runtime::TerrainQuality::Standard;
   EditorTerrainSurfacePtr strokeSurface_;
   std::vector<runtime::TerrainPreset> presets_;
   nlohmann::json evaluated_;

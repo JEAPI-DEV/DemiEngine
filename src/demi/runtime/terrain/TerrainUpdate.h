@@ -105,7 +105,7 @@ updateTerrainWithInputs(const TerrainRecipe &before, const TerrainRecipe &after,
                         const TerrainGenerator::Progress &progress = {});
 
 TerrainUpdate applyTerrainPatch(std::shared_ptr<const HeightField> current,
-                               const TerrainPatch &patch, bool forward);
+                                const TerrainPatch &patch, bool forward);
 bool terrainFieldsEqual(const HeightField &left, const HeightField &right);
 std::shared_ptr<const TerrainPatch>
 mergeTerrainPatches(const TerrainPatch &first, const TerrainPatch &next);
@@ -117,11 +117,9 @@ regenerateTerrain(const TerrainRecipe &recipe,
                   std::shared_ptr<const HeightField> previous,
                   std::string reason, std::stop_token stop = {},
                   const TerrainGenerator::Progress &progress = {});
-std::optional<TerrainUpdate>
-regenerateTerrainWithInputs(const TerrainRecipe &recipe,
-                            std::shared_ptr<const HeightField> previous,
-                            std::string reason,
-                            const TerrainGenerationInputs &inputs,
-                            std::stop_token stop = {},
-                            const TerrainGenerator::Progress &progress = {});
+std::optional<TerrainUpdate> regenerateTerrainWithInputs(
+    const TerrainRecipe &recipe, std::shared_ptr<const HeightField> previous,
+    std::string reason, const TerrainGenerationInputs &inputs,
+    std::stop_token stop = {}, const TerrainGenerator::Progress &progress = {},
+    TerrainQuality quality = TerrainQuality::Standard);
 } // namespace demi::runtime

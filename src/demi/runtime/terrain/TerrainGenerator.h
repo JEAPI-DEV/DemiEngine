@@ -1,11 +1,12 @@
 #pragma once
 
-#include "demi/runtime/terrain/TerrainRecipe.h"
 #include "demi/runtime/terrain/TerrainHeightField.h"
+#include "demi/runtime/terrain/TerrainQuality.h"
+#include "demi/runtime/terrain/TerrainRecipe.h"
 #include <functional>
 #include <optional>
-#include <string_view>
 #include <stop_token>
+#include <string_view>
 
 namespace demi::runtime {
 struct TerrainGraphArtifacts;
@@ -16,7 +17,8 @@ struct TerrainGraphArtifacts;
 //
 // 2: biome noise moved from the raw world seed to the stable Landform sub-seed
 // (see TerrainSeed), which changes the sampled surface for existing recipes.
-inline constexpr int terrainGeneratorVersion = 6;
+// 7: downstream accumulation and world-space thermal transport corrected.
+inline constexpr int terrainGeneratorVersion = 7;
 
 class TerrainGenerator {
 public:
@@ -36,9 +38,10 @@ public:
                                       std::stop_token stop = {});
   // Empty only on cancellation. Invalid recipes throw invalid_argument;
   // capacity/allocation errors propagate. Progress is monotonic in [0,1].
-  static std::optional<HeightField> generate(const TerrainRecipe &recipe,
-                                             std::stop_token stop = {},
-                                             const Progress &progress = {});
+  static std::optional<HeightField>
+  generate(const TerrainRecipe &recipe, std::stop_token stop = {},
+           const Progress &progress = {},
+           TerrainQuality quality = TerrainQuality::Standard);
 
   // Generates and scatters in one pass. The palette is passed in by the caller,
   // which owns the asset registry, so generation never loads assets itself. A
@@ -46,7 +49,8 @@ public:
   static std::optional<HeightField>
   generate(const TerrainRecipe &recipe, const TerrainPalette *palette,
            std::stop_token stop = {}, const Progress &progress = {},
-           std::string_view inputFingerprint = {});
+           std::string_view inputFingerprint = {},
+           TerrainQuality quality = TerrainQuality::Standard);
 };
 
 TerrainEdit createProtectionEdit(const HeightField &field, Vec2 center,

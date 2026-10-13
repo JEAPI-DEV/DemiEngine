@@ -1584,6 +1584,10 @@ bool EditorWorkspace::pollTerrainAuthoring(std::string &error) {
 }
 
 bool EditorWorkspace::terrainReady(std::string &error) const {
+  if (terrainAuthoring_->hasPreviewResult()) {
+    error = "Generate Final terrain or discard Preview before Save or Play.";
+    return false;
+  }
   if (terrainAuthoring_->pendingEdits() || terrainPreview_) {
     error = "Finish or cancel the terrain stroke and wait for terrain "
             "collision before Save or Play.";
@@ -1599,8 +1603,7 @@ bool EditorWorkspace::restoreTerrainPreview(std::string &error) {
     return true;
   if (terrainAssetDocument_ &&
       terrainPreview_->document == terrainAssetDocument_->path().string()) {
-    const auto before = terrainAssetDocument_->recipe();
-    if (!refreshTerrainAssetPreview(before, error))
+    if (!restoreTerrainAssetPreview(error))
       return false;
     terrainPreview_.reset();
     terrainPreviewSurface_.reset();

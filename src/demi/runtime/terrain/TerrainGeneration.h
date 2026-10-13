@@ -1,9 +1,10 @@
 #pragma once
 
 #include "demi/runtime/terrain/TerrainGenerator.h"
+#include "demi/runtime/terrain/TerrainMasks.h"
+#include "demi/runtime/terrain/TerrainQuality.h"
 #include "demi/runtime/terrain/TerrainRecipe.h"
 #include "demi/runtime/terrain/TerrainWater.h"
-#include "demi/runtime/terrain/TerrainMasks.h"
 #include <array>
 #include <cstdint>
 #include <memory>
@@ -33,16 +34,6 @@ constexpr std::array<TerrainStage, 7> terrainStageOrder{
     TerrainStage::Masks};
 
 [[nodiscard]] std::string_view terrainStageName(TerrainStage stage);
-
-// Quality tiers. Preview exists so an author can iterate on shape without paying
-// for the expensive stages; it is never a silent downgrade, because the field
-// records which tier produced it.
-enum class TerrainQuality {
-  Preview,  // fewer octaves, no erosion, coarser drainage
-  Standard, // full stages at the recipe's authored parameters
-};
-
-[[nodiscard]] std::string_view terrainQualityName(TerrainQuality quality);
 
 // A world-unit height at which a sample is water. Authored rather than guessed,
 // because every downstream stage that needs a shoreline needs the same number.

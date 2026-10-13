@@ -1226,6 +1226,19 @@ void EditorTerrainGraphPanel::draw(EditorWorkspace &workspace,
       ImGui::CloseCurrentPopup();
     ImGui::EndPopup();
   }
+  nextToolbarItem(150);
+  int quality =
+      authoring.generationQuality == runtime::TerrainQuality::Preview ? 0 : 1;
+  ImGui::SetNextItemWidth(150.0F);
+  if (ImGui::Combo("##terrain-generation-quality", &quality,
+                   "Preview\0Final\0")) {
+    authoring.generationQuality = quality == 0
+                                      ? runtime::TerrainQuality::Preview
+                                      : runtime::TerrainQuality::Standard;
+  }
+  ImGui::SetItemTooltip(
+      "Preview reduces hydraulic erosion and skips thermal relaxation. "
+      "Both modes keep the same terrain grid. Generate Final before saving.");
   nextToolbarItem(30);
   if (editorIconButton(
           "graph-generate", EditorIcon::Generate,
@@ -1281,6 +1294,13 @@ void EditorTerrainGraphPanel::draw(EditorWorkspace &workspace,
             "graph-cancel-generation", EditorIcon::Stop,
             "Cancel terrain generation; keep the previously applied terrain."))
       authoring.cancel();
+  }
+  if (authoring.hasPreviewResult()) {
+    ImGui::TextUnformatted(
+        "Preview result: generate Final before Apply, Save or Play.");
+    if (ImGui::SmallButton("Discard preview")) {
+      authoring.cancel();
+    }
   }
   ImGui::BeginDisabled(authoring.busy() || authoring.stroking());
   ImGui::Separator();
