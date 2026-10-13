@@ -157,6 +157,57 @@ void pathMetadataAndParserShareTheCoordinateContract() {
   assert(!rejected(graph));
 }
 
+void polygonMetadataAndParserShareTheCoordinateContract() {
+  const auto *definition = terrainGraphNodeDefinition("polygon_mask");
+  assert(definition);
+  assert(definition->inputs.size() == 1 && definition->inputs[0].required);
+  assert(definition->outputs.size() == 1);
+  assert(definition->outputs[0].kind == TerrainGraphValueKind::Mask);
+  nlohmann::json defaults = nlohmann::json::object();
+  for (const auto &parameter : definition->parameters) {
+    defaults[parameter.name] = parameter.defaultValue;
+  }
+  assert(defaults["falloff"] == 20);
+  auto graph = defaultTerrainGraph();
+  graph["nodes"].push_back({{"id", "polygon"},
+                            {"type", "polygon_mask"},
+                            {"parameters", defaults}});
+  assert(!rejected(graph));
+  auto omittedDefaults = graph;
+  omittedDefaults["nodes"].back()["parameters"] = nlohmann::json::object();
+  assert(TerrainGraph::parse(omittedDefaults).contentKey() ==
+         TerrainGraph::parse(graph).contentKey());
+  const auto validPolygons = nlohmann::json::parse(R"([
+    [[0,0],[2,0],[2,2],[0,2]],
+    [[0,0],[0,2],[2,2],[2,0],[0,0]],
+    [[0,0],[0,0],[2,0],[1,1],[2,2],[0,2]],
+    [[0,0],[2,2],[0,2],[2,0]]
+  ])");
+  for (const auto &points : validPolygons) {
+    graph["nodes"].back()["parameters"]["points"] = points;
+    const auto parsed = TerrainGraph::parse(graph);
+    assert(parsed.node("polygon"));
+    assert(parsed.node("polygon")->parameters ==
+           graph["nodes"].back()["parameters"]);
+    assert(TerrainGraph::parse(parsed.toJson()).contentKey() == parsed.contentKey());
+  }
+  const auto invalidPolygons = nlohmann::json::parse(R"([
+    [],
+    [[0,0],[1,1]],
+    [[0,0],[1,1],[2,2]],
+    [[0,0],[0,0],[0,0]],
+    [[0,0],[2,0,1],[0,2]],
+    [[0,0],[2,0],[0,1e100]]
+  ])");
+  for (const auto &points : invalidPolygons) {
+    graph["nodes"].back()["parameters"]["points"] = points;
+    assert(rejected(graph));
+  }
+  graph["nodes"].back()["parameters"] = defaults;
+  graph["nodes"].back()["parameters"]["falloff"] = -1;
+  assert(rejected(graph));
+}
+
 } // namespace
 
 int main() {
@@ -165,5 +216,6 @@ int main() {
   noiseParameterDomainsAreValidatedBeforeExecution();
   landformControlsInvalidateTheGraphSourceCache();
   pathMetadataAndParserShareTheCoordinateContract();
+  polygonMetadataAndParserShareTheCoordinateContract();
   std::cout << "Terrain graph landform controls checks passed\n";
 }

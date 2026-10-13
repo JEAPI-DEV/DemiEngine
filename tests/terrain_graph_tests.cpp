@@ -1,7 +1,7 @@
 #include "demi/runtime/terrain/TerrainGenerationCache.h"
 #include "demi/runtime/terrain/TerrainGraph.h"
 #include "demi/runtime/terrain/TerrainGraphExecutor.h"
-#include "demi/runtime/terrain/TerrainGraphPathMask.h"
+#include "demi/runtime/terrain/TerrainGraphSpatialMasks.h"
 #include "demi/runtime/terrain/TerrainPipeline.h"
 #include "demi/runtime/terrain/TerrainUpdate.h"
 

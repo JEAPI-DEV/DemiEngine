@@ -1,5 +1,11 @@
 # DemiEngine Roadmap
 
+Terrain Graph now supports filled polygon masks for shaped basins, plateaus and
+island coastlines. Three built-in presets demonstrate editable outlines,
+falloffs, height blending and ocean water. Shadow-striping investigation is
+recorded and deferred while terrain features progress. See
+[polygon mask qualification](docs/terrain-polygon-mask-qualification.md).
+
 GPU terrain now blends neighboring solid material colors and lighting properties
 across cells, removing hard sample borders while preserving exact material IDs
 and categorical face culling. Height-aware layers, PBR textures and ordinary mesh

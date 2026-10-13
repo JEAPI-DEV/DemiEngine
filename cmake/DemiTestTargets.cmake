@@ -717,6 +717,8 @@
   add_executable(demi-terrain-cook-tests tests/terrain_cook_tests.cpp)
   add_executable(demi-terrain-pipeline-tests tests/terrain_pipeline_tests.cpp)
   add_executable(demi-terrain-graph-tests tests/terrain_graph_tests.cpp)
+  add_executable(demi-terrain-graph-spatial-masks-tests tests/terrain_graph_spatial_masks_tests.cpp)
+  target_link_libraries(demi-terrain-graph-spatial-masks-tests PRIVATE demi-core)
   add_executable(demi-terrain-graph-landform-controls-tests
     tests/terrain_graph_landform_controls_tests.cpp)
   target_link_libraries(demi-terrain-graph-landform-controls-tests PRIVATE demi-core)

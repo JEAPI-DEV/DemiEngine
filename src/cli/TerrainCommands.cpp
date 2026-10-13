@@ -50,8 +50,9 @@ constexpr int ExitUsageError = 2;
 constexpr std::string_view PresetContentType = "terrain_preset";
 constexpr std::string_view TerrainComponent = "Terrain3D";
 
-constexpr std::array<runtime::TerrainSeedChannel, 5> SeedChannels{
+constexpr std::array<runtime::TerrainSeedChannel, 6> SeedChannels{
     runtime::TerrainSeedChannel::Landform,
+    runtime::TerrainSeedChannel::LandformWarp,
     runtime::TerrainSeedChannel::Erosion,
     runtime::TerrainSeedChannel::Hydrology,
     runtime::TerrainSeedChannel::BiomePlacement,

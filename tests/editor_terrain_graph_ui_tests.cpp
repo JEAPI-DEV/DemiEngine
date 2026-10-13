@@ -168,6 +168,11 @@ void checkPathPointNodeHasBoundedWidth(EditorWorkspace &workspace) {
        {"type", "path_distance_mask"},
        {"parameters", {{"points", {{0, 0}, {10, 10}, {20, 0}}}}},
        {"position", {360, 0}}});
+  draft["graph"]["nodes"].push_back(
+      {{"id", "polygon_layout_probe"},
+       {"type", "polygon_mask"},
+       {"parameters", {{"points", {{0, 0}, {30, 0}, {30, 20}, {0, 20}}}}},
+       {"position", {640, 0}}});
   const auto before = draft;
   EditorTerrainGraphPanel panel;
   panel.open(workspace);
@@ -184,7 +189,7 @@ void checkPathPointNodeHasBoundedWidth(EditorWorkspace &workspace) {
     for (const int id : ids) {
       const auto width = ImNodes::GetNodeDimensions(id).x;
       require(std::isfinite(width) && width < 380.0F * panel.canvasZoom(),
-              "Expanded path points grew beyond a bounded graph node");
+              "Expanded spatial mask points grew beyond a bounded graph node");
     }
   };
   for (const float zoomWheel : {0.0F, 3.0F, -6.0F}) {

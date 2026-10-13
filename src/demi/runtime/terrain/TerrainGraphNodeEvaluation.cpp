@@ -1,5 +1,5 @@
 #include "demi/runtime/terrain/TerrainGraphNodeEvaluation.h"
-#include "demi/runtime/terrain/TerrainGraphPathMask.h"
+#include "demi/runtime/terrain/TerrainGraphSpatialMasks.h"
 
 #include "demi/runtime/terrain/TerrainBiomeRules.h"
 #include "demi/runtime/terrain/TerrainErosion.h"
@@ -420,6 +420,10 @@ std::optional<GraphNodeResult> evaluateTerrainGraphNode(
   if (node.type == "path_distance_mask") {
     return evaluateTerrainPathMask(values, fieldInput(connected, "field"),
                                    stop);
+  }
+  if (node.type == "polygon_mask") {
+    return evaluateTerrainPolygonMask(values, fieldInput(connected, "field"),
+                                      stop);
   }
   if (node.type == "elevation_mask" || node.type == "slope_mask")
     return evaluateMask(node, values, connected, stop);

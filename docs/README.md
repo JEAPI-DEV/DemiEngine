@@ -7,6 +7,9 @@ are registered in `tools/package-store/src/Docs.php`.
 
 This directory keeps material that has a different job:
 
+- [Terrain polygon mask qualification](terrain-polygon-mask-qualification.md)
+  records shared spatial-mask validation, basin/plateau/island presets, graph
+  editing and native generation checks.
 - [Terrain shadow receiver qualification](terrain-shadow-receiver-qualification.md)
   records scale-independent plane correction, direct shader-math tests and the
   remaining cliff artifact in both terrain rendering paths.

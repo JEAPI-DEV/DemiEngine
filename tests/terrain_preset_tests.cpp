@@ -1,7 +1,13 @@
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
+
 #include "demi/runtime/terrain/TerrainGenerator.h"
 #include "demi/runtime/terrain/TerrainGraph.h"
+#include "demi/runtime/terrain/TerrainGraphExecutor.h"
 #include "demi/runtime/terrain/TerrainPreset.h"
 #include <cassert>
+#include <cmath>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -279,7 +285,7 @@ void malformedStrokeIsRejected() {
 } // namespace
 
 void startersNeedNoProjectAssets() {
-  assert(builtinTerrainPresets().size() == 4);
+  assert(builtinTerrainPresets().size() == 7);
   for (const auto &preset : builtinTerrainPresets()) {
     assert(loadTerrainPreset({}, preset.id)->id == preset.id);
     const auto applied = applyTerrainPreset(TerrainRecipe{}.toJson(), preset);
@@ -310,6 +316,56 @@ void startersNeedNoProjectAssets() {
   }
 }
 
+void polygonStartersPublishTheirAuthoredRegions() {
+  for (const std::string id : {"basin", "plateau", "coastal-island"}) {
+    const auto preset = loadTerrainPreset({}, "builtin://terrain/" + id);
+    assert(preset);
+    assert(preset->size.x == 128 && preset->size.y == 128);
+    const auto recipe = TerrainRecipe::parse(
+        applyTerrainPreset(TerrainRecipe{}.toJson(), *preset));
+    const auto graph = TerrainGraph::parse(recipe.graph);
+    assert(graph.node("region_mask")->type == "polygon_mask");
+    assert(graph.node("region_blend")->type == "height_blend");
+    assert(graph.node("region_help")->type == "comment");
+    assert(graph.node("blend_help")->type == "comment");
+    const auto generated = TerrainGenerator::generate(recipe);
+    assert(generated);
+    const auto middleX = recipe.cellsX / 2;
+    const auto middleZ = recipe.cellsZ / 2;
+    if (id == "basin") {
+      assert(generated->height(middleX, middleZ) == 2);
+      assert(generated->height(0, 0) >= 10);
+      assert(generated->height(0, 0) <= 26);
+    } else if (id == "plateau") {
+      assert(generated->height(middleX, middleZ) == 20);
+      assert(generated->height(0, 0) >= -1);
+      assert(generated->height(0, 0) <= 5);
+    } else {
+      assert(generated->height(middleX, middleZ) >= 6);
+      assert(generated->height(middleX, middleZ) <= 22);
+      assert(generated->height(0, 0) == -6);
+      assert(generated->graphArtifacts->waterResult);
+      assert(!generated->graphArtifacts->waterResult->surfaces.empty());
+      assert(graph.node("ocean")->parameters.at("radius") == 0);
+    }
+    for (const auto normal : generated->normals) {
+      assert(std::isfinite(normal.x));
+      assert(std::isfinite(normal.y));
+      assert(std::isfinite(normal.z));
+      const auto squaredLength =
+          normal.x * normal.x + normal.y * normal.y + normal.z * normal.z;
+      assert(std::abs(squaredLength - 1.0F) < 0.001F);
+    }
+    const auto cached = executeTerrainGraph(
+        recipe, {nullptr, {}, generated->graphArtifacts->cache});
+    assert(cached);
+    assert(cached->heights == generated->heights);
+    for (const auto &run : cached->graphArtifacts->nodes) {
+      assert(run.cached);
+    }
+  }
+}
+
 void presetLandformsUseSharedProfileAndWarpContract() {
   auto preset = mountainPreset();
   auto &shape = preset.landforms.at("rock");
@@ -329,6 +385,7 @@ void presetLandformsUseSharedProfileAndWarpContract() {
 }
 
 int main() {
+  polygonStartersPublishTheirAuthoredRegions();
   presetLandformsUseSharedProfileAndWarpContract();
   startersNeedNoProjectAssets();
   fragmentSuppliesOnlyGenerationKeys();

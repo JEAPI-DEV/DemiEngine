@@ -59,6 +59,143 @@ TerrainPreset starter(std::string id, std::string name, std::string description,
   preset.graph = graph.toJson();
   return preset;
 }
+
+TerrainPreset withPolygonRegion(TerrainPreset preset,
+                                TerrainGraphNode regionSurface,
+                                nlohmann::json points, float falloff,
+                                std::string explanation) {
+  auto graph = TerrainGraph::parse(preset.graph);
+  regionSurface.id = "region_surface";
+  regionSurface.position = {40, 680};
+  graph.nodes.push_back(std::move(regionSurface));
+  graph.nodes.push_back({"region_mask",
+                         "polygon_mask",
+                         {{"points", std::move(points)}, {"falloff", falloff}},
+                         {380, 320}});
+  graph.nodes.push_back(
+      {"region_blend", "height_blend", {{"amount", 1}}, {720, 320}});
+  graph.nodes.push_back({"region_help",
+                         "comment",
+                         {{"text", std::move(explanation)}},
+                         {380, 20}});
+  graph.nodes.push_back(
+      {"blend_help",
+       "comment",
+       {{"text",
+         "Height Blend uses the polygon mask to replace the background "
+         "with Region Surface. Amount 1 reaches the full region height. "
+         "Falloff softens the outside edge without changing the interior."}},
+       {720, 20}});
+  for (auto &node : graph.nodes) {
+    if (node.id == "appearance" || node.id == "appearance_help") {
+      node.position.x = 1060;
+    }
+    if (node.id == "terrain_output" || node.id == "output_help") {
+      node.position.x = 1400;
+    }
+  }
+  graph.links = {
+      {"background_to_mask", {"shape", "field"}, {"region_mask", "field"}},
+      {"background_to_blend", {"shape", "field"}, {"region_blend", "a"}},
+      {"region_to_blend", {"region_surface", "field"}, {"region_blend", "b"}},
+      {"mask_to_blend", {"region_mask", "mask"}, {"region_blend", "mask"}},
+      {"blend_to_appearance",
+       {"region_blend", "field"},
+       {"appearance", "field"}},
+      {"appearance_to_output",
+       {"appearance", "field"},
+       {"terrain_output", "field"}}};
+  preset.graph = graph.toJson();
+  return preset;
+}
+
+TerrainPreset basinStarter() {
+  auto preset = starter(
+      "basin", "Basin",
+      "A low, level basin enclosed by rolling terrain. Change the polygon to "
+      "move or reshape the sheltered floor.",
+      8, 52, .25F, {.35F, .46F, .25F, 1});
+  preset.graph["nodes"][0]["parameters"]["base_height"] = 18;
+  return withPolygonRegion(
+      std::move(preset), {"", "constant", {{"height", 2}}, {}},
+      {{32, 40}, {52, 28}, {88, 32}, {102, 62}, {88, 98}, {42, 96}, {26, 68}},
+      16,
+      "Polygon points use terrain-local X/Z world units on this 128-by-128 "
+      "landscape. Inside the polygon, Region Surface supplies the 2-unit basin "
+      "floor. A 16-unit outside falloff blends back into the surrounding "
+      "hills.");
+}
+
+TerrainPreset plateauStarter() {
+  auto preset = starter("plateau", "Plateau",
+                        "An elevated, level building area above gentle "
+                        "lowlands. Edit the polygon "
+                        "for an irregular mesa or a wider usable platform.",
+                        3, 48, .25F, {.48F, .4F, .29F, 1});
+  preset.graph["nodes"][0]["parameters"]["base_height"] = 2;
+  return withPolygonRegion(
+      std::move(preset), {"", "constant", {{"height", 20}}, {}},
+      {{34, 36}, {80, 26}, {100, 50}, {92, 92}, {58, 104}, {28, 80}}, 14,
+      "Region Surface sets the plateau's elevation to 20 units. The polygon "
+      "defines its level top; the 14-unit outside falloff forms the "
+      "escarpment. "
+      "The surrounding lowlands keep their seeded noise.");
+}
+
+TerrainPreset coastalIslandStarter() {
+  auto preset = starter(
+      "coastal-island", "Coastal Island",
+      "An irregular green island in a shallow sea. Shape its coast by moving "
+      "polygon points; change Region Surface to adjust inland relief.",
+      0, 32, 0, {.3F, .48F, .22F, 1});
+  preset.graph["nodes"][0]["parameters"]["height"] = -6;
+  preset = withPolygonRegion(
+      std::move(preset),
+      {"",
+       "noise",
+       {{"base_height", 14},
+        {"height_variation", 8},
+        {"feature_size", 32},
+        {"roughness", .3}},
+       {}},
+      {{40, 28}, {76, 24}, {96, 48}, {88, 78}, {66, 100}, {34, 88}, {24, 58}},
+      18,
+      "The background is a -6-unit sea bed. The polygon selects the island's "
+      "interior, with an 18-unit outside falloff forming its coast. Ocean "
+      "water "
+      "stays at elevation zero; moving the polygon changes land, not sea "
+      "level.");
+  preset.biomes["shore"].color = {.7F, .62F, .4F, 1};
+  TerrainBiomeRule shore;
+  shore.id = "shore";
+  shore.biome = "shore";
+  shore.elevation = {true, -6, 3};
+  preset.rules.push_back(shore);
+  auto graph = TerrainGraph::parse(preset.graph);
+  graph.nodes.push_back({"ocean",
+                         "water",
+                         {{"kind", "ocean"}, {"level", 0}, {"radius", 0}},
+                         {1060, 680}});
+  for (auto &node : graph.nodes) {
+    if (node.id == "shape_help") {
+      node.parameters["text"] =
+          "The background sets the sea bed to -6 units. Keep it below the "
+          "Ocean node's zero-unit water level. The separate Region Surface "
+          "noise shapes the island above it.";
+    }
+  }
+  for (auto &link : graph.links) {
+    if (link.id == "blend_to_appearance") {
+      link.to = {"ocean", "field"};
+    }
+  }
+  graph.links.push_back(
+      {"ocean_to_appearance", {"ocean", "field"}, {"appearance", "field"}});
+  graph.links.push_back(
+      {"ocean_to_output", {"ocean", "water"}, {"terrain_output", "water"}});
+  preset.graph = graph.toJson();
+  return preset;
+}
 } // namespace
 
 const std::vector<TerrainPreset> &builtinTerrainPresets() {
@@ -76,7 +213,10 @@ const std::vector<TerrainPreset> &builtinTerrainPresets() {
       starter("mountain-range", "Mountain Range",
               "Tall, rough rocky terrain. Reduce Height variation for easier "
               "building sites.",
-              30, 56, .7F, {.4F, .38F, .36F, 1})};
+              30, 56, .7F, {.4F, .38F, .36F, 1}),
+      basinStarter(),
+      plateauStarter(),
+      coastalIslandStarter()};
   return presets;
 }
 } // namespace demi::runtime

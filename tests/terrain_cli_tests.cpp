@@ -150,7 +150,7 @@ void inspectTextAndJson(const std::filesystem::path &root) {
   assert(document.at("layers").size() == 5);
   assert(document.at("rules").empty());
   assert(document.at("strokes").at("regions") == 0);
-  assert(document.at("sub_seeds").size() == 5);
+  assert(document.at("sub_seeds").size() == 6);
 }
 
 void inspectReportsRuleConditions(const std::filesystem::path &root) {
@@ -405,8 +405,9 @@ void seedsTextAndJson() {
   const auto document = nlohmann::json::parse(json.out);
   assert(document.at("format_version") == 1);
   assert(document.at("world_seed") == 1337);
-  assert(document.at("channels").size() == 5);
+  assert(document.at("channels").size() == 6);
   assert(document.at("channels").at(0).at("channel") == "landform");
+  assert(document.at("channels").at(1).at("channel") == "landform_warp");
   assert(document.at("channels").at(0).at("seed") ==
          demi::runtime::deriveTerrainSubSeed(
              1337, demi::runtime::TerrainSeedChannel::Landform));
@@ -742,7 +743,7 @@ void presetsListProjectPresets(const std::filesystem::path &root) {
   assert(json.code == 0);
   const auto document = nlohmann::json::parse(json.out);
   assert(document.at("format_version") == 1);
-  assert(document.at("count") == 5);
+  assert(document.at("count") == 8);
   const auto &preset = document.at("presets").at(0);
   assert(preset.at("id") == PresetId);
   assert(preset.at("name") == "Test Ridge");
@@ -763,15 +764,15 @@ void presetsReportAnEmptyProject(const std::filesystem::path &root) {
   const auto text = invoke({"terrain", "presets", project.string()});
   assert(text.code == 0);
   assert(text.error.empty());
-  assert(contains(text.out, "(4)"));
+  assert(contains(text.out, "(7)"));
   assert(contains(text.out, "builtin://terrain/desert-dunes"));
 
   const auto json =
       invoke({"terrain", "presets", project.string(), "--format", "json"});
   assert(json.code == 0);
   const auto document = nlohmann::json::parse(json.out);
-  assert(document.at("count") == 4);
-  assert(document.at("presets").size() == 4);
+  assert(document.at("count") == 7);
+  assert(document.at("presets").size() == 7);
 }
 
 void presetsOutputIsDeterministic(const std::filesystem::path &root) {

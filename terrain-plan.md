@@ -534,8 +534,13 @@ missing, not what is present.
   graph noise nodes. A `path_distance_mask` supplies editable curved valley
   corridors for height blending. `examples/rocky_valley_3d` exercises these at
   the existing 500-by-500 resolution without modifying the sculpted example.
-  This is partial macro-feature coverage: basin/coastline/plateau generators,
-  drainage-driven river routing and the visual acceptance gate remain open.
+  Filled polygon masks now compose with height blending to shape basin floors,
+  plateau tops and island outlines. Basin, Plateau and Coastal Island starter
+  presets expose those controls with explanatory graph comments; the island
+  includes sea-level water. These are authored macro-shape controls, not
+  drainage-derived basins or procedural watershed routing. Geological erosion,
+  drainage-driven rivers and the visual acceptance gate remain open.
+  See [polygon mask qualification](docs/terrain-polygon-mask-qualification.md).
   See [landform qualification](docs/terrain-landform-qualification.md).
 
 - [ ] Evaluate maintained libraries/tools for erosion and terrain processing

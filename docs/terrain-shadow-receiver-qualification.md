@@ -61,3 +61,8 @@ neighboring-facet occlusion from shadow-filter/projection error on a controlled
 non-planar receiver. No normal offset or arbitrary bias increase was introduced.
 The terrain shadow-quality and broader terrain milestones remain open. There
 was no website deployment or physical Android rendering qualification.
+
+
+The user deferred further shadow investigation on 2026-10-13 in favor of the
+remaining terrain features. Keep this issue recorded; it does not block the
+polygon-mask and macro-landform work.

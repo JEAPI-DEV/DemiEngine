@@ -1,10 +1,10 @@
 #include "demi/runtime/terrain/TerrainGraph.h"
+#include "demi/runtime/terrain/TerrainGraphSpatialMasks.h"
 
 #include "demi/graph/DependencyGraph.h"
 
 #include <algorithm>
 #include <cmath>
-#include <limits>
 #include <set>
 #include <stdexcept>
 
@@ -92,22 +92,14 @@ void validateParameters(const TerrainGraphNode &node) {
                 error + ": above its allowed domain");
     }
   }
-  if (node.type == "path_distance_mask" && node.parameters.contains("points")) {
-    const auto &points = node.parameters.at("points");
-    require(points.is_array() && points.size() >= 2,
-            "Node " + node.id + ": points requires at least two X/Z pairs");
-    for (const auto &point : points) {
-      require(point.is_array() && point.size() == 2,
-              "Node " + node.id + ": each path point requires an X/Z pair");
-      for (const auto &coordinate : point) {
-        const bool valid = coordinate.is_number() &&
-                           std::isfinite(coordinate.get<double>()) &&
-                           std::abs(coordinate.get<double>()) <=
-                               std::numeric_limits<float>::max();
-        require(valid,
-                "Node " + node.id +
-                    ": path coordinates must be finite float-range numbers");
-      }
+  const bool isPolygon = node.type == "polygon_mask";
+  const bool isSpatialMask = isPolygon || node.type == "path_distance_mask";
+  if (isSpatialMask && node.parameters.contains("points")) {
+    try {
+      terrain_graph_detail::validateTerrainSpatialMaskPoints(
+          node.parameters.at("points"), isPolygon);
+    } catch (const std::exception &error) {
+      throw std::invalid_argument("Node " + node.id + ": " + error.what());
     }
   }
   if (node.type == "elevation_mask" || node.type == "slope_mask") {

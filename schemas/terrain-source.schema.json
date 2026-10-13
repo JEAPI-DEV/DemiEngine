@@ -89,6 +89,17 @@
                         }
                       }
                     }
+                  },
+                  {
+                    "if": {
+                      "properties": {"type": {"const": "polygon_mask"}},
+                      "required": ["type"]
+                    },
+                    "then": {
+                      "properties": {
+                        "parameters": {"$ref": "#/$defs/polygonMaskParameters"}
+                      }
+                    }
                   }
                 ]
               }
@@ -255,6 +266,50 @@
         "falloff": {
           "type": "number",
           "default": 40,
+          "minimum": 0
+        }
+      }
+    },
+    "polygonMaskParameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "points": {
+          "type": "array",
+          "minItems": 3,
+          "default": [
+            [
+              0,
+              0
+            ],
+            [
+              100,
+              0
+            ],
+            [
+              100,
+              100
+            ],
+            [
+              0,
+              100
+            ]
+          ],
+          "items": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": {
+              "type": "number",
+              "minimum": -3.4028234663852886e+38,
+              "maximum": 3.4028234663852886e+38
+            }
+          },
+          "description": "At least three noncollinear terrain-local X/Z pairs. Closes automatically; repeated points and either winding are accepted."
+        },
+        "falloff": {
+          "type": "number",
+          "default": 20,
           "minimum": 0
         }
       }
