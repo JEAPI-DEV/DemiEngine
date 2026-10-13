@@ -494,6 +494,10 @@
   add_executable(demi-terrain-patch-batch3d-tests
     tests/terrain_patch_batch3d_tests.cpp)
   target_link_libraries(demi-terrain-patch-batch3d-tests PRIVATE demi-runtime-lib demi-render3d-bgfx)
+  add_executable(demi-shadow-receiver-gradient-tests
+    tests/shadow_receiver_gradient_tests.cpp)
+  target_compile_features(demi-shadow-receiver-gradient-tests PRIVATE cxx_std_20)
+  target_include_directories(demi-shadow-receiver-gradient-tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
   add_executable(demi-shadow-cascade-layout-tests tests/shadow_cascade_layout_tests.cpp)
   target_link_libraries(demi-shadow-cascade-layout-tests PRIVATE demi-render3d-bgfx demi-runtime-lib)
   target_link_libraries(demi-bgfx-renderer3d-tests PRIVATE demi-render3d-bgfx demi-runtime-lib)

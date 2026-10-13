@@ -729,6 +729,12 @@ residency are still missing; see [GPU terrain design](docs/terrain-gpu-rendering
   indirect/environment lighting, reflections, atmospheric depth, anti-aliasing
   and water passes. Implement missing shared renderer capabilities instead of
   terrain-example-only shaders or baked screenshots.
+  Shared receiver-plane shadow correction now uses relative conditioning rather
+  than a camera-scale-dependent determinant cutoff. Direct production-math tests
+  and planar native captures pass; steep-cliff striping remains visible in GPU
+  and ordinary mesh paths, so this audit gate stays open. See
+  [shadow receiver qualification](docs/terrain-shadow-receiver-qualification.md).
+
 - [ ] Add seam-safe terrain LOD, camera-driven streaming and coordinated water,
   material and scatter residency. Preserve collisions near gameplay actors.
 - [ ] Add cooked heightfields/meshes, derived masks and placement caches through

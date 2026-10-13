@@ -115,6 +115,8 @@ float compareShadowTap(int cascade, vec2 tap, float receiverDepth)
     return step(receiverDepth, stored);
 }
 
+#include "demi_shadow_receiver.sh"
+
 float cascadeVisibility(int cascade, vec4 worldPosition, vec3 worldDx, vec3 worldDy, float diffuse)
 {
     vec2 uv = vec2(dot(u_shadowX[cascade], worldPosition), dot(u_shadowY[cascade], worldPosition));
@@ -124,15 +126,17 @@ float cascadeVisibility(int cascade, vec4 worldPosition, vec3 worldDx, vec3 worl
     // sloped surfaces. Compute derivatives before coverage branches.
     vec2 uvDx = vec2(dot(u_shadowX[cascade].xyz, worldDx), dot(u_shadowY[cascade].xyz, worldDx));
     vec2 uvDy = vec2(dot(u_shadowX[cascade].xyz, worldDy), dot(u_shadowY[cascade].xyz, worldDy));
-    if (u_shadowAtlas.w > 0.5) { uvDx.y = -uvDx.y; uvDy.y = -uvDy.y; }
+    if (u_shadowAtlas.w > 0.5)
+    {
+        uvDx.y = -uvDx.y;
+        uvDy.y = -uvDy.y;
+    }
     vec2 dz = vec2(dot(u_shadowZ[cascade].xyz, worldDx), dot(u_shadowZ[cascade].xyz, worldDy));
-    float determinant = uvDx.x * uvDy.y - uvDx.y * uvDy.x;
-    vec2 gradient = vec2(0.0);
-    if (abs(determinant) > 0.000000000001)
-        gradient = vec2(uvDy.y * dz.x - uvDx.y * dz.y,
-                        uvDx.x * dz.y - uvDy.x * dz.x) / determinant;
+    vec2 gradient = receiverPlaneDepthGradient(uvDx, uvDy, dz);
     if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0 || depth < 0.0 || depth > 1.0)
+    {
         return 1.0;
+    }
     float texel = abs(u_shadowAtlas.z);
     float compareDepth = depth - u_shadowParams[cascade].x * (2.0 - diffuse);
     if (u_shadowAtlas.z < 0.0)

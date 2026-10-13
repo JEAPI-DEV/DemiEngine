@@ -72,19 +72,13 @@ Moving world-position derivatives ahead of divergent fragment discards fixes
 unsafe shared shader ordering, but the refreshed capture still shows striping.
 Shadows remain enabled in the probe; this is an open renderer issue.
 
-Receiver-plane correction has a separate conditioning defect worth isolating:
-`cascadeVisibility` accepts the UV Jacobian only when its absolute determinant
-exceeds `1e-12`. This threshold depends on camera pixel footprint and shadow
-coverage, rather than just whether the projected plane is degenerate. For
-`J = diag(1e-7, 1e-7)` and screen depth derivatives `(2.5e-8, 5e-8)`, the correct
-UV depth gradient is `(0.25, 0.5)`, but the determinant is `1e-14`, so the current
-shader substitutes zero. Neighboring PCF taps then lose their plane correction.
-A scale-normalized solve with relative conditioning, plus analytic plane tests
-across camera/UV scales and an occluder-preservation test, is the proposed
-follow-up. This is a code-grounded defect and a hypothesis for the cliff symptom;
-no diagnostic has yet established that those pixels hit the cutoff, and no
-correction is claimed. Shadow code stays unchanged during material-blend
-qualification and its benchmarks.
+Receiver-plane conditioning was corrected in the follow-up described in
+[shadow receiver qualification](terrain-shadow-receiver-qualification.md).
+The solver now uses relative projected area and directly tested production
+shader math. The valley's remaining striping survives that correction, occurs
+in the ordinary mesh path too, and changes rather than disappears with hard
+filtering. The original cutoff hypothesis therefore does not explain the main
+visible symptom; this remains an open shadow-quality issue.
 
 The example still uses solid material colors. Smooth layer blending, PBR rock
 textures, production vegetation, drainage-derived rivers, basin/coastline/plateau
