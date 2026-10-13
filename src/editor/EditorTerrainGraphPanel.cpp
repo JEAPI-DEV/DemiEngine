@@ -706,7 +706,21 @@ void EditorTerrainGraphPanel::drawParameter(
         definition.name == "points") {
       Json &working = valueEdits_.try_emplace(key, value).first->second;
       auto &state = structuredEdits_[key];
-      const auto edit = drawStructuredValue(working, state, 2);
+      // Collection widgets fill their available region. Give them a node-local
+      // column so span/fill sizing cannot consume the surrounding canvas.
+      const float contentWidth = 240.0F * canvasView_.zoom();
+      const auto tableFlags = ImGuiTableFlags_SizingFixedFit |
+                              ImGuiTableFlags_NoHostExtendX |
+                              ImGuiTableFlags_NoSavedSettings;
+      StructuredValueEdit edit;
+      if (ImGui::BeginTable("##point-controls", 1, tableFlags,
+                            {contentWidth, 0.0F})) {
+        ImGui::TableSetupColumn("Coordinates", ImGuiTableColumnFlags_WidthFixed,
+                                contentWidth);
+        ImGui::TableNextColumn();
+        edit = drawStructuredValue(working, state, 2);
+        ImGui::EndTable();
+      }
       if (edit.finished || (edit.changed && !edit.continuous)) {
         edited = working;
         changed = true;

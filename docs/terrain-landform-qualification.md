@@ -51,6 +51,17 @@ alone after rebuilding, then stopped. The temporary capture is
 Earlier overlapping diagnostic captures are excluded from performance claims.
 No new performance improvement is claimed for this generation step.
 
+## Follow-up: path node width
+
+The initial point editor incorrectly inherited the canvas available width,
+causing Path Distance Mask nodes to expand across the graph. A node-local,
+explicit-width table now bounds the shared collection widget; Inspector fill
+behavior is unchanged. The new real-ImGui regression failed before the fix and
+passes afterward across repeated frames, three canvas widths and zoom changes,
+while checking that layout does not mutate the authored draft. The Release
+editor was rebuilt; graph UI, structured-value interaction and graph-document
+tests pass (3/3).
+
 ## Remaining gates
 
 The native capture shows coherent valley/ridge placement, but also hard,
