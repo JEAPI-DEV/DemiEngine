@@ -600,6 +600,13 @@ prefixed to avoid an ODR collision.
 - [ ] Replace discrete triangle tints with smooth, height-aware material-layer
   blending. Support suitable steep-slope mapping, macro variation to reduce
   visible repetition, and detail normals. Preserve authored overrides.
+  GPU-compatible solid palettes now interpolate neighboring sample colors in
+  linear space and blend metallic, roughness and lit/unlit contributions, while
+  keeping face eligibility categorical. This removes hard GPU sample boundaries
+  without changing terrain resolution. It is a first surface transition step:
+  height-aware weights, texture maps, triplanar mapping and the ordinary mesh
+  fallback's discrete boundaries remain unfinished.
+
 - [ ] Choose distance/platform quality settings for texture residency and
   surface detail. Parallax/height shading is not actual geometric displacement;
   distinguish them and use geometry where silhouettes or collision require it.

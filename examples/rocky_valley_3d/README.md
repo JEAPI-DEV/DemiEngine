@@ -36,8 +36,8 @@ lit materials and roughness values. It does not demonstrate tiled albedo,
 normal-map rock detail, texture splatting, image-based lighting or a dense
 vegetation system. Those surface and vegetation capabilities remain separate
 work; increasing the sample resolution is not a substitute for them.
-Native diagnostic captures show hard, sometimes sawtooth material borders in
-both the CPU and GPU terrain paths. They also show grid-like shadow striping
-on steep cliffs that disappears with shadows disabled. These rendering
-limitations remain unresolved; the probe keeps shadows enabled to expose them.
+The GPU terrain path now blends neighboring solid palette samples, smoothing
+material borders without changing terrain resolution. The ordinary CPU mesh
+fallback still has hard, sometimes sawtooth borders. Grid-like shadow striping
+on steep cliffs remains unresolved; the probe keeps shadows enabled to expose it.
 Generated and cooked output stays outside the authored asset sources.

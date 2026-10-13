@@ -142,3 +142,65 @@ terrain PBR texture layers, vegetation, coordinated water residency or a
 photorealistic landscape preset. Desktop Vulkan evidence does not qualify
 physical Android or Windows/Direct3D; native Direct3D selection and Windows
 shader backend integration remain missing.
+
+
+## Spatial material interpolation, 2026-10-13
+
+Compatible opaque solid palettes now bilinearly interpolate four sample entries.
+Each RGBA8 material ID is decoded independently; filtered ID bytes must never
+be interpreted as a new material. Base colors blend in linear space, while
+metallic, roughness and unlit contributions blend as scalars. Clockwise culling
+remains categorical: ineligible contributors are removed, remaining weights
+renormalize, and a fragment with no eligible contributor is discarded. Main and
+shadow passes use identical eligibility. Repeated IDs share palette reads.
+
+The texture/cache ABI and geometry are unchanged. A uniform cell now needs six
+texture fetches (four IDs plus one palette pair); four distinct visible materials
+need twelve. This is spatial blending over a grid cell, not height-aware weights,
+texture splatting or triplanar PBR. CPU compatibility rendering retains discrete
+triangle material assignment, including during GPU preparation.
+
+All terrain and ordinary shared-shader variants compiled for the configured
+SPIR-V, GLSL and ESSL targets. Four focused tests pass: GPU field packing, GPU
+field cache, bgfx renderer3d and terrain material layers. A native Vulkan capture
+of the unchanged rocky valley at 2954-by-1744 shows smoother material borders;
+temporary capture: `/tmp/rocky-valley-blended.png`. Shadow striping remains.
+
+Isolated Release measurements used `scripts/benchmark_terrain_lod.py`, 600
+frames with 60 warmup frames, requested 1920-by-1080 and VSync disabled. One
+native instance ran at a time, with no concurrent builds/tests. These runs use
+the older `terrain_graph_3d` moving-camera fixture, not the rocky valley. The
+saved pre-change binary and the rebuilt binary used the same scene/settings.
+
+| GPU time | Previous median | Blended median |
+| --- | ---: | ---: |
+| Full detail | 0.646 ms | 1.019 ms |
+| Screen-error LOD | 0.649 ms | 1.032 ms |
+
+This is an additional GPU cost for surface quality, not an optimization. Frame
+medians remained around 6.7 ms under the current desktop presentation behavior;
+that is not evidence of unchanged unconstrained throughput. GPU p95 was variable
+(Full: 2.509 to 2.063 ms; LOD: 2.568 to 3.307 ms), so no tail improvement is
+claimed. Field storage and topology budgets are unchanged. Reports are in
+`/tmp/terrain-blending-before` and `/tmp/terrain-blending-after`.
+
+
+### Native pixel regression
+
+`scripts/terrain_palette_pixel_probe.py` generates temporary authored fixtures
+and checks externally captured client images; it never launches another engine
+instance. Run `generate --output <fresh-directory> --variant black-white`,
+launch the chosen Release binary with `--window-size 512x512`, capture its client
+area after GPU preparation, then run `check --image <capture> --expect smooth`.
+The script requires ImageMagick for reading pixels. `four-colors` and
+`lit-unlit` variants test four-ID mixing and the lit/unlit transition.
+
+All three fixtures validate. Sequential X11/Vulkan native captures at 512-by-512
+passed endpoint and midpoint checks. Black/white and lit/unlit midpoint RGB was
+187.5; four-color midpoint was (188, 187.5, 187.5), matching linear-light mixing
+near sRGB 188. Neutral ramps were monotonic with multiple intermediate values.
+The saved pre-change binary passed the `step` expectation and failed `smooth`,
+so the probe distinguishes the change rather than accepting both behaviors.
+These pixel probes do not cover mixed-cull shadow coverage or PBR textures.
+Temporary captures are `/tmp/palette-{before,after}-black-white.png`,
+`/tmp/palette-after-four-colors.png` and `/tmp/palette-after-lit-unlit.png`.

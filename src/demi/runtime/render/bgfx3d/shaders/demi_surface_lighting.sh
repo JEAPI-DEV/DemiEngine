@@ -8,9 +8,7 @@ precision highp float;
 #define DEMI_GGX_PRECISION
 #endif
 
-#ifdef DEMI_TERRAIN
-#include "demi_terrain_material.sh"
-#else
+#ifndef DEMI_TERRAIN
 SAMPLER2D(s_texColor, 0);
 #endif
 SAMPLER2D(s_shadowMap, 1);
@@ -61,6 +59,11 @@ vec3 encodeColor(vec3 color)
     return mix(color * 12.92, 1.055 * pow(color, vec3(1.0 / 2.4)) - 0.055,
                step(vec3(0.0031308), color));
 }
+
+#ifdef DEMI_TERRAIN
+// Palette colours use the same transfer functions as ordinary mesh materials.
+#include "demi_terrain_material.sh"
+#endif
 
 // Direct Cook-Torrance lighting: GGX distribution, height-correlated Smith
 // visibility and Schlick Fresnel, following Filament's standard model:
@@ -165,14 +168,7 @@ void main()
     vec3 worldDy = dFdy(v_worldPos);
 #ifdef DEMI_TERRAIN
     vec4 surfaceParameters;
-    vec4 albedo = terrainSurface(v_texcoord0, surfaceParameters);
-    // bgfx's default front face is clockwise. Mixed terrain palettes use
-    // raster CullNone and reproduce each clockwise-culling role here, in
-    // both the lighting and shadow-depth paths.
-    if (surfaceParameters.w > 0.5 && gl_FrontFacing)
-    {
-        discard;
-    }
+    vec4 albedo = terrainSurface(v_texcoord0, gl_FrontFacing, surfaceParameters);
 #else
     vec4 surfaceParameters = u_metalRough;
     vec4 albedo = texture2D(s_texColor, v_texcoord0) * v_color0 * u_tint;
@@ -219,7 +215,11 @@ void main()
             visibility = mix(visibility, 1.0, blend);
         if (viewDepth < 0.0 || viewDepth > farDepth) visibility = 1.0;
     }
+#ifdef DEMI_TERRAIN
+    DEMI_GGX_PRECISION vec3 baseColor = albedo.rgb;
+#else
     DEMI_GGX_PRECISION vec3 baseColor = decodeColor(albedo.rgb);
+#endif
     DEMI_GGX_PRECISION float metallic = clamp(surfaceParameters.x, 0.0, 1.0);
     DEMI_GGX_PRECISION float roughness = clamp(surfaceParameters.y, 0.04, 1.0);
     DEMI_GGX_PRECISION vec3 toView = u_viewPosition.xyz - v_worldPos;
@@ -231,7 +231,11 @@ void main()
                    directSurfaceLight(baseColor, normal, viewDirection,
                                       directionalDirection, metallic, roughness);
 #ifndef DEMI_DIRECTIONAL_ONLY
+#ifdef DEMI_TERRAIN
+    if (surfaceParameters.z < 1.0)
+#else
     if (surfaceParameters.z < 0.5)
+#endif
     for (int ii = 0; ii < int(u_lightData.x); ++ii)
     {
         float offset = float(ii) * 4.0;
@@ -267,8 +271,13 @@ void main()
             baseColor, normal, viewDirection, lightDirection, metallic, roughness);
     }
 #endif
+#ifdef DEMI_TERRAIN
+    shadedColor = mix(shadedColor, baseColor,
+                      clamp(surfaceParameters.z, 0.0, 1.0));
+#else
     if (surfaceParameters.z > 0.5)
         shadedColor = baseColor;
+#endif
     if (u_debugMode.x > 0.5 && u_debugMode.x < 1.5)
     {
         gl_FragColor = vec4(normal * 0.5 + 0.5, 1.0);

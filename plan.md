@@ -1,5 +1,11 @@
 # DemiEngine Roadmap
 
+GPU terrain now blends neighboring solid material colors and lighting properties
+across cells, removing hard sample borders while preserving exact material IDs
+and categorical face culling. Height-aware layers, PBR textures and ordinary mesh
+fallback blending remain unfinished. See
+[GPU terrain qualification](docs/terrain-gpu-rendering-qualification.md).
+
 Terrain generation now exposes ridged profiles, domain warp and directional
 stretch through shared recipe, preset and graph controls. Editable path masks
 shape curved valleys; a separate rocky-valley example preserves the sculpted
