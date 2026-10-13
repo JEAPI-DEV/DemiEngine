@@ -133,8 +133,21 @@ TerrainWaterRuntime::sample(World &world, Vec3 position,
     result.kind = waterKind(body->kind);
     result.surface =
         transformPoint3D(*transform, {local.x, sample->surfaceHeight, local.z});
-    result.normal = transformDirection3D(
-        *transform, {0, transform->scale.y < 0 ? -1.F : 1.F, 0});
+    // Surface normals use inverse-transpose scale, then the hierarchy rotation.
+    // A direction transform alone is wrong for a sloped, nonuniformly scaled
+    // river.
+    const double nx = sample->normal.x / double(transform->scale.x);
+    const double ny = sample->normal.y / double(transform->scale.y);
+    const double nz = sample->normal.z / double(transform->scale.z);
+    const double scaledLength = std::hypot(nx, ny, nz);
+    const Vec3 scaledNormal{float(nx / scaledLength), float(ny / scaledLength),
+                            float(nz / scaledLength)};
+    result.normal = transformDirection3D(*transform, scaledNormal);
+    const auto normalLength =
+        std::hypot(result.normal.x, result.normal.y, result.normal.z);
+    result.normal = {result.normal.x / normalLength,
+                     result.normal.y / normalLength,
+                     result.normal.z / normalLength};
     result.depth = sample->depth * std::abs(transform->scale.y);
     result.underwater = sample->underwater;
     if (!finite(result.surface) || !finite(result.normal) ||

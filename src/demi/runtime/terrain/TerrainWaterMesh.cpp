@@ -36,8 +36,9 @@ bool sameWaterSurface(const TerrainWaterSurface &before,
     return left.x == right.x && left.y == right.y && left.z == right.z;
   };
   return before.id == after.id && before.kind == after.kind &&
-         before.level == after.level && before.indices == after.indices &&
-         before.depth == after.depth &&
+         before.level == after.level &&
+         before.riverSurfaceMode == after.riverSurfaceMode &&
+         before.indices == after.indices && before.depth == after.depth &&
          std::ranges::equal(before.vertices, after.vertices, sameVector) &&
          std::ranges::equal(before.normals, after.normals, sameVector);
 }
@@ -74,6 +75,13 @@ bool validateSurface(const Entity &owner, const TerrainWaterSurface &surface,
                      std::stop_token stop) {
   if (!std::isfinite(surface.level))
     invalidSurface(owner, surface, "level must be finite");
+  if ((surface.riverSurfaceMode != TerrainRiverSurfaceMode::Level &&
+       surface.riverSurfaceMode != TerrainRiverSurfaceMode::FollowBed) ||
+      (surface.kind != TerrainWaterBody::River &&
+       surface.riverSurfaceMode != TerrainRiverSurfaceMode::Level)) {
+    invalidSurface(owner, surface,
+                   "surface mode does not match the water body");
+  }
   if (surface.normals.size() != surface.vertices.size() ||
       surface.depth.size() != surface.vertices.size())
     invalidSurface(owner, surface, "requires one normal and depth per vertex");

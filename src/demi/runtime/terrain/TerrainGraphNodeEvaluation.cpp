@@ -1,6 +1,7 @@
 #include "demi/runtime/terrain/TerrainGraphNodeEvaluation.h"
 #include "demi/runtime/terrain/TerrainGraphSedimentMasks.h"
 #include "demi/runtime/terrain/TerrainGraphSpatialMasks.h"
+#include "demi/runtime/terrain/TerrainGraphWater.h"
 
 #include "demi/runtime/terrain/TerrainBiomeRules.h"
 #include "demi/runtime/terrain/TerrainErosion.h"
@@ -10,6 +11,8 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <iomanip>
+#include <sstream>
 #include <stdexcept>
 #include <string_view>
 #include <utility>
@@ -208,8 +211,9 @@ evaluateErosion(const nlohmann::json &values, const TerrainRecipe &sourceRecipe,
   settings.seed = authoredRecipe.seed;
   settings.quality = quality;
   TerrainSamples<float> balance;
+  TerrainErosionTransport transport;
   auto eroded = applyTerrainErosion(*source, drainage, settings, &balance, stop,
-                                    progress);
+                                    progress, &transport);
   if (stop.stop_requested() || !eroded)
     return std::nullopt;
   auto field = std::make_shared<HeightField>(*source);
@@ -226,6 +230,15 @@ evaluateErosion(const nlohmann::json &values, const TerrainRecipe &sourceRecipe,
   result.outputs["deposition"] = std::move(sediment->deposition);
   result.outputs["cut"] = std::move(sediment->cut);
   result.sedimentBalance = std::move(sediment->balance);
+  result.hydraulicTransport = transport;
+  std::ostringstream status;
+  status << std::setprecision(6) << "Hydraulic sample-height totals: eroded "
+         << transport.erodedSediment << ", deposited "
+         << transport.depositedSediment << ", exported "
+         << transport.exportedSediment << ", suspended "
+         << transport.suspendedSediment
+         << ". Suspended is unfinished transport, not retained fluid state.";
+  result.status = status.str();
   return result;
 }
 
@@ -261,70 +274,6 @@ evaluateBiomes(const TerrainRecipe &sourceRecipe,
   }
   GraphNodeResult result;
   result.outputs["field"] = GraphField(std::move(field));
-  return result;
-}
-
-std::optional<GraphNodeResult> evaluateWater(const TerrainGraphNode &node,
-                                             const nlohmann::json &values,
-                                             const GraphValues &connected,
-                                             std::stop_token stop) {
-  const auto source = fieldInput(connected, "field");
-  auto water = std::make_shared<GraphWater>();
-  water->authoring.authored = true;
-  if (const auto *upstream = input(connected, "water")) {
-    const auto previous =
-        std::get<std::shared_ptr<const GraphWater>>(*upstream);
-    if (previous->data.carvedHeights != source->heights)
-      throw std::invalid_argument(
-          "Connected water data does not match the input field");
-    water->authoring = previous->authoring;
-  }
-  TerrainWaterBodySpec body;
-  body.id = node.id;
-  if (std::ranges::any_of(water->authoring.bodies, [&](const auto &entry) {
-        return entry.id == body.id;
-      }))
-    throw std::invalid_argument("Duplicate water body ID: " + body.id);
-  const auto kind = values.at("kind").get<std::string>();
-  body.kind = kind == "river"   ? TerrainWaterBody::River
-              : kind == "ocean" ? TerrainWaterBody::Ocean
-                                : TerrainWaterBody::Lake;
-  body.level = values.at("level").get<float>();
-  body.center = {values.at("center_x").get<float>(),
-                 values.at("center_z").get<float>()};
-  body.radius = values.at("radius").get<float>();
-  body.riverWidth = values.at("river_width").get<float>();
-  body.appearance = parseTerrainWaterAppearance(values);
-  for (const auto &point : values.at("river_path")) {
-    if (stop.stop_requested())
-      return std::nullopt;
-    const auto position = point.get<std::array<float, 3>>();
-    body.riverPath.push_back({position[0], position[1], position[2]});
-  }
-  TerrainWaterAuthoring nextBody;
-  nextBody.authored = true;
-  nextBody.bodies.push_back(body);
-  auto carved = carveTerrainWater(*source, nextBody, nullptr, stop);
-  if (stop.stop_requested())
-    return std::nullopt;
-  if (!carved || carved->dropped)
-    throw std::invalid_argument(
-        "Water body could not be placed on this surface");
-  auto field = std::make_shared<HeightField>(*source);
-  field->heights = std::move(carved->carvedHeights);
-  if (!TerrainGenerator::recomputeTerrainNormals(*field, stop))
-    return std::nullopt;
-  water->authoring.bodies.push_back(std::move(body));
-  auto resolved =
-      refreshTerrainWaterResult(*field, water->authoring, field->heights, stop);
-  if (stop.stop_requested())
-    return std::nullopt;
-  if (!resolved || resolved->dropped)
-    throw std::invalid_argument("Combined water bodies could not be resolved");
-  water->data = std::move(*resolved);
-  GraphNodeResult result;
-  result.outputs["field"] = GraphField(std::move(field));
-  result.outputs["water"] = std::shared_ptr<const GraphWater>(std::move(water));
   return result;
 }
 
@@ -455,8 +404,11 @@ std::optional<GraphNodeResult> evaluateTerrainGraphNode(
                            stop, quality, progress);
   if (node.type == "biomes")
     return evaluateBiomes(sourceRecipe, authoredRecipe, connected, stop);
+  if (node.type == "river_route") {
+    return evaluateTerrainRiverRoute(node, values, connected, stop);
+  }
   if (node.type == "water")
-    return evaluateWater(node, values, connected, stop);
+    return evaluateTerrainGraphWater(node, values, connected, stop);
   if (node.type == "scatter")
     return evaluateScatter(sourceRecipe, inputs, connected, stop);
   if (node.type == "output")

@@ -1,6 +1,7 @@
 #include "demi/runtime/scene/Transform3DHierarchy.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
+#include "demi/runtime/terrain/TerrainGenerator.h"
 #include "demi/runtime/terrain/TerrainGraph.h"
 #include "demi/runtime/terrain/TerrainGraphExecutor.h"
 #include "demi/runtime/terrain/TerrainWaterRuntime.h"
@@ -59,6 +60,56 @@ void addOwner(World &world, std::string id, Vec3 position,
   world.entities.push_back(std::move(owner));
   world.terrainOwners.push_back({.id = std::move(id)});
 }
+void followingBedNormalRespectsNonuniformTransform() {
+  TerrainRecipe recipe;
+  recipe.size = {8, 8};
+  recipe.cellsX = recipe.cellsZ = 8;
+  recipe.landforms.at("default").baseHeight = 10;
+  recipe.landforms.at("default").heightVariation = 0;
+  auto field = TerrainGenerator::generate(recipe);
+  check(bool(field), "Could not generate sloped river fixture");
+  TerrainWaterBodySpec river;
+  river.id = "descending";
+  river.kind = TerrainWaterBody::River;
+  river.riverSurfaceMode = TerrainRiverSurfaceMode::FollowBed;
+  river.riverDepth = 2;
+  river.riverWidth = 4;
+  river.riverPath = {{1, 8, 4}, {7, 2, 4}};
+  river.shorelineSoftening = false;
+  auto artifacts = std::make_shared<TerrainGraphArtifacts>();
+  artifacts->water.authored = true;
+  artifacts->water.bodies = {river};
+  artifacts->waterResult = carveTerrainWater(*field, artifacts->water, nullptr);
+  check(bool(artifacts->waterResult), "Could not carve sloped river fixture");
+  field->heights = artifacts->waterResult->carvedHeights;
+  field->graphArtifacts = std::move(artifacts);
+  World world;
+  addOwner(world, "river", {10, 2, 20},
+           std::make_shared<const HeightField>(std::move(*field)));
+  auto *owner = findEntity(world, "river");
+  auto *component = owner->component<Transform3DComponent>();
+  component->scale = {2, 3, 4};
+  component->rotation = {0.3F, 0.2F, 0.1F};
+  const auto transform = resolveWorldTransform3D(world, *owner);
+  const auto position = transformPoint3D(*transform, {4, 6, 4});
+  TerrainWaterRuntime water;
+  const auto sample = water.sample(world, position, "river");
+  check(sample && sample->underwater && std::abs(sample->depth - 6) < 1e-4F,
+        "Sloped river depth disagrees with its transformed water column");
+  const auto expectedNormal = transformDirection3D(
+      *transform, {3 / std::sqrt(13.F), 2 / std::sqrt(13.F), 0});
+  const auto dot = sample->normal.x * expectedNormal.x +
+                   sample->normal.y * expectedNormal.y +
+                   sample->normal.z * expectedNormal.z;
+  check(dot > 0.9999F,
+        "Sloped river normal ignored nonuniform inverse-transpose scale");
+  const auto expectedSurface = transformPoint3D(*transform, {4, 7, 4});
+  check(std::hypot(sample->surface.x - expectedSurface.x,
+                   sample->surface.y - expectedSurface.y,
+                   sample->surface.z - expectedSurface.z) < 1e-4F,
+        "Sloped river surface height did not follow its authored bed");
+}
+
 void tests() {
   auto field = makeField();
   World world;
@@ -147,6 +198,7 @@ void tests() {
 } // namespace
 int main() {
   try {
+    followingBedNormalRespectsNonuniformTransform();
     tests();
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';

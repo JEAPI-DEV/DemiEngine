@@ -78,7 +78,12 @@ transport data. Report: `/tmp/terrain-milestone3-generation.json`. This proves
 original-grid reduced work and same-build repeatability, not cross-platform
 bitwise determinism or superior visual quality to an upstream solver.
 
-## Remaining milestone 3 work
+## Historical remaining work at this checkpoint
+
+The following describes the generator-7 checkpoint. The subsequent
+[Milestone 3 qualification](terrain-milestone3-qualification.md) records the
+completed routing, measured upstream comparison and generator-9 correction.
+The timings above remain historical, not current generator-9 measurements.
 
 The [library survey](terrain-erosion-library-evaluation.md) is source-level;
 a representative upstream solver comparison remains open. The priority-flood

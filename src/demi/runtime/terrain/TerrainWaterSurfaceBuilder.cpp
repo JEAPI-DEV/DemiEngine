@@ -2,6 +2,7 @@
 
 #include "demi/runtime/terrain/TerrainWaterGeometry.h"
 #include <map>
+#include <tuple>
 
 namespace demi::runtime::terrain_water_detail {
 TerrainWaterSurface buildTerrainWaterSurface(const TerrainWaterBodySpec &spec,
@@ -13,15 +14,20 @@ TerrainWaterSurface buildTerrainWaterSurface(const TerrainWaterBodySpec &spec,
   surface.id = spec.id;
   surface.kind = spec.kind;
   surface.level = spec.level;
-  std::map<std::pair<float, float>, std::size_t> vertexAt;
-  const auto vertex = [&](const WaterGeometryVertex &point) {
+  surface.riverSurfaceMode = spec.riverSurfaceMode;
+  using VertexKey = std::tuple<float, float, float, float, float>;
+  std::map<VertexKey, std::size_t> vertexAt;
+  const auto vertex = [&](const WaterGeometryVertex &point, Vec3 normal) {
     const auto position = std::pair{float(point.x), float(point.z)};
+    const VertexKey key{position.first, position.second, normal.x, normal.y,
+                        normal.z};
     const auto [entry, inserted] =
-        vertexAt.try_emplace(position, surface.vertices.size());
+        vertexAt.try_emplace(key, surface.vertices.size());
     if (!inserted)
       return entry->second;
-    surface.vertices.push_back({position.first, spec.level, position.second});
-    surface.normals.push_back({0.F, 1.F, 0.F});
+    surface.vertices.push_back(
+        {position.first, float(point.level), position.second});
+    surface.normals.push_back(normal);
     surface.depth.push_back(float(std::max(0.0, point.depth)));
     return entry->second;
   };
@@ -39,10 +45,12 @@ TerrainWaterSurface buildTerrainWaterSurface(const TerrainWaterBodySpec &spec,
         const auto [cx, cz] = coordinates[i];
         const auto sample = field.sampleAt(cx, cz);
         const auto position = field.position(cx, cz);
+        const auto level = field.bodyLevels.at(bodyIndex).at(sample);
         corners[i] = {position.x, position.y,
-                      double(spec.level) - double(ground[sample]),
+                      double(level) - double(ground[sample]),
                       waterOwnershipMask(field.wet[sample], field.body[sample],
-                                         bodyIndex)};
+                                         bodyIndex),
+                      level};
       }
       for (const auto &triangle : waterCellTriangles) {
         const bool hasWetCorner =
@@ -51,8 +59,10 @@ TerrainWaterSurface buildTerrainWaterSurface(const TerrainWaterBodySpec &spec,
             });
         if (!hasWetCorner)
           continue;
-        const auto polygon = clipWaterTriangle(
-            {corners[triangle[0]], corners[triangle[1]], corners[triangle[2]]});
+        const std::array<WaterGeometryVertex, 3> sourceTriangle{
+            corners[triangle[0]], corners[triangle[1]], corners[triangle[2]]};
+        const auto normal = waterTriangleNormal(sourceTriangle);
+        const auto polygon = clipWaterTriangle(sourceTriangle);
         for (std::size_t i = 1; i + 1 < polygon.count; ++i) {
           const auto &a = polygon.vertices[0];
           const auto &b = polygon.vertices[i];
@@ -65,8 +75,9 @@ TerrainWaterSurface buildTerrainWaterSurface(const TerrainWaterBodySpec &spec,
                                   (double(float(c.z)) - float(a.z));
           if (!(area > 0.0))
             continue;
-          surface.indices.insert(surface.indices.end(),
-                                 {vertex(a), vertex(b), vertex(c)});
+          surface.indices.insert(
+              surface.indices.end(),
+              {vertex(a, normal), vertex(b, normal), vertex(c, normal)});
         }
       }
     }

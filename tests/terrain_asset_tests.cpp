@@ -5,11 +5,13 @@
 #include "demi/runtime/terrain/TerrainCook.h"
 #include "demi/runtime/terrain/TerrainGraph.h"
 #include "demi/runtime/terrain/TerrainGraphExecutor.h"
-#include "demi/runtime/terrain/TerrainUpdate.h"
 #include "demi/runtime/terrain/TerrainSurfaceMaterials.h"
+#include "demi/runtime/terrain/TerrainUpdate.h"
+#include "demi/runtime/terrain/TerrainWaterQueries.h"
 
 #include <cassert>
 #include <chrono>
+#include <cmath>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -267,6 +269,7 @@ HeightField fieldWithWaterCoverage() {
   coverage->wet.assign(field.heights.size(), 0);
   coverage->body.assign(field.heights.size(),
                         terrain_water_detail::WaterLevelField::noBody);
+  coverage->bodyLevels = {{2, {}}, {7, {}}, {4, {}}};
   coverage->level[0] = 2;
   coverage->wet[0] = 1;
   coverage->body[0] = 0;
@@ -285,12 +288,12 @@ void waterCoverageRoundTrip() {
   const auto field = fieldWithWaterCoverage();
   const auto derived = terrain_payload::encodeDerived(field);
   const auto &encoded = derived["graph"]["water_result"]["resolved_coverage"];
-  assert(encoded.is_object() && encoded.size() == 1);
+  assert(encoded.is_object() && encoded.size() == 2);
   assert(encoded["body"].size() == field.heights.size());
   assert(encoded["body"][0] == 0 && encoded["body"][1] == 2 &&
          encoded["body"][2] == -1);
   const auto payload = serializeTerrainAssetPayload(field, "recipe", "inputs");
-  assert(terrainAssetPayloadVersion == 6 && payload[7] == std::byte{'6'});
+  assert(terrainAssetPayloadVersion == 7 && payload[7] == std::byte{'7'});
   const auto restored = deserializeTerrainAssetPayload(payload);
   const auto &before = *field.graphArtifacts->waterResult;
   const auto &after = *restored->graphArtifacts->waterResult;
@@ -309,6 +312,67 @@ void waterCoverageRoundTrip() {
   oldPayload[7] = std::byte{'3'};
   expectFailure([&] { (void)deserializeTerrainAssetPayload(oldPayload); },
                 "unknown format");
+}
+
+void followingBedWaterPayloadRoundTrip() {
+  auto recipe = smallRecipe();
+  recipe.landforms.at("default").baseHeight = 10;
+  recipe.landforms.at("default").heightVariation = 0;
+  auto generated = TerrainGenerator::generate(recipe);
+  assert(generated);
+  auto field = std::move(*generated);
+  auto artifacts = std::make_shared<TerrainGraphArtifacts>();
+  artifacts->baseField = std::make_shared<const HeightField>(field);
+  TerrainWaterBodySpec river;
+  river.id = "downhill";
+  river.kind = TerrainWaterBody::River;
+  river.riverSurfaceMode = TerrainRiverSurfaceMode::FollowBed;
+  river.riverDepth = 2;
+  river.riverWidth = 6;
+  river.riverPath = {{2, 8, 6}, {14, 2, 6}};
+  river.shorelineSoftening = false;
+  artifacts->water.authored = true;
+  artifacts->water.bodies = {river};
+  artifacts->waterResult = carveTerrainWater(field, artifacts->water, nullptr);
+  assert(artifacts->waterResult);
+  field.heights = artifacts->waterResult->carvedHeights;
+  assert(TerrainGenerator::recomputeTerrainNormals(field));
+  field.graphArtifacts = std::move(artifacts);
+  const auto payload = serializeTerrainAssetPayload(field, "recipe", "inputs");
+  const auto restored = deserializeTerrainAssetPayload(payload);
+  const auto &after = *restored->graphArtifacts;
+  assert(after.water.bodies.front().riverSurfaceMode ==
+         TerrainRiverSurfaceMode::FollowBed);
+  assert(after.water.bodies.front().riverDepth == 2);
+  const auto &beforeProfile =
+      field.graphArtifacts->waterResult->resolvedCoverage->bodyLevels.front();
+  const auto &afterProfile =
+      after.waterResult->resolvedCoverage->bodyLevels.front();
+  assert(afterProfile.samples &&
+         *afterProfile.samples == *beforeProfile.samples);
+  const auto query = TerrainWaterQueryContext::build(
+      after.water, *after.waterResult, nullptr, recipe.cellsX, recipe.cellsZ,
+      recipe.size);
+  const auto sample = query->sample({8, 6, 6});
+  assert(sample && sample->surfaceHeight == 7 && sample->depth == 2);
+  assert(std::abs(sample->normal.x - 1 / std::sqrt(5.F)) < 1e-5F);
+
+  const auto derived = terrain_payload::encodeDerived(field);
+  auto malformed = derived;
+  malformed["graph"]["water_result"]["resolved_coverage"]["body_levels"][0]
+      .erase(std::size_t{0});
+  auto decoded = field;
+  expectFailure([&] { terrain_payload::decodeDerived(malformed, decoded); },
+                "level grid must match");
+  malformed = derived;
+  malformed["graph"]["water_result"]["resolved_coverage"]["body_levels"][0][0] =
+      1000;
+  expectFailure([&] { terrain_payload::decodeDerived(malformed, decoded); },
+                "authored profile bounds");
+  malformed = derived;
+  malformed["graph"]["water_authoring"]["bodies"][0]["river_depth"] = 0;
+  expectFailure([&] { terrain_payload::decodeDerived(malformed, decoded); },
+                "mode/depth");
 }
 
 void malformedWaterCoverageDecode() {
@@ -413,23 +477,40 @@ void malformedNativeWaterCoverageEncode() {
   reject([](auto &coverage) { coverage.body[0] = 1; },
          "references a rejected body");
   reject([](auto &coverage) { coverage.level[0] = 3; },
-         "level must match its authored body");
+         "level must match its owning body profile");
 }
 
 void graphColdLoadKeepsLocalBrush(const std::filesystem::path &root) {
   auto recipe = smallRecipe();
   recipe.graph = defaultTerrainGraph();
+  recipe.graph["nodes"].push_back({
+      {"id", "erosion"}, {"type", "erosion"},
+      {"parameters", {{"iterations", 2}}},
+  });
+  recipe.graph["links"][0]["from"]["node"] = "erosion";
+  recipe.graph["links"].push_back({
+      {"id", "landform_erosion"},
+      {"from", {{"node", "landform"}, {"port", "field"}}},
+      {"to", {{"node", "erosion"}, {"port", "field"}}},
+  });
   auto registry = registryFor(root / "graph", recipe);
   const auto id = std::string("asset://terrain/hill");
   const auto inputs = resolveTerrainAssetGenerationInputs(registry, recipe);
   auto generated = TerrainGenerator::generate(recipe, inputs.palette.get(), {},
                                               {}, inputs.fingerprint);
   assert(generated && generated->graphArtifacts);
+  const auto transport = generated->graphArtifacts->hydraulicTransport.at("erosion");
+  auto artifacts = std::make_shared<TerrainGraphArtifacts>(*generated->graphArtifacts);
+  const std::string status = "River route joined water body: receiving_lake";
+  artifacts->nodes.front().status = status;
+  generated->graphArtifacts = std::move(artifacts);
   const auto prepared = storeTerrainAssetPreview(
       registry, id, recipe.toJson(),
       std::make_shared<const HeightField>(std::move(*generated)));
   const auto loaded = loadTerrainAsset(registry, id);
   assert(loaded->graphArtifacts && loaded->graphArtifacts->baseField);
+  assert(loaded->graphArtifacts->nodes.front().status == status);
+  assert(loaded->graphArtifacts->hydraulicTransport.at("erosion") == transport);
   auto moved = recipe;
   moved.graph["nodes"][0]["position"] = {144, 48};
   writeText(
@@ -447,6 +528,7 @@ void graphColdLoadKeepsLocalBrush(const std::filesystem::path &root) {
   assert(updated);
   assert(!updated->invalidation.fullGeneration);
   assert(updated->stats.baseEvaluations == 0);
+  assert(updated->field->graphArtifacts->hydraulicTransport.at("erosion") == transport);
 }
 
 void appearanceDoesNotInvalidateGeneration() {
@@ -492,6 +574,7 @@ int main() {
   try {
     completePayloadRoundTrip();
     waterCoverageRoundTrip();
+    followingBedWaterPayloadRoundTrip();
     malformedWaterCoverageDecode();
     malformedNativeWaterCoverageEncode();
     sourceAndPersistentCache(root);

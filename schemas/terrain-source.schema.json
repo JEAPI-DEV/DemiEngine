@@ -100,6 +100,44 @@
                         "parameters": {"$ref": "#/$defs/polygonMaskParameters"}
                       }
                     }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "type": {
+                          "const": "river_route"
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ]
+                    },
+                    "then": {
+                      "properties": {
+                        "parameters": {
+                          "$ref": "#/$defs/riverRouteParameters"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "type": {
+                          "const": "water"
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ]
+                    },
+                    "then": {
+                      "properties": {
+                        "parameters": {
+                          "$ref": "#/$defs/waterNodeParameters"
+                        }
+                      }
+                    }
                   }
                 ]
               }
@@ -311,6 +349,147 @@
           "type": "number",
           "default": 20,
           "minimum": 0
+        }
+      }
+    },
+    "riverRouteParameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "source_x": {
+          "type": "number",
+          "minimum": -3.4028234663852886e+38,
+          "maximum": 3.4028234663852886e+38,
+          "default": 64
+        },
+        "source_z": {
+          "type": "number",
+          "minimum": -3.4028234663852886e+38,
+          "maximum": 3.4028234663852886e+38,
+          "default": 64
+        },
+        "channel_width": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 3.4028234663852886e+38,
+          "default": 4
+        },
+        "channel_depth": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 3.4028234663852886e+38,
+          "default": 2
+        },
+        "water_depth": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 3.4028234663852886e+38,
+          "default": 1,
+          "description": "No greater than channel_depth; native graph validation enforces this relation."
+        }
+      }
+    },
+    "waterNodeParameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "lake",
+            "ocean",
+            "river"
+          ],
+          "default": "lake"
+        },
+        "level": {
+          "type": "number",
+          "minimum": -3.4028234663852886e+38,
+          "maximum": 3.4028234663852886e+38,
+          "default": 0
+        },
+        "center_x": {
+          "type": "number",
+          "minimum": -3.4028234663852886e+38,
+          "maximum": 3.4028234663852886e+38,
+          "default": 64
+        },
+        "center_z": {
+          "type": "number",
+          "minimum": -3.4028234663852886e+38,
+          "maximum": 3.4028234663852886e+38,
+          "default": 64
+        },
+        "radius": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 3.4028234663852886e+38,
+          "default": 20
+        },
+        "river_width": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 3.4028234663852886e+38,
+          "default": 4
+        },
+        "river_surface_mode": {
+          "type": "string",
+          "enum": [
+            "level",
+            "follow_bed"
+          ],
+          "default": "level"
+        },
+        "river_depth": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 3.4028234663852886e+38,
+          "default": 1
+        },
+        "river_path": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": {
+              "type": "number",
+              "minimum": -3.4028234663852886e+38,
+              "maximum": 3.4028234663852886e+38
+            }
+          }
+        },
+        "shallow_color": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "deep_color": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "absorption_distance": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 3.4028234663852886e+38,
+          "default": 3
+        },
+        "roughness": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.12
         }
       }
     }

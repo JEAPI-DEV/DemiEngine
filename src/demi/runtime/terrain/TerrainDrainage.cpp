@@ -17,15 +17,16 @@ namespace {
 // never measured.
 constexpr float DiagonalWeight = 0.70710678F;
 
-// Raised on every level a flood closes to order flat regions consistently.
-// Parent links remain acyclic even when float precision absorbs this increment:
-// each parent is already discovered before its child can be assigned.
-constexpr float FloodEpsilon = 1e-5F;
-
 constexpr int NeighbourX[8] = {-1, 0, 1, -1, 1, -1, 0, 1};
 constexpr int NeighbourZ[8] = {-1, -1, -1, 0, 0, 1, 1, 1};
 constexpr bool NeighbourDiagonal[8] = {true,  false, true,  false,
                                        false, true,  false, true};
+
+// Full terrain cells emit {a,c,b}/{b,c,d}; the b-c diagonal connects
+// opposite-sign X/Z offsets. Drainage must not cross the absent a-d edge.
+constexpr bool isTerrainMeshNeighbor(int neighbor) {
+  return NeighbourX[neighbor] * NeighbourZ[neighbor] <= 0;
+}
 
 struct Grid {
   int width = 0;
@@ -173,8 +174,7 @@ computeTerrainDrainage(const HeightField &field, const TerrainRecipe &recipe,
   // own height is what identifies a depression.
   std::vector<float> filled(grid.count, 0.F);
   // Discovery order is topological: each parent is recorded before its
-  // children. Unlike height sorting, this remains valid when epsilon rounds
-  // away.
+  // children. Equal filled heights need no artificial elevation perturbation.
   std::vector<std::size_t> discoveryOrder;
   discoveryOrder.reserve(grid.count);
   // Every sample is one unit of upstream area, including the border's.
@@ -202,6 +202,9 @@ computeTerrainDrainage(const HeightField &field, const TerrainRecipe &recipe,
     const int x = int(node.index % std::size_t(grid.width));
     const int z = int(node.index / std::size_t(grid.width));
     for (int neighbour = 0; neighbour < 8; ++neighbour) {
+      if (!isTerrainMeshNeighbor(neighbour)) {
+        continue;
+      }
       const int nx = x + NeighbourX[neighbour];
       const int nz = z + NeighbourZ[neighbour];
       if (nx < 0 || nz < 0 || nx >= grid.width || nz >= grid.depth)
@@ -214,7 +217,7 @@ computeTerrainDrainage(const HeightField &field, const TerrainRecipe &recipe,
       closed[target] = 1;
       discoveryOrder.push_back(target);
       parent[target] = node.index;
-      filled[target] = std::max(node.level, heights[target]) + FloodEpsilon;
+      filled[target] = std::max(node.level, heights[target]);
       frontier.push({filled[target], target});
     }
   }
@@ -242,6 +245,9 @@ computeTerrainDrainage(const HeightField &field, const TerrainRecipe &recipe,
       const int x = int(current % std::size_t(grid.width));
       const int z = int(current / std::size_t(grid.width));
       for (int neighbour = 0; neighbour < 8; ++neighbour) {
+        if (!isTerrainMeshNeighbor(neighbour)) {
+          continue;
+        }
         const int nx = x + NeighbourX[neighbour];
         const int nz = z + NeighbourZ[neighbour];
         if (nx < 0 || nz < 0 || nx >= grid.width || nz >= grid.depth)
@@ -278,25 +284,13 @@ computeTerrainDrainage(const HeightField &field, const TerrainRecipe &recipe,
   // height is standing water, and a connected group of those samples is one
   // depression.
   //
-  // The test is deliberately a tolerance and not an epsilon. A sample that
-  // merely sits below the level that discovered it is raised by exactly one
-  // epsilon, which is the boundary case and not a depression; only a sample
-  // filled from a discoverer standing genuinely above it has to be lifted, and
-  // that is the depression. The tolerance rejects the epsilon-scale noise and
-  // keeps anything a lake could actually occupy.
-  float lowest = heights[0], highest = heights[0];
-  for (std::size_t i = 1; i < grid.count; ++i) {
-    if ((i & 255) == 0 && stop.stop_requested())
-      return std::nullopt;
-    lowest = std::min(lowest, heights[i]);
-    highest = std::max(highest, heights[i]);
-  }
-  const float tolerance =
-      std::max(16.F * FloodEpsilon, 0.001F * (highest - lowest));
+  // Filled levels only copy representable surface heights through max; no
+  // epsilon is added. Any strict increase is a real depression, including a
+  // shallow one. Perturbing flats would accumulate artificial basin depth.
   for (std::size_t i = 0; i < grid.count; ++i) {
     if ((i & 255) == 0 && stop.stop_requested())
       return std::nullopt;
-    if (filled[i] - heights[i] > tolerance)
+    if (filled[i] > heights[i])
       pooled[i] = 1;
   }
 
@@ -348,6 +342,9 @@ computeTerrainDrainage(const HeightField &field, const TerrainRecipe &recipe,
         const int cx = int(current % std::size_t(grid.width));
         const int cz = int(current / std::size_t(grid.width));
         for (int neighbour = 0; neighbour < 8; ++neighbour) {
+          if (!isTerrainMeshNeighbor(neighbour)) {
+            continue;
+          }
           const int nx = cx + NeighbourX[neighbour];
           const int nz = cz + NeighbourZ[neighbour];
           if (nx < 0 || nz < 0 || nx >= grid.width || nz >= grid.depth)

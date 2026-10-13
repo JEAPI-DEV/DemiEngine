@@ -18,7 +18,9 @@ struct TerrainGraphArtifacts;
 // 2: biome noise moved from the raw world seed to the stable Landform sub-seed
 // (see TerrainSeed), which changes the sampled surface for existing recipes.
 // 7: downstream accumulation and world-space thermal transport corrected.
-inline constexpr int terrainGeneratorVersion = 7;
+// 8: priority flooding preserves physical elevations, including flat basins.
+// 9: adaptive hydraulic descent, open-edge export and bounded deposition.
+inline constexpr int terrainGeneratorVersion = 9;
 
 class TerrainGenerator {
 public:

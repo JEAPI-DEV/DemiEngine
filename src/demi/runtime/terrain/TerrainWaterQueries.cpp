@@ -44,13 +44,33 @@ std::optional<TerrainWaterQueryContext> TerrainWaterQueryContext::build(
   if (field.samples() != count || field.wet.size() != count ||
       field.body.size() != count || field.cellsX != cellsX ||
       field.cellsZ != cellsZ || field.size.x != size.x ||
-      field.size.y != size.y) {
+      field.size.y != size.y ||
+      field.bodyLevels.size() != authoring.bodies.size()) {
     return std::nullopt;
+  }
+  std::vector<std::uint8_t> accepted(authoring.bodies.size());
+  for (const auto body : terrain_water_detail::acceptedBodies(authoring)) {
+    accepted[body] = 1;
+    const auto &levels = field.bodyLevels[body];
+    const bool varying = authoring.bodies[body].riverSurfaceMode ==
+                         TerrainRiverSurfaceMode::FollowBed;
+    if (bool(levels.samples) != varying ||
+        (levels.samples && levels.samples->size() != count) ||
+        (!varying && levels.constant != authoring.bodies[body].level)) {
+      return std::nullopt;
+    }
+    if (levels.samples && std::ranges::any_of(*levels.samples, [](float level) {
+          return !std::isfinite(level);
+        })) {
+      return std::nullopt;
+    }
   }
   for (std::size_t sample = 0; sample < count; ++sample)
     if (field.wet[sample] &&
         (field.body[sample] >= authoring.bodies.size() ||
-         field.level[sample] != authoring.bodies[field.body[sample]].level))
+         !accepted[field.body[sample]] ||
+         field.level[sample] !=
+             field.bodyLevels[field.body[sample]].at(sample)))
       return std::nullopt;
 
   TerrainWaterQueryContext context;
@@ -75,7 +95,6 @@ TerrainWaterQueryContext::sample(Vec3 localPosition) const {
       !std::isfinite(localPosition.y) || !std::isfinite(localPosition.z)) {
     return std::nullopt;
   }
-  const auto &level_ = coverage_->level;
   const auto &wet_ = coverage_->wet;
   const auto &body_ = coverage_->body;
   if (localPosition.x < 0 || localPosition.z < 0 || localPosition.x > size_.x ||
@@ -142,12 +161,11 @@ TerrainWaterQueryContext::sample(Vec3 localPosition) const {
     }
     if (!(coverage > 0.0))
       continue;
-    // Keep the winning body's authored plane; interpolating different bodies'
-    // levels would introduce a slope neither body nor its mesh contains.
+    // Choose ownership before interpolating height. Mixing different bodies'
+    // levels would create a surface that neither body nor its mesh contains.
     if (owner == terrain_water_detail::WaterLevelField::noBody ||
         body_[sample] > owner) {
       owner = body_[sample];
-      level = level_[sample];
     }
   }
   if (owner == terrain_water_detail::WaterLevelField::noBody) {
@@ -155,15 +173,32 @@ TerrainWaterQueryContext::sample(Vec3 localPosition) const {
   }
   const auto &triangle =
       terrain_water_detail::waterCellTriangles[u + v <= 1 ? 0 : 1];
+  const auto &levels = coverage_->bodyLevels[owner];
+  for (std::size_t corner = 0; corner < corners.size(); ++corner) {
+    level += weights[corner] * levels.at(corners[corner]);
+  }
   const bool hasWetCorner = std::ranges::any_of(triangle, [&](auto corner) {
     const auto sample = corners[corner];
-    return wet_[sample] && body_[sample] == owner && ground_[sample] < level;
+    return wet_[sample] && body_[sample] == owner &&
+           ground_[sample] < levels.at(sample);
   });
   if (!hasWetCorner)
     return TerrainWaterQuery{};
 
   TerrainWaterQuery query;
   query.surfaceHeight = float(level);
+  const std::array<std::pair<int, int>, 4> coordinates{
+      std::pair{cellX, cellZ}, std::pair{cellX + 1, cellZ},
+      std::pair{cellX, cellZ + 1}, std::pair{cellX + 1, cellZ + 1}};
+  std::array<terrain_water_detail::WaterGeometryVertex, 3> surfaceTriangle;
+  for (std::size_t vertex = 0; vertex < triangle.size(); ++vertex) {
+    const auto corner = triangle[vertex];
+    const auto [x, z] = coordinates[corner];
+    surfaceTriangle[vertex].x = cornerX(x);
+    surfaceTriangle[vertex].z = cornerZ(z);
+    surfaceTriangle[vertex].level = levels.at(corners[corner]);
+  }
+  query.normal = terrain_water_detail::waterTriangleNormal(surfaceTriangle);
   query.groundHeight = float(ground);
   query.depth = float(std::max(0.0, level - ground));
   query.submerged = query.depth > 0.F;

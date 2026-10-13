@@ -201,6 +201,23 @@ std::vector<TerrainGraphNodeDefinition> makeDefinitions() {
         {"flow", "Flow accumulation", Kind::Mask}},
        {number("sea_level", "Sea level", 0,
                "Water level; zero and negative levels are valid.")}},
+      {"river_route",
+       "River Route",
+       "Water",
+       "Trace a nonascending drainage route from an authored source and carve "
+       "its channel.",
+       {{"drainage", "Drainage", Kind::Drainage},
+        {"water", "Existing water", Kind::Water, false}},
+       {field("field"), {"water", "Water", Kind::Water}},
+       {number("source_x", "Source X", 64, "Terrain-local world coordinate."),
+        number("source_z", "Source Z", 64, "Terrain-local world coordinate."),
+        number("channel_width", "Channel width", 4,
+               "Positive world-unit width."),
+        number("channel_depth", "Channel depth", 2,
+               "Positive cut below the traced terrain surface."),
+        number("water_depth", "Water depth", 1,
+               "Positive depth above the channel bed, no greater than channel "
+               "depth.")}},
       {"erosion",
        "Erosion",
        "Simulation",
@@ -245,6 +262,17 @@ std::vector<TerrainGraphNodeDefinition> makeDefinitions() {
                "only the basin connected to their centre."),
         number("river_width", "River width", 4,
                "Channel width in world units."),
+        {"river_surface_mode",
+         "River surface",
+         "Level uses Water level; Follow bed uses bed height plus River depth.",
+         Parameter::Choice,
+         "level",
+         {"level", "follow_bed"},
+         {},
+         {},
+         false},
+        number("river_depth", "River depth", 1,
+               "Positive depth above the authored bed in Follow bed mode."),
         {"shallow_color",
          "Shallow RGBA",
          "Colour and opacity at the shoreline.",
@@ -317,7 +345,9 @@ std::vector<TerrainGraphNodeDefinition> makeDefinitions() {
           (definition.type == "path_distance_mask" && name == "width")) {
         parameter.minimum = 0;
       } else if (name == "feature_size" || name == "river_width" ||
-                 name == "warp_feature_size" || name == "stretch") {
+                 name == "warp_feature_size" || name == "stretch" ||
+                 name == "river_depth" || name == "channel_width" ||
+                 name == "channel_depth" || name == "water_depth") {
         parameter.minimum = 0;
         parameter.exclusiveMinimum = true;
       } else if (name == "roughness" || name == "thermal_strength" ||
@@ -327,7 +357,10 @@ std::vector<TerrainGraphNodeDefinition> makeDefinitions() {
       } else if (name == "octaves") {
         parameter.minimum = 1;
       }
-      if (definition.type == "noise" && parameter.kind == Parameter::Number) {
+      const bool floatDomain = definition.type == "noise" ||
+                               definition.type == "water" ||
+                               definition.type == "river_route";
+      if (floatDomain && parameter.kind == Parameter::Number) {
         if (!parameter.minimum) {
           parameter.minimum = -std::numeric_limits<float>::max();
         }

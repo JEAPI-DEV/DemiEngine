@@ -48,10 +48,9 @@ struct TerrainDrainage {
   std::vector<Vec3> basinOutlets;
   // The sample below which water stands, in world units.
   float seaLevel = 0;
-  // The sample each one drains into, or terrainNoDownstream at an outlet or
-  // sink. This is the direction the erosion stage walks instead of computing a
-  // second priority flood: the tree is already here, and re-deriving it would
-  // let the two disagree.
+  // Parent in the priority-flood tree. It descends on the filled surface and
+  // can climb the original ground while escaping a depression. Use the route
+  // tracer for a surface-following river, rather than drawing these links.
   TerrainSamples<std::size_t> downstream;
 };
 

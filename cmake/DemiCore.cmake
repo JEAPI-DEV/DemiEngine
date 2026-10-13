@@ -7,6 +7,7 @@ add_library(demi-core STATIC
   src/demi/runtime/terrain/TerrainGraphExecutor.cpp
   src/demi/runtime/terrain/TerrainGraphNodeEvaluation.cpp
   src/demi/runtime/terrain/TerrainGraphSpatialMasks.cpp
+  src/demi/runtime/terrain/TerrainGraphWater.cpp
   src/demi/runtime/terrain/TerrainGraphSedimentMasks.cpp
   src/demi/runtime/terrain/TerrainLandform.cpp
   src/demi/runtime/terrain/TerrainRecipe.cpp
@@ -25,6 +26,7 @@ add_library(demi-core STATIC
   src/demi/runtime/terrain/TerrainGeneration.cpp
   src/demi/runtime/terrain/TerrainPipeline.cpp
   src/demi/runtime/terrain/TerrainDrainage.cpp
+  src/demi/runtime/terrain/TerrainDrainageRoute.cpp
   src/demi/runtime/terrain/TerrainErosion.cpp
   src/demi/runtime/terrain/TerrainWaterDiagnostics.cpp
   src/demi/runtime/terrain/TerrainScatterConstraints.cpp

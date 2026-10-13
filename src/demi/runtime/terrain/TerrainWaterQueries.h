@@ -28,6 +28,7 @@ struct TerrainWaterQuery {
   float depth = 0;
   // Terrain-local surface and bed elevations for the sampled water column.
   float surfaceHeight = 0;
+  Vec3 normal{0, 1, 0};
   float groundHeight = 0;
   // True only when the supplied local Y lies inside the water, not in air or
   // below its bed. `submerged` above describes the existence of a wet column.

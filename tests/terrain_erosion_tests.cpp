@@ -5,6 +5,7 @@
 #include <cassert>
 #include <cmath>
 #include <iostream>
+#include <limits>
 #include <vector>
 
 using namespace demi::runtime;
@@ -328,7 +329,9 @@ void sedimentIsSignedAndRoughlyBalanced() {
   settings.iterations = 12;
   settings.thermalStrength = 0.05F;
   TerrainSamples<float> sediment;
-  const auto result = applyTerrainErosion(field, drainage, settings, &sediment);
+  TerrainErosionTransport transport;
+  const auto result = applyTerrainErosion(field, drainage, settings, &sediment,
+                                          {}, {}, &transport);
   assert(result);
   assert(sediment.size() == result->size());
   double deposited = 0, cut = 0, net = 0;
@@ -345,30 +348,152 @@ void sedimentIsSignedAndRoughlyBalanced() {
   }
   assert(deposited > 0);
   assert(cut > 0);
-  // Erosion moves material rather than creating or destroying it, so the two
-  // sides are of the same order. Remaining droplet loads are deposited at termination;
-  // floating-point updates make the balance approximate rather than exact.
-  assert(std::fabs(net) < 0.5 * (deposited + cut));
+  // Surface loss is explicitly exported or still suspended, never dumped at
+  // a terminal sample just to make a surface-only mass check pass.
+  assert(std::abs(net + transport.exportedSediment +
+                  transport.suspendedSediment) < 0.01);
+  assert(transport.erodedSediment > 0);
+  assert(transport.exportedSediment >= 0 && transport.suspendedSediment >= 0);
 }
 
-// The stage walks the drainage it was handed. Given directions computed from a
-// different surface it must behave differently, or the whole point of computing
-// drainage once and passing it down is lost.
-void drainageFromAnotherSurfaceChangesTheResult() {
-  const auto field = makeField(16, 16, spikeOnSlope);
-  // Same resolution, genuinely different shape, so nothing is rejected as a
-  // mismatch and only the direction itself differs.
-  const auto other = makeField(16, 16, slopeWithPit);
+// Drainage from another shape may guide ties, but cannot force droplets
+// uphill once the working surface has changed.
+void foreignDrainageCannotForceInvalidTransport() {
+  const auto field =
+      makeField(8, 8, [](int x, int z) { return 3.0F * x + .25F * z; });
   const auto own = drain(field);
-  const auto foreign = drain(other);
-  assert(foreign.downstream.size() == own.downstream.size());
-  assert(own.downstream != foreign.downstream);
+  auto foreign = own;
+  for (int z = 1; z < field.cellsZ; ++z) {
+    for (int x = 1; x < field.cellsX; ++x) {
+      // Every replaced guidance edge climbs the original analytical surface.
+      foreign.downstream.set(field.index(x, z), field.index(x + 1, z));
+    }
+  }
+  auto settings = TerrainErosionSettings{};
+  settings.iterations = 1;
+  settings.thermalStrength = 0;
+  TerrainErosionTransport ownBudget;
+  TerrainErosionTransport foreignBudget;
   const auto correct =
-      applyTerrainErosion(field, own, TerrainErosionSettings{});
-  const auto mismatched =
-      applyTerrainErosion(field, foreign, TerrainErosionSettings{});
+      applyTerrainErosion(field, own, settings, nullptr, {}, {}, &ownBudget);
+  const auto mismatched = applyTerrainErosion(field, foreign, settings, nullptr,
+                                              {}, {}, &foreignBudget);
   assert(correct && mismatched);
-  assert(*correct != *mismatched);
+  assert(*correct == *mismatched);
+  assert(ownBudget.erodedSediment > 0);
+  assert(ownBudget.erodedSediment == foreignBudget.erodedSediment);
+  assert(ownBudget.exportedSediment == foreignBudget.exportedSediment);
+  assert(ownBudget.suspendedSediment == foreignBudget.suspendedSediment);
+}
+
+void openOutletsExportSedimentWithoutBorderPiles() {
+  const auto field = makeField(
+      16, 16, [](int x, int z) { return float(16 - x) * 4 + float(z) * .1F; });
+  auto settings = TerrainErosionSettings{};
+  settings.iterations = 20;
+  settings.thermalStrength = 0;
+  TerrainErosionTransport transport;
+  TerrainSamples<float> balance;
+  const auto result = applyTerrainErosion(field, drain(field), settings,
+                                          &balance, {}, {}, &transport);
+  assert(result);
+  assert(transport.exportedSediment > 0);
+  double net = 0;
+  for (int z = 0; z <= field.cellsZ; ++z) {
+    for (int x = 0; x <= field.cellsX; ++x) {
+      const auto sample = field.index(x, z);
+      net += double((*result)[sample]) - field.heights[sample];
+      if (x == 0 || z == 0 || x == field.cellsX || z == field.cellsZ) {
+        assert((*result)[sample] == field.heights[sample]);
+      }
+    }
+  }
+  assert(std::abs(net + transport.exportedSediment +
+                  transport.suspendedSediment) < 1e-5);
+  assert(std::abs(transport.erodedSediment - transport.depositedSediment -
+                  transport.exportedSediment - transport.suspendedSediment) <
+         1e-5);
+}
+
+void terminalLoadsRespectCapacityAndCancellationKeepsOutputs() {
+  const auto field = makeField(16, 16, [](int x, int z) {
+    const int radius = std::max(std::abs(x - 8), std::abs(z - 8));
+    return radius == 0 ? 0.0F : float(radius) * 4;
+  });
+  const auto original = field.heights;
+  auto settings = TerrainErosionSettings{};
+  settings.iterations = 20;
+  settings.thermalStrength = 0;
+  TerrainErosionTransport transport;
+  const auto result = applyTerrainErosion(field, drain(field), settings,
+                                          nullptr, {}, {}, &transport);
+  assert(result);
+  double net = 0;
+  for (std::size_t sample = 0; sample < result->size(); ++sample) {
+    assert(std::isfinite((*result)[sample]));
+    assert((*result)[sample] <= 33);
+    net += double((*result)[sample]) - field.heights[sample];
+  }
+  assert(std::abs(net + transport.exportedSediment +
+                  transport.suspendedSediment) < 1e-5);
+  assert(field.heights == original);
+  TerrainSamples<float> balance;
+  balance.resize(1);
+  balance.set(0, 123);
+  transport = {.exportedSediment = 456,
+               .suspendedSediment = 789,
+               .erodedSediment = 111,
+               .depositedSediment = 222};
+  std::stop_source cancellation;
+  const auto cancelled = applyTerrainErosion(
+      field, drain(field), settings, &balance, cancellation.get_token(),
+      [&](float fraction) {
+        if (fraction == 1) {
+          cancellation.request_stop();
+        }
+      },
+      &transport);
+  assert(!cancelled);
+  assert(balance.size() == 1 && balance[0] == 123);
+  assert(transport.exportedSediment == 456);
+  assert(transport.suspendedSediment == 789);
+  assert(transport.erodedSediment == 111);
+  assert(transport.depositedSediment == 222);
+}
+
+void invalidComputedGeometryAndOutputRemainTransactional() {
+  const auto ordinary = makeField(2, 2, flat);
+  const auto rejects = [&](HeightField field, TerrainErosionSettings settings) {
+    TerrainSamples<float> balance;
+    balance.resize(1);
+    balance.set(0, 123);
+    TerrainErosionTransport budget{.exportedSediment = 456};
+    bool rejected = false;
+    try {
+      (void)applyTerrainErosion(field, drain(field), settings, &balance, {}, {},
+                                &budget);
+    } catch (const std::invalid_argument &) {
+      rejected = true;
+    }
+    assert(rejected);
+    assert(balance.size() == 1 && balance[0] == 123);
+    assert(budget.exportedSediment == 456);
+  };
+  auto underflow = ordinary;
+  underflow.size = {std::numeric_limits<float>::denorm_min(), 2};
+  rejects(underflow, thermalOnlySettings());
+  auto overflow = makeField(1, 1, flat);
+  overflow.size = {std::numeric_limits<float>::max(),
+                   std::numeric_limits<float>::max()};
+  rejects(overflow, thermalOnlySettings());
+  auto invalidOutput = ordinary;
+  for (std::size_t sample = 0; sample < invalidOutput.heights.size();
+       ++sample) {
+    invalidOutput.heights.set(sample, -std::numeric_limits<float>::max());
+  }
+  invalidOutput.heights.set(invalidOutput.index(1, 1),
+                            std::numeric_limits<float>::max());
+  rejects(invalidOutput, thermalOnlySettings());
 }
 
 // A drainage that does not describe this field would send droplets along
@@ -413,7 +538,10 @@ int main() {
   anisotropicThermalTransportConservesMassAndStaysBounded();
   previewDoesStrictlyLessWork();
   sedimentIsSignedAndRoughlyBalanced();
-  drainageFromAnotherSurfaceChangesTheResult();
+  openOutletsExportSedimentWithoutBorderPiles();
+  terminalLoadsRespectCapacityAndCancellationKeepsOutputs();
+  foreignDrainageCannotForceInvalidTransport();
+  invalidComputedGeometryAndOutputRemainTransactional();
   gridMismatchIsRejected();
   std::cout << "Terrain erosion checks passed\n";
 }

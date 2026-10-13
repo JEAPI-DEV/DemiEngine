@@ -162,7 +162,8 @@ executeTerrainGraph(const TerrainRecipe &recipe,
       if (old != inputs.previousCache->nodes.end() && old->second.key == key &&
           old->second.signature == serializedSignature) {
         cache->nodes.emplace(nodeId, old->second);
-        artifacts->nodes.push_back({nodeId, true, 0});
+        artifacts->nodes.push_back(
+            {nodeId, true, 0, old->second.result.status});
         artifacts->warnings.insert(artifacts->warnings.end(),
                                    old->second.result.warnings.begin(),
                                    old->second.result.warnings.end());
@@ -196,12 +197,17 @@ executeTerrainGraph(const TerrainRecipe &recipe,
     artifacts->nodes.push_back({nodeId, false,
                                 std::chrono::duration<double, std::milli>(
                                     std::chrono::steady_clock::now() - begin)
-                                    .count()});
+                                    .count(),
+                                cache->nodes.at(nodeId).result.status});
     if (progress)
       progress(float(++completed) / order.size());
   }
 
   for (const auto &[id, entry] : cache->nodes) {
+    if (entry.result.hydraulicTransport) {
+      artifacts->hydraulicTransport.emplace(id,
+                                            *entry.result.hydraulicTransport);
+    }
     if (entry.result.sedimentBalance) {
       artifacts->sedimentBalance.emplace(id, entry.result.sedimentBalance);
     }

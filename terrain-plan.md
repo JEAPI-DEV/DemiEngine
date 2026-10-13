@@ -517,67 +517,83 @@ remain separate gates.
 
 ## Milestone 3: landforms, erosion and drainage
 
-In progress. Production graph generation runs explicit stage dependencies,
-then replays authored sculpt strokes over the retained generated base. Local
-brush work reuses that checkpoint instead of restarting global erosion.
-Preview/Final quality now reaches the production generator and editor; Preview
-is temporary and cannot enter final saves, caches or cooked output. Hydraulic
-and thermal transport, corrected downstream accumulation and graph flow/cut/
-deposition masks are implemented. Downhill river routing and outlet policy,
-upstream solver comparison and reference-quality acceptance remain open.
-See [generation quality qualification](docs/terrain-generation-quality-qualification.md).
+Completed for the bounded generation scope, 2026-10-14. This covers authored
+macro shapes, erosion stages, explicit drainage endpoints, connected sloped
+rivers and safe Preview/Final generation. It does not complete the surface,
+water appearance, vegetation or reference-scene milestones below. See the
+[Milestone 3 qualification](docs/terrain-milestone3-qualification.md) for the
+acceptance evidence and the solver's unfinished-transport limitation.
 
-- [ ] Build coherent macro features: connected ridges, mountain masses, valleys,
+- [x] Build coherent macro features: connected ridges, mountain masses, valleys,
   basins, coastlines and plateaus. Layer smaller variation over that structure;
   expose feature size, relief and ridge/valley controls rather than only octaves.
 
-  The 2026-10-13 generation step adds FastNoiseLite ridged profiles, independently
-  seeded domain warp, directional stretch and heading to shared landforms and
-  graph noise nodes. A `path_distance_mask` supplies editable curved valley
-  corridors for height blending. `examples/rocky_valley_3d` exercises these at
-  the existing 500-by-500 resolution without modifying the sculpted example.
-  Filled polygon masks now compose with height blending to shape basin floors,
-  plateau tops and island outlines. Basin, Plateau and Coastal Island starter
-  presets expose those controls with explanatory graph comments; the island
-  includes sea-level water. These are authored macro-shape controls, not
-  drainage-derived basins or procedural watershed routing. Geological erosion,
-  drainage-driven rivers and the visual acceptance gate remain open.
-  See [polygon mask qualification](docs/terrain-polygon-mask-qualification.md).
-  See [landform qualification](docs/terrain-landform-qualification.md).
+  Shared ridged noise, independently seeded domain warp, directional stretch
+  and heading organize mountains. Editable path and filled polygon masks shape
+  valleys, basin floors, plateaus and coastlines. Eight documented starters
+  include Basin, Plateau, Coastal Island and Drainage River. The rocky-valley
+  probe retains its original 500-by-500 grid. Wide and close native views were
+  checked, including a correction for artificial hydraulic sediment walls.
+  See [landforms](docs/terrain-landform-qualification.md) and
+  [polygon masks](docs/terrain-polygon-mask-qualification.md).
 
-- [ ] Evaluate maintained libraries/tools for erosion and terrain processing
-  before writing custom implementations. Compare licensing, portability,
-  cancellation, determinism and integration costs with representative probes.
-  A pinned source-level [library survey](docs/terrain-erosion-library-evaluation.md)
-  now records HighMap and soillib tradeoffs. Native representative runs exist;
-  a qualified upstream solver comparison remains outstanding.
+- [x] Evaluate maintained libraries/tools for erosion and terrain processing
+  before selecting the continuing implementation. Compare licensing,
+  portability, cancellation, determinism and integration costs with
+  representative probes.
+
+  The [evaluation](docs/terrain-erosion-library-evaluation.md) records pinned
+  HighMap/soillib source surveys and actual libtcod/native runs on identical
+  flat, spike, anisotropic and representative inputs. It retains native stage
+  ownership and cancellability; no upstream engine dependency was introduced.
+  This is a Linux comparison, not cross-platform solver qualification or a
+  claim that native output is superior.
 
 - [x] Add hydraulic and thermal erosion stages with sediment transport/deposition
   where supported by the selected approach. Retain useful outputs such as flow,
   sediment, exposed-rock and wetness masks for later stages.
-  The native bounded solver now publishes signed balance and normalized cut/
-  deposition pins; Drainage also exposes flow. Reverse-tree accumulation and
-  anisotropic/diagonal thermal distances are corrected, with conservation,
-  cancellation, cache and original-grid Preview/Final probes. This establishes
-  the stage contract, not a full fluid solver or the visual acceptance gate.
 
-- [ ] Compute drainage/basin information for water generation. Define sea level,
+  Flow and independently normalized cut/deposition masks are graph outputs.
+  Hydraulic droplets follow currently descending mesh edges, export sediment
+  at open borders and cap local settling. Per-node eroded/deposited/exported/
+  suspended totals survive cache, sculpt replay and prepared loading. Suspended
+  means unfinished bounded transport, not a retained fluid simulation. Thermal
+  transport uses physical distances; zero hydraulic iterations is supported.
+
+- [x] Compute drainage/basin information for water generation. Define sea level,
   outlets, closed basins and river connectivity; do not generate rivers by
   placing arbitrary splines that flow uphill or end without an outlet policy.
-- [ ] Resolve the terrain/water dependency order: initial landform, drainage,
+
+  Priority flood follows actual terrain mesh edges without artificial elevation
+  epsilon. River Route accepts a source, follows nonascending edges and reports
+  sea, field edge, existing water, closed basin or blocked surface. It can join
+  an ocean, lake or earlier river; closed basins are explicit, not invented
+  uphill outlets. Follow-bed surfaces share carving, rendering and queries.
+
+- [x] Resolve the terrain/water dependency order: initial landform, drainage,
   optional channel/basin carving, final surface/rule masks. Bound any iterative
   refinement explicitly and make results independent of chunk processing order.
+
+  Typed graph dependencies establish ordering; existing receiving water feeds
+  Drainage before River Route, and carved output feeds later rules/output.
+  No implicit convergence loop runs. Whole-field generation precedes chunk
+  partition. Tests compare odd/partial and regular partitions, including wet
+  queries at seam and half-sample positions. Local sculpt reuses the base.
+
 - [x] Support preview and final-quality generation settings with visible status.
   Expensive erosion is a generation/bake operation unless explicitly requested;
   local sculpting must not automatically restart a global erosion simulation.
 
-  Editor Preview reduces hydraulic work and skips thermal passes on the same
-  authored grid. Final uses authored work settings. Progress updates within
-  erosion; cancellation/discard restores Final, and Final history never stores
-  Preview geometry. Source, shared placements, caches and cooking are guarded.
+  Preview reduces hydraulic work and skips thermal passes on the same grid.
+  Final uses authored work settings. In-stage progress/cancellation, temporary
+  publication, Final-only saves/caches/cooking and history rollback are tested.
+  See [Preview/Final qualification](docs/terrain-generation-quality-qualification.md).
 
 Acceptance: preset-generated mountains and river valleys have coherent shapes
 at wide and close views; watershed/chunk boundaries have no processing seams.
+The recorded native views and deterministic partition tests satisfy this
+base-generation gate. Detailed materials, realistic water, vegetation and final
+reference comparisons remain in Milestones 4–8; cliff shadow work is deferred.
 
 ## Milestone 4: automatic high-quality surface materials
 

@@ -7,12 +7,15 @@ are registered in `tools/package-store/src/Docs.php`.
 
 This directory keeps material that has a different job:
 
+- [Terrain Milestone 3 qualification](terrain-milestone3-qualification.md)
+  records drainage-connected rivers, physical water profiles, bounded sediment
+  transport, native shape checks and generation acceptance.
 - [Terrain generation quality qualification](terrain-generation-quality-qualification.md)
   records production Preview/Final safety, drainage/thermal fixes, simulation
   masks and representative original-grid generation timings.
 - [Terrain erosion library evaluation](terrain-erosion-library-evaluation.md)
-  compares upstream dependencies, licensing evidence and integration gaps;
-  it does not claim an upstream performance qualification.
+  compares pinned upstream dependencies and integration gaps, with actual
+  native/libtcod runs and explicit limits on performance and quality conclusions.
 - [Terrain polygon mask qualification](terrain-polygon-mask-qualification.md)
   records shared spatial-mask validation, basin/plateau/island presets, graph
   editing and native generation checks.

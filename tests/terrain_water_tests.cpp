@@ -832,7 +832,70 @@ void lakeSelectsOnlyItsConnectedBasin() {
   assert(!carveTerrainWater(ground, authoring, nullptr, cancel.get_token()));
 }
 
+void followingBedSharesSlopedSurfaceWithQueries() {
+  const auto ground =
+      fieldWith({8, 8}, 8, 8, [](double, double) { return 10.F; });
+  TerrainWaterBodySpec river;
+  river.id = "descending";
+  river.kind = TerrainWaterBody::River;
+  river.riverSurfaceMode = TerrainRiverSurfaceMode::FollowBed;
+  river.riverDepth = 2;
+  river.riverWidth = 4;
+  river.riverPath = {{1, 8, 4}, {1, 8, 4}, {7, 2, 4}};
+  river.shorelineSoftening = false;
+  const auto authoring = authoringWith(river);
+  const auto result = carveTerrainWater(ground, authoring, nullptr);
+  assert(result && result->dropped == 0);
+  assert(result->carvedHeights[ground.index(4, 4)] == 5);
+  const auto context = TerrainWaterQueryContext::build(authoring, *result,
+                                                       nullptr, 8, 8, {8, 8});
+  assert(context);
+  const auto centre = context->sample({4, 6, 4});
+  assert(centre && centre->underwater && centre->surfaceHeight == 7 &&
+         centre->depth == 2);
+  assert(std::abs(centre->normal.x - std::sqrt(0.5F)) < 1e-5F);
+  assert(std::abs(centre->normal.y - std::sqrt(0.5F)) < 1e-5F);
+  const auto &surface = result->surfaces.front();
+  assert(surface.riverSurfaceMode == TerrainRiverSurfaceMode::FollowBed);
+  assert(!surface.indices.empty());
+  for (std::size_t first = 0; first < surface.indices.size(); first += 3) {
+    Vec3 centroid{};
+    for (std::size_t vertex = 0; vertex < 3; ++vertex) {
+      const auto point = surface.vertices[surface.indices[first + vertex]];
+      centroid.x += point.x / 3;
+      centroid.y += point.y / 3;
+      centroid.z += point.z / 3;
+    }
+    const auto answer = context->sample(centroid);
+    assert(answer && answer->submerged);
+    assert(std::abs(answer->surfaceHeight - centroid.y) < 1e-4F);
+    const auto normal = surface.normals[surface.indices[first]];
+    const auto dot = answer->normal.x * normal.x + answer->normal.y * normal.y +
+                     answer->normal.z * normal.z;
+    assert(dot > 0.9999F);
+  }
+  auto overlapping = authoring;
+  TerrainWaterBodySpec pool;
+  pool.id = "pool";
+  pool.kind = TerrainWaterBody::Ocean;
+  pool.level = 9;
+  pool.center = {4, 4};
+  pool.radius = 1;
+  pool.shorelineSoftening = false;
+  overlapping.bodies.push_back(pool);
+  const auto overlap = carveTerrainWater(ground, overlapping, nullptr);
+  assert(overlap);
+  const auto overlapQuery = TerrainWaterQueryContext::build(
+      overlapping, *overlap, nullptr, 8, 8, {8, 8});
+  const auto inPool = overlapQuery->sample({4, 6, 4});
+  assert(inPool && inPool->bodyId == "pool" && inPool->surfaceHeight == 9);
+  river.riverDepth = 0;
+  const auto invalid = carveTerrainWater(ground, authoringWith(river), nullptr);
+  assert(invalid && invalid->dropped == 1 && invalid->surfaces.empty());
+}
+
 int main() {
+  followingBedSharesSlopedSurfaceWithQueries();
   riverCarvesChannelAndLeavesFieldUnchanged();
   riverDepthFollowsDrainage();
   lakeFillsBasinWithLevelSurface();

@@ -308,15 +308,82 @@ void branchingAndRoundedFloodLevelsAccumulateExactly() {
   const auto drainage = drain(branching);
   const auto junction = branching.index(1, 2);
   assert(drainage.downstream[branching.index(2, 1)] == junction);
-  assert(drainage.downstream[branching.index(2, 3)] == junction);
+  assert(drainage.downstream[branching.index(1, 3)] == junction);
   assertExactUpstreamFlow(branching, drainage);
-  // At this magnitude FloodEpsilon cannot advance the stored float level.
+  // Equal filled heights still have deterministic acyclic discovery links.
   const auto plateau = makeField(8, 8, [](int, int) { return 1.0e8F; });
   assertExactUpstreamFlow(plateau, drain(plateau));
   std::stop_source cancelled;
   cancelled.request_stop();
   assert(!computeTerrainDrainage(branching, recipeFor(branching), {},
                                  cancelled.get_token()));
+}
+
+void largeOpenFlatHasNoArtificialBasins() {
+  const auto field = makeField(500, 500, flat);
+  const auto first = drain(field);
+  const auto second = drain(field);
+  assert(first.basinCount == 0);
+  assert(first.downstream == second.downstream);
+  for (std::size_t sample = 0; sample < first.basin.size(); ++sample) {
+    assert(first.basin[sample] == 0);
+  }
+}
+
+void representableShallowDepressionIsRecognized() {
+  const auto field = makeField(
+      8, 8, [](int x, int z) { return x == 4 && z == 4 ? 0.99999F : 1.0F; });
+  const auto drainage = drain(field);
+  assert(drainage.basinCount == 1);
+  assert(drainage.basin[field.index(4, 4)] == 1);
+  assert(drainage.basinOutlets[1].y == field.height(4, 4));
+  assert(drainage.basin[field.index(3, 4)] == 0);
+}
+
+void missingMeshDiagonalCannotDrainAcrossRaisedRim() {
+  const auto field = makeField(2, 2, [](int x, int z) {
+    const bool diagonalLow = x == z;
+    return diagonalLow ? 0.0F : 5.0F;
+  });
+  const auto first = drain(field);
+  const auto repeated = drain(field);
+  const auto center = field.index(1, 1);
+  assert(first.basinCount == 1);
+  assert(first.basin[center] == 1);
+  const auto parent = first.downstream[center];
+  assert(parent != terrainNoDownstream);
+  assert(field.heights[parent] == 5);
+  assert(first.downstream == repeated.downstream);
+  assert(first.basin == repeated.basin);
+}
+
+void poolsAcrossMissingDiagonalRemainSeparateBasins() {
+  const auto field = makeField(3, 3, [](int x, int z) {
+    return (x == 1 && z == 1) || (x == 2 && z == 2) ? 0.0F : 5.0F;
+  });
+  const auto drainage = drain(field);
+  assert(drainage.basinCount == 2);
+  assert(drainage.basin[field.index(1, 1)] == 1);
+  assert(drainage.basin[field.index(2, 2)] == 2);
+}
+
+void downstreamLinksUseActualTerrainTriangleEdges() {
+  const auto field = makeField(16, 16, twinPits);
+  const auto drainage = drain(field);
+  const auto columns = std::size_t(field.cellsX) + 1;
+  for (std::size_t sample = 0; sample < drainage.downstream.size(); ++sample) {
+    const auto next = drainage.downstream[sample];
+    if (next == terrainNoDownstream) {
+      continue;
+    }
+    const int x = int(sample % columns);
+    const int z = int(sample / columns);
+    const int nextX = int(next % columns);
+    const int nextZ = int(next / columns);
+    assert(std::abs(nextX - x) <= 1);
+    assert(std::abs(nextZ - z) <= 1);
+    assert((nextX - x) * (nextZ - z) <= 0);
+  }
 }
 
 // Water distance is a real distance field: zero in the water, growing inland,
@@ -396,6 +463,11 @@ int main() {
   downstreamChainsAlwaysTerminate();
   chainAccumulatesAllUpstreamSources();
   branchingAndRoundedFloodLevelsAccumulateExactly();
+  largeOpenFlatHasNoArtificialBasins();
+  representableShallowDepressionIsRecognized();
+  missingMeshDiagonalCannotDrainAcrossRaisedRim();
+  poolsAcrossMissingDiagonalRemainSeparateBasins();
+  downstreamLinksUseActualTerrainTriangleEdges();
   waterDistanceIsZeroInWaterAndGrowsInland();
   dryFieldIsMaximallyDistantFromWater();
   gridMismatchIsRejected();
