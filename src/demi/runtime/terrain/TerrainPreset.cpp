@@ -274,22 +274,11 @@ parseTerrainPreset(const assets::DataDocument &document, std::string_view id) {
       const auto pointer = "landforms/" + name;
       requireAt(entry.isObject(), pointer, "must be an object");
       TerrainLandform shape;
-      shape.baseHeight =
-          readNumber(entry, "base_height", pointer + "/base_height", shape.baseHeight);
-      shape.heightVariation = readNumber(entry, "height_variation",
-                                         pointer + "/height_variation",
-                                         shape.heightVariation);
-      shape.featureSize = readNumber(entry, "feature_size",
-                                     pointer + "/feature_size", shape.featureSize);
-      shape.roughness =
-          readNumber(entry, "roughness", pointer + "/roughness", shape.roughness);
-      shape.octaves = readInt(entry, "octaves", pointer + "/octaves", shape.octaves);
-      requireAt(shape.featureSize > 0.F, pointer + "/feature_size",
-                "must be greater than 0");
-      requireAt(shape.octaves >= 1 && shape.octaves <= 16, pointer + "/octaves",
-                "must be between 1 and 16");
-      requireAt(shape.roughness >= 0.F && shape.roughness <= 1.F,
-                pointer + "/roughness", "must be within [0, 1]");
+      try {
+        shape = TerrainLandform::parse(toJson(entry));
+      } catch (const std::exception &failure) {
+        reject(pointer, failure.what());
+      }
       preset.landforms.emplace(name, shape);
     }
   }

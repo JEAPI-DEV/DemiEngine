@@ -713,6 +713,11 @@
   add_executable(demi-terrain-cook-tests tests/terrain_cook_tests.cpp)
   add_executable(demi-terrain-pipeline-tests tests/terrain_pipeline_tests.cpp)
   add_executable(demi-terrain-graph-tests tests/terrain_graph_tests.cpp)
+  add_executable(demi-terrain-graph-landform-controls-tests
+    tests/terrain_graph_landform_controls_tests.cpp)
+  target_link_libraries(demi-terrain-graph-landform-controls-tests PRIVATE demi-core)
+  add_executable(demi-terrain-landform-tests tests/terrain_landform_tests.cpp)
+  target_link_libraries(demi-terrain-landform-tests PRIVATE demi-core demi-fastnoise)
   add_executable(demi-terrain-cook-node-tests tests/terrain_cook_node_tests.cpp)
   add_executable(demi-material-asset-tests tests/material_asset_tests.cpp)
   add_executable(demi-material-set-tests tests/material_set_tests.cpp)

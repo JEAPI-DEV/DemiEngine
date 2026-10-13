@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <limits>
 #include <map>
+#include <numbers>
 #include <span>
 #include <stdexcept>
 #include <string_view>
@@ -35,6 +36,66 @@ struct TerrainEvaluation::Impl {
   struct Landform {
     const TerrainLandform *settings;
     FastNoiseLite noise;
+    FastNoiseLite warp;
+    double headingCos = 1;
+    double headingSin = 0;
+    bool warpEnabled = false;
+    bool directional = false;
+
+    Landform(const TerrainLandform &shape, int noiseSeed, int warpSeed)
+        : settings(&shape), noise(noiseSeed), warp(warpSeed) {
+      noise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
+      noise.SetFrequency(1.0F / shape.featureSize);
+      noise.SetFractalType(shape.profile == "ridged"
+                               ? FastNoiseLite::FractalType_Ridged
+                               : FastNoiseLite::FractalType_FBm);
+      noise.SetFractalOctaves(shape.octaves);
+      noise.SetFractalGain(shape.roughness);
+      warpEnabled = shape.warpAmplitude > 0;
+      if (warpEnabled) {
+        // Three smooth coordinate scales bend broad ranges independently of
+        // surface detail. BasicGrid has a bounded interpolated unit-vector
+        // warp.
+        warp.SetDomainWarpType(FastNoiseLite::DomainWarpType_BasicGrid);
+        warp.SetFractalType(FastNoiseLite::FractalType_DomainWarpProgressive);
+        warp.SetFractalOctaves(TerrainLandform::warpOctaves);
+        warp.SetFractalGain(0.5F);
+        warp.SetFrequency(1.0F / shape.warpFeatureSize);
+        warp.SetDomainWarpAmp(shape.warpAmplitude);
+      }
+      const double degrees = std::remainder(double(shape.heading), 360.0);
+      directional = degrees != 0 || shape.stretch != 1;
+      if (degrees != 0) {
+        const double radians = degrees * std::numbers::pi / 180.0;
+        headingCos = std::cos(radians);
+        headingSin = std::sin(radians);
+      }
+    }
+
+    float sample(Vec2 position) const {
+      float x = position.x;
+      float z = position.y;
+      if (warpEnabled) {
+        warp.DomainWarp(x, z);
+      }
+      if (directional) {
+        // Project into the heading frame; dividing its longitudinal coordinate
+        // stretches features along +X at zero heading, and +Z at 90 degrees.
+        const double longitudinal =
+            (headingCos * x + headingSin * z) / settings->stretch;
+        const double transverse = -headingSin * x + headingCos * z;
+        if (!std::isfinite(longitudinal) || !std::isfinite(transverse) ||
+            std::abs(longitudinal) > std::numeric_limits<float>::max() ||
+            std::abs(transverse) > std::numeric_limits<float>::max()) {
+          throw std::invalid_argument(
+              "Terrain landform sampling coordinates overflow");
+        }
+        x = static_cast<float>(longitudinal);
+        z = static_cast<float>(transverse);
+      }
+      // Default FBm deliberately keeps the original coordinates and operations.
+      return noise.GetNoise(x, z);
+    }
   };
 
   bool generationEnabled = false;
@@ -58,23 +119,19 @@ TerrainEvaluation::TerrainEvaluation(const TerrainRecipe &recipe)
   // reshape existing terrain.
   const auto landformSeed =
       deriveTerrainSubSeed(recipe.seed, TerrainSeedChannel::Landform);
+  const auto warpSeed =
+      deriveTerrainSubSeed(recipe.seed, TerrainSeedChannel::LandformWarp);
   std::map<std::string, std::size_t> landformIndices;
   for (const auto &[id, settings] : recipe.landforms) {
     landformIndices.emplace(id, impl_->landforms.size());
-    FastNoiseLite noise(landformSeed);
-    noise.SetNoiseType(FastNoiseLite::NoiseType_Perlin);
-    noise.SetFrequency(1.F / settings.featureSize);
-    noise.SetFractalType(FastNoiseLite::FractalType_FBm);
-    noise.SetFractalOctaves(settings.octaves);
-    noise.SetFractalGain(settings.roughness);
-    impl_->landforms.push_back({&settings, noise});
+    impl_->landforms.emplace_back(settings, landformSeed, warpSeed);
   }
   impl_->defaultLandform = landformIndices.at(recipe.defaultLandform);
   for (const auto &[id, biome] : recipe.biomes) {
     biomeIndices.emplace(id, impl_->biomeLandforms.size());
-    impl_->biomeLandforms.push_back(
-        biome.landform.empty() ? impl_->defaultLandform
-                               : landformIndices.at(biome.landform));
+    impl_->biomeLandforms.push_back(biome.landform.empty()
+                                        ? impl_->defaultLandform
+                                        : landformIndices.at(biome.landform));
   }
   impl_->defaultBiome = biomeIndices.at(recipe.defaultBiome);
 
@@ -144,9 +201,9 @@ TerrainBaseSample TerrainEvaluation::baseSample(Vec2 position) const {
   double height = 0;
   if (impl_->generationEnabled) {
     // Weights are per biome because that is what a region paints, but the shape
-    // is per landform. Several biomes can share one landform, so the weights are
-    // folded per landform first; summing them directly would let a shared shape
-    // be counted twice and warp the blend.
+    // is per landform. Several biomes can share one landform, so the weights
+    // are folded per landform first; summing them directly would let a shared
+    // shape be counted twice and warp the blend.
     std::array<double, 16> localShape{};
     std::vector<double> extendedShape;
     std::span<double> shapeWeights;
@@ -165,8 +222,7 @@ TerrainBaseSample TerrainEvaluation::baseSample(Vec2 position) const {
       height +=
           shapeWeights[index] * (double(landform.settings->baseHeight) +
                                  double(landform.settings->heightVariation) *
-                                     landform.noise.GetNoise(position.x,
-                                                              position.y));
+                                     landform.sample(position));
     }
   }
   const auto dominant = std::max_element(weights.begin(), weights.end());

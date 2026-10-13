@@ -1,0 +1,11 @@
+{
+  "format_version": 1,
+  "id": "asset://rocky_valley/materials/gravel",
+  "type": "Material",
+  "source": "gravel.material.json",
+  "importer": "material",
+  "importer_version": 1,
+  "settings": {},
+  "dependencies": [],
+  "source_hash": "fnv1a64:01877fedf60780a2"
+}

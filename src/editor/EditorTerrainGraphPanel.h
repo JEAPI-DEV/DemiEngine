@@ -3,6 +3,7 @@
 #include "demi/runtime/terrain/TerrainGraphRegistry.h"
 #include "editor/EditorCommands.h"
 #include "editor/EditorGraphCanvasView.h"
+#include "editor/EditorStructuredValue.h"
 #include "editor/EditorTerrainGraphDocument.h"
 
 #include <array>
@@ -101,7 +102,8 @@ private:
   std::unordered_map<int, std::string> links_;
   std::unordered_map<std::string, nlohmann::json> shownPositions_;
   std::unordered_map<std::string, std::string> textEdits_;
-  std::unordered_map<std::string, nlohmann::json> numericEdits_;
+  std::unordered_map<std::string, nlohmann::json> valueEdits_;
+  std::unordered_map<std::string, StructuredValueState> structuredEdits_;
   std::unordered_map<std::string, std::array<double, 3>> waypointEdits_;
   int nextUiId_ = 1;
   ImNodesContext *context_ = nullptr;

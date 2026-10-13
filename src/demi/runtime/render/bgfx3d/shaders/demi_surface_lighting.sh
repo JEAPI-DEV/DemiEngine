@@ -158,6 +158,11 @@ float cascadeVisibility(int cascade, vec4 worldPosition, vec3 worldDx, vec3 worl
 
 void main()
 {
+    // Receiver-plane derivatives require the complete fragment quad. Capture
+    // them before per-pixel material culling or alpha cutout discards lanes.
+    vec4 worldPosition = vec4(v_worldPos, 1.0);
+    vec3 worldDx = dFdx(v_worldPos);
+    vec3 worldDy = dFdy(v_worldPos);
 #ifdef DEMI_TERRAIN
     vec4 surfaceParameters;
     vec4 albedo = terrainSurface(v_texcoord0, surfaceParameters);
@@ -173,11 +178,10 @@ void main()
     vec4 albedo = texture2D(s_texColor, v_texcoord0) * v_color0 * u_tint;
 #endif
     if (albedo.a < u_alphaCutoff.x)
+    {
         discard;
+    }
 
-    vec4 worldPosition = vec4(v_worldPos, 1.0);
-    vec3 worldDx = dFdx(v_worldPos);
-    vec3 worldDy = dFdy(v_worldPos);
     if (u_shadowConfig.x < -0.5)
     {
         float shadowDepth = dot(u_shadowZ[int(u_shadowConfig.y)], worldPosition);

@@ -1,6 +1,7 @@
 #include "editor/EditorTerrainGraphSettings.h"
 #include "demi/assets/DataAsset.h"
 #include "demi/runtime/terrain/TerrainBrushStroke.h"
+#include "demi/runtime/terrain/TerrainLandform.h"
 #include "demi/runtime/terrain/TerrainRecipe.h"
 #include "editor/EditorAssetReferenceControl.h"
 #include "editor/EditorColorControl.h"
@@ -11,6 +12,7 @@
 #include <cmath>
 #include <imgui.h>
 #include <initializer_list>
+#include <limits>
 #include <optional>
 #include <ranges>
 #include <string>
@@ -69,6 +71,7 @@ bool chooseAsset(EditorWorkspace &workspace, const char *label,
 void drawLandforms(nlohmann::json &draft, nlohmann::json &biomes,
                    std::string &notice) {
   const auto defaults = defaultEditorTerrainRecipe();
+  const runtime::TerrainLandform shapeDefaults;
   auto landforms = draft.value("landforms", defaults.at("landforms"));
   const auto before = landforms;
   std::string defaultLandform =
@@ -107,14 +110,41 @@ void drawLandforms(nlohmann::json &draft, nlohmann::json &biomes,
         else if (replacement != id)
           rename = std::pair{id, replacement};
       }
-      floatField(shape, "base_height", "Base height", 0, 0.1F, -1e7F, 1e7F);
-      floatField(shape, "height_variation", "Height variation", 8, 0.1F, 0,
-                 1e7F);
-      floatField(shape, "feature_size", "Feature size", 32, 0.1F, 0.01F, 1e7F);
-      floatField(shape, "roughness", "Roughness", 0.5F, 0.01F, 0, 1);
-      int octaves = shape.value("octaves", 4);
-      if (ImGui::InputInt(terrainField("Octaves").c_str(), &octaves))
+      std::string profile = shape.value("profile", shapeDefaults.profile);
+      if (ImGui::BeginCombo(terrainField("Noise profile").c_str(),
+                            profile.c_str())) {
+        for (const auto choice : runtime::TerrainLandform::profileNames) {
+          if (ImGui::Selectable(choice.data(), profile == choice)) {
+            shape["profile"] = std::string(choice);
+          }
+        }
+        ImGui::EndCombo();
+      }
+      floatField(shape, "base_height", "Base height", shapeDefaults.baseHeight,
+                 0.1F, -1e7F, 1e7F);
+      floatField(shape, "height_variation", "Height variation",
+                 shapeDefaults.heightVariation, 0.1F, 0, 1e7F);
+      floatField(shape, "feature_size", "Feature size",
+                 shapeDefaults.featureSize, 0.1F, 0.01F, 1e7F);
+      floatField(shape, "roughness", "Roughness", shapeDefaults.roughness,
+                 0.01F, 0, 1);
+      int octaves = shape.value("octaves", shapeDefaults.octaves);
+      if (ImGui::InputInt(terrainField("Octaves").c_str(), &octaves)) {
         shape["octaves"] = octaves;
+      }
+      floatField(shape, "warp_amplitude", "Domain warp amplitude",
+                 shapeDefaults.warpAmplitude, 0.1F, 0,
+                 std::numeric_limits<float>::max());
+      floatField(shape, "warp_feature_size", "Domain warp feature size",
+                 shapeDefaults.warpFeatureSize, 0.1F,
+                 std::numeric_limits<float>::min(),
+                 std::numeric_limits<float>::max());
+      floatField(shape, "stretch", "Directional stretch", shapeDefaults.stretch,
+                 0.01F, std::numeric_limits<float>::min(),
+                 std::numeric_limits<float>::max());
+      floatField(shape, "heading", "Heading (degrees)", shapeDefaults.heading,
+                 0.5F, -std::numeric_limits<float>::max(),
+                 std::numeric_limits<float>::max());
 
       bool referenced = defaultLandform == id;
       for (const auto &[biomeId, biome] : biomes.items()) {

@@ -14,17 +14,88 @@
     "chunk_cells": { "type": "integer", "minimum": 1 },
     "seed": { "type": "integer" },
     "default_biome": { "type": "string", "description": "Key into biomes. Defaults to \"default\"." },
+    "default_landform": { "type": "string", "description": "Fallback elevation shape named in landforms." },
+    "landforms": {
+      "type": "object",
+      "description": "Named elevation controls shared with terrain recipes and graph Noise sources.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "base_height": {
+            "type": "number",
+            "default": 0,
+            "maximum": 3.4028234663852886e+38,
+            "minimum": -3.4028234663852886e+38
+          },
+          "height_variation": {
+            "type": "number",
+            "default": 8,
+            "maximum": 3.4028234663852886e+38,
+            "minimum": 0
+          },
+          "feature_size": {
+            "type": "number",
+            "default": 32,
+            "maximum": 3.4028234663852886e+38,
+            "exclusiveMinimum": 0
+          },
+          "roughness": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "default": 0.5
+          },
+          "octaves": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647,
+            "default": 4
+          },
+          "profile": {
+            "type": "string",
+            "enum": [
+              "fbm",
+              "ridged"
+            ],
+            "default": "fbm"
+          },
+          "warp_amplitude": {
+            "type": "number",
+            "default": 0,
+            "maximum": 3.4028234663852886e+38,
+            "minimum": 0
+          },
+          "warp_feature_size": {
+            "type": "number",
+            "default": 128,
+            "maximum": 3.4028234663852886e+38,
+            "exclusiveMinimum": 0
+          },
+          "stretch": {
+            "type": "number",
+            "default": 1,
+            "maximum": 3.4028234663852886e+38,
+            "exclusiveMinimum": 0
+          },
+          "heading": {
+            "type": "number",
+            "default": 0,
+            "maximum": 3.4028234663852886e+38,
+            "minimum": -3.4028234663852886e+38
+          }
+        }
+      }
+    },
     "biomes": {
       "type": "object",
-      "description": "Keyed by biome name, so a duplicate biome is structurally impossible and iteration order is deterministic.",
+      "description": "Appearance choices; elevation is owned by the named landform.",
       "additionalProperties": {
         "type": "object",
         "properties": {
-          "base_height": { "type": "number" },
-          "height_variation": { "type": "number" },
-          "feature_size": { "type": "number", "exclusiveMinimum": 0 },
-          "roughness": { "type": "number", "minimum": 0, "maximum": 1 },
-          "octaves": { "type": "integer", "minimum": 1, "maximum": 16 },
+          "landform": { "type": "string" },
+          "material": { "type": "string", "pattern": "^(asset://.+)?$" },
+          "texture_scale": { "type": "number", "exclusiveMinimum": 0 },
           "color": { "type": "array", "minItems": 4, "maxItems": 4, "items": { "type": "number" } }
         }
       }

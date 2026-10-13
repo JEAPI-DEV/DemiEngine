@@ -1,0 +1,19 @@
+{
+  "dependencies": [
+    "asset://rocky_valley/materials/rock",
+    "asset://rocky_valley/materials/grass",
+    "asset://rocky_valley/materials/gravel",
+    "asset://rocky_valley/materials/snow",
+    "asset://rocky_valley/materials/wet"
+  ],
+  "format_version": 1,
+  "id": "asset://rocky_valley/surface_materials",
+  "importer": "json_data",
+  "importer_version": 1,
+  "settings": {
+    "content_type": "terrain_material_set"
+  },
+  "source": "materials.json",
+  "type": "DataAsset",
+  "source_hash": "fnv1a64:b39765a41f870547"
+}

@@ -174,7 +174,8 @@ void EditorTerrainGraphPanel::bind(const EditorWorkspace &workspace) {
   links_.clear();
   shownPositions_.clear();
   textEdits_.clear();
-  numericEdits_.clear();
+  valueEdits_.clear();
+  structuredEdits_.clear();
   waypointEdits_.clear();
   nextUiId_ = 1;
   canvasView_.reset();
@@ -188,7 +189,8 @@ void EditorTerrainGraphPanel::resetDraftHistory() {
   document_.clearHistory();
   shownPositions_.clear();
   textEdits_.clear();
-  numericEdits_.clear();
+  valueEdits_.clear();
+  structuredEdits_.clear();
   selectNodes({});
   frameSelectionRequested_ = true;
 }
@@ -625,7 +627,7 @@ void EditorTerrainGraphPanel::drawParameter(
   Json edited;
   switch (definition.kind) {
   case runtime::TerrainGraphParameterKind::Color: {
-    Json &working = numericEdits_.try_emplace(key, value).first->second;
+    Json &working = valueEdits_.try_emplace(key, value).first->second;
     float rgba[4]{working.at(0).get<float>(), working.at(1).get<float>(),
                   working.at(2).get<float>(), working.at(3).get<float>()};
     const bool colorChanged =
@@ -644,11 +646,13 @@ void EditorTerrainGraphPanel::drawParameter(
     break;
   }
   case runtime::TerrainGraphParameterKind::Number: {
-    Json &working = numericEdits_.try_emplace(key, value).first->second;
-    float number = working.is_number() ? working.get<float>() : 0.0F;
-    if (ImGui::DragFloat("##value", &number, 0.05F, 0.0F, 0.0F, "%.3f") &&
-        std::isfinite(number))
+    Json &working = valueEdits_.try_emplace(key, value).first->second;
+    double number = working.is_number() ? working.get<double>() : 0.0;
+    if (ImGui::DragScalar("##value", ImGuiDataType_Double, &number, 0.05F,
+                          nullptr, nullptr, "%.3f") &&
+        std::isfinite(number)) {
       working = number;
+    }
     const bool finished = ImGui::IsItemDeactivatedAfterEdit();
     if (finished) {
       edited = working;
@@ -660,7 +664,7 @@ void EditorTerrainGraphPanel::drawParameter(
     break;
   }
   case runtime::TerrainGraphParameterKind::Integer: {
-    Json &working = numericEdits_.try_emplace(key, value).first->second;
+    Json &working = valueEdits_.try_emplace(key, value).first->second;
     int number = working.is_number_integer() ? working.get<int>() : 0;
     if (ImGui::DragInt("##value", &number))
       working = number;
@@ -698,6 +702,19 @@ void EditorTerrainGraphPanel::drawParameter(
   }
   case runtime::TerrainGraphParameterKind::Text:
   case runtime::TerrainGraphParameterKind::Structured: {
+    if (definition.kind == runtime::TerrainGraphParameterKind::Structured &&
+        definition.name == "points") {
+      Json &working = valueEdits_.try_emplace(key, value).first->second;
+      auto &state = structuredEdits_[key];
+      const auto edit = drawStructuredValue(working, state, 2);
+      if (edit.finished || (edit.changed && !edit.continuous)) {
+        edited = working;
+        changed = true;
+      } else if (!ImGui::IsAnyItemActive()) {
+        working = value;
+      }
+      break;
+    }
     if (definition.kind == runtime::TerrainGraphParameterKind::Structured &&
         definition.name == "river_path") {
       if (auto path = drawRiverPath(nodeId, value, definition.defaultValue)) {

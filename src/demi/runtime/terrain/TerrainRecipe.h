@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/scene/model/SceneTypes.h"
+#include "demi/runtime/terrain/TerrainLandform.h"
 #include <map>
 #include <nlohmann/json.hpp>
 #include <optional>
@@ -8,24 +9,16 @@
 
 namespace demi::runtime {
 
-// How the ground is shaped. Landform carries elevation and nothing about
-// appearance, so restyling a biome never means reshaping the terrain.
-struct TerrainLandform {
-  float baseHeight = 0;
-  float heightVariation = 8;
-  float featureSize = 32;
-  float roughness = .5F;
-  int octaves = 4;
-};
-
 // How a biome looks. The biome is an appearance choice assigned by rules from
-// the finished surface; it points at a landform rather than owning elevation, so
-// several biomes can share one shape and one shape can serve several looks.
+// the finished surface; it points at a landform rather than owning elevation,
+// so several biomes can share one shape and one shape can serve several looks.
 struct TerrainBiome {
-  // Landform this biome's ground is shaped by. Empty means the recipe's default.
+  // Landform this biome's ground is shaped by. Empty means the recipe's
+  // default.
   std::string landform;
   Color color{.35F, .55F, .25F, 1};
-  // Optional material asset, applied alongside the tint where a surface has one.
+  // Optional material asset, applied alongside the tint where a surface has
+  // one.
   std::string material;
   // Texture repetitions per terrain-local unit.
   float textureScale = 1;
@@ -36,8 +29,7 @@ struct TerrainBiome {
 enum class TerrainSubstrate { Soil, Rock, Sand, Wet };
 
 std::string_view terrainSubstrateName(TerrainSubstrate substrate);
-std::optional<TerrainSubstrate> terrainSubstrateFromName(
-    std::string_view name);
+std::optional<TerrainSubstrate> terrainSubstrateFromName(std::string_view name);
 
 // An inclusive [minimum, maximum] band. Omitted conditions are unconstrained.
 struct TerrainRuleBand {
@@ -90,8 +82,8 @@ enum class TerrainLayerKind {
   Exclusion
 };
 
-// The single layer-kind vocabulary. Exported so a preset, an authored recipe and
-// the editor cannot disagree about the accepted kind names.
+// The single layer-kind vocabulary. Exported so a preset, an authored recipe
+// and the editor cannot disagree about the accepted kind names.
 TerrainLayerKind layerKind(const std::string &name);
 const char *layerName(TerrainLayerKind kind);
 
@@ -158,7 +150,8 @@ struct TerrainRecipe {
   std::map<std::string, TerrainBiome> biomes{{"default", TerrainBiome{}}};
   // Ground shapes, keyed by name. Elevation comes from these, never from a
   // biome, so appearance and shape are edited and reasoned about separately.
-  std::map<std::string, TerrainLandform> landforms{{"default", TerrainLandform{}}};
+  std::map<std::string, TerrainLandform> landforms{
+      {"default", TerrainLandform{}}};
   // Landform used where no biome contributes a shape. Must name a landform.
   std::string defaultLandform = "default";
   std::vector<TerrainLayer> layers{

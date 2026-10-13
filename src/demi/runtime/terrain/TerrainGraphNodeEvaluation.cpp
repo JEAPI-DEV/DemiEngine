@@ -1,4 +1,5 @@
 #include "demi/runtime/terrain/TerrainGraphNodeEvaluation.h"
+#include "demi/runtime/terrain/TerrainGraphPathMask.h"
 
 #include "demi/runtime/terrain/TerrainBiomeRules.h"
 #include "demi/runtime/terrain/TerrainErosion.h"
@@ -65,28 +66,29 @@ std::optional<GraphNodeResult> evaluateSource(const TerrainGraphNode &node,
       shape.baseHeight = values.at("height").get<float>();
       shape.heightVariation = 0;
     } else {
-      shape.baseHeight = values.at("base_height").get<float>();
-      shape.heightVariation = values.at("height_variation").get<float>();
-      shape.featureSize = values.at("feature_size").get<float>();
-      shape.roughness = values.at("roughness").get<float>();
-      shape.octaves = values.at("octaves").get<int>();
+      auto landformParameters = values;
+      landformParameters.erase("seed_offset");
+      shape = TerrainLandform::parse(landformParameters);
       const auto seed =
           std::int64_t(settings.seed) + values.at("seed_offset").get<int>();
-      if (seed < INT32_MIN || seed > INT32_MAX)
+      if (seed < INT32_MIN || seed > INT32_MAX) {
         throw std::invalid_argument("Seed offset overflows the seed range");
+      }
       settings.seed = static_cast<int>(seed);
     }
     settings.landforms = {{"graph", shape}};
     settings.defaultLandform = "graph";
-    for (auto &[id, biome] : settings.biomes)
+    for (auto &[id, biome] : settings.biomes) {
       biome.landform = "graph";
+    }
     settings.rules.clear();
     settings.regions.clear();
   }
   auto generated = TerrainGenerator::generateBase(settings, stop);
   if (!generated ||
-      !TerrainGenerator::recomputeTerrainNormals(*generated, stop))
+      !TerrainGenerator::recomputeTerrainNormals(*generated, stop)) {
     return std::nullopt;
+  }
   GraphNodeResult result;
   result.outputs["field"] =
       std::make_shared<const HeightField>(std::move(*generated));
@@ -373,10 +375,9 @@ nlohmann::json terrainGraphNodeContext(const TerrainRecipe &recipe,
     context["seed"] = recipe.seed;
     context["default_landform"] = recipe.defaultLandform;
     context["landforms"] = nlohmann::json::object();
-    for (const auto &[id, shape] : recipe.landforms)
-      context["landforms"][id] = {shape.baseHeight, shape.heightVariation,
-                                  shape.featureSize, shape.roughness,
-                                  shape.octaves};
+    for (const auto &[id, shape] : recipe.landforms) {
+      context["landforms"][id] = shape.toJson();
+    }
     context["biome_landforms"] = nlohmann::json::object();
     for (const auto &[id, biome] : recipe.biomes)
       context["biome_landforms"][id] = biome.landform;
@@ -416,6 +417,10 @@ std::optional<GraphNodeResult> evaluateTerrainGraphNode(
   if (node.type == "landform" || node.type == "noise" ||
       node.type == "constant")
     return evaluateSource(node, values, sourceRecipe, stop);
+  if (node.type == "path_distance_mask") {
+    return evaluateTerrainPathMask(values, fieldInput(connected, "field"),
+                                   stop);
+  }
   if (node.type == "elevation_mask" || node.type == "slope_mask")
     return evaluateMask(node, values, connected, stop);
   if (node.type == "height_blend" || node.type == "offset")

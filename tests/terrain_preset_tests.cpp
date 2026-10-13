@@ -310,7 +310,26 @@ void startersNeedNoProjectAssets() {
   }
 }
 
+void presetLandformsUseSharedProfileAndWarpContract() {
+  auto preset = mountainPreset();
+  auto &shape = preset.landforms.at("rock");
+  shape.profile = "ridged";
+  shape.warpAmplitude = 20;
+  shape.warpFeatureSize = 128;
+  shape.stretch = 3;
+  shape.heading = 30;
+  auto source = terrainPresetFragment(preset);
+  source["name"] = "Ridged preset";
+  const auto document = demi::assets::parseDataDocument(source.dump());
+  assert(document.document);
+  const auto loaded =
+      parseTerrainPreset(*document.document, "asset://presets/ridged");
+  assert(loaded && loaded->landforms.at("rock") == shape);
+  assert(terrainPresetFragment(*loaded)["landforms"] == source["landforms"]);
+}
+
 int main() {
+  presetLandformsUseSharedProfileAndWarpContract();
   startersNeedNoProjectAssets();
   fragmentSuppliesOnlyGenerationKeys();
   applyingPreservesStrokes();

@@ -528,6 +528,16 @@ missing, not what is present.
 - [ ] Build coherent macro features: connected ridges, mountain masses, valleys,
   basins, coastlines and plateaus. Layer smaller variation over that structure;
   expose feature size, relief and ridge/valley controls rather than only octaves.
+
+  The 2026-10-13 generation step adds FastNoiseLite ridged profiles, independently
+  seeded domain warp, directional stretch and heading to shared landforms and
+  graph noise nodes. A `path_distance_mask` supplies editable curved valley
+  corridors for height blending. `examples/rocky_valley_3d` exercises these at
+  the existing 500-by-500 resolution without modifying the sculpted example.
+  This is partial macro-feature coverage: basin/coastline/plateau generators,
+  drainage-driven river routing and the visual acceptance gate remain open.
+  See [landform qualification](docs/terrain-landform-qualification.md).
+
 - [ ] Evaluate maintained libraries/tools for erosion and terrain processing
   before writing custom implementations. Compare licensing, portability,
   cancellation, determinism and integration costs with representative probes.

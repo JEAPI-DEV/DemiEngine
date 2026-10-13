@@ -14,6 +14,87 @@
       "required": ["format_version"],
       "properties": {
         "format_version": {"const": 1},
+        "landforms": {"type": "object", "propertyNames": {"minLength": 1}, "additionalProperties": {"$ref": "#/$defs/landform"}},
+        "graph": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "format_version": {
+              "const": 1
+            },
+            "output": {
+              "type": "string"
+            },
+            "links": {
+              "type": "array"
+            },
+            "nodes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "id",
+                  "type"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "type": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "parameters": {
+                    "type": "object"
+                  }
+                },
+                "allOf": [
+                  {
+                    "if": {
+                      "properties": {
+                        "type": {
+                          "const": "noise"
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ]
+                    },
+                    "then": {
+                      "properties": {
+                        "parameters": {
+                          "$ref": "#/$defs/noiseParameters"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "type": {
+                          "const": "path_distance_mask"
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ]
+                    },
+                    "then": {
+                      "properties": {
+                        "parameters": {
+                          "$ref": "#/$defs/pathDistanceParameters"
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
         "biomes": {
           "type": "object",
           "additionalProperties": {
@@ -23,6 +104,158 @@
               "texture_scale": {"type": "number", "exclusiveMinimum": 0, "default": 1}
             }
           }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "landform": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "base_height": {
+          "type": "number",
+          "default": 0,
+          "maximum": 3.4028234663852886e+38,
+          "minimum": -3.4028234663852886e+38
+        },
+        "height_variation": {
+          "type": "number",
+          "default": 8,
+          "maximum": 3.4028234663852886e+38,
+          "minimum": 0
+        },
+        "feature_size": {
+          "type": "number",
+          "default": 32,
+          "maximum": 3.4028234663852886e+38,
+          "exclusiveMinimum": 0
+        },
+        "roughness": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.5
+        },
+        "octaves": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647,
+          "default": 4
+        },
+        "profile": {
+          "type": "string",
+          "enum": [
+            "fbm",
+            "ridged"
+          ],
+          "default": "fbm"
+        },
+        "warp_amplitude": {
+          "type": "number",
+          "default": 0,
+          "maximum": 3.4028234663852886e+38,
+          "minimum": 0
+        },
+        "warp_feature_size": {
+          "type": "number",
+          "default": 128,
+          "maximum": 3.4028234663852886e+38,
+          "exclusiveMinimum": 0
+        },
+        "stretch": {
+          "type": "number",
+          "default": 1,
+          "maximum": 3.4028234663852886e+38,
+          "exclusiveMinimum": 0
+        },
+        "heading": {
+          "type": "number",
+          "default": 0,
+          "maximum": 3.4028234663852886e+38,
+          "minimum": -3.4028234663852886e+38
+        }
+      }
+    },
+    "noiseParameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "base_height": {
+          "$ref": "#/$defs/landform/properties/base_height"
+        },
+        "height_variation": {
+          "$ref": "#/$defs/landform/properties/height_variation"
+        },
+        "feature_size": {
+          "$ref": "#/$defs/landform/properties/feature_size"
+        },
+        "roughness": {
+          "$ref": "#/$defs/landform/properties/roughness"
+        },
+        "octaves": {
+          "$ref": "#/$defs/landform/properties/octaves"
+        },
+        "profile": {
+          "$ref": "#/$defs/landform/properties/profile"
+        },
+        "warp_amplitude": {
+          "$ref": "#/$defs/landform/properties/warp_amplitude"
+        },
+        "warp_feature_size": {
+          "$ref": "#/$defs/landform/properties/warp_feature_size"
+        },
+        "stretch": {
+          "$ref": "#/$defs/landform/properties/stretch"
+        },
+        "heading": {
+          "$ref": "#/$defs/landform/properties/heading"
+        },
+        "seed_offset": {
+          "type": "integer",
+          "minimum": -2147483648,
+          "maximum": 2147483647,
+          "default": 0
+        }
+      }
+    },
+    "pathDistanceParameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "points": {
+          "type": "array",
+          "minItems": 2,
+          "default": [
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              100
+            ]
+          ],
+          "items": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": {
+              "type": "number",
+              "minimum": -3.4028234663852886e+38,
+              "maximum": 3.4028234663852886e+38
+            }
+          }
+        },
+        "width": {
+          "type": "number",
+          "default": 20,
+          "minimum": 0
+        },
+        "falloff": {
+          "type": "number",
+          "default": 40,
+          "minimum": 0
         }
       }
     }

@@ -1,5 +1,11 @@
 # DemiEngine Roadmap
 
+Terrain generation now exposes ridged profiles, domain warp and directional
+stretch through shared recipe, preset and graph controls. Editable path masks
+shape curved valleys; a separate rocky-valley example preserves the sculpted
+terrain probe. Material blending and steep-surface shadow quality remain open.
+See [landform qualification](docs/terrain-landform-qualification.md).
+
 Compatible terrain now uses GPU height/normal sampling, shared instanced patches
 and per-pixel material routing. Same-build native measurements show substantially
 less CPU submission work at Full detail; unsupported materials/devices retain

@@ -1,0 +1,413 @@
+{
+  "format_version": 1,
+  "id": "asset://rocky_valley/landscape",
+  "name": "Broad rocky ridges and curved valley",
+  "recipe": {
+    "format_version": 1,
+    "size": [
+      2000,
+      2000
+    ],
+    "resolution": [
+      500,
+      500
+    ],
+    "seed": 1704,
+    "palette": "asset://rocky_valley/surface_palette",
+    "default_biome": "grass",
+    "biomes": {
+      "grass": {
+        "color": [
+          0.6,
+          0.65,
+          0.43,
+          1
+        ]
+      },
+      "rock": {
+        "color": [
+          0.77,
+          0.78,
+          0.79,
+          1
+        ]
+      },
+      "scree": {
+        "color": [
+          0.8,
+          0.75,
+          0.65,
+          1
+        ]
+      },
+      "snow": {
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    "rules": [
+      {
+        "id": "high_snow",
+        "biome": "snow",
+        "priority": 90,
+        "elevation": [
+          390,
+          800
+        ],
+        "slope": [
+          0,
+          48
+        ],
+        "blend": 15
+      },
+      {
+        "id": "exposed_rock",
+        "biome": "rock",
+        "priority": 80,
+        "slope": [
+          34,
+          90
+        ],
+        "blend": 4
+      },
+      {
+        "id": "high_scree",
+        "biome": "scree",
+        "priority": 60,
+        "elevation": [
+          180,
+          800
+        ],
+        "slope": [
+          15,
+          45
+        ],
+        "blend": 10
+      }
+    ],
+    "graph": {
+      "format_version": 1,
+      "output": "output",
+      "nodes": [
+        {
+          "id": "mountain_mass",
+          "type": "noise",
+          "position": [
+            0,
+            20
+          ],
+          "parameters": {
+            "profile": "ridged",
+            "base_height": 250,
+            "height_variation": 230,
+            "feature_size": 420,
+            "roughness": 0.34,
+            "octaves": 5,
+            "stretch": 3,
+            "heading": 80,
+            "warp_amplitude": 80,
+            "warp_feature_size": 700
+          }
+        },
+        {
+          "id": "valley_floor",
+          "type": "noise",
+          "position": [
+            0,
+            430
+          ],
+          "parameters": {
+            "base_height": 18,
+            "height_variation": 4,
+            "feature_size": 500,
+            "roughness": 0.3,
+            "octaves": 3,
+            "seed_offset": 31
+          }
+        },
+        {
+          "id": "valley_corridor",
+          "type": "path_distance_mask",
+          "position": [
+            280,
+            20
+          ],
+          "parameters": {
+            "points": [
+              [
+                930,
+                0
+              ],
+              [
+                1100,
+                350
+              ],
+              [
+                1060,
+                650
+              ],
+              [
+                880,
+                1000
+              ],
+              [
+                900,
+                1350
+              ],
+              [
+                1100,
+                1650
+              ],
+              [
+                1000,
+                2000
+              ]
+            ],
+            "width": 90,
+            "falloff": 220
+          }
+        },
+        {
+          "id": "valley_blend",
+          "type": "height_blend",
+          "position": [
+            560,
+            210
+          ],
+          "parameters": {
+            "amount": 1
+          }
+        },
+        {
+          "id": "drainage",
+          "type": "drainage",
+          "position": [
+            820,
+            20
+          ],
+          "parameters": {
+            "sea_level": 14
+          }
+        },
+        {
+          "id": "erosion",
+          "type": "erosion",
+          "position": [
+            1080,
+            210
+          ],
+          "parameters": {
+            "iterations": 16,
+            "thermal_strength": 0.28
+          }
+        },
+        {
+          "id": "valley_river",
+          "type": "water",
+          "position": [
+            1340,
+            210
+          ],
+          "parameters": {
+            "kind": "river",
+            "level": 19,
+            "river_width": 14,
+            "river_path": [
+              [
+                930,
+                15,
+                0
+              ],
+              [
+                1100,
+                15,
+                350
+              ],
+              [
+                1060,
+                15,
+                650
+              ],
+              [
+                880,
+                15,
+                1000
+              ],
+              [
+                900,
+                15,
+                1350
+              ],
+              [
+                1100,
+                15,
+                1650
+              ],
+              [
+                1000,
+                15,
+                2000
+              ]
+            ],
+            "shallow_color": [
+              0.24,
+              0.39,
+              0.38,
+              0.3
+            ],
+            "deep_color": [
+              0.07,
+              0.14,
+              0.17,
+              0.7
+            ],
+            "roughness": 0.3
+          }
+        },
+        {
+          "id": "surface_rules",
+          "type": "biomes",
+          "position": [
+            1600,
+            210
+          ]
+        },
+        {
+          "id": "output",
+          "type": "output",
+          "position": [
+            1860,
+            210
+          ]
+        }
+      ],
+      "links": [
+        {
+          "id": "mountain_corridor",
+          "from": {
+            "node": "mountain_mass",
+            "port": "field"
+          },
+          "to": {
+            "node": "valley_corridor",
+            "port": "field"
+          }
+        },
+        {
+          "id": "mountain_blend",
+          "from": {
+            "node": "mountain_mass",
+            "port": "field"
+          },
+          "to": {
+            "node": "valley_blend",
+            "port": "a"
+          }
+        },
+        {
+          "id": "floor_blend",
+          "from": {
+            "node": "valley_floor",
+            "port": "field"
+          },
+          "to": {
+            "node": "valley_blend",
+            "port": "b"
+          }
+        },
+        {
+          "id": "corridor_blend",
+          "from": {
+            "node": "valley_corridor",
+            "port": "mask"
+          },
+          "to": {
+            "node": "valley_blend",
+            "port": "mask"
+          }
+        },
+        {
+          "id": "valley_drainage",
+          "from": {
+            "node": "valley_blend",
+            "port": "field"
+          },
+          "to": {
+            "node": "drainage",
+            "port": "field"
+          }
+        },
+        {
+          "id": "valley_erosion",
+          "from": {
+            "node": "valley_blend",
+            "port": "field"
+          },
+          "to": {
+            "node": "erosion",
+            "port": "field"
+          }
+        },
+        {
+          "id": "drainage_erosion",
+          "from": {
+            "node": "drainage",
+            "port": "drainage"
+          },
+          "to": {
+            "node": "erosion",
+            "port": "drainage"
+          }
+        },
+        {
+          "id": "erosion_river",
+          "from": {
+            "node": "erosion",
+            "port": "field"
+          },
+          "to": {
+            "node": "valley_river",
+            "port": "field"
+          }
+        },
+        {
+          "id": "river_rules",
+          "from": {
+            "node": "valley_river",
+            "port": "field"
+          },
+          "to": {
+            "node": "surface_rules",
+            "port": "field"
+          }
+        },
+        {
+          "id": "rules_output",
+          "from": {
+            "node": "surface_rules",
+            "port": "field"
+          },
+          "to": {
+            "node": "output",
+            "port": "field"
+          }
+        },
+        {
+          "id": "water_output",
+          "from": {
+            "node": "valley_river",
+            "port": "water"
+          },
+          "to": {
+            "node": "output",
+            "port": "water"
+          }
+        }
+      ]
+    }
+  }
+}

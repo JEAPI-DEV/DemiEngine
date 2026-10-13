@@ -126,29 +126,44 @@ int main() {
     const int alphaAxis = 3;
     const ImGuiID alphaInput =
         ImHashStr("", 0, ImHashData(&alphaAxis, sizeof(alphaAxis), input));
-    activate(alphaInput);
-    if (ImGui::GetActiveID() != alphaInput) {
+    const auto editCoordinate = [&](ImGuiID id, const char *text) {
+      activate(id);
+      if (ImGui::GetActiveID() != id) {
+        io.AddKeyEvent(ImGuiKey_Enter, true);
+        frame();
+        io.AddKeyEvent(ImGuiKey_Enter, false);
+        frame();
+      }
+      require(ImGui::GetActiveID() == id,
+              "Vector coordinate input did not receive keyboard focus");
+      io.AddKeyEvent(ImGuiMod_Ctrl, true);
+      io.AddKeyEvent(ImGuiKey_A, true);
+      frame();
+      io.AddKeyEvent(ImGuiKey_A, false);
+      io.AddKeyEvent(ImGuiMod_Ctrl, false);
+      io.AddInputCharactersUTF8(text);
+      frame();
       io.AddKeyEvent(ImGuiKey_Enter, true);
       frame();
       io.AddKeyEvent(ImGuiKey_Enter, false);
       frame();
-    }
-    require(ImGui::GetActiveID() == alphaInput,
-            "RGBA alpha input did not receive keyboard focus");
-    io.AddKeyEvent(ImGuiMod_Ctrl, true);
-    io.AddKeyEvent(ImGuiKey_A, true);
-    frame();
-    io.AddKeyEvent(ImGuiKey_A, false);
-    io.AddKeyEvent(ImGuiMod_Ctrl, false);
-    io.AddInputCharactersUTF8("0.5");
-    frame();
-    io.AddKeyEvent(ImGuiKey_Enter, true);
-    frame();
-    io.AddKeyEvent(ImGuiKey_Enter, false);
-    frame();
+    };
+    editCoordinate(alphaInput, "0.5");
     require(value[0][3] == 0.5 && value[0][0] == 0.25 && value[0][1] == 0.5 &&
                 value[0][2] == 0.75,
             "RGBA editor did not edit alpha independently");
+
+    value = nlohmann::json::array({{10.1234567890123, 20.9876543210987}});
+    vectorWidth = 2;
+    frame();
+    frame();
+    const double unchangedZ = value[0][1].get<double>();
+    const int xAxis = 0;
+    const ImGuiID xInput =
+        ImHashStr("", 0, ImHashData(&xAxis, sizeof(xAxis), input));
+    editCoordinate(xInput, "3.5");
+    require(value[0][0] == 3.5 && value[0][1].get<double>() == unchangedZ,
+            "Editing one path coordinate rounded its unchanged partner");
     ImGui::DestroyContext();
     std::cout << "Structured-value interactions passed\n";
     return 0;

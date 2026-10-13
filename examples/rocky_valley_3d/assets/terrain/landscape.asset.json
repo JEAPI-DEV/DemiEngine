@@ -1,0 +1,13 @@
+{
+  "dependencies": [
+    "asset://rocky_valley/surface_palette"
+  ],
+  "format_version": 1,
+  "id": "asset://rocky_valley/landscape",
+  "importer": "terrain_heightfield",
+  "importer_version": 1,
+  "settings": {},
+  "source": "landscape.terrain.json",
+  "type": "Terrain",
+  "source_hash": "fnv1a64:9f25823e35847216"
+}

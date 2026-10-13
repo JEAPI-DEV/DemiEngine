@@ -7,6 +7,9 @@ are registered in `tools/package-store/src/Docs.php`.
 
 This directory keeps material that has a different job:
 
+- [Terrain landform qualification](terrain-landform-qualification.md) records
+  shared ridge/warp controls, editable valley masks, deterministic generation
+  coverage and the new probe's remaining material and shadow limitations.
 - [GPU terrain qualification](terrain-gpu-rendering-qualification.md) records
   native full-detail submission and frame-time comparisons, repeated runs and
   the compatibility/material limitations of the implemented path.

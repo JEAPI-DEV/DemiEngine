@@ -1,4 +1,6 @@
 #include "demi/runtime/terrain/TerrainGraphRegistry.h"
+#include "demi/runtime/terrain/TerrainLandform.h"
+#include <limits>
 
 namespace demi::runtime {
 namespace {
@@ -34,7 +36,22 @@ TerrainGraphParameter integer(std::string name, std::string label, int value,
           {},
           false};
 }
+TerrainGraphParameter noiseProfile() {
+  TerrainGraphParameter parameter{.name = "profile",
+                                  .label = "Noise profile",
+                                  .help =
+                                      "FBm creates smooth fractal relief; "
+                                      "ridged sharpens the ridge structure.",
+                                  .kind = Parameter::Choice,
+                                  .defaultValue = TerrainLandform{}.profile};
+  for (const auto name : TerrainLandform::profileNames) {
+    parameter.choices.emplace_back(name);
+  }
+  return parameter;
+}
+
 std::vector<TerrainGraphNodeDefinition> makeDefinitions() {
+  const TerrainLandform defaults;
   std::vector<TerrainGraphNodeDefinition> definitions{
       {"comment",
        "Comment",
@@ -66,14 +83,31 @@ std::vector<TerrainGraphNodeDefinition> makeDefinitions() {
        "Blend.",
        {},
        {field("field")},
-       {number("base_height", "Base height", 0, "Elevation in world units."),
-        number("height_variation", "Height variation", 8,
+       {noiseProfile(),
+        number("base_height", "Base height", defaults.baseHeight,
+               "Elevation in world units."),
+        number("height_variation", "Height variation", defaults.heightVariation,
                "Noise amplitude in world units; nonnegative."),
-        number("feature_size", "Feature size", 32,
+        number("feature_size", "Feature size", defaults.featureSize,
                "Width of terrain features in world units; positive."),
-        number("roughness", "Roughness", .5,
+        number("roughness", "Roughness", defaults.roughness,
                "Contribution of smaller noise scales, from zero to one."),
-        integer("octaves", "Octaves", 4, "Number of noise scales."),
+        integer("octaves", "Octaves", defaults.octaves,
+                "Number of noise scales."),
+        number("warp_amplitude", "Domain warp amplitude",
+               defaults.warpAmplitude,
+               "Distance of terrain-local coordinate displacement; zero "
+               "disables warp."),
+        number("warp_feature_size", "Domain warp feature size",
+               defaults.warpFeatureSize,
+               "Width of coordinate-warp features in terrain-local world "
+               "units; positive."),
+        number("stretch", "Directional stretch", defaults.stretch,
+               "Feature elongation along the heading; one keeps the original "
+               "scale."),
+        number("heading", "Heading (degrees)", defaults.heading,
+               "Angle of elongated features from terrain-local +X toward "
+               "+Z, in degrees."),
         integer("seed_offset", "Seed offset", 0,
                 "Offset from the world seed for this source.")}},
       {"constant",
@@ -103,6 +137,26 @@ std::vector<TerrainGraphNodeDefinition> makeDefinitions() {
         number("maximum", "Maximum slope", 90, "Degrees from horizontal."),
         number("falloff", "Edge falloff", 5,
                "Soft transition width in degrees.")}},
+      {"path_distance_mask",
+       "Path Distance Mask",
+       "Masks",
+       "Select a corridor around a terrain-local polyline.",
+       {field("field")},
+       {{"mask", "Mask", Kind::Mask}},
+       {{"points",
+         "Path points",
+         "At least two terrain-local X/Z pairs.",
+         Parameter::Structured,
+         nlohmann::json::array({{0, 0}, {0, 100}}),
+         {},
+         {},
+         {},
+         false},
+        number("width", "Half width", 20,
+               "World-unit distance from the path with full mask weight."),
+        number("falloff", "Outer falloff", 40,
+               "World-unit transition beyond the inner half-width; zero is a "
+               "hard edge.")}},
       {"height_blend",
        "Height Blend",
        "Modifiers",
@@ -236,9 +290,11 @@ std::vector<TerrainGraphNodeDefinition> makeDefinitions() {
     for (auto &parameter : definition.parameters) {
       const auto &name = parameter.name;
       if (name == "height_variation" || name == "falloff" || name == "radius" ||
-          name == "iterations") {
+          name == "iterations" || name == "warp_amplitude" ||
+          (definition.type == "path_distance_mask" && name == "width")) {
         parameter.minimum = 0;
-      } else if (name == "feature_size" || name == "river_width") {
+      } else if (name == "feature_size" || name == "river_width" ||
+                 name == "warp_feature_size" || name == "stretch") {
         parameter.minimum = 0;
         parameter.exclusiveMinimum = true;
       } else if (name == "roughness" || name == "thermal_strength" ||
@@ -247,6 +303,14 @@ std::vector<TerrainGraphNodeDefinition> makeDefinitions() {
         parameter.maximum = 1;
       } else if (name == "octaves") {
         parameter.minimum = 1;
+      }
+      if (definition.type == "noise" && parameter.kind == Parameter::Number) {
+        if (!parameter.minimum) {
+          parameter.minimum = -std::numeric_limits<float>::max();
+        }
+        if (!parameter.maximum) {
+          parameter.maximum = std::numeric_limits<float>::max();
+        }
       }
     }
   }

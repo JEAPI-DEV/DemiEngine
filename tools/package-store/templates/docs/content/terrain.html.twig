@@ -101,7 +101,35 @@ demi run --project build/terrain-graph-cooked</code></pre>
 
 <h2>Landforms and biomes</h2>
 <p>A landform is the shape of the ground. A biome is how that ground looks. They are authored separately, so recolouring a surface never changes the terrain and reshaping a hill never changes its tint.</p>
-<p>A <code>landforms</code> object is keyed by name and each entry takes <code>base_height</code>, <code>height_variation</code>, <code>feature_size</code>, <code>roughness</code> and <code>octaves</code>. The recipe names the one used where nothing else applies with <code>default_landform</code>.</p>
+<p>A <code>landforms</code> object is keyed by name. Each shape uses <code>base_height</code>, <code>height_variation</code>, <code>feature_size</code>, <code>roughness</code> and <code>octaves</code>, with optional noise-profile and coordinate controls below. The recipe selects its fallback shape with <code>default_landform</code>. The Noise terrain graph node exposes the same controls for its own source; a Landform node reads the recipe's named shapes.</p>
+<table>
+  <thead><tr><th>Control</th><th>Default</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>profile</code></td><td><code>fbm</code></td><td><code>fbm</code> produces smooth fractal relief; <code>ridged</code> produces sharper ridge structures.</td></tr>
+    <tr><td><code>warp_amplitude</code></td><td>0</td><td>Displaces sampling coordinates by this distance in terrain-local world units. Zero disables domain warp.</td></tr>
+    <tr><td><code>warp_feature_size</code></td><td>128</td><td>Width of the coordinate-warp features in terrain-local world units; must be positive.</td></tr>
+    <tr><td><code>stretch</code></td><td>1</td><td>Elongates features along the heading. Values above one stretch them; the value must be positive.</td></tr>
+    <tr><td><code>heading</code></td><td>0</td><td>Angle from terrain-local +X toward +Z, in degrees. At zero, stretch acts along X.</td></tr>
+  </tbody>
+</table>
+<p>Domain warp runs before heading and stretch. These controls affect the shape, not its biome tint or material. Values must be finite; warp amplitude is nonnegative. Unsupported combinations of scale, warp and octave count report a sampling-domain diagnostic rather than producing invalid heights. Omitting the new controls preserves the existing FBm output; new controls at their defaults are omitted from canonical landform JSON.</p>
+<pre><code>{
+  "format_version": 1,
+  "default_landform": "mountains",
+  "landforms": {
+    "mountains": {
+      "profile": "ridged",
+      "height_variation": 450,
+      "feature_size": 650,
+      "roughness": 0.35,
+      "octaves": 4,
+      "warp_amplitude": 100,
+      "warp_feature_size": 500,
+      "stretch": 2,
+      "heading": 30
+    }
+  }
+}</code></pre>
 <p>A <code>biomes</code> object is keyed by name and each entry takes a <code>color</code>, an optional ordinary <code>material</code> asset, a <code>texture_scale</code>, and an optional <code>landform</code> naming the shape its ground uses. Leave <code>landform</code> out to use the recipe's default. Several biomes can share one landform, and one landform can serve several looks, so a shared rocky shape costs nothing to reuse.</p>
 <p>The two are edited in the Terrain Graph's generation settings: <strong>Landforms</strong> for elevation and relief, <strong>Biomes</strong> for tint and landform choice.</p>
 
@@ -212,7 +240,7 @@ return script</code></pre>
 <p>Ordinary brush work is incremental. The generator keeps the generated base surface separately from the sculpted result, so a stroke recomputes only the samples the brush actually touched, plus the one-sample border that lighting and neighbouring smoothing depend on. Meshes and collision are rebuilt only for the affected chunks; untouched chunks keep their existing resources and are not re-uploaded.</p>
 <p>Full regeneration also limits each sculpt stamp to its brush footprint instead of scanning the whole terrain for that stamp. Brush order, smoothing snapshots and protected samples keep their existing meaning.</p>
 <p>A local edit produces the same heights as a full regeneration of the same recipe. History is stored as before/after sample values, so once a stroke is applied, Undo and Redo restore the recipe and the visible surface together. They stay unavailable while a stroke is still being dragged or a preview is pending, so that a half-finished stroke is never recorded as an edit.</p>
-<p>Some changes genuinely invalidate the whole base and trigger a full regeneration instead: changing the seed, terrain size, resolution or chunk size, and editing biome generation parameters such as base height, height variation, feature size, roughness or octave count. A change to the grid asks how to proceed rather than silently discarding edits, as described under changing terrain dimensions below.</p>
+<p>Some changes genuinely invalidate the whole base and trigger a full regeneration instead: changing the seed, terrain size, resolution or chunk size, and editing landform generation parameters such as base height, height variation, feature size, roughness, octave count, profile, domain warp or directional stretch. A change to the grid asks how to proceed rather than silently discarding edits, as described under changing terrain dimensions below.</p>
 <p>Editing only a biome tint is cheaper again: it recolours the existing triangles without rebuilding heights or colliders. Play mode never starts on a stale terrain surface, because Play waits for pending terrain work to finish, and a published stroke updates the visible mesh and its static collision together.</p>
 
 <h2>Biome rules</h2>
@@ -233,7 +261,11 @@ return script</code></pre>
 
 <h2>Landscape presets</h2>
 <p>Every project has four built-in starters: <strong>Flat Building Site</strong>, <strong>Desert Dunes</strong>, <strong>Rolling Hills</strong> and <strong>Mountain Range</strong>. They need no imported art. Each uses a 128 × 128 world-unit surface with 64 × 64 cells, a default biome tint and an editable graph. Comment nodes explain shape, appearance and output. They are learning examples, not simulations of geological dune or mountain formation.</p>
-<p>Follow the graph left to right. Change the noise node's <strong>Height variation</strong> for relief, <strong>Feature size</strong> for hill width, or <strong>Roughness</strong> for smaller details. Biome Rules opens the shared appearance settings. Generate previews changes; <strong>Apply changes to asset</strong> saves a shared terrain. <strong>Undo terrain</strong> in the Presets tab restores an applied landscape; graph-draft edits use Undo graph.</p>
+<p>Follow the graph left to right. Change a Noise node's <strong>Noise profile</strong>, <strong>Height variation</strong> and <strong>Feature size</strong> for relief. Domain warp bends the sampling pattern; directional stretch and heading organize elongated features. Biome Rules opens the shared appearance settings. Generate previews changes; <strong>Apply changes to asset</strong> saves a shared terrain. <strong>Undo terrain</strong> in the Presets tab restores an applied landscape; graph-draft edits use Undo graph.</p>
+<h3>Path Distance Mask</h3>
+<p><code>path_distance_mask</code> takes a connected terrain field and outputs a mask around a polyline. Its <code>points</code> are at least two <code>[x,z]</code> pairs in terrain-local world units. The graph editor uses structured point rows with add, remove and reorder controls. Repeated points are valid. Coordinates outside the terrain are also valid, which lets a corridor enter and leave the field.</p>
+<p><code>width</code> is the fully weighted <strong>half width</strong>, not the total corridor width. A width of 35 gives a 70-unit core. <code>falloff</code> is the smooth transition beyond that core; zero gives a hard edge. Both are finite and nonnegative. Defaults are points <code>[[0,0],[0,100]]</code>, width 20 and falloff 40. Each coordinate must fit the finite native float range.</p>
+<p>For a valley, connect a mountain Noise source and a lower Flat terrain source to Height Blend's A and B inputs, then connect Path Distance Mask to its Mask input. A blend amount of 1 follows the mask completely. The mask changes blend weight; it does not carve or publish water. Use a Water Body node when the corridor also needs a river bed and water data.</p>
 <h3>Comment nodes</h3>
 <p>Drag <strong>Comment</strong> from <strong>Terrain Nodes → Notes</strong> onto a graph. Notes display wrapped text; expand <strong>Edit note</strong> to edit multiple lines and click outside to commit. Comments have stable node IDs and support move, copy/paste, duplicate, delete and graph Undo/Redo. They have no connection pins and cannot be a terrain output. Their text and position save with the graph but do not change generated terrain or its generation cache identity.</p>
 <p>Built-in provenance uses <code>builtin://terrain/flat-building-site</code>, <code>builtin://terrain/desert-dunes</code>, <code>builtin://terrain/rolling-hills</code> and <code>builtin://terrain/mountain-range</code>. Applied recipes contain their settings and graph in full; they do not require an external starter file. <code>demi terrain presets &lt;project&gt;</code> lists both built-in and project presets. The same IDs work with <code>demi terrain apply-preset</code>.</p>
@@ -325,7 +357,7 @@ Rule "shoreline" biome=sand priority=30 blend=1.500
       elevation      unconstrained
       substrate      unconstrained</code></pre>
 <p>The tool reports band containment facts and takes the assignment from the runtime decision. It does not reimplement the runtime's blending weighting, so a <code>blend</code> ramp is visible as a matched band rather than as a fractional score. That is a deliberate limit: it can tell you a rule did or did not accept a sample, and it will not invent a number the runtime never produces.</p>
-<p><code>seeds</code> prints the derived sub-seed of every seed channel for a world seed. The channels are <code>landform</code>, <code>erosion</code>, <code>hydrology</code>, <code>biome_placement</code> and <code>scatter</code>. Erosion, drainage and water processing, and scattering are implemented stages; which ones run depends on the recipe or connected graph nodes. The command reports stable channel values even when a particular terrain does not use a stage. Each sub-seed is derived by hashing the channel's <em>name</em> rather than its position in the enum, so adding or reordering a channel cannot change an existing channel's value.</p>
+<p><code>seeds</code> prints the derived sub-seed of every seed channel for a world seed. The channels are <code>landform</code>, <code>landform_warp</code>, <code>erosion</code>, <code>hydrology</code>, <code>biome_placement</code> and <code>scatter</code>. The separate warp channel keeps coordinate displacement independent of the elevation-noise sequence; disabling warp preserves the original landform sampling. Erosion, drainage and water processing, and scattering are implemented stages; which ones run depends on the recipe or connected graph nodes. The command reports stable channel values even when a particular terrain does not use a stage. Each sub-seed is derived by hashing the channel's <em>name</em> rather than its position in the enum, so adding or reordering a channel cannot change an existing channel's value.</p>
 <p>The generator version is folded into the terrain generation cache key, alongside the canonical recipe. Graph node positions are excluded from that key; changing connections or parameters changes it. A resolved palette and its referenced asset hashes are included, so changing palette content cannot serve placements from an older input.</p>
 
 <h2>Changing terrain dimensions</h2>
