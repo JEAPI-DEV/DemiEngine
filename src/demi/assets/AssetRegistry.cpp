@@ -497,21 +497,17 @@ Diagnostics validateAssetRegistry(const AssetRegistry &registry) {
     if (asset.type == "Material") {
       if (const auto material =
               assets::loadMaterialAsset(asset.sourcePath, &diagnostics)) {
-        for (const std::string *reference :
-             {&material->shader, &material->fallback}) {
-          if (!reference->starts_with("asset://"))
-            continue;
-          const AssetManifest *shader = findAsset(registry, *reference);
-          if (shader == nullptr || shader->type != "Shader")
-            diagnostics.push_back(
-                {.severity = Severity::Error,
-                 .code = "MATERIAL_SHADER_NOT_FOUND",
-                 .message = "Material shader reference does not resolve to a "
-                            "Shader asset: " +
-                            *reference,
-                 .path = asset.manifestPath.string(),
-                 .suggestion =
-                     "Import the shader and add it to dependencies."});
+        const auto references = assets::validateMaterialAssetReferences(
+            *material, registry, asset.manifestPath);
+        diagnostics.insert(diagnostics.end(), references.begin(), references.end());
+        for (const auto &reference : assets::materialAssetDependencies(*material)) {
+          if (std::ranges::find(asset.dependencies, reference) == asset.dependencies.end()) {
+            diagnostics.push_back({.severity = Severity::Error,
+                                   .code = "MATERIAL_DEPENDENCY_MISSING",
+                                   .message = "Material manifest must declare dependency " + reference,
+                                   .path = asset.manifestPath.string(),
+                                   .suggestion = "Reimport the Material asset."});
+          }
         }
       }
     } else if (asset.type == "Shader") {

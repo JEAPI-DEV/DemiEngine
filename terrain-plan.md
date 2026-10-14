@@ -604,22 +604,21 @@ prominent cliff grid; finite-resolution and contact limitations remain.
   units, with continuous UVs across chunks. Preserve geometry/collision on
   material changes and only update UV resources for scale changes. Retain both
   values in cooked fields so shipped loading does not need authored recipes.
-  Typed terrain material definitions and smooth layers remain unfinished.
+  Shared PBR map rendering is delivered below; smooth terrain layers remain unfinished.
   See [binding qualification](docs/terrain-material-binding-qualification.md).
 
-Partly implemented. The PBR document model, its import and its validation are
-done and tested as `TerrainMaterialAsset` / `TerrainMaterialSet`, and
-`TerrainMaterialLayers` assigns a role to every cell by SCORING the generated
-masks rather than by matching names: steep becomes rock, flat and wet becomes
-wet ground, submerged becomes underwater, high and flat becomes snow while high
-and steep does not, and deposition or flow becomes sediment. Thresholds are
-slope degrees, world-unit distances and normalised moisture, so a terrain scaled
-ten times produces identical roles and identical scores. Unbound and unused
-roles are reported rather than left as a silently flat surface. The layered
-blending that replaces discrete triangle groups, and the quality-driven
-residency, are not implemented. Note the naming: `MaterialAsset`
-already meant the render material in `RenderAsset.h`, so the terrain types are
-prefixed to avoid an ODR collision.
+In progress. Per the user's 2026-10-14 decision, surfaces now use one ordinary
+Material format for meshes and terrain. The separate terrain-material DataAsset
+workflow is removed. Shared PBR map sampling, UV/triplanar mapping, normal-map
+conventions, semantic mipmaps and editor controls are implemented. Terrain role
+sets bind these same Material IDs. Textured terrain currently uses the ordinary
+mesh path; GPU arrays, height-aware layers, measured residency and starter art
+remain open. See [shared material qualification](docs/terrain-shared-material-qualification.md).
+
+- [x] Unify terrain and mesh material authoring, validation and import. Preserve
+  stable IDs, custom shader vocabulary, dependency closure and reversible editor
+  commands. Expose normal/roughness/metallic/AO/detail-normal/emissive maps through
+  the shared builtin renderer, with explicit convention and projection settings.
 
 - [x] Create and edit surface materials, material sets and scatter palettes
   through the editor without hand-writing JSON. Reuse shared reference/color
@@ -628,7 +627,9 @@ prefixed to avoid an ODR collision.
   material-set choices. Failed reimport keeps a retryable, recoverable pending
   state rather than pretending the asset was imported successfully.
   See [asset authoring qualification](docs/editor-asset-authoring-qualification.md).
-  This delivers authoring, not terrain PBR shading or visible water.
+  The shared mapped renderer now consumes these ordinary Materials. The editor
+  swatch is explicitly a base-color display; a native shaded asset preview is
+  still deferred.
 
 - [ ] Assign materials automatically from palette roles and generated masks:
   rock on exposed/steep surfaces, sediment in deposition areas, appropriate
@@ -637,6 +638,9 @@ prefixed to avoid an ODR collision.
 - [ ] Import and validate PBR material sets, including base colour, normal,
   roughness, optional metalness, occlusion and height maps. Preserve correct
   colour spaces, normal-map conventions, units and texture scale.
+  Shared import, map semantics, normal conventions and linear-light color mipmaps
+  are implemented. Hardware sRGB filtering remains open: current bilinear
+  sampling filters encoded color before shader decoding.
 - [ ] Replace discrete triangle tints with smooth, height-aware material-layer
   blending. Support suitable steep-slope mapping, macro variation to reduce
   visible repetition, and detail normals. Preserve authored overrides.
@@ -644,8 +648,9 @@ prefixed to avoid an ODR collision.
   linear space and blend metallic, roughness and lit/unlit contributions, while
   keeping face eligibility categorical. This removes hard GPU sample boundaries
   without changing terrain resolution. It is a first surface transition step:
-  height-aware weights, texture maps, triplanar mapping and the ordinary mesh
-  fallback's discrete boundaries remain unfinished.
+  height-aware weights and GPU texture-map layering remain unfinished. Individual
+  mapped Materials now support triplanar projection in the ordinary mesh path,
+  whose role boundaries remain discrete.
 
 - [ ] Choose distance/platform quality settings for texture residency and
   surface detail. Parallax/height shading is not actual geometric displacement;

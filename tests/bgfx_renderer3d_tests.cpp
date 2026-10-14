@@ -27,6 +27,7 @@
 #include "demi/runtime/terrain/TerrainWorld.h"
 #include <chrono>
 #include <cmath>
+#include <limits>
 #include <numbers>
 #include <thread>
 
@@ -138,6 +139,8 @@ public:
     return target_.availableInstances(stride, requested);
   }
   std::vector<TextureHandle> textures;
+  std::vector<DrawTextureBinding> lastTextureBindings;
+  std::vector<std::vector<float>> lastUniformValues;
   std::vector<DrawState> bufferedStates;
   std::vector<BufferSlice> bufferedIndices;
   std::size_t instanceDrawCalls = 0;
@@ -163,6 +166,12 @@ public:
     return target_.submit(draw, error);
   }
   bool submit(const BufferedDraw &draw, std::string &error) override {
+    lastTextureBindings.assign(draw.textures.begin(), draw.textures.end());
+    lastUniformValues.clear();
+    for (const auto &uniform : draw.uniforms) {
+      lastUniformValues.emplace_back(uniform.values.begin(),
+                                     uniform.values.end());
+    }
     recordShadowParameters(draw.viewId, draw.uniforms);
     transformsByView[draw.viewId].push_back(draw.transform);
     for (const auto &texture : draw.textures)
@@ -381,6 +390,87 @@ int main() {
                              error));
   auto resources = createBgfxGpuResources();
   auto commands = createBgfxRenderCommands(*resources);
+  {
+    TextureCapture capture(*commands);
+    capture.forwardDraws = false;
+    std::vector<std::pair<std::string, ImageMipSemantic>> resolvedMaps;
+    const TextureHandle mapTexture{.index = 7, .generation = 1};
+    MeshPbrBindings3D bindings(
+        *resources, capture,
+        [&](std::string_view id, ImageMipSemantic semantic) {
+          resolvedMaps.emplace_back(id, semantic);
+          return TextureView2D{mapTexture, 4, 4};
+        });
+    MaterialBinding material;
+    material.usesPbrSurface = true;
+    material.surface.mapping = demi::assets::MaterialMapping::Triplanar;
+    material.surface.tiling = 2;
+    material.surface.normalMapYDown = true;
+    material.surface.maps = {
+        {demi::assets::MaterialMapSlot::Normal, "normal"},
+        {demi::assets::MaterialMapSlot::Roughness, "roughness"},
+        {demi::assets::MaterialMapSlot::Metallic, "metallic"},
+        {demi::assets::MaterialMapSlot::Emissive, "emissive"}};
+    MeshRendererComponent mesh;
+    mesh.size = {12, 8, 4};
+    assert(bindings.prepare(&material, mesh, {}, 3, error));
+    assert(bindings.submit(BufferedDraw{}, error));
+    assert(capture.lastTextureBindings.size() == 6);
+    assert(capture.lastTextureBindings.front().stage == 3);
+    assert(capture.lastTextureBindings.back().stage == 8);
+    assert(capture.lastUniformValues[0] == std::vector<float>({1, 1, 1, 0}));
+    assert(capture.lastUniformValues[1] == std::vector<float>({0, 1, 1, 0}));
+    assert(capture.lastUniformValues[2][3] == -1);
+    assert(capture.lastUniformValues[3] == std::vector<float>({12, 8, 4, 3}));
+    assert(resolvedMaps[0].second == ImageMipSemantic::Normal);
+    assert(resolvedMaps[1].second == ImageMipSemantic::Linear);
+    assert(resolvedMaps[3].second == ImageMipSemantic::Color);
+    // Authored scalar overrides replace maps; they never multiply metallic
+    // map values by the default metallic scalar of zero.
+    mesh.roughness = 0.25F;
+    mesh.materialNumbers["metallic"] = 0.7F;
+    assert(bindings.prepare(&material, mesh, {}, 3, error));
+    assert(bindings.submit(BufferedDraw{}, error));
+    assert(capture.lastUniformValues[0][1] == 0);
+    assert(capture.lastUniformValues[0][2] == 0);
+    assert(!bindings.prepare(&material, mesh, {}, 0, error));
+    MeshPbrBindings3D missingMaps(
+        *resources, capture,
+        [](std::string_view, ImageMipSemantic) { return TextureView2D{}; });
+    assert(!missingMaps.prepare(&material, mesh, {}, 1, error));
+    assert(error.find("normal") != std::string::npos);
+    // An albedo-only material still needs the PBR projection path when an
+    // entity overrides tiling; the renderer and adapter share this decision.
+    MaterialBinding albedoOnly;
+    albedoOnly.albedoTexture = "albedo";
+    MeshRendererComponent tiledMesh;
+    assert(!usesMeshPbrSurface3D(&albedoOnly, tiledMesh));
+    tiledMesh.materialNumbers["tiling"] = 2;
+    assert(usesMeshPbrSurface3D(&albedoOnly, tiledMesh));
+    assert(bindings.prepare(&albedoOnly, tiledMesh, {}, 1, error));
+    assert(bindings.submit(BufferedDraw{}, error));
+    assert(capture.lastUniformValues[2][1] == 2);
+    tiledMesh.materialNumbers["tiling"] = 0;
+    assert(usesMeshPbrSurface3D(&albedoOnly, tiledMesh));
+    assert(!bindings.prepare(&albedoOnly, tiledMesh, {}, 1, error));
+    assert(error.find("positive") != std::string::npos);
+    tiledMesh.materialNumbers["tiling"] =
+        std::numeric_limits<float>::quiet_NaN();
+    assert(usesMeshPbrSurface3D(&albedoOnly, tiledMesh));
+    assert(!bindings.prepare(&albedoOnly, tiledMesh, {}, 1, error));
+    albedoOnly.program = {.index = 1, .generation = 1};
+    tiledMesh.materialNumbers["tiling"] = 2;
+    assert(!usesMeshPbrSurface3D(&albedoOnly, tiledMesh));
+    assert(bindings.prepare(&albedoOnly, tiledMesh, {}, 1, error));
+    assert(bindings.submit(BufferedDraw{}, error));
+    assert(capture.lastUniformValues.empty());
+    // A following plain material must not inherit the preceding map slots.
+    assert(bindings.prepare(nullptr, mesh, {}, 1, error));
+    assert(bindings.submit(BufferedDraw{}, error));
+    assert(capture.lastTextureBindings.empty());
+    assert(capture.lastUniformValues.empty());
+  }
+
   {
     // Capture command intent without backend validation so recycled texture
     // generations can be compared together, including the stale generation.

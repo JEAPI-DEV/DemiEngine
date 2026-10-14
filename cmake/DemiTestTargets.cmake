@@ -413,6 +413,9 @@
     PRIVATE demi-runtime-lib SDL3::SDL3-static)
   add_executable(demi-resource-handle-tests tests/resource_handle_tests.cpp)
   target_link_libraries(demi-resource-handle-tests PRIVATE demi-graphics-bgfx)
+  add_executable(demi-material-shader-link-tests tests/material_shader_link_tests.cpp)
+  target_link_libraries(demi-material-shader-link-tests PRIVATE demi-graphics-bgfx)
+  target_include_directories(demi-material-shader-link-tests PRIVATE "${DEMI_BGFX_BUILTIN_SHADER_DIR}")
   add_executable(demi-bgfx-gpu-resources-tests
     tests/bgfx_gpu_resources_tests.cpp)
   target_link_libraries(demi-bgfx-gpu-resources-tests

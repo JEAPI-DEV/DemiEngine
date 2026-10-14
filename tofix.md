@@ -18,3 +18,10 @@
   remote input access before attributing this to either recovery or the editor.
   Evidence: `/tmp/terrain-perf-release-editor-full.png` (deleted state),
   `/tmp/terrain-perf-restored-full.png`, `/tmp/terrain-controlled-play-full.png`.
+
+## Material preview
+
+- The shared Material editor exposes PBR maps and settings, but its preview is
+  still a labeled base-color swatch. Add an actual sphere/plane preview through
+  the shared native renderer, with the same map semantics and lights as a scene.
+  Keep it isolated from authored scene state and pause rendering when unchanged.

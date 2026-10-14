@@ -94,6 +94,11 @@ ResolvedMaterial resolve(const std::string &id,
   if (!material->albedoTexture.empty()) {
     throw UnsupportedField("Terrain material uses an albedo texture: " + id);
   }
+  if (!material->surface.maps.empty() || material->usesPbrSurface ||
+      material->surface.mapping != assets::MaterialMapping::Uv) {
+    throw UnsupportedField(
+        "Terrain PBR maps/projection require the ordinary material path until GPU map arrays are supported: " + id);
+  }
   if (material->alphaCutoff != 0 || material->opacity != 1) {
     throw UnsupportedField(
         "Terrain material requires cutout or transparency: " + id);

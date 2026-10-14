@@ -4,7 +4,7 @@
 #include "demi/assets/DataAsset.h"
 #include "demi/assets/DataDocument.h"
 #include "demi/assets/DataValueRead.h"
-#include "demi/assets/MaterialAsset.h"
+#include "demi/assets/RenderAsset.h"
 #include "demi/diagnostics/Diagnostic.h"
 
 #include <algorithm>
@@ -68,10 +68,10 @@ void checkFields(const DataValue &value,
   data_read::requireObject(value, Kind, "document");
   for (const auto &[key, unused] : *value.object()) {
     (void)unused;
-    data_read::require(
-        std::ranges::find(allowed.begin(), allowed.end(), key) != allowed.end(),
-        at("document") + "has unknown field \"" + key +
-            "\". Known fields: " + join(allowed) + ".");
+    data_read::require(std::ranges::find(allowed.begin(), allowed.end(), key) !=
+                           allowed.end(),
+                       at("document") + "has unknown field \"" + key +
+                           "\". Known fields: " + join(allowed) + ".");
   }
 }
 
@@ -81,10 +81,6 @@ const DataValue *field(const DataValue &object, const std::string_view key) {
   return value;
 }
 
-// A role must bind a material, not a texture or an audio clip. Both material
-// carriers count: a render Material asset and a terrain_material DataAsset are
-// the same thing to a surface assignment, and a set must not depend on which of
-// the two an author happened to use.
 std::string readRoleMaterial(const DataValue &value,
                              const std::string_view where,
                              const AssetRegistry &registry) {
@@ -97,27 +93,18 @@ std::string readRoleMaterial(const DataValue &value,
   data_read::require(manifest != nullptr,
                      at(where) + "does not resolve: " + reference +
                          ". Add the asset manifest or fix the reference.");
-  if (manifest->type == "Material")
-    return reference;
-  const std::optional<DataAssetMetadata> metadata =
-      manifest->type == "DataAsset" ? dataAssetMetadata(*manifest)
-                                    : std::nullopt;
-  data_read::require(
-      metadata.has_value() && metadata->contentType == "terrain_material",
-      at(where) + "is not a material asset: " + reference + " is " +
-          manifest->type +
-          ". Use a Material asset or a DataAsset declaring "
-          "settings.content_type \"terrain_material\".");
-  // A bound material has to load under the material rules now, not at render
-  // time: demi validate only checks a document against its schema, so a broken
-  // material document would otherwise reach a surface unchallenged.
-  try {
-    (void)loadTerrainMaterialAsset(registry, reference);
-  } catch (const std::invalid_argument &failure) {
-    data_read::reject(at(where) +
-                      "references a material that does not load: " +
-                      std::string(failure.what()));
-  }
+  data_read::require(manifest->type == "Material",
+                     at(where) + "is not a material asset: " + reference +
+                         " is " + manifest->type +
+                         ". Use an ordinary Material asset; migrate "
+                         "terrain_material definitions.");
+  Diagnostics diagnostics;
+  const auto material = loadMaterialAsset(manifest->sourcePath, &diagnostics);
+  const std::string detail =
+      diagnostics.empty() ? reference : diagnostics.front().message;
+  data_read::require(material.has_value(),
+                     at(where) +
+                         "references a material that does not load: " + detail);
   return reference;
 }
 
@@ -150,9 +137,23 @@ terrainMaterialRoleFromName(const std::string_view name) {
 
 std::optional<TerrainMaterialSet>
 loadTerrainMaterialSet(const AssetRegistry &registry,
-                        const std::string_view id) {
-  const auto loaded =
-      material_detail::loadDataAssetOfType(registry, id, Kind, ContentType);
+                       const std::string_view id) {
+  const auto *manifest = findAsset(registry, std::string(id));
+  data_read::require(manifest != nullptr,
+                     "terrain material set asset was not found: " +
+                         std::string(id));
+  data_read::require(manifest->type == "DataAsset",
+                     "terrain material set asset must be a DataAsset: " +
+                         std::string(id) + " is " + manifest->type);
+  Diagnostics diagnostics;
+  const auto loaded = loadDataAsset(*manifest, {}, &diagnostics);
+  data_read::require(loaded.has_value(),
+                     "terrain material set could not be read: " +
+                         std::string(id));
+  data_read::require(
+      loaded->metadata.contentType == ContentType,
+      "terrain material set " + std::string(id) +
+          " must declare settings.content_type \"terrain_material_set\"");
   return parseTerrainMaterialSet(*loaded->document, registry, id);
 }
 
@@ -164,9 +165,8 @@ parseTerrainMaterialSet(const DataDocument &document,
   set.id = std::string(id);
 
   const DataValue &root = document.root();
-  checkFields(root,
-              {"format_version", "name", "description", "roles",
-               "required_roles"});
+  checkFields(root, {"format_version", "name", "description", "roles",
+                     "required_roles"});
   // The header reports a wrong version and a wrong type the same way: the
   // document declares this format, so there is nothing else it may declare.
   const DataValue *version = field(root, "format_version");
@@ -189,22 +189,22 @@ parseTerrainMaterialSet(const DataDocument &document,
                          "roles: " +
                          knownRoles() + ".");
   for (const auto &[roleName, value] : *roleMap) {
-    // An unknown role is an error, not a silently unused binding: the surface it
-    // was meant for would keep whatever material the previous set left there.
+    // An unknown role is an error, not a silently unused binding: the surface
+    // it was meant for would keep whatever material the previous set left
+    // there.
     data_read::require(terrainMaterialRoleFromName(roleName).has_value(),
                        at("roles/" + roleName) +
                            "is not a known role. Known roles: " + knownRoles() +
                            ".");
-    set.roles.emplace(roleName, readRoleMaterial(value, "roles/" + roleName,
-                                                 registry));
+    set.roles.emplace(roleName,
+                      readRoleMaterial(value, "roles/" + roleName, registry));
   }
 
   if (const DataValue *required = root.find("required_roles");
       required != nullptr) {
     const auto *list = required->array();
-    data_read::require(list != nullptr,
-                       at("required_roles") +
-                           "must be an array of role names.");
+    data_read::require(list != nullptr, at("required_roles") +
+                                            "must be an array of role names.");
     std::set<std::string, std::less<>> unique;
     for (std::size_t index = 0; index < list->size(); ++index) {
       const std::string where = "required_roles[" + std::to_string(index) + "]";

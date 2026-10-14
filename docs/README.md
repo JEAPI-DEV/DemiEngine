@@ -7,6 +7,9 @@ are registered in `tools/package-store/src/Docs.php`.
 
 This directory keeps material that has a different job:
 
+- [Shared terrain and mesh material qualification](terrain-shared-material-qualification.md)
+  records canonical Materials, mapped PBR/triplanar shading, semantic mipmaps,
+  native/cooked comparisons and the remaining Milestone 4 boundaries.
 - [Terrain Milestone 3 qualification](terrain-milestone3-qualification.md)
   records drainage-connected rivers, physical water profiles, bounded sediment
   transport, native shape checks and generation acceptance.

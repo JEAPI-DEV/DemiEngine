@@ -10,6 +10,7 @@
 #include "demi/runtime/scene/components/3dcomponents/AnimationPlayer3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
 #include "demi/runtime/scene/model/MeshMaterialSections3D.h"
+#include "demi/runtime/terrain/TerrainRenderLod.h"
 
 #include <algorithm>
 
@@ -101,11 +102,39 @@ bool BgfxRenderer3D::submitVisibleMeshes(
         const bool modelUnlit =
             (modelLighting != modelUnlit_.end() && modelLighting->second) ||
             (material != nullptr && material->unlit);
+        const bool pbr = usesMeshPbrSurface3D(material, *mesh);
+        const std::size_t pbrFamily =
+            defaultMeshProgram == directionalMeshProgram_ ? 3 : 0;
+        const auto meshProgram =
+            pbr ? pbrPrograms_[pbrFamily] : defaultMeshProgram;
+        const auto skinProgram =
+            pbr ? pbrPrograms_[pbrFamily + 2] : defaultSkinnedProgram;
+        if (pbr && !meshProgram) {
+          error = pbrProgramError_.empty()
+                      ? "PBR shader is unavailable on this device"
+                      : pbrProgramError_;
+          return false;
+        }
+        float terrainTextureScale = 1;
+        if (const auto *marker = entity.component<TerrainRenderLod>()) {
+          const auto field = marker->chunk ? marker->chunk->field : nullptr;
+          if (field) {
+            const auto biome =
+                std::ranges::find(field->biomeIds, marker->biome);
+            if (biome != field->biomeIds.end()) {
+              terrainTextureScale = field->biomeTextureScale(
+                  std::size_t(biome - field->biomeIds.begin()));
+            }
+          }
+        }
+        if (!meshPbr_.prepare(material, *mesh, whiteTexture_,
+                              terrainTextureScale, error)) {
+          return false;
+        }
         PreparedMeshDraw3D prepared(
             *mesh, material,
             fade ? std::optional<float>(fade->value) : std::nullopt, modelUnlit,
-            shadowPass, frame.camera.debugMode == "overdraw",
-            defaultMeshProgram);
+            shadowPass, frame.camera.debugMode == "overdraw", meshProgram);
         const auto &surface = prepared.surface;
         const auto &state = prepared.state;
         const auto program = prepared.program;
@@ -133,7 +162,12 @@ bool BgfxRenderer3D::submitVisibleMeshes(
           if (textureId.empty() && material) {
             textureId = material->albedoTexture;
           }
-          const auto texture = textures_.find(textureId);
+          const auto texture =
+              materialTexture(textureId, ImageMipSemantic::Color);
+          if (!textureId.empty() && !texture.handle) {
+            error = "Missing material colour texture: " + textureId;
+            return false;
+          }
           const auto resolved = texture.handle ? texture.handle : whiteTexture_;
           if (!material && !surface.transparent() && !fade) {
             instanceGroups.add(*gpu, resolved, builtinSurfaceTint, metalRough,
@@ -142,7 +176,7 @@ bool BgfxRenderer3D::submitVisibleMeshes(
             queued = true;
           } else {
             prepared.fillUniforms(lightingUniforms, material, drawUniforms);
-            queued = gpu->draw(commands_, frame.viewId, program, resolved,
+            queued = gpu->draw(meshPbr_, frame.viewId, program, resolved,
                                meshSampler_,
                                composeMeshTransform3D(transform, mesh->size),
                                state, error, drawUniforms);
@@ -161,11 +195,16 @@ bool BgfxRenderer3D::submitVisibleMeshes(
           if (textureId.empty() && material) {
             textureId = material->albedoTexture;
           }
-          const auto texture = textures_.find(textureId);
+          const auto texture =
+              materialTexture(textureId, ImageMipSemantic::Color);
+          if (!textureId.empty() && !texture.handle) {
+            error = "Missing material colour texture: " + textureId;
+            return false;
+          }
           const bool drawSectionRange = section && !visible.drawAllSections;
           prepared.fillUniforms(lightingUniforms, material, drawUniforms);
           queued = gpu->draw(
-              commands_, frame.viewId, program,
+              meshPbr_, frame.viewId, program,
               texture.handle ? texture.handle : whiteTexture_, meshSampler_,
               composeMeshTransform3D(transform, mesh->size), state, error,
               drawUniforms, drawSectionRange ? section->firstIndex : 0,
@@ -220,7 +259,12 @@ bool BgfxRenderer3D::submitVisibleMeshes(
           if (textureId.empty() && material != nullptr) {
             textureId = material->albedoTexture;
           }
-          const TextureView2D texture = textures_.find(textureId);
+          const TextureView2D texture =
+              materialTexture(textureId, ImageMipSemantic::Color);
+          if (!textureId.empty() && !texture.handle) {
+            error = "Missing material colour texture: " + textureId;
+            return false;
+          }
           const GpuMesh3D *drawMesh = &cached->gpu;
           if (!dents.empty()) {
             drawMesh = deformedMeshes_.get(entity.id, "inline", signature,
@@ -233,7 +277,7 @@ bool BgfxRenderer3D::submitVisibleMeshes(
           const bool drawSectionRange = section && !visible.drawAllSections;
           prepared.fillUniforms(lightingUniforms, material, drawUniforms);
           queued = drawMesh->draw(
-              commands_, frame.viewId, program,
+              meshPbr_, frame.viewId, program,
               texture.handle ? texture.handle : whiteTexture_, meshSampler_,
               composeMeshTransform3D(transform, mesh->size), state, error,
               drawUniforms, drawSectionRange ? section->firstIndex : 0,
@@ -296,10 +340,19 @@ bool BgfxRenderer3D::submitVisibleMeshes(
           if (textureId.empty() && modelTexture != modelTextures_.end()) {
             textureId = modelTexture->second;
           }
-          const TextureView2D texture = textures_.find(textureId);
+          const TextureView2D texture =
+              materialTexture(textureId, ImageMipSemantic::Color);
+          if (!textureId.empty() && !texture.handle) {
+            error = "Missing material colour texture: " + textureId;
+            return false;
+          }
           const TextureHandle resolvedTexture =
               texture.handle ? texture.handle : whiteTexture_;
           if (gpuSkin) {
+            if (!skinProgram) {
+              error = "PBR skinned shader is unavailable on this device";
+              return false;
+            }
             // GPU skinning uses the built-in lit program even when a material
             // also provides a custom program for static geometry.
             prepared.fillUniforms(lightingUniforms, material, drawUniforms);
@@ -312,7 +365,7 @@ bool BgfxRenderer3D::submitVisibleMeshes(
                 {.handle = skinImportUniform_,
                  .values = animatedModels_.at(selectedModel).importTransform});
             queued = gpuSkin->draw(
-                commands_, frame.viewId, defaultSkinnedProgram, resolvedTexture,
+                meshPbr_, frame.viewId, skinProgram, resolvedTexture,
                 meshSampler_, composeMeshTransform3D(transform, mesh->size),
                 state, drawUniforms, error);
             if (queued) {
@@ -328,7 +381,7 @@ bool BgfxRenderer3D::submitVisibleMeshes(
           } else {
             prepared.fillUniforms(lightingUniforms, material, drawUniforms);
             queued = drawGpu->draw(
-                commands_, frame.viewId, program, resolvedTexture, meshSampler_,
+                meshPbr_, frame.viewId, program, resolvedTexture, meshSampler_,
                 composeMeshTransform3D(transform, mesh->size), state, error,
                 drawUniforms);
             if (queued) {
@@ -359,7 +412,12 @@ bool BgfxRenderer3D::submitVisibleMeshes(
           if (textureId.empty() && material != nullptr) {
             textureId = material->albedoTexture;
           }
-          const TextureView2D texture = textures_.find(textureId);
+          const TextureView2D texture =
+              materialTexture(textureId, ImageMipSemantic::Color);
+          if (!textureId.empty() && !texture.handle) {
+            error = "Missing material colour texture: " + textureId;
+            return false;
+          }
           const TextureHandle resolvedTexture =
               texture.handle ? texture.handle : whiteTexture_;
           if (material == nullptr && !surface.transparent() && !fade) {
@@ -370,7 +428,7 @@ bool BgfxRenderer3D::submitVisibleMeshes(
           } else {
             prepared.fillUniforms(lightingUniforms, material, drawUniforms);
             queued = cached->gpu.draw(
-                commands_, frame.viewId, program, resolvedTexture, meshSampler_,
+                meshPbr_, frame.viewId, program, resolvedTexture, meshSampler_,
                 composeMeshTransform3D(transform, mesh->size), state, error,
                 drawUniforms);
             if (queued) {

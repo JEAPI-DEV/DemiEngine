@@ -25,22 +25,11 @@ validateTerrainSurfaceReferences(const AssetRegistry &registry,
     }
     if (material->type == "Material")
       continue;
-    const auto metadata = material->type == "DataAsset"
-                              ? dataAssetMetadata(*material)
-                              : std::nullopt;
-    const bool terrainDefinition =
-        metadata && (metadata->contentType == "terrain_material" ||
-                     metadata->contentType == "terrain_material_set");
     diagnostics.push_back(
-        {.severity = terrainDefinition ? Severity::Warning : Severity::Error,
-         .code = terrainDefinition ? "TERRAIN_SURFACE_DEFINITION_NOT_RENDERED"
-                                   : "TERRAIN_SURFACE_MATERIAL_TYPE_INVALID",
-         .message =
-             terrainDefinition
-                 ? "Typed terrain material definitions remain authoring data. "
-                   "Assign an ordinary Material asset to render this biome."
-                 : "Terrain biome surface requires a Material asset, not " +
-                       material->type,
+        {.severity = Severity::Error,
+         .code = "TERRAIN_SURFACE_MATERIAL_TYPE_INVALID",
+         .message = "Terrain biome surfaces require an ordinary Material "
+                    "asset. Migrate terrain_material DataAssets to Material.",
          .path = path});
   }
   return diagnostics;

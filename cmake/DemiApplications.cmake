@@ -203,6 +203,7 @@ else()
     src/editor/EditorAssetReferenceControl.cpp
     src/editor/EditorReferenceControl.cpp
     src/editor/EditorDataAssetControls.cpp
+    src/editor/EditorMaterialControls.cpp
     src/editor/EditorStbRectPack.cpp
     src/editor/EditorTheme.cpp
     src/editor/EditorSettingsPanel.cpp

@@ -56,8 +56,6 @@ struct TerrainPalette {
   // Resolved native snapshot; not a second authored binding map.
   std::map<std::string, std::string, std::less<>> surfaceMaterials;
 
-  std::vector<std::string> unsupportedSurfaceRoles;
-
   // Every asset:// and prefab:// this palette depends on, sorted and deduped.
   [[nodiscard]] std::vector<std::string> assetDependencies() const;
 };

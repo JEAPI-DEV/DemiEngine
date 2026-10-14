@@ -93,8 +93,7 @@ void acceptHierarchyEntityDrop(EditorWorkspace &workspace,
     const bool terminated = data[payload->DataSize - 1] == '\0';
     const std::string entityId =
         terminated
-            ? std::string(data,
-                          static_cast<std::size_t>(payload->DataSize - 1))
+            ? std::string(data, static_cast<std::size_t>(payload->DataSize - 1))
             : std::string{};
     const nlohmann::json *entity =
         terminated && !entityId.empty()
@@ -165,10 +164,11 @@ bool drawAssetTile(const char *id, const std::string &label,
                    const EditorIcon icon, const bool selected,
                    const ImVec2 size = {102.0F, 86.0F}) {
   ImGui::PushID(id);
-  ImGui::PushStyleColor(ImGuiCol_Header, selected
-                                             ? ImGui::GetStyleColorVec4(ImGuiCol_Header)
-                                             : ImVec4{0.0F, 0.0F, 0.0F, 0.0F});
-  ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImGui::GetStyleColorVec4(ImGuiCol_HeaderHovered));
+  ImGui::PushStyleColor(ImGuiCol_Header,
+                        selected ? ImGui::GetStyleColorVec4(ImGuiCol_Header)
+                                 : ImVec4{0.0F, 0.0F, 0.0F, 0.0F});
+  ImGui::PushStyleColor(ImGuiCol_HeaderHovered,
+                        ImGui::GetStyleColorVec4(ImGuiCol_HeaderHovered));
   const bool pressed = ImGui::Selectable(
       "##tile", selected, ImGuiSelectableFlags_AllowDoubleClick, size);
   ImGui::PopStyleColor(2);
@@ -250,8 +250,9 @@ void drawAssetDetails(EditorWorkspace &workspace,
     if (ImGui::Button("Add terrain to active scene", {-1.0F, 0.0F})) {
       std::string error;
       notice = workspace.placeTerrainAsset(record->manifest.sourcePath,
-                                            std::nullopt, error)
-                   ? "Terrain asset added to scene" : error;
+                                           std::nullopt, error)
+                   ? "Terrain asset added to scene"
+                   : error;
     }
     ImGui::EndDisabled();
   }
@@ -260,9 +261,9 @@ void drawAssetDetails(EditorWorkspace &workspace,
   ImGui::SameLine();
   if (ImGui::SmallButton("Reimport")) {
     std::string error;
-    notice =
-        workspace.reimportAsset(record->manifest.manifestPath, error)
-            ? "Asset reimported" : error;
+    notice = workspace.reimportAsset(record->manifest.manifestPath, error)
+                 ? "Asset reimported"
+                 : error;
     return;
   }
   if (record->manifest.type == "Model3D") {
@@ -342,7 +343,8 @@ void EditorAssetsPanel::draw(EditorWorkspace &workspace, const ImVec2 position,
   if (ImGui::BeginPopup("asset-create-menu")) {
     const auto sourceItem = [&](const char *label, EditorSourceKind kind) {
       if (ImGui::MenuItem(label))
-        dialogs_.openNewSource(kind, {}, editorSourceDirectory(kind, directory_));
+        dialogs_.openNewSource(kind, {},
+                               editorSourceDirectory(kind, directory_));
     };
     if (ImGui::BeginMenu("Scene")) {
       sourceItem("3D Scene", EditorSourceKind::Scene3D);
@@ -355,10 +357,12 @@ void EditorAssetsPanel::draw(EditorWorkspace &workspace, const ImVec2 position,
       sourceItem("UI Prefab", EditorSourceKind::UiPrefab);
       const auto selection = workspace.selectedEntityId();
       if (ImGui::MenuItem("From selected hierarchy", nullptr, false,
-                          !selection.empty() && workspace.sceneDocument().entity(selection)))
-        dialogs_.openNewSource(EditorSourceKind::PrefabFromSelection,
-                               std::string(selection),
-                               editorSourceDirectory(EditorSourceKind::PrefabFromSelection, directory_));
+                          !selection.empty() &&
+                              workspace.sceneDocument().entity(selection)))
+        dialogs_.openNewSource(
+            EditorSourceKind::PrefabFromSelection, std::string(selection),
+            editorSourceDirectory(EditorSourceKind::PrefabFromSelection,
+                                  directory_));
       ImGui::EndMenu();
     }
     sourceItem("HUD", EditorSourceKind::Hud);
@@ -366,7 +370,6 @@ void EditorAssetsPanel::draw(EditorWorkspace &workspace, const ImVec2 position,
     sourceItem("Material", EditorSourceKind::Material);
     if (ImGui::BeginMenu("Terrain")) {
       sourceItem("Terrain", EditorSourceKind::Terrain);
-      sourceItem("Material", EditorSourceKind::TerrainMaterial);
       sourceItem("Material Set", EditorSourceKind::TerrainMaterialSet);
       sourceItem("Palette", EditorSourceKind::TerrainPalette);
       ImGui::EndMenu();
@@ -428,8 +431,7 @@ void EditorAssetsPanel::draw(EditorWorkspace &workspace, const ImVec2 position,
     const std::string label =
         "Create prefab in " + destination.generic_string();
     ImGui::PushStyleColor(ImGuiCol_Header, {0.10F, 0.23F, 0.36F, 1.0F});
-    ImGui::PushStyleColor(ImGuiCol_HeaderHovered,
-                          {0.13F, 0.30F, 0.46F, 1.0F});
+    ImGui::PushStyleColor(ImGuiCol_HeaderHovered, {0.13F, 0.30F, 0.46F, 1.0F});
     ImGui::Selectable(label.c_str(), false, 0, {-1.0F, 30.0F});
     ImGui::PopStyleColor(2);
     acceptHierarchyEntityDrop(workspace, dialogs_, destination, notice);
@@ -469,7 +471,8 @@ void EditorAssetsPanel::draw(EditorWorkspace &workspace, const ImVec2 position,
       ImGui::TableNextColumn();
       if (drawAssetTile(display.c_str(), relative.filename().string(),
                         record && record->manifest.type == "Terrain"
-                            ? EditorIcon::Terrain : sourceIcon(source),
+                            ? EditorIcon::Terrain
+                            : sourceIcon(source),
                         selectedSource_ == source)) {
         selectedSource_ = source;
         notice = "Selected project source: " + display;
@@ -516,7 +519,8 @@ void EditorAssetsPanel::draw(EditorWorkspace &workspace, const ImVec2 position,
         if (record != nullptr && ImGui::MenuItem("Reimport")) {
           std::string error;
           notice = workspace.reimportAsset(record->manifest.manifestPath, error)
-                       ? "Asset reimported" : error;
+                       ? "Asset reimported"
+                       : error;
         }
         if (record != nullptr && record->manifest.type == "Model3D" &&
             ImGui::MenuItem("Generate Collider Asset..."))

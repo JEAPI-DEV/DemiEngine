@@ -64,6 +64,9 @@ vec3 encodeColor(vec3 color)
 // Palette colours use the same transfer functions as ordinary mesh materials.
 #include "demi_terrain_material.sh"
 #endif
+#ifdef DEMI_MESH_PBR
+#include "demi_pbr_material.sh"
+#endif
 
 // Direct Cook-Torrance lighting: GGX distribution, height-correlated Smith
 // visibility and Schlick Fresnel, following Filament's standard model:
@@ -184,6 +187,29 @@ void main()
 #ifdef DEMI_TERRAIN
     vec4 surfaceParameters;
     vec4 albedo = terrainSurface(v_texcoord0, gl_FrontFacing, surfaceParameters);
+#elif defined(DEMI_MESH_PBR)
+    vec4 surfaceParameters = u_metalRough;
+    vec3 receiverNormal = pbrNormalize(v_normal, vec3(0.0, 1.0, 0.0));
+    vec3 lightingNormal = receiverNormal;
+    float occlusion = 1.0;
+    vec3 emissive = vec3(0.0);
+    vec4 mappedAlbedo = pbrSampleMap(s_texColor, true, v_texcoord0, v_localPos, v_localNormal);
+    vec4 albedo = vec4(mappedAlbedo.rgb * decodeColor(u_tint.rgb) * decodeColor(v_color0.rgb),
+                      mappedAlbedo.a * u_tint.a * v_color0.a);
+    // Coverage discards must not precede normal-frame derivatives or implicit
+    // texture LOD. Casting needs only albedo alpha; phase is draw-uniform.
+    if (u_shadowConfig.x >= -0.5)
+    {
+        lightingNormal = pbrSurfaceNormal(receiverNormal, worldDx, worldDy, v_texcoord0, v_localPos, v_localNormal);
+        if (u_pbrMapFlags.y > 0.5)
+            surfaceParameters.y = pbrSampleMap(s_pbrRoughness, false, v_texcoord0, v_localPos, v_localNormal).r;
+        if (u_pbrMapFlags.z > 0.5)
+            surfaceParameters.x = pbrSampleMap(s_pbrMetallic, false, v_texcoord0, v_localPos, v_localNormal).r;
+        if (u_pbrMapFlags.w > 0.5)
+            occlusion = clamp(pbrSampleMap(s_pbrOcclusion, false, v_texcoord0, v_localPos, v_localNormal).r, 0.0, 1.0);
+        if (u_pbrMapFlags2.y > 0.5)
+            emissive = pbrSampleMap(s_pbrEmissive, true, v_texcoord0, v_localPos, v_localNormal).rgb;
+    }
 #else
     vec4 surfaceParameters = u_metalRough;
     vec4 albedo = texture2D(s_texColor, v_texcoord0) * v_color0 * u_tint;
@@ -203,12 +229,18 @@ void main()
         return;
     }
 
+#ifdef DEMI_MESH_PBR
+    vec3 normal = lightingNormal;
+#else
     float normalLength = length(v_normal);
     vec3 normal = v_normal / max(normalLength, 0.0001);
+    vec3 receiverNormal = normal;
+#endif
     vec3 directionalVector = -u_lightDirection.xyz;
     vec3 directionalDirection = directionalVector /
                                 max(length(directionalVector), 0.0001);
     float diffuse = max(dot(normal, directionalDirection), 0.0);
+    float receiverDiffuse = max(dot(receiverNormal, directionalDirection), 0.0);
     float visibility = 1.0;
     if (u_shadowConfig.x > 0.5)
     {
@@ -217,20 +249,20 @@ void main()
         if (viewDepth > u_shadowSplits.x && u_shadowConfig.z > 1.5) cascade = 1;
         if (viewDepth > u_shadowSplits.y && u_shadowConfig.z > 2.5) cascade = 2;
         if (viewDepth > u_shadowSplits.z && u_shadowConfig.z > 3.5) cascade = 3;
-        visibility = cascadeVisibility(cascade, worldPosition, worldDx, worldDy, normal, diffuse);
+        visibility = cascadeVisibility(cascade, worldPosition, worldDx, worldDy, receiverNormal, receiverDiffuse);
         float farDepth = u_shadowParams[cascade].z;
         float blendWidth = max((farDepth - u_shadowParams[cascade].y) * u_shadowConfig.w, 0.00001);
         float blend = smoothstep(farDepth - blendWidth, farDepth, viewDepth);
         if (cascade + 1 < int(u_shadowConfig.z))
         {
             if (blend > 0.0)
-                visibility = mix(visibility, cascadeVisibility(cascade + 1, worldPosition, worldDx, worldDy, normal, diffuse), blend);
+                visibility = mix(visibility, cascadeVisibility(cascade + 1, worldPosition, worldDx, worldDy, receiverNormal, receiverDiffuse), blend);
         }
         else
             visibility = mix(visibility, 1.0, blend);
         if (viewDepth < 0.0 || viewDepth > farDepth) visibility = 1.0;
     }
-#ifdef DEMI_TERRAIN
+#if defined(DEMI_TERRAIN) || defined(DEMI_MESH_PBR)
     DEMI_GGX_PRECISION vec3 baseColor = albedo.rgb;
 #else
     DEMI_GGX_PRECISION vec3 baseColor = decodeColor(albedo.rgb);
@@ -242,6 +274,9 @@ void main()
     vec3 lighting = u_ambientColor.rgb +
                     u_lightColor.rgb * u_lightDirection.w * diffuse * visibility;
     vec3 shadedColor = baseColor * u_ambientColor.rgb * (1.0 - metallic);
+#ifdef DEMI_MESH_PBR
+    shadedColor *= occlusion;
+#endif
     shadedColor += u_lightColor.rgb * u_lightDirection.w * visibility *
                    directSurfaceLight(baseColor, normal, viewDirection,
                                       directionalDirection, metallic, roughness);
@@ -292,6 +327,9 @@ void main()
 #else
     if (surfaceParameters.z > 0.5)
         shadedColor = baseColor;
+#endif
+#ifdef DEMI_MESH_PBR
+    shadedColor += emissive;
 #endif
     if (u_debugMode.x > 0.5 && u_debugMode.x < 1.5)
     {

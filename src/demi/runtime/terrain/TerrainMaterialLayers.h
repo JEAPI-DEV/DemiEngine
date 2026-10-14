@@ -17,7 +17,7 @@ namespace demi::runtime {
 // in world units, or normalised moisture. Nothing here is a texel count, a UV
 // span or a fraction of the sample grid, so a field twice as large in world
 // units with the same masks reads the same way; how often a material repeats
-// across that surface is TerrainMaterialAsset::tiling's business and is
+// across that surface is MaterialSurface::tiling's business and is
 // deliberately not consulted here.
 struct TerrainMaterialLayerSettings {
   // Multiplies the slope mask before any role reads it, so one number brings

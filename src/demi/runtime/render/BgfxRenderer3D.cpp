@@ -52,6 +52,9 @@ BgfxRenderer3D::BgfxRenderer3D(GpuResources &resources,
       primitives_(resources, commands_), postProcess_(resources, commands_),
       particleRenderer_(resources, commands_), overlay_(resources, commands_),
       textures_(resources), sky_(resources), materials_(resources),
+      meshPbr_(resources, commands_, [this](std::string_view id, ImageMipSemantic semantic) {
+        return materialTexture(id, semantic);
+      }),
       gpuSkinningRequested_(enableGpuSkinning), deformedMeshes_(resources),
       terrainMeshes_(resources), terrainLodResidency_(extractionJobs_),
       terrainGpuFields_(resources, extractionJobs_), terrainPatches_(resources),
@@ -87,6 +90,18 @@ bool BgfxRenderer3D::initialize(std::string &error) {
       resources_.createBuiltinProgram(BuiltinProgram::Directional3D, error);
   directionalInstancedProgram_ = resources_.createBuiltinProgram(
       BuiltinProgram::Directional3DInstanced, error);
+  pbrProgramError_.clear();
+  if (resources_.limits().maxTextureSamplers >= 9) {
+    constexpr std::array programs{BuiltinProgram::Pbr3D,
+        BuiltinProgram::Pbr3DInstanced, BuiltinProgram::Pbr3DSkinned,
+        BuiltinProgram::Pbr3DDirectional, BuiltinProgram::Pbr3DDirectionalInstanced,
+        BuiltinProgram::Pbr3DDirectionalSkinned};
+    for (std::size_t index = 0; index < programs.size(); ++index) {
+      pbrPrograms_[index] = resources_.createBuiltinProgram(programs[index], pbrProgramError_);
+    }
+  } else {
+    pbrProgramError_ = "PBR materials require nine texture samplers on this device";
+  }
   meshSampler_ = resources_.createSampler("s_texColor", error);
   tintUniform_ =
       resources_.createUniform("u_tint", UniformType::Vec4, 1, error);
@@ -187,6 +202,13 @@ bool BgfxRenderer3D::initialize(std::string &error) {
 }
 
 void BgfxRenderer3D::shutdown() {
+  meshPbr_.shutdown();
+  for (auto &program : pbrPrograms_) {
+    if (program) {
+      resources_.destroy(program);
+    }
+    program = {};
+  }
   lightBuffer_.shutdown();
   shadows_.shutdown();
   sky_.clear();
@@ -248,6 +270,7 @@ void BgfxRenderer3D::shutdown() {
   renderTargets_.clear();
   particles_.clear();
   textures_.clear();
+  textureSources_.clear();
   if (whiteTexture_)
     resources_.destroy(whiteTexture_);
   if (meshSampler_)
@@ -520,7 +543,7 @@ bool BgfxRenderer3D::renderView(const World &world,
                              frame.camera.clearMode == "color" &&
                              !sceneLighting.skyTexture.empty();
   if (shouldDrawSky) {
-    const auto texture = textures_.find(sceneLighting.skyTexture);
+    const auto texture = materialTexture(sceneLighting.skyTexture, ImageMipSemantic::Color);
     if (!texture.handle) {
       error =
           "Environment sky texture is not loaded: " + sceneLighting.skyTexture;
@@ -652,7 +675,7 @@ bool BgfxRenderer3D::renderView(const World &world,
     if (textureId.empty() && material != nullptr) {
       textureId = material->albedoTexture;
     }
-    const TextureView2D texture = textures_.find(textureId);
+    const TextureView2D texture = materialTexture(textureId, ImageMipSemantic::Color);
     const BlendMode blend =
         material == nullptr ? BlendMode::Alpha : material->state.blend;
     particleDraws.push_back(

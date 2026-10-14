@@ -53,7 +53,7 @@ bool BgfxRenderer3D::drawCosmeticDebris(
     const std::array<float, 4> tint{fragment.color.r, fragment.color.g,
                                     fragment.color.b, fragment.opacity()};
     uniforms.front().values = tint;
-    const auto texture = textures_.find(fragment.texture);
+    const auto texture = materialTexture(fragment.texture, ImageMipSemantic::Color);
     if (!mesh->draw(commands_, frame.viewId, program,
                     texture.handle ? texture.handle : whiteTexture_,
                     meshSampler_,

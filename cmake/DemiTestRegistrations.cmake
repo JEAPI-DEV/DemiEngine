@@ -236,6 +236,7 @@ add_test(NAME demi-bgfx-graphics-device-tests
 add_test(NAME demi-platform-input-tests COMMAND demi-platform-input-tests)
 add_test(NAME demi-sdl-platform-host-tests COMMAND demi-sdl-platform-host-tests)
 add_test(NAME demi-resource-handle-tests COMMAND demi-resource-handle-tests)
+add_test(NAME demi-material-shader-link-tests COMMAND demi-material-shader-link-tests)
 add_test(NAME demi-bgfx-gpu-resources-tests COMMAND demi-bgfx-gpu-resources-tests)
 add_test(NAME demi-quad-batch-tests COMMAND demi-quad-batch-tests)
 add_test(NAME demi-render-commands-tests COMMAND demi-render-commands-tests)

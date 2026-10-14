@@ -301,12 +301,7 @@ TerrainPalette parseTerrainPalette(const assets::DataDocument &document,
     require(loadedSet.has_value(),
             at("material_set") + "must resolve to a terrain_material_set.");
     palette.surfaceMaterials = loadedSet->roles;
-    for (const auto &[role, reference] : palette.surfaceMaterials) {
-      const auto *material = findAsset(registry, reference);
-      if (!material || material->type != "Material") {
-        palette.unsupportedSurfaceRoles.push_back(role);
-      }
-    }
+
   }
   if (const auto *placements = root.find("placements")) {
     const auto *entries = placements->object();

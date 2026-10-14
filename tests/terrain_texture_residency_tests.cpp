@@ -1,7 +1,7 @@
 #include "demi/assets/AssetHash.h"
 #include "demi/assets/AssetRegistry.h"
 #include "demi/assets/DataAsset.h"
-#include "demi/assets/MaterialAsset.h"
+#include "demi/assets/MaterialSurface.h"
 #include "demi/runtime/terrain/TerrainTextureResidency.h"
 
 #include <algorithm>
@@ -12,6 +12,7 @@
 #include <functional>
 #include <iostream>
 #include <map>
+#include <nlohmann/json.hpp>
 #include <optional>
 #include <ranges>
 #include <stdexcept>
@@ -21,11 +22,10 @@
 
 using namespace demi;
 using namespace demi::runtime;
-using demi::assets::TerrainMaterialMapSlot;
+using demi::assets::MaterialMapSlot;
 
 namespace {
 
-constexpr std::string_view SchemaId = "asset://schemas/terrain_material";
 constexpr std::string_view RockId = "asset://materials/rock";
 constexpr std::string_view GroundId = "asset://materials/ground";
 constexpr std::string_view SandId = "asset://materials/sand";
@@ -96,19 +96,13 @@ AssetManifest manifest(const std::string &id, const std::string &type,
           .sourcePaths = {root / source}};
 }
 
-std::string terrainMaterialSettings() {
-  return std::string("{\"content_type\":\"terrain_material\",\"schema\":\"") +
-         std::string(SchemaId) + "\",\"tags\":[]}";
-}
-
 AssetManifest material(const std::string &id, const std::string &source,
                        const std::vector<std::string_view> &maps) {
-  std::vector<std::string> dependencies{std::string(SchemaId)};
+  std::vector<std::string> dependencies;
   for (const std::string_view map : maps)
     dependencies.push_back(std::string(map));
   std::ranges::sort(dependencies);
-  return manifest(id, "DataAsset", source, terrainMaterialSettings(),
-                  std::move(dependencies));
+  return manifest(id, "Material", source, "{}", std::move(dependencies));
 }
 
 // One registry serves every case: the material documents are rewritten between
@@ -117,7 +111,6 @@ AssetRegistry buildRegistry() {
   AssetRegistry built;
   built.projectDirectory = root;
   built.assets = {
-      manifest(std::string(SchemaId), "DataSchema", "schema.json"),
       material(std::string(RockId), "rock.json",
                {SharedBase, RockNormal, RockRoughness, RockMetallic,
                 RockOcclusion, RockHeight, RockDetail, RockEmissive}),
@@ -131,78 +124,55 @@ AssetRegistry buildRegistry() {
   // The material loader resolves a map by id and never decodes it, so the
   // texture sources are placeholders with real bytes to hash.
   for (const std::string_view texture : Textures)
-    built.assets.push_back(manifest(std::string(texture), "Texture",
+    built.assets.push_back(manifest(std::string(texture), "Texture2D",
                                     std::string(texture.substr(9)) + ".png"));
   std::ranges::sort(built.assets, {}, &AssetManifest::id);
   return built;
 }
 
+assets::MaterialSurface surface(const AssetRegistry &registry,
+                                std::string_view id) {
+  const auto *manifest = findAsset(registry, std::string(id));
+  assert(manifest && manifest->type == "Material");
+  const auto descriptor = assets::loadMaterialAsset(manifest->sourcePath);
+  assert(descriptor);
+  return assets::materialSurface(*descriptor);
+}
+
 void writeMaterials() {
-  assert(write(root / "rock.json", R"({
-    "format_version": 1,
-    "name": "Cliff Rock",
-    "normal_strength": 2.0,
-    "detail_strength": 1.5,
-    "triplanar": true,
-    "maps": [
-      {"base_color": ")" + std::string(SharedBase) +
-                                       R"("},
-      {"normal": ")" + std::string(RockNormal) +
-                                       R"("},
-      {"roughness": ")" + std::string(RockRoughness) +
-                                       R"("},
-      {"metallic": ")" + std::string(RockMetallic) +
-                                       R"("},
-      {"ambient_occlusion": ")" + std::string(RockOcclusion) +
-                                       R"("},
-      {"height": ")" + std::string(RockHeight) +
-                                       R"("},
-      {"detail": ")" + std::string(RockDetail) +
-                                       R"("},
-      {"emissive": ")" + std::string(RockEmissive) +
-                                       R"("}
-    ]
-  })"));
-  assert(write(root / "ground.json", R"({
-    "format_version": 1,
-    "name": "Vegetated Ground",
-    "detail_strength": 1.0,
-    "maps": [
-      {"base_color": ")" + std::string(SharedBase) +
-                                         R"("},
-      {"normal": ")" + std::string(GroundNormal) +
-                                         R"("},
-      {"roughness": ")" + std::string(GroundRoughness) +
-                                         R"("},
-      {"ambient_occlusion": ")" + std::string(GroundOcclusion) +
-                                         R"("},
-      {"detail": ")" + std::string(GroundDetail) +
-                                         R"("}
-    ]
-  })"));
-  assert(write(root / "sand.json", R"({
-    "format_version": 1,
-    "name": "Dry Sand",
-    "maps": [{"base_color": ")" + std::string(SandBase) +
-                                       R"("}]
-  })"));
-  // Both strength settings are zero, so both maps are inert: the detail blend
-  // and the normal amplification are off and the maps cannot change the
-  // surface.
-  assert(write(root / "flat.json", R"({
-    "format_version": 1,
-    "name": "Flat Silt",
-    "normal_strength": 0.0,
-    "detail_strength": 0.0,
-    "maps": [
-      {"base_color": ")" + std::string(FlatBase) +
-                                       R"("},
-      {"normal": ")" + std::string(FlatNormal) +
-                                       R"("},
-      {"detail": ")" + std::string(FlatDetail) +
-                                       R"("}
-    ]
-  })"));
+  using Json = nlohmann::json;
+  const auto writeMaterial = [&](const char *file, Json textures,
+                                 Json parameters, const char *mapping = "uv") {
+    const Json document{{"format_version", 1},
+                        {"textures", std::move(textures)},
+                        {"parameters", std::move(parameters)},
+                        {"mapping", mapping}};
+    assert(write(root / file, document.dump(2)));
+  };
+  writeMaterial("rock.json",
+                {{"albedo", SharedBase},
+                 {"normal", RockNormal},
+                 {"roughness", RockRoughness},
+                 {"metallic", RockMetallic},
+                 {"ambient_occlusion", RockOcclusion},
+                 {"height", RockHeight},
+                 {"detail_normal", RockDetail},
+                 {"emissive", RockEmissive}},
+                {{"normal_strength", 2}, {"detail_strength", 1.5}},
+                "triplanar");
+  writeMaterial("ground.json",
+                {{"albedo", SharedBase},
+                 {"normal", GroundNormal},
+                 {"roughness", GroundRoughness},
+                 {"ambient_occlusion", GroundOcclusion},
+                 {"detail_normal", GroundDetail}},
+                {{"detail_strength", 1}});
+  writeMaterial("sand.json", {{"albedo", SandBase}}, Json::object());
+  writeMaterial("flat.json",
+                {{"albedo", FlatBase},
+                 {"normal", FlatNormal},
+                 {"detail_normal", FlatDetail}},
+                {{"normal_strength", 0}, {"detail_strength", 0}});
 }
 
 // The roles a TerrainMaterialSet would bind: one entry per role, material ids
@@ -218,8 +188,8 @@ std::vector<TerrainResidencyMaterial> roleMaterials() {
            {"ground", GroundId},
            {"sand", SandId},
            {"wet_ground", FlatId}})
-    materials.push_back(TerrainResidencyMaterial{
-        role, *assets::loadTerrainMaterialAsset(registry, id)});
+    materials.push_back(
+        TerrainResidencyMaterial{role, surface(registry, id), std::string(id)});
   return materials;
 }
 
@@ -237,17 +207,16 @@ bool holds(const Range &range, const Value &value) {
   return std::ranges::find(range, value) != range.end();
 }
 
-bool keepsSlot(const std::vector<TerrainMaterialMapSlot> &slots,
-               const TerrainMaterialMapSlot slot) {
+bool keepsSlot(const std::vector<MaterialMapSlot> &slots,
+               const MaterialMapSlot slot) {
   return std::find(slots.begin(), slots.end(), slot) != slots.end();
 }
 
-bool isSubset(const std::vector<TerrainMaterialMapSlot> &inner,
-              const std::vector<TerrainMaterialMapSlot> &outer) {
-  return std::all_of(inner.begin(), inner.end(),
-                     [&](const TerrainMaterialMapSlot slot) {
-                       return keepsSlot(outer, slot);
-                     });
+bool isSubset(const std::vector<MaterialMapSlot> &inner,
+              const std::vector<MaterialMapSlot> &outer) {
+  return std::all_of(
+      inner.begin(), inner.end(),
+      [&](const MaterialMapSlot slot) { return keepsSlot(outer, slot); });
 }
 
 std::vector<std::string> residentIds(const TerrainResidencyPlan &plan) {
@@ -261,7 +230,7 @@ std::vector<std::string> residentIds(const TerrainResidencyPlan &plan) {
 }
 
 std::size_t entriesInSlot(const TerrainResidencyPlan &plan,
-                          const TerrainMaterialMapSlot slot) {
+                          const MaterialMapSlot slot) {
   return static_cast<std::size_t>(
       std::count_if(plan.textures.begin(), plan.textures.end(),
                     [&](const TerrainTextureResidency &entry) {
@@ -270,7 +239,7 @@ std::size_t entriesInSlot(const TerrainResidencyPlan &plan,
 }
 
 std::size_t residentInSlot(const TerrainResidencyPlan &plan,
-                           const TerrainMaterialMapSlot slot) {
+                           const MaterialMapSlot slot) {
   return static_cast<std::size_t>(
       std::count_if(plan.textures.begin(), plan.textures.end(),
                     [&](const TerrainTextureResidency &entry) {
@@ -293,26 +262,22 @@ std::string rejection(const std::function<void()> &call) {
 // ---------------------------------------------------------------------------
 
 void slotsKeepTheBaseColourAndShrinkWithDistance() {
-  constexpr TerrainMaterialMapSlot All[]{
-      TerrainMaterialMapSlot::BaseColor,
-      TerrainMaterialMapSlot::Normal,
-      TerrainMaterialMapSlot::Roughness,
-      TerrainMaterialMapSlot::Metallic,
-      TerrainMaterialMapSlot::AmbientOcclusion,
-      TerrainMaterialMapSlot::Height,
-      TerrainMaterialMapSlot::Detail,
-      TerrainMaterialMapSlot::Emissive};
+  constexpr MaterialMapSlot All[]{
+      MaterialMapSlot::Albedo,           MaterialMapSlot::Normal,
+      MaterialMapSlot::Roughness,        MaterialMapSlot::Metallic,
+      MaterialMapSlot::AmbientOcclusion, MaterialMapSlot::Height,
+      MaterialMapSlot::DetailNormal,     MaterialMapSlot::Emissive};
   constexpr TerrainLod Levels[]{TerrainLod::Full, TerrainLod::Half,
                                 TerrainLod::Quarter, TerrainLod::Coarse};
 
-  for (const TerrainMaterialMapSlot slot : All) {
+  for (const MaterialMapSlot slot : All) {
     std::size_t previous = 100;
     for (std::size_t level = 0; level < std::size(Levels); ++level) {
-      const std::vector<TerrainMaterialMapSlot> kept =
+      const std::vector<MaterialMapSlot> kept =
           terrainSlotsForLod(slot, Levels[level]);
       // Every level that draws a surface keeps the base colour: a chunk without
       // one would wear the palette tint with no texture at all.
-      assert(keepsSlot(kept, TerrainMaterialMapSlot::BaseColor));
+      assert(keepsSlot(kept, MaterialMapSlot::Albedo));
       // Asking about one slot answers for every slot at that level, so the
       // caller's own map survives iff it is in the kept set.
       if (keepsSlot(kept, slot))
@@ -329,7 +294,7 @@ void slotsKeepTheBaseColourAndShrinkWithDistance() {
 
   // The documented progression, read slot by slot rather than by index.
   const auto at = [](const TerrainLod level) {
-    return terrainSlotsForLod(TerrainMaterialMapSlot::BaseColor, level);
+    return terrainSlotsForLod(MaterialMapSlot::Albedo, level);
   };
   assert(at(TerrainLod::Full).size() == 8);
   assert(at(TerrainLod::Half).size() == 6);
@@ -338,39 +303,34 @@ void slotsKeepTheBaseColourAndShrinkWithDistance() {
   // Detail and height are the near-field maps; emissive survives one level
   // further; metallic is the first PBR slot a coarse chunk gives up.
   assert(keepsSlot(
-      terrainSlotsForLod(TerrainMaterialMapSlot::Detail, TerrainLod::Full),
-      TerrainMaterialMapSlot::Detail));
+      terrainSlotsForLod(MaterialMapSlot::DetailNormal, TerrainLod::Full),
+      MaterialMapSlot::DetailNormal));
   assert(!keepsSlot(
-      terrainSlotsForLod(TerrainMaterialMapSlot::Detail, TerrainLod::Half),
-      TerrainMaterialMapSlot::Detail));
-  assert(keepsSlot(
-      terrainSlotsForLod(TerrainMaterialMapSlot::Height, TerrainLod::Full),
-      TerrainMaterialMapSlot::Height));
-  assert(keepsSlot(
-      terrainSlotsForLod(TerrainMaterialMapSlot::Emissive, TerrainLod::Half),
-      TerrainMaterialMapSlot::Emissive));
+      terrainSlotsForLod(MaterialMapSlot::DetailNormal, TerrainLod::Half),
+      MaterialMapSlot::DetailNormal));
+  assert(
+      keepsSlot(terrainSlotsForLod(MaterialMapSlot::Height, TerrainLod::Full),
+                MaterialMapSlot::Height));
+  assert(
+      keepsSlot(terrainSlotsForLod(MaterialMapSlot::Emissive, TerrainLod::Half),
+                MaterialMapSlot::Emissive));
   assert(!keepsSlot(
-      terrainSlotsForLod(TerrainMaterialMapSlot::Emissive, TerrainLod::Quarter),
-      TerrainMaterialMapSlot::Emissive));
+      terrainSlotsForLod(MaterialMapSlot::Emissive, TerrainLod::Quarter),
+      MaterialMapSlot::Emissive));
   assert(!keepsSlot(
-      terrainSlotsForLod(TerrainMaterialMapSlot::Metallic, TerrainLod::Quarter),
-      TerrainMaterialMapSlot::Metallic));
+      terrainSlotsForLod(MaterialMapSlot::Metallic, TerrainLod::Quarter),
+      MaterialMapSlot::Metallic));
   // Off draws no surface, so there is nothing to sample.
-  assert(terrainSlotsForLod(TerrainMaterialMapSlot::BaseColor, TerrainLod::Off)
-             .empty());
+  assert(terrainSlotsForLod(MaterialMapSlot::Albedo, TerrainLod::Off).empty());
 }
 
 void estimatesFollowTheDocumentedNominalTable() {
-  constexpr TerrainMaterialMapSlot All[]{
-      TerrainMaterialMapSlot::BaseColor,
-      TerrainMaterialMapSlot::Normal,
-      TerrainMaterialMapSlot::Roughness,
-      TerrainMaterialMapSlot::Metallic,
-      TerrainMaterialMapSlot::AmbientOcclusion,
-      TerrainMaterialMapSlot::Height,
-      TerrainMaterialMapSlot::Detail,
-      TerrainMaterialMapSlot::Emissive};
-  for (const TerrainMaterialMapSlot slot : All) {
+  constexpr MaterialMapSlot All[]{
+      MaterialMapSlot::Albedo,           MaterialMapSlot::Normal,
+      MaterialMapSlot::Roughness,        MaterialMapSlot::Metallic,
+      MaterialMapSlot::AmbientOcclusion, MaterialMapSlot::Height,
+      MaterialMapSlot::DetailNormal,     MaterialMapSlot::Emissive};
+  for (const MaterialMapSlot slot : All) {
     const TerrainResidencyNominalFormat nominal =
         terrainResidencyNominalFormat(slot);
     assert(nominal.edge > 0);
@@ -390,43 +350,37 @@ void estimatesFollowTheDocumentedNominalTable() {
   // The high-frequency maps are the big ones, which is why the budget's first
   // eviction is also the one that buys the most room for the least visible
   // loss.
-  assert(terrainResidencyEstimateBytes(TerrainMaterialMapSlot::Detail) ==
-         terrainResidencyEstimateBytes(TerrainMaterialMapSlot::BaseColor));
-  assert(terrainResidencyEstimateBytes(TerrainMaterialMapSlot::BaseColor) >
-         terrainResidencyEstimateBytes(TerrainMaterialMapSlot::Roughness));
-  assert(terrainResidencyEstimateBytes(TerrainMaterialMapSlot::Roughness) >
-         terrainResidencyEstimateBytes(TerrainMaterialMapSlot::Metallic));
+  assert(terrainResidencyEstimateBytes(MaterialMapSlot::DetailNormal) ==
+         terrainResidencyEstimateBytes(MaterialMapSlot::Albedo));
+  assert(terrainResidencyEstimateBytes(MaterialMapSlot::Albedo) >
+         terrainResidencyEstimateBytes(MaterialMapSlot::Roughness));
+  assert(terrainResidencyEstimateBytes(MaterialMapSlot::Roughness) >
+         terrainResidencyEstimateBytes(MaterialMapSlot::Metallic));
   // Colour-bearing maps and data maps are told apart by the same table, so a
   // normal map can never be planned as sRGB.
-  assert(terrainResidencyNominalFormat(TerrainMaterialMapSlot::BaseColor)
-             .colourBearing);
-  assert(terrainResidencyNominalFormat(TerrainMaterialMapSlot::Emissive)
-             .colourBearing);
-  assert(!terrainResidencyNominalFormat(TerrainMaterialMapSlot::Normal)
-              .colourBearing);
+  assert(terrainResidencyNominalFormat(MaterialMapSlot::Albedo).colourBearing);
+  assert(
+      terrainResidencyNominalFormat(MaterialMapSlot::Emissive).colourBearing);
+  assert(!terrainResidencyNominalFormat(MaterialMapSlot::Normal).colourBearing);
 }
 
 void evictionOrderIsTheDocumentedOne() {
   // The order as the header states it, lowest (evicted first) to highest.
-  const std::vector<TerrainMaterialMapSlot> documented{
-      TerrainMaterialMapSlot::Detail,
-      TerrainMaterialMapSlot::Height,
-      TerrainMaterialMapSlot::Emissive,
-      TerrainMaterialMapSlot::BaseColor,
-      TerrainMaterialMapSlot::Normal,
-      TerrainMaterialMapSlot::AmbientOcclusion,
-      TerrainMaterialMapSlot::Roughness,
-      TerrainMaterialMapSlot::Metallic};
+  const std::vector<MaterialMapSlot> documented{
+      MaterialMapSlot::DetailNormal, MaterialMapSlot::Height,
+      MaterialMapSlot::Emissive,     MaterialMapSlot::Albedo,
+      MaterialMapSlot::Normal,       MaterialMapSlot::AmbientOcclusion,
+      MaterialMapSlot::Roughness,    MaterialMapSlot::Metallic};
   for (std::size_t index = 0; index < documented.size(); ++index)
     assert(terrainResidencyEvictionRank(documented[index]) == index);
   // The rule the header leads with: detail before base colour, base colour
   // before the normal map.
-  assert(terrainResidencyEvictionRank(TerrainMaterialMapSlot::Detail) <
-         terrainResidencyEvictionRank(TerrainMaterialMapSlot::BaseColor));
-  assert(terrainResidencyEvictionRank(TerrainMaterialMapSlot::BaseColor) <
-         terrainResidencyEvictionRank(TerrainMaterialMapSlot::Normal));
-  assert(terrainResidencyEvictionRank(TerrainMaterialMapSlot::Normal) <
-         terrainResidencyEvictionRank(TerrainMaterialMapSlot::Roughness));
+  assert(terrainResidencyEvictionRank(MaterialMapSlot::DetailNormal) <
+         terrainResidencyEvictionRank(MaterialMapSlot::Albedo));
+  assert(terrainResidencyEvictionRank(MaterialMapSlot::Albedo) <
+         terrainResidencyEvictionRank(MaterialMapSlot::Normal));
+  assert(terrainResidencyEvictionRank(MaterialMapSlot::Normal) <
+         terrainResidencyEvictionRank(MaterialMapSlot::Roughness));
 }
 
 // ---------------------------------------------------------------------------
@@ -561,7 +515,7 @@ void overBudgetEvictsTheLowestPriorityFirst() {
       continue;
     previous = entry.assetId;
     if (terrainResidencyEvictionRank(entry.slot) >=
-        terrainResidencyEvictionRank(TerrainMaterialMapSlot::BaseColor))
+        terrainResidencyEvictionRank(MaterialMapSlot::Albedo))
       keptBytes += entry.estimatedBytes;
   }
   assert(keptBytes < everything.requestedBytes);
@@ -605,11 +559,11 @@ void overBudgetEvictsTheLowestPriorityFirst() {
 
   // The order is the documented one: at this size the near-field maps are the
   // ones that go, and no base colour does.
-  assert(entriesInSlot(plan, TerrainMaterialMapSlot::Detail) > 0);
-  assert(residentInSlot(plan, TerrainMaterialMapSlot::Detail) <
-         entriesInSlot(plan, TerrainMaterialMapSlot::Detail));
-  assert(residentInSlot(plan, TerrainMaterialMapSlot::BaseColor) ==
-         entriesInSlot(plan, TerrainMaterialMapSlot::BaseColor));
+  assert(entriesInSlot(plan, MaterialMapSlot::DetailNormal) > 0);
+  assert(residentInSlot(plan, MaterialMapSlot::DetailNormal) <
+         entriesInSlot(plan, MaterialMapSlot::DetailNormal));
+  assert(residentInSlot(plan, MaterialMapSlot::Albedo) ==
+         entriesInSlot(plan, MaterialMapSlot::Albedo));
 }
 
 void detailGoesBeforeBaseColour() {
@@ -622,8 +576,7 @@ void detailGoesBeforeBaseColour() {
   std::size_t detailBytes = 0;
   std::string counted;
   for (const TerrainTextureResidency &entry : generousPlan.textures) {
-    if (entry.slot != TerrainMaterialMapSlot::Detail ||
-        entry.assetId == counted)
+    if (entry.slot != MaterialMapSlot::DetailNormal || entry.assetId == counted)
       continue;
     counted = entry.assetId;
     // Counted once per texture, because that is how the plan charges for it.
@@ -638,9 +591,9 @@ void detailGoesBeforeBaseColour() {
   assert(plan.evicted > 0);
   assert(plan.lostRequired.empty());
   // Every detail map went, and no base colour did.
-  assert(residentInSlot(plan, TerrainMaterialMapSlot::Detail) == 0);
-  assert(residentInSlot(plan, TerrainMaterialMapSlot::BaseColor) ==
-         entriesInSlot(plan, TerrainMaterialMapSlot::BaseColor));
+  assert(residentInSlot(plan, MaterialMapSlot::DetailNormal) == 0);
+  assert(residentInSlot(plan, MaterialMapSlot::Albedo) ==
+         entriesInSlot(plan, MaterialMapSlot::Albedo));
   // The reason says which budget bound, and names the map it cost.
   for (const TerrainTextureResidency &entry : plan.textures)
     if (!entry.resident) {
@@ -672,17 +625,17 @@ void aLostBaseColourIsReportedNotAbsorbed() {
   assert(plan.lostRequired.size() == 5);
   for (const std::string &lost : plan.lostRequired) {
     assert(!lost.empty());
-    assert(lost.find("base_color") != std::string::npos);
+    assert(lost.find("albedo") != std::string::npos);
     assert(lost.find("dropped") != std::string::npos);
   }
   assert(std::ranges::is_sorted(plan.lostRequired));
   for (const char *role : {"rock", "cliff", "ground", "sand", "wet_ground"})
-    assert(std::ranges::any_of(
-        plan.lostRequired.begin(), plan.lostRequired.end(),
-        [role](const std::string &lost) {
-          return lost.starts_with(role) &&
-                 lost.find("base_color") != std::string::npos;
-        }));
+    assert(
+        std::ranges::any_of(plan.lostRequired.begin(), plan.lostRequired.end(),
+                            [role](const std::string &lost) {
+                              return lost.starts_with(role) &&
+                                     lost.find("albedo") != std::string::npos;
+                            }));
   assert(std::ranges::any_of(plan.lostRequired.begin(), plan.lostRequired.end(),
                              [](const std::string &lost) {
                                return lost.find("ground") != std::string::npos;
@@ -747,16 +700,16 @@ void evictionPriorityIsMonotonicAcrossAMixedSet() {
 
   // A mixed set really does contain several importances, or the walk above
   // would have proved nothing about the ordering between them.
-  assert(entriesInSlot(plan, TerrainMaterialMapSlot::Detail) > 0);
-  assert(entriesInSlot(plan, TerrainMaterialMapSlot::Metallic) > 0);
-  assert(entriesInSlot(plan, TerrainMaterialMapSlot::BaseColor) > 0);
+  assert(entriesInSlot(plan, MaterialMapSlot::DetailNormal) > 0);
+  assert(entriesInSlot(plan, MaterialMapSlot::Metallic) > 0);
+  assert(entriesInSlot(plan, MaterialMapSlot::Albedo) > 0);
   // The shared base colour is counted as three requests, which is what lets it
   // outrank the single-role maps it ties with on slot importance.
   for (const TerrainTextureResidency &entry : plan.textures)
     if (entry.assetId == SharedBase) {
       assert(entry.dependents == 3);
       assert(terrainResidencyEvictionRank(entry.slot) ==
-             terrainResidencyEvictionRank(TerrainMaterialMapSlot::BaseColor));
+             terrainResidencyEvictionRank(MaterialMapSlot::Albedo));
     }
 }
 
@@ -794,7 +747,7 @@ void theDistinctTextureCapIsIndependentOfBytes() {
   for (const TerrainTextureResidency &entry : everything.textures) {
     if (entry.assetId == counted ||
         terrainResidencyEvictionRank(entry.slot) <
-            terrainResidencyEvictionRank(TerrainMaterialMapSlot::BaseColor))
+            terrainResidencyEvictionRank(MaterialMapSlot::Albedo))
       continue;
     counted = entry.assetId;
     wanted.push_back(entry.assetId);
@@ -810,8 +763,8 @@ void theDistinctTextureCapIsIndependentOfBytes() {
 
   assert(plan.withinBudget);
   assert(residentIds(plan) == wanted);
-  assert(residentInSlot(plan, TerrainMaterialMapSlot::BaseColor) ==
-         entriesInSlot(plan, TerrainMaterialMapSlot::BaseColor));
+  assert(residentInSlot(plan, MaterialMapSlot::Albedo) ==
+         entriesInSlot(plan, MaterialMapSlot::Albedo));
   assert(plan.lostRequired.empty());
   // Far below the byte cap: the count of bindings is what stopped it, and the
   // reason says so rather than blaming the bytes.
@@ -868,10 +821,10 @@ void previewHoldsStrictlyFewerLevelsAndTextures() {
   assert(reduced.textures.size() < full.textures.size());
   assert(reduced.requestedBytes < full.requestedBytes);
   assert(residentIds(reduced).size() < residentIds(full).size());
-  assert(residentInSlot(reduced, TerrainMaterialMapSlot::Detail) == 0);
-  assert(residentInSlot(reduced, TerrainMaterialMapSlot::Height) == 0);
-  assert(entriesInSlot(full, TerrainMaterialMapSlot::Detail) > 0);
-  assert(entriesInSlot(full, TerrainMaterialMapSlot::Height) > 0);
+  assert(residentInSlot(reduced, MaterialMapSlot::DetailNormal) == 0);
+  assert(residentInSlot(reduced, MaterialMapSlot::Height) == 0);
+  assert(entriesInSlot(full, MaterialMapSlot::DetailNormal) > 0);
+  assert(entriesInSlot(full, MaterialMapSlot::Height) > 0);
   // Both tiers are still under the same generous budget, so the difference is
   // what each tier holds and not what either budget could pay for.
   assert(full.evicted == 0);
@@ -884,8 +837,8 @@ void previewHoldsStrictlyFewerLevelsAndTextures() {
 
   // What survives is the same material set at a coarser window, so the base
   // colour a coarse chunk needs is still there in preview.
-  assert(residentInSlot(reduced, TerrainMaterialMapSlot::BaseColor) ==
-         entriesInSlot(reduced, TerrainMaterialMapSlot::BaseColor));
+  assert(residentInSlot(reduced, MaterialMapSlot::Albedo) ==
+         entriesInSlot(reduced, MaterialMapSlot::Albedo));
 }
 
 void heldLevelsDecideTheMinimumLod() {
@@ -909,19 +862,19 @@ void heldLevelsDecideTheMinimumLod() {
   }
   // Base colour lives to the coarsest held level; metallic and emissive live to
   // Half; the near-field maps only ever live at Full.
-  const auto minimumFor = [&](const TerrainMaterialMapSlot slot) {
+  const auto minimumFor = [&](const MaterialMapSlot slot) {
     for (const TerrainTextureResidency &entry : plan.textures)
       if (entry.slot == slot)
         return entry.minimumLod;
     return TerrainLod::Off;
   };
-  assert(minimumFor(TerrainMaterialMapSlot::BaseColor) == TerrainLod::Quarter);
-  assert(minimumFor(TerrainMaterialMapSlot::Normal) == TerrainLod::Quarter);
-  assert(minimumFor(TerrainMaterialMapSlot::Roughness) == TerrainLod::Quarter);
-  assert(minimumFor(TerrainMaterialMapSlot::Metallic) == TerrainLod::Half);
-  assert(minimumFor(TerrainMaterialMapSlot::Emissive) == TerrainLod::Half);
-  assert(minimumFor(TerrainMaterialMapSlot::Height) == TerrainLod::Full);
-  assert(minimumFor(TerrainMaterialMapSlot::Detail) == TerrainLod::Full);
+  assert(minimumFor(MaterialMapSlot::Albedo) == TerrainLod::Quarter);
+  assert(minimumFor(MaterialMapSlot::Normal) == TerrainLod::Quarter);
+  assert(minimumFor(MaterialMapSlot::Roughness) == TerrainLod::Quarter);
+  assert(minimumFor(MaterialMapSlot::Metallic) == TerrainLod::Half);
+  assert(minimumFor(MaterialMapSlot::Emissive) == TerrainLod::Half);
+  assert(minimumFor(MaterialMapSlot::Height) == TerrainLod::Full);
+  assert(minimumFor(MaterialMapSlot::DetailNormal) == TerrainLod::Full);
 }
 
 void colourSpaceAndAnisotropyFollowTheSlotAndTheBudget() {
@@ -932,18 +885,18 @@ void colourSpaceAndAnisotropyFollowTheSlotAndTheBudget() {
   for (const TerrainTextureResidency &entry : plan.textures) {
     // Only a colour-bearing map is sampled through an sRGB format; decoding a
     // normal vector or a roughness channel that way corrupts the shading.
-    if (entry.slot == TerrainMaterialMapSlot::BaseColor ||
-        entry.slot == TerrainMaterialMapSlot::Emissive)
+    if (entry.slot == MaterialMapSlot::Albedo ||
+        entry.slot == MaterialMapSlot::Emissive)
       assert(entry.srgb);
     else
       assert(!entry.srgb);
     // Anisotropy is spent where aliasing reads as a visible blur, and nowhere
     // else, because it costs sampling bandwidth rather than bytes.
     switch (entry.slot) {
-    case TerrainMaterialMapSlot::BaseColor:
-    case TerrainMaterialMapSlot::Normal:
-    case TerrainMaterialMapSlot::Height:
-    case TerrainMaterialMapSlot::Detail:
+    case MaterialMapSlot::Albedo:
+    case MaterialMapSlot::Normal:
+    case MaterialMapSlot::Height:
+    case MaterialMapSlot::DetailNormal:
       assert(entry.anisotropy == static_cast<int>(budget.anisotropy));
       break;
     default:
@@ -999,8 +952,7 @@ void anEmptyMaterialListIsRefused() {
   // tinted surface is a legitimate authored material, so it plans to nothing
   // and says so instead of refusing.
   const std::vector<TerrainResidencyMaterial> noMaps{TerrainResidencyMaterial{
-      "flat",
-      demi::assets::TerrainMaterialAsset{.id = "asset://materials/flat"}}};
+      "flat", demi::assets::MaterialSurface{}, "asset://materials/flat"}};
   const TerrainResidencyPlan flat =
       planTerrainTextureResidency(noMaps, generous());
   assert(flat.textures.empty());
@@ -1037,7 +989,7 @@ void anEmptyBudgetIsRefused() {
 
 void aMaterialWithoutAnIdIsRefused() {
   const std::vector<TerrainResidencyMaterial> materials{
-      TerrainResidencyMaterial{"rock", demi::assets::TerrainMaterialAsset{}}};
+      TerrainResidencyMaterial{"rock", demi::assets::MaterialSurface{}}};
   const std::string message = rejection(
       [&] { (void)planTerrainTextureResidency(materials, generous()); });
   assert(!message.empty());
@@ -1050,14 +1002,14 @@ void theIdentityOverloadPlansTheSameTextures() {
   const TerrainResidencyPlan plan =
       planTerrainTextureResidency(ids, registry, generous());
   const TerrainResidencyPlan byRole = planTerrainTextureResidency(
-      {TerrainResidencyMaterial{
-           "rock", *assets::loadTerrainMaterialAsset(registry, RockId)},
-       TerrainResidencyMaterial{
-           "ground", *assets::loadTerrainMaterialAsset(registry, GroundId)},
-       TerrainResidencyMaterial{
-           "sand", *assets::loadTerrainMaterialAsset(registry, SandId)},
-       TerrainResidencyMaterial{
-           "wet_ground", *assets::loadTerrainMaterialAsset(registry, FlatId)}},
+      {TerrainResidencyMaterial{"rock", surface(registry, RockId),
+                                std::string(RockId)},
+       TerrainResidencyMaterial{"ground", surface(registry, GroundId),
+                                std::string(GroundId)},
+       TerrainResidencyMaterial{"sand", surface(registry, SandId),
+                                std::string(SandId)},
+       TerrainResidencyMaterial{"wet_ground", surface(registry, FlatId),
+                                std::string(FlatId)}},
       generous());
   assert(plan.textures.size() == byRole.textures.size());
   assert(plan.requestedBytes == byRole.requestedBytes);
@@ -1097,38 +1049,6 @@ int main() {
   // leave a tree behind that changes what a hash proves.
   std::filesystem::remove_all(root, filesystemError);
   std::filesystem::create_directories(root, filesystemError);
-  assert(write(root / "schema.json", R"({
-        "format_version": 1,
-        "type": "object",
-        "required": ["format_version", "name"],
-        "properties": {
-          "format_version": {"type": "integer", "enum": [1]},
-          "name": {"type": "string"},
-          "base_color": {"type": "array", "items": {"type": "number"}},
-          "roughness": {"type": "number", "minimum": 0, "maximum": 1},
-          "metallic": {"type": "number", "minimum": 0, "maximum": 1},
-          "normal_strength": {"type": "number", "minimum": 0, "maximum": 4},
-          "tiling": {"type": "number"},
-          "detail_strength": {"type": "number", "minimum": 0},
-          "triplanar": {"type": "boolean"},
-          "maps": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "base_color": {"type": "string", "reference": "asset"},
-                "normal": {"type": "string", "reference": "asset"},
-                "roughness": {"type": "string", "reference": "asset"},
-                "metallic": {"type": "string", "reference": "asset"},
-                "ambient_occlusion": {"type": "string", "reference": "asset"},
-                "height": {"type": "string", "reference": "asset"},
-                "detail": {"type": "string", "reference": "asset"},
-                "emissive": {"type": "string", "reference": "asset"}
-              }
-            }
-          }
-        }
-      })"));
   for (const std::string_view texture : Textures)
     assert(write(root / (std::string(texture.substr(9)) + ".png"),
                  "placeholder texture bytes for " + std::string(texture)));

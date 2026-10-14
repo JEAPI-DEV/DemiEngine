@@ -1,5 +1,5 @@
 $input a_position, a_normal, a_color0, a_texcoord0, i_data0, i_data1, i_data2, i_data3
-$output v_color0, v_normal, v_texcoord0, v_worldPos, v_relativePos
+$output v_color0, v_normal, v_texcoord0, v_worldPos, v_relativePos, v_localPos, v_localNormal
 
 #include "bgfx_shader.sh"
 
@@ -19,6 +19,8 @@ void main()
                              cross(modelX, modelY) * a_normal.z);
     v_worldPos = worldPosition.xyz;
     v_relativePos = v_worldPos - u_viewPosition.xyz;
+    v_localPos = a_position;
+    v_localNormal = a_normal;
     v_color0 = a_color0;
     v_texcoord0 = a_texcoord0;
 }

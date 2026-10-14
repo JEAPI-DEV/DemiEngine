@@ -3,7 +3,7 @@
 #include "demi/assets/AssetRegistry.h"
 #include "demi/assets/DataAsset.h"
 #include "demi/assets/DataDocument.h"
-#include "demi/assets/MaterialAsset.h"
+#include "demi/assets/MaterialSurface.h"
 #include "demi/diagnostics/Diagnostic.h"
 
 #include <nlohmann/json.hpp>
@@ -30,10 +30,8 @@ using Json = nlohmann::json;
 constexpr std::string_view AssetPrefix = "asset://";
 constexpr std::string_view PaletteKind = "terrain palette";
 constexpr std::string_view MaterialSetKind = "terrain material set";
-constexpr std::string_view MaterialKind = "terrain material";
 constexpr std::string_view PaletteContentType = "terrain_palette";
 constexpr std::string_view MaterialSetContentType = "terrain_material_set";
-constexpr std::string_view MaterialContentType = "terrain_material";
 
 // A sane range for authored terrain art. Below the floor a surface or prop
 // collapses into an unreadable speck; above the ceiling the authored detail is
@@ -176,8 +174,8 @@ LicenceState readLicence(const AssetManifest &manifest) {
 class Findings {
 public:
   Findings(const AssetRegistry &registry, const bool requireFullMaterialMaps)
-      : registry_(registry),
-        requireFullMaterialMaps_(requireFullMaterialMaps) {}
+      : registry_(registry), requireFullMaterialMaps_(requireFullMaterialMaps) {
+  }
 
   [[nodiscard]] const AssetRegistry &registry() const noexcept {
     return registry_;
@@ -254,9 +252,10 @@ DocumentRead readDocument(const AssetRegistry &registry,
       dataAssetMetadata(*manifest);
   if (!metadata.has_value() || metadata->contentType != contentType) {
     findings.add(TerrainAssetFindingKind::WrongAssetType, role, assetId,
-                 std::string(kind) + " " + assetId + " must declare "
-                     "settings.content_type \"" + std::string(contentType) +
-                     "\", but declares \"" +
+                 std::string(kind) + " " + assetId +
+                     " must declare "
+                     "settings.content_type \"" +
+                     std::string(contentType) + "\", but declares \"" +
                      (metadata.has_value() ? metadata->contentType
                                            : std::string("<unreadable>")) +
                      "\".");
@@ -272,14 +271,6 @@ DocumentRead readDocument(const AssetRegistry &registry,
   }
   result.document = loaded->document;
   return result;
-}
-
-bool declaresContentType(const AssetManifest &manifest,
-                         const std::string_view contentType) {
-  if (manifest.type != "DataAsset")
-    return false;
-  const std::optional<DataAssetMetadata> metadata = dataAssetMetadata(manifest);
-  return metadata.has_value() && metadata->contentType == contentType;
 }
 
 void inspectLicence(Findings &findings, const std::string &role,
@@ -305,12 +296,12 @@ void inspectLicence(Findings &findings, const std::string &role,
                           : ""));
     return;
   case LicenceState::Kind::Malformed:
-    findings.add(TerrainAssetFindingKind::UndeclaredLicence, role, assetId,
-                 subject + " declares a licence that cannot be read: " +
-                     licence.detail +
-                     ". Use {\"licence\": {\"spdx\": \"CC-BY-4.0\", "
-                     "\"redistributable\": true}} or remove the field; an "
-                     "unreadable declaration is not a licence grant.");
+    findings.add(
+        TerrainAssetFindingKind::UndeclaredLicence, role, assetId,
+        subject + " declares a licence that cannot be read: " + licence.detail +
+            ". Use {\"licence\": {\"spdx\": \"CC-BY-4.0\", "
+            "\"redistributable\": true}} or remove the field; an "
+            "unreadable declaration is not a licence grant.");
     return;
   case LicenceState::Kind::Unidentified:
     findings.add(TerrainAssetFindingKind::UndeclaredLicence, role, assetId,
@@ -341,8 +332,8 @@ void inspectDeclaredDependencies(
       std::ranges::find(manifest.dependencies, metadata->schema) ==
           manifest.dependencies.end())
     findings.add(TerrainAssetFindingKind::MissingDependency, role, documentId,
-                 "document " + documentId +
-                     " declares settings.schema " + metadata->schema +
+                 "document " + documentId + " declares settings.schema " +
+                     metadata->schema +
                      " but does not list it in dependencies. Add it, or "
                      "demi validate will fail it as an undeclared dependency.");
   // Only asset:// references, exactly as validateDataAssets enforces, so the
@@ -354,7 +345,8 @@ void inspectDeclaredDependencies(
       findings.add(TerrainAssetFindingKind::MissingDependency, role, reference,
                    "document " + documentId + " references " + reference +
                        " but does not declare it in dependencies. Cook follows "
-                       "the manifest, so " + reference +
+                       "the manifest, so " +
+                       reference +
                        " would be left out of the package; add it to the "
                        "dependencies array.");
 }
@@ -394,11 +386,12 @@ void inspectPaletteTarget(Findings &findings, const std::string &paletteId,
                           const DataValue &entry) {
   const AssetManifest *target = findAsset(findings.registry(), assetId);
   if (target == nullptr) {
-    findings.add(TerrainAssetFindingKind::UnresolvedAsset, role, assetId,
-                 "terrain palette " + paletteId + " role \"" + role +
-                     "\" binds " + assetId +
-                     ", which does not resolve. Add the manifest for that id or "
-                     "point the role at existing art.");
+    findings.add(
+        TerrainAssetFindingKind::UnresolvedAsset, role, assetId,
+        "terrain palette " + paletteId + " role \"" + role + "\" binds " +
+            assetId +
+            ", which does not resolve. Add the manifest for that id or "
+            "point the role at existing art.");
     return;
   }
   if (target->type != "Model3D")
@@ -412,9 +405,9 @@ void inspectPaletteTarget(Findings &findings, const std::string &paletteId,
 }
 
 void inspectTerrainMap(Findings &findings, const std::string &role,
-                       const std::string &materialId,
-                       const std::string &slot, const std::string &reference) {
-  const std::string where = "maps/" + slot;
+                       const std::string &materialId, const std::string &slot,
+                       const std::string &reference) {
+  const std::string where = "textures/" + slot;
   if (!reference.starts_with(AssetPrefix)) {
     findings.add(TerrainAssetFindingKind::UnresolvedAsset, role, reference,
                  "terrain material " + materialId + " " + where +
@@ -431,11 +424,13 @@ void inspectTerrainMap(Findings &findings, const std::string &role,
                      "fix the reference.");
     return;
   }
-  if (texture->type != "Texture2D")
+  if (texture->type != "Texture2D" && texture->type != "RenderTarget")
     findings.add(TerrainAssetFindingKind::WrongAssetType, role, reference,
-                 "terrain material " + materialId + " " + where + " needs a "
-                 "texture, but " + reference + " is " + describeType(*texture) +
-                     ". Point the slot at a Texture2D asset.");
+                 "terrain material " + materialId + " " + where +
+                     " needs a "
+                     "texture, but " +
+                     reference + " is " + describeType(*texture) +
+                     ". Point the slot at a Texture2D or RenderTarget asset.");
   inspectLicence(findings, role, reference, *texture);
 }
 
@@ -443,66 +438,48 @@ void inspectTerrainMaterial(Findings &findings, const std::string &setId,
                             const std::string &role,
                             const std::string &materialId,
                             const AssetManifest &manifest,
-                            const DataValue &root) {
-  const float tiling = numberValue(root.find("tiling"));
+                            const MaterialSurface &surface) {
+  const float tiling = surface.tiling;
   if (!std::isnan(tiling) && (tiling < MinimumTiling || tiling > MaximumTiling))
     findings.add(TerrainAssetFindingKind::IncompatibleScale, role, materialId,
                  "terrain material set " + setId + " role \"" + role +
                      "\" binds " + materialId + ", which tiles " +
-                     number(tiling) + " times per authored surface unit, "
-                     "outside the range " + number(MinimumTiling) + " to " +
-                     number(MaximumTiling) +
+                     number(tiling) +
+                     " times per authored surface unit, "
+                     "outside the range " +
+                     number(MinimumTiling) + " to " + number(MaximumTiling) +
                      ". Tiling below that collapses the projection and tiling "
                      "above it magnifies the texels past what the texture was "
                      "authored for.");
 
-  std::map<TerrainMaterialMapSlot, std::string> maps;
+  const auto &maps = surface.maps;
   std::set<std::string, std::less<>> references;
-  if (const DataValue *entries = root.find("maps");
-      entries != nullptr && entries->isArray()) {
-    for (const DataValue &entry : *entries->array()) {
-      const DataValue::Object *slots = entry.object();
-      // An unknown slot is the material loader's rejection, but its reference
-      // still has to resolve and be declared.
-      if (slots == nullptr || slots->size() != 1)
-        continue;
-      const auto [name, value] = *slots->begin();
-      const std::string reference = stringValue(&value);
-      if (reference.empty())
-        continue;
-      references.insert(reference);
-      findings.countReference();
-      if (const auto slot = terrainMaterialMapSlotFromName(name);
-          slot.has_value())
-        maps.emplace(*slot, reference);
-      inspectTerrainMap(findings, role, materialId, name, reference);
-    }
+  for (const auto &[slot, reference] : maps) {
+    references.insert(reference);
+    findings.countReference();
+    inspectTerrainMap(findings, role, materialId,
+                      std::string(materialMapSlotName(slot)), reference);
   }
   inspectDeclaredDependencies(findings, materialId, role, manifest, references);
 
   if (findings.fullMaps()) {
-    if (!maps.contains(TerrainMaterialMapSlot::BaseColor))
+    if (!maps.contains(MaterialMapSlot::Albedo))
       findings.add(TerrainAssetFindingKind::MissingMap, role, materialId,
                    "terrain material set " + setId + " role \"" + role +
                        "\" binds " + materialId +
-                       ", which has no base_color map. Assign one, for example "
-                       "{\"base_color\": \"asset://terrain/textures/rock\"}; a "
+                       ", which has no albedo map. Assign one, for example "
+                       "{\"albedo\": \"asset://terrain/textures/rock\"}; a "
                        "terrain surface with no colour map is a flat tint.");
-    if (!maps.contains(TerrainMaterialMapSlot::Normal))
-      findings.add(TerrainAssetFindingKind::MissingMap, role, materialId,
-                   "terrain material set " + setId + " role \"" + role +
-                       "\" binds " + materialId +
-                       ", which has no normal map. Assign one, for example "
-                       "{\"normal\": \"asset://terrain/textures/rock_normal\"}, "
-                       "or drop requireFullMaterialMaps when the renderer can "
-                       "shade this surface without one.");
-  } else if (maps.empty())
-    findings.add(TerrainAssetFindingKind::MissingMap, role, materialId,
-                 "terrain material set " + setId + " role \"" + role +
-                     "\" binds " + materialId +
-                     ", which declares no maps at all, so the surface is a flat "
-                     "scalar tint. Assign a base_color map, or accept the flat "
-                     "surface and leave maps unrequired.");
+    if (!maps.contains(MaterialMapSlot::Normal))
+      findings.add(
+          TerrainAssetFindingKind::MissingMap, role, materialId,
+          "terrain material set " + setId + " role \"" + role + "\" binds " +
+              materialId +
+              ", which has no normal map. Assign one, for example "
+              "{\"normal\": \"asset://terrain/textures/rock_normal\"}, "
+              "or drop requireFullMaterialMaps when the renderer can "
+              "shade this surface without one.");
+  }
 }
 
 // A material role binds a material and nothing else, matching the rule the
@@ -512,35 +489,35 @@ void inspectMaterialSetTarget(Findings &findings, const std::string &setId,
                               const std::string &assetId) {
   const AssetManifest *target = findAsset(findings.registry(), assetId);
   if (target == nullptr) {
-    findings.add(TerrainAssetFindingKind::UnresolvedAsset, role, assetId,
-                 "terrain material set " + setId + " role \"" + role +
-                     "\" binds " + assetId +
-                     ", which does not resolve. Add the manifest for that id or "
-                     "point the role at existing art.");
+    findings.add(
+        TerrainAssetFindingKind::UnresolvedAsset, role, assetId,
+        "terrain material set " + setId + " role \"" + role + "\" binds " +
+            assetId +
+            ", which does not resolve. Add the manifest for that id or "
+            "point the role at existing art.");
     return;
   }
-  if (target->type != "Material" &&
-      !declaresContentType(*target, MaterialContentType)) {
-    // The licence of something that is not a surface material is not worth a
-    // line: replacing the binding is the only actionable advice.
+  if (target->type != "Material") {
     findings.add(TerrainAssetFindingKind::WrongAssetType, role, assetId,
-                 "terrain material set " + setId + " role \"" + role +
-                     "\" needs a material: a Material asset, or a DataAsset "
-                     "declaring settings.content_type \"terrain_material\", but " +
-                     assetId + " is " + describeType(*target) +
-                     ". Point the role at a material asset.");
+                 "Terrain material set " + setId + " role " + role +
+                     " requires an ordinary Material asset, but " + assetId +
+                     " is " + target->type +
+                     ". Point the role at a material asset. Migrate "
+                     "terrain_material DataAssets to Material.");
     return;
   }
   inspectLicence(findings, role, assetId, *target);
-  if (!declaresContentType(*target, MaterialContentType))
-    return; // A render Material carries its maps inside its own document.
-  const DocumentRead material = readDocument(findings.registry(), assetId,
-                                             MaterialKind, MaterialContentType,
-                                             role, findings);
-  if (!material.document)
+  Diagnostics diagnostics;
+  const auto material = loadMaterialAsset(target->sourcePath, &diagnostics);
+  if (!material) {
+    const std::string detail =
+        diagnostics.empty() ? assetId : diagnostics.front().message;
+    findings.add(TerrainAssetFindingKind::WrongAssetType, role, assetId,
+                 "Material document could not be loaded: " + detail);
     return;
-  inspectTerrainMaterial(findings, setId, role, assetId, *material.manifest,
-                         material.document->root());
+  }
+  inspectTerrainMaterial(findings, setId, role, assetId, *target,
+                         materialSurface(*material));
 }
 
 void inspectMaterialSet(Findings &findings, const std::string &setId);
@@ -594,9 +571,9 @@ void inspectPalette(Findings &findings, const std::string &paletteId) {
 }
 
 void inspectMaterialSet(Findings &findings, const std::string &setId) {
-  const DocumentRead set = readDocument(findings.registry(), setId,
-                                        MaterialSetKind, MaterialSetContentType,
-                                        {}, findings);
+  const DocumentRead set =
+      readDocument(findings.registry(), setId, MaterialSetKind,
+                   MaterialSetContentType, {}, findings);
   if (!set.document)
     return;
   findings.countReference();
@@ -627,8 +604,8 @@ void inspectMaterialSet(Findings &findings, const std::string &setId) {
     }
     if (!reference.starts_with(AssetPrefix)) {
       findings.add(TerrainAssetFindingKind::UnresolvedAsset, roleName,
-                   reference, "terrain material set " + setId + " roles/" +
-                                   roleName +
+                   reference,
+                   "terrain material set " + setId + " roles/" + roleName +
                        " must be an asset:// reference, but is \"" + reference +
                        "\". Use the asset id of an existing material.");
       continue;
@@ -645,9 +622,12 @@ void inspectMaterialSet(Findings &findings, const std::string &setId) {
       if (name.empty() || roleMap->contains(name))
         continue;
       findings.add(TerrainAssetFindingKind::MissingRole, name, {},
-                   "terrain material set " + setId + " requires role \"" + name +
+                   "terrain material set " + setId + " requires role \"" +
+                       name +
                        "\", which it does not bind, so generation would leave "
-                       "that surface unshaded. Add roles/" + name + " or drop "
+                       "that surface unshaded. Add roles/" +
+                       name +
+                       " or drop "
                        "it from required_roles.");
     }
 
@@ -764,19 +744,17 @@ validateTerrainAssets(const TerrainAssetValidationRequest &request) {
   // Sorted by kind, then role, then asset, so a diff of two runs against the
   // same project is readable. Stable, so two findings that share all three keys
   // keep the order they were collected in.
-  std::stable_sort(report.findings.begin(), report.findings.end(),
-                   [](const TerrainAssetFinding &left,
-                      const TerrainAssetFinding &right) {
-                     const auto leftKind =
-                         static_cast<int>(left.kind);
-                     const auto rightKind =
-                         static_cast<int>(right.kind);
-                     if (leftKind != rightKind)
-                       return leftKind < rightKind;
-                     if (left.role != right.role)
-                       return left.role < right.role;
-                     return left.assetId < right.assetId;
-                   });
+  std::stable_sort(
+      report.findings.begin(), report.findings.end(),
+      [](const TerrainAssetFinding &left, const TerrainAssetFinding &right) {
+        const auto leftKind = static_cast<int>(left.kind);
+        const auto rightKind = static_cast<int>(right.kind);
+        if (leftKind != rightKind)
+          return leftKind < rightKind;
+        if (left.role != right.role)
+          return left.role < right.role;
+        return left.assetId < right.assetId;
+      });
   return report;
 }
 

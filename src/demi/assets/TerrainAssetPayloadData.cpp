@@ -180,8 +180,7 @@ Json palette(const TerrainPalette &value) {
           {"name", value.name},
           {"placements", std::move(roles)},
           {"material_set", value.materialSet},
-          {"surface_materials", value.surfaceMaterials},
-          {"unsupported_surface_roles", value.unsupportedSurfaceRoles}};
+          {"surface_materials", value.surfaceMaterials}};
 }
 
 TerrainPalette readPalette(const Json &value) {
@@ -195,8 +194,6 @@ TerrainPalette readPalette(const Json &value) {
   result.materialSet = value.at("material_set").get<std::string>();
   result.surfaceMaterials =
       value.at("surface_materials").get<decltype(result.surfaceMaterials)>();
-  result.unsupportedSurfaceRoles =
-      value.at("unsupported_surface_roles").get<std::vector<std::string>>();
   const auto &roles = value.at("placements");
   require(roles.is_object(), "palette roles must be an object");
   for (const auto &[name, item] : roles.items()) {

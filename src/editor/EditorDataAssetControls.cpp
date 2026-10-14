@@ -1,19 +1,16 @@
 #include "editor/EditorDataAssetControls.h"
 
 #include "editor/EditorAssetReferenceControl.h"
-#include "editor/EditorColorControl.h"
 #include "editor/EditorJsonDocument.h"
 #include "editor/EditorWorkspace.h"
 
 #include "demi/assets/DataAsset.h"
-#include "demi/assets/MaterialAsset.h"
 #include "demi/assets/MaterialSet.h"
 #include "demi/runtime/terrain/TerrainPalette.h"
 
 #include <imgui.h>
 
 #include <algorithm>
-#include <array>
 #include <cstring>
 #include <filesystem>
 #include <limits>
@@ -24,16 +21,6 @@ namespace demi::editor {
 namespace {
 
 using Json = nlohmann::json;
-
-constexpr assets::TerrainMaterialMapSlot MapSlots[] = {
-    assets::TerrainMaterialMapSlot::BaseColor,
-    assets::TerrainMaterialMapSlot::Normal,
-    assets::TerrainMaterialMapSlot::Roughness,
-    assets::TerrainMaterialMapSlot::Metallic,
-    assets::TerrainMaterialMapSlot::AmbientOcclusion,
-    assets::TerrainMaterialMapSlot::Height,
-    assets::TerrainMaterialMapSlot::Detail,
-    assets::TerrainMaterialMapSlot::Emissive};
 
 constexpr assets::TerrainMaterialRole MaterialRoles[] = {
     assets::TerrainMaterialRole::Rock,
@@ -93,12 +80,7 @@ void editHeader(EditorJsonDocument &document, bool hasDescription,
 }
 
 bool isMaterial(const AssetManifest &manifest) {
-  if (manifest.type == "Material")
-    return true;
-  if (manifest.type != "DataAsset")
-    return false;
-  const auto metadata = assets::dataAssetMetadata(manifest);
-  return metadata && metadata->contentType == "terrain_material";
+  return manifest.type == "Material";
 }
 
 bool chooseAsset(const char *label, EditorWorkspace &workspace,
@@ -154,80 +136,6 @@ bool editFloat(const char *label, float current, float minimum, float maximum,
   return ImGui::DragFloat(label, &replacement, 0.01F, minimum, maximum, "%.3f",
                           ImGuiSliderFlags_AlwaysClamp |
                               ImGuiSliderFlags_NoRoundToFormat);
-}
-
-void drawMaterial(EditorWorkspace &workspace, EditorJsonDocument &document,
-                  std::string &notice) {
-  editHeader(document, false, notice);
-  const Json snapshot = document.json();
-  const auto scalar = [&](const char *key, float fallback, float minimum,
-                          float maximum) {
-    float replacement;
-    if (editFloat(key, snapshot.value(key, fallback), minimum, maximum,
-                  replacement))
-      (void)commit(document, "/" + std::string(key), replacement, notice);
-  };
-
-  std::array<float, 4> color{0.8F, 0.8F, 0.8F, 1.0F};
-  if (snapshot.contains("base_color"))
-    for (std::size_t index = 0; index < color.size(); ++index)
-      color[index] = snapshot.at("base_color").at(index).get<float>();
-  if (drawEditorColorControl("Base color", color.data()))
-    (void)commit(document, "/base_color", color, notice);
-
-  scalar("roughness", 0.8F, 0.F, 1.F);
-  scalar("metallic", 0.F, 0.F, 1.F);
-  scalar("normal_strength", 1.F, 0.F, 4.F);
-  scalar("tiling", 1.F, std::numeric_limits<float>::denorm_min(),
-         std::numeric_limits<float>::max());
-  bool triplanar = snapshot.value("triplanar", false);
-  if (ImGui::Checkbox("Triplanar", &triplanar))
-    (void)commit(document, "/triplanar", triplanar, notice);
-
-  Json maps = snapshot.value("maps", Json::array());
-  ImGui::SeparatorText("Texture maps");
-  for (const auto slot : MapSlots) {
-    const std::string slotName(assets::terrainMaterialMapSlotName(slot));
-    std::string reference;
-    std::size_t entryIndex = maps.size();
-    for (std::size_t index = 0; index < maps.size(); ++index)
-      if (maps[index].contains(slotName)) {
-        reference = maps[index].at(slotName).get<std::string>();
-        entryIndex = index;
-        break;
-      }
-    if (!chooseAsset(
-            slotName.c_str(), workspace,
-            [](const AssetManifest &asset) {
-              return asset.type == "Texture2D";
-            },
-            reference))
-      continue;
-    if (reference.empty() && entryIndex < maps.size())
-      maps.erase(maps.begin() + static_cast<Json::difference_type>(entryIndex));
-    else if (!reference.empty() && entryIndex < maps.size())
-      maps[entryIndex][slotName] = reference;
-    else if (!reference.empty())
-      maps.push_back({{slotName, reference}});
-    if (slot == assets::TerrainMaterialMapSlot::Detail && reference.empty() &&
-        snapshot.value("detail_strength", 0.F) > 0.F) {
-      Json replacement = snapshot;
-      replacement["maps"] = maps;
-      replacement["detail_strength"] = 0.F;
-      (void)commitRoot(document, std::move(replacement), notice);
-    } else {
-      (void)commit(document, "/maps", maps, notice);
-    }
-    return;
-  }
-  const bool hasDetail =
-      std::any_of(maps.begin(), maps.end(),
-                  [](const Json &entry) { return entry.contains("detail"); });
-  ImGui::BeginDisabled(!hasDetail);
-  scalar("detail_strength", 0.F, 0.F, std::numeric_limits<float>::max());
-  ImGui::EndDisabled();
-  if (!hasDetail)
-    ImGui::TextDisabled("Assign a detail texture to enable detail strength.");
 }
 
 void toggleRequired(EditorJsonDocument &document, const Json &snapshot,
@@ -516,8 +424,7 @@ bool drawEditorDataAssetControls(EditorWorkspace &workspace,
                                  EditorJsonDocument &document,
                                  const std::string_view contentType,
                                  std::string &notice) {
-  if (contentType != "terrain_material" &&
-      contentType != "terrain_material_set" && contentType != "terrain_palette")
+  if (contentType != "terrain_material_set" && contentType != "terrain_palette")
     return false;
 
   const std::string documentId = document.path().generic_string();
@@ -525,9 +432,7 @@ bool drawEditorDataAssetControls(EditorWorkspace &workspace,
   ImGui::TextWrapped(
       "Terrain PBR shading is pending. This editor authors "
       "materials and palettes; it does not preview surface shading.");
-  if (contentType == "terrain_material") {
-    drawMaterial(workspace, document, notice);
-  } else if (contentType == "terrain_material_set") {
+  if (contentType == "terrain_material_set") {
     drawMaterialSet(workspace, document, notice);
   } else {
     drawPalette(workspace, document, notice);

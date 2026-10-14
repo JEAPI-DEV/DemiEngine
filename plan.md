@@ -1,5 +1,10 @@
 # DemiEngine Roadmap
 
+Terrain Milestone 4 now has one shared Material workflow, PBR maps and triplanar
+projection for mesh/terrain surfaces, with source/cooked native checks. GPU
+texture arrays, height-aware layer blending, residency and starter art remain
+open. See [shared material qualification](docs/terrain-shared-material-qualification.md).
+
 The prominent rocky-valley shadow grid is corrected through precise view
 directions, stable receiver derivatives and texel-scaled facet filtering.
 Native GPU/mesh and translated-plane checks preserve real cast shadows. See

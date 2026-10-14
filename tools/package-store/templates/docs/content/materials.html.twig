@@ -1,0 +1,39 @@
+<h2>One material for meshes and terrain</h2>
+<p>Create <strong>Material</strong> from the Assets panel and open its source to edit the surface. A material has one stable <code>asset://</code> ID. Assign that same ID to a Mesh Renderer, a terrain biome override, or a role in a terrain material set. There is no separate Terrain Material asset type.</p>
+<p>The integrated material document provides map pickers, surface settings, render state, Undo/Redo and Save. Its color swatch shows the base tint; inspect actual mapped shading on a scene object or terrain. Import texture assets before assigning them. Map pickers also accept RenderTarget assets; these use their live texture contents rather than generated image mipmaps. Material import and reimport validate their references and record texture and shader dependencies for cooking.</p>
+<pre><code>{
+  "format_version": 1,
+  "mapping": "triplanar",
+  "textures": {
+    "albedo": "asset://surfaces/rock/color",
+    "normal": "asset://surfaces/rock/normal",
+    "roughness": "asset://surfaces/rock/roughness"
+  },
+  "parameters": {
+    "tiling": 0.5,
+    "normal_strength": 0.8
+  }
+}</code></pre>
+<p>These IDs illustrate the format; select assets installed in your project. The default shader is <code>builtin://lit</code>. Omit unused maps and default settings. <code>parameters.base_color</code> is an sRGB RGBA tint, default white; the mesh or biome tint still multiplies it. Roughness defaults to 0.8 and metallic to 0. Values for either scalar are in 0–1.</p>
+<h3>Map meanings</h3>
+<table><thead><tr><th>Texture key</th><th>Interpretation</th></tr></thead><tbody>
+<tr><td><code>albedo</code></td><td>sRGB base RGB and linear alpha.</td></tr>
+<tr><td><code>normal</code></td><td>Linear RGB tangent-space normal. <code>normal_strength</code> defaults to 1; zero removes its perturbation.</td></tr>
+<tr><td><code>roughness</code></td><td>Linear red channel; dark is smooth and bright is rough.</td></tr>
+<tr><td><code>metallic</code></td><td>Linear red channel; zero is dielectric, one is metallic.</td></tr>
+<tr><td><code>ambient_occlusion</code></td><td>Linear red channel; reduces ambient illumination, not direct sun visibility.</td></tr>
+<tr><td><code>detail_normal</code></td><td>Additional tangent-space normal controlled by <code>detail_strength</code>, default 0. Assign the map before increasing its strength.</td></tr>
+<tr><td><code>emissive</code></td><td>sRGB emission color. This does not illuminate nearby geometry.</td></tr>
+<tr><td><code>height</code></td><td>Retained for the upcoming terrain layer-height blending stage. The current builtin material shader does not sample it and reports that limitation. It does not displace vertices or change collision.</td></tr>
+</tbody></table>
+<p>Color mipmaps average in linear light before returning to sRGB storage. Normal mipmaps renormalize averaged vectors; scalar maps average linear values. Bilinear texture filtering still operates on stored sRGB values before shader decoding; hardware sRGB filtering is a remaining quality step. A source used for different purposes can have separate GPU sampling variants, so interpreting a normal map does not change a UI texture using the same image.</p>
+<h3>Mapping and normal conventions</h3>
+<p><code>mapping</code> is <code>uv</code> by default and uses mesh texture coordinates. <code>triplanar</code> projects onto three local surface axes and blends them by surface orientation, avoiding the stretched top-down projection on cliffs. <code>parameters.tiling</code> is positive, defaults to 1, and increases repetition when raised. In UV mode it multiplies the mesh UVs; in triplanar mode it specifies repeats per local surface unit. Transform scale therefore changes the world size of the pattern.</p>
+<p>Texture wrapping remains an import setting. Use <code>repeat</code> on tileable terrain maps; clamping a map intentionally stretches its edge outside its authored range. Triplanar projection does not make a non-tileable source seamless.</p>
+<p><code>normal_map_convention</code> is <code>opengl</code> by default (+Y/green up). Choose <code>directx</code> for −Y/green down maps. This describes the source image convention, independently of the rendering backend or operating system. The normal and detail-normal maps use the same convention.</p>
+<h3>Terrain integration and current limits</h3>
+<p>Terrain material sets bind semantic roles such as rock, ground and snow to ordinary Material IDs. The shared classifier assigns them automatically; explicit biome materials remain overrides. Textured PBR terrain currently uses the ordinary mesh renderer. GPU-displaced terrain retains its solid-palette path and reports why a textured material requires fallback.</p>
+<p>Rendering individual PBR materials does not complete terrain-layer blending. Smooth height-aware boundaries, GPU texture-array batching, distance-aware texture residency and licensed high-quality starter palettes remain Milestone 4 work. The current mapped PBR path requires nine texture sampler slots; unsupported devices receive a diagnostic rather than silently dropping maps.</p>
+<h3>Migrating the retired terrain material format</h3>
+<p>The former <code>DataAsset</code> content type <code>terrain_material</code> is rejected with migration guidance. Keep the stable ID, change the manifest to <code>type: Material</code> with importer <code>material</code>, and retain <code>format_version</code> in both documents. Remove obsolete data-specific <code>content_type</code>/<code>schema</code> settings and unused schema dependencies. Reimport to refresh dependencies. Regenerate derived terrain and recook older outputs; the prepared terrain payload changed to version 8.</p>
+<p>Move scalar surface settings into <code>parameters</code>; convert the old linear <code>base_color</code> RGB to sRGB (alpha stays linear). Replace the <code>maps</code> array with a <code>textures</code> object and rename <code>base_color</code> to <code>albedo</code>. Replace <code>triplanar: true</code> with <code>mapping: triplanar</code>. Use <code>detail_normal</code> only for an actual normal map; the retired generic detail slot did not establish that meaning. Terrain material sets and palettes remain typed data assets.</p>

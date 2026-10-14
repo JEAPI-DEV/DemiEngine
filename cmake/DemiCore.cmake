@@ -82,7 +82,7 @@ add_library(demi-core STATIC
   src/demi/assets/GltfSkinnedModel.cpp
   src/demi/assets/AssetSourceFiles.cpp
   src/demi/assets/DataValueRead.cpp
-  src/demi/assets/MaterialAsset.cpp
+  src/demi/assets/MaterialSurface.cpp
   src/demi/assets/MaterialSet.cpp
   src/demi/assets/TerrainAssetValidation.cpp
   src/demi/assets/TerrainAssetCook.cpp

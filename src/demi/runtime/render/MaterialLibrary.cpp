@@ -53,6 +53,26 @@ bool MaterialLibrary::load(const AssetRegistry &registry,
       continue;
     }
     MaterialBinding binding;
+    binding.surface = assets::materialSurface(*descriptor);
+    const bool builtinSurface = descriptor->shader == "builtin://lit" ||
+                                descriptor->shader == "builtin://unlit";
+    if (builtinSurface) {
+      binding.usesPbrSurface =
+          binding.surface.mapping == assets::MaterialMapping::Triplanar ||
+          binding.surface.tiling != 1;
+      for (const auto &[slot, unused] : binding.surface.maps) {
+        if (slot != assets::MaterialMapSlot::Albedo &&
+            slot != assets::MaterialMapSlot::Height) {
+          binding.usesPbrSurface = true;
+        }
+      }
+    }
+    if (builtinSurface &&
+        binding.surface.maps.contains(assets::MaterialMapSlot::Height)) {
+      diagnostics.push_back(
+          asset.id + ": height map retained for future layer blending; "
+                     "current builtin shading does not sample or displace it");
+    }
     binding.unlit = descriptor->shader == "builtin://unlit";
     binding.uniformSet = nextUniformSet++;
     binding.state = {.blend = blendMode(descriptor->renderState.blend),
@@ -109,6 +129,13 @@ bool MaterialLibrary::load(const AssetRegistry &registry,
     std::ranges::sort(names);
     bool bindingValid = true;
     for (const std::string &name : names) {
+      const bool builtinIntrinsic =
+          builtinSurface && (name == "metallic" || name == "roughness" ||
+                             name == "opacity" || name == "normal_strength" ||
+                             name == "tiling" || name == "detail_strength");
+      if (builtinIntrinsic) {
+        continue;
+      }
       const float value = descriptor->numbers.at(name);
       bindingValid = append(name, {value, 0.0F, 0.0F, 0.0F}) && bindingValid;
     }
@@ -118,6 +145,9 @@ bool MaterialLibrary::load(const AssetRegistry &registry,
       names.push_back(name);
     std::ranges::sort(names);
     for (const std::string &name : names) {
+      if (name == "base_color" && builtinSurface) {
+        continue;
+      }
       const auto &color = descriptor->colors.at(name);
       bindingValid =
           append(name, {color.r, color.g, color.b, color.a}) && bindingValid;

@@ -1,5 +1,6 @@
 #include "editor/EditorSpecializedPanel.h"
 #include "editor/EditorDataAssetControls.h"
+#include "editor/EditorMaterialControls.h"
 
 #include "editor/EditorColorControl.h"
 #include "editor/EditorJsonInspector.h"
@@ -93,23 +94,20 @@ void drawMaterialPreview(const EditorJsonDocument &document) {
   Diagnostics diagnostics;
   const auto material = assets::parseMaterialAsset(
       document.json(), document.path(), &diagnostics);
-  ImVec4 preview{0.68F, 0.58F, 0.88F, 1.0F};
+  ImVec4 preview{1.0F, 1.0F, 1.0F, 1.0F};
   if (material)
     if (const auto color = material->colors.find("base_color");
         color != material->colors.end())
       preview = {color->second.r, color->second.g, color->second.b,
                  color->second.a};
-  const ImVec2 center{ImGui::GetCursorScreenPos().x + 170.0F,
-                      ImGui::GetCursorScreenPos().y + 170.0F};
-  ImGui::InvisibleButton("material-preview", {340.0F, 340.0F});
-  ImDrawList *draw = ImGui::GetWindowDrawList();
-  draw->AddCircleFilled(center, 118.0F, ImGui::ColorConvertFloat4ToU32(preview),
-                        64);
-  draw->AddCircle(center, 118.0F, IM_COL32(220, 220, 230, 180), 64, 2.0F);
+  ImGui::TextUnformatted("Base color swatch");
+  ImGui::ColorButton("material-color-swatch", preview,
+                     ImGuiColorEditFlags_NoTooltip, {120.0F, 32.0F});
   ImGui::Text("Shader: %s",
               material ? material->shader.c_str() : "invalid material");
-  ImGui::TextDisabled(
-      "Preview uses the runtime material parser and descriptor.");
+  ImGui::TextWrapped(
+      "Inspect texture maps and lighting on a scene object or terrain. "
+      "This swatch shows only the base color.");
 }
 
 void drawMaterialControls(EditorSpecializedDocument &editor,
@@ -138,22 +136,6 @@ void drawMaterialControls(EditorSpecializedDocument &editor,
                      : error;
       }
     ImGui::EndCombo();
-  }
-  auto parameters =
-      document.json().value("parameters", nlohmann::json::object());
-  const auto color = parameters.find("base_color");
-  if (color != parameters.end() && color->is_array() && color->size() == 4) {
-    std::array<float, 4> edited{
-        (*color)[0].get<float>(), (*color)[1].get<float>(),
-        (*color)[2].get<float>(), (*color)[3].get<float>()};
-    if (drawEditorColorControl(
-            "Base color", edited.data(),
-            {.flags = ImGuiColorEditFlags_AlphaBar | ImGuiColorEditFlags_Float})) {
-      std::string error;
-      notice = document.set("/parameters/base_color", edited, error)
-                   ? "Material color modified"
-                   : error;
-    }
   }
 }
 
@@ -323,7 +305,9 @@ void EditorSpecializedPanel::draw(EditorWorkspace &workspace,
   if (!active_)
     return;
   ImGui::SetNextWindowSize({1120.0F, 760.0F}, ImGuiCond_FirstUseEver);
-  if (!ImGui::Begin("Specialized Document")) {
+  const std::string windowTitle =
+      std::string(active_->title()) + "###Specialized Document";
+  if (!ImGui::Begin(windowTitle.c_str())) {
     ImGui::End();
     return;
   }
@@ -421,6 +405,7 @@ void EditorSpecializedPanel::draw(EditorWorkspace &workspace,
         drawPrefabPreview(*active_, notice);
       else if (active_->kind() == EditorSpecializedKind::Material) {
         drawMaterialControls(*active_, notice);
+        drawEditorMaterialSurfaceControls(workspace, document, notice);
         drawMaterialPreview(document);
       } else if (active_->kind() == EditorSpecializedKind::Animation) {
         drawAnimationControls(*active_, notice);

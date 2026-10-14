@@ -16,18 +16,6 @@
 namespace demi::runtime {
 namespace {
 
-void validateSurfaceBindings(const TerrainPalette &palette) {
-  if (palette.unsupportedSurfaceRoles.empty()) {
-    return;
-  }
-
-  const auto &unsupportedRole = palette.unsupportedSurfaceRoles.front();
-  throw std::invalid_argument(
-      "Terrain surface role '" + unsupportedRole +
-      "' requires an ordinary Material asset; "
-      "typed terrain PBR definitions are not renderable yet.");
-}
-
 std::shared_ptr<const TerrainSurfaceClassification>
 classifySurface(const HeightField &field, const TerrainRecipe &recipe,
                 const TerrainPalette &palette, std::stop_token stop) {
@@ -116,7 +104,7 @@ bool terrainSurfaceBindingsMatch(const HeightField &field,
   if (!palette || palette->materialSet.empty()) {
     return !field.surfaceMaterials;
   }
-  if (!field.surfaceMaterials || !palette->unsupportedSurfaceRoles.empty()) {
+  if (!field.surfaceMaterials) {
     return false;
   }
 
@@ -135,7 +123,6 @@ bool updateTerrainSurfaceMaterials(HeightField &field, const TerrainRecipe &reci
     field.surfaceMaterials.reset();
     return true;
   }
-  validateSurfaceBindings(*palette);
 
   auto surface = std::make_shared<TerrainSurfaceMaterials>();
   surface->materialSet = palette->materialSet;

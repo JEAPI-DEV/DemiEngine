@@ -243,6 +243,46 @@ foreach(terrain_variant glsl essl spv)
   endforeach()
 endforeach()
 
+# Shared PBR surfaces use the existing mesh vertex programs. Keep the fragment
+# variants separate so ordinary untextured materials retain the cheaper path.
+foreach(pbr_variant glsl essl spv)
+  if(pbr_variant STREQUAL "glsl")
+    set(pbr_profile 120)
+    set(pbr_platform linux)
+  elseif(pbr_variant STREQUAL "essl")
+    set(pbr_profile 100_es)
+    set(pbr_platform android)
+  else()
+    set(pbr_profile spirv)
+    set(pbr_platform linux)
+  endif()
+  foreach(pbr_program fs_demi_pbr fs_demi_pbr_directional)
+    set(pbr_defines)
+    if(pbr_program STREQUAL "fs_demi_pbr_directional")
+      set(pbr_defines --define DEMI_DIRECTIONAL_ONLY=1)
+    endif()
+    set(pbr_symbol "${pbr_program}_${pbr_variant}")
+    set(pbr_header "${DEMI_BGFX_BUILTIN_SHADER_DIR}/${pbr_symbol}.h")
+    add_custom_command(OUTPUT "${pbr_header}"
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${DEMI_BGFX_BUILTIN_SHADER_DIR}"
+      COMMAND "${DEMI_SHADERC_EXECUTABLE}"
+        -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/fs_demi_pbr.sc"
+        -o "${pbr_header}" --type fragment
+        --platform ${pbr_platform} -p ${pbr_profile} ${pbr_defines}
+        --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
+        -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" -i "${DEMI_BGFX_SHADER_SOURCE_DIR}"
+        --bin2c ${pbr_symbol}
+      DEPENDS ${DEMI_SHADERC_DEPENDENCY}
+        "${DEMI_BGFX_SHADER_SOURCE_DIR}/fs_demi_pbr.sc"
+        "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_surface_lighting.sh"
+        "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_pbr_material.sh"
+        "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_shadow_receiver.sh"
+        "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
+      VERBATIM)
+    list(APPEND DEMI_BGFX_BUILTIN_SHADER_HEADERS "${pbr_header}")
+  endforeach()
+endforeach()
+
 add_library(demi-graphics-bgfx STATIC
   ${DEMI_BGFX_BUILTIN_SHADER_HEADERS}
   "${DEMI_RENDER_GENERATED_INCLUDE_DIR}/demi/runtime/render/InterFontData.h"
@@ -333,6 +373,7 @@ add_library(demi-render3d-bgfx STATIC
   src/demi/runtime/render/bgfx3d/TerrainGpuMeshCache3D.cpp
   src/demi/runtime/render/bgfx3d/MeshResourceRetention3D.cpp
   src/demi/runtime/render/bgfx3d/PreparedMeshDraw3D.cpp
+  src/demi/runtime/render/bgfx3d/MeshPbrBindings3D.cpp
   src/demi/runtime/render/bgfx3d/MeshInstanceBatch3D.cpp
   src/demi/runtime/render/bgfx3d/MeshShadowSections3D.cpp
   src/demi/runtime/render/BgfxRenderer3DAssets.cpp

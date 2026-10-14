@@ -4,6 +4,9 @@
 
 #include "demi/runtime/render/backend/GpuResources.h"
 #include "demi/runtime/render/backend/ImageDecoder2D.h"
+#include "demi/runtime/render/backend/ImageMipmaps2D.h"
+
+#include <array>
 
 #include <cstdint>
 #include <span>
@@ -23,6 +26,7 @@ struct TextureSampling2D {
   TextureFilter filter = TextureFilter::Linear;
   TextureWrap wrap = TextureWrap::Clamp;
   bool mipmaps = false;
+  ImageMipSemantic mipSemantic = ImageMipSemantic::Linear;
 };
 
 class TextureLibrary2D {
@@ -38,14 +42,17 @@ public:
   [[nodiscard]] bool upload(std::string id, const ImageData2D &image,
                             std::string &error,
                             TextureSampling2D sampling = {});
-  [[nodiscard]] TextureView2D find(std::string_view id) const;
+  [[nodiscard]] TextureView2D
+  find(std::string_view id,
+       ImageMipSemantic semantic = ImageMipSemantic::Linear) const;
   [[nodiscard]] bool remove(std::string_view id);
   void clear();
   [[nodiscard]] std::size_t size() const { return textures_.size(); }
 
 private:
   GpuResources &resources_;
-  std::unordered_map<std::string, TextureView2D, StringHash, std::equal_to<>>
+  std::unordered_map<std::string, std::array<TextureView2D, 3>, StringHash,
+                     std::equal_to<>>
       textures_;
 };
 

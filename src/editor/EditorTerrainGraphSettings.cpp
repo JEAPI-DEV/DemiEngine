@@ -643,8 +643,7 @@ void drawAppearance(EditorWorkspace &workspace, std::string &notice) {
           biome["material"] = material;
       }
       drawBiomeTextureScale(biome, notice);
-      ImGui::TextDisabled("Terrain Material/Set definitions remain editable "
-                          "in Assets; terrain PBR shading is pending.");
+      ImGui::TextDisabled("Edit shared Materials and Material Sets in Assets.");
       bool referenced = defaultBiome == id || biomes.size() <= 1;
       const auto &paintedRegions =
           draft.contains("regions") ? draft.at("regions") : emptyArray;

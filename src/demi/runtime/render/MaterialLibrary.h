@@ -3,6 +3,7 @@
 #include "demi/core/StringHash.h"
 
 #include "demi/assets/AssetRegistry.h"
+#include "demi/assets/MaterialSurface.h"
 #include "demi/runtime/render/backend/CookedShaderLibrary.h"
 #include "demi/runtime/render/backend/RenderCommands.h"
 
@@ -22,6 +23,8 @@ struct MaterialParameter {
 };
 
 struct MaterialBinding {
+  assets::MaterialSurface surface;
+  bool usesPbrSurface = false;
   ProgramHandle program;
   bool unlit = false;
   std::string albedoTexture;

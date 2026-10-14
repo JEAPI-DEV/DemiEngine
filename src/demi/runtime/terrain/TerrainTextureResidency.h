@@ -1,6 +1,6 @@
 #pragma once
 
-#include "demi/assets/MaterialAsset.h"
+#include "demi/assets/MaterialSurface.h"
 #include "demi/runtime/terrain/TerrainGeneration.h"
 #include "demi/runtime/terrain/TerrainLod.h"
 
@@ -79,7 +79,7 @@ struct TerrainResidencyBudget {
 struct TerrainTextureResidency {
   // The texture asset:// id.
   std::string assetId;
-  assets::TerrainMaterialMapSlot slot;
+  assets::MaterialMapSlot slot;
   // Which material role asked for it. The same texture may appear more than
   // once with different roles; those entries are ONE upload, which is why bytes
   // are accounted per distinct asset id and not per entry.
@@ -146,7 +146,8 @@ struct TerrainResidencyPlan {
 // here; a caller holding only ids gets the identity-flavoured overload below.
 struct TerrainResidencyMaterial {
   std::string roleName;
-  assets::TerrainMaterialAsset material;
+  assets::MaterialSurface material;
+  std::string materialId;
 };
 
 // Builds the plan for the roles the terrain actually uses at the levels it
@@ -190,8 +191,8 @@ terrainResidencyHeldLevels(TerrainQuality quality);
 // Every level that draws a surface keeps the base colour. A coarse chunk that
 // lost its base colour would wear the palette tint with no texture at all,
 // which is the failure this module reports rather than accepts.
-[[nodiscard]] std::vector<assets::TerrainMaterialMapSlot>
-    terrainSlotsForLod(assets::TerrainMaterialMapSlot, TerrainLod);
+[[nodiscard]] std::vector<assets::MaterialMapSlot>
+    terrainSlotsForLod(assets::MaterialMapSlot, TerrainLod);
 
 // THE EVICTION ORDER, as a rank: 0 is dropped first. Exposed so the documented
 // order is testable rather than a comment nobody can check.
@@ -202,7 +203,7 @@ terrainResidencyHeldLevels(TerrainQuality quality);
 //                        moving vertices, so dropping it loses no geometry
 //   2 emissive           a distant glow is below what a coarse mesh resolves,
 //                        and terrain rarely authors one
-//   3 base_color         the largest VISIBLE loss, but TerrainMaterialAsset
+//   3 base_color         the largest VISIBLE loss, but MaterialSurface
 //                        carries a linear base_color tint and the palette
 //                        carries the role colour, so an untextured surface is
 //                        still the right hue. It ranks below detail/height/
@@ -215,12 +216,11 @@ terrainResidencyHeldLevels(TerrainQuality quality);
 //                        shading, which the role shading already imitates; it
 //                        outlives the normal map because it changes no cue that
 //                        identifies the surface
-//   6 roughness          TerrainMaterialAsset::roughness substitutes exactly
+//   6 roughness          MaterialSurface::roughness substitutes exactly
 //   7 metallic           substitutes exactly too, is 0 (dielectric) for nearly
 //                        all terrain, and is the least visible PBR slot at any
 //                        distance, so it outlives everything
-[[nodiscard]] std::size_t
-    terrainResidencyEvictionRank(assets::TerrainMaterialMapSlot);
+[[nodiscard]] std::size_t terrainResidencyEvictionRank(assets::MaterialMapSlot);
 
 // The nominal format the byte estimate assumes for a slot. Exported so the
 // estimate, its documentation and its tests quote one table.
@@ -233,11 +233,11 @@ struct TerrainResidencyNominalFormat {
   bool colourBearing = false;
 };
 [[nodiscard]] TerrainResidencyNominalFormat
-    terrainResidencyNominalFormat(assets::TerrainMaterialMapSlot);
+    terrainResidencyNominalFormat(assets::MaterialMapSlot);
 
 // nominal_edge^2 * channels * (4/3 mip chain), rounded up to 256 KiB. The
 // single place the estimate is computed.
 [[nodiscard]] std::size_t
-    terrainResidencyEstimateBytes(assets::TerrainMaterialMapSlot);
+    terrainResidencyEstimateBytes(assets::MaterialMapSlot);
 
 } // namespace demi::runtime

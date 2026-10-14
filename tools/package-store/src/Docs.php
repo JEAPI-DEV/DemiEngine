@@ -31,6 +31,7 @@ final class Docs
                 ['slug' => 'scene-json', 'title' => 'Scene files', 'summary' => 'Entities, children, instances, and the full scene document.'],
                 ['slug' => 'prefab-json', 'title' => 'Prefab files', 'summary' => 'Prefab documents, nesting, and override semantics.'],
                 ['slug' => 'hud-json', 'title' => 'HUD files', 'summary' => 'HUD document structure, variables, and themes.'],
+                ['slug' => 'materials', 'title' => 'Materials', 'summary' => 'Shared mesh and terrain surfaces, PBR maps, projection and normal conventions.'],
                 ['slug' => 'asset-json', 'title' => 'Asset manifests', 'summary' => 'Manifest fields, importers, settings, and groups.'],
                 ['slug' => 'build-and-platform', 'title' => 'Build & platform settings', 'summary' => 'application_id, window, Android permissions, branding.'],
             ]],

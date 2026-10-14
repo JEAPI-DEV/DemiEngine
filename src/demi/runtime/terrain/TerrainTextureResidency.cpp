@@ -13,7 +13,7 @@
 namespace demi::runtime {
 namespace {
 
-using assets::TerrainMaterialMapSlot;
+using assets::MaterialMapSlot;
 
 // The granularity a real driver rounds an allocation up to: mip chains and
 // block-aligned rows never produce an arbitrary byte count, so pretending they
@@ -24,7 +24,7 @@ constexpr std::size_t AllocatorGranularity = 256u * 1024u;
 constexpr std::size_t MaximumAnisotropy = 16u;
 
 struct SlotProfile {
-  TerrainMaterialMapSlot slot;
+  MaterialMapSlot slot;
   std::size_t evictionRank;
   std::size_t edge;
   std::size_t channels;
@@ -42,28 +42,28 @@ struct SlotProfile {
 // Canonical slot order: the order `maps` iterates in, the order a renderer
 // binds slots in, and the order the plan reports entries in.
 constexpr SlotProfile Slots[]{
-    {TerrainMaterialMapSlot::BaseColor, 3, 2048, 4, true, true},
-    {TerrainMaterialMapSlot::Normal, 4, 2048, 4, false, true},
-    {TerrainMaterialMapSlot::Roughness, 6, 1024, 4, false, false},
-    {TerrainMaterialMapSlot::Metallic, 7, 512, 4, false, false},
-    {TerrainMaterialMapSlot::AmbientOcclusion, 5, 1024, 4, false, false},
-    {TerrainMaterialMapSlot::Height, 1, 1024, 4, false, true},
-    {TerrainMaterialMapSlot::Detail, 0, 2048, 4, false, true},
-    {TerrainMaterialMapSlot::Emissive, 2, 1024, 4, true, false},
+    {MaterialMapSlot::Albedo, 3, 2048, 4, true, true},
+    {MaterialMapSlot::Normal, 4, 2048, 4, false, true},
+    {MaterialMapSlot::Roughness, 6, 1024, 4, false, false},
+    {MaterialMapSlot::Metallic, 7, 512, 4, false, false},
+    {MaterialMapSlot::AmbientOcclusion, 5, 1024, 4, false, false},
+    {MaterialMapSlot::Height, 1, 1024, 4, false, true},
+    {MaterialMapSlot::DetailNormal, 0, 2048, 4, false, true},
+    {MaterialMapSlot::Emissive, 2, 1024, 4, true, false},
 };
 
 // The vocabulary is closed and the table above covers it, so an unknown slot
 // can only arrive from a corrupted call. Falling back to base colour keeps the
 // function total rather than throwing from a lookup, matching the slot-name
 // helper the material asset itself uses.
-const SlotProfile &profile(const TerrainMaterialMapSlot slot) {
+const SlotProfile &profile(const MaterialMapSlot slot) {
   for (const SlotProfile &entry : Slots)
     if (entry.slot == slot)
       return entry;
   return Slots[0];
 }
 
-std::size_t slotIndex(const TerrainMaterialMapSlot slot) {
+std::size_t slotIndex(const MaterialMapSlot slot) {
   for (std::size_t index = 0; index < std::size(Slots); ++index)
     if (Slots[index].slot == slot)
       return index;
@@ -77,18 +77,18 @@ std::size_t slotIndex(const TerrainMaterialMapSlot slot) {
 // TerrainLodSettings' default distance table can select for a visible chunk;
 // Coarse is included because a far chunk is still drawn, and it keeps only the
 // one map a surface cannot do without.
-constexpr std::pair<TerrainMaterialMapSlot, TerrainLod> LastLevelKept[]{
-    {TerrainMaterialMapSlot::BaseColor, TerrainLod::Coarse},
-    {TerrainMaterialMapSlot::Normal, TerrainLod::Quarter},
-    {TerrainMaterialMapSlot::Roughness, TerrainLod::Quarter},
-    {TerrainMaterialMapSlot::Metallic, TerrainLod::Half},
-    {TerrainMaterialMapSlot::AmbientOcclusion, TerrainLod::Quarter},
-    {TerrainMaterialMapSlot::Height, TerrainLod::Full},
-    {TerrainMaterialMapSlot::Detail, TerrainLod::Full},
-    {TerrainMaterialMapSlot::Emissive, TerrainLod::Half},
+constexpr std::pair<MaterialMapSlot, TerrainLod> LastLevelKept[]{
+    {MaterialMapSlot::Albedo, TerrainLod::Coarse},
+    {MaterialMapSlot::Normal, TerrainLod::Quarter},
+    {MaterialMapSlot::Roughness, TerrainLod::Quarter},
+    {MaterialMapSlot::Metallic, TerrainLod::Half},
+    {MaterialMapSlot::AmbientOcclusion, TerrainLod::Quarter},
+    {MaterialMapSlot::Height, TerrainLod::Full},
+    {MaterialMapSlot::DetailNormal, TerrainLod::Full},
+    {MaterialMapSlot::Emissive, TerrainLod::Half},
 };
 
-bool survives(const TerrainMaterialMapSlot slot, const TerrainLod level) {
+bool survives(const MaterialMapSlot slot, const TerrainLod level) {
   for (const auto &[kept, last] : LastLevelKept)
     if (kept == slot)
       return terrainLodIndex(level) <= terrainLodIndex(last);
@@ -116,21 +116,21 @@ int anisotropyFor(const TerrainResidencyBudget &budget,
 // A map whose own authored strength is zero cannot change the surface, so
 // sampling it would be resident state bought for nothing. Two slots can be in
 // that state and no other: the detail blend and the normal amplification.
-bool strengthEnables(const TerrainMaterialMapSlot slot,
-                     const assets::TerrainMaterialAsset &material) {
+bool strengthEnables(const MaterialMapSlot slot,
+                     const assets::MaterialSurface &material) {
   switch (slot) {
-  case TerrainMaterialMapSlot::Detail:
+  case MaterialMapSlot::DetailNormal:
     return material.detailStrength > 0.F;
-  case TerrainMaterialMapSlot::Normal:
+  case MaterialMapSlot::Normal:
     return material.normalStrength > 0.F;
   default:
     return true;
   }
 }
 
-std::string strengthField(const TerrainMaterialMapSlot slot) {
-  return slot == TerrainMaterialMapSlot::Detail ? "detail_strength"
-                                                : "normal_strength";
+std::string strengthField(const MaterialMapSlot slot) {
+  return slot == MaterialMapSlot::DetailNormal ? "detail_strength"
+                                               : "normal_strength";
 }
 
 [[noreturn]] void fail(std::string message) {
@@ -166,10 +166,10 @@ struct TextureGroup {
 // reason so the message says which USE of a multi-slot texture it is reporting.
 // Ties resolve to the canonically later slot, which is the one whose map the
 // budget could least afford to lose.
-TerrainMaterialMapSlot
+MaterialMapSlot
 mostImportantSlot(const std::vector<TerrainTextureResidency> &textures,
                   const TextureGroup &group) {
-  TerrainMaterialMapSlot best = TerrainMaterialMapSlot::BaseColor;
+  MaterialMapSlot best = MaterialMapSlot::Albedo;
   std::size_t bestRank = 0;
   for (const std::size_t index : group.entries) {
     const std::size_t rank = terrainResidencyEvictionRank(textures[index].slot);
@@ -194,32 +194,32 @@ terrainResidencyHeldLevels(const TerrainQuality quality) {
   return {TerrainLod::Full, TerrainLod::Half, TerrainLod::Quarter};
 }
 
-std::vector<TerrainMaterialMapSlot>
-terrainSlotsForLod(const TerrainMaterialMapSlot slot, const TerrainLod level) {
+std::vector<MaterialMapSlot> terrainSlotsForLod(const MaterialMapSlot slot,
+                                                const TerrainLod level) {
   // The caller's slot is deliberately not filtered out of the answer: the
   // result is every slot the LEVEL keeps, and finding `slot` in it is exactly
   // how a caller asks whether its own map survives that level.
   (void)slot;
-  std::vector<TerrainMaterialMapSlot> kept;
+  std::vector<MaterialMapSlot> kept;
   for (const SlotProfile &entry : Slots)
     if (survives(entry.slot, level))
       kept.push_back(entry.slot);
   return kept;
 }
 
-std::size_t terrainResidencyEvictionRank(const TerrainMaterialMapSlot slot) {
+std::size_t terrainResidencyEvictionRank(const MaterialMapSlot slot) {
   return profile(slot).evictionRank;
 }
 
 TerrainResidencyNominalFormat
-terrainResidencyNominalFormat(const TerrainMaterialMapSlot slot) {
+terrainResidencyNominalFormat(const MaterialMapSlot slot) {
   const SlotProfile &entry = profile(slot);
   return {.edge = entry.edge,
           .channels = entry.channels,
           .colourBearing = entry.colourBearing};
 }
 
-std::size_t terrainResidencyEstimateBytes(const TerrainMaterialMapSlot slot) {
+std::size_t terrainResidencyEstimateBytes(const MaterialMapSlot slot) {
   return estimateBytes(profile(slot));
 }
 
@@ -257,7 +257,7 @@ TerrainResidencyPlan planTerrainTextureResidency(
   // order.
   std::vector<TerrainResidencyMaterial> ordered = materials;
   std::ranges::sort(ordered, {}, [](const TerrainResidencyMaterial &material) {
-    return std::tie(material.roleName, material.material.id);
+    return std::tie(material.roleName, material.materialId);
   });
 
   TerrainResidencyPlan plan;
@@ -267,7 +267,7 @@ TerrainResidencyPlan planTerrainTextureResidency(
   TerrainResidencyMaterial previous{"", {}};
   bool havePrevious = false;
   for (const TerrainResidencyMaterial &material : ordered) {
-    if (material.material.id.empty())
+    if (material.materialId.empty())
       fail(
           "Terrain texture residency was given a material with no asset id for "
           "role \"" +
@@ -277,13 +277,13 @@ TerrainResidencyPlan planTerrainTextureResidency(
     // The same role naming the same material twice is a redundant request, not
     // a second dependant: the upload is shared either way.
     if (havePrevious && previous.roleName == material.roleName &&
-        previous.material.id == material.material.id)
+        previous.materialId == material.materialId)
       continue;
     previous = material;
     havePrevious = true;
 
     for (const auto &[slot, reference] : material.material.maps) {
-      const std::string slotName(assets::terrainMaterialMapSlotName(slot));
+      const std::string slotName(assets::materialMapSlotName(slot));
       const std::string label = material.roleName + " " + slotName;
       // A material built without the loader can carry an empty reference. It is
       // named rather than skipped in silence, because a missing request and an
@@ -451,7 +451,7 @@ TerrainResidencyPlan planTerrainTextureResidency(
                 " is already reached by " + std::to_string(residentTextures) +
                 " textures";
     reason += " (the " +
-              std::string(assets::terrainMaterialMapSlotName(
+              std::string(assets::materialMapSlotName(
                   mostImportantSlot(plan.textures, group))) +
               " use of " + group.assetId + " for " + join(roles, ", ") + ")";
 
@@ -459,11 +459,10 @@ TerrainResidencyPlan planTerrainTextureResidency(
       plan.textures[entry].evictionReason = reason;
       // Losing the base colour is a visible failure rather than a quality
       // reduction, so it is named rather than absorbed into the eviction count.
-      if (plan.textures[entry].slot == TerrainMaterialMapSlot::BaseColor)
+      if (plan.textures[entry].slot == MaterialMapSlot::Albedo)
         plan.lostRequired.push_back(
             plan.textures[entry].roleName + " " +
-            std::string(assets::terrainMaterialMapSlotName(
-                TerrainMaterialMapSlot::BaseColor)) +
+            std::string(assets::materialMapSlotName(MaterialMapSlot::Albedo)) +
             " " + plan.textures[entry].assetId + ": " + reason);
     }
   };
@@ -501,11 +500,18 @@ planTerrainTextureResidency(const std::vector<std::string> &materialAssetIds,
          "the TerrainMaterialSet and pass the ids its roles bind.");
   std::vector<TerrainResidencyMaterial> materials;
   materials.reserve(materialAssetIds.size());
-  for (const std::string &id : materialAssetIds)
-    // The loader's own rejection names the document and the field, so it is
-    // better than anything this stage could add on top of it.
-    materials.push_back(TerrainResidencyMaterial{
-        id, *assets::loadTerrainMaterialAsset(registry, id)});
+  for (const std::string &id : materialAssetIds) {
+    const auto *manifest = findAsset(registry, id);
+    if (!manifest || manifest->type != "Material") {
+      fail("Terrain texture residency requires an ordinary Material asset: " +
+           id);
+    }
+    const auto descriptor = assets::loadMaterialAsset(manifest->sourcePath);
+    if (!descriptor) {
+      fail("Terrain texture residency could not load Material: " + id);
+    }
+    materials.push_back({id, assets::materialSurface(*descriptor), id});
+  }
   return planTerrainTextureResidency(materials, budget);
 }
 

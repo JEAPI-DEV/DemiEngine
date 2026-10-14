@@ -3,12 +3,56 @@
 #include "demi/assets/GltfGeometry.h"
 #include "demi/assets/ModelImportProfile.h"
 #include "demi/assets/RenderAsset.h"
+#include "demi/runtime/diagnostics/DeviceLog.h"
 #include "demi/runtime/render/backend/RenderAssetLoading.h"
 #include "demi/runtime/render/bgfx2d/ColorPacking2D.h"
 
+#include <map>
 #include <nlohmann/json.hpp>
+#include <set>
 
 namespace demi::runtime::render {
+
+TextureView2D BgfxRenderer3D::materialTexture(std::string_view id,
+                                              ImageMipSemantic semantic) {
+  const auto texture = textures_.find(id, semantic);
+  if (texture.handle) {
+    return texture;
+  }
+  const auto target = renderTargets_.find(std::string(id));
+  if (target != renderTargets_.end()) {
+    // Render targets are live GPU data, not decoded images. The material slot
+    // still defines interpretation: colour slots expect sRGB, data slots
+    // linear.
+    return {target->second.handles.color, std::uint16_t(target->second.width),
+            std::uint16_t(target->second.height)};
+  }
+  const auto source = textureSources_.find(std::string(id));
+  if (source == textureSources_.end()) {
+    return {};
+  }
+  auto &descriptor = source->second;
+  const auto variant = static_cast<std::size_t>(semantic);
+  if (descriptor.failedVariants[variant]) {
+    return {};
+  }
+  // Retain only source identity and sampling, never decoded image memory.
+  // A second role pays its decode/upload once at first use.
+  const auto bytes = readRenderAssetBytes(descriptor.path);
+  auto sampling = descriptor.sampling;
+  sampling.mipSemantic = semantic;
+  std::string error;
+  if (bytes.empty() ||
+      !textures_.load(std::string(id), bytes, error, sampling)) {
+    descriptor.failedVariants[variant] = true;
+    deviceLogError(deviceLogMessage(
+        "material.texture",
+        std::string(id) + ": " +
+            (error.empty() ? "could not read texture source" : error)));
+    return {};
+  }
+  return textures_.find(id, semantic);
+}
 
 bool BgfxRenderer3D::setRenderTargetSamples(RenderTarget &target,
                                             const std::string &id, int samples,
@@ -41,6 +85,7 @@ bool BgfxRenderer3D::setRenderTargetSamples(RenderTarget &target,
 bool BgfxRenderer3D::loadAssets(const AssetRegistry &registry,
                                 std::vector<std::string> &diagnostics) {
   textures_.clear();
+  textureSources_.clear();
   shadows_.clearTargets();
   // A pose cache must not outlive the model data it was sampled from.
   std::erase_if(dynamicMeshes_, [](const auto &entry) {
@@ -67,16 +112,55 @@ bool BgfxRenderer3D::loadAssets(const AssetRegistry &registry,
   bool success = materials_.load(registry, diagnostics);
   terrainGpuFields_.invalidateMaterials();
   success = overlay_.loadAssets(registry, diagnostics) && success;
+  std::map<std::string, std::set<ImageMipSemantic>> materialSemantics;
+  for (const auto &asset : registry.assets) {
+    const auto *material = materials_.find(asset.id);
+    if (!material) {
+      continue;
+    }
+    for (const auto &[slot, id] : material->surface.maps) {
+      const auto semantic =
+          slot == assets::MaterialMapSlot::Albedo ||
+                  slot == assets::MaterialMapSlot::Emissive
+              ? ImageMipSemantic::Color
+          : slot == assets::MaterialMapSlot::Normal ||
+                  slot == assets::MaterialMapSlot::DetailNormal
+              ? ImageMipSemantic::Normal
+              : ImageMipSemantic::Linear;
+      materialSemantics[id].insert(semantic);
+      if (material->surface.mapping == assets::MaterialMapping::Triplanar) {
+        const auto *image = findAsset(registry, id);
+        if (image && image->type == "Texture2D" &&
+            textureSampling2D(*image).wrap == TextureWrap::Clamp) {
+          diagnostics.push_back(asset.id + ": triplanar map " + id +
+                                " is clamped; set its Texture2D Wrap to Repeat "
+                                "for tiled surfaces");
+        }
+      }
+    }
+  }
   for (const AssetManifest &asset : registry.assets) {
     if (asset.type == "Texture2D") {
       const auto bytes = readRenderAssetBytes(asset.sourcePath);
       std::string error;
-      if (bytes.empty() ||
-          !textures_.load(asset.id, bytes, error, textureSampling2D(asset))) {
-        diagnostics.push_back(
-            asset.id + ": " +
-            (error.empty() ? "could not read source" : error));
-        success = false;
+      textureSources_.emplace(
+          asset.id, TextureSource{.path = asset.sourcePath,
+                                  .sampling = textureSampling2D(asset)});
+      auto semantics = materialSemantics[asset.id];
+      if (semantics.empty()) {
+        // Unclassified images follow the ordinary mesh/model colour contract.
+        semantics.insert(ImageMipSemantic::Color);
+      }
+      for (const auto semantic : semantics) {
+        auto sampling = textureSampling2D(asset);
+        sampling.mipSemantic = semantic;
+        if (bytes.empty() ||
+            !textures_.load(asset.id, bytes, error, sampling)) {
+          diagnostics.push_back(
+              asset.id + ": " +
+              (error.empty() ? "could not read source" : error));
+          success = false;
+        }
       }
     } else if (asset.type == "RenderTarget") {
       const auto descriptor = assets::loadRenderTargetAsset(asset.sourcePath);
@@ -205,8 +289,10 @@ bool BgfxRenderer3D::loadAssets(const AssetRegistry &registry,
           const auto bytes = asset.texturePath
                                  ? readRenderAssetBytes(*asset.texturePath)
                                  : embeddedAlbedo;
-          if (bytes.empty() || !textures_.load(textureId, bytes, error,
-                                               textureSampling2D(asset))) {
+          auto sampling = textureSampling2D(asset);
+          sampling.mipSemantic = ImageMipSemantic::Color;
+          if (bytes.empty() ||
+              !textures_.load(textureId, bytes, error, sampling)) {
             diagnostics.push_back(asset.id + ": " + error);
             success = false;
           } else {

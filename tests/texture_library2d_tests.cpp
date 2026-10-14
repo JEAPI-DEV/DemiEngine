@@ -3,6 +3,7 @@
 #include "demi/runtime/render/backend/RenderAssetLoading.h"
 #include "demi/runtime/render/backend/TextureLibrary2D.h"
 
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <cstddef>
@@ -13,7 +14,41 @@
 
 using namespace demi::runtime::render;
 
+namespace {
+
+void materialMipSemanticsPreserveColorAndNormalMeaning() {
+  ImageData2D image{.width = 2,
+                    .height = 1,
+                    .rgba = {std::byte{0}, std::byte{0}, std::byte{0},
+                             std::byte{0}, std::byte{255}, std::byte{255},
+                             std::byte{255}, std::byte{255}}};
+  const auto linear = imageMipChain2D(image, ImageMipSemantic::Linear);
+  const auto color = imageMipChain2D(image, ImageMipSemantic::Color);
+  assert(linear.size() == 12 && color.size() == 12);
+  for (std::size_t channel = 0; channel < 3; ++channel) {
+    assert(linear[8 + channel] == std::byte{128});
+    // Half linear light encodes to approximately 0.735 sRGB, not 0.5.
+    assert(color[8 + channel] == std::byte{188});
+  }
+  assert(color[11] == std::byte{128});
+  assert(std::equal(image.rgba.begin(), image.rgba.end(), color.begin()));
+
+  image.rgba = {std::byte{255}, std::byte{128}, std::byte{128}, std::byte{255},
+                std::byte{128}, std::byte{255}, std::byte{128}, std::byte{255}};
+  const auto normal = imageMipChain2D(image, ImageMipSemantic::Normal);
+  assert(normal[8] == std::byte{218} && normal[9] == std::byte{218});
+  assert(normal[10] == std::byte{128} && normal[11] == std::byte{255});
+  image.rgba = {std::byte{255}, std::byte{128}, std::byte{128}, std::byte{255},
+                std::byte{0},   std::byte{127}, std::byte{127}, std::byte{255}};
+  const auto opposing = imageMipChain2D(image, ImageMipSemantic::Normal);
+  assert(opposing[8] == std::byte{128} && opposing[9] == std::byte{128});
+  assert(opposing[10] == std::byte{255});
+}
+
+} // namespace
+
 int main() {
+  materialMipSemanticsPreserveColorAndNormalMeaning();
   assert(imageMipChain2D({}).empty());
   ImageData2D square{
       .width = 2, .height = 2, .rgba = std::vector<std::byte>(16)};
@@ -90,6 +125,17 @@ int main() {
   const TextureView2D replacement = textures.find("asset://red");
   assert(replacement.handle && replacement.handle != first.handle);
   assert(replacement.width == 2);
+  auto colorSampling = sampling;
+  colorSampling.mipSemantic = ImageMipSemantic::Color;
+  assert(textures.upload("asset://red", image, error, colorSampling));
+  const auto colorView = textures.find("asset://red", ImageMipSemantic::Color);
+  assert(colorView.handle && colorView.handle != replacement.handle);
+  assert(textures.find("asset://red").handle == replacement.handle);
+  assert(!textures.find("asset://red", ImageMipSemantic::Normal).handle);
+  // A failed replacement must preserve every existing semantic view.
+  assert(!textures.upload("asset://red", invalid, error, colorSampling));
+  assert(textures.find("asset://red", ImageMipSemantic::Color).handle ==
+         colorView.handle);
   assert(textures.size() == 1);
   assert(!textures.remove(
       std::string_view(wrappedTextureId).substr(7, textureId.size() + 1)));
@@ -97,6 +143,7 @@ int main() {
   assert(textures.remove(textureIdView));
   assert(!textures.remove("asset://red"));
   assert(!textures.find("asset://red").handle);
+  assert(!textures.find("asset://red", ImageMipSemantic::Color).handle);
 
   textures.clear();
   resources.reset();

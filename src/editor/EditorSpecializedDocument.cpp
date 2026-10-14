@@ -113,8 +113,6 @@ std::string_view EditorSpecializedDocument::title() const {
   case EditorSpecializedKind::Animation:
     return "Animation Editor";
   case EditorSpecializedKind::Data:
-    if (dataContentType_ == "terrain_material")
-      return "Terrain Surface Material";
     if (dataContentType_ == "terrain_material_set")
       return "Terrain Material Set";
     if (dataContentType_ == "terrain_palette")

@@ -8,6 +8,12 @@
 #include <fs_demi_directional_essl.h>
 #include <fs_demi_directional_glsl.h>
 #include <fs_demi_directional_spv.h>
+#include <fs_demi_pbr_essl.h>
+#include <fs_demi_pbr_glsl.h>
+#include <fs_demi_pbr_spv.h>
+#include <fs_demi_pbr_directional_essl.h>
+#include <fs_demi_pbr_directional_glsl.h>
+#include <fs_demi_pbr_directional_spv.h>
 #include <fs_demi_lit_essl.h>
 #include <fs_demi_lit_glsl.h>
 #include <fs_demi_lit_spv.h>
@@ -138,6 +144,22 @@ const bgfx::EmbeddedShader EmbeddedShaders[] = {
        sizeof(fs_demi_lit_essl)},
       {bgfx::RendererType::OpenGL, fs_demi_lit_glsl, sizeof(fs_demi_lit_glsl)},
       {bgfx::RendererType::Vulkan, fs_demi_lit_spv, sizeof(fs_demi_lit_spv)},
+      {bgfx::RendererType::Noop,
+       reinterpret_cast<const std::uint8_t *>("FSH\x5\x0\x0\x0\x0\x0\x0"), 10},
+      {bgfx::RendererType::Count, nullptr, 0}}},
+    {"fs_demi_pbr",
+     {{bgfx::RendererType::OpenGLES, fs_demi_pbr_essl,
+       sizeof(fs_demi_pbr_essl)},
+      {bgfx::RendererType::OpenGL, fs_demi_pbr_glsl, sizeof(fs_demi_pbr_glsl)},
+      {bgfx::RendererType::Vulkan, fs_demi_pbr_spv, sizeof(fs_demi_pbr_spv)},
+      {bgfx::RendererType::Noop,
+       reinterpret_cast<const std::uint8_t *>("FSH\x5\x0\x0\x0\x0\x0\x0"), 10},
+      {bgfx::RendererType::Count, nullptr, 0}}},
+    {"fs_demi_pbr_directional",
+     {{bgfx::RendererType::OpenGLES, fs_demi_pbr_directional_essl,
+       sizeof(fs_demi_pbr_directional_essl)},
+      {bgfx::RendererType::OpenGL, fs_demi_pbr_directional_glsl, sizeof(fs_demi_pbr_directional_glsl)},
+      {bgfx::RendererType::Vulkan, fs_demi_pbr_directional_spv, sizeof(fs_demi_pbr_directional_spv)},
       {bgfx::RendererType::Noop,
        reinterpret_cast<const std::uint8_t *>("FSH\x5\x0\x0\x0\x0\x0\x0"), 10},
       {bgfx::RendererType::Count, nullptr, 0}}},
@@ -521,6 +543,30 @@ public:
     case BuiltinProgram::Textured3D:
       vertexName = "vs_drawstress_tex";
       fragmentName = "fs_drawstress_tex";
+      break;
+    case BuiltinProgram::Pbr3D:
+      vertexName = "vs_demi_lit";
+      fragmentName = "fs_demi_pbr";
+      break;
+    case BuiltinProgram::Pbr3DDirectional:
+      vertexName = "vs_demi_lit";
+      fragmentName = "fs_demi_pbr_directional";
+      break;
+    case BuiltinProgram::Pbr3DInstanced:
+      vertexName = "vs_demi_lit_instanced";
+      fragmentName = "fs_demi_pbr";
+      break;
+    case BuiltinProgram::Pbr3DDirectionalInstanced:
+      vertexName = "vs_demi_lit_instanced";
+      fragmentName = "fs_demi_pbr_directional";
+      break;
+    case BuiltinProgram::Pbr3DSkinned:
+      vertexName = "vs_demi_skinned";
+      fragmentName = "fs_demi_pbr";
+      break;
+    case BuiltinProgram::Pbr3DDirectionalSkinned:
+      vertexName = "vs_demi_skinned";
+      fragmentName = "fs_demi_pbr_directional";
       break;
     case BuiltinProgram::Lit3D:
       vertexName = "vs_demi_lit";

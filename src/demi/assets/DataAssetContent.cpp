@@ -1,6 +1,5 @@
 #include "demi/assets/DataAssetContent.h"
 
-#include "demi/assets/MaterialAsset.h"
 #include "demi/assets/MaterialSet.h"
 #include "demi/runtime/terrain/TerrainPalette.h"
 
@@ -21,13 +20,9 @@ DataAssetContentResult inspectDataAssetContent(
   DataAssetContentResult result;
   try {
     if (contentType == "terrain_material") {
-      const auto material =
-          parseTerrainMaterialAsset(document, registry, assetId);
-      if (material)
-        result.dependencies = material->assetDependencies();
-      else
-        throw std::invalid_argument(
-            "terrain material content could not be parsed.");
+      throw std::invalid_argument(
+          "terrain_material DataAssets were removed. Migrate this definition "
+          "to an ordinary Material asset.");
     } else if (contentType == "terrain_material_set") {
       const auto set = parseTerrainMaterialSet(document, registry, assetId);
       if (set)

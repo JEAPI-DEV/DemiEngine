@@ -23,8 +23,7 @@ namespace {
 constexpr std::string_view PaletteId = "asset://terrain/palettes/test";
 constexpr std::string_view PaletteSchemaId = "asset://schemas/terrain_palette";
 constexpr std::string_view SetId = "asset://terrain/material_sets/test";
-constexpr std::string_view SetSchemaId =
-    "asset://schemas/terrain_material_set";
+constexpr std::string_view SetSchemaId = "asset://schemas/terrain_material_set";
 constexpr std::string_view GrassId = "asset://terrain/surfaces/grass";
 constexpr std::string_view RockId = "asset://terrain/surfaces/rock";
 constexpr std::string_view ClayId = "asset://terrain/surfaces/clay";
@@ -87,11 +86,10 @@ AssetRegistry buildRegistry() {
                shippableSettings("surface")),
       manifest("asset://terrain/surfaces/ground", "Material",
                "grass.material.json", shippableSettings("surface")),
-      manifest(std::string(ClayId), "DataAsset", "clay.json",
-               shippableSettings("terrain_material"),
-               {std::string(ClayBaseId)}),
-      manifest(std::string(FlatId), "DataAsset", "flat.json",
-               shippableSettings("terrain_material")),
+      manifest(std::string(ClayId), "Material", "clay.json",
+               shippableSettings("surface"), {std::string(ClayBaseId)}),
+      manifest(std::string(FlatId), "Material", "flat.json",
+               shippableSettings("surface")),
       manifest(std::string(ClayBaseId), "Texture2D", "clay_base.png",
                shippableSettings("albedo")),
       manifest(std::string(AudioId), "AudioClip", "wind.audio.json"),
@@ -154,13 +152,23 @@ constexpr std::string_view SetDocument = R"json({
 // the default request must accept it.
 constexpr std::string_view ClayDocument = R"json({
   "format_version": 1,
+  "shader": "builtin://lit",
   "name": "Clay",
-  "maps": [{"base_color": "asset://terrain/textures/clay_base"}]
+  "textures": {
+    "albedo": "asset://terrain/textures/clay_base"
+  }
 })json";
 
 // A material with no maps at all: every surface value comes from scalars.
 constexpr std::string_view FlatDocument =
-    R"json({"format_version":1,"name":"Flat","roughness":0.9})json";
+    R"json({
+  "format_version": 1,
+  "shader": "builtin://lit",
+  "name": "Flat",
+  "parameters": {
+    "roughness": 0.9
+  }
+})json";
 
 // Written before each case so a document rewritten by an earlier case cannot
 // change what the next one proves.
@@ -171,11 +179,10 @@ void resetDocuments() {
   assert(write(root / "flat.json", FlatDocument));
 }
 
-TerrainAssetValidationRequest request(const AssetRegistry &source,
-                                      const TerrainAssetUse use =
-                                          TerrainAssetUse::Shippable,
-                                      const bool requireFullMaterialMaps =
-                                          false) {
+TerrainAssetValidationRequest
+request(const AssetRegistry &source,
+        const TerrainAssetUse use = TerrainAssetUse::Shippable,
+        const bool requireFullMaterialMaps = false) {
   TerrainAssetValidationRequest built;
   built.registry = &source;
   built.use = use;
@@ -281,10 +288,9 @@ void cleanProjectIsShippable() {
   const TerrainAssetValidationReport mesh =
       validateTerrainAssets(request(meshRegistry));
   const auto noKind = [&](const TerrainAssetFindingKind kind) {
-    return std::ranges::none_of(mesh.findings,
-                                [&](const TerrainAssetFinding &item) {
-                                  return item.kind == kind;
-                                });
+    return std::ranges::none_of(
+        mesh.findings,
+        [&](const TerrainAssetFinding &item) { return item.kind == kind; });
   };
   assert(noKind(TerrainAssetFindingKind::WrongAssetType));
   assert(noKind(TerrainAssetFindingKind::MissingRole));
@@ -396,9 +402,9 @@ void wrongAssetTypeBlocks() {
       validateTerrainAssets(request(registry));
   assert(!report.shippable());
   expectFinding(report, TerrainAssetFindingKind::WrongAssetType,
-                "needs a material");
+                "requires an ordinary Material asset");
   // The message names what the asset actually is, not just that it is wrong.
-  expectFinding(report, TerrainAssetFindingKind::WrongAssetType, "\"item\"");
+  expectFinding(report, TerrainAssetFindingKind::WrongAssetType, "DataAsset");
   expectFinding(report, TerrainAssetFindingKind::WrongAssetType,
                 "Point the role at a material asset");
 
@@ -484,24 +490,26 @@ void missingDependencyIsDetectedAndAgrees() {
   expectFinding(schemaReport, TerrainAssetFindingKind::MissingDependency,
                 "settings.schema");
   // Both role assets and the schema are missing from the empty dependency list.
-  assert(ofKind(schemaReport, TerrainAssetFindingKind::MissingDependency)
-             .size() == 3);
+  assert(
+      ofKind(schemaReport, TerrainAssetFindingKind::MissingDependency).size() ==
+      3);
   // A texture the material document forgets is the same finding one level down,
   // because that document ships separately from the set that binds it.
   writeClay(R"json({
-    "format_version": 1,
-    "name": "Clay",
-    "maps": [
-      {"base_color": "asset://terrain/textures/clay_base"},
-      {"normal": "asset://terrain/textures/clay_normal"}
-    ]
-  })json");
+  "format_version": 1,
+  "shader": "builtin://lit",
+  "name": "Clay",
+  "textures": {
+    "albedo": "asset://terrain/textures/clay_base",
+    "normal": "asset://terrain/textures/clay_normal"
+  }
+})json");
   const TerrainAssetValidationReport texture =
       validateTerrainAssets(request(registry));
   expectFinding(texture, TerrainAssetFindingKind::MissingDependency,
                 "asset://terrain/textures/clay_normal");
   expectFinding(texture, TerrainAssetFindingKind::UnresolvedAsset,
-                "maps/normal");
+                "textures/normal");
 }
 
 // An asset that may be used while developing but must not ship is exactly the
@@ -516,8 +524,8 @@ void restrictedLicenceBlocksShippingOnly() {
   const TerrainAssetValidationReport shipping =
       validateTerrainAssets(request(restricted, TerrainAssetUse::Shippable));
   assert(!shipping.shippable());
-  assert(ofKind(shipping, TerrainAssetFindingKind::LicenceRestricted)
-             .size() == 1);
+  assert(ofKind(shipping, TerrainAssetFindingKind::LicenceRestricted).size() ==
+         1);
   expectFinding(shipping, TerrainAssetFindingKind::LicenceRestricted,
                 "CC-BY-NC-4.0");
   expectFinding(shipping, TerrainAssetFindingKind::LicenceRestricted,
@@ -532,8 +540,9 @@ void restrictedLicenceBlocksShippingOnly() {
       request(restricted, TerrainAssetUse::DevelopmentOnly));
   // Still reported, because a development-only run is exactly when an author
   // wants to know the restriction exists before they ship.
-  assert(ofKind(development, TerrainAssetFindingKind::LicenceRestricted)
-             .size() == 1);
+  assert(
+      ofKind(development, TerrainAssetFindingKind::LicenceRestricted).size() ==
+      1);
   assert(development.shippable());
   assert(development.blockingCount() == 0);
   assert(development.advisoryCount() == 1);
@@ -542,10 +551,10 @@ void restrictedLicenceBlocksShippingOnly() {
 
   // The manifest's own file field is spelled "license"; the declaration is read
   // under either spelling rather than letting a typo un-restrict an asset.
-  const AssetRegistry spelled =
-      withAsset(registry, std::string(GrassId),
-                R"({"content_type":"surface","license":{"spdx":"CC-BY-NC-4.0","redistributable":false}})",
-                {std::string(GrassId)});
+  const AssetRegistry spelled = withAsset(
+      registry, std::string(GrassId),
+      R"({"content_type":"surface","license":{"spdx":"CC-BY-NC-4.0","redistributable":false}})",
+      {std::string(GrassId)});
   const TerrainAssetValidationReport alternate =
       validateTerrainAssets(request(spelled, TerrainAssetUse::Shippable));
   assert(ofKind(alternate, TerrainAssetFindingKind::LicenceRestricted).size() ==
@@ -560,8 +569,8 @@ void absentLicenceIsAdvisory() {
   const AssetRegistry silent =
       withAsset(registry, std::string(RockId), R"({"content_type":"surface"})",
                 {std::string(RockId)});
-  for (const TerrainAssetUse use : {TerrainAssetUse::Shippable,
-                                    TerrainAssetUse::DevelopmentOnly}) {
+  for (const TerrainAssetUse use :
+       {TerrainAssetUse::Shippable, TerrainAssetUse::DevelopmentOnly}) {
     const TerrainAssetValidationReport report =
         validateTerrainAssets(request(silent, use));
     const std::vector<TerrainAssetFinding> undeclared =
@@ -580,10 +589,9 @@ void absentLicenceIsAdvisory() {
   }
   // A declaration that cannot be read is no more of a grant than none at all,
   // and its message has to say which field is wrong.
-  const AssetRegistry malformed =
-      withAsset(registry, std::string(RockId),
-                R"({"content_type":"surface","licence":true})",
-                {std::string(RockId)});
+  const AssetRegistry malformed = withAsset(
+      registry, std::string(RockId),
+      R"({"content_type":"surface","licence":true})", {std::string(RockId)});
   const TerrainAssetValidationReport broken =
       validateTerrainAssets(request(malformed));
   assert(broken.shippable());
@@ -592,10 +600,10 @@ void absentLicenceIsAdvisory() {
   expectFinding(broken, TerrainAssetFindingKind::UndeclaredLicence,
                 "redistributable");
   // A licence with no identifier is unidentified, not granted.
-  const AssetRegistry unnamed =
-      withAsset(registry, std::string(RockId),
-                R"({"content_type":"surface","licence":{"redistributable":true}})",
-                {std::string(RockId)});
+  const AssetRegistry unnamed = withAsset(
+      registry, std::string(RockId),
+      R"({"content_type":"surface","licence":{"redistributable":true}})",
+      {std::string(RockId)});
   const TerrainAssetValidationReport unnamedReport =
       validateTerrainAssets(request(unnamed));
   assert(unnamedReport.shippable());
@@ -624,13 +632,14 @@ void materialMapsAreOptionalUnlessRequired() {
   const std::vector<TerrainAssetFinding> missing =
       ofKind(strict, TerrainAssetFindingKind::MissingMap);
   // Albedo is there, so only the normal map is genuinely absent.
-  assert(missing.size() == 1);
-  assert(missing[0].assetId == ClayId);
+  assert(missing.size() == 3);
+  assert(std::ranges::any_of(
+      missing, [](const auto &finding) { return finding.assetId == ClayId; }));
   expectFinding(strict, TerrainAssetFindingKind::MissingMap, "no normal map");
   // Asked for and absent is a blocker: the renderer cannot shade as declared.
   assert(!strict.shippable());
 
-  // A material with no maps at all is advisory under the default request: the
+  // A material with no maps is valid under the default request: the
   // scalars are a deliberate choice, not a mistake.
   writeSet(R"json({
     "format_version": 1,
@@ -641,14 +650,13 @@ void materialMapsAreOptionalUnlessRequired() {
   const TerrainAssetValidationReport flat =
       validateTerrainAssets(request(registry));
   assert(flat.shippable());
-  assert(ofKind(flat, TerrainAssetFindingKind::MissingMap).size() == 1);
-  expectFinding(flat, TerrainAssetFindingKind::MissingMap, "no maps at all");
+  assert(ofKind(flat, TerrainAssetFindingKind::MissingMap).empty());
 
   const TerrainAssetValidationReport flatStrict = validateTerrainAssets(
       request(registry, TerrainAssetUse::Shippable, true));
   assert(ofKind(flatStrict, TerrainAssetFindingKind::MissingMap).size() == 2);
   expectFinding(flatStrict, TerrainAssetFindingKind::MissingMap,
-                "no base_color map");
+                "no albedo map");
   expectFinding(flatStrict, TerrainAssetFindingKind::MissingMap,
                 "no normal map");
   assert(!flatStrict.shippable());
@@ -656,21 +664,27 @@ void materialMapsAreOptionalUnlessRequired() {
   // A map that does not resolve is a broken binding, not a missing one.
   writeSet(SetDocument);
   writeClay(R"json({
-    "format_version": 1,
-    "name": "Clay",
-    "maps": [{"base_color": "asset://terrain/textures/absent"}]
-  })json");
+  "format_version": 1,
+  "shader": "builtin://lit",
+  "name": "Clay",
+  "textures": {
+    "albedo": "asset://terrain/textures/absent"
+  }
+})json");
   const TerrainAssetValidationReport absent =
       validateTerrainAssets(request(registry));
   assert(!absent.shippable());
   expectFinding(absent, TerrainAssetFindingKind::UnresolvedAsset,
-                "maps/base_color");
+                "textures/albedo");
   // A slot the renderer samples as a texture has to hold a texture.
   writeClay(R"json({
-    "format_version": 1,
-    "name": "Clay",
-    "maps": [{"base_color": "asset://audio/wind"}]
-  })json");
+  "format_version": 1,
+  "shader": "builtin://lit",
+  "name": "Clay",
+  "textures": {
+    "albedo": "asset://audio/wind"
+  }
+})json");
   const TerrainAssetValidationReport wrong =
       validateTerrainAssets(request(registry));
   assert(!wrong.shippable());
@@ -680,14 +694,17 @@ void materialMapsAreOptionalUnlessRequired() {
   // A map slot the material loader does not know is that loader's rejection,
   // but the reference it carries still has to resolve.
   writeClay(R"json({
-    "format_version": 1,
-    "name": "Clay",
-    "maps": [{"nomal": "asset://terrain/textures/absent"}]
-  })json");
+  "format_version": 1,
+  "shader": "builtin://lit",
+  "name": "Clay",
+  "textures": {
+    "nomal": "asset://terrain/textures/absent"
+  }
+})json");
   const TerrainAssetValidationReport unknownSlot =
       validateTerrainAssets(request(registry));
-  expectFinding(unknownSlot, TerrainAssetFindingKind::UnresolvedAsset,
-                "maps/nomal");
+  expectFinding(unknownSlot, TerrainAssetFindingKind::WrongAssetType,
+                "Unknown built-in material texture slot: nomal");
 }
 
 // Art magnified or shrunk past what it was authored for is a real cost, and the
@@ -724,17 +741,23 @@ void scaleOutOfRangeIsReported() {
   const TerrainAssetValidationReport development = validateTerrainAssets(
       request(registry, TerrainAssetUse::DevelopmentOnly));
   assert(development.shippable());
-  assert(ofKind(development, TerrainAssetFindingKind::IncompatibleScale)
-             .size() == 2);
+  assert(
+      ofKind(development, TerrainAssetFindingKind::IncompatibleScale).size() ==
+      2);
 
   // Material tiling is the same mistake in the other direction.
   writePalette(PaletteDocument);
   writeClay(R"json({
-    "format_version": 1,
-    "name": "Clay",
-    "tiling": 500,
-    "maps": [{"base_color": "asset://terrain/textures/clay_base"}]
-  })json");
+  "format_version": 1,
+  "shader": "builtin://lit",
+  "name": "Clay",
+  "parameters": {
+    "tiling": 500
+  },
+  "textures": {
+    "albedo": "asset://terrain/textures/clay_base"
+  }
+})json");
   const TerrainAssetValidationReport tiled =
       validateTerrainAssets(request(registry));
   assert(ofKind(tiled, TerrainAssetFindingKind::IncompatibleScale).size() == 1);
@@ -743,16 +766,35 @@ void scaleOutOfRangeIsReported() {
   assert(!tiled.shippable());
 }
 
+void liveRenderTargetsUseTheSharedMaterialReferenceContract() {
+  resetDocuments();
+  assert(write(root / "surface.target.json",
+               R"({"format_version":1,"width":16,"height":16,"depth":false})"));
+  auto targetRegistry = registry;
+  for (auto &asset : targetRegistry.assets) {
+    if (asset.id == ClayBaseId) {
+      asset = manifest(std::string(ClayBaseId), "RenderTarget",
+                       "surface.target.json", shippableSettings("surface"));
+    }
+  }
+  const auto report = validateTerrainAssets(request(targetRegistry));
+  assert(report.shippable());
+  assert(ofKind(report, TerrainAssetFindingKind::WrongAssetType).empty());
+}
+
 // Two runs over the same project must produce the same report, and it must be
 // sorted so a diff of two runs is readable.
 void findingsAreDeterministicAndSorted() {
-  // A clay document with no maps at all: advisory under the default request,
-  // and it makes this report carry a MissingMap alongside everything else.
+  // Scalar materials are valid normally. Request full maps explicitly so
+  // this mixed diagnostic report also exercises MissingMap ordering.
   writeClay(R"json({
-    "format_version": 1,
-    "name": "Clay",
+  "format_version": 1,
+  "shader": "builtin://lit",
+  "name": "Clay",
+  "parameters": {
     "tiling": 500
-  })json");
+  }
+})json");
   writeSet(R"json({
     "format_version": 1,
     "name": "Test set",
@@ -781,11 +823,12 @@ void findingsAreDeterministicAndSorted() {
     }
   }
 })json");
-  const AssetRegistry messy =
-      withAsset(registry, std::string(GrassId),
-                R"({"content_type":"surface","licence":{"spdx":"CC-BY-NC-4.0","redistributable":false}})",
-                {std::string(GrassId)});
-  const TerrainAssetValidationRequest messyRequest = request(messy);
+  const AssetRegistry messy = withAsset(
+      registry, std::string(GrassId),
+      R"({"content_type":"surface","licence":{"spdx":"CC-BY-NC-4.0","redistributable":false}})",
+      {std::string(GrassId)});
+  auto messyRequest = request(messy);
+  messyRequest.requireFullMaterialMaps = true;
   const TerrainAssetValidationReport first =
       validateTerrainAssets(messyRequest);
   const TerrainAssetValidationReport second =
@@ -821,9 +864,8 @@ void findingsAreDeterministicAndSorted() {
         TerrainAssetFindingKind::LicenceRestricted,
         TerrainAssetFindingKind::MissingDependency}) {
     const bool present = std::ranges::any_of(
-        first.findings, [&](const TerrainAssetFinding &item) {
-          return item.kind == kind;
-        });
+        first.findings,
+        [&](const TerrainAssetFinding &item) { return item.kind == kind; });
     if (!present)
       std::cerr << "expected a " << terrainAssetFindingKindName(kind)
                 << " finding\n";
@@ -884,17 +926,17 @@ void summaryNamesEveryFinding() {
     }
   }
 })json");
-  const AssetRegistry restricted =
-      withAsset(registry, std::string(GrassId),
-                R"({"content_type":"surface","licence":{"spdx":"CC-BY-NC-4.0","redistributable":false}})",
-                {std::string(GrassId)});
+  const AssetRegistry restricted = withAsset(
+      registry, std::string(GrassId),
+      R"({"content_type":"surface","licence":{"spdx":"CC-BY-NC-4.0","redistributable":false}})",
+      {std::string(GrassId)});
   const TerrainAssetValidationReport report =
       validateTerrainAssets(request(restricted));
   assert(report.findings.size() >= 4);
   const std::string text = report.summary();
   for (const TerrainAssetFinding &finding : report.findings) {
-    assert(contains(
-        text, std::string(terrainAssetFindingKindName(finding.kind))));
+    assert(
+        contains(text, std::string(terrainAssetFindingKindName(finding.kind))));
     assert(contains(text, finding.message));
     if (!finding.role.empty())
       assert(contains(text, finding.role));
@@ -904,11 +946,10 @@ void summaryNamesEveryFinding() {
         contains(text, report.blocking(finding) ? "[blocking]" : "[advisory]"));
   }
   // The single summary line counts the same numbers the accessors report.
-  assert(contains(text, std::to_string(report.findings.size()) + " findings, " +
-                           std::to_string(report.blockingCount()) +
-                           " blocking, " +
-                           std::to_string(report.advisoryCount()) +
-                           " advisory"));
+  assert(contains(text,
+                  std::to_string(report.findings.size()) + " findings, " +
+                      std::to_string(report.blockingCount()) + " blocking, " +
+                      std::to_string(report.advisoryCount()) + " advisory"));
   assert(contains(text, "blocked"));
   assert(report.blockingCount() + report.advisoryCount() ==
          report.findings.size());
@@ -936,14 +977,20 @@ void exampleProjectIsAdvisoryOnly() {
     assert(contains(finding.assetId, "asset://terrain/surfaces/"));
     assert(!report.blocking(finding));
   }
-  // Demanding every map is a separate question, and the example answers it: its
-  // roles bind render Materials, which carry no slot maps at all.
+  // Scalar materials are valid for shipping, but intentionally fail the
+  // optional textured-material quality requirement. There is no longer a
+  // separate material type that bypasses these map checks.
   exampleRequest.requireFullMaterialMaps = true;
   const TerrainAssetValidationReport strict =
       validateTerrainAssets(exampleRequest);
-  if (!strict.shippable())
-    std::cerr << strict.summary() << "\n";
-  assert(strict.shippable());
+  assert(!strict.shippable());
+  expectFinding(strict, TerrainAssetFindingKind::MissingMap, "albedo");
+  expectFinding(strict, TerrainAssetFindingKind::MissingMap, "normal");
+  for (const auto &finding : strict.findings) {
+    if (strict.blocking(finding)) {
+      assert(finding.kind == TerrainAssetFindingKind::MissingMap);
+    }
+  }
 }
 
 } // namespace
@@ -1007,6 +1054,7 @@ int main() {
   absentLicenceIsAdvisory();
   materialMapsAreOptionalUnlessRequired();
   scaleOutOfRangeIsReported();
+  liveRenderTargetsUseTheSharedMaterialReferenceContract();
   findingsAreDeterministicAndSorted();
   rejectsImpossibleRequests();
   summaryNamesEveryFinding();

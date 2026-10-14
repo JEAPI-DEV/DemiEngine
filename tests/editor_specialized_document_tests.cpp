@@ -203,6 +203,20 @@ int main() {
   assert(!material.document().set("/render_state/blend", "invalid", error));
   assert(material.document().set("/render_state/blend", "alpha", error));
   assert(material.document().undo(error));
+  const auto originalMaterial = material.document().json();
+  assert(material.document().set("/mapping", "triplanar", error));
+  assert(material.document().set("/normal_map_convention", "directx", error));
+  assert(material.document().set("/parameters/roughness", .4F, error));
+  const auto editedMaterial = material.document().json();
+  assert(!material.document().set("/normal_map_convention", "unknown", error));
+  assert(material.document().json() == editedMaterial);
+  assert(material.document().undo(error));
+  assert(material.document().redo(error));
+  assert(material.document().json() == editedMaterial);
+  assert(material.document().undo(error));
+  assert(material.document().undo(error));
+  assert(material.document().undo(error));
+  assert(material.document().json() == originalMaterial);
 
   EditorSpecializedDocument animation;
   assert(animation.open(modelManifest, index, error));

@@ -62,9 +62,9 @@ void drawMenu(EditorWorkspace &workspace, EditorDocumentSessions &documents,
           ImGui::EndMenu();
         }
         sourceItem("HUD", EditorSourceKind::Hud);
+        sourceItem("Material", EditorSourceKind::Material);
         if (ImGui::BeginMenu("Terrain")) {
           sourceItem("Terrain", EditorSourceKind::Terrain);
-          sourceItem("Material", EditorSourceKind::TerrainMaterial);
           sourceItem("Material Set", EditorSourceKind::TerrainMaterialSet);
           sourceItem("Palette", EditorSourceKind::TerrainPalette);
           ImGui::EndMenu();
@@ -364,7 +364,11 @@ bool EditorShell::openDocument(const std::filesystem::path &path,
     showHudView_ = showGameView_ = showTerrainGraphView_ = false;
     return true;
   }
-  return specializedPanel_.open(path, workspace().assetIndex(), error);
+  if (!specializedPanel_.open(path, workspace().assetIndex(), error)) {
+    return false;
+  }
+  focusWindow_ = "Specialized Document";
+  return true;
 }
 
 bool EditorShell::openTerrainGraph(std::string &error) {
@@ -610,8 +614,10 @@ void EditorShell::draw(const int width, const int height,
     ImGui::EndPopup();
   }
   buildPanel_.draw(workspace(), notice_);
-  runPanel_.draw(documents_.scene(), playSession_.isRunning(),
-                 [this](std::string &error) { return documents_.saveAll(error); }, notice_);
+  runPanel_.draw(
+      documents_.scene(), playSession_.isRunning(),
+      [this](std::string &error) { return documents_.saveAll(error); },
+      notice_);
   drawStatus(workspace(), {0.0F, contentBottom}, {screenWidth, statusHeight},
              rendererName, notice_, buildPanel_.linuxTarget(),
              buildPanel_.androidTarget());

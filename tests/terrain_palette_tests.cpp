@@ -23,7 +23,8 @@ int main() {
     std::ofstream(root / name) << value.dump(2);
   };
   write("surface.json",
-        {{"format_version", 1}, {"base_color", {0.2, 0.4, 0.1, 1}}});
+        {{"format_version", 1},
+         {"parameters", {{"base_color", {0.2, 0.4, 0.1, 1}}}}});
   write("set.json", {{"format_version", 1},
                      {"name", "Ground"},
                      {"roles", {{"ground", "asset://surface"}}}});

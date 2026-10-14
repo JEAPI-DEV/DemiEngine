@@ -293,7 +293,7 @@ void waterCoverageRoundTrip() {
   assert(encoded["body"][0] == 0 && encoded["body"][1] == 2 &&
          encoded["body"][2] == -1);
   const auto payload = serializeTerrainAssetPayload(field, "recipe", "inputs");
-  assert(terrainAssetPayloadVersion == 7 && payload[7] == std::byte{'7'});
+  assert(terrainAssetPayloadVersion == 8 && payload[7] == std::byte{'8'});
   const auto restored = deserializeTerrainAssetPayload(payload);
   const auto &before = *field.graphArtifacts->waterResult;
   const auto &after = *restored->graphArtifacts->waterResult;
@@ -309,7 +309,7 @@ void waterCoverageRoundTrip() {
   assert(after.carvedHeights[2] < 2 && coverage.wet[2] == 0);
 
   auto oldPayload = payload;
-  oldPayload[7] = std::byte{'3'};
+  oldPayload[7] = std::byte{'7'};
   expectFailure([&] { (void)deserializeTerrainAssetPayload(oldPayload); },
                 "unknown format");
 }
@@ -559,8 +559,8 @@ void appearanceDoesNotInvalidateGeneration() {
   registry.assets.front().type = "DataAsset";
   registry.assets.front().settingsJson = R"({"content_type":"terrain_material"})";
   const auto unsupported = validateTerrainSurfaceReferences(registry, recipe);
-  assert(!hasErrors(unsupported) && unsupported.size() == 1 &&
-         unsupported.front().severity == Severity::Warning);
+  assert(hasErrors(unsupported) && unsupported.size() == 1 &&
+         unsupported.front().severity == Severity::Error);
   registry.assets.clear();
   assert(hasErrors(validateTerrainSurfaceReferences(registry, recipe)));
 }

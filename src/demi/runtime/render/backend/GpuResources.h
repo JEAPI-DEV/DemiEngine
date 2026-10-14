@@ -43,7 +43,13 @@ enum class BuiltinProgram {
   Directional3DSkinned,
   PostProcess2D,
   Terrain3D,
-  Terrain3DDirectional
+  Terrain3DDirectional,
+  Pbr3D,
+  Pbr3DInstanced,
+  Pbr3DSkinned,
+  Pbr3DDirectional,
+  Pbr3DDirectionalInstanced,
+  Pbr3DDirectionalSkinned
 };
 enum class UniformType { Vec4, Matrix3, Matrix4 };
 enum class VertexSemantic {

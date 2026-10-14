@@ -6,6 +6,7 @@
 #include "demi/assets/ColliderShapeAsset.h"
 #include "demi/assets/DataAssetContent.h"
 #include "demi/assets/DataDocument.h"
+#include "demi/assets/RenderAsset.h"
 #include "demi/filesystem/AtomicTextFile.h"
 
 #include <nlohmann/json.hpp>
@@ -56,10 +57,11 @@ DataAssetContentResult inspectSource(const std::filesystem::path &source,
                                      const AssetRegistry &registry,
                                      const std::string_view assetId) {
   if (contentType.empty()) {
-    return {.diagnostics = {{.severity = Severity::Error,
-                             .code = "DATA_CONTENT_TYPE_MISSING",
-                             .message = "DataAsset settings require content_type.",
-                             .path = source.string()}}};
+    return {
+        .diagnostics = {{.severity = Severity::Error,
+                         .code = "DATA_CONTENT_TYPE_MISSING",
+                         .message = "DataAsset settings require content_type.",
+                         .path = source.string()}}};
   }
   const DataDocumentResult parsed = loadDataDocument(source);
   DataAssetContentResult result{.diagnostics = parsed.diagnostics};
@@ -84,6 +86,22 @@ DataAssetContentResult inspectSource(const std::filesystem::path &source,
                             content.diagnostics.begin(),
                             content.diagnostics.end());
   result.dependencies = std::move(content.dependencies);
+  return result;
+}
+
+DataAssetContentResult
+inspectMaterialSource(const std::filesystem::path &source,
+                      const AssetRegistry &registry) {
+  DataAssetContentResult result;
+  const auto material = loadMaterialAsset(source, &result.diagnostics);
+  if (!material) {
+    return result;
+  }
+  const auto references =
+      validateMaterialAssetReferences(*material, registry, source);
+  result.diagnostics.insert(result.diagnostics.end(), references.begin(),
+                            references.end());
+  result.dependencies = materialAssetDependencies(*material);
   return result;
 }
 
@@ -169,10 +187,10 @@ AssetImportResult importAsset(const AssetImportRequest &request) {
   std::vector<std::string> terrainDependencies;
   if (descriptor->name == "terrain_heightfield") {
     const auto importer = builtinImporterRegistry().create(descriptor->name);
-    const ImportExecutionResult execution = importer->import({
-        .source = request.source,
-        .assetId = request.id,
-        .assetType = "Terrain"});
+    const ImportExecutionResult execution =
+        importer->import({.source = request.source,
+                          .assetId = request.id,
+                          .assetType = "Terrain"});
     if (hasErrors(execution.diagnostics)) {
       result.diagnostics = execution.diagnostics;
       return result;
@@ -211,6 +229,14 @@ AssetImportResult importAsset(const AssetImportRequest &request) {
   if (importedType == "DataAsset") {
     const DataAssetContentResult inspected =
         inspectSource(request.source, contentType, registry, request.id);
+    if (hasErrors(inspected.diagnostics)) {
+      result.diagnostics = inspected.diagnostics;
+      return result;
+    }
+    dataDependencies = inspected.dependencies;
+  }
+  if (importedType == "Material") {
+    const auto inspected = inspectMaterialSource(request.source, registry);
     if (hasErrors(inspected.diagnostics)) {
       result.diagnostics = inspected.diagnostics;
       return result;
@@ -278,8 +304,9 @@ AssetImportResult importAsset(const AssetImportRequest &request) {
         request.modelProfile.value_or(modelImportPreset("static_prop")));
   if (importedType == "DataAsset")
     manifest["settings"]["content_type"] = contentType;
-  if (importedType == "DataAsset")
+  if (importedType == "DataAsset" || importedType == "Material") {
     addDependencies(manifest, dataDependencies);
+  }
   if (request.license) {
     const auto licenseTarget = assetDirectory / request.license->filename();
     if (!copyFile(*request.license, licenseTarget, copyError)) {
@@ -409,10 +436,11 @@ registerGeneratedAsset(const GeneratedAssetRegistrationRequest &request) {
   if (!manifest.contains("settings"))
     manifest["settings"] = nlohmann::json::object();
   if (!manifest["settings"].is_object()) {
-    result.diagnostics.push_back({.severity = Severity::Error,
-                                  .code = "DATA_ASSET_SETTINGS_INVALID",
-                                  .message = "Asset settings must be an object.",
-                                  .path = result.manifestPath.string()});
+    result.diagnostics.push_back(
+        {.severity = Severity::Error,
+         .code = "DATA_ASSET_SETTINGS_INVALID",
+         .message = "Asset settings must be an object.",
+         .path = result.manifestPath.string()});
     return result;
   }
   if ((request.type.empty() ? descriptor->assetTypes.front() : request.type) ==
@@ -424,7 +452,8 @@ registerGeneratedAsset(const GeneratedAssetRegistrationRequest &request) {
     try {
       const std::string contentType =
           manifest["settings"].value("content_type", "data");
-      const AssetRegistry registry = loadAssetRegistry(request.projectDirectory);
+      const AssetRegistry registry =
+          loadAssetRegistry(request.projectDirectory);
       const DataAssetContentResult inspected =
           inspectSource(request.source, contentType, registry, request.id);
       if (hasErrors(inspected.diagnostics)) {
@@ -481,10 +510,10 @@ Diagnostics reimportAsset(const std::filesystem::path &manifestPath) {
     std::vector<std::string> terrainDependencies;
     if (descriptor->name == "terrain_heightfield") {
       const auto importer = builtinImporterRegistry().create(descriptor->name);
-      const ImportExecutionResult execution = importer->import({
-          .source = manifest->sourcePath,
-          .assetId = manifest->id,
-          .assetType = "Terrain"});
+      const ImportExecutionResult execution =
+          importer->import({.source = manifest->sourcePath,
+                            .assetId = manifest->id,
+                            .assetType = "Terrain"});
       if (hasErrors(execution.diagnostics))
         return execution.diagnostics;
       terrainDependencies = execution.dependencies;
@@ -492,27 +521,32 @@ Diagnostics reimportAsset(const std::filesystem::path &manifestPath) {
     if (descriptor->name == "collider-shape") {
       std::string error;
       if (!loadColliderShapeAsset(manifest->sourcePath, error)) {
-        diagnostics.push_back({.severity=Severity::Error, .code="COLLIDER_SHAPE_INVALID",
-                               .message=error, .path=manifest->sourcePath.string()});
+        diagnostics.push_back({.severity = Severity::Error,
+                               .code = "COLLIDER_SHAPE_INVALID",
+                               .message = error,
+                               .path = manifest->sourcePath.string()});
         return diagnostics;
       }
     }
     auto document = readJson(manifestPath);
     std::vector<std::string> dataDependencies;
     if (manifest->type == "DataAsset") {
-      const auto settings = document.value("settings", nlohmann::json::object());
+      const auto settings =
+          document.value("settings", nlohmann::json::object());
       if (!settings.is_object()) {
-        diagnostics.push_back({.severity = Severity::Error,
-                               .code = "DATA_ASSET_SETTINGS_INVALID",
-                               .message = "DataAsset settings must be an object.",
-                               .path = manifestPath.string()});
+        diagnostics.push_back(
+            {.severity = Severity::Error,
+             .code = "DATA_ASSET_SETTINGS_INVALID",
+             .message = "DataAsset settings must be an object.",
+             .path = manifestPath.string()});
         return diagnostics;
       }
       if (!settings.contains("content_type")) {
-        diagnostics.push_back({.severity = Severity::Error,
-                               .code = "DATA_CONTENT_TYPE_MISSING",
-                               .message = "DataAsset settings require content_type.",
-                               .path = manifestPath.string()});
+        diagnostics.push_back(
+            {.severity = Severity::Error,
+             .code = "DATA_CONTENT_TYPE_MISSING",
+             .message = "DataAsset settings require content_type.",
+             .path = manifestPath.string()});
         return diagnostics;
       }
       const std::string contentType =
@@ -536,11 +570,30 @@ Diagnostics reimportAsset(const std::filesystem::path &manifestPath) {
     document["format_version"] = 1;
     document["importer"] = descriptor->name;
     document["importer_version"] = descriptor->version;
+    if (manifest->type == "Material") {
+      const auto projectDirectory = projectDirectoryFor(manifestPath);
+      if (!projectDirectory) {
+        diagnostics.push_back({.severity = Severity::Error,
+                               .code = "ASSET_IMPORT_PROJECT_NOT_FOUND",
+                               .message = "Material manifest must be below the "
+                                          "project assets directory.",
+                               .path = manifestPath.string()});
+        return diagnostics;
+      }
+      const auto registry = loadAssetRegistry(*projectDirectory);
+      const auto inspected =
+          inspectMaterialSource(manifest->sourcePath, registry);
+      if (hasErrors(inspected.diagnostics)) {
+        return inspected.diagnostics;
+      }
+      dataDependencies = inspected.dependencies;
+    }
     document["source_hash"] = *hash;
     if (descriptor->name == "terrain_heightfield")
       document["dependencies"] = terrainDependencies;
-    if (manifest->type == "DataAsset")
+    if (manifest->type == "DataAsset" || manifest->type == "Material") {
       addDependencies(document, dataDependencies);
+    }
     if (!document.contains("dependencies"))
       document["dependencies"] = nlohmann::json::array();
     if (!document.contains("settings"))

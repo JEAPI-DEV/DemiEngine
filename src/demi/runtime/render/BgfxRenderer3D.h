@@ -15,6 +15,7 @@
 #include "demi/runtime/render/bgfx3d/GpuMesh3D.h"
 #include "demi/runtime/render/bgfx3d/GpuSkinnedMesh3D.h"
 #include "demi/runtime/render/bgfx3d/MeshResourceRetention3D.h"
+#include "demi/runtime/render/bgfx3d/MeshPbrBindings3D.h"
 #include "demi/runtime/render/bgfx3d/ParticleBillboardRenderer3D.h"
 #include "demi/runtime/render/bgfx3d/PostProcessRenderer3D.h"
 #include "demi/runtime/render/bgfx3d/PrimitiveCanvas3D.h"
@@ -32,6 +33,7 @@
 #include "demi/runtime/terrain/TerrainLodResidency.h"
 
 #include <chrono>
+#include <filesystem>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -176,8 +178,18 @@ private:
   ParticleBillboardRenderer3D particleRenderer_;
   BgfxRenderer2D overlay_;
   TextureLibrary2D textures_;
+  struct TextureSource {
+    std::filesystem::path path;
+    TextureSampling2D sampling;
+    std::array<bool, 3> failedVariants{};
+  };
+  std::unordered_map<std::string, TextureSource> textureSources_;
   SkyRenderer3D sky_;
   MaterialLibrary materials_;
+  MeshPbrBindings3D meshPbr_;
+  std::array<ProgramHandle, 6> pbrPrograms_{};
+  std::string pbrProgramError_;
+  TextureView2D materialTexture(std::string_view id, ImageMipSemantic semantic);
   ProgramHandle meshProgram_;
   ProgramHandle directionalMeshProgram_, directionalInstancedProgram_,
       directionalSkinnedProgram_;
