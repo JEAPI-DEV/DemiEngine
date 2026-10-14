@@ -5,7 +5,7 @@
   "entities": [
     {
       "id": "terrain",
-      "name": "Open Terrain Graph, then paint or sculpt",
+      "name": "terrain",
       "components": {
         "Transform3D": {"position": [-64, 0, -64]},
         "Terrain3D": {
