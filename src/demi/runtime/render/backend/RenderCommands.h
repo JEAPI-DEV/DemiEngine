@@ -38,7 +38,8 @@ struct View3DConfig {
   std::uint16_t height = 1;
   std::uint32_t clearRgba = 0x000000ffU;
   Point3D eye;
-  Point3D target{0.0F, 0.0F, 1.0F};
+  // Nonzero forward direction, independent of the eye position.
+  Point3D forward{0.0F, 0.0F, 1.0F};
   Point3D up{0.0F, 1.0F, 0.0F};
   float verticalFovDegrees = 60.0F;
   float nearClip = 0.05F;

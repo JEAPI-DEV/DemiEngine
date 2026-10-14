@@ -129,7 +129,7 @@ bool DirectionalShadow3D::prepare(const SceneLighting3D &light,
     const std::array<float, 4> parameters{
         light.shadowBias / cascade.depthRange,
         index == 0 ? camera.camera.nearClip : layout->splits[index - 1],
-        cascade.receiverFar, 0};
+        cascade.receiverFar, 2.F * cascade.radius / light.shadowResolution};
     const std::array values{cascade.x, cascade.y, cascade.z, parameters};
     for (std::size_t row = 0; row < values.size(); ++row)
       std::copy(values[row].begin(), values[row].end(),

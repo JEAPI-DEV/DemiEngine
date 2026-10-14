@@ -2,6 +2,7 @@
 """Generate a planar receiver and box shadow probe; never launch the engine.
 
 Compare fresh fixtures at scales 1 and 0.01 using the same capture resolution.
+Use --origin to test that translating the complete scene preserves its shadows.
 All world distances, including camera clips and shadow bias, scale together.
 The receiver has two coplanar triangles with identical analytical normals.
 """
@@ -40,6 +41,10 @@ def generate(args):
     def scaled(vector):
         return [coordinate * scale for coordinate in vector]
 
+    def placed(vector):
+        return [origin + coordinate * scale
+                for origin, coordinate in zip(args.origin, vector)]
+
     def plane_vertex(x, z):
         return [x, args.slope_x * x + args.slope_z * z, z]
 
@@ -58,7 +63,8 @@ def generate(args):
         {
             "id": "receiver",
             "components": {
-                "Transform3D": {"scale": [scale, scale, scale]},
+                "Transform3D": {"position": list(args.origin),
+                                "scale": [scale, scale, scale]},
                 "MeshRenderer": {
                     "vertices": [a, b, c, c, b, d],
                     "normals": [normal] * 6,
@@ -71,7 +77,7 @@ def generate(args):
         {
             "id": "occluder",
             "components": {
-                "Transform3D": {"position": scaled([0, 6, 0]),
+                "Transform3D": {"position": placed([0, 6, 0]),
                                 "scale": [scale, scale, scale]},
                 "MeshRenderer": {"size": [4, 8, 4],
                                  "color": [0.65, 0.23, 0.16, 1],
@@ -81,7 +87,7 @@ def generate(args):
         {
             "id": "camera",
             "components": {
-                "Transform3D": {"position": scaled(camera)},
+                "Transform3D": {"position": placed(camera)},
                 "Camera3D": {
                     "target_offset": scaled(target_offset),
                     "near_clip": 0.2 * scale,
@@ -133,6 +139,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("directory", type=Path)
     parser.add_argument("--scale", type=positive_number, default=1)
+    parser.add_argument("--origin", nargs=3, type=finite_number,
+                        default=[0, 0, 0], metavar=("X", "Y", "Z"),
+                        help="Translate all geometry and the camera in world units")
     parser.add_argument("--slope-x", type=finite_number, default=1.25)
     parser.add_argument("--slope-z", type=finite_number, default=0.15)
     parser.add_argument("--camera", nargs=3, type=finite_number,

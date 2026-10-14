@@ -370,9 +370,6 @@ bool BgfxRenderer3D::renderView(const World &world,
     error = "BgfxRenderer3D must be initialized before rendering.";
     return false;
   }
-  const Vec3 target{frame.position.x + frame.forward.x,
-                    frame.position.y + frame.forward.y,
-                    frame.position.z + frame.forward.z};
   const int msaaSamples =
       shadowPass ? 1 : std::max(sceneLighting.msaaSamples, 1);
   if (!shadowPass) {
@@ -492,7 +489,7 @@ bool BgfxRenderer3D::renderView(const World &world,
         .height = std::max<std::uint16_t>(renderHeight, 1),
         .clearRgba = packClearColorRgba8(frame.camera.clearColor),
         .eye = point(frame.position),
-        .target = point(target),
+        .forward = point(frame.forward),
         .up = point(frame.up),
         .verticalFovDegrees = frame.camera.fov,
         .nearClip = frame.camera.nearClip,

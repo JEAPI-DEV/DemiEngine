@@ -15,7 +15,7 @@ SAMPLER2D(s_shadowMap, 1);
 uniform vec4 u_shadowX[4];
 uniform vec4 u_shadowY[4];
 uniform vec4 u_shadowZ[4];
-// Per cascade: normalized bias, nominal near depth, far depth, reserved.
+// Per cascade: normalized bias, nominal near depth, far depth, world texel size.
 uniform vec4 u_shadowParams[4];
 // Phase (off/receive/cast), active cast index, cascade count, blend fraction.
 uniform vec4 u_shadowConfig;
@@ -117,11 +117,20 @@ float compareShadowTap(int cascade, vec2 tap, float receiverDepth)
 
 #include "demi_shadow_receiver.sh"
 
-float cascadeVisibility(int cascade, vec4 worldPosition, vec3 worldDx, vec3 worldDy, float diffuse)
+float cascadeVisibility(int cascade, vec4 worldPosition, vec3 worldDx,
+                        vec3 worldDy, vec3 normal, float diffuse)
 {
-    vec2 uv = vec2(dot(u_shadowX[cascade], worldPosition), dot(u_shadowY[cascade], worldPosition));
+    // Sampling can cross onto a neighboring facet. Bound normal offset by
+    // the nominal filter half-width: 0.5 texels for hard, 1.5 for 3x3 PCF.
+    // Freeze this offset across the receiver's taps: it translates the local
+    // plane without changing the geometric depth gradient below.
+    float filterRadius = u_shadowAtlas.z < 0.0 ? 0.5 : 1.5;
+    float normalDistance = receiverNormalOffsetDistance(
+        u_shadowParams[cascade].w, diffuse, filterRadius);
+    vec4 receiver = vec4(worldPosition.xyz + normal * normalDistance, 1.0);
+    vec2 uv = vec2(dot(u_shadowX[cascade], receiver), dot(u_shadowY[cascade], receiver));
     if (u_shadowAtlas.w > 0.5) uv.y = 1.0 - uv.y;
-    float depth = dot(u_shadowZ[cascade], worldPosition);
+    float depth = dot(u_shadowZ[cascade], receiver);
     // Receiver-plane correction prevents broad PCF footprints self-shadowing
     // sloped surfaces. Compute derivatives before coverage branches.
     vec2 uvDx = vec2(dot(u_shadowX[cascade].xyz, worldDx), dot(u_shadowY[cascade].xyz, worldDx));
@@ -168,8 +177,10 @@ void main()
     // Receiver-plane derivatives require the complete fragment quad. Capture
     // them before per-pixel material culling or alpha cutout discards lanes.
     vec4 worldPosition = vec4(v_worldPos, 1.0);
-    vec3 worldDx = dFdx(v_worldPos);
-    vec3 worldDy = dFdy(v_worldPos);
+    // Subtract the view origin before interpolation, not here: absolute-world
+    // interpolation loses the small pixel differences on translated scenes.
+    vec3 worldDx = dFdx(v_relativePos);
+    vec3 worldDy = dFdy(v_relativePos);
 #ifdef DEMI_TERRAIN
     vec4 surfaceParameters;
     vec4 albedo = terrainSurface(v_texcoord0, gl_FrontFacing, surfaceParameters);
@@ -206,14 +217,14 @@ void main()
         if (viewDepth > u_shadowSplits.x && u_shadowConfig.z > 1.5) cascade = 1;
         if (viewDepth > u_shadowSplits.y && u_shadowConfig.z > 2.5) cascade = 2;
         if (viewDepth > u_shadowSplits.z && u_shadowConfig.z > 3.5) cascade = 3;
-        visibility = cascadeVisibility(cascade, worldPosition, worldDx, worldDy, diffuse);
+        visibility = cascadeVisibility(cascade, worldPosition, worldDx, worldDy, normal, diffuse);
         float farDepth = u_shadowParams[cascade].z;
         float blendWidth = max((farDepth - u_shadowParams[cascade].y) * u_shadowConfig.w, 0.00001);
         float blend = smoothstep(farDepth - blendWidth, farDepth, viewDepth);
         if (cascade + 1 < int(u_shadowConfig.z))
         {
             if (blend > 0.0)
-                visibility = mix(visibility, cascadeVisibility(cascade + 1, worldPosition, worldDx, worldDy, diffuse), blend);
+                visibility = mix(visibility, cascadeVisibility(cascade + 1, worldPosition, worldDx, worldDy, normal, diffuse), blend);
         }
         else
             visibility = mix(visibility, 1.0, blend);

@@ -1,7 +1,9 @@
 $input a_position, a_normal, a_color0, a_texcoord0, a_indices, a_weight
-$output v_color0, v_normal, v_texcoord0, v_worldPos
+$output v_color0, v_normal, v_texcoord0, v_worldPos, v_relativePos
 
 #include "bgfx_shader.sh"
+
+uniform vec4 u_viewPosition;
 
 uniform mat4 u_skinMatrices[128];
 uniform mat4 u_skinImport;
@@ -23,6 +25,7 @@ void main()
     vec4 position = mul(u_skinImport, vec4(posed, 1.0));
     gl_Position = mul(u_modelViewProj, position);
     v_worldPos = mul(u_model[0], position).xyz;
+    v_relativePos = v_worldPos - u_viewPosition.xyz;
     mat4 normalTransform = mul(u_model[0], mul(u_skinImport, skin));
     vec3 x = normalTransform[0].xyz;
     vec3 y = normalTransform[1].xyz;

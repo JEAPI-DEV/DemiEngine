@@ -593,7 +593,9 @@ Acceptance: preset-generated mountains and river valleys have coherent shapes
 at wide and close views; watershed/chunk boundaries have no processing seams.
 The recorded native views and deterministic partition tests satisfy this
 base-generation gate. Detailed materials, realistic water, vegetation and final
-reference comparisons remain in Milestones 4–8; cliff shadow work is deferred.
+reference comparisons remain in Milestones 4–8. The subsequent
+[shadow correction](docs/terrain-shadow-receiver-qualification.md) removes the
+prominent cliff grid; finite-resolution and contact limitations remain.
 
 ## Milestone 4: automatic high-quality surface materials
 

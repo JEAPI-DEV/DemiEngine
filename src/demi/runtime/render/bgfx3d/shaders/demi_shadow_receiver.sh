@@ -27,4 +27,11 @@ vec2 receiverPlaneDepthGradient(vec2 uvDx, vec2 uvDy, vec2 depthDerivative)
                 rowX.x * depth.y - rowY.x * depth.x) / determinant;
 }
 
+// World-space receiver offset bounded by the filter footprint. The cosine is
+// the normal/light alignment; the maximum protects against roundoff above one.
+float receiverNormalOffsetDistance(float worldTexel, float cosine, float filterRadius)
+{
+    return worldTexel * filterRadius * sqrt(max(0.0, 1.0 - cosine * cosine));
+}
+
 #endif

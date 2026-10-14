@@ -1,7 +1,9 @@
 $input a_position, i_data0, i_data1, i_data2, i_data3, i_data4
-$output v_color0, v_normal, v_texcoord0, v_worldPos
+$output v_color0, v_normal, v_texcoord0, v_worldPos, v_relativePos
 
 #include "bgfx_shader.sh"
+
+uniform vec4 u_viewPosition;
 
 SAMPLER2D(s_terrainHeight, 3);
 SAMPLER2D(s_terrainNormal, 4);
@@ -27,6 +29,7 @@ void main()
                              cross(modelZ, modelX) * normal.y +
                              cross(modelX, modelY) * normal.z);
     v_worldPos = worldPosition.xyz;
+    v_relativePos = v_worldPos - u_viewPosition.xyz;
     v_texcoord0 = sampleUv;
     v_color0 = vec4(1.0);
 }

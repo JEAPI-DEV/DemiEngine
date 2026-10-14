@@ -1,5 +1,11 @@
 # DemiEngine Roadmap
 
+The prominent rocky-valley shadow grid is corrected through precise view
+directions, stable receiver derivatives and texel-scaled facet filtering.
+Native GPU/mesh and translated-plane checks preserve real cast shadows. See
+[shadow qualification](docs/terrain-shadow-receiver-qualification.md) for
+evidence and remaining finite-resolution/contact limitations.
+
 Terrain Milestone 3's bounded generation scope is complete: macro-shape
 controls, safe Preview/Final, measured erosion evaluation, drainage endpoints
 and connected sloped rivers. Native close-up checks also caught and corrected

@@ -20,8 +20,8 @@ This directory keeps material that has a different job:
   records shared spatial-mask validation, basin/plateau/island presets, graph
   editing and native generation checks.
 - [Terrain shadow receiver qualification](terrain-shadow-receiver-qualification.md)
-  records scale-independent plane correction, direct shader-math tests and the
-  remaining cliff artifact in both terrain rendering paths.
+  records view-direction precision, stable receiver derivatives and filtered
+  facet correction, with native before/after evidence and contact limitations.
 - [Terrain landform qualification](terrain-landform-qualification.md) records
   shared ridge/warp controls, editable valley masks, deterministic generation
   coverage and the new probe's remaining material and shadow limitations.

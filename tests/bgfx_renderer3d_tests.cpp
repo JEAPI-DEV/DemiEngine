@@ -150,6 +150,7 @@ public:
   std::vector<View3DConfig> views3D;
   std::map<std::uint16_t, std::vector<std::array<float, 16>>> transformsByView;
   std::map<std::uint16_t, TextureHandle> shadowTextures;
+  std::map<std::uint16_t, std::array<float, 16>> shadowParameters;
   bool configureView2D(const View2DConfig &view, std::string &error) override {
     views2D.push_back(view);
     return target_.configureView2D(view, error);
@@ -162,6 +163,7 @@ public:
     return target_.submit(draw, error);
   }
   bool submit(const BufferedDraw &draw, std::string &error) override {
+    recordShadowParameters(draw.viewId, draw.uniforms);
     transformsByView[draw.viewId].push_back(draw.transform);
     for (const auto &texture : draw.textures)
       if (texture.stage == 1)
@@ -183,6 +185,7 @@ public:
     return forwardDraws ? target_.submit(draw, error) : true;
   }
   bool submit(const InstancedBufferedDraw &draw, std::string &error) override {
+    recordShadowParameters(draw.viewId, draw.uniforms);
     ++instanceDrawCalls;
     if (draw.instances.stride == sizeof(std::array<float, 16>) &&
         draw.instances.data.size() % draw.instances.stride == 0) {
@@ -202,6 +205,20 @@ public:
   }
 
 private:
+  void recordShadowParameters(std::uint16_t view,
+                              std::span<const DrawUniformValue> uniforms) {
+    // DirectionalShadow3D interleaves each cascade array with a shared
+    // uniform. Params is the penultimate entry, followed by Camera.
+    if (uniforms.size() < 8) {
+      return;
+    }
+    const auto parameters = uniforms[uniforms.size() - 2].values;
+    if (parameters.size() != 16) {
+      return;
+    }
+    auto &captured = shadowParameters[view];
+    std::copy(parameters.begin(), parameters.end(), captured.begin());
+  }
   RenderCommands &target_;
 };
 
@@ -977,7 +994,27 @@ int main() {
   assert(capture.views3D[0].orthographicSize <
          capture.views3D[3].orthographicSize);
   static_cast<void>(graphics.endFrame());
-  world.entities.back().component<Environment3DComponent>()->shadowCascades = 3;
+  auto &shadowEnvironment =
+      *world.entities.back().component<Environment3DComponent>();
+  for (const int resolution : {512, 1024, 2048}) {
+    shadowEnvironment.shadowResolution = resolution;
+    capture.views3D.clear();
+    capture.shadowParameters.clear();
+    assert(renderer.renderFrame(world, frame, .016F, error));
+    assert(capture.views3D.size() == 5);
+    const auto receiverView = capture.views3D.back().id;
+    const auto parameters = capture.shadowParameters.at(receiverView);
+    for (std::size_t cascade = 0; cascade < 4; ++cascade) {
+      const auto &caster = capture.views3D[cascade];
+      assert(caster.width == resolution && !caster.perspective);
+      const float worldTexel = caster.orthographicSize / caster.width;
+      assert(worldTexel > 0);
+      assert(parameters[cascade * 4 + 3] == worldTexel);
+    }
+    static_cast<void>(graphics.endFrame());
+  }
+  shadowEnvironment.shadowResolution = 512;
+  shadowEnvironment.shadowCascades = 3;
   capture.views3D.clear();
   assert(renderer.renderFrame(world, frame, .016F, error));
   assert(capture.views3D.size() == 4);

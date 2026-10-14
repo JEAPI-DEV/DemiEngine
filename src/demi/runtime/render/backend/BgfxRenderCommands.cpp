@@ -3,6 +3,7 @@
 #include "demi/runtime/render/backend/BgfxDrawBindings.h"
 #include "demi/runtime/render/backend/BgfxResourceLookup.h"
 #include "demi/runtime/render/backend/BgfxVertexLayout.h"
+#include "demi/runtime/render/backend/BgfxView3D.h"
 
 #include <bgfx/bgfx.h>
 #include <bx/math.h>
@@ -234,12 +235,8 @@ public:
       clearFlags |= BGFX_CLEAR_DEPTH;
     bgfx::setViewClear(view.id, clearFlags, view.clearRgba, 1.0F, 0);
 
-    const bx::Vec3 eye{view.eye.x, view.eye.y, view.eye.z};
-    const bx::Vec3 target{view.target.x, view.target.y, view.target.z};
-    const bx::Vec3 up{view.up.x, view.up.y, view.up.z};
-    float viewMatrix[16];
+    const auto viewMatrix = bgfxViewMatrix3D(view);
     float projection[16];
-    bx::mtxLookAt(viewMatrix, eye, target, up, bx::Handedness::Right);
     const bgfx::Caps *caps = bgfx::getCaps();
     const bool homogeneousDepth = caps != nullptr && caps->homogeneousDepth;
     const float aspect =
@@ -254,7 +251,7 @@ public:
                    view.nearClip, view.farClip, 0.0F, homogeneousDepth,
                    bx::Handedness::Right);
     }
-    bgfx::setViewTransform(view.id, viewMatrix, projection);
+    bgfx::setViewTransform(view.id, viewMatrix.data(), projection);
     bgfx::touch(view.id);
     return true;
   }
@@ -421,6 +418,21 @@ private:
 };
 
 } // namespace
+
+std::array<float, 16> bgfxViewMatrix3D(const View3DConfig &view) {
+  std::array<float, 16> matrix;
+  const bx::Vec3 origin{0, 0, 0};
+  const bx::Vec3 forward{view.forward.x, view.forward.y, view.forward.z};
+  const bx::Vec3 up{view.up.x, view.up.y, view.up.z};
+  bx::mtxLookAt(matrix.data(), origin, forward, up, bx::Handedness::Right);
+  for (std::size_t row = 0; row < 3; ++row) {
+    const double translation = double(matrix[row]) * view.eye.x +
+                               double(matrix[4 + row]) * view.eye.y +
+                               double(matrix[8 + row]) * view.eye.z;
+    matrix[12 + row] = float(-translation);
+  }
+  return matrix;
+}
 
 std::unique_ptr<RenderCommands>
 createBgfxRenderCommands(GpuResources &resources) {
