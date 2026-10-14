@@ -1,5 +1,5 @@
 $input a_position, i_data0, i_data1, i_data2, i_data3, i_data4
-$output v_color0, v_normal, v_texcoord0, v_worldPos, v_relativePos
+$output v_color0, v_normal, v_texcoord0, v_worldPos, v_relativePos, v_terrainBlend
 
 #include "bgfx_shader.sh"
 
@@ -32,4 +32,5 @@ void main()
     v_relativePos = v_worldPos - u_viewPosition.xyz;
     v_texcoord0 = sampleUv;
     v_color0 = vec4(1.0);
+    v_terrainBlend = i_data4.z;
 }

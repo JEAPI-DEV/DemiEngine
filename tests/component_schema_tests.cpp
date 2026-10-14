@@ -114,6 +114,60 @@ void testTerrainPreparationBudgets() {
   }
 }
 
+void testTerrainSurfaceBlendingContract() {
+  using namespace demi::runtime;
+  using namespace demi::runtime::scene_loading;
+  const auto require = [](bool condition, const char *message) {
+    if (!condition) {
+      throw std::runtime_error(message);
+    }
+  };
+  const auto *descriptor = findComponentDescriptor("Terrain3D");
+  require(descriptor != nullptr, "Terrain3D descriptor is missing");
+  require(descriptor->defaults().at("surface_blending") == true,
+          "Terrain3D blending default differs from native values");
+  const auto schema = componentSchema(*descriptor);
+  const auto &field = schema.at("properties").at("surface_blending");
+  require(field.at("type") == "boolean" && field.at("default") == true,
+          "Terrain3D blending schema lost its boolean/default contract");
+  Entity entity;
+  const nlohmann::json authored{{"asset", "asset://terrain/test"}};
+  descriptor->parse(authored, entity);
+  auto *terrain = entity.component<Terrain3DComponent>();
+  require(terrain && terrain->surfaceBlending,
+          "Terrain3D omitted blending did not default to enabled");
+  require(descriptor->serialize(entity) == authored,
+          "Terrain3D materialized omitted blending into authored source");
+  const auto generated = std::make_shared<const HeightField>();
+  terrain->generated = generated;
+  terrain->recipe = {{"retained_input", true}};
+  const auto recipe = terrain->recipe;
+  const nlohmann::json changed{{"asset", "asset://terrain/test"},
+                               {"surface_blending", false}};
+  require(descriptor->patch(entity, "surface_blending", changed),
+          "Terrain3D blending native field patch failed");
+  require(!terrain->surfaceBlending && terrain->generated == generated &&
+              terrain->recipe == recipe && terrain->lodErrorPixels == 2,
+          "Terrain3D blending edit invalidated generated geometry or unrelated "
+          "state");
+  require(descriptor->serialize(entity) == changed,
+          "Terrain3D explicit blending did not round trip");
+  terrain->surfaceBlending = true;
+  require(descriptor->inspect(entity).at("surface_blending") == true,
+          "Terrain3D inspector missed native blending mutation");
+  require(descriptor->serialize(entity) == changed,
+          "Native blending mutation rewrote authored source");
+  for (const auto &invalid :
+       {nlohmann::json(0), nlohmann::json("false"), nlohmann::json(nullptr)}) {
+    std::string error;
+    require(!Terrain3DComponent::validateAuthored(
+                {{"surface_blending", invalid}}, error),
+            "Terrain3D accepted a nonboolean blending value");
+    require(error.find("surface_blending") != std::string::npos,
+            "Terrain3D blending validation did not name the rejected field");
+  }
+}
+
 void testTerrainLodQualityContract() {
   using namespace demi::runtime;
   using namespace demi::runtime::scene_loading;
@@ -185,6 +239,7 @@ int main() {
   try {
     testTerrainPreparationBudgets();
     testTerrainLodQualityContract();
+    testTerrainSurfaceBlendingContract();
     using namespace demi::runtime;
     using namespace demi::runtime::scene_loading;
     Entity entity;

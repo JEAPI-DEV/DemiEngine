@@ -1172,6 +1172,14 @@ bool EditorSceneDocument::redo(std::string &error) {
   return true;
 }
 
+const SetValueCommand *EditorSceneDocument::nextValueUndo() const {
+  return undo_.empty() ? nullptr : std::get_if<SetValueCommand>(&undo_.back());
+}
+
+const SetValueCommand *EditorSceneDocument::nextValueRedo() const {
+  return redo_.empty() ? nullptr : std::get_if<SetValueCommand>(&redo_.back());
+}
+
 const TerrainRecipeCommand *EditorSceneDocument::nextTerrainUndo() const {
   return undo_.empty() ? nullptr
                        : std::get_if<TerrainRecipeCommand>(&undo_.back());

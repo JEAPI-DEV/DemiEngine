@@ -23,10 +23,17 @@ struct Terrain3DComponent {
                                true}
           .withLabel("LOD Error Pixels")
           .withHelp("Maximum projected terrain error in pixels. Zero disables "
-                    "render LOD.")};
+                    "render LOD."),
+      ComponentFieldDescriptor{"surface_blending", ComponentFieldType::Boolean}
+          .withLabel("Surface Blending")
+          .withHelp(
+              "Interpolate GPU solid material colors across cells. Disable for "
+              "sharp per-triangle assignment; texture filtering and LOD are "
+              "unchanged.")};
   static constexpr ComponentEditorMetadata editor{"3D", "Terrain 3D"};
   std::string asset;
   float lodErrorPixels = 2.0F;
+  bool surfaceBlending = true;
   // Inline authored recipe for procedural terrain, or the editable source
   // resolved by the asset loader. Resolved recipes never serialize into scenes.
   nlohmann::json recipe;
@@ -50,6 +57,8 @@ struct Terrain3DComponent {
       RuntimeFieldBinding<Terrain3DComponent>{"recipe", copyRecipe, readRecipe}
           .withoutDefault(),
       RuntimeFieldBinding<Terrain3DComponent>::member<
-          &Terrain3DComponent::lodErrorPixels>("lod_error_pixels")};
+          &Terrain3DComponent::lodErrorPixels>("lod_error_pixels"),
+      RuntimeFieldBinding<Terrain3DComponent>::member<
+          &Terrain3DComponent::surfaceBlending>("surface_blending")};
 };
 } // namespace demi::runtime

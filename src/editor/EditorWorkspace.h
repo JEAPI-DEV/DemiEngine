@@ -516,6 +516,7 @@ private:
   [[nodiscard]] bool rebuildParkedSceneWorld(std::string &error);
   void leaveTerrainAssetDocument();
   [[nodiscard]] bool terrainHistory(bool forward, std::string &error);
+  [[nodiscard]] bool terrainPresentationHistory(bool forward, std::string &error);
   [[nodiscard]] std::optional<nlohmann::json>
   effectiveTerrainRecipe(const SceneValueTarget &target, std::string &error) const;
   [[nodiscard]] bool applyViewportAction(EditorViewportToolAction action,

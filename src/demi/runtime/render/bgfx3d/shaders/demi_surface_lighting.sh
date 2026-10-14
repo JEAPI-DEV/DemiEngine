@@ -186,7 +186,7 @@ void main()
     vec3 worldDy = dFdy(v_relativePos);
 #ifdef DEMI_TERRAIN
     vec4 surfaceParameters;
-    vec4 albedo = terrainSurface(v_texcoord0, gl_FrontFacing, surfaceParameters);
+    vec4 albedo = terrainSurface(v_texcoord0, gl_FrontFacing, v_terrainBlend, surfaceParameters);
 #elif defined(DEMI_MESH_PBR)
     vec4 surfaceParameters = u_metalRough;
     vec3 receiverNormal = pbrNormalize(v_normal, vec3(0.0, 1.0, 0.0));

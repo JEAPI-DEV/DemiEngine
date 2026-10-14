@@ -156,6 +156,7 @@ add_custom_command(
     "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_surface_lighting.sh"
     "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_shadow_receiver.sh"
     "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_terrain_material.sh"
+        "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_terrain_blending.sh"
     "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_lit_instanced.sc"
     "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_post_process.sc"
     "${DEMI_BGFX_SHADER_SOURCE_DIR}/fs_demi_post_process.sc"
@@ -237,6 +238,7 @@ foreach(terrain_variant glsl essl spv)
         "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_surface_lighting.sh"
         "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_shadow_receiver.sh"
         "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_terrain_material.sh"
+        "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_terrain_blending.sh"
         "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
       VERBATIM)
     list(APPEND DEMI_BGFX_BUILTIN_SHADER_HEADERS "${terrain_header}")

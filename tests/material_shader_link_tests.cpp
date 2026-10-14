@@ -7,9 +7,12 @@
 #include "fs_demi_lit_spv.h"
 #include "fs_demi_pbr_directional_spv.h"
 #include "fs_demi_pbr_spv.h"
+#include "fs_demi_terrain_directional_spv.h"
+#include "fs_demi_terrain_spv.h"
 #include "vs_demi_lit_instanced_spv.h"
 #include "vs_demi_lit_spv.h"
 #include "vs_demi_skinned_spv.h"
+#include "vs_demi_terrain_spv.h"
 
 #ifdef NDEBUG
 #undef NDEBUG
@@ -71,7 +74,24 @@ int main() {
     }
   }
   assert(linked == 12);
+  const auto terrainVertex = shader("terrain", vs_demi_terrain_spv);
+  for (const auto &fragment :
+       {shader("terrain", fs_demi_terrain_spv),
+        shader("terrain_directional", fs_demi_terrain_directional_spv)}) {
+    const auto program =
+        resources->createProgram({.vertexShader = terrainVertex.bytes,
+                                  .fragmentShader = fragment.bytes,
+                                  .debugName = fragment.name},
+                                 error);
+    if (!program) {
+      std::cerr << fragment.name << ": " << error << '\n';
+    }
+    assert(program);
+    resources->destroy(program);
+    ++linked;
+  }
+  assert(linked == 14);
   resources.reset();
   graphics.shutdown();
-  std::cout << "All 12 generated mesh material shader interfaces link\n";
+  std::cout << "All 14 generated mesh and terrain shader interfaces link\n";
 }

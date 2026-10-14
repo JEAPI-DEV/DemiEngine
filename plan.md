@@ -5,6 +5,12 @@ projection for mesh/terrain surfaces, with source/cooked native checks. GPU
 texture arrays, height-aware layer blending, residency and starter art remain
 open. See [shared material qualification](docs/terrain-shared-material-qualification.md).
 
+Terrain placements now expose Surface Blending in the Inspector. Smooth solid
+palette transitions remain the default; disabling them selects sharp original
+cell-triangle materials without changing geometry or LOD. Matched native
+captures confirm that the rocky-valley example's four-unit color transitions
+account for much of its soft appearance; this does not replace detailed art.
+
 The prominent rocky-valley shadow grid is corrected through precise view
 directions, stable receiver derivatives and texel-scaled facet filtering.
 Native GPU/mesh and translated-plane checks preserve real cast shadows. See

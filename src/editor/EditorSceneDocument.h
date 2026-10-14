@@ -142,6 +142,8 @@ public:
   [[nodiscard]] bool undo(std::string &error);
   [[nodiscard]] bool redo(std::string &error);
   // Inspect only the next command; pointers expire on history mutation.
+  [[nodiscard]] const SetValueCommand *nextValueUndo() const;
+  [[nodiscard]] const SetValueCommand *nextValueRedo() const;
   [[nodiscard]] const TerrainRecipeCommand *nextTerrainUndo() const;
   [[nodiscard]] const TerrainRecipeCommand *nextTerrainRedo() const;
 

@@ -122,3 +122,31 @@ Native checks qualify Linux Vulkan. Shader variants compile for SPIR-V, GLSL
 and ESSL, but Windows and physical Android rendering have not been qualified.
 Website sources are updated locally; PHP lint and publication were not run.
 Milestone 4 is still in progress.
+
+## Optional solid surface blending
+
+`Terrain3D.surface_blending` defaults to true and is exposed as **Surface
+Blending** in the Inspector. False selects a single original cell-triangle
+material instead of interpolating neighboring solid palette entries. It does
+not change geometry, normals, LOD selection or texture filtering. Mapped
+materials on the ordinary mesh fallback remain discrete in either setting.
+
+Linux Release Vulkan captures of isolated rocky-valley copies at 3413 x 1917,
+using the same camera, recipe and lighting, show sharp snow/rock and grass/scree
+boundaries with blending disabled. Only one native process ran at a time.
+Session evidence is `/tmp/demi-blending-on.png` and
+`/tmp/demi-blending-off.png`; these temporary captures are not shipping assets.
+The example has solid palette colors and four-unit cells. Blending stretches
+color transitions across those cells; disabling it exposes their triangular
+boundaries. Surface detail and height-aware blending remain separate work.
+
+Five Release regression suites pass: component schema, real shader interface
+linking, GPU field data, patch batching and terrain workspace history. They cover
+the default and strict boolean contract, shader triangle selection, live flags
+on shared batches, unchanged field/mesh/collision resources, inherited prefab
+values, failed Undo rollback and source-preserving Save. Both comparison projects
+and the unchanged rocky-valley example validate without diagnostics.
+The rebuilt native Release editor also displays the unchecked Surface Blending
+control for the sharp comparison scene (`/tmp/blending-editor.png`). Its saved
+narrow Inspector layout wraps field labels heavily; that is separate from the
+terrain rendering change.

@@ -1,3 +1,5 @@
+#include "demi_terrain_blending.sh"
+
 SAMPLER2D(s_terrainIds, 5);
 SAMPLER2D(s_terrainPalette, 6);
 // Sample dimensions and local world units per sample in X/Z, shared with VS.
@@ -48,7 +50,8 @@ void accumulateTerrainMaterial(uint index, float weight, bool clockwiseFacing,
 
 // Returns linear base RGB and opaque alpha. Main and shadow passes use the
 // same material eligibility; no blend of cull flags can change their coverage.
-vec4 terrainSurface(vec2 sampleUv, bool clockwiseFacing, out vec4 parameters)
+vec4 terrainSurface(vec2 sampleUv, bool clockwiseFacing, float surfaceBlending,
+                    out vec4 parameters)
 {
     vec2 gridPosition = clamp(sampleUv * u_terrainField.xy - vec2(0.5),
                               vec2(0.0), u_terrainField.xy - vec2(1.0));
@@ -63,6 +66,14 @@ vec4 terrainSurface(vec2 sampleUv, bool clockwiseFacing, out vec4 parameters)
                         fraction.x * (1.0 - fraction.y),
                         (1.0 - fraction.x) * fraction.y,
                         fraction.x * fraction.y);
+
+    if (surfaceBlending < 0.5)
+    {
+        uint selected = terrainTriangleMaterialIndex(
+            indices.x, indices.y, indices.z, indices.w, fraction);
+        indices = uvec4(selected);
+        weights = vec4(1.0, 0.0, 0.0, 0.0);
+    }
 
     // Merge duplicate palette IDs before fetching properties and colour.
     // Uniform cells need one palette pair instead of four.

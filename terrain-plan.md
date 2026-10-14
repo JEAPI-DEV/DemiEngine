@@ -599,6 +599,11 @@ prominent cliff grid; finite-resolution and contact limitations remain.
 
 ## Milestone 4: automatic high-quality surface materials
 
+- [x] Expose per-placement Surface Blending for comparing smooth GPU solid-color
+  transitions with sharp cell-triangle material assignment. The default stays
+  smooth; toggling is an appearance edit that preserves terrain/collision data.
+
+
 - [x] Render ordinary Material asset references assigned to biomes through the
   shared Mesh Renderer path. Store positive finite texture scale in terrain-local
   units, with continuous UVs across chunks. Preserve geometry/collision on

@@ -14,6 +14,26 @@ using namespace demi::runtime::render;
 
 namespace {
 
+using uint = std::uint32_t;
+struct vec2 {
+  float x;
+  float y;
+};
+
+#include "demi/runtime/render/bgfx3d/shaders/demi_terrain_blending.sh"
+
+void sharpMaterialsFollowCellTrianglesWithoutInterpolatingIds() {
+  assert(terrainTriangleMaterialIndex(9, 5, 5, 2, {0.2F, 0.3F}) == 5);
+  assert(terrainTriangleMaterialIndex(9, 5, 7, 7, {0.9F, 0.7F}) == 7);
+  assert(terrainTriangleMaterialIndex(9, 5, 7, 2, {0.2F, 0.3F}) == 9);
+  assert(terrainTriangleMaterialIndex(9, 5, 7, 2, {0.9F, 0.7F}) == 5);
+  assert(terrainTriangleMaterialIndex(9, 5, 7, 2, {0.5F, 0.5F}) == 9);
+  assert(terrainTriangleMaterialIndex(9, 5, 9, 2, {0.2F, 0.3F}) == 9);
+  assert(terrainTriangleMaterialIndex(9, 5, 7, 5, {0.9F, 0.7F}) == 5);
+  constexpr uint largeId = 0x01000001U;
+  assert(terrainTriangleMaterialIndex(largeId, 2, 3, 4, {0, 0}) == largeId);
+}
+
 MaterialBinding material(std::array<float, 4> color) {
   MaterialBinding binding;
   binding.state = {.blend = BlendMode::Opaque,
@@ -285,6 +305,7 @@ void actualDeviceLimitsAndInvalidSamplesAreReported() {
 } // namespace
 
 int main() {
+  sharpMaterialsFollowCellTrianglesWithoutInterpolatingIds();
   samplesAndPaletteRetainCanonicalValues();
   overridesAndDeduplicationAreIndependentOfRoles();
   intrinsicUniformMetadataIsSupported();

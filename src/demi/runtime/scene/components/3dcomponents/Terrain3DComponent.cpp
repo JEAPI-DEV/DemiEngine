@@ -12,6 +12,11 @@ bool Terrain3DComponent::validateAuthored(const nlohmann::json &json,
     error = "Terrain3D requires an object and a string asset reference";
     return false;
   }
+  if (const auto blending = json.find("surface_blending");
+      blending != json.end() && !blending->is_boolean()) {
+    error = "Terrain3D surface_blending requires a boolean";
+    return false;
+  }
   if (const auto quality = json.find("lod_error_pixels");
       quality != json.end()) {
     if (!quality->is_number()) {
@@ -58,6 +63,7 @@ void Terrain3DComponent::parse(const nlohmann::json &json, Entity &entity) {
   Terrain3DComponent value;
   value.asset = json.value("asset", std::string{});
   value.lodErrorPixels = json.value("lod_error_pixels", value.lodErrorPixels);
+  value.surfaceBlending = json.value("surface_blending", value.surfaceBlending);
   if (json.contains("recipe")) {
     value.recipe = json.at("recipe");
   }
@@ -74,6 +80,9 @@ bool Terrain3DComponent::serializeField(const Terrain3DComponent &component,
   }
   if (field == "recipe") {
     return readRecipe(component, out);
+  }
+  if (field == "surface_blending") {
+    return runtimeFieldJson(component.surfaceBlending, out);
   }
   if (field == "lod_error_pixels") {
     return runtimeFieldJson(component.lodErrorPixels, out);

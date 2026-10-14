@@ -406,7 +406,8 @@ void TerrainPatchBatch3D::prepareExtraction(
       TerrainPatchInstance3D instance{
           .transform = composeMeshTransform3D(*transform, {1, 1, 1}),
           .gridOrigin = {float(rectangle.firstCellX),
-                         float(rectangle.firstCellZ), 0, 0}};
+                         float(rectangle.firstCellZ),
+                         quality->surfaceBlending ? 1.F : 0.F, 0}};
       auto fallback = fullFallback(*chunk, *transform);
       std::string error;
       const auto textureBytes = fields.residentBytes();

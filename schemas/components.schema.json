@@ -4699,6 +4699,15 @@
           "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
+        },
+        "surface_blending": {
+          "default": true,
+          "type": "boolean",
+          "x-demi-editor-help": "Interpolate GPU solid material colors across cells. Disable for sharp per-triangle assignment; texture filtering and LOD are unchanged.",
+          "x-demi-editor-label": "Surface Blending",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
         }
       },
       "type": "object"

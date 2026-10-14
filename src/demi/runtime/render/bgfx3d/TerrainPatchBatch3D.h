@@ -15,7 +15,9 @@ class TerrainCameraDemand3D;
 
 struct TerrainPatchInstance3D {
   std::array<float, 16> transform{};
-  std::array<float, 4> gridOrigin{};
+  // XY: lattice origin, Z: surface blending, W: reserved. This stays per
+  // instance so shared fields can use different appearance without new uploads.
+  std::array<float, 4> gridOrigin{0, 0, 1, 0};
 };
 static_assert(sizeof(TerrainPatchInstance3D) == 80);
 
