@@ -7,16 +7,7 @@ SAMPLER2DARRAY(s_terrainEmissive, 11);
 // Resident array edge and world-space distance where detail normals fade out.
 uniform vec4 u_terrainSurface;
 
-vec3 terrainNormalize(vec3 value, vec3 fallback)
-{
-    float extent = max(abs(value.x), max(abs(value.y), abs(value.z)));
-    if (!(extent > 0.0))
-    {
-        return fallback;
-    }
-    vec3 scaled = value / extent;
-    return scaled * inversesqrt(dot(scaled, scaled));
-}
+#include "demi_terrain_normal_frame.sh"
 
 float terrainMacroNoise(vec3 position)
 {
@@ -72,35 +63,6 @@ vec2 terrainWrap(vec2 uv, float mode, float mip)
     return uv;
 }
 
-vec3 terrainNormalFrame(vec3 normal, vec3 worldDx, vec3 worldDy,
-                        vec2 uvDx, vec2 uvDy, vec3 mapped)
-{
-    float scaleX = max(abs(worldDx.x), max(abs(worldDx.y), abs(worldDx.z)));
-    float scaleY = max(abs(worldDy.x), max(abs(worldDy.y), abs(worldDy.z)));
-    if (!(scaleX > 0.0) || !(scaleY > 0.0))
-    {
-        return normal;
-    }
-    vec3 dx = worldDx / scaleX;
-    vec3 dy = worldDy / scaleY;
-    uvDx /= scaleX;
-    uvDy /= scaleY;
-    vec3 perpendicularY = cross(dy, normal);
-    vec3 perpendicularX = cross(normal, dx);
-    vec3 tangent = perpendicularY * uvDx.x + perpendicularX * uvDy.x;
-    vec3 bitangent = perpendicularY * uvDx.y + perpendicularX * uvDy.y;
-    float extent = max(max(abs(tangent.x), max(abs(tangent.y), abs(tangent.z))),
-                       max(abs(bitangent.x), max(abs(bitangent.y), abs(bitangent.z))));
-    if (!(extent > 0.0))
-    {
-        return normal;
-    }
-    tangent /= extent;
-    bitangent /= extent;
-    float scale = inversesqrt(max(dot(tangent, tangent), dot(bitangent, bitangent)));
-    return terrainNormalize(tangent * scale * mapped.x + bitangent * scale * mapped.y + normal * mapped.z, normal);
-}
-
 struct TerrainMappedSurface
 {
     vec3 color;
@@ -113,9 +75,71 @@ struct TerrainMappedSurface
     float visible;
 };
 
+void accumulateTerrainProjection(int axis, float weight,
+    vec4 mapping, vec4 strengths, vec4 detail, float detailFade,
+    vec3 localPosition, vec3 localNormal, vec3 localDx, vec3 localDy,
+    TerrainNormalBasis normalBasis, vec3 receiverNormal,
+    inout TerrainMappedSurface result)
+{
+    if (weight <= 0.0001)
+    {
+        return;
+    }
+    vec2 uv = terrainProject(localPosition, axis, localNormal) * mapping.y;
+    vec2 uvDx = terrainProject(localDx, axis, localNormal) * mapping.y;
+    vec2 uvDy = terrainProject(localDy, axis, localNormal) * mapping.y;
+    float footprintSquared = max(dot(uvDx, uvDx), dot(uvDy, uvDy)) *
+                             (u_terrainSurface.x * u_terrainSurface.x);
+    float mip = 0.5 * log2(max(footprintSquared, 1.0));
+    vec3 coordinate = vec3(terrainWrap(uv, detail.y, mip), mapping.x);
+    vec4 albedo = texture2DArrayLod(s_terrainAlbedo, coordinate, mip);
+    vec4 ormHeight = texture2DArrayLod(s_terrainOrmHeight, coordinate, mip);
+#if !(DEMI_PERFORMANCE_DEBUG && DEMI_PERFORMANCE_DEBUG_DISABLE_TERRAIN_NORMALS)
+    vec3 mapped = vec3(0.0, 0.0, 1.0);
+    if (strengths.x > 0.0)
+    {
+        mapped = texture2DArrayLod(s_terrainNormals, coordinate, mip).xyz * 2.0 - 1.0;
+    }
+    mapped.y *= mapping.w;
+    mapped.xy *= strengths.x;
+    mapped.z = mix(1.0, mapped.z, min(strengths.x, 1.0));
+    if (strengths.y * detailFade > 0.0)
+    {
+        vec3 fine = texture2DArrayLod(s_terrainDetail, coordinate, mip).xyz * 2.0 - 1.0;
+        fine.y *= mapping.w;
+        float detailStrength = strengths.y * detailFade;
+        fine.xy *= detailStrength;
+        fine.z = mix(1.0, fine.z, min(detailStrength, 1.0));
+        fine = terrainNormalize(fine, vec3(0.0, 0.0, 1.0));
+        // Match the ordinary PBR material's whiteout detail composition.
+        mapped = terrainNormalize(mapped, vec3(0.0, 0.0, 1.0));
+        mapped = terrainNormalize(vec3(mapped.xy + fine.xy, mapped.z * fine.z),
+                                  vec3(0.0, 0.0, 1.0));
+    }
+    if (detail.y > 1.5)
+    {
+        mapped.xy *= mix(vec2(1.0), vec2(-1.0), step(vec2(1.0), mod(uv, 2.0)));
+    }
+#endif
+    result.color += albedo.rgb * weight;
+#if DEMI_PERFORMANCE_DEBUG && DEMI_PERFORMANCE_DEBUG_DISABLE_TERRAIN_NORMALS
+    result.normal += receiverNormal * weight;
+#else
+    result.normal += terrainNormalFrame(receiverNormal, normalBasis, axis, localNormal,
+                                         terrainNormalize(mapped, vec3(0.0, 0.0, 1.0))) * weight;
+#endif
+    if (detail.z > 0.5)
+    {
+        result.emissive += texture2DArrayLod(s_terrainEmissive, coordinate, mip).rgb * weight;
+    }
+    result.occlusion += ormHeight.r * weight;
+    result.properties.xy += ormHeight.bg * weight;
+    result.height += ormHeight.a * weight;
+}
+
 TerrainMappedSurface terrainMappedLayer(uint index, bool clockwiseFacing,
-    vec3 localDx, vec3 localDy, vec3 worldDx, vec3 worldDy, vec3 receiverNormal,
-    vec3 localPosition, vec3 localNormal, float viewDistance)
+    vec3 localDx, vec3 localDy, TerrainNormalBasis normalBasis, vec3 receiverNormal,
+    vec3 localPosition, vec3 localNormal, vec3 projectionWeights, float detailFade)
 {
     vec4 tint = terrainPaletteTexel(index * 5u);
     vec4 parameters = terrainPaletteTexel(index * 5u + 1u);
@@ -130,71 +154,51 @@ TerrainMappedSurface terrainMappedLayer(uint index, bool clockwiseFacing,
     result.occlusion = 0.0;
     result.height = 0.0;
     result.heightStrength = strengths.z;
+#ifdef DEMI_TERRAIN_OPAQUE
+    // Uniform palette culling is already enforced by the raster state.
+    result.visible = 1.0;
+#else
     result.visible = parameters.w > 0.5 && clockwiseFacing ? 0.0 : 1.0;
-    vec3 projectionWeights = abs(terrainNormalize(localNormal, vec3(0.0, 1.0, 0.0)));
-    projectionWeights /= projectionWeights.x + projectionWeights.y + projectionWeights.z;
+#endif
+#if DEMI_PERFORMANCE_DEBUG && DEMI_PERFORMANCE_DEBUG_DISABLE_TERRAIN_MATERIALS
+    // Diagnostic-only palette baseline: retain authored scalar properties and
+    // categorical coverage, with no sampled surface maps or height bias.
+    result.color = tint.rgb;
+    result.normal = receiverNormal;
+    result.properties = parameters.xyz;
+    result.occlusion = 1.0;
+    result.height = 0.5;
+    result.heightStrength = 0.0;
+    return result;
+#else
+#if DEMI_PERFORMANCE_DEBUG && DEMI_PERFORMANCE_DEBUG_DISABLE_TERRAIN_TRIPLANAR
+    projectionWeights = vec3(0.0, 1.0, 0.0);
+#else
     if (mapping.z < 0.5)
     {
         projectionWeights = vec3(0.0, 1.0, 0.0);
     }
-    float detailFade = 1.0 - smoothstep(u_terrainSurface.y * 0.5, u_terrainSurface.y, viewDistance);
-    for (int axis = 0; axis < 3; ++axis)
-    {
-        float weight = projectionWeights[axis];
-        if (weight <= 0.0001)
-        {
-            continue;
-        }
-        vec2 uv = terrainProject(localPosition, axis, localNormal) * mapping.y;
-        vec2 uvDx = terrainProject(localDx, axis, localNormal) * mapping.y;
-        vec2 uvDy = terrainProject(localDy, axis, localNormal) * mapping.y;
-        float footprint = max(length(uvDx), length(uvDy)) * u_terrainSurface.x;
-        float mip = max(0.0, log2(max(footprint, 1.0)));
-        vec3 coordinate = vec3(terrainWrap(uv, detail.y, mip), mapping.x);
-        vec4 albedo = texture2DArrayLod(s_terrainAlbedo, coordinate, mip);
-        vec4 ormHeight = texture2DArrayLod(s_terrainOrmHeight, coordinate, mip);
-        vec3 mapped = vec3(0.0, 0.0, 1.0);
-        if (strengths.x > 0.0)
-        {
-            mapped = texture2DArrayLod(s_terrainNormals, coordinate, mip).xyz * 2.0 - 1.0;
-        }
-        mapped.y *= mapping.w;
-        mapped.xy *= strengths.x;
-        mapped.z = mix(1.0, mapped.z, min(strengths.x, 1.0));
-        if (strengths.y * detailFade > 0.0)
-        {
-            vec3 fine = texture2DArrayLod(s_terrainDetail, coordinate, mip).xyz * 2.0 - 1.0;
-            fine.y *= mapping.w;
-            float detailStrength = strengths.y * detailFade;
-            fine.xy *= detailStrength;
-            fine.z = mix(1.0, fine.z, min(detailStrength, 1.0));
-            fine = terrainNormalize(fine, vec3(0.0, 0.0, 1.0));
-            // Match the ordinary PBR material's whiteout detail composition.
-            mapped = terrainNormalize(mapped, vec3(0.0, 0.0, 1.0));
-            mapped = terrainNormalize(vec3(mapped.xy + fine.xy, mapped.z * fine.z),
-                                      vec3(0.0, 0.0, 1.0));
-        }
-        if (detail.y > 1.5)
-        {
-            mapped.xy *= mix(vec2(1.0), vec2(-1.0), step(vec2(1.0), mod(uv, 2.0)));
-        }
-        result.color += albedo.rgb * weight;
-        result.normal += terrainNormalFrame(receiverNormal, worldDx, worldDy, uvDx, uvDy,
-                                             terrainNormalize(mapped, vec3(0.0, 0.0, 1.0))) * weight;
-        if (detail.z > 0.5)
-        {
-            result.emissive += texture2DArrayLod(s_terrainEmissive, coordinate, mip).rgb * weight;
-        }
-        result.occlusion += ormHeight.r * weight;
-        result.properties.xy += ormHeight.bg * weight;
-        result.height += ormHeight.a * weight;
-    }
-    result.color *= decodeColor(tint.rgb);
+#endif
+    // Literal axes let the compiler specialize projection orientation and
+    // remove dynamic-axis indexing while retaining all triplanar contributors.
+    accumulateTerrainProjection(0, projectionWeights.x, mapping, strengths, detail,
+        detailFade, localPosition, localNormal, localDx, localDy,
+        normalBasis, receiverNormal, result);
+    accumulateTerrainProjection(1, projectionWeights.y, mapping, strengths, detail,
+        detailFade, localPosition, localNormal, localDx, localDy,
+        normalBasis, receiverNormal, result);
+    accumulateTerrainProjection(2, projectionWeights.z, mapping, strengths, detail,
+        detailFade, localPosition, localNormal, localDx, localDy,
+        normalBasis, receiverNormal, result);
+    result.color *= tint.rgb;
+#if !(DEMI_PERFORMANCE_DEBUG && DEMI_PERFORMANCE_DEBUG_DISABLE_TERRAIN_MACRO)
     if (strengths.w > 0.0)
     {
         result.color *= 1.0 - strengths.w * terrainMacroNoise(localPosition * detail.x);
     }
+#endif
     return result;
+#endif
 }
 
 vec4 terrainMappedSurface(uvec4 indices, vec4 weights, bool clockwiseFacing,
@@ -204,6 +208,7 @@ vec4 terrainMappedSurface(uvec4 indices, vec4 weights, bool clockwiseFacing,
 {
     if (u_shadowConfig.x < -0.5)
     {
+#ifndef DEMI_TERRAIN_OPAQUE
         // Supported mapped terrain is opaque. Height factors stay positive,
         // so categorical culling of positive contributors alone determines
         // coverage; sampling shading maps cannot change the caster silhouette.
@@ -223,40 +228,18 @@ vec4 terrainMappedSurface(uvec4 indices, vec4 weights, bool clockwiseFacing,
         {
             discard;
         }
+#endif
         parameters = vec4(0.0);
         lightingNormal = receiverNormal;
         occlusion = 1.0;
         emissive = vec3(0.0);
         return vec4(1.0);
     }
-    TerrainMappedSurface layers[4];
-    vec4 heights = vec4(0.5);
-    vec4 strengths = vec4(0.0);
-    for (int slot = 0; slot < 4; ++slot)
-    {
-        if (weights[slot] <= 0.0)
-        {
-            continue;
-        }
-        layers[slot] = terrainMappedLayer(indices[slot], clockwiseFacing,
-            localDx, localDy, worldDx, worldDy, receiverNormal,
-            localPosition, localNormal, viewDistance);
-        weights[slot] *= layers[slot].visible;
-        heights[slot] = layers[slot].height;
-        strengths[slot] = layers[slot].heightStrength;
-    }
-    // Height biases existing contributors, never introduces another material.
-    // At zero strength this is exactly the original interpolation footprint.
-    for (int slot = 0; slot < 4; ++slot)
-    {
-        weights[slot] *= terrainHeightBlendFactor(heights[slot], strengths[slot]);
-    }
-    float total = dot(weights, vec4(1.0));
-    if (total <= 0.0)
-    {
-        discard;
-    }
-    weights /= total;
+    TerrainNormalBasis normalBasis = terrainNormalBasis(
+        receiverNormal, worldDx, worldDy, localDx, localDy);
+    vec3 projectionWeights = abs(terrainNormalize(localNormal, vec3(0.0, 1.0, 0.0)));
+    projectionWeights /= projectionWeights.x + projectionWeights.y + projectionWeights.z;
+    float detailFade = 1.0 - smoothstep(u_terrainSurface.y * 0.5, u_terrainSurface.y, viewDistance);
     vec3 color = vec3(0.0);
     lightingNormal = vec3(0.0);
     parameters = vec4(0.0);
@@ -268,12 +251,34 @@ vec4 terrainMappedSurface(uvec4 indices, vec4 weights, bool clockwiseFacing,
         {
             continue;
         }
-        color += layers[slot].color * weights[slot];
-        lightingNormal += layers[slot].normal * weights[slot];
-        parameters.xyz += layers[slot].properties * weights[slot];
-        occlusion += layers[slot].occlusion * weights[slot];
-        emissive += layers[slot].emissive * weights[slot];
+        TerrainMappedSurface layer = terrainMappedLayer(indices[slot], clockwiseFacing,
+            localDx, localDy, normalBasis, receiverNormal,
+            localPosition, localNormal, projectionWeights, detailFade);
+        // Height bias depends only on this contributor. Accumulate its weighted
+        // channels now, then normalize once without retaining four surfaces.
+        // Zero strength preserves the original interpolation footprint.
+        weights[slot] *= layer.visible;
+        weights[slot] *= terrainHeightBlendFactor(layer.height, layer.heightStrength);
+        if (weights[slot] <= 0.0)
+        {
+            continue;
+        }
+        color += layer.color * weights[slot];
+        lightingNormal += layer.normal * weights[slot];
+        parameters.xyz += layer.properties * weights[slot];
+        occlusion += layer.occlusion * weights[slot];
+        emissive += layer.emissive * weights[slot];
     }
-    lightingNormal = terrainNormalize(lightingNormal, receiverNormal);
-    return vec4(color, 1.0);
+    float total = dot(weights, vec4(1.0));
+#ifndef DEMI_TERRAIN_OPAQUE
+    if (total <= 0.0)
+    {
+        discard;
+    }
+#endif
+    parameters.xyz /= total;
+    occlusion /= total;
+    emissive /= total;
+    lightingNormal = terrainNormalize(lightingNormal / total, receiverNormal);
+    return vec4(color / total, 1.0);
 }

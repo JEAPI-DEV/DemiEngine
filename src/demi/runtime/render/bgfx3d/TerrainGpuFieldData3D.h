@@ -23,6 +23,9 @@ using TerrainGpuMaterialResolver3D =
 struct TerrainGpuFieldData3D {
   bool compatible = false;
   bool mapped = false;
+  // Mixed None/CW palette entries need categorical fragment culling. A uniform
+  // cull policy is fully enforced by the shared raster state instead.
+  bool requiresFragmentCulling = true;
   // Sorted unique IDs, including the neutral empty ID at layer zero.
   std::vector<std::string> materialIds;
   std::string fallbackReason;
@@ -36,8 +39,9 @@ struct TerrainGpuFieldData3D {
   std::vector<std::array<float, 4>> normals;
   // An exact unsigned palette index in little-endian RGBA bytes.
   std::vector<std::array<std::uint8_t, 4>> materialIndices;
-  // Two row-major RGBA32F texels per entry: tinted base RGBA, then
-  // metallic/roughness/unlit/CW-cull flag. Tail texels are zero padding.
+  // Row-major RGBA32F entries start with linear tinted RGB/unchanged alpha,
+  // then metallic/roughness/unlit/CW-cull. Mapped entries add three surface
+  // records (five texels total); solid entries use two. Tail texels are zero.
   std::vector<std::array<float, 4>> palette;
 };
 

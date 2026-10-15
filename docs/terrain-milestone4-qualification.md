@@ -185,3 +185,97 @@ internal and forwarding no body to authentication. Nginx configuration validatio
 passed; an unauthenticated 2 MiB upload still returns 401, and the authenticated
 art upload succeeds. The maintained deployment template and operations notes
 include the correction.
+
+
+## Performance and gray-cliff follow-up (2026-10-15)
+
+The original warm GPU result above exposed excessive material shading cost.
+The earlier Rock Face 03 scan is genuinely brown; its source checksums and
+material binding were correct. The example now selects the gray Marble Cliff 05
+scan, added to `polyhaven.materials.terrain@1.1.0` with its original CC0 maps,
+provenance and physical scale. Rock Face 03 remains available for other scenes.
+
+Performance comparisons use the **same gray assets on both binaries**, not a
+brown/gray texture swap. The old executable is the Release build at `dfb17995`.
+One visible Vulkan runtime runs at a time, without a concurrent editor or build,
+on an NVIDIA GeForce RTX 3070 Ti Laptop. Both use 3840 x 2022, 4x MSAA,
+380,932 submitted triangles, 189 main terrain patch instances and unchanged
+material caps, LOD, shadows and map features. Frames before 200 are excluded.
+
+| Paired capture | GPU median | GPU p95 |
+|---|---:|---:|
+| Original executable, gray assets | 11.485 ms | 12.743 ms |
+| Optimized executable, same gray assets | 7.043 ms | 7.664 ms |
+
+A preceding pair measured 11.451 ms before and 6.776 ms after. These are warm
+scene measurements, not a general frame budget or a claim that optimization is
+finished. The paired median improves by about 39 percent. Focus remained active;
+startup compilation and source preparation are outside this comparison.
+Raw local evidence is `/tmp/terrain-gray-paired-{before,after}.frames.csv` and
+matching screenshots. Screenshot mean absolute differences remain below
+0.2 of one 8-bit channel step; no map or lighting feature was removed.
+
+The changes reduce hidden and repeated work:
+
+- Stable front-to-back patch order allows depth rejection before costly shading.
+- Homogeneous opaque terrain uses a discard-free shader variant. Mixed culling
+  retains its original fragment checks; opaque shadow passes skip material maps.
+- Streaming layer accumulation replaces dynamically indexed temporary arrays.
+- Projection setup and normal-frame gradients are shared across layers, with a
+  robust fallback for ill-conditioned transforms. The independent reference test
+  covers signed projections, nonuniform transforms, degenerate and extreme scales.
+- Palette RGB conversion happens once during field preparation, after combining
+  authored tints, instead of repeatedly in fragments. Alpha remains linear.
+
+### Retained diagnostics
+
+`DEMI_PERFORMANCE_DEBUG` is a supported, default-off native build option.
+`DEMI_PERFORMANCE_DEBUG_DISABLE` selects named shader stages for controlled
+experiments. Shared generated C++/shader definitions, startup logs and profiler
+mask gauges identify the actual diagnostic build. Master-off forces all stage
+switches off, including when a previous list remains cached. Unknown enabled
+stage names fail configuration. These switches never modify authored assets.
+Use `#if DEMI_PERFORMANCE_DEBUG`, not `#ifdef`, because the macro is always 0/1.
+The stage list in `cmake/DemiPerformanceDebug.cmake` owns mask assignments; append
+new stages rather than reusing existing bits, and extend the template, owning
+shader code, configure tests and maintained profiler guide together.
+
+For example, in an optimized diagnostic build:
+
+```sh
+cmake --preset linux-release -DDEMI_PERFORMANCE_DEBUG=ON -DDEMI_PERFORMANCE_DEBUG_DISABLE=terrain_normals
+cmake --build --preset linux-release --target demi
+```
+
+Relaunch before measuring. Restore the normal build with
+`-DDEMI_PERFORMANCE_DEBUG=OFF -DDEMI_PERFORMANCE_DEBUG_DISABLE=` and rebuild.
+The final editor/runtime build uses this normal configuration.
+
+With identical gray assets, diagnostic removal of material-map work measured
+2.841 ms GPU median, while removal of normal-map work alone measured 5.930 ms.
+These deliberately reduced-feature runs locate costs; they are **not** production
+speedups. Per-view timestamps identify named Main, Shadow and PostProcess passes.
+A view sample is accepted only when its own GPU frame ID matches the freshly
+accepted total-frame query, avoiding stale or misattributed values. CPU scopes,
+GPU views and total-frame intervals overlap and must not be added together.
+
+
+### Follow-up validation and publication
+
+Sixteen focused Release suites pass after the final rebuild: shader contracts,
+normal-frame reference, field preparation/cache, patch ordering/culling, material
+arrays/residency, image/material loading, renderer pass labels, frame timing and
+performance-debug configuration, plus material authoring/layers/cooking. All
+32 repository examples validate. This is not a full repository test gate.
+A native capture verifies named Main/Shadow GPU scopes with matching-frame
+filtering and diagnostic master/mask both zero.
+
+Package 1.1.0 is published on the public registry. A fresh Rocky Valley copy,
+with an empty package cache, installs it and validates 50 files without
+diagnostics. The first generic minimal-3D install probe also installed correctly,
+but its deliberately small 32 MiB project budget produced a texture-budget
+warning; the actual terrain example is the relevant qualification fixture.
+The live release `20261015-terrain-performance-debug` passed Composer tests,
+all 106 Twig template checks and production cache warmup before activation.
+The health endpoint, updated profiler/material guides and package version were
+checked after deployment.

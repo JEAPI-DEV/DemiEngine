@@ -25,6 +25,7 @@ struct TerrainGpuField3D {
   std::array<float, 4> paletteParameters{};
   DrawState state;
   bool mapped = false;
+  bool requiresFragmentCulling = true;
   std::vector<std::string> materialIds;
 
 private:

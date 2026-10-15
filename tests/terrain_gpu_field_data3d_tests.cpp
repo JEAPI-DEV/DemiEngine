@@ -1,4 +1,5 @@
 #include "demi/runtime/render/MaterialLibrary.h"
+#include "demi/runtime/render/backend/ImageColorSpace.h"
 #include "demi/runtime/render/bgfx3d/TerrainGpuFieldData3D.h"
 #include "demi/runtime/terrain/TerrainHeightField.h"
 #include "demi/runtime/terrain/TerrainSurfaceMaterials.h"
@@ -8,6 +9,7 @@
 #endif
 #include <algorithm>
 #include <cassert>
+#include <cmath>
 #include <functional>
 #include <iostream>
 #include <limits>
@@ -120,9 +122,11 @@ void samplesAndPaletteRetainCanonicalValues() {
                                            ? "asset://earth"
                                            : "asset://stone");
     const auto tint = field.biomeColors.at(field.biomeIndices.at(sample));
-    const std::array<float, 4> expectedColor{tint.r * binding.baseColor[0],
-                                             tint.g * binding.baseColor[1],
-                                             tint.b * binding.baseColor[2], 1};
+    const std::array<float, 4> expectedColor{
+        static_cast<float>(decodeSrgbChannel(tint.r * binding.baseColor[0])),
+        static_cast<float>(decodeSrgbChannel(tint.g * binding.baseColor[1])),
+        static_cast<float>(decodeSrgbChannel(tint.b * binding.baseColor[2])),
+        1};
     const std::array<float, 4> expectedParameters{
         binding.metallic, binding.roughness, binding.unlit ? 1.0F : 0.0F,
         binding.state.cull == CullMode::Clockwise ? 1.0F : 0.0F};
@@ -131,6 +135,37 @@ void samplesAndPaletteRetainCanonicalValues() {
   }
   assert(result.materialIndices[0] == result.materialIndices[4]);
   assert(result.materialIndices[3] == result.materialIndices[5]);
+}
+
+void paletteDecodesCombinedSrgbTintForSolidAndMappedMaterials() {
+  auto field = fixture();
+  field.biomeMaterials = {"asset://override", "asset://override"};
+  field.biomeColors = {{0.5F, 0.02F, 1.F, 1.F}, {0.5F, 0.02F, 1.F, 1.F}};
+  auto binding = material({0.5F, 0.5F, 0.5F, 1.F});
+  const auto resolve = [&](std::string_view) { return &binding; };
+  for (const bool mapped : {false, true}) {
+    if (mapped) {
+      binding.surface.maps[demi::assets::MaterialMapSlot::Albedo] =
+          "asset://texture";
+    }
+    const auto result = prepareTerrainGpuFieldData3D(field, resolve, 16);
+    assert(result.compatible && result.mapped == mapped);
+    assert(result.paletteEntries == 1);
+    const auto &color = result.palette.front();
+    // Decode the product: sRGB 0.5 * 0.5 becomes linear 0.0508761,
+    // rather than multiplying two independently decoded 0.214041 channels.
+    assert(std::abs(color[0] - 0.050876088F) < 1e-7F);
+    assert(std::abs(color[1] - 0.0007739938F) < 1e-9F);
+    assert(std::abs(color[2] - 0.21404114F) < 1e-7F);
+    assert(color[3] == 1.F);
+    assert(field.biomeColors[0].r == 0.5F);
+    assert(binding.baseColor[0] == 0.5F);
+  }
+  assert(std::abs(decodeSrgbChannel(0.04045) - 0.00313080495) < 1e-11);
+  assert(std::abs(encodeSrgbChannel(0.0031308) - 0.040449936) < 1e-11);
+  assert(std::abs(encodeSrgbChannel(0.21404114048223255) - 0.5) < 1e-12);
+  assert(decodeSrgbChannel(0) == 0 && decodeSrgbChannel(1) == 1);
+  assert(encodeSrgbChannel(0) == 0);
 }
 
 void overridesAndDeduplicationAreIndependentOfRoles() {
@@ -224,9 +259,13 @@ void mappedPalettesRetainMaterialIdentityAndSurfaceControls() {
     const auto offset = entry * 5;
     const auto tint = field.biomeColors[biome];
     assert(result.palette[offset] ==
-           (std::array<float, 4>{tint.r * material.baseColor[0],
-                                 tint.g * material.baseColor[1],
-                                 tint.b * material.baseColor[2], 1}));
+           (std::array<float, 4>{static_cast<float>(decodeSrgbChannel(
+                                     tint.r * material.baseColor[0])),
+                                 static_cast<float>(decodeSrgbChannel(
+                                     tint.g * material.baseColor[1])),
+                                 static_cast<float>(decodeSrgbChannel(
+                                     tint.b * material.baseColor[2])),
+                                 1}));
     assert(result.palette[offset + 1][2] == (isEarth ? 0.F : 1.F));
     assert(result.palette[offset + 2][0] == (isEarth ? 1.F : 2.F));
     assert(result.palette[offset + 2][1] ==
@@ -294,6 +333,7 @@ void mixedCullModesUsePerPixelFlagsAndOtherStatesStillFallBack() {
   };
   const auto result = prepareTerrainGpuFieldData3D(field, resolve, 16);
   assert(result.compatible && result.state.cull == CullMode::None);
+  assert(result.requiresFragmentCulling);
   assert(result.paletteEntries == 2);
   for (std::size_t sample = 0; sample < 6; ++sample) {
     const auto entry = decode(result.materialIndices[sample]);
@@ -308,6 +348,16 @@ void mixedCullModesUsePerPixelFlagsAndOtherStatesStillFallBack() {
   assert(homogeneous.compatible &&
          homogeneous.state.cull == CullMode::Clockwise);
   assert(homogeneous.paletteEntries == 1);
+  assert(!homogeneous.requiresFragmentCulling);
+
+  first.state.cull = CullMode::None;
+  second.state.cull = CullMode::None;
+  const auto doubleSided = prepareTerrainGpuFieldData3D(field, resolve, 16);
+  assert(doubleSided.compatible && doubleSided.state.cull == CullMode::None);
+  assert(!doubleSided.requiresFragmentCulling);
+  second.state.cull = CullMode::Clockwise;
+  const auto reversedMixed = prepareTerrainGpuFieldData3D(field, resolve, 16);
+  assert(reversedMixed.compatible && reversedMixed.requiresFragmentCulling);
 
   second.state.depthTest = DepthTest::Disabled;
   const auto incompatibleDepth =
@@ -392,6 +442,7 @@ void actualDeviceLimitsAndInvalidSamplesAreReported() {
 int main() {
   sharpMaterialsFollowCellTrianglesWithoutInterpolatingIds();
   samplesAndPaletteRetainCanonicalValues();
+  paletteDecodesCombinedSrgbTintForSolidAndMappedMaterials();
   overridesAndDeduplicationAreIndependentOfRoles();
   intrinsicUniformMetadataIsSupported();
   unsupportedMaterialsNeverBecomeDefaultPaletteEntries();

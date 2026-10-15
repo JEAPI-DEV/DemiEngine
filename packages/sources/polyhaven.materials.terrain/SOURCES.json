@@ -376,6 +376,81 @@
           "bytes": 1889438
         }
       ]
+    },
+    {
+      "id": "marble_cliff_05",
+      "name": "Marble Cliff 05",
+      "url": "https://polyhaven.com/a/marble_cliff_05",
+      "authors": {
+        "Amal Kumar": "All"
+      },
+      "dimensions_mm": [
+        20002.0694732666,
+        20001.800537109375
+      ],
+      "tile_size_metres": [
+        20,
+        20
+      ],
+      "resolution": "1k",
+      "files": [
+        {
+          "slot": "albedo",
+          "path": "assets/textures/marble_cliff_05/albedo.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/marble_cliff_05/marble_cliff_05_diff_1k.jpg",
+          "provider_md5": "84d207d6f6d8a52c41da48144b951eab",
+          "provider_bytes": 987798,
+          "color_space": "srgb",
+          "normal_convention": null,
+          "sha256": "06d39eeb7243e5dd1aa8a5e2f4acb6e62fc3457ceb066bfa73743c977336baa4",
+          "bytes": 987798
+        },
+        {
+          "slot": "normal",
+          "path": "assets/textures/marble_cliff_05/normal.png",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/1k/marble_cliff_05/marble_cliff_05_nor_gl_1k.png",
+          "provider_md5": "ea9cc46cdd1f5a483610ec7009363125",
+          "provider_bytes": 6468391,
+          "color_space": "linear",
+          "normal_convention": "opengl",
+          "sha256": "5eebef7d078b5c4da89a8e6f962b7f7481b10dcfe78f66bb28f8a4637ca2d04a",
+          "bytes": 6468391
+        },
+        {
+          "slot": "roughness",
+          "path": "assets/textures/marble_cliff_05/roughness.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/marble_cliff_05/marble_cliff_05_rough_1k.jpg",
+          "provider_md5": "105bba43b8ddc9a889e41a94ff36f6c9",
+          "provider_bytes": 550656,
+          "color_space": "linear",
+          "normal_convention": null,
+          "sha256": "529a099d6043a228576b84c607d89a8a22967842f0bd66a324cb701c718bc2c4",
+          "bytes": 550656
+        },
+        {
+          "slot": "ambient_occlusion",
+          "path": "assets/textures/marble_cliff_05/ambient_occlusion.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/marble_cliff_05/marble_cliff_05_ao_1k.jpg",
+          "provider_md5": "2ce91ab1bdf77ff16d04142d7871cee7",
+          "provider_bytes": 453522,
+          "color_space": "linear",
+          "normal_convention": null,
+          "sha256": "31ec288894ebe6b80d66bb9418f9f1ecf82c02124c8e1b2b26f260c42f9a1651",
+          "bytes": 453522
+        },
+        {
+          "slot": "height",
+          "path": "assets/textures/marble_cliff_05/height.png",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/1k/marble_cliff_05/marble_cliff_05_disp_1k.png",
+          "provider_md5": "37d2dc5682cc393c854021b50f065086",
+          "provider_bytes": 1527163,
+          "color_space": "linear",
+          "normal_convention": null,
+          "sha256": "ff42aabd9538c79e6b433b4669c855f4101a7661faf2c2905cb011a1fd3c59ef",
+          "bytes": 1527163
+        }
+      ],
+      "retrieved": "2026-10-15"
     }
   ],
   "license_text_source": "https://raw.githubusercontent.com/spdx/license-list-data/main/text/CC0-1.0.txt",
@@ -395,6 +470,14 @@
       "url": "https://cdn.polyhaven.com/asset_img/thumbs/grass_ground.png?width=384&height=384&format=png",
       "sha256": "8393f72da5342f4c5e3b7ed43ec2bd2666a82c9daa0ae25b0e2d6ed5c51caa0e",
       "bytes": 281379,
+      "description": "Upstream material preview render, not a DemiEngine capture"
+    },
+    {
+      "path": "previews/marble_cliff_05.png",
+      "asset": "marble_cliff_05",
+      "url": "https://cdn.polyhaven.com/asset_img/primary/marble_cliff_05.png?height=512",
+      "sha256": "a8eda079eabb8ab527c0fbc3d3e47bec2db05449094f0008fc420f687ff82bee",
+      "bytes": 1196813,
       "description": "Upstream material preview render, not a DemiEngine capture"
     }
   ]

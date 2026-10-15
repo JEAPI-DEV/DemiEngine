@@ -1,3 +1,4 @@
+#include "demi/runtime/render/PerformanceDebug.h"
 #include "demi/runtime/render/backend/BgfxGraphicsDevice.h"
 #include "demi/runtime/render/backend/GpuResources.h"
 
@@ -13,6 +14,12 @@
 #include "fs_demi_terrain_mapped_directional_spv.h"
 #include "fs_demi_terrain_mapped_essl.h"
 #include "fs_demi_terrain_mapped_glsl.h"
+#include "fs_demi_terrain_mapped_opaque_directional_essl.h"
+#include "fs_demi_terrain_mapped_opaque_directional_glsl.h"
+#include "fs_demi_terrain_mapped_opaque_directional_spv.h"
+#include "fs_demi_terrain_mapped_opaque_essl.h"
+#include "fs_demi_terrain_mapped_opaque_glsl.h"
+#include "fs_demi_terrain_mapped_opaque_spv.h"
 #include "fs_demi_terrain_mapped_spv.h"
 #include "fs_demi_terrain_spv.h"
 #include "vs_demi_lit_instanced_spv.h"
@@ -31,8 +38,8 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
-#include <vector>
 #include <utility>
+#include <vector>
 
 using namespace demi::runtime::render;
 
@@ -113,6 +120,12 @@ void requireMappedArraySamplers(const Shader &shader) {
       "s_terrainAlbedo", "s_terrainNormals", "s_terrainOrmHeight",
       "s_terrainDetail", "s_terrainEmissive"};
   for (const auto name : expected) {
+    bool expectsSampler = true;
+#if DEMI_PERFORMANCE_DEBUG && DEMI_PERFORMANCE_DEBUG_DISABLE_TERRAIN_MATERIALS
+    expectsSampler = false;
+#elif DEMI_PERFORMANCE_DEBUG && DEMI_PERFORMANCE_DEBUG_DISABLE_TERRAIN_NORMALS
+    expectsSampler = name != "s_terrainNormals" && name != "s_terrainDetail";
+#endif
     bool hasSampler = false;
     if (shader.code == ShaderCode::Spirv) {
       hasSampler = std::find(compiled.samplers.begin(), compiled.samplers.end(),
@@ -130,11 +143,67 @@ void requireMappedArraySamplers(const Shader &shader) {
       hasSampler = code.find(declaration) != std::string_view::npos &&
                    code.find(sampledUse) != std::string_view::npos;
     }
-    if (!hasSampler) {
+    if (hasSampler != expectsSampler) {
       throw std::runtime_error(std::string(shader.name) +
-                               ": missing compiled array sampler " +
+                               ": unexpected compiled array sampler state " +
                                std::string(name));
     }
+  }
+#if DEMI_PERFORMANCE_DEBUG && DEMI_PERFORMANCE_DEBUG_DISABLE_SHADOW_RECEIVE
+  if (shader.code == ShaderCode::Spirv &&
+      std::find(compiled.samplers.begin(), compiled.samplers.end(),
+                "s_shadowMap") != compiled.samplers.end()) {
+    throw std::runtime_error(std::string(shader.name) +
+                             ": disabled shadow filtering retains its sampler");
+  }
+#endif
+}
+
+void requireOpaqueCoverage(const Shader &shader) {
+  const auto compiled = readCompiledShaderInterface(shader);
+  if (shader.code == ShaderCode::Glsl) {
+    const std::string_view code(
+        reinterpret_cast<const char *>(compiled.code.data()),
+        compiled.code.size());
+    if (code.find("discard") != std::string_view::npos) {
+      throw std::runtime_error(std::string(shader.name) +
+                               ": opaque variant can discard fragments");
+    }
+    return;
+  }
+  const auto word = [&](std::size_t index) {
+    std::uint32_t value = 0;
+    for (unsigned byte = 0; byte < 4; ++byte) {
+      value |= std::to_integer<std::uint32_t>(compiled.code[index * 4 + byte])
+               << (byte * 8);
+    }
+    return value;
+  };
+  if (compiled.code.size() < 20 || compiled.code.size() % 4 != 0 ||
+      word(0) != 0x07230203U) {
+    throw std::runtime_error(std::string(shader.name) +
+                             ": invalid SPIR-V payload");
+  }
+  // Walk instruction headers, not arbitrary payload words which may share an
+  // opcode's numeric value. Reject both terminating and demoting discards.
+  const auto words = compiled.code.size() / 4;
+  for (std::size_t cursor = 5; cursor < words;) {
+    const auto instruction = word(cursor);
+    const auto length = instruction >> 16;
+    const auto opcode = instruction & 0xffffU;
+    if (length == 0 || length > words - cursor) {
+      throw std::runtime_error(std::string(shader.name) +
+                               ": invalid SPIR-V instruction");
+    }
+    constexpr unsigned kill = 252;
+    constexpr unsigned terminateInvocation = 4416;
+    constexpr unsigned demoteToHelperInvocation = 5380;
+    if (opcode == kill || opcode == terminateInvocation ||
+        opcode == demoteToHelperInvocation) {
+      throw std::runtime_error(std::string(shader.name) +
+                               ": opaque variant can discard fragments");
+    }
+    cursor += length;
   }
 }
 
@@ -153,6 +222,23 @@ int main() {
         shader("mapped directional OpenGLES",
                fs_demi_terrain_mapped_directional_essl, ShaderCode::Glsl)}) {
     requireMappedArraySamplers(compiled);
+  }
+  for (const auto &compiled :
+       {shader("opaque mapped Vulkan", fs_demi_terrain_mapped_opaque_spv),
+        shader("opaque mapped directional Vulkan",
+               fs_demi_terrain_mapped_opaque_directional_spv),
+        shader("opaque mapped OpenGL", fs_demi_terrain_mapped_opaque_glsl,
+               ShaderCode::Glsl),
+        shader("opaque mapped directional OpenGL",
+               fs_demi_terrain_mapped_opaque_directional_glsl,
+               ShaderCode::Glsl),
+        shader("opaque mapped OpenGLES", fs_demi_terrain_mapped_opaque_essl,
+               ShaderCode::Glsl),
+        shader("opaque mapped directional OpenGLES",
+               fs_demi_terrain_mapped_opaque_directional_essl,
+               ShaderCode::Glsl)}) {
+    requireMappedArraySamplers(compiled);
+    requireOpaqueCoverage(compiled);
   }
 
   BgfxGraphicsDevice graphics;
@@ -197,7 +283,10 @@ int main() {
         shader("terrain_directional", fs_demi_terrain_directional_spv),
         shader("terrain_mapped", fs_demi_terrain_mapped_spv),
         shader("terrain_mapped_directional",
-               fs_demi_terrain_mapped_directional_spv)}) {
+               fs_demi_terrain_mapped_directional_spv),
+        shader("terrain_mapped_opaque", fs_demi_terrain_mapped_opaque_spv),
+        shader("terrain_mapped_opaque_directional",
+               fs_demi_terrain_mapped_opaque_directional_spv)}) {
     const auto program =
         resources->createProgram({.vertexShader = terrainVertex.bytes,
                                   .fragmentShader = fragment.bytes,
@@ -210,8 +299,8 @@ int main() {
     resources->destroy(program);
     ++linked;
   }
-  assert(linked == 16);
+  assert(linked == 18);
   resources.reset();
   graphics.shutdown();
-  std::cout << "All 16 generated mesh and terrain shader interfaces link\n";
+  std::cout << "All 18 generated mesh and terrain shader interfaces link\n";
 }

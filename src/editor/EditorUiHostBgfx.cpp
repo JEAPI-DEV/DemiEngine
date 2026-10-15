@@ -1,4 +1,5 @@
 #include "demi/runtime/profiling/RuntimeProfiler.h"
+#include "demi/runtime/render/PerformanceDebug.h"
 #include "demi/runtime/render/backend/DefaultFont.h"
 #include "editor/EditorActivity.h"
 #include "editor/EditorDockingState.h"
@@ -492,6 +493,11 @@ public:
     (void)graphics_.endFrame();
     if (runtime::RuntimeProfiler::enabled()) {
       const auto timings = graphics_.frameTimings();
+      runtime::RuntimeProfiler::setGauge("Graphics.performance_debug",
+                                         DEMI_PERFORMANCE_DEBUG);
+      runtime::RuntimeProfiler::setGauge(
+          "Graphics.performance_debug_disabled_mask",
+          DEMI_PERFORMANCE_DEBUG_DISABLED_MASK);
       runtime::RuntimeProfiler::record("Graphics.frame_advance",
                                        timings.advanceMilliseconds);
       if (timings.renderThreadMilliseconds) {
@@ -501,6 +507,14 @@ public:
       if (timings.gpuMilliseconds) {
         runtime::RuntimeProfiler::record("Graphics.gpu",
                                          *timings.gpuMilliseconds);
+        runtime::RuntimeProfiler::setGauge("Graphics.gpu_frame",
+                                           timings.gpuFrame);
+        for (const auto &view : timings.gpuViews) {
+          runtime::RuntimeProfiler::record("Graphics.gpu_view." +
+                                               std::to_string(view.viewId) +
+                                               "." + view.name,
+                                           view.milliseconds);
+        }
       }
       runtime::RuntimeProfiler::setGauge(
           "Editor.refresh_hz", platform_->frameState().displayRefreshHz);

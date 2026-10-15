@@ -239,6 +239,8 @@ private:
   ProgramHandle directionalTerrainProgram_;
   ProgramHandle mappedTerrainProgram_;
   ProgramHandle directionalMappedTerrainProgram_;
+  ProgramHandle opaqueMappedTerrainProgram_;
+  ProgramHandle directionalOpaqueMappedTerrainProgram_;
   TerrainRenderStatistics3D terrainStatistics_;
   std::size_t reportedTerrainFailures_ = 0;
   std::string terrainDiagnostic_;

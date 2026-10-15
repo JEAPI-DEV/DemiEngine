@@ -9,6 +9,7 @@
 #include <memory>
 #include <span>
 #include <string>
+#include <string_view>
 #include <type_traits>
 
 namespace demi::runtime::render {
@@ -22,6 +23,8 @@ struct View2DConfig {
   std::uint32_t clearRgba = 0x000000ffU;
   bool clear = true;
   FrameBufferHandle frameBuffer;
+  // Synchronous diagnostic label; the backend copies it during configuration.
+  std::string_view debugName;
 };
 
 struct Point3D {
@@ -50,6 +53,7 @@ struct View3DConfig {
   bool clearDepth = true;
   FrameBufferHandle frameBuffer;
   bool sequential = false;
+  std::string_view debugName;
 };
 
 enum class DepthTest { Disabled, Less, LessEqual, Always };

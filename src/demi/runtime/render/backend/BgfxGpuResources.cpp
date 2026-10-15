@@ -57,6 +57,12 @@
 #include <fs_demi_terrain_mapped_directional_spv.h>
 #include <fs_demi_terrain_mapped_essl.h>
 #include <fs_demi_terrain_mapped_glsl.h>
+#include <fs_demi_terrain_mapped_opaque_directional_essl.h>
+#include <fs_demi_terrain_mapped_opaque_directional_glsl.h>
+#include <fs_demi_terrain_mapped_opaque_directional_spv.h>
+#include <fs_demi_terrain_mapped_opaque_essl.h>
+#include <fs_demi_terrain_mapped_opaque_glsl.h>
+#include <fs_demi_terrain_mapped_opaque_spv.h>
 #include <fs_demi_terrain_mapped_spv.h>
 #include <fs_demi_terrain_spv.h>
 #include <vs_demi_terrain_essl.h>
@@ -116,6 +122,29 @@ const bgfx::EmbeddedShader EmbeddedShaders[] = {
        sizeof(fs_demi_terrain_mapped_directional_glsl)},
       {bgfx::RendererType::Vulkan, fs_demi_terrain_mapped_directional_spv,
        sizeof(fs_demi_terrain_mapped_directional_spv)},
+      {bgfx::RendererType::Noop,
+       reinterpret_cast<const std::uint8_t *>("FSH\x5\x0\x0\x0\x0\x0\x0"), 10},
+      {bgfx::RendererType::Count, nullptr, 0}}},
+    {"fs_demi_terrain_mapped_opaque",
+     {{bgfx::RendererType::OpenGLES, fs_demi_terrain_mapped_opaque_essl,
+       sizeof(fs_demi_terrain_mapped_opaque_essl)},
+      {bgfx::RendererType::OpenGL, fs_demi_terrain_mapped_opaque_glsl,
+       sizeof(fs_demi_terrain_mapped_opaque_glsl)},
+      {bgfx::RendererType::Vulkan, fs_demi_terrain_mapped_opaque_spv,
+       sizeof(fs_demi_terrain_mapped_opaque_spv)},
+      {bgfx::RendererType::Noop,
+       reinterpret_cast<const std::uint8_t *>("FSH\x5\x0\x0\x0\x0\x0\x0"), 10},
+      {bgfx::RendererType::Count, nullptr, 0}}},
+    {"fs_demi_terrain_mapped_opaque_directional",
+     {{bgfx::RendererType::OpenGLES,
+       fs_demi_terrain_mapped_opaque_directional_essl,
+       sizeof(fs_demi_terrain_mapped_opaque_directional_essl)},
+      {bgfx::RendererType::OpenGL,
+       fs_demi_terrain_mapped_opaque_directional_glsl,
+       sizeof(fs_demi_terrain_mapped_opaque_directional_glsl)},
+      {bgfx::RendererType::Vulkan,
+       fs_demi_terrain_mapped_opaque_directional_spv,
+       sizeof(fs_demi_terrain_mapped_opaque_directional_spv)},
       {bgfx::RendererType::Noop,
        reinterpret_cast<const std::uint8_t *>("FSH\x5\x0\x0\x0\x0\x0\x0"), 10},
       {bgfx::RendererType::Count, nullptr, 0}}},
@@ -675,6 +704,14 @@ public:
     case BuiltinProgram::TerrainMapped3DDirectional:
       vertexName = "vs_demi_terrain";
       fragmentName = "fs_demi_terrain_mapped_directional";
+      break;
+    case BuiltinProgram::TerrainMappedOpaque3D:
+      vertexName = "vs_demi_terrain";
+      fragmentName = "fs_demi_terrain_mapped_opaque";
+      break;
+    case BuiltinProgram::TerrainMappedOpaque3DDirectional:
+      vertexName = "vs_demi_terrain";
+      fragmentName = "fs_demi_terrain_mapped_opaque_directional";
       break;
     case BuiltinProgram::Terrain3DDirectional:
       vertexName = "vs_demi_terrain";

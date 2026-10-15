@@ -1,7 +1,7 @@
 {
   "dependencies": [
     "asset://polyhaven/terrain/materials/grass_ground",
-    "asset://polyhaven/terrain/materials/rock_face_03",
+    "asset://polyhaven/terrain/materials/marble_cliff_05",
     "asset://polyhaven/terrain/materials/rocky_gravel",
     "asset://polyhaven/terrain/materials/sand_02",
     "asset://polyhaven/terrain/materials/snow_02",
@@ -16,5 +16,5 @@
   },
   "source": "materials.json",
   "type": "DataAsset",
-  "source_hash": "fnv1a64:ad94a2b1c59bf811"
+  "source_hash": "fnv1a64:6a6a37683088f0cf"
 }

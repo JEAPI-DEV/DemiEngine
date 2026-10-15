@@ -496,6 +496,9 @@
   target_link_libraries(demi-terrain-material-array-tests PRIVATE demi-render3d-bgfx)
   add_executable(demi-terrain-material-residency3d-tests tests/terrain_material_residency3d_tests.cpp)
   target_link_libraries(demi-terrain-material-residency3d-tests PRIVATE demi-render3d-bgfx)
+  add_executable(demi-terrain-normal-frame-tests tests/terrain_normal_frame_tests.cpp)
+  target_compile_features(demi-terrain-normal-frame-tests PRIVATE cxx_std_20)
+  target_include_directories(demi-terrain-normal-frame-tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
   add_executable(demi-terrain-gpu-field-data3d-tests
     tests/terrain_gpu_field_data3d_tests.cpp)
   target_link_libraries(demi-terrain-gpu-field-data3d-tests PRIVATE demi-render3d-bgfx)

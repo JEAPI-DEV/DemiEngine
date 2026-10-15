@@ -1,0 +1,17 @@
+{
+  "format_version": 1,
+  "id": "asset://polyhaven/terrain/materials/marble_cliff_05",
+  "type": "Material",
+  "source": "marble_cliff_05.material.json",
+  "importer": "material",
+  "importer_version": 1,
+  "source_hash": "fnv1a64:b28751b6fc2d3b53",
+  "dependencies": [
+    "asset://polyhaven/terrain/textures/marble_cliff_05/albedo",
+    "asset://polyhaven/terrain/textures/marble_cliff_05/ambient_occlusion",
+    "asset://polyhaven/terrain/textures/marble_cliff_05/height",
+    "asset://polyhaven/terrain/textures/marble_cliff_05/normal",
+    "asset://polyhaven/terrain/textures/marble_cliff_05/roughness"
+  ],
+  "settings": {}
+}

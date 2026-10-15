@@ -71,7 +71,8 @@ public:
   [[nodiscard]] std::vector<VisibleMesh3D>
   flush(RenderCommands &commands, std::uint16_t viewId, ProgramHandle program,
         const std::array<DrawUniformValue, 8> &lighting, bool overdraw,
-        std::string &error, ProgramHandle mappedProgram = {});
+        std::string &error, ProgramHandle mappedProgram = {},
+        ProgramHandle opaqueMappedProgram = {});
   [[nodiscard]] const TerrainPatchStatistics3D &statistics() const;
   [[nodiscard]] std::size_t topologyBytes() const;
 

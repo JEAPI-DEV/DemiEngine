@@ -2,11 +2,12 @@
   "format_version": 1,
   "packages": [
     {
-      "archive_hash": "sha256:1a32f1b88793bf7de01361da4000eb42b54985674b0acedc0c81a5afb68e5bd1",
-      "archive_uri": "package://polyhaven.materials.terrain/1.0.0",
+      "archive_hash": "sha256:eba1a3956c2f0563a65ebfdb664d4597bc57c2e4f5ffb978bb1baef090c5ff2e",
+      "archive_uri": "package://polyhaven.materials.terrain/1.1.0",
       "manifest": {
         "asset_manifests": [
           "assets/materials/grass_ground/grass_ground.material.asset.json",
+          "assets/materials/marble_cliff_05/marble_cliff_05.material.asset.json",
           "assets/materials/rock_face_03/rock_face_03.material.asset.json",
           "assets/materials/rocky_gravel/rocky_gravel.material.asset.json",
           "assets/materials/sand_02/sand_02.material.asset.json",
@@ -19,6 +20,11 @@
           "assets/textures/grass_ground/height.asset.json",
           "assets/textures/grass_ground/normal.asset.json",
           "assets/textures/grass_ground/roughness.asset.json",
+          "assets/textures/marble_cliff_05/albedo.asset.json",
+          "assets/textures/marble_cliff_05/ambient_occlusion.asset.json",
+          "assets/textures/marble_cliff_05/height.asset.json",
+          "assets/textures/marble_cliff_05/normal.asset.json",
+          "assets/textures/marble_cliff_05/roughness.asset.json",
           "assets/textures/rock_face_03/albedo.asset.json",
           "assets/textures/rock_face_03/ambient_occlusion.asset.json",
           "assets/textures/rock_face_03/height.asset.json",
@@ -49,6 +55,8 @@
           "SOURCES.json",
           "assets/materials/grass_ground/grass_ground.material.asset.json",
           "assets/materials/grass_ground/grass_ground.material.json",
+          "assets/materials/marble_cliff_05/marble_cliff_05.material.asset.json",
+          "assets/materials/marble_cliff_05/marble_cliff_05.material.json",
           "assets/materials/rock_face_03/rock_face_03.material.asset.json",
           "assets/materials/rock_face_03/rock_face_03.material.json",
           "assets/materials/rocky_gravel/rocky_gravel.material.asset.json",
@@ -73,6 +81,16 @@
           "assets/textures/grass_ground/normal.png",
           "assets/textures/grass_ground/roughness.asset.json",
           "assets/textures/grass_ground/roughness.jpg",
+          "assets/textures/marble_cliff_05/albedo.asset.json",
+          "assets/textures/marble_cliff_05/albedo.jpg",
+          "assets/textures/marble_cliff_05/ambient_occlusion.asset.json",
+          "assets/textures/marble_cliff_05/ambient_occlusion.jpg",
+          "assets/textures/marble_cliff_05/height.asset.json",
+          "assets/textures/marble_cliff_05/height.png",
+          "assets/textures/marble_cliff_05/normal.asset.json",
+          "assets/textures/marble_cliff_05/normal.png",
+          "assets/textures/marble_cliff_05/roughness.asset.json",
+          "assets/textures/marble_cliff_05/roughness.jpg",
           "assets/textures/rock_face_03/albedo.asset.json",
           "assets/textures/rock_face_03/albedo.jpg",
           "assets/textures/rock_face_03/ambient_occlusion.asset.json",
@@ -114,14 +132,15 @@
           "assets/textures/snow_02/roughness.asset.json",
           "assets/textures/snow_02/roughness.jpg",
           "previews/grass_ground.png",
+          "previews/marble_cliff_05.png",
           "previews/rock_face_03.png"
         ],
         "format_version": 1,
         "name": "polyhaven.materials.terrain",
         "public_modules": [],
-        "version": "1.0.0"
+        "version": "1.1.0"
       },
-      "manifest_hash": "sha256:041e9c83a67262ac8fad73382e16938f96a2bc501fe722be2552c4a64d624965",
+      "manifest_hash": "sha256:52072f408fe6d8db2e83b73498dcd73086427eafc3c3e041013abc07806d2b72",
       "yanked": false
     }
   ],

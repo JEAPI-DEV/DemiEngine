@@ -1,21 +1,13 @@
 #include "demi/runtime/render/backend/ImageResize2D.h"
 
+#include "demi/runtime/render/backend/ImageColorSpace.h"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
 
 namespace demi::runtime::render {
 namespace {
-
-double decodeColor(double value) {
-  return value <= 0.04045 ? value / 12.92
-                          : std::pow((value + 0.055) / 1.055, 2.4);
-}
-
-double encodeColor(double value) {
-  return value <= 0.0031308 ? value * 12.92
-                            : 1.055 * std::pow(value, 1.0 / 2.4) - 0.055;
-}
 
 std::byte channelByte(double value) {
   return static_cast<std::byte>(std::lround(std::clamp(value, 0.0, 1.0) * 255));
@@ -77,7 +69,7 @@ ImageData2D resizeImage2D(const ImageData2D &source, std::uint16_t width,
                 std::to_integer<unsigned>(source.rgba[offset + channel]) /
                 255.0;
             if (channel < 3 && semantic == ImageMipSemantic::Color) {
-              value = decodeColor(value);
+              value = decodeSrgbChannel(value);
             } else if (channel < 3 && semantic == ImageMipSemantic::Normal) {
               value = value * 2 - 1;
             }
@@ -105,7 +97,7 @@ ImageData2D resizeImage2D(const ImageData2D &source, std::uint16_t width,
       for (std::size_t channel = 0; channel < 4; ++channel) {
         double value = sum[channel];
         if (channel < 3 && semantic == ImageMipSemantic::Color) {
-          value = encodeColor(value);
+          value = encodeSrgbChannel(value);
         } else if (channel < 3 && semantic == ImageMipSemantic::Normal) {
           value = value * 0.5 + 0.5;
         }

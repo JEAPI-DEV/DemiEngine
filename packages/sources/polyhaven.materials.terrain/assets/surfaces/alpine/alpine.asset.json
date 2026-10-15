@@ -5,10 +5,10 @@
   "source": "alpine.json",
   "importer": "json_data",
   "importer_version": 1,
-  "source_hash": "fnv1a64:e06ec8b6c154e9e5",
+  "source_hash": "fnv1a64:8d7872b37a78ec6b",
   "dependencies": [
     "asset://polyhaven/terrain/materials/grass_ground",
-    "asset://polyhaven/terrain/materials/rock_face_03",
+    "asset://polyhaven/terrain/materials/marble_cliff_05",
     "asset://polyhaven/terrain/materials/rocky_gravel",
     "asset://polyhaven/terrain/materials/sand_02",
     "asset://polyhaven/terrain/materials/snow_02",

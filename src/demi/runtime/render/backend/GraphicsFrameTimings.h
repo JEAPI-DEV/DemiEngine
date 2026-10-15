@@ -1,6 +1,9 @@
 #pragma once
 #include <cstdint>
 #include <optional>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace demi::runtime::render {
 inline std::optional<double> ticksToMilliseconds(std::int64_t ticks,
@@ -17,6 +20,29 @@ inline std::optional<double> intervalMilliseconds(std::int64_t begin,
   return ticksToMilliseconds(end - begin, frequency);
 }
 
+struct GraphicsGpuViewTiming {
+  std::uint16_t viewId = 0;
+  std::string name;
+  double milliseconds = 0;
+};
+
+inline std::optional<GraphicsGpuViewTiming>
+makeGraphicsGpuViewTiming(std::uint16_t viewId, std::string name,
+                          std::uint32_t viewGpuFrame,
+                          std::uint32_t sampledGpuFrame, std::int64_t begin,
+                          std::int64_t end, std::int64_t frequency) {
+  if (viewGpuFrame != sampledGpuFrame) {
+    return std::nullopt;
+  }
+  const auto duration = intervalMilliseconds(begin, end, frequency);
+  if (!duration || *duration <= 0) {
+    return std::nullopt;
+  }
+  return GraphicsGpuViewTiming{.viewId = viewId,
+                               .name = name.empty() ? "View" : std::move(name),
+                               .milliseconds = *duration};
+}
+
 // Optional samples are absent when unavailable or already reported. Backend
 // CPU and GPU samples can describe older frames and must not be summed with
 // current application-frame timings as if they formed one synchronous frame.
@@ -26,6 +52,9 @@ struct GraphicsFrameTimings {
   std::optional<double> waitRenderMilliseconds;
   std::optional<double> waitSubmitMilliseconds;
   std::optional<double> gpuMilliseconds;
+  // View samples belong to gpuFrame and are emitted only with a fresh GPU
+  // frame sample. Their intervals may overlap; they are not a frame-time sum.
+  std::vector<GraphicsGpuViewTiming> gpuViews;
   std::uint32_t submittedFrame = 0;
   std::uint32_t gpuFrame = 0;
   std::uint32_t width = 0;

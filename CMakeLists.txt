@@ -31,6 +31,7 @@ configure_file("${CMAKE_SOURCE_DIR}/cmake/BuildVersion.h.in"
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
+include(DemiPerformanceDebug)
 include(DemiDependencies)
 
 set(CMAKE_CXX_STANDARD 20)

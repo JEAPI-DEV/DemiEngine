@@ -1105,6 +1105,8 @@ int main() {
           return view.id == embeddedFrame.viewId + 2;
         });
     assert(present != capture.views2D.end());
+    assert(present->debugName == "PostProcess");
+    assert(capture.views3D.front().debugName == "Main");
     assert(present->frameBuffer == embeddedTarget.frameBuffer);
     assert(present->width == 320 && present->height == 180);
     assert(present->x == 0 && present->y == 0);
@@ -1177,6 +1179,7 @@ int main() {
   assert(capture.views3D.size() == 5 && capture.views3D[0].width == 512);
   const auto atlas = capture.views3D[0].frameBuffer;
   for (int cascade = 0; cascade < 4; ++cascade) {
+    assert(capture.views3D[cascade].debugName == "Shadow");
     assert(capture.views3D[cascade].frameBuffer == atlas);
     assert(capture.views3D[cascade].id == frame.viewId + cascade);
     assert(capture.views3D[cascade].x == (cascade % 2) * 512);
@@ -1184,6 +1187,7 @@ int main() {
     assert(capture.views3D[cascade].width == 512 &&
            capture.views3D[cascade].height == 512);
   }
+  assert(capture.views3D[4].debugName == "Main");
   assert(capture.views3D[4].id == frame.viewId + 4);
   assert(capture.views3D[0].orthographicSize <
          capture.views3D[3].orthographicSize);

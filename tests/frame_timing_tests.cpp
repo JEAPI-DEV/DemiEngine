@@ -24,6 +24,26 @@ int main() {
                 !ticksToMilliseconds(-1, 1000),
             "invalid timestamps");
     GpuFrameSampleFilter gpu;
+    const auto shadowView =
+        makeGraphicsGpuViewTiming(17, "Shadow", 42, 42, 100, 350, 1000);
+    require(shadowView && shadowView->viewId == 17 &&
+                shadowView->name == "Shadow" &&
+                shadowView->milliseconds == 250.0,
+            "GPU view identity and timer conversion");
+    require(
+        !makeGraphicsGpuViewTiming(17, "Shadow", 42, 42, -1, 350, 1000) &&
+            !makeGraphicsGpuViewTiming(17, "Shadow", 42, 42, 350, 100, 1000) &&
+            !makeGraphicsGpuViewTiming(17, "Shadow", 42, 42, 100, 100, 1000) &&
+            !makeGraphicsGpuViewTiming(17, "Shadow", 42, 42, 100, 350, 0),
+        "invalid GPU view timings");
+    require(
+        !makeGraphicsGpuViewTiming(17, "Shadow", 41, 42, 100, 350, 1000) &&
+            !makeGraphicsGpuViewTiming(17, "Shadow", 43, 42, 100, 350, 1000),
+        "GPU view from a different frame was attributed to current sample");
+    const auto unnamedView =
+        makeGraphicsGpuViewTiming(17, "", 42, 42, 100, 350, 1000);
+    require(unnamedView && unnamedView->name == "View",
+            "unnamed GPU view fallback");
     require(gpu.consume(0, 10, 20, 1000) == 10.0, "GPU frame zero");
     require(!gpu.consume(0, 10, 20, 1000), "duplicate GPU frame");
     require(!gpu.consume(1, 10, 20, 0), "invalid GPU frequency");

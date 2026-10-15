@@ -188,6 +188,10 @@ public:
       return false;
     if (!setFrameBuffer(view.id, view.frameBuffer, resources_, error, "2D"))
       return false;
+    const auto name =
+        view.debugName.empty() ? std::string_view{"2D"} : view.debugName;
+    bgfx::setViewName(view.id, name.data(),
+                      static_cast<std::int32_t>(name.size()));
     bgfx::setViewRect(view.id, view.x, view.y, view.width, view.height);
     // Canvas draw order is presentation order: tilemap layers, sprites, debug
     // geometry, and UI may deliberately overlap while sharing no depth buffer.
@@ -225,6 +229,10 @@ public:
     if (!setFrameBuffer(view.id, view.frameBuffer, resources_, error, "3D"))
       return false;
 
+    const auto name =
+        view.debugName.empty() ? std::string_view{"3D"} : view.debugName;
+    bgfx::setViewName(view.id, name.data(),
+                      static_cast<std::int32_t>(name.size()));
     bgfx::setViewRect(view.id, view.x, view.y, view.width, view.height);
     std::uint16_t clearFlags = BGFX_CLEAR_NONE;
     bgfx::setViewMode(view.id, view.sequential ? bgfx::ViewMode::Sequential

@@ -1,6 +1,7 @@
 #include "demi/runtime/render/bgfx3d/TerrainGpuFieldData3D.h"
 
 #include "demi/runtime/render/MaterialLibrary.h"
+#include "demi/runtime/render/backend/ImageColorSpace.h"
 #include "demi/runtime/render/bgfx3d/TerrainMaterialResidency3D.h"
 #include "demi/runtime/terrain/TerrainHeightField.h"
 #include "demi/runtime/terrain/TerrainSurfaceMaterials.h"
@@ -183,6 +184,7 @@ public:
       // Rasterize both sides for a mixed field. Each palette entry retains its
       // own CW-cull flag so the fragment program applies the material contract.
       if (state_->cull != resolved.state.cull) {
+        requiresFragmentCulling_ = true;
         state_->cull = CullMode::None;
       }
     }
@@ -198,6 +200,13 @@ public:
     if (tinted[3] != 1) {
       throw UnsupportedField("Terrain biome tint requires transparency");
     }
+    // Preserve the authored sRGB multiplication before decoding. Palette RGB
+    // is derived linear data, so every fragment can use it without a transfer
+    // function; alpha keeps its existing linear coverage semantics.
+    const std::array<float, 4> linearTint{
+        static_cast<float>(decodeSrgbChannel(tinted[0])),
+        static_cast<float>(decodeSrgbChannel(tinted[1])),
+        static_cast<float>(decodeSrgbChannel(tinted[2])), tinted[3]};
     const std::array<float, 4> parameters{
         resolved.metallic, resolved.roughness, resolved.unlit ? 1.0F : 0.0F,
         resolved.state.cull == CullMode::Clockwise ? 1.0F : 0.0F};
@@ -231,11 +240,12 @@ public:
     const std::array<float, 4> detail{
         surface.macroVariationScale,
         float(terrainMaterialWrapCode3D(resolved.wrap)),
-        surface.maps.contains(assets::MaterialMapSlot::Emissive) ? 1.F : 0.F, 0};
+        surface.maps.contains(assets::MaterialMapSlot::Emissive) ? 1.F : 0.F,
+        0};
     std::array<std::uint32_t, 20> bits{};
     for (std::size_t channel = 0; channel < 4; ++channel) {
       bits[channel] = std::bit_cast<std::uint32_t>(
-          tinted[channel] == 0 ? 0.0F : tinted[channel]);
+          linearTint[channel] == 0 ? 0.0F : linearTint[channel]);
       bits[channel + 4] = std::bit_cast<std::uint32_t>(parameters[channel]);
     }
     for (std::size_t channel = 0; channel < 4; ++channel) {
@@ -262,7 +272,7 @@ public:
       }
       index = static_cast<std::uint32_t>(count);
       deduplicated_.emplace(bits, index);
-      texels_.push_back(tinted);
+      texels_.push_back(linearTint);
       texels_.push_back(parameters);
       texels_.push_back(mapping);
       texels_.push_back(strengths);
@@ -292,6 +302,7 @@ public:
   }
 
   bool mapped() const { return mapped_; }
+  bool requiresFragmentCulling() const { return requiresFragmentCulling_; }
   const std::vector<std::string> &materialIds() const { return materialIds_; }
   std::vector<std::array<float, 4>> takeTexels() {
     if (mapped_) {
@@ -317,6 +328,7 @@ private:
   std::vector<std::array<float, 4>> texels_;
   std::vector<std::string> materialIds_;
   bool mapped_ = false;
+  bool requiresFragmentCulling_ = false;
 };
 
 TerrainGpuFieldData3D prepare(const HeightField &field,
@@ -383,6 +395,7 @@ TerrainGpuFieldData3D prepare(const HeightField &field,
   result.state = palette.state();
   palette.retainUsedMaterials();
   result.mapped = palette.mapped();
+  result.requiresFragmentCulling = palette.requiresFragmentCulling();
   result.materialIds = palette.materialIds();
   result.palette = palette.takeTexels();
   result.paletteEntries = result.palette.size() / (result.mapped ? 5 : 2);

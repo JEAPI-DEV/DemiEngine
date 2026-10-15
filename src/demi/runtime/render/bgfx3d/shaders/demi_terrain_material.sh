@@ -47,7 +47,7 @@ void accumulateTerrainMaterial(uint index, float weight, bool clockwiseFacing,
         return;
     }
     vec4 color = terrainPaletteTexel(index * 2u);
-    linearColor += decodeColor(color.rgb) * weight;
+    linearColor += color.rgb * weight;
     properties += materialProperties.xyz * weight;
     visibleWeight += weight;
 }
@@ -74,7 +74,13 @@ vec4 terrainSurface(vec2 sampleUv, bool clockwiseFacing, float surfaceBlending,
                         (1.0 - fraction.x) * fraction.y,
                         fraction.x * fraction.y);
 
+#if DEMI_PERFORMANCE_DEBUG && DEMI_PERFORMANCE_DEBUG_DISABLE_TERRAIN_BLENDING
+    // Diagnostic ablation uses the same categorical triangle assignment as
+    // authored sharp surfaces; it never changes material IDs or source data.
+    if (true)
+#else
     if (surfaceBlending < 0.5)
+#endif
     {
         uint selected = terrainTriangleMaterialIndex(
             indices.x, indices.y, indices.z, indices.w, fraction);
@@ -134,10 +140,12 @@ vec4 terrainSurface(vec2 sampleUv, bool clockwiseFacing, float surfaceBlending,
                               linearColor, properties, visibleWeight);
     accumulateTerrainMaterial(indices.w, weights.w, clockwiseFacing,
                               linearColor, properties, visibleWeight);
+#ifndef DEMI_TERRAIN_OPAQUE
     if (visibleWeight <= 0.0)
     {
         discard;
     }
+#endif
     parameters = vec4(properties / visibleWeight, 0.0);
     return vec4(linearColor / visibleWeight, 1.0);
 #endif

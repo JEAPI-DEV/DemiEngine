@@ -1,4 +1,5 @@
 #include "bgfx_shader.sh"
+#include "demi_performance_debug.sh"
 
 #if BGFX_SHADER_LANGUAGE_ESSL == 100
 // GLES 2 fragment floats need explicit highp for narrow GGX peaks.
@@ -175,11 +176,29 @@ float cascadeVisibility(int cascade, vec4 worldPosition, vec3 worldDx,
     return visibility;
 }
 
+vec4 encodedShadowDepth(vec4 worldPosition)
+{
+    float depth = dot(u_shadowZ[int(u_shadowConfig.y)], worldPosition);
+    vec4 packedDepth = fract(clamp(depth, 0.0, 0.999999) *
+                        vec4(1.0, 255.0, 65025.0, 16581375.0));
+    return packedDepth - packedDepth.yzww * vec4(1.0/255.0, 1.0/255.0, 1.0/255.0, 0.0);
+}
+
 void main()
 {
     // Receiver-plane derivatives require the complete fragment quad. Capture
     // them before per-pixel material culling or alpha cutout discards lanes.
     vec4 worldPosition = vec4(v_worldPos, 1.0);
+#ifdef DEMI_TERRAIN_OPAQUE
+    // Uniform opaque coverage is enforced by raster culling. A shadow caster
+    // needs no material lookups or normal-frame derivatives. This branch is
+    // draw-uniform, so receiving fragments still have complete derivative quads.
+    if (u_shadowConfig.x < -0.5)
+    {
+        gl_FragColor = encodedShadowDepth(worldPosition);
+        return;
+    }
+#endif
     // Subtract the view origin before interpolation, not here: absolute-world
     // interpolation loses the small pixel differences on translated scenes.
     vec3 worldDx = dFdx(v_relativePos);
@@ -228,18 +247,16 @@ void main()
     vec4 albedo = vec4(imageColor * decodeColor(v_color0.rgb) * decodeColor(u_tint.rgb),
                       sampledAlbedo.a * v_color0.a * u_tint.a);
 #endif
+#ifndef DEMI_TERRAIN_OPAQUE
     if (albedo.a < u_alphaCutoff.x)
     {
         discard;
     }
+#endif
 
     if (u_shadowConfig.x < -0.5)
     {
-        float shadowDepth = dot(u_shadowZ[int(u_shadowConfig.y)], worldPosition);
-        vec4 packedDepth = fract(clamp(shadowDepth, 0.0, 0.999999) *
-                                 vec4(1.0, 255.0, 65025.0, 16581375.0));
-        gl_FragColor = packedDepth - packedDepth.yzww *
-                      vec4(1.0/255.0, 1.0/255.0, 1.0/255.0, 0.0);
+        gl_FragColor = encodedShadowDepth(worldPosition);
         return;
     }
 
@@ -256,6 +273,7 @@ void main()
     float diffuse = max(dot(normal, directionalDirection), 0.0);
     float receiverDiffuse = max(dot(receiverNormal, directionalDirection), 0.0);
     float visibility = 1.0;
+#if !(DEMI_PERFORMANCE_DEBUG && DEMI_PERFORMANCE_DEBUG_DISABLE_SHADOW_RECEIVE)
     if (u_shadowConfig.x > 0.5)
     {
         float viewDepth = dot(u_shadowCamera, worldPosition);
@@ -276,6 +294,7 @@ void main()
             visibility = mix(visibility, 1.0, blend);
         if (viewDepth < 0.0 || viewDepth > farDepth) visibility = 1.0;
     }
+#endif
     DEMI_GGX_PRECISION vec3 baseColor = albedo.rgb;
     DEMI_GGX_PRECISION float metallic = clamp(surfaceParameters.x, 0.0, 1.0);
     DEMI_GGX_PRECISION float roughness = clamp(surfaceParameters.y, 0.04, 1.0);

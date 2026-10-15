@@ -2,6 +2,7 @@
 #include "demi/runtime/terrain/TerrainSurfaceMaterials.h"
 
 #include <cassert>
+#include <cmath>
 #include <cstring>
 #include <iostream>
 #include <latch>
@@ -389,6 +390,7 @@ void materialInvalidationReusesChannelsButNeverReturnsOldAppearance() {
                    .writeDepth = true};
   const auto resolve = [&](std::string_view) { return &binding; };
   const auto before = prepareReady(jobs, cache, source, resolve);
+  assert(!before->requiresFragmentCulling);
   binding.baseColor[0] = 0.5F;
   cache.invalidateMaterials();
   cache.beginPresentation();
@@ -447,7 +449,9 @@ void materialSnapshotDoesNotBorrowMutableLibraryStorage() {
   float red = 0;
   std::memcpy(&red, resources.textures.at(ready->palette.index).bytes.data(),
               sizeof(red));
-  assert(red == 0.1F);
+  // The captured 0.2 biome tint times the original 0.5 material tint is
+  // stored in linear space. Later mutations must not affect this snapshot.
+  assert(std::abs(red - 0.010022826F) < 0.00000001F);
 }
 
 } // namespace

@@ -602,6 +602,9 @@ prominent cliff grid; finite-resolution and contact limitations remain.
 Complete for the Linux Vulkan capability scope, qualified on 2026-10-15.
 See [Milestone 4 qualification](docs/terrain-milestone4-qualification.md) for
 native pixels, source/cooked parity, memory measurements and explicit limits.
+The performance follow-up records matched gray-cliff captures (11.49 to 7.04 ms
+GPU median) and retained build-time stage diagnostics; no quality settings were
+reduced for that comparison.
 
 - [x] Unify mesh and terrain Material authoring, validation, import, dependency
   closure and editor controls. Ordinary Materials support albedo, normal,

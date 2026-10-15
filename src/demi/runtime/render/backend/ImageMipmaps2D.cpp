@@ -1,21 +1,13 @@
 #include "demi/runtime/render/backend/ImageMipmaps2D.h"
 
+#include "demi/runtime/render/backend/ImageColorSpace.h"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
 
 namespace demi::runtime::render {
 namespace {
-
-double decodeColor(double value) {
-  return value <= 0.04045 ? value / 12.92
-                          : std::pow((value + 0.055) / 1.055, 2.4);
-}
-
-double encodeColor(double value) {
-  return value <= 0.0031308 ? value * 12.92
-                            : 1.055 * std::pow(value, 1.0 / 2.4) - 0.055;
-}
 
 std::byte encodeChannel(double value) {
   const auto integer = std::lround(std::clamp(value, 0.0, 1.0) * 255.0);
@@ -34,7 +26,7 @@ std::array<std::byte, 4> filteredTexel(const std::vector<std::byte> &source,
         double value =
             std::to_integer<unsigned>(source[pixel + channel]) / 255.0;
         if (channel < 3 && semantic == ImageMipSemantic::Color) {
-          value = decodeColor(value);
+          value = decodeSrgbChannel(value);
         } else if (channel < 3 && semantic == ImageMipSemantic::Normal) {
           value = 2.0 * value - 1.0;
         }
@@ -65,7 +57,7 @@ std::array<std::byte, 4> filteredTexel(const std::vector<std::byte> &source,
     }
   } else if (semantic == ImageMipSemantic::Color) {
     for (std::size_t channel = 0; channel < 3; ++channel) {
-      sum[channel] = encodeColor(sum[channel]);
+      sum[channel] = encodeSrgbChannel(sum[channel]);
     }
   }
   return {encodeChannel(sum[0]), encodeChannel(sum[1]), encodeChannel(sum[2]),

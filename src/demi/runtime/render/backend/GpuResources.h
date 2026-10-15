@@ -46,6 +46,8 @@ enum class BuiltinProgram {
   Terrain3DDirectional,
   TerrainMapped3D,
   TerrainMapped3DDirectional,
+  TerrainMappedOpaque3D,
+  TerrainMappedOpaque3DDirectional,
   Pbr3D,
   Pbr3DInstanced,
   Pbr3DSkinned,

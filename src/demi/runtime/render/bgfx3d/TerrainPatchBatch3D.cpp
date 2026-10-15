@@ -439,6 +439,23 @@ void TerrainPatchBatch3D::prepareExtraction(
     impl_->statistics.consideredPatches += profile.chunks.size();
     impl_->statistics.culledPatches += culled;
     impl_->suppressed.insert(registration.id);
+    const auto viewDepth = [&](const OwnerChunk *chunk) {
+      const auto &bounds = *chunk->descriptor;
+      const Vec3 localCenter{(bounds.boundsMin.x + bounds.boundsMax.x) * 0.5F,
+                             (bounds.boundsMin.y + bounds.boundsMax.y) * 0.5F,
+                             (bounds.boundsMin.z + bounds.boundsMax.z) * 0.5F};
+      const auto center = transformPoint3D(*transform, localCenter);
+      return (center.x - view.position.x) * view.forward.x +
+             (center.y - view.position.y) * view.forward.y +
+             (center.z - view.position.z) * view.forward.z;
+    };
+    // Instance order survives topology grouping. Nearer opaque patches populate
+    // depth first so hidden terrain can skip expensive mapped surface shading.
+    // Shadow views use their own direction; LOD still belongs to lodCamera.
+    std::stable_sort(visible.begin(), visible.end(),
+                     [&](const OwnerChunk *first, const OwnerChunk *second) {
+                       return viewDepth(first) < viewDepth(second);
+                     });
     for (auto *chunk : visible) {
       const auto key = lodCamera.cameraId.empty()
                            ? "view:" + std::to_string(lodCamera.viewId)
@@ -508,7 +525,8 @@ bool TerrainPatchBatch3D::addPatch(
 std::vector<VisibleMesh3D> TerrainPatchBatch3D::flush(
     RenderCommands &commands, std::uint16_t viewId, ProgramHandle program,
     const std::array<DrawUniformValue, 8> &lighting, bool overdraw,
-    std::string &error, ProgramHandle mappedProgram) {
+    std::string &error, ProgramHandle mappedProgram,
+    ProgramHandle opaqueMappedProgram) {
   auto fallback = std::move(impl_->immediateFallback);
   if (impl_->patches.empty()) {
     return fallback;
@@ -543,7 +561,11 @@ std::vector<VisibleMesh3D> TerrainPatchBatch3D::flush(
   const bool ready = impl_->bindingsReady(error);
   for (const auto &group : groups) {
     std::size_t submitted = 0;
-    if (ready && (!group.arrays || mappedProgram)) {
+    const auto selectedMappedProgram =
+        !group.field->requiresFragmentCulling && opaqueMappedProgram
+            ? opaqueMappedProgram
+            : mappedProgram;
+    if (ready && (!group.arrays || selectedMappedProgram)) {
       auto state = group.field->state;
       if (overdraw) {
         state.blend = BlendMode::Additive;
@@ -588,7 +610,7 @@ std::vector<VisibleMesh3D> TerrainPatchBatch3D::flush(
                         .count = group.mesh->vertexCount},
            .indices = {.handle = group.mesh->indices,
                        .count = group.mesh->indexCount},
-           .program = group.arrays ? mappedProgram : program,
+           .program = group.arrays ? selectedMappedProgram : program,
            .state = state,
            .instances = instanceData(std::span(group.instances)),
            .uniforms = uniforms,

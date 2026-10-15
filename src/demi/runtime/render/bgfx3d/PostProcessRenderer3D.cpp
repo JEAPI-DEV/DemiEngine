@@ -137,7 +137,8 @@ bool PostProcessRenderer3D::present(const BgfxCameraFrame3D &frame,
            .width = std::max<std::uint16_t>(frame.viewportWidth, 1),
            .height = std::max<std::uint16_t>(frame.viewportHeight, 1),
            .clear = false,
-           .frameBuffer = destination},
+           .frameBuffer = destination,
+           .debugName = "PostProcess"},
           error))
     return false;
 

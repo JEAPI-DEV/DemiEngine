@@ -1,4 +1,5 @@
 #include "demi/runtime/app/BgfxAppContext.h"
+#include "demi/runtime/render/PerformanceDebug.h"
 
 #include "demi/runtime/diagnostics/DeviceLog.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
@@ -200,6 +201,10 @@ void BgfxAppContext::endFrame() {
   static_cast<void>(graphics_.endFrame());
   if (RuntimeProfiler::enabled()) {
     const auto timings = graphics_.frameTimings();
+    RuntimeProfiler::setGauge("Graphics.performance_debug",
+                              DEMI_PERFORMANCE_DEBUG);
+    RuntimeProfiler::setGauge("Graphics.performance_debug_disabled_mask",
+                              DEMI_PERFORMANCE_DEBUG_DISABLED_MASK);
     RuntimeProfiler::record("Graphics.frame_advance",
                             timings.advanceMilliseconds);
     if (timings.renderThreadMilliseconds)
@@ -214,6 +219,12 @@ void BgfxAppContext::endFrame() {
     if (timings.gpuMilliseconds) {
       RuntimeProfiler::record("Graphics.gpu", *timings.gpuMilliseconds);
       RuntimeProfiler::setGauge("Graphics.gpu_frame", timings.gpuFrame);
+      for (const auto &view : timings.gpuViews) {
+        RuntimeProfiler::record("Graphics.gpu_view." +
+                                    std::to_string(view.viewId) + "." +
+                                    view.name,
+                                view.milliseconds);
+      }
     }
     RuntimeProfiler::setGauge("Graphics.submitted_frame",
                               timings.submittedFrame);

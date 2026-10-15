@@ -206,6 +206,10 @@ bool BgfxRenderer3D::initialize(std::string &error) {
         BuiltinProgram::TerrainMapped3D, mappedError);
     directionalMappedTerrainProgram_ = resources_.createBuiltinProgram(
         BuiltinProgram::TerrainMapped3DDirectional, mappedError);
+    opaqueMappedTerrainProgram_ = resources_.createBuiltinProgram(
+        BuiltinProgram::TerrainMappedOpaque3D, mappedError);
+    directionalOpaqueMappedTerrainProgram_ = resources_.createBuiltinProgram(
+        BuiltinProgram::TerrainMappedOpaque3DDirectional, mappedError);
   }
   initialized_ = true;
   return true;
@@ -244,7 +248,9 @@ void BgfxRenderer3D::shutdown() {
   terrainGpuFields_.clear();
   terrainMaterials_.clear();
   for (auto *program :
-       {&mappedTerrainProgram_, &directionalMappedTerrainProgram_}) {
+       {&mappedTerrainProgram_, &directionalMappedTerrainProgram_,
+        &opaqueMappedTerrainProgram_,
+        &directionalOpaqueMappedTerrainProgram_}) {
     if (*program) {
       resources_.destroy(*program);
       *program = {};
@@ -554,6 +560,7 @@ bool BgfxRenderer3D::renderView(const World &world,
         .frameBuffer =
             offscreen ? sourceTarget.frameBuffer : FrameBufferHandle{},
         .sequential = !cosmeticFragments.empty() || hasTransparentMeshes,
+        .debugName = shadowPass ? "Shadow" : "Main",
     };
     if (!primitives_.begin(viewConfig, error)) {
       return false;
@@ -626,7 +633,9 @@ bool BgfxRenderer3D::renderView(const World &world,
         commands_, frame.viewId, terrainProgram, lightingUniforms,
         frame.camera.debugMode == "overdraw", error,
         directionalOnly ? directionalMappedTerrainProgram_
-                        : mappedTerrainProgram_);
+                        : mappedTerrainProgram_,
+        directionalOnly ? directionalOpaqueMappedTerrainProgram_
+                        : opaqueMappedTerrainProgram_);
     if (!fallback.empty()) {
       visibility.meshes.insert(visibility.meshes.end(), fallback.begin(),
                                fallback.end());
