@@ -1,0 +1,26 @@
+{
+  "format_version": 1,
+  "name": "Poly Haven Alpine Starter",
+  "roles": {
+    "ground": "asset://polyhaven/terrain/materials/grass_ground",
+    "grass": "asset://polyhaven/terrain/materials/grass_ground",
+    "rock": "asset://polyhaven/terrain/materials/rock_face_03",
+    "cliff": "asset://polyhaven/terrain/materials/rock_face_03",
+    "sediment": "asset://polyhaven/terrain/materials/rocky_gravel",
+    "sand": "asset://polyhaven/terrain/materials/sand_02",
+    "snow": "asset://polyhaven/terrain/materials/snow_02",
+    "wet_ground": "asset://polyhaven/terrain/materials/wet_gravel",
+    "underwater": "asset://polyhaven/terrain/materials/wet_gravel"
+  },
+  "required_roles": [
+    "ground",
+    "grass",
+    "rock",
+    "cliff",
+    "sediment",
+    "sand",
+    "snow",
+    "wet_ground",
+    "underwater"
+  ]
+}

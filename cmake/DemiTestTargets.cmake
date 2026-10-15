@@ -492,6 +492,10 @@
   add_executable(demi-terrain-patch-topology3d-tests
     tests/terrain_patch_topology3d_tests.cpp)
   target_link_libraries(demi-terrain-patch-topology3d-tests PRIVATE demi-render3d-bgfx)
+  add_executable(demi-terrain-material-array-tests tests/terrain_material_array_tests.cpp)
+  target_link_libraries(demi-terrain-material-array-tests PRIVATE demi-render3d-bgfx)
+  add_executable(demi-terrain-material-residency3d-tests tests/terrain_material_residency3d_tests.cpp)
+  target_link_libraries(demi-terrain-material-residency3d-tests PRIVATE demi-render3d-bgfx)
   add_executable(demi-terrain-gpu-field-data3d-tests
     tests/terrain_gpu_field_data3d_tests.cpp)
   target_link_libraries(demi-terrain-gpu-field-data3d-tests PRIVATE demi-render3d-bgfx)
@@ -747,12 +751,6 @@
   target_link_libraries(demi-terrain-scatter-constraints-tests PRIVATE demi-core)
   target_link_libraries(demi-terrain-scatter-layout-tests PRIVATE demi-core)
   target_link_libraries(demi-terrain-material-layers-tests PRIVATE demi-core)
-  add_executable(demi-terrain-material-blend-tests
-    tests/terrain_material_blend_tests.cpp)
-  target_link_libraries(demi-terrain-material-blend-tests PRIVATE demi-core)
-  add_executable(demi-terrain-texture-residency-tests
-    tests/terrain_texture_residency_tests.cpp)
-  target_link_libraries(demi-terrain-texture-residency-tests PRIVATE demi-core)
   add_executable(demi-terrain-asset-validation-tests
     tests/terrain_asset_validation_tests.cpp)
   target_link_libraries(demi-terrain-asset-validation-tests PRIVATE demi-core)

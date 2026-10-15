@@ -44,6 +44,8 @@ enum class BuiltinProgram {
   PostProcess2D,
   Terrain3D,
   Terrain3DDirectional,
+  TerrainMapped3D,
+  TerrainMapped3DDirectional,
   Pbr3D,
   Pbr3DInstanced,
   Pbr3DSkinned,
@@ -89,10 +91,15 @@ struct TextureCreateInfo {
   std::span<const std::byte> data;
   bool renderTarget = false;
   bool generateMipmaps = false;
+  // RGB storage is sRGB; sampling decodes RGB before filtering. Alpha stays
+  // linear. Data maps and display-space/UI textures leave this disabled.
+  bool srgb = false;
   TextureFilter filter = TextureFilter::Linear;
   TextureWrap wrap = TextureWrap::Clamp;
   std::string debugName;
   int msaaSamples = 1;
+  // Array data is layer-major; each layer contains its complete mip chain.
+  std::uint16_t layers = 1;
 };
 
 struct TextureUpdateInfo {
@@ -101,6 +108,8 @@ struct TextureUpdateInfo {
   std::uint16_t width = 0;
   std::uint16_t height = 0;
   std::span<const std::byte> data;
+  std::uint16_t layer = 0;
+  std::uint8_t mip = 0;
 };
 
 struct BufferCreateInfo {
@@ -146,11 +155,13 @@ struct RenderDeviceLimits {
   bool originBottomLeft = false;
   std::uint32_t maxTextureSamplers = 0;
   bool supportsInstancing = false;
+  std::uint32_t maxTextureLayers = 1;
 };
 
 struct TextureCapabilities {
   bool sampled2D = false;
   bool vertexSampling = false;
+  bool sampledArray = false;
 };
 
 class GpuResources {

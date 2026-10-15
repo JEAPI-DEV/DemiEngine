@@ -107,6 +107,18 @@ void drawEditorMaterialSurfaceControls(EditorWorkspace &workspace,
       "OpenGL normals use +Y (green up); DirectX normals use -Y (green down). "
       "Choose the convention of the imported maps.");
 
+  ImGui::SeparatorText("Terrain layer shading");
+  scalar("Height blend strength", "height_blend_strength",
+         surface.heightBlendStrength, 0, 1);
+  scalar("Macro variation strength", "macro_variation_strength",
+         surface.macroVariationStrength, 0, 1);
+  scalar("Macro variation scale", "macro_variation_scale",
+         surface.macroVariationScale, std::numeric_limits<float>::denorm_min(),
+         std::numeric_limits<float>::max());
+  ImGui::TextWrapped(
+      "Terrain layer controls do not displace geometry or change collision. "
+      "Macro variation scale is cycles per terrain-local unit.");
+
   ImGui::SeparatorText("Texture maps");
   for (const auto slot : MapSlots) {
     const std::string name(assets::materialMapSlotName(slot));
@@ -128,8 +140,9 @@ void drawEditorMaterialSurfaceControls(EditorWorkspace &workspace,
   }
   ImGui::TextWrapped(
       "Choose None to clear a map. Albedo and emissive colors use sRGB; normal "
-      "and scalar maps contain linear data. Height is retained for future layer "
-      "blending; it is not yet sampled and never changes geometry or collision.");
+      "and scalar maps contain linear data. Height influences GPU terrain "
+      "layer blending; ordinary meshes do not sample it. It never changes "
+      "geometry or collision.");
   const bool hasDetail =
       surface.maps.contains(assets::MaterialMapSlot::DetailNormal);
   ImGui::BeginDisabled(!hasDetail);

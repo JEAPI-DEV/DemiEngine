@@ -1,5 +1,8 @@
 # Shared terrain and mesh materials
 
+This records the first Milestone 4 delivery. Its pending items are superseded by
+[Milestone 4 qualification](terrain-milestone4-qualification.md).
+
 Date: 2026-10-14. Build: `linux-release`. Native checks: Vulkan through SDL/X11.
 Prepared terrain payload is now version 8 because the obsolete unsupported-role
 field was removed. Generator version remains 9; source format versions remain

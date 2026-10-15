@@ -19,7 +19,7 @@ namespace demi::runtime {
 // invalidates cached data without changing how it is stored, and a layout
 // change invalidates every file without the generator moving, so folding them
 // together would make one of the two reasons for rebuilding unreportable.
-inline constexpr int terrainCookVersion = 3;
+inline constexpr int terrainCookVersion = 4;
 
 // Hashes the canonical parsed recipe, including seed, rules, edits and preset
 // identity. A field's samples or asset fingerprint cannot prove those inputs.
@@ -48,6 +48,7 @@ struct TerrainCookedField {
   Vec2 size{};
   int cellsX = 0, cellsZ = 0;
   std::vector<float> baseHeights, heights, normalsX, normalsY, normalsZ;
+  std::vector<float> surfaceSedimentBalance;
   std::vector<std::uint32_t> biomeIndices, substrates;
   std::vector<float> slope, moisture, waterDistance, flow, sediment, exclusions;
   std::vector<std::string> biomeIds;

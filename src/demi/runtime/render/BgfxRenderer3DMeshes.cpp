@@ -145,6 +145,15 @@ bool BgfxRenderer3D::submitVisibleMeshes(
         const auto &builtinSurfaceTint = prepared.builtinSurfaceTint;
         const auto &metalRough = prepared.metalRough;
         auto &drawUniforms = meshDrawUniforms_;
+        const auto colorSemantic = material && material->program
+                                       ? ImageMipSemantic::Linear
+                                       : ImageMipSemantic::Color;
+        const auto resolveColorTexture = [&](std::string_view id) {
+          const auto texture = materialTexture(id, colorSemantic);
+          prepared.metalRough[3] =
+              texture.handle && !texture.srgbDecoded ? 1.F : 0.F;
+          return texture;
+        };
         bool queued = false;
         if (const auto *relief = entity.component<SurfaceRelief3DComponent>();
             relief && (!relief->heightMap.empty() || relief->tiles.x > 1 ||
@@ -162,8 +171,7 @@ bool BgfxRenderer3D::submitVisibleMeshes(
           if (textureId.empty() && material) {
             textureId = material->albedoTexture;
           }
-          const auto texture =
-              materialTexture(textureId, ImageMipSemantic::Color);
+          const auto texture = resolveColorTexture(textureId);
           if (!textureId.empty() && !texture.handle) {
             error = "Missing material colour texture: " + textureId;
             return false;
@@ -195,8 +203,7 @@ bool BgfxRenderer3D::submitVisibleMeshes(
           if (textureId.empty() && material) {
             textureId = material->albedoTexture;
           }
-          const auto texture =
-              materialTexture(textureId, ImageMipSemantic::Color);
+          const auto texture = resolveColorTexture(textureId);
           if (!textureId.empty() && !texture.handle) {
             error = "Missing material colour texture: " + textureId;
             return false;
@@ -259,8 +266,7 @@ bool BgfxRenderer3D::submitVisibleMeshes(
           if (textureId.empty() && material != nullptr) {
             textureId = material->albedoTexture;
           }
-          const TextureView2D texture =
-              materialTexture(textureId, ImageMipSemantic::Color);
+          const TextureView2D texture = resolveColorTexture(textureId);
           if (!textureId.empty() && !texture.handle) {
             error = "Missing material colour texture: " + textureId;
             return false;
@@ -340,8 +346,7 @@ bool BgfxRenderer3D::submitVisibleMeshes(
           if (textureId.empty() && modelTexture != modelTextures_.end()) {
             textureId = modelTexture->second;
           }
-          const TextureView2D texture =
-              materialTexture(textureId, ImageMipSemantic::Color);
+          const TextureView2D texture = resolveColorTexture(textureId);
           if (!textureId.empty() && !texture.handle) {
             error = "Missing material colour texture: " + textureId;
             return false;
@@ -412,8 +417,7 @@ bool BgfxRenderer3D::submitVisibleMeshes(
           if (textureId.empty() && material != nullptr) {
             textureId = material->albedoTexture;
           }
-          const TextureView2D texture =
-              materialTexture(textureId, ImageMipSemantic::Color);
+          const TextureView2D texture = resolveColorTexture(textureId);
           if (!textureId.empty() && !texture.handle) {
             error = "Missing material colour texture: " + textureId;
             return false;

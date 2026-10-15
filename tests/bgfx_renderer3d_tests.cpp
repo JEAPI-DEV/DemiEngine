@@ -38,6 +38,7 @@
 #include <cassert>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
 #include <string>
 #include <vector>
 
@@ -51,13 +52,21 @@ public:
   explicit MeshUploadCapture(GpuResources &target) : target_(target) {}
   std::vector<std::vector<GpuMeshVertex3D>> meshUploads;
   bool failNextMeshUpload = false;
+  std::vector<bool> textureSrgbSampling;
+  std::vector<std::string> textureNames;
+  std::vector<TextureHandle> textureHandles;
+  std::vector<TextureHandle> retiredTextures;
   RenderDeviceLimits limits() const override { return target_.limits(); }
   TextureCapabilities textureCapabilities(TextureFormat format) const override {
     return target_.textureCapabilities(format);
   }
   TextureHandle createTexture(const TextureCreateInfo &info,
                               std::string &error) override {
-    return target_.createTexture(info, error);
+    textureSrgbSampling.push_back(info.srgb);
+    textureNames.push_back(info.debugName);
+    const auto handle = target_.createTexture(info, error);
+    textureHandles.push_back(handle);
+    return handle;
   }
   bool updateTexture(TextureHandle handle, const TextureUpdateInfo &info,
                      std::string &error) override {
@@ -110,6 +119,7 @@ public:
     return target_.createRenderTarget(info, error);
   }
   bool destroy(TextureHandle handle) override {
+    retiredTextures.push_back(handle);
     return target_.destroy(handle);
   }
   bool destroy(SamplerHandle handle) override {
@@ -391,6 +401,33 @@ int main() {
   auto resources = createBgfxGpuResources();
   auto commands = createBgfxRenderCommands(*resources);
   {
+    MeshUploadCapture uploads(*resources);
+    TextureLibrary2D variants(uploads);
+    ImageData2D image{.width = 2,
+                      .height = 1,
+                      .rgba = {std::byte{0}, std::byte{0}, std::byte{0},
+                               std::byte{0}, std::byte{255}, std::byte{255},
+                               std::byte{255}, std::byte{255}}};
+    TextureSampling2D sampling;
+    sampling.mipmaps = true;
+    for (const auto semantic :
+         {ImageMipSemantic::Color, ImageMipSemantic::Linear,
+          ImageMipSemantic::Normal}) {
+      sampling.mipSemantic = semantic;
+      assert(variants.upload("shared-image", image, error, sampling));
+    }
+    // Color decoding must happen before bilinear/trilinear filtering in the
+    // hardware, while data and UI views preserve their numerical channels.
+    assert(uploads.textureSrgbSampling ==
+           std::vector<bool>({true, false, false}));
+    assert(variants.find("shared-image", ImageMipSemantic::Color).srgbDecoded);
+    assert(
+        !variants.find("shared-image", ImageMipSemantic::Linear).srgbDecoded);
+    assert(
+        !variants.find("shared-image", ImageMipSemantic::Normal).srgbDecoded);
+  }
+
+  {
     TextureCapture capture(*commands);
     capture.forwardDraws = false;
     std::vector<std::pair<std::string, ImageMipSemantic>> resolvedMaps;
@@ -399,7 +436,8 @@ int main() {
         *resources, capture,
         [&](std::string_view id, ImageMipSemantic semantic) {
           resolvedMaps.emplace_back(id, semantic);
-          return TextureView2D{mapTexture, 4, 4};
+          return TextureView2D{mapTexture, 4, 4,
+                               semantic == ImageMipSemantic::Color};
         });
     MaterialBinding material;
     material.usesPbrSurface = true;
@@ -425,6 +463,15 @@ int main() {
     assert(resolvedMaps[0].second == ImageMipSemantic::Normal);
     assert(resolvedMaps[1].second == ImageMipSemantic::Linear);
     assert(resolvedMaps[3].second == ImageMipSemantic::Color);
+    MeshPbrBindings3D targetBindings(
+        *resources, capture, [&](std::string_view, ImageMipSemantic) {
+          return TextureView2D{mapTexture, 4, 4, false};
+        });
+    assert(targetBindings.prepare(&material, mesh, {}, 1, error));
+    assert(targetBindings.submit(BufferedDraw{}, error));
+    assert(capture.lastUniformValues[1][3] == 1);
+    // Presentation targets contain encoded RGB and request one shader decode;
+    // their alpha and scalar-map channels retain their existing raw values.
     // Authored scalar overrides replace maps; they never multiply metallic
     // map values by the default metallic scalar of zero.
     mesh.roughness = 0.25F;
@@ -600,6 +647,50 @@ int main() {
   const std::uint32_t batchesWithoutDebugGeometry =
       renderer.statistics().batches;
   static_cast<void>(graphics.endFrame());
+
+  {
+    MeshUploadCapture uploads(*resources);
+    TextureCapture lazyDraws(*commands);
+    BgfxRenderer3D lazyRenderer(uploads, lazyDraws);
+    assert(lazyRenderer.initialize(error));
+    const std::string usedId = "asset://lazy/used";
+    const std::string unusedId = "asset://lazy/unused";
+    demi::AssetRegistry lazyRegistry;
+    const auto imagePath = std::filesystem::path(DEMI_SOURCE_DIR) /
+                           "examples/minimal_3d/assets/textures/checker.png";
+    for (const auto &id : {usedId, unusedId}) {
+      lazyRegistry.assets.push_back(
+          {.id = id, .type = "Texture2D", .sourcePath = imagePath});
+    }
+    const auto colorUploads = [&](const std::string &id) {
+      std::size_t count = 0;
+      for (std::size_t index = 0; index < uploads.textureNames.size();
+           ++index) {
+        if (uploads.textureNames[index] == id &&
+            uploads.textureSrgbSampling[index]) {
+          ++count;
+        }
+      }
+      return count;
+    };
+    assert(lazyRenderer.loadAssets(lazyRegistry, diagnostics));
+    assert(colorUploads(usedId) == 0 && colorUploads(unusedId) == 0);
+    World lazyWorld;
+    auto box = shape("lazy_mesh", "cube", {});
+    box.component<MeshRendererComponent>()->texture = usedId;
+    lazyWorld.entities.push_back(std::move(box));
+    assert(lazyRenderer.renderFrame(lazyWorld, frame, 0.016F, error));
+    static_cast<void>(graphics.endFrame());
+    assert(colorUploads(usedId) == 1 && colorUploads(unusedId) == 0);
+    assert(lazyRenderer.renderFrame(lazyWorld, frame, 0.016F, error));
+    static_cast<void>(graphics.endFrame());
+    assert(colorUploads(usedId) == 1);
+    assert(lazyRenderer.loadAssets(lazyRegistry, diagnostics));
+    assert(colorUploads(usedId) == 1);
+    assert(lazyRenderer.renderFrame(lazyWorld, frame, 0.016F, error));
+    static_cast<void>(graphics.endFrame());
+    assert(colorUploads(usedId) == 2 && colorUploads(unusedId) == 0);
+  }
 
   {
     MeshUploadCapture uploads(*resources);
@@ -847,6 +938,19 @@ int main() {
     assert(renderer.renderFrame(surfaces, surfaceFrame, 0.016F, error));
     assert(capture.bufferedMetalRough.back()[1] == 0.6F);
     static_cast<void>(graphics.endFrame());
+  }
+  {
+    World qualityWorld;
+    Entity environment;
+    Environment3DComponent::parse({{"terrain_texture_max_size", 512},
+                                   {"terrain_texture_cache_mb", 24},
+                                   {"terrain_detail_distance", 75}},
+                                  environment);
+    qualityWorld.entities.push_back(std::move(environment));
+    const auto lighting = collectSceneLighting3D(qualityWorld, {});
+    assert(lighting.terrainTextureMaxSize == 512);
+    assert(lighting.terrainTextureCacheBytes == 24U * 1024U * 1024U);
+    assert(lighting.terrainDetailDistance == 75);
   }
   assert(collectSceneLighting3D(world, {}).msaaSamples == 4);
   assert(capture.views3D.back().frameBuffer);
@@ -1824,6 +1928,44 @@ int main() {
     TextureCapture terrainCommands(*commands);
     BgfxRenderer3D gpuTerrain(uploads, terrainCommands);
     assert(gpuTerrain.initialize(error));
+    const auto fixturePath =
+        std::filesystem::temp_directory_path() /
+        ("demi-mapped-residency-" +
+         std::to_string(
+             std::chrono::steady_clock::now().time_since_epoch().count()));
+    std::filesystem::create_directory(fixturePath);
+    struct FixtureCleanup {
+      std::filesystem::path path;
+      ~FixtureCleanup() { std::filesystem::remove_all(path); }
+    } cleanup{fixturePath};
+    const auto materialPath = fixturePath / "terrain.material.json";
+    {
+      std::ofstream output(materialPath);
+      output << R"({
+        "format_version": 1,
+        "shader": "builtin://lit",
+        "textures": {
+          "albedo": "asset://gpu/shared-color",
+          "normal": "asset://gpu/terrain-normal"
+        },
+        "parameters": {"roughness": 0.4}
+      })";
+    }
+    demi::AssetRegistry mappedRegistry;
+    mappedRegistry.assets.push_back({.id = "asset://gpu/terrain-material",
+                                     .type = "Material",
+                                     .sourcePath = materialPath});
+    for (const std::string id :
+         {"asset://gpu/shared-color", "asset://gpu/terrain-normal"}) {
+      demi::AssetManifest image{.id = id, .type = "Texture2D"};
+      image.sourcePath = std::filesystem::path(DEMI_SOURCE_DIR) /
+                         "examples/minimal_3d/assets/textures/checker.png";
+      image.textureSettings.wrap = "repeat";
+      image.textureSettings.mipmaps = true;
+      mappedRegistry.assets.push_back(std::move(image));
+    }
+    std::ranges::sort(mappedRegistry.assets, {}, &demi::AssetManifest::id);
+    assert(gpuTerrain.loadAssets(mappedRegistry, diagnostics));
     TerrainRecipe recipe;
     recipe.size = {16, 16};
     recipe.cellsX = 16;
@@ -1831,6 +1973,9 @@ int main() {
     recipe.chunkCells = 8;
     recipe.landforms.at("default").baseHeight = 0;
     recipe.landforms.at("default").heightVariation = 0;
+    for (auto &[id, biome] : recipe.biomes) {
+      biome.material = "asset://gpu/terrain-material";
+    }
     const auto generated = TerrainGenerator::generate(recipe);
     assert(generated);
     const auto source = std::make_shared<const HeightField>(*generated);
@@ -1857,6 +2002,31 @@ int main() {
     camera.forward = {0, -1, 0};
     camera.up = {0, 0, -1};
     camera.camera.renderHud = false;
+    auto ordinary = shape("shared-material-mesh", "cube", {8, 1, 8});
+    ordinary.component<MeshRendererComponent>()->texture =
+        "asset://gpu/shared-color";
+    terrain.entities.push_back(std::move(ordinary));
+    Entity compatibility;
+    compatibility.id = "warm-up-compatibility";
+    Environment3DComponent warmupSettings;
+    warmupSettings.terrainGpuCacheBytes = 0;
+    compatibility.setComponent(warmupSettings);
+    terrain.entities.push_back(std::move(compatibility));
+    assert(gpuTerrain.renderFrame(terrain, camera, 0.016F, error));
+    static_cast<void>(graphics.endFrame());
+    const auto uploadedHandle = [&](std::string_view name) {
+      for (std::size_t index = 0; index < uploads.textureNames.size();
+           ++index) {
+        if (uploads.textureNames[index] == name) {
+          return uploads.textureHandles[index];
+        }
+      }
+      return TextureHandle{};
+    };
+    const auto fallbackNormal = uploadedHandle("asset://gpu/terrain-normal");
+    const auto sharedColor = uploadedHandle("asset://gpu/shared-color");
+    assert(fallbackNormal && sharedColor);
+    terrain.entities.pop_back();
     const auto deadline =
         std::chrono::steady_clock::now() + std::chrono::seconds(2);
     do {
@@ -1872,10 +2042,20 @@ int main() {
     assert(gpuTerrain.terrainStatistics().gpuSelectedLevels[0] == 4);
     assert(gpuTerrain.terrainStatistics().selectedSurfaces[0] == 0);
     assert(gpuTerrain.terrainStatistics().triangles == 16 * 16 * 2);
+    for (unsigned graceFrame = 0; graceFrame < 2; ++graceFrame) {
+      assert(gpuTerrain.renderFrame(terrain, camera, 0.016F, error));
+      static_cast<void>(graphics.endFrame());
+    }
+    assert(std::find(uploads.retiredTextures.begin(),
+                     uploads.retiredTextures.end(),
+                     fallbackNormal) != uploads.retiredTextures.end());
+    assert(std::find(uploads.retiredTextures.begin(),
+                     uploads.retiredTextures.end(),
+                     sharedColor) == uploads.retiredTextures.end());
     const auto fullGpuUploads = uploads.meshUploads.size();
     assert(gpuTerrain.renderFrame(terrain, camera, 0.016F, error));
     assert(uploads.meshUploads.size() == fullGpuUploads);
-    assert(gpuTerrain.statistics().batches <= 2);
+    assert(gpuTerrain.statistics().batches <= 3);
     static_cast<void>(graphics.endFrame());
 
     // The deliberate compatibility switch returns to complete native Full

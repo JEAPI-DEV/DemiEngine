@@ -15,6 +15,7 @@ TerrainPreset starter(std::string id, std::string name, std::string description,
   // later.
   preset.cellsX = preset.cellsZ = 64;
   preset.biomes["default"].color = color;
+  preset.biomes["default"].allowSnow = id == "mountain-range";
   TerrainGraph graph;
   graph.output = "terrain_output";
   graph.nodes = {
@@ -166,6 +167,7 @@ TerrainPreset coastalIslandStarter() {
       "stays at elevation zero; moving the polygon changes land, not sea "
       "level.");
   preset.biomes["shore"].color = {.7F, .62F, .4F, 1};
+  preset.biomes["shore"].allowSnow = false;
   TerrainBiomeRule shore;
   shore.id = "shore";
   shore.biome = "shore";

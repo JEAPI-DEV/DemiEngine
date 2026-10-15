@@ -128,7 +128,11 @@ bool MeshPbrBindings3D::prepare(const MaterialBinding *material,
           : (slots[index] == Slot::Normal || slots[index] == Slot::DetailNormal)
               ? ImageMipSemantic::Normal
               : ImageMipSemantic::Linear;
-      texture = resolve_(map->second, semantic).handle;
+      const auto view = resolve_(map->second, semantic);
+      texture = view.handle;
+      if (slots[index] == Slot::Emissive && !view.srgbDecoded) {
+        values_[1][3] = 1;
+      }
       if (!texture) {
         error = "PBR map is not loaded with its required sampling semantic: " +
                 map->second;

@@ -1,0 +1,20 @@
+{
+  "format_version": 1,
+  "id": "asset://polyhaven/terrain/surfaces/alpine",
+  "type": "DataAsset",
+  "source": "alpine.json",
+  "importer": "json_data",
+  "importer_version": 1,
+  "source_hash": "fnv1a64:e06ec8b6c154e9e5",
+  "dependencies": [
+    "asset://polyhaven/terrain/materials/grass_ground",
+    "asset://polyhaven/terrain/materials/rock_face_03",
+    "asset://polyhaven/terrain/materials/rocky_gravel",
+    "asset://polyhaven/terrain/materials/sand_02",
+    "asset://polyhaven/terrain/materials/snow_02",
+    "asset://polyhaven/terrain/materials/wet_gravel"
+  ],
+  "settings": {
+    "content_type": "terrain_material_set"
+  }
+}

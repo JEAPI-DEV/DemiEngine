@@ -1,15 +1,12 @@
 # DemiEngine Roadmap
 
-Terrain Milestone 4 now has one shared Material workflow, PBR maps and triplanar
-projection for mesh/terrain surfaces, with source/cooked native checks. GPU
-texture arrays, height-aware layer blending, residency and starter art remain
-open. See [shared material qualification](docs/terrain-shared-material-qualification.md).
-
-Terrain placements now expose Surface Blending in the Inspector. Smooth solid
-palette transitions remain the default; disabling them selects sharp original
-cell-triangle materials without changing geometry or LOD. Matched native
-captures confirm that the rocky-valley example's four-unit color transitions
-account for much of its soft appearance; this does not replace detailed art.
+Terrain Milestone 4 is complete for the Linux Vulkan surface-material scope:
+shared PBR Materials, GPU texture layers, height-biased/sharp blending,
+triplanar/detail/macro shading, automatic roles and bounded distance-based
+residency. The Poly Haven starter package supplies real CC0 maps with physical
+scale and provenance. Source/cooked captures match exactly; the valley retains
+1K maps in about 112 MiB of material arrays under the default 128 MiB budget.
+See [Milestone 4 qualification](docs/terrain-milestone4-qualification.md).
 
 The prominent rocky-valley shadow grid is corrected through precise view
 directions, stable receiver derivatives and texel-scaled facet filtering.
@@ -22,7 +19,7 @@ controls, safe Preview/Final, measured erosion evaluation, drainage endpoints
 and connected sloped rivers. Native close-up checks also caught and corrected
 artificial sediment walls. Unfinished sediment transport is explicitly reported;
 this is not a full fluid solver or completion of the visual terrain roadmap.
-Next is Milestone 4 surface-material integration. See
+Surface-material integration is qualified above. See
 [Milestone 3 qualification](docs/terrain-milestone3-qualification.md).
 
 Terrain Graph now supports filled polygon masks for shaped basins, plateaus and

@@ -6,7 +6,7 @@ SAMPLER2D(s_pbrDetailNormal, 7);
 SAMPLER2D(s_pbrEmissive, 8);
 // Normal, roughness, metallic, ambient occlusion map presence.
 uniform vec4 u_pbrMapFlags;
-// Detail normal, emissive, triplanar projection, reserved.
+// Detail normal, emissive, triplanar projection, encoded emissive RGB.
 uniform vec4 u_pbrMapFlags2;
 // Normal strength, material tiling, detail strength, normal-map Y sign.
 uniform vec4 u_pbrSurface;
@@ -59,27 +59,27 @@ vec2 pbrProjectionUv(int axis, vec3 localPosition, vec3 localNormal)
     return vec2(normal.z < 0.0 ? -position.x : position.x, position.y);
 }
 
-vec4 pbrReadMap(sampler2D mapSampler, vec2 uv, bool colorMap)
+vec4 pbrReadMap(sampler2D mapSampler, vec2 uv, bool encodedColor)
 {
     vec4 value = texture2D(mapSampler, uv);
-    if (colorMap)
+    if (encodedColor)
     {
         value.rgb = decodeColor(value.rgb);
     }
     return value;
 }
 
-vec4 pbrSampleMap(sampler2D mapSampler, bool colorMap, vec2 uv,
+vec4 pbrSampleMap(sampler2D mapSampler, bool encodedColor, vec2 uv,
                   vec3 localPosition, vec3 localNormal)
 {
     if (u_pbrMapFlags2.z < 0.5)
     {
-        return pbrReadMap(mapSampler, uv * u_pbrSurface.y, colorMap);
+        return pbrReadMap(mapSampler, uv * u_pbrSurface.y, encodedColor);
     }
     vec3 weights = pbrProjectionWeights(localNormal);
-    return pbrReadMap(mapSampler, pbrProjectionUv(0, localPosition, localNormal), colorMap) * weights.x +
-           pbrReadMap(mapSampler, pbrProjectionUv(1, localPosition, localNormal), colorMap) * weights.y +
-           pbrReadMap(mapSampler, pbrProjectionUv(2, localPosition, localNormal), colorMap) * weights.z;
+    return pbrReadMap(mapSampler, pbrProjectionUv(0, localPosition, localNormal), encodedColor) * weights.x +
+           pbrReadMap(mapSampler, pbrProjectionUv(1, localPosition, localNormal), encodedColor) * weights.y +
+           pbrReadMap(mapSampler, pbrProjectionUv(2, localPosition, localNormal), encodedColor) * weights.z;
 }
 
 vec3 pbrReadTangentNormal(sampler2D mapSampler, vec2 uv, float strength)

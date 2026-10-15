@@ -20,7 +20,7 @@ struct TerrainGraphArtifacts;
 // 7: downstream accumulation and world-space thermal transport corrected.
 // 8: priority flooding preserves physical elevations, including flat basins.
 // 9: adaptive hydraulic descent, open-edge export and bounded deposition.
-inline constexpr int terrainGeneratorVersion = 9;
+inline constexpr int terrainGeneratorVersion = 11;
 
 class TerrainGenerator {
 public:

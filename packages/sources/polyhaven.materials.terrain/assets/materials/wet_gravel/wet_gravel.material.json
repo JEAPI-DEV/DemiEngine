@@ -1,0 +1,30 @@
+{
+  "format_version": 1,
+  "shader": "builtin://lit",
+  "mapping": "triplanar",
+  "normal_map_convention": "opengl",
+  "textures": {
+    "albedo": "asset://polyhaven/terrain/textures/rocky_gravel/albedo",
+    "normal": "asset://polyhaven/terrain/textures/rocky_gravel/normal",
+    "ambient_occlusion": "asset://polyhaven/terrain/textures/rocky_gravel/ambient_occlusion",
+    "height": "asset://polyhaven/terrain/textures/rocky_gravel/height"
+  },
+  "parameters": {
+    "base_color": [
+      0.62,
+      0.66,
+      0.69,
+      1
+    ],
+    "roughness": 0.28,
+    "metallic": 0,
+    "normal_strength": 1,
+    "tiling": 0.5524861878453039,
+    "macro_variation_strength": 0.2,
+    "macro_variation_scale": 0.02
+  },
+  "render_state": {
+    "blend": "opaque",
+    "cull": "none"
+  }
+}

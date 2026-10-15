@@ -2,9 +2,13 @@
 #include "demi/runtime/render/backend/ImageMipmaps2D.h"
 #include "demi/runtime/render/backend/RenderAssetLoading.h"
 #include "demi/runtime/render/backend/TextureLibrary2D.h"
+#include "fixtures/RedPixelPng.h"
 
 #include <algorithm>
 #include <array>
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <cassert>
 #include <cstddef>
 #include <filesystem>
@@ -15,6 +19,73 @@
 using namespace demi::runtime::render;
 
 namespace {
+
+void lazySourcesResolveOnceAndCacheFailures(GpuResources &resources) {
+  TextureLibrary2D textures(resources);
+  const auto encoded = demi::tests::redPixelPng();
+  unsigned reads = 0;
+  unsigned reports = 0;
+  std::string error;
+  TextureSource2D source{.read =
+                             [&](std::string &) {
+                               ++reads;
+                               return encoded;
+                             },
+                         .sampling = {.filter = TextureFilter::Nearest,
+                                      .wrap = TextureWrap::Mirror,
+                                      .mipmaps = true},
+                         .reportFailure =
+                             [&](std::string_view reason) {
+                               assert(!reason.empty());
+                               ++reports;
+                             }};
+  assert(textures.registerSource("asset://lazy", source, error));
+  assert(reads == 0 && textures.size() == 0 && textures.availableCount() == 1);
+  const std::string wrapped = "prefix:asset://lazy:suffix";
+  const auto id = std::string_view(wrapped).substr(
+      7, std::string_view("asset://lazy").size());
+  assert(textures.contains(id) && !textures.find(id).handle);
+  const auto first = textures.resolve(id, error);
+  assert(first.handle && first.width == 1 && first.height == 1 &&
+         error.empty());
+  assert(textures.resolve(id, error).handle == first.handle && reads == 1);
+  const auto color = textures.resolve(id, error, ImageMipSemantic::Color);
+  assert(color.handle && color.handle != first.handle && color.srgbDecoded);
+  assert(reads == 2 && reports == 0 && textures.availableCount() == 1);
+  textures.retainVariants([](std::string_view, ImageMipSemantic semantic) {
+    return semantic == ImageMipSemantic::Color;
+  });
+  assert(!textures.find(id).handle &&
+         textures.find(id, ImageMipSemantic::Color).handle == color.handle);
+  assert(textures.contains(id) && textures.availableCount() == 1);
+  assert(textures.resolve(id, error).handle && reads == 3);
+  const auto reacquired = textures.find(id);
+  assert(!textures.registerSource("asset://lazy", {}, error));
+  assert(textures.find(id).handle == reacquired.handle);
+
+  TextureSource2D broken{.read =
+                             [&](std::string &readError) {
+                               ++reads;
+                               readError = "Injected unreadable raster source";
+                               return std::vector<std::byte>{};
+                             },
+                         .reportFailure = source.reportFailure};
+  assert(textures.registerSource("asset://broken", broken, error));
+  assert(!textures.resolve("asset://broken", error).handle);
+  assert(error.find("Injected") != std::string::npos && reports == 1);
+  const auto readsAfterFailure = reads;
+  for (unsigned frame = 0; frame < 3; ++frame) {
+    assert(!textures.resolve("asset://broken", error).handle);
+  }
+  assert(reads == readsAfterFailure && reports == 1);
+  assert(textures.registerSource("asset://broken", source, error));
+  assert(textures.resolve("asset://broken", error).handle);
+  assert(reads == readsAfterFailure + 1 && reports == 1);
+  assert(textures.remove(id));
+  assert(!textures.contains(id) && !textures.find(id).handle);
+  textures.clear();
+  assert(textures.availableCount() == 0 && textures.size() == 0);
+}
 
 void materialMipSemanticsPreserveColorAndNormalMeaning() {
   ImageData2D image{.width = 2,
@@ -92,6 +163,7 @@ int main() {
           .api = GraphicsApi::Noop, .width = 8, .height = 8, .vsync = false},
       error));
   auto resources = createBgfxGpuResources();
+  lazySourcesResolveOnceAndCacheFailures(*resources);
   TextureLibrary2D textures(*resources);
 
   assert(!textures.upload("", {}, error));
@@ -130,6 +202,8 @@ int main() {
   assert(textures.upload("asset://red", image, error, colorSampling));
   const auto colorView = textures.find("asset://red", ImageMipSemantic::Color);
   assert(colorView.handle && colorView.handle != replacement.handle);
+  assert(colorView.srgbDecoded);
+  assert(!replacement.srgbDecoded);
   assert(textures.find("asset://red").handle == replacement.handle);
   assert(!textures.find("asset://red", ImageMipSemantic::Normal).handle);
   // A failed replacement must preserve every existing semantic view.

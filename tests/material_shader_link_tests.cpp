@@ -8,6 +8,12 @@
 #include "fs_demi_pbr_directional_spv.h"
 #include "fs_demi_pbr_spv.h"
 #include "fs_demi_terrain_directional_spv.h"
+#include "fs_demi_terrain_mapped_directional_essl.h"
+#include "fs_demi_terrain_mapped_directional_glsl.h"
+#include "fs_demi_terrain_mapped_directional_spv.h"
+#include "fs_demi_terrain_mapped_essl.h"
+#include "fs_demi_terrain_mapped_glsl.h"
+#include "fs_demi_terrain_mapped_spv.h"
 #include "fs_demi_terrain_spv.h"
 #include "vs_demi_lit_instanced_spv.h"
 #include "vs_demi_lit_spv.h"
@@ -17,27 +23,138 @@
 #ifdef NDEBUG
 #undef NDEBUG
 #endif
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <iostream>
 #include <span>
+#include <stdexcept>
 #include <string>
+#include <string_view>
+#include <vector>
+#include <utility>
 
 using namespace demi::runtime::render;
 
 namespace {
+enum class ShaderCode { Spirv, Glsl };
+
 struct Shader {
   const char *name;
   std::span<const std::byte> bytes;
+  ShaderCode code = ShaderCode::Spirv;
 };
 
 template <std::size_t Size>
-Shader shader(const char *name, const std::uint8_t (&bytes)[Size]) {
-  return {name, std::as_bytes(std::span(bytes))};
+Shader shader(const char *name, const std::uint8_t (&bytes)[Size],
+              ShaderCode code = ShaderCode::Spirv) {
+  return {name, std::as_bytes(std::span(bytes)), code};
 }
+struct CompiledShaderInterface {
+  std::vector<std::string_view> samplers;
+  std::span<const std::byte> code;
+};
+
+CompiledShaderInterface readCompiledShaderInterface(const Shader &shader) {
+  // Read the pinned bgfx binary uniform table and its compiler-output payload.
+  // Linked varying hashes alone miss lost build defines.
+  const auto bytes = shader.bytes;
+  if (bytes.size() < 14 || bytes[3] != std::byte{11}) {
+    throw std::runtime_error(std::string(shader.name) +
+                             ": unexpected bgfx shader header");
+  }
+  const auto uniformCount = std::to_integer<unsigned>(bytes[12]) |
+                            (std::to_integer<unsigned>(bytes[13]) << 8);
+  std::size_t cursor = 14;
+  std::vector<std::string_view> samplers;
+  for (unsigned uniform = 0; uniform < uniformCount; ++uniform) {
+    if (cursor >= bytes.size()) {
+      throw std::runtime_error(std::string(shader.name) +
+                               ": truncated uniform table");
+    }
+    const auto nameSize = std::to_integer<unsigned>(bytes[cursor]);
+    ++cursor;
+    // Type/count/register/count/component/dimension/format occupy ten bytes.
+    if (nameSize + 10 > bytes.size() - cursor) {
+      throw std::runtime_error(std::string(shader.name) +
+                               ": truncated uniform metadata");
+    }
+    const std::string_view name(
+        reinterpret_cast<const char *>(bytes.data() + cursor), nameSize);
+    cursor += nameSize;
+    const auto type = std::to_integer<unsigned>(bytes[cursor]);
+    constexpr unsigned samplerType = 0;
+    constexpr unsigned typeMask = 0x0f;
+    if ((type & typeMask) == samplerType) {
+      samplers.push_back(name);
+    }
+    cursor += 10;
+  }
+  if (bytes.size() - cursor < 4) {
+    throw std::runtime_error(std::string(shader.name) +
+                             ": missing compiled shader payload");
+  }
+  std::uint32_t codeSize = 0;
+  for (unsigned byte = 0; byte < 4; ++byte) {
+    codeSize |= std::to_integer<std::uint32_t>(bytes[cursor + byte])
+                << (8 * byte);
+  }
+  cursor += 4;
+  if (codeSize > bytes.size() - cursor) {
+    throw std::runtime_error(std::string(shader.name) +
+                             ": truncated compiled shader payload");
+  }
+  return {std::move(samplers), bytes.subspan(cursor, codeSize)};
+}
+
+void requireMappedArraySamplers(const Shader &shader) {
+  const auto compiled = readCompiledShaderInterface(shader);
+  constexpr std::array<std::string_view, 5> expected{
+      "s_terrainAlbedo", "s_terrainNormals", "s_terrainOrmHeight",
+      "s_terrainDetail", "s_terrainEmissive"};
+  for (const auto name : expected) {
+    bool hasSampler = false;
+    if (shader.code == ShaderCode::Spirv) {
+      hasSampler = std::find(compiled.samplers.begin(), compiled.samplers.end(),
+                             name) != compiled.samplers.end();
+    } else {
+      // bgfx GLSL binaries have no serialized uniform table: the GL driver
+      // reflects their embedded compiler output. Require both the array type
+      // and a sampled use, rather than merely finding a declaration name.
+      const std::string_view code(
+          reinterpret_cast<const char *>(compiled.code.data()),
+          compiled.code.size());
+      const auto declaration =
+          "uniform sampler2DArray " + std::string(name) + ";";
+      const auto sampledUse = "(" + std::string(name) + ",";
+      hasSampler = code.find(declaration) != std::string_view::npos &&
+                   code.find(sampledUse) != std::string_view::npos;
+    }
+    if (!hasSampler) {
+      throw std::runtime_error(std::string(shader.name) +
+                               ": missing compiled array sampler " +
+                               std::string(name));
+    }
+  }
+}
+
 } // namespace
 
 int main() {
+  for (const auto &compiled :
+       {shader("mapped Vulkan", fs_demi_terrain_mapped_spv),
+        shader("mapped directional Vulkan",
+               fs_demi_terrain_mapped_directional_spv),
+        shader("mapped OpenGL", fs_demi_terrain_mapped_glsl, ShaderCode::Glsl),
+        shader("mapped directional OpenGL",
+               fs_demi_terrain_mapped_directional_glsl, ShaderCode::Glsl),
+        shader("mapped OpenGLES", fs_demi_terrain_mapped_essl,
+               ShaderCode::Glsl),
+        shader("mapped directional OpenGLES",
+               fs_demi_terrain_mapped_directional_essl, ShaderCode::Glsl)}) {
+    requireMappedArraySamplers(compiled);
+  }
+
   BgfxGraphicsDevice graphics;
   std::string error;
   assert(graphics.initialize(
@@ -77,7 +194,10 @@ int main() {
   const auto terrainVertex = shader("terrain", vs_demi_terrain_spv);
   for (const auto &fragment :
        {shader("terrain", fs_demi_terrain_spv),
-        shader("terrain_directional", fs_demi_terrain_directional_spv)}) {
+        shader("terrain_directional", fs_demi_terrain_directional_spv),
+        shader("terrain_mapped", fs_demi_terrain_mapped_spv),
+        shader("terrain_mapped_directional",
+               fs_demi_terrain_mapped_directional_spv)}) {
     const auto program =
         resources->createProgram({.vertexShader = terrainVertex.bytes,
                                   .fragmentShader = fragment.bytes,
@@ -90,8 +210,8 @@ int main() {
     resources->destroy(program);
     ++linked;
   }
-  assert(linked == 14);
+  assert(linked == 16);
   resources.reset();
   graphics.shutdown();
-  std::cout << "All 14 generated mesh and terrain shader interfaces link\n";
+  std::cout << "All 16 generated mesh and terrain shader interfaces link\n";
 }

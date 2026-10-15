@@ -27,6 +27,10 @@ uint terrainMaterialIndex(vec2 gridCoordinate)
     return min(index, entries - 1u);
 }
 
+#ifdef DEMI_TERRAIN_MAPPED
+#include "demi_terrain_mapped.sh"
+#endif
+
 void accumulateTerrainMaterial(uint index, float weight, bool clockwiseFacing,
                                inout vec3 linearColor, inout vec3 properties,
                                inout float visibleWeight)
@@ -51,7 +55,10 @@ void accumulateTerrainMaterial(uint index, float weight, bool clockwiseFacing,
 // Returns linear base RGB and opaque alpha. Main and shadow passes use the
 // same material eligibility; no blend of cull flags can change their coverage.
 vec4 terrainSurface(vec2 sampleUv, bool clockwiseFacing, float surfaceBlending,
-                    out vec4 parameters)
+                    vec3 localDx, vec3 localDy, vec3 worldDx, vec3 worldDy,
+                    vec3 receiverNormal, vec3 localPosition, vec3 localNormal, float viewDistance,
+                    out vec4 parameters, out vec3 lightingNormal,
+                    out float occlusion, out vec3 emissive)
 {
     vec2 gridPosition = clamp(sampleUv * u_terrainField.xy - vec2(0.5),
                               vec2(0.0), u_terrainField.xy - vec2(1.0));
@@ -108,6 +115,14 @@ vec4 terrainSurface(vec2 sampleUv, bool clockwiseFacing, float surfaceBlending,
         weights.w = 0.0;
     }
 
+#ifdef DEMI_TERRAIN_MAPPED
+    return terrainMappedSurface(indices, weights, clockwiseFacing, localDx, localDy,
+                                worldDx, worldDy, receiverNormal, localPosition, localNormal,
+                                viewDistance, parameters, lightingNormal, occlusion, emissive);
+#else
+    lightingNormal = receiverNormal;
+    occlusion = 1.0;
+    emissive = vec3(0.0);
     vec3 linearColor = vec3(0.0);
     vec3 properties = vec3(0.0);
     float visibleWeight = 0.0;
@@ -125,4 +140,5 @@ vec4 terrainSurface(vec2 sampleUv, bool clockwiseFacing, float surfaceBlending,
     }
     parameters = vec4(properties / visibleWeight, 0.0);
     return vec4(linearColor / visibleWeight, 1.0);
+#endif
 }

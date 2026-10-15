@@ -1,0 +1,401 @@
+{
+  "format_version": 1,
+  "provider": "Poly Haven",
+  "license": "CC0-1.0",
+  "license_url": "https://docs.polyhaven.com/en/faq",
+  "dimensions_reference": "https://github.com/Poly-Haven/Public-API/blob/master/swagger.yml",
+  "assets": [
+    {
+      "id": "rock_face_03",
+      "name": "Rock Face 03",
+      "url": "https://polyhaven.com/a/rock_face_03",
+      "authors": {
+        "Dario Barresi": "Photography",
+        "Rico Cilliers": "Processing"
+      },
+      "dimensions_mm": [
+        2699.9995708465576,
+        2699.9995708465576
+      ],
+      "tile_size_metres": [
+        2.7,
+        2.7
+      ],
+      "resolution": "1k",
+      "files": [
+        {
+          "slot": "albedo",
+          "path": "assets/textures/rock_face_03/albedo.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rock_face_03/rock_face_03_diff_1k.jpg",
+          "provider_md5": "e4c34abb1aad5befe12754fad507147a",
+          "provider_bytes": 927082,
+          "color_space": "srgb",
+          "normal_convention": null,
+          "sha256": "ea48e0e47ad42c8bd312476178b1248ec66f0eb19156a26a1c222f2a40caaf2d",
+          "bytes": 927082
+        },
+        {
+          "slot": "normal",
+          "path": "assets/textures/rock_face_03/normal.png",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/1k/rock_face_03/rock_face_03_nor_gl_1k.png",
+          "provider_md5": "17a4feb957478ce571e1146c1e278e31",
+          "provider_bytes": 5841646,
+          "color_space": "linear",
+          "normal_convention": "opengl",
+          "sha256": "69cb133b4c6e7d046820bf5d1642dde3bbbaa56e5d4c889992ba251db8cf5218",
+          "bytes": 5841646
+        },
+        {
+          "slot": "roughness",
+          "path": "assets/textures/rock_face_03/roughness.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rock_face_03/rock_face_03_rough_1k.jpg",
+          "provider_md5": "bbb2c7dafde3f81808fa7404d4527a56",
+          "provider_bytes": 638904,
+          "color_space": "linear",
+          "normal_convention": null,
+          "sha256": "9e3d9a2fd75244892e7acb6bab2eaed1279299510a7970672c0ee27ff1c19fea",
+          "bytes": 638904
+        },
+        {
+          "slot": "ambient_occlusion",
+          "path": "assets/textures/rock_face_03/ambient_occlusion.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rock_face_03/rock_face_03_ao_1k.jpg",
+          "provider_md5": "07e0ca4b418800f288cc1d0740c3b254",
+          "provider_bytes": 689257,
+          "color_space": "linear",
+          "normal_convention": null,
+          "sha256": "be3536db0cf69c950fff97a196310f486cef8b23d16e6eb48743a58fadef0917",
+          "bytes": 689257
+        },
+        {
+          "slot": "height",
+          "path": "assets/textures/rock_face_03/height.png",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/1k/rock_face_03/rock_face_03_disp_1k.png",
+          "provider_md5": "5eb2e547a36e322462da3fba4c6125bb",
+          "provider_bytes": 1592817,
+          "color_space": "linear",
+          "normal_convention": null,
+          "sha256": "db8c173dd33a21d6eaa1c16f1f369bde045260a10c0576016d08a3f89f97bbd6",
+          "bytes": 1592817
+        }
+      ]
+    },
+    {
+      "id": "grass_ground",
+      "name": "Grass Ground",
+      "url": "https://polyhaven.com/a/grass_ground",
+      "authors": {
+        "Charlotte Baglioni": "All"
+      },
+      "dimensions_mm": [
+        2509.999990463257,
+        2509.999990463257
+      ],
+      "tile_size_metres": [
+        2.51,
+        2.51
+      ],
+      "resolution": "1k",
+      "files": [
+        {
+          "slot": "albedo",
+          "path": "assets/textures/grass_ground/albedo.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/grass_ground/grass_ground_diff_1k.jpg",
+          "provider_md5": "299047258586c762735b7284d3c662c3",
+          "provider_bytes": 876584,
+          "color_space": "srgb",
+          "normal_convention": null,
+          "sha256": "a79cc5ed65af0f80261b39a383b64a8c5272c5144d724deb43dbc29f0e4cd19b",
+          "bytes": 876584
+        },
+        {
+          "slot": "normal",
+          "path": "assets/textures/grass_ground/normal.png",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/1k/grass_ground/grass_ground_nor_gl_1k.png",
+          "provider_md5": "2e799a8262487811e672cb8a847bd64c",
+          "provider_bytes": 6072059,
+          "color_space": "linear",
+          "normal_convention": "opengl",
+          "sha256": "27b4902c4cf5d70c35045f1855ff2bd2eda015037fb5c36187fa69de0077d689",
+          "bytes": 6072059
+        },
+        {
+          "slot": "roughness",
+          "path": "assets/textures/grass_ground/roughness.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/grass_ground/grass_ground_rough_1k.jpg",
+          "provider_md5": "2e6afca246cf6b80bdb53f46fe7e5ce5",
+          "provider_bytes": 328190,
+          "color_space": "linear",
+          "normal_convention": null,
+          "sha256": "111341f948b7e073edf7ac6add8777e1bf10df8959400df3863243e89bbc8c08",
+          "bytes": 328190
+        },
+        {
+          "slot": "ambient_occlusion",
+          "path": "assets/textures/grass_ground/ambient_occlusion.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/grass_ground/grass_ground_ao_1k.jpg",
+          "provider_md5": "de85b335b1dafb6a9296b93563607f4d",
+          "provider_bytes": 968681,
+          "color_space": "linear",
+          "normal_convention": null,
+          "sha256": "5f6c3623404f9c3f0ef4d27fb96cc3bf107554352e1193e8480ab3e2c9fb187d",
+          "bytes": 968681
+        },
+        {
+          "slot": "height",
+          "path": "assets/textures/grass_ground/height.png",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/1k/grass_ground/grass_ground_disp_1k.png",
+          "provider_md5": "c26729d66abbb9b402b605f200974a09",
+          "provider_bytes": 1897975,
+          "color_space": "linear",
+          "normal_convention": null,
+          "sha256": "919a6fe7abe0cc966b3f8f6a3f529b13326ea91fa1d172f6e22497dc358b48d8",
+          "bytes": 1897975
+        }
+      ]
+    },
+    {
+      "id": "rocky_gravel",
+      "name": "Rocky Gravel",
+      "url": "https://polyhaven.com/a/rocky_gravel",
+      "authors": {
+        "Dario Barresi": "Processing",
+        "Dimitrios Savva": "Photography"
+      },
+      "dimensions_mm": [
+        1809.999942779541,
+        1809.999942779541
+      ],
+      "tile_size_metres": [
+        1.81,
+        1.81
+      ],
+      "resolution": "1k",
+      "files": [
+        {
+          "slot": "albedo",
+          "path": "assets/textures/rocky_gravel/albedo.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rocky_gravel/rocky_gravel_diff_1k.jpg",
+          "provider_md5": "a1d5a23e5df0f2a43ec69d9a1b1c3f92",
+          "provider_bytes": 1272321,
+          "color_space": "srgb",
+          "normal_convention": null,
+          "sha256": "96ca2e89a5b5d9413217dddaf6b217afccd2cc5ef39a1dbc2a2939aac4cac38e",
+          "bytes": 1272321
+        },
+        {
+          "slot": "normal",
+          "path": "assets/textures/rocky_gravel/normal.png",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/1k/rocky_gravel/rocky_gravel_nor_gl_1k.png",
+          "provider_md5": "c34001488d17cb909654a48d879c3ecc",
+          "provider_bytes": 6107764,
+          "color_space": "linear",
+          "normal_convention": "opengl",
+          "sha256": "5dbee9826e60de7d5824fb1f1ce6d20e3fd465a39e1cf0e0ff60421e5a182dab",
+          "bytes": 6107764
+        },
+        {
+          "slot": "roughness",
+          "path": "assets/textures/rocky_gravel/roughness.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rocky_gravel/rocky_gravel_rough_1k.jpg",
+          "provider_md5": "ea8668e6687c631376e2400a3b03bb94",
+          "provider_bytes": 485767,
+          "color_space": "linear",
+          "normal_convention": null,
+          "sha256": "4a57e021cd1406cb49413c27bff479441936b3a7ad9cf179a87eaaf6c9c5c710",
+          "bytes": 485767
+        },
+        {
+          "slot": "ambient_occlusion",
+          "path": "assets/textures/rocky_gravel/ambient_occlusion.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rocky_gravel/rocky_gravel_ao_1k.jpg",
+          "provider_md5": "1a9d3074dbee18b6e24d26ee66e27c49",
+          "provider_bytes": 1126945,
+          "color_space": "linear",
+          "normal_convention": null,
+          "sha256": "8c4953c37cf180fce8bb97dada85cdcd710d3152ea89fbd730c74e8c90e74ad0",
+          "bytes": 1126945
+        },
+        {
+          "slot": "height",
+          "path": "assets/textures/rocky_gravel/height.png",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/1k/rocky_gravel/rocky_gravel_disp_1k.png",
+          "provider_md5": "2f76e8343ec22805b82dfcc590b745f3",
+          "provider_bytes": 1867403,
+          "color_space": "linear",
+          "normal_convention": null,
+          "sha256": "79cd347f05d209c83640e99578c3a0498507eba3d969464c2b6e6fa4bc9aed48",
+          "bytes": 1867403
+        }
+      ]
+    },
+    {
+      "id": "sand_02",
+      "name": "Sand 02",
+      "url": "https://polyhaven.com/a/sand_02",
+      "authors": {
+        "Charlotte Baglioni": "All"
+      },
+      "dimensions_mm": [
+        2140.000104904175,
+        2140.000104904175
+      ],
+      "tile_size_metres": [
+        2.14,
+        2.14
+      ],
+      "resolution": "1k",
+      "files": [
+        {
+          "slot": "albedo",
+          "path": "assets/textures/sand_02/albedo.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/sand_02/sand_02_diff_1k.jpg",
+          "provider_md5": "e14de87d9427a79a5e8e6341c39d1da8",
+          "provider_bytes": 981243,
+          "color_space": "srgb",
+          "normal_convention": null,
+          "sha256": "1429b1930308f623f3d9ff56315b0c894004731c239019353ff9bfefabe70ee9",
+          "bytes": 981243
+        },
+        {
+          "slot": "normal",
+          "path": "assets/textures/sand_02/normal.png",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/1k/sand_02/sand_02_nor_gl_1k.png",
+          "provider_md5": "9e004e18f3a86384594402c13668a414",
+          "provider_bytes": 5919568,
+          "color_space": "linear",
+          "normal_convention": "opengl",
+          "sha256": "2b434ba4e4e50aa45cada350d21304bd6e4da49a8f3032f4d373ef2f976bc682",
+          "bytes": 5919568
+        },
+        {
+          "slot": "roughness",
+          "path": "assets/textures/sand_02/roughness.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/sand_02/sand_02_rough_1k.jpg",
+          "provider_md5": "f226f77c2c13b721212ca173fb997631",
+          "provider_bytes": 396186,
+          "color_space": "linear",
+          "normal_convention": null,
+          "sha256": "686ed8a31d58a3227ad6c7fa42f94000abf622fce9c662d5af55b77c57340c14",
+          "bytes": 396186
+        },
+        {
+          "slot": "ambient_occlusion",
+          "path": "assets/textures/sand_02/ambient_occlusion.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/sand_02/sand_02_ao_1k.jpg",
+          "provider_md5": "501ea9972bcdd2feb1ca6ff98d997fd8",
+          "provider_bytes": 583500,
+          "color_space": "linear",
+          "normal_convention": null,
+          "sha256": "a7566805ab1b743b33e7e6d48e7e310f716066475088dffc4e990c3743c4c825",
+          "bytes": 583500
+        },
+        {
+          "slot": "height",
+          "path": "assets/textures/sand_02/height.png",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/1k/sand_02/sand_02_disp_1k.png",
+          "provider_md5": "a0df93e9b99ca2766c94d7cd7d6e7b80",
+          "provider_bytes": 1712868,
+          "color_space": "linear",
+          "normal_convention": null,
+          "sha256": "3bf0e5091188f0e8422c5b0f2ead96b1ebe3d8659ed37f50df1f83a4b7f25fc5",
+          "bytes": 1712868
+        }
+      ]
+    },
+    {
+      "id": "snow_02",
+      "name": "Snow 02",
+      "url": "https://polyhaven.com/a/snow_02",
+      "authors": {
+        "Rob Tuytel": "All"
+      },
+      "dimensions_mm": [
+        2000,
+        2000
+      ],
+      "tile_size_metres": [
+        2.0,
+        2.0
+      ],
+      "resolution": "1k",
+      "files": [
+        {
+          "slot": "albedo",
+          "path": "assets/textures/snow_02/albedo.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/snow_02/snow_02_diff_1k.jpg",
+          "provider_md5": "fc54766c6b36ff298699115a619d440b",
+          "provider_bytes": 325497,
+          "color_space": "srgb",
+          "normal_convention": null,
+          "sha256": "523a4e69c90b96d787dd69b897f29a2b3761a017024405c60aa630d1e8e9009a",
+          "bytes": 325497
+        },
+        {
+          "slot": "normal",
+          "path": "assets/textures/snow_02/normal.png",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/1k/snow_02/snow_02_nor_gl_1k.png",
+          "provider_md5": "57d7f4e2501db746c862c6efee9fb38f",
+          "provider_bytes": 2118417,
+          "color_space": "linear",
+          "normal_convention": "opengl",
+          "sha256": "110f8f0b4668c780412480a459d1276a52633f2d0af6c3eb30fd7ef90c6426fa",
+          "bytes": 2118417
+        },
+        {
+          "slot": "roughness",
+          "path": "assets/textures/snow_02/roughness.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/snow_02/snow_02_rough_1k.jpg",
+          "provider_md5": "1dbae0269e53dbf80d4fd1c4335f25a2",
+          "provider_bytes": 146089,
+          "color_space": "linear",
+          "normal_convention": null,
+          "sha256": "b6dea8039ac2a5beaed6fd41834fb55540cc76b492edd1d48ba2da2f30f1cb75",
+          "bytes": 146089
+        },
+        {
+          "slot": "ambient_occlusion",
+          "path": "assets/textures/snow_02/ambient_occlusion.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/snow_02/snow_02_ao_1k.jpg",
+          "provider_md5": "c3cbf062262bc7ac6ecc9099ac81b4a3",
+          "provider_bytes": 289832,
+          "color_space": "linear",
+          "normal_convention": null,
+          "sha256": "1be6441229c6db11ca39068e46eb4275e33d9c99f8e15d7a5b53d95c47e10ff6",
+          "bytes": 289832
+        },
+        {
+          "slot": "height",
+          "path": "assets/textures/snow_02/height.png",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/1k/snow_02/snow_02_disp_1k.png",
+          "provider_md5": "ac190f15723eb0850917e8812b7a6808",
+          "provider_bytes": 1889438,
+          "color_space": "linear",
+          "normal_convention": null,
+          "sha256": "7ea857f5b1f4c3f4cf99471fbd9e4b5885d25e5e79296a9d9aedd39bbf7035c4",
+          "bytes": 1889438
+        }
+      ]
+    }
+  ],
+  "license_text_source": "https://raw.githubusercontent.com/spdx/license-list-data/main/text/CC0-1.0.txt",
+  "retrieved": "2026-10-14",
+  "previews": [
+    {
+      "path": "previews/rock_face_03.png",
+      "asset": "rock_face_03",
+      "url": "https://cdn.polyhaven.com/asset_img/thumbs/rock_face_03.png?width=384&height=384&format=png",
+      "sha256": "11131d627f640ae2bdea2dff83ff1a8d058b7a701722dd676ee1839f80e5bfad",
+      "bytes": 289217,
+      "description": "Upstream material preview render, not a DemiEngine capture"
+    },
+    {
+      "path": "previews/grass_ground.png",
+      "asset": "grass_ground",
+      "url": "https://cdn.polyhaven.com/asset_img/thumbs/grass_ground.png?width=384&height=384&format=png",
+      "sha256": "8393f72da5342f4c5e3b7ed43ec2bd2666a82c9daa0ae25b0e2d6ed5c51caa0e",
+      "bytes": 281379,
+      "description": "Upstream material preview render, not a DemiEngine capture"
+    }
+  ]
+}

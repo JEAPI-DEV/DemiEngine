@@ -9,6 +9,9 @@
 #include "demi/runtime/terrain/TerrainUpdate.h"
 #include "demi/runtime/terrain/TerrainWaterQueries.h"
 
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <cassert>
 #include <chrono>
 #include <cmath>
@@ -231,8 +234,9 @@ void completePayloadRoundTrip() {
   auto malformed = derived;
   malformed["surface_materials"]["samples"][0] = 17;
   HeightField invalidField = field;
-  expectFailure([&] { terrain_payload::decodeDerived(malformed, invalidField); },
-                "out of range");
+  expectFailure(
+      [&] { terrain_payload::decodeDerived(malformed, invalidField); },
+      "out of range");
   assert(restored->graphArtifacts && restored->graphArtifacts->baseField);
   assert(restored->graphArtifacts->basePlacements->size() == 1);
   assert(restored->graphArtifacts->water.bodies.size() == 1);
@@ -285,7 +289,12 @@ HeightField fieldWithWaterCoverage() {
 }
 
 void waterCoverageRoundTrip() {
-  const auto field = fieldWithWaterCoverage();
+  auto field = fieldWithWaterCoverage();
+  auto selectedBalance = std::make_shared<TerrainSamples<float>>();
+  selectedBalance->assign(field.heights.size(), 0);
+  selectedBalance->set(0, -2);
+  selectedBalance->set(1, 3);
+  field.surfaceSedimentBalance = selectedBalance;
   const auto derived = terrain_payload::encodeDerived(field);
   const auto &encoded = derived["graph"]["water_result"]["resolved_coverage"];
   assert(encoded.is_object() && encoded.size() == 2);
@@ -293,8 +302,10 @@ void waterCoverageRoundTrip() {
   assert(encoded["body"][0] == 0 && encoded["body"][1] == 2 &&
          encoded["body"][2] == -1);
   const auto payload = serializeTerrainAssetPayload(field, "recipe", "inputs");
-  assert(terrainAssetPayloadVersion == 8 && payload[7] == std::byte{'8'});
+  assert(terrainAssetPayloadVersion == 9 && payload[7] == std::byte{'9'});
   const auto restored = deserializeTerrainAssetPayload(payload);
+  assert(restored->surfaceSedimentBalance);
+  assert(*restored->surfaceSedimentBalance == *selectedBalance);
   const auto &before = *field.graphArtifacts->waterResult;
   const auto &after = *restored->graphArtifacts->waterResult;
   assert(after.resolvedCoverage);
@@ -484,7 +495,8 @@ void graphColdLoadKeepsLocalBrush(const std::filesystem::path &root) {
   auto recipe = smallRecipe();
   recipe.graph = defaultTerrainGraph();
   recipe.graph["nodes"].push_back({
-      {"id", "erosion"}, {"type", "erosion"},
+      {"id", "erosion"},
+      {"type", "erosion"},
       {"parameters", {{"iterations", 2}}},
   });
   recipe.graph["links"][0]["from"]["node"] = "erosion";
@@ -499,8 +511,10 @@ void graphColdLoadKeepsLocalBrush(const std::filesystem::path &root) {
   auto generated = TerrainGenerator::generate(recipe, inputs.palette.get(), {},
                                               {}, inputs.fingerprint);
   assert(generated && generated->graphArtifacts);
-  const auto transport = generated->graphArtifacts->hydraulicTransport.at("erosion");
-  auto artifacts = std::make_shared<TerrainGraphArtifacts>(*generated->graphArtifacts);
+  const auto transport =
+      generated->graphArtifacts->hydraulicTransport.at("erosion");
+  auto artifacts =
+      std::make_shared<TerrainGraphArtifacts>(*generated->graphArtifacts);
   const std::string status = "River route joined water body: receiving_lake";
   artifacts->nodes.front().status = status;
   generated->graphArtifacts = std::move(artifacts);
@@ -528,7 +542,8 @@ void graphColdLoadKeepsLocalBrush(const std::filesystem::path &root) {
   assert(updated);
   assert(!updated->invalidation.fullGeneration);
   assert(updated->stats.baseEvaluations == 0);
-  assert(updated->field->graphArtifacts->hydraulicTransport.at("erosion") == transport);
+  assert(updated->field->graphArtifacts->hydraulicTransport.at("erosion") ==
+         transport);
 }
 
 void appearanceDoesNotInvalidateGeneration() {
@@ -557,7 +572,8 @@ void appearanceDoesNotInvalidateGeneration() {
   registry.assets.front().type = "Texture2D";
   assert(hasErrors(validateTerrainSurfaceReferences(registry, recipe)));
   registry.assets.front().type = "DataAsset";
-  registry.assets.front().settingsJson = R"({"content_type":"terrain_material"})";
+  registry.assets.front().settingsJson =
+      R"({"content_type":"terrain_material"})";
   const auto unsupported = validateTerrainSurfaceReferences(registry, recipe);
   assert(hasErrors(unsupported) && unsupported.size() == 1 &&
          unsupported.front().severity == Severity::Error);

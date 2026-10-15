@@ -60,6 +60,10 @@ struct TerrainMaterialLayerSettings {
   // both need that, and neither should have to out-score the other roles to get
   // it.
   bool allowSnowLine = true;
+  // Optional per-biome permissions, indexed like HeightField::biomeIds. Empty
+  // leaves the low-level global policy unrestricted; production derives these
+  // permissions from authored TerrainBiome::allowSnow.
+  std::vector<bool> biomeAllowsSnow;
   // Carried, not consulted by the decision. Which role a cell wears is a shape
   // decision, and a preview that picked different roles from the final field
   // would make the preview lie about the terrain it is previewing. The tier

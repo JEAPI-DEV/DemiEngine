@@ -7,6 +7,9 @@
 #include "demi/runtime/scene/components/2dcomponents/Tilemap2DComponent.h"
 #include "demi/runtime/scene/components/2dcomponents/Transform2DComponent.h"
 
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <cassert>
 #include <filesystem>
 #include <string>
@@ -38,6 +41,8 @@ int main() {
   assert(renderer.loadAssets(registry, diagnostics));
   assert(diagnostics.empty());
   assert(renderer.loadedTextureCount() >= 2);
+  assert(renderer.residentTextureCount() == 0);
+  assert(renderer.hasTexture("asset://sprites/player"));
   AssetRegistry fontRegistry;
   fontRegistry.assets.push_back(
       {.id = "asset://fonts/project-fallback",
@@ -96,6 +101,11 @@ int main() {
        .text = "bgfx",
        .resolved = {.x = 4, .y = 4, .width = 100, .height = 24},
        .fontSize = 18});
+  world.ui.nodes.push_back(
+      {.id = "lazy_image",
+       .type = "image",
+       .texture = "asset://items/gold_coin",
+       .resolved = {.x = 120, .y = 4, .width = 24, .height = 24}});
   Entity sprite;
   sprite.id = "sprite";
   sprite.setComponent(Transform2DComponent{});
@@ -107,7 +117,9 @@ int main() {
                              320, 180, 0.016F, error));
   assert(!renderer.beginFrame({}, {}, 320, 180, 0.016F, error));
   assert(renderer.drawWorld(world));
+  assert(renderer.residentTextureCount() == 1);
   assert(renderer.drawHud(world));
+  assert(renderer.residentTextureCount() == 2);
   assert(renderer.endFrame(error));
   assert(renderer.statistics().quads > 1);
   static_cast<void>(graphics.endFrame());

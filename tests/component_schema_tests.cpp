@@ -4,6 +4,7 @@
 #include "demi/runtime/terrain/TerrainGenerator.h"
 
 #include <limits>
+#include <vector>
 
 #include <fstream>
 #include <iostream>
@@ -11,6 +12,87 @@
 #include <stdexcept>
 
 namespace {
+
+void testTerrainTextureQuality() {
+  using namespace demi::runtime;
+  const auto *descriptor =
+      scene_loading::findComponentDescriptor("Environment3D");
+  if (!descriptor) {
+    throw std::runtime_error("Environment descriptor is missing");
+  }
+  constexpr std::size_t MiB = 1024U * 1024U;
+  Entity entity;
+  const nlohmann::json authored{{"terrain_texture_max_size", 2048},
+                                {"terrain_texture_cache_mb", 32},
+                                {"terrain_detail_distance", 350}};
+  descriptor->parse(authored, entity);
+  auto *environment = entity.component<Environment3DComponent>();
+  if (environment->terrainTextureMaxSize != 2048 ||
+      environment->terrainTextureCacheBytes != 32 * MiB ||
+      environment->terrainDetailDistance != 350 ||
+      descriptor->serialize(entity) != authored) {
+    throw std::runtime_error("Terrain texture quality did not round trip");
+  }
+  environment->shadowDistance = 42;
+  auto disabled = authored;
+  disabled["terrain_texture_cache_mb"] = 0;
+  if (!descriptor->patch(entity, "terrain_texture_cache_mb", disabled) ||
+      environment->terrainTextureCacheBytes != 0 ||
+      environment->terrainTextureMaxSize != 2048 ||
+      environment->terrainDetailDistance != 350 ||
+      environment->shadowDistance != 42 ||
+      descriptor->inspect(entity).at("terrain_texture_cache_mb") != 0) {
+    throw std::runtime_error(
+        "Terrain texture budget patch lost unrelated state");
+  }
+  Entity omitted;
+  descriptor->parse(nlohmann::json::object(), omitted);
+  const auto *defaults = omitted.component<Environment3DComponent>();
+  if (defaults->terrainTextureMaxSize != 1024 ||
+      defaults->terrainTextureCacheBytes != 128 * MiB ||
+      defaults->terrainDetailDistance != 200 ||
+      !descriptor->serialize(omitted).empty()) {
+    throw std::runtime_error(
+        "Terrain texture quality canonical defaults changed");
+  }
+  const auto schema = scene_loading::componentSchema(*descriptor);
+  const auto &properties = schema.at("properties");
+  if (properties.at("terrain_texture_max_size").at("default") != 1024 ||
+      properties.at("terrain_texture_max_size").at("enum").size() != 8 ||
+      properties.at("terrain_texture_cache_mb").at("default") != 128 ||
+      properties.at("terrain_detail_distance").at("default") != 200) {
+    throw std::runtime_error(
+        "Terrain texture quality schema differs from native defaults");
+  }
+  for (const auto &invalid : std::vector<nlohmann::json>{
+           {{"terrain_texture_max_size", 0}},
+           {{"terrain_texture_max_size", 65}},
+           {{"terrain_texture_max_size", 16384}},
+           {{"terrain_texture_max_size", "1024"}},
+           {{"terrain_texture_cache_mb", -1}},
+           {{"terrain_texture_cache_mb", 0.5}},
+           {{"terrain_texture_cache_mb",
+             std::uint64_t(std::numeric_limits<std::size_t>::max() / MiB) + 1}},
+           {{"terrain_detail_distance", 0}},
+           {{"terrain_detail_distance", -1}},
+           {{"terrain_detail_distance", 1e100}},
+           {{"terrain_detail_distance", 1e-100}},
+           {{"terrain_detail_distance",
+             std::numeric_limits<double>::infinity()}},
+           {{"terrain_detail_distance", "200"}}}) {
+    bool rejected = false;
+    try {
+      Entity invalidEntity;
+      descriptor->parse(invalid, invalidEntity);
+    } catch (const std::exception &) {
+      rejected = true;
+    }
+    if (!rejected) {
+      throw std::runtime_error(
+          "Invalid terrain texture quality was accepted: " + invalid.dump());
+    }
+  }
+}
 
 void testTerrainPreparationBudgets() {
   using namespace demi::runtime;
@@ -238,6 +320,7 @@ void testTerrainLodQualityContract() {
 int main() {
   try {
     testTerrainPreparationBudgets();
+    testTerrainTextureQuality();
     testTerrainLodQualityContract();
     testTerrainSurfaceBlendingContract();
     using namespace demi::runtime;

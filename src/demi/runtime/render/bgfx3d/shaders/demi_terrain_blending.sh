@@ -12,4 +12,11 @@ uint terrainTriangleMaterialIndex(uint a, uint b, uint c, uint d, vec2 fraction)
     return c == d ? c : b;
 }
 
+// Bias only existing material contributors. No height map uses strength zero,
+// giving exactly one; a neutral height of 0.5 is also independent of strength.
+float terrainHeightBlendFactor(float height, float strength)
+{
+    return max(0.001, 1.0 + strength * (height * 2.0 - 1.0));
+}
+
 #endif

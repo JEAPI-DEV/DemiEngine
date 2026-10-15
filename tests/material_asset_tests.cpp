@@ -31,6 +31,9 @@ void defaultsComeFromOrdinaryMaterial() {
   assert(surface.roughness == 0.8F && surface.metallic == 0);
   assert(surface.normalStrength == 1 && surface.tiling == 1 &&
          surface.detailStrength == 0);
+  assert(surface.heightBlendStrength == 0.5F);
+  assert(surface.macroVariationStrength == 0);
+  assert(surface.macroVariationScale == 0.02F);
   assert(surface.mapping == MaterialMapping::Uv && !surface.normalMapYDown);
   assert(surface.maps.empty());
 }
@@ -51,7 +54,10 @@ void typedViewUsesTheCanonicalDescriptor() {
       "metallic":0.2,
       "normal_strength":2,
       "tiling":4,
-      "detail_strength":0.6
+      "detail_strength":0.6,
+      "height_blend_strength":0.8,
+      "macro_variation_strength":0.3,
+      "macro_variation_scale":0.01
     }
   })");
   const auto material = parseMaterialAsset(document);
@@ -61,6 +67,9 @@ void typedViewUsesTheCanonicalDescriptor() {
   assert(surface.roughness == 0.3F && surface.metallic == 0.2F);
   assert(surface.normalStrength == 2 && surface.tiling == 4 &&
          surface.detailStrength == 0.6F);
+  assert(surface.heightBlendStrength == 0.8F);
+  assert(surface.macroVariationStrength == 0.3F);
+  assert(surface.macroVariationScale == 0.01F);
   assert(surface.mapping == MaterialMapping::Triplanar &&
          surface.normalMapYDown);
   assert(surface.maps.at(MaterialMapSlot::Albedo) == "asset://textures/color");
@@ -84,6 +93,15 @@ void builtinSurfaceDomainsAreValidated() {
        {Json{{"roughness", -1}}, Json{{"metallic", 2}},
         Json{{"normal_strength", -1}}, Json{{"tiling", 0}},
         Json{{"tiling", 1e100}}, Json{{"detail_strength", -1}},
+        Json{{"height_blend_strength", -0.1}},
+        Json{{"height_blend_strength", 1.1}},
+        Json{{"macro_variation_strength", -0.1}},
+        Json{{"macro_variation_strength", 1.1}},
+        Json{{"macro_variation_scale", 0}}, Json{{"macro_variation_scale", -1}},
+        Json{{"macro_variation_scale", 1e100}},
+        Json{{"height_blend_strength", {1, 1, 1, 1}}},
+        Json{{"macro_variation_strength", {1, 1, 1, 1}}},
+        Json{{"macro_variation_scale", {1, 1, 1, 1}}},
         Json{{"normal_strength", {1, 1, 1, 1}}},
         Json{{"base_color", {1, 2, 1, 1}}},
         Json{{"roughness", std::numeric_limits<double>::infinity()}}}) {

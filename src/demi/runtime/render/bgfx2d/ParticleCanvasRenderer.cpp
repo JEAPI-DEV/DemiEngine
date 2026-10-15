@@ -8,7 +8,7 @@
 namespace demi::runtime::render {
 
 ParticleCanvasRenderer::ParticleCanvasRenderer(Canvas2D &canvas,
-                                               const TextureLibrary2D &textures)
+                                               TextureLibrary2D &textures)
     : canvas_(canvas), textures_(textures) {}
 
 bool ParticleCanvasRenderer::draw(
@@ -33,7 +33,7 @@ bool ParticleCanvasRenderer::draw(
         viewportHeight * 0.5F - (particle->position.y - cameraPosition.y) * ppu;
     const float size = particle->size * ppu;
     const std::uint32_t color = packVertexColorRgba8(particle->color);
-    const TextureView2D texture = textures_.find(particle->texture);
+    const TextureView2D texture = textures_.resolve(particle->texture);
     if (texture.handle) {
       if (!canvas_.imageTransformed(texture.handle, screenX, screenY, size,
                                     size, 0.5F, 0.5F,

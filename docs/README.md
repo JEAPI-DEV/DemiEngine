@@ -7,6 +7,9 @@ are registered in `tools/package-store/src/Docs.php`.
 
 This directory keeps material that has a different job:
 
+- [Terrain Milestone 4 qualification](terrain-milestone4-qualification.md)
+  records GPU material layers, real starter art, color semantics, native/cooked
+  checks and measured texture residency.
 - [Shared terrain and mesh material qualification](terrain-shared-material-qualification.md)
   records canonical Materials, mapped PBR/triplanar shading, semantic mipmaps,
   native/cooked comparisons and the remaining Milestone 4 boundaries.

@@ -1,0 +1,17 @@
+{
+  "format_version": 1,
+  "id": "asset://polyhaven/terrain/materials/rocky_gravel",
+  "type": "Material",
+  "source": "rocky_gravel.material.json",
+  "importer": "material",
+  "importer_version": 1,
+  "source_hash": "fnv1a64:8c4bf27b98b692e4",
+  "dependencies": [
+    "asset://polyhaven/terrain/textures/rocky_gravel/albedo",
+    "asset://polyhaven/terrain/textures/rocky_gravel/ambient_occlusion",
+    "asset://polyhaven/terrain/textures/rocky_gravel/height",
+    "asset://polyhaven/terrain/textures/rocky_gravel/normal",
+    "asset://polyhaven/terrain/textures/rocky_gravel/roughness"
+  ],
+  "settings": {}
+}

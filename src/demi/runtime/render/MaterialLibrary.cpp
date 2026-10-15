@@ -1,4 +1,5 @@
 #include "demi/runtime/render/MaterialLibrary.h"
+#include "demi/runtime/render/backend/RenderAssetLoading.h"
 
 #include "demi/assets/RenderAsset.h"
 
@@ -54,6 +55,14 @@ bool MaterialLibrary::load(const AssetRegistry &registry,
     }
     MaterialBinding binding;
     binding.surface = assets::materialSurface(*descriptor);
+    for (const auto &[slot, id] : binding.surface.maps) {
+      static_cast<void>(slot);
+      const auto *texture = findAsset(registry, id);
+      if (texture && texture->type == "Texture2D") {
+        binding.terrainWrap = textureSampling2D(*texture).wrap;
+        break;
+      }
+    }
     const bool builtinSurface = descriptor->shader == "builtin://lit" ||
                                 descriptor->shader == "builtin://unlit";
     if (builtinSurface) {
@@ -66,12 +75,6 @@ bool MaterialLibrary::load(const AssetRegistry &registry,
           binding.usesPbrSurface = true;
         }
       }
-    }
-    if (builtinSurface &&
-        binding.surface.maps.contains(assets::MaterialMapSlot::Height)) {
-      diagnostics.push_back(
-          asset.id + ": height map retained for future layer blending; "
-                     "current builtin shading does not sample or displace it");
     }
     binding.unlit = descriptor->shader == "builtin://unlit";
     binding.uniformSet = nextUniformSet++;
@@ -130,9 +133,12 @@ bool MaterialLibrary::load(const AssetRegistry &registry,
     bool bindingValid = true;
     for (const std::string &name : names) {
       const bool builtinIntrinsic =
-          builtinSurface && (name == "metallic" || name == "roughness" ||
-                             name == "opacity" || name == "normal_strength" ||
-                             name == "tiling" || name == "detail_strength");
+          builtinSurface &&
+          (name == "metallic" || name == "roughness" || name == "opacity" ||
+           name == "normal_strength" || name == "tiling" ||
+           name == "detail_strength" || name == "height_blend_strength" ||
+           name == "macro_variation_strength" ||
+           name == "macro_variation_scale");
       if (builtinIntrinsic) {
         continue;
       }

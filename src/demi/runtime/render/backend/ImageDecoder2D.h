@@ -8,6 +8,18 @@
 
 namespace demi::runtime::render {
 
+struct ImageDimensions2D {
+  std::uint16_t width = 0;
+  std::uint16_t height = 0;
+  // Native decoded storage plus RGBA conversion/copy buffers; an estimate.
+  std::size_t decoderWorkingBytes = 0;
+};
+
+// Header inspection avoids decoding pixels during demand/budget planning.
+[[nodiscard]] bool inspectImage2D(std::span<const std::byte> encoded,
+                                  ImageDimensions2D &dimensions,
+                                  std::string &error);
+
 struct ImageData2D {
   std::uint16_t width = 0;
   std::uint16_t height = 0;

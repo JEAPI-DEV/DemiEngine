@@ -25,6 +25,7 @@ struct MaterialParameter {
 struct MaterialBinding {
   assets::MaterialSurface surface;
   bool usesPbrSurface = false;
+  TextureWrap terrainWrap = TextureWrap::Repeat;
   ProgramHandle program;
   bool unlit = false;
   std::string albedoTexture;

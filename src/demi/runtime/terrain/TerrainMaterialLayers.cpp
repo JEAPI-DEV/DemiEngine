@@ -28,16 +28,18 @@ using assets::TerrainMaterialRole;
 // terrainMaterialCandidateRoles() refuses a set that names a role missing from
 // this table rather than letting it sit in the vocabulary unreachable.
 constexpr TerrainMaterialRole RolePrecedence[]{
-    TerrainMaterialRole::Rock,     TerrainMaterialRole::Cliff,
-    TerrainMaterialRole::Sediment, TerrainMaterialRole::Ground,
-    TerrainMaterialRole::Grass,    TerrainMaterialRole::Sand,
-    TerrainMaterialRole::Snow,     TerrainMaterialRole::WetGround,
+    TerrainMaterialRole::Rock,      TerrainMaterialRole::Cliff,
+    TerrainMaterialRole::Sediment,  TerrainMaterialRole::Ground,
+    TerrainMaterialRole::Grass,     TerrainMaterialRole::Sand,
+    TerrainMaterialRole::Snow,      TerrainMaterialRole::WetGround,
     TerrainMaterialRole::Underwater};
 
 // Slope thresholds, in degrees, because a surface's steepness is an angle and
 // not a property of how finely the terrain was sampled. Every role below reads
 // these, so the whole vocabulary moves together when settings.slopeScale moves.
-constexpr float RockSlopeStart = 32.F;
+// Rock becomes eligible before soil/grass fade out, so finite dry slopes
+// retain a surface role throughout their transition.
+constexpr float RockSlopeStart = 25.F;
 constexpr float RockSlopeFull = 58.F;
 // Rock tops out below 1 so a near-vertical face resolves as Cliff, whose score
 // reaches 1: the material that samples all three axes wins the cliff, and the
@@ -128,10 +130,9 @@ struct MaterialProfile {
   float depthScale = 0.F;
 };
 
-MaterialProfile
-deriveProfile(const HeightField &field,
-              const TerrainMaterialLayerSettings &settings,
-              const TerrainMasks *masks = nullptr) {
+MaterialProfile deriveProfile(const HeightField &field,
+                              const TerrainMaterialLayerSettings &settings,
+                              const TerrainMasks *masks = nullptr) {
   MaterialProfile profile;
   profile.waterLevel = settings.waterLevel;
   std::vector<float> dry;
@@ -152,10 +153,9 @@ deriveProfile(const HeightField &field,
     const float low = quantileCeil(dry, SnowLineLowQuantile);
     const float high = quantileCeil(dry, SnowLineHighQuantile);
     profile.relief = std::max(0.F, high - low);
-    const float derived =
-        profile.relief > ReliefEpsilon
-            ? low + SnowLineFraction * profile.relief
-            : std::numeric_limits<float>::infinity();
+    const float derived = profile.relief > ReliefEpsilon
+                              ? low + SnowLineFraction * profile.relief
+                              : std::numeric_limits<float>::infinity();
     // An authored line wins over the derived one, exactly as an authored water
     // level wins over the derived one: both are decisions the project made.
     profile.snowLine = settings.snowLine > 0.F ? settings.snowLine : derived;
@@ -180,6 +180,7 @@ struct CellFacts {
   float flow = 0.F;
   // Signed transport balance: positive deposition, negative cut.
   float sediment = 0.F;
+  bool snowPermitted = true;
   float waterDepth = 0.F;
   bool submerged = false;
   // Empty when the mask carries a value outside the substrate vocabulary, which
@@ -199,6 +200,9 @@ CellFacts readCell(const HeightField &field, const TerrainMasks &masks,
   facts.waterDistance = std::max(0.F, masks.waterDistance[cell]);
   facts.flow = std::clamp(masks.flow[cell], 0.F, 1.F);
   facts.sediment = masks.sediment[cell];
+  if (!settings.biomeAllowsSnow.empty()) {
+    facts.snowPermitted = settings.biomeAllowsSnow[field.biomeIndices[cell]];
+  }
   facts.waterDepth = masks.waterDepth.empty()
                          ? profile.waterLevel - facts.height
                          : masks.waterDepth[cell];
@@ -277,7 +281,7 @@ float scoreWetGround(const CellFacts &facts,
 // whatever scored 0.98.
 float scoreSnow(const CellFacts &facts, const MaterialProfile &profile,
                 const TerrainMaterialLayerSettings &settings) noexcept {
-  if (!settings.allowSnowLine || facts.submerged)
+  if (!settings.allowSnowLine || !facts.snowPermitted || facts.submerged)
     return 0.F;
   // Snow does not stick to a cliff. The limit is in degrees, so it is the face
   // that disqualifies a sample, not its height.
@@ -295,16 +299,20 @@ float scoreSnow(const CellFacts &facts, const MaterialProfile &profile,
 
 // Score for the Rock role: steep exposed ground.
 //
-//   score = 0.90 * smooth(slope, 32, 58) degrees
+//   score = 0.90 * max(smooth(slope, 25, 58), normalized erosion cut)
 //
-// One ramp, no second term: exposure here is the face itself, which is why the
-// erosion mask does not enter. The ceiling keeps the hand-off to Cliff clean,
-// and a flat cell scores exactly 0 so it declines rather than competing with
-// the ground roles at zero.
-float scoreRock(const CellFacts &facts) noexcept {
+// Current steepness and actual erosion cut both expose substrate. Normalize
+// cut against the same field relief as deposition; positive balance never
+// creates exposure. Snow and wet coverage can still cover the exposed surface.
+float scoreRock(const CellFacts &facts,
+                const MaterialProfile &profile) noexcept {
   if (facts.submerged)
     return 0.F;
-  return RockScoreCeiling * smooth(facts.slope, RockSlopeStart, RockSlopeFull);
+  const float cutScale =
+      std::max(ReliefEpsilon, DepositionReliefFraction * profile.relief);
+  const float exposed = std::clamp(-facts.sediment / cutScale, 0.F, 1.F);
+  const float steep = smooth(facts.slope, RockSlopeStart, RockSlopeFull);
+  return RockScoreCeiling * std::max(steep, exposed);
 }
 
 // Score for the Cliff role: near-vertical faces.
@@ -424,7 +432,7 @@ float scoreRole(const TerrainMaterialRole role, const CellFacts &facts,
   case TerrainMaterialRole::Snow:
     return scoreSnow(facts, profile, settings);
   case TerrainMaterialRole::Rock:
-    return scoreRock(facts);
+    return scoreRock(facts, profile);
   case TerrainMaterialRole::Cliff:
     return scoreCliff(facts);
   case TerrainMaterialRole::Sediment:
@@ -487,10 +495,10 @@ void requireUsable(const assets::TerrainMaterialSet &set,
                    const HeightField &field, const TerrainMasks &masks) {
   if (set.roles.empty())
     fail("Terrain material set '" + set.id +
-              "' binds no roles, so no cell could be assigned a material.");
+         "' binds no roles, so no cell could be assigned a material.");
   if (field.heights.empty())
     fail("Terrain height field has no samples, so no material can be "
-              "assigned.");
+         "assigned.");
   const auto count = field.heights.size();
   const std::pair<const char *, std::size_t> grids[]{
       {"slope", masks.slope.size()},
@@ -505,18 +513,33 @@ void requireUsable(const assets::TerrainMaterialSet &set,
   for (const auto &[name, size] : grids)
     if (size != count)
       fail("Terrain mask '" + std::string(name) + "' has " +
-                std::to_string(size) + " samples but the field has " +
-                std::to_string(count) +
-                ": the masks are not on the field's grid, and assigning "
-                "materials against the wrong grid is refused rather than "
-                "resampled.");
+           std::to_string(size) + " samples but the field has " +
+           std::to_string(count) +
+           ": the masks are not on the field's grid, and assigning "
+           "materials against the wrong grid is refused rather than "
+           "resampled.");
+}
+
+void requireSnowPermissions(const HeightField &field,
+                            const TerrainMaterialLayerSettings &settings) {
+  if (settings.biomeAllowsSnow.empty()) {
+    return;
+  }
+  if (settings.biomeAllowsSnow.size() != field.biomeIds.size() ||
+      field.biomeIndices.size() != field.heights.size()) {
+    fail("Terrain snow permissions do not match biome sample metadata");
+  }
+  for (std::size_t sample = 0; sample < field.biomeIndices.size(); ++sample) {
+    if (field.biomeIndices[sample] >= settings.biomeAllowsSnow.size()) {
+      fail("Terrain snow permissions encountered an invalid biome index");
+    }
+  }
 }
 
 bool hasRole(const TerrainMaterialRole role) noexcept {
-  return std::any_of(std::begin(RolePrecedence), std::end(RolePrecedence),
-                     [role](const TerrainMaterialRole known) {
-                       return known == role;
-                     });
+  return std::any_of(
+      std::begin(RolePrecedence), std::end(RolePrecedence),
+      [role](const TerrainMaterialRole known) { return known == role; });
 }
 
 } // namespace
@@ -577,6 +600,7 @@ decideTerrainMaterial(const assets::TerrainMaterialSet &set,
                       const std::size_t cell,
                       const TerrainMaterialLayerSettings &settings) {
   requireUsable(set, field, masks);
+  requireSnowPermissions(field, settings);
   if (cell >= field.heights.size())
     throw std::out_of_range("Terrain material cell " + std::to_string(cell) +
                             " is outside the field's " +
@@ -592,6 +616,7 @@ decideTerrainMaterials(const assets::TerrainMaterialSet &set,
                        const HeightField &field, const TerrainMasks &masks,
                        const TerrainMaterialLayerSettings &settings) {
   requireUsable(set, field, masks);
+  requireSnowPermissions(field, settings);
   const auto candidates = terrainMaterialCandidateRoles(set);
   // Derived once for the whole field: every cell resolves against the same
   // facts, so the result cannot depend on which cell was visited first.

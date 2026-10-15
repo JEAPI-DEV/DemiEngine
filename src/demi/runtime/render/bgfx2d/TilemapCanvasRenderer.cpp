@@ -10,7 +10,7 @@
 namespace demi::runtime::render {
 
 TilemapCanvasRenderer::TilemapCanvasRenderer(
-    Canvas2D &canvas, const TextureLibrary2D &textures,
+    Canvas2D &canvas, TextureLibrary2D &textures,
     const std::unordered_map<std::string, TilemapAsset2D> &tilemaps)
     : canvas_(canvas), textures_(textures), tilemaps_(tilemaps) {}
 
@@ -79,7 +79,7 @@ bool TilemapCanvasRenderer::draw(const World &world,
           if (tileset == nullptr || tileset->tileWidth <= 0 ||
               tileset->tileHeight <= 0)
             continue;
-          const TextureView2D texture = textures_.find(tileset->texture);
+          const TextureView2D texture = textures_.resolve(tileset->texture);
           if (!texture.handle)
             continue;
           const int atlasColumns =

@@ -1,0 +1,16 @@
+{
+  "format_version": 1,
+  "id": "asset://polyhaven/terrain/materials/wet_gravel",
+  "type": "Material",
+  "source": "wet_gravel.material.json",
+  "importer": "material",
+  "importer_version": 1,
+  "source_hash": "fnv1a64:531a08ba61151d26",
+  "dependencies": [
+    "asset://polyhaven/terrain/textures/rocky_gravel/albedo",
+    "asset://polyhaven/terrain/textures/rocky_gravel/ambient_occlusion",
+    "asset://polyhaven/terrain/textures/rocky_gravel/height",
+    "asset://polyhaven/terrain/textures/rocky_gravel/normal"
+  ],
+  "settings": {}
+}

@@ -24,6 +24,8 @@ struct TerrainGpuField3D {
   std::array<float, 4> fieldParameters{};
   std::array<float, 4> paletteParameters{};
   DrawState state;
+  bool mapped = false;
+  std::vector<std::string> materialIds;
 
 private:
   friend class TerrainGpuFieldCache3D;

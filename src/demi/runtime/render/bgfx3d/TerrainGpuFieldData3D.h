@@ -22,6 +22,9 @@ using TerrainGpuMaterialResolver3D =
 // reason, so the ordinary material renderer remains the whole-field fallback.
 struct TerrainGpuFieldData3D {
   bool compatible = false;
+  bool mapped = false;
+  // Sorted unique IDs, including the neutral empty ID at layer zero.
+  std::vector<std::string> materialIds;
   std::string fallbackReason;
   DrawState state;
   std::uint16_t sampleWidth = 0;

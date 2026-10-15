@@ -1,5 +1,5 @@
 $input a_position, i_data0, i_data1, i_data2, i_data3, i_data4
-$output v_color0, v_normal, v_texcoord0, v_worldPos, v_relativePos, v_terrainBlend
+$output v_color0, v_normal, v_texcoord0, v_worldPos, v_relativePos, v_terrainBlend, v_localPos, v_localNormal
 
 #include "bgfx_shader.sh"
 
@@ -28,6 +28,8 @@ void main()
     v_normal = handedness * (cross(modelY, modelZ) * normal.x +
                              cross(modelZ, modelX) * normal.y +
                              cross(modelX, modelY) * normal.z);
+    v_localPos = position;
+    v_localNormal = normal;
     v_worldPos = worldPosition.xyz;
     v_relativePos = v_worldPos - u_viewPosition.xyz;
     v_texcoord0 = sampleUv;

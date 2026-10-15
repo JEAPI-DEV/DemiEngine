@@ -1,12 +1,13 @@
 #include "demi/runtime/terrain/TerrainPipeline.h"
-#include "demi/runtime/terrain/TerrainMaskBuilder.h"
 #include "demi/runtime/terrain/TerrainBiomeRules.h"
 #include "demi/runtime/terrain/TerrainDrainage.h"
 #include "demi/runtime/terrain/TerrainErosion.h"
 #include "demi/runtime/terrain/TerrainGraph.h"
 #include "demi/runtime/terrain/TerrainGraphExecutor.h"
+#include "demi/runtime/terrain/TerrainMaskBuilder.h"
 #include "demi/runtime/terrain/TerrainScatter.h"
 #include "demi/runtime/terrain/TerrainScatterConstraints.h"
+#include "demi/runtime/terrain/TerrainSurfaceSediment.h"
 #include "demi/runtime/terrain/TerrainWater.h"
 #include <algorithm>
 #include <cmath>
@@ -65,9 +66,10 @@ void recordGraphStages(TerrainGenerationResult &result,
   record(result, TerrainStage::Sculpt);
 }
 
-std::optional<TerrainGenerationResult> generateGraphStages(
-    const TerrainRecipe &recipe, const TerrainPipelineSettings &settings,
-    std::stop_token stop, const TerrainProgress &progress) {
+std::optional<TerrainGenerationResult>
+generateGraphStages(const TerrainRecipe &recipe,
+                    const TerrainPipelineSettings &settings,
+                    std::stop_token stop, const TerrainProgress &progress) {
   if (settings.erosion ||
       (settings.waterAuthoring != nullptr && settings.waterAuthoring->authored))
     throw std::invalid_argument(
@@ -102,8 +104,8 @@ std::optional<TerrainGenerationResult> generateGraphStages(
     if (!drainage)
       return std::nullopt;
   }
-  if (!buildTerrainMasks(*field, recipe, drainage ? &*drainage : nullptr, nullptr,
-                  result.masks, settings.drainage, stop))
+  if (!buildTerrainMasks(*field, recipe, drainage ? &*drainage : nullptr,
+                         nullptr, result.masks, settings.drainage, stop))
     return std::nullopt;
   record(result, TerrainStage::Masks);
   field->stageOrder = "terrain_graph";
@@ -152,13 +154,12 @@ generateTerrainStages(const TerrainRecipe &recipe,
   // landforms, or taken from the caller when the project authored one, because
   // two stages deriving it separately is how a shoreline ends up in two places
   // with different answers.
-  const bool hasAuthoredWater = settings.waterAuthoring != nullptr &&
-                                settings.waterAuthoring->authored;
-  result.water.seaLevel = settings.water.authored
-                              ? settings.water.seaLevel
-                              : hasAuthoredWater
-                                    ? settings.waterAuthoring->seaLevel
-                                    : TerrainRuleContextBuilder::seaLevel(recipe);
+  const bool hasAuthoredWater =
+      settings.waterAuthoring != nullptr && settings.waterAuthoring->authored;
+  result.water.seaLevel = settings.water.authored ? settings.water.seaLevel
+                          : hasAuthoredWater
+                              ? settings.waterAuthoring->seaLevel
+                              : TerrainRuleContextBuilder::seaLevel(recipe);
   result.water.authored = settings.water.authored || hasAuthoredWater;
   if (!std::isfinite(result.water.seaLevel))
     return std::nullopt;
@@ -178,10 +179,16 @@ generateTerrainStages(const TerrainRecipe &recipe,
       erosion.quality = settings.quality;
       erosion.seed = recipe.seed;
       auto eroded = applyTerrainErosion(*field, *initialDrainage, erosion,
-                                       &sediment, stop);
+                                        &sediment, stop);
       if (stop.stop_requested())
         return std::nullopt;
       if (eroded) {
+        const auto selectedSediment =
+            accumulateTerrainSurfaceSediment(*field, sediment, stop);
+        if (!selectedSediment) {
+          return std::nullopt;
+        }
+        field->surfaceSedimentBalance = *selectedSediment;
         for (std::size_t index = 0; index < eroded->size(); ++index) {
           if ((index & 255) == 0 && stop.stop_requested())
             return std::nullopt;
@@ -196,9 +203,9 @@ generateTerrainStages(const TerrainRecipe &recipe,
     TerrainMasks flowMask;
     if (initialDrainage)
       flowMask.flow = initialDrainage->flow;
-    auto carved = carveTerrainWater(
-        *field, *settings.waterAuthoring,
-        initialDrainage ? &flowMask : nullptr, stop);
+    auto carved =
+        carveTerrainWater(*field, *settings.waterAuthoring,
+                          initialDrainage ? &flowMask : nullptr, stop);
     if (stop.stop_requested())
       return std::nullopt;
     if (!carved)
@@ -210,8 +217,9 @@ generateTerrainStages(const TerrainRecipe &recipe,
     }
     // Rejected bodies remain visible to the caller while accepted ones run.
     if (carved->dropped > 0 && settings.waterError != nullptr)
-      *settings.waterError = "Terrain water: " + std::to_string(carved->dropped) +
-                             " authored bodies could not be placed.";
+      *settings.waterError =
+          "Terrain water: " + std::to_string(carved->dropped) +
+          " authored bodies could not be placed.";
     record(result, TerrainStage::Hydrology);
     result.waterResult = std::move(carved);
   }
@@ -226,7 +234,8 @@ generateTerrainStages(const TerrainRecipe &recipe,
   record(result, TerrainStage::Sculpt);
 
   // Erosion and carving change the drainage surface; authored strokes can
-  // change it again. Only final drainage may feed flow and water-distance masks.
+  // change it again. Only final drainage may feed flow and water-distance
+  // masks.
   std::optional<TerrainDrainage> finalDrainage;
   const bool surfaceMayChange =
       terrainStageRan(result, TerrainStage::Erosion) ||
@@ -242,9 +251,10 @@ generateTerrainStages(const TerrainRecipe &recipe,
       return std::nullopt;
   }
   TerrainMasks masks;
-  if (buildTerrainMasks(*field, recipe, finalDrainage ? &*finalDrainage : nullptr,
-                 sediment.empty() ? nullptr : &sediment, masks,
-                 settings.drainage, stop)) {
+  if (buildTerrainMasks(*field, recipe,
+                        finalDrainage ? &*finalDrainage : nullptr,
+                        sediment.empty() ? nullptr : &sediment, masks,
+                        settings.drainage, stop)) {
     result.masks = std::move(masks);
     record(result, TerrainStage::Masks);
   } else
@@ -265,8 +275,8 @@ generateTerrainStages(const TerrainRecipe &recipe,
     const auto constraints = TerrainScatterConstraints::build(
         *field, recipe, result.masks.empty() ? nullptr : &result.masks,
         result.water);
-    auto scattered = scatterTerrain(*field, recipe, *settings.palette, {},
-                                    &constraints);
+    auto scattered =
+        scatterTerrain(*field, recipe, *settings.palette, {}, &constraints);
     field->scatterPlacements = std::move(scattered.placements);
     field->scatterTruncated = scattered.truncated;
     field->paletteId = settings.palette->id;

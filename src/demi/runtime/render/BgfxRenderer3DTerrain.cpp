@@ -13,10 +13,12 @@ void BgfxRenderer3D::beginPresentation() {
     return;
   }
   presentationActive_ = true;
+  texturePresentationSerial_ = successfulTexturePresentation_ + 1;
   terrainStatistics_ = {};
   terrainUploadsAtPresentationStart_ = terrainMeshes_.uploads();
   terrainPatches_.beginPresentation();
   terrainGpuFields_.beginPresentation();
+  terrainMaterials_.beginPresentation();
   terrainMeshes_.beginPresentation();
   terrainLodResidency_.beginPresentation();
   terrainCameraDemand_.beginPresentation();
@@ -28,6 +30,7 @@ void BgfxRenderer3D::endPresentation(bool succeeded) {
     return;
   }
   terrainGpuFields_.endPresentation();
+  terrainMaterials_.endPresentation();
   terrainMeshes_.endPresentation(succeeded);
   terrainCameraDemand_.endPresentation();
   terrainLodResidency_.endPresentation();
@@ -103,6 +106,15 @@ void BgfxRenderer3D::endPresentation(bool succeeded) {
                             terrainGpuFields_.uploadBytes());
   RuntimeProfiler::setGauge("Renderer3D.terrain_topology_bytes",
                             terrainPatches_.topologyBytes());
+  RuntimeProfiler::setGauge("Renderer3D.terrain_material_bytes",
+                            terrainMaterials_.residentBytes());
+  RuntimeProfiler::setGauge("Renderer3D.terrain_material_pending_bytes",
+                            terrainMaterials_.pendingBytes());
+  RuntimeProfiler::setGauge("Renderer3D.terrain_material_pending_jobs",
+                            terrainMaterials_.pendingJobs());
+  RuntimeProfiler::setGauge("Renderer3D.terrain_material_upload_bytes",
+                            terrainMaterials_.uploadBytes());
+  finishMaterialTexturePresentation(succeeded);
   presentationActive_ = false;
 }
 
@@ -110,8 +122,14 @@ void BgfxRenderer3D::tickInactiveTerrain() {
   if (presentationActive_) {
     return;
   }
+  textures_.retainVariants(
+      [](std::string_view, ImageMipSemantic) { return false; });
+  materialTextureUse_.clear();
+  texturePresentationSerial_ = 0;
+  successfulTexturePresentation_ = 0;
   terrainPatches_.clear();
   terrainGpuFields_.clear();
+  terrainMaterials_.clear();
   terrainGpuFields_.pollCompleted();
   terrainLodResidency_.tickInactive();
   const auto cpu = terrainLodResidency_.statistics();

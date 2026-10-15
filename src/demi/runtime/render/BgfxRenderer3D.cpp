@@ -52,12 +52,14 @@ BgfxRenderer3D::BgfxRenderer3D(GpuResources &resources,
       primitives_(resources, commands_), postProcess_(resources, commands_),
       particleRenderer_(resources, commands_), overlay_(resources, commands_),
       textures_(resources), sky_(resources), materials_(resources),
-      meshPbr_(resources, commands_, [this](std::string_view id, ImageMipSemantic semantic) {
-        return materialTexture(id, semantic);
-      }),
+      meshPbr_(resources, commands_,
+               [this](std::string_view id, ImageMipSemantic semantic) {
+                 return materialTexture(id, semantic);
+               }),
       gpuSkinningRequested_(enableGpuSkinning), deformedMeshes_(resources),
       terrainMeshes_(resources), terrainLodResidency_(extractionJobs_),
-      terrainGpuFields_(resources, extractionJobs_), terrainPatches_(resources),
+      terrainGpuFields_(resources, extractionJobs_),
+      terrainMaterials_(resources, extractionJobs_), terrainPatches_(resources),
       reliefMeshes_(resources) {}
 
 BgfxRenderer3D::~BgfxRenderer3D() { shutdown(); }
@@ -197,6 +199,14 @@ bool BgfxRenderer3D::initialize(std::string &error) {
       directionalTerrainProgram_ = {};
     }
   }
+  if (terrainCapable && limits.maxTextureSamplers >= 12 &&
+      idCaps.sampledArray) {
+    std::string mappedError;
+    mappedTerrainProgram_ = resources_.createBuiltinProgram(
+        BuiltinProgram::TerrainMapped3D, mappedError);
+    directionalMappedTerrainProgram_ = resources_.createBuiltinProgram(
+        BuiltinProgram::TerrainMapped3DDirectional, mappedError);
+  }
   initialized_ = true;
   return true;
 }
@@ -232,6 +242,14 @@ void BgfxRenderer3D::shutdown() {
   deformedMeshes_.clear();
   terrainPatches_.clear();
   terrainGpuFields_.clear();
+  terrainMaterials_.clear();
+  for (auto *program :
+       {&mappedTerrainProgram_, &directionalMappedTerrainProgram_}) {
+    if (*program) {
+      resources_.destroy(*program);
+      *program = {};
+    }
+  }
   if (terrainProgram_) {
     resources_.destroy(terrainProgram_);
   }
@@ -271,6 +289,9 @@ void BgfxRenderer3D::shutdown() {
   particles_.clear();
   textures_.clear();
   textureSources_.clear();
+  materialTextureUse_.clear();
+  texturePresentationSerial_ = 0;
+  successfulTexturePresentation_ = 0;
   if (whiteTexture_)
     resources_.destroy(whiteTexture_);
   if (meshSampler_)
@@ -344,6 +365,13 @@ bool BgfxRenderer3D::renderFrame(const World &world,
   terrainGpuFields_.setBudgets(gpuFieldBudget,
                                sceneLighting.terrainLodCacheBytes,
                                sceneLighting.terrainLodPrepareJobs);
+  terrainMaterials_.setQuality(
+      sceneLighting.terrainTextureMaxSize,
+      sceneLighting.terrainTextureCacheBytes,
+      sceneLighting.terrainDetailDistance,
+      std::max(sceneLighting.terrainLodCacheBytes,
+               sceneLighting.terrainTextureCacheBytes * 2),
+      sceneLighting.terrainLodPrepareJobs);
   terrainCameraDemand_.beginCamera(
       world, frame, terrainLodResidency_,
       [this](const auto &field) { terrainGpuFields_.touch(field); });
@@ -468,7 +496,9 @@ bool BgfxRenderer3D::renderView(const World &world,
     terrainPatches_.prepareExtraction(
         world, frame, lodCamera, terrainSelection_, terrainGpuFields_,
         materials_, terrainCameraDemand_, sceneLighting.terrainGpuCacheBytes,
-        bool(terrainProgram_ && directionalTerrainProgram_));
+        bool(terrainProgram_ && directionalTerrainProgram_), &terrainMaterials_,
+        sceneLighting.terrainDetailDistance,
+        bool(mappedTerrainProgram_ && directionalMappedTerrainProgram_));
   }
   SceneVisibility3D visibility;
   const bool isMainContentView = frame.updateContent && !shadowPass;
@@ -543,7 +573,8 @@ bool BgfxRenderer3D::renderView(const World &world,
                              frame.camera.clearMode == "color" &&
                              !sceneLighting.skyTexture.empty();
   if (shouldDrawSky) {
-    const auto texture = materialTexture(sceneLighting.skyTexture, ImageMipSemantic::Color);
+    const auto texture =
+        materialTexture(sceneLighting.skyTexture, ImageMipSemantic::Linear);
     if (!texture.handle) {
       error =
           "Environment sky texture is not loaded: " + sceneLighting.skyTexture;
@@ -593,7 +624,9 @@ bool BgfxRenderer3D::renderView(const World &world,
         directionalOnly ? directionalTerrainProgram_ : terrainProgram_;
     auto fallback = terrainPatches_.flush(
         commands_, frame.viewId, terrainProgram, lightingUniforms,
-        frame.camera.debugMode == "overdraw", error);
+        frame.camera.debugMode == "overdraw", error,
+        directionalOnly ? directionalMappedTerrainProgram_
+                        : mappedTerrainProgram_);
     if (!fallback.empty()) {
       visibility.meshes.insert(visibility.meshes.end(), fallback.begin(),
                                fallback.end());
@@ -675,7 +708,8 @@ bool BgfxRenderer3D::renderView(const World &world,
     if (textureId.empty() && material != nullptr) {
       textureId = material->albedoTexture;
     }
-    const TextureView2D texture = materialTexture(textureId, ImageMipSemantic::Color);
+    const TextureView2D texture =
+        materialTexture(textureId, ImageMipSemantic::Linear);
     const BlendMode blend =
         material == nullptr ? BlendMode::Alpha : material->state.blend;
     particleDraws.push_back(

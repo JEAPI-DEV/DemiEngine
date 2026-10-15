@@ -14,8 +14,8 @@
 #include "demi/runtime/render/bgfx3d/DirectionalShadow3D.h"
 #include "demi/runtime/render/bgfx3d/GpuMesh3D.h"
 #include "demi/runtime/render/bgfx3d/GpuSkinnedMesh3D.h"
-#include "demi/runtime/render/bgfx3d/MeshResourceRetention3D.h"
 #include "demi/runtime/render/bgfx3d/MeshPbrBindings3D.h"
+#include "demi/runtime/render/bgfx3d/MeshResourceRetention3D.h"
 #include "demi/runtime/render/bgfx3d/ParticleBillboardRenderer3D.h"
 #include "demi/runtime/render/bgfx3d/PostProcessRenderer3D.h"
 #include "demi/runtime/render/bgfx3d/PrimitiveCanvas3D.h"
@@ -27,14 +27,16 @@
 #include "demi/runtime/render/bgfx3d/TerrainDrawSelection3D.h"
 #include "demi/runtime/render/bgfx3d/TerrainGpuFieldCache3D.h"
 #include "demi/runtime/render/bgfx3d/TerrainGpuMeshCache3D.h"
+#include "demi/runtime/render/bgfx3d/TerrainMaterialResidency3D.h"
 #include "demi/runtime/render/bgfx3d/TerrainPatchBatch3D.h"
 #include "demi/runtime/render/bgfx3d/VisualAnimationBudget3D.h"
 #include "demi/runtime/scene/model/World.h"
 #include "demi/runtime/terrain/TerrainLodResidency.h"
 
 #include <chrono>
-#include <filesystem>
 #include <cstdint>
+#include <filesystem>
+#include <functional>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -97,7 +99,8 @@ public:
   }
   [[nodiscard]] bool terrainPreparationPending() const {
     return terrainLodResidency_.hasPendingWork() ||
-           terrainGpuFields_.hasPendingWork();
+           terrainGpuFields_.hasPendingWork() ||
+           terrainMaterials_.hasPendingWork();
   }
   [[nodiscard]] const TerrainRenderStatistics3D &terrainStatistics() const {
     return terrainStatistics_;
@@ -180,6 +183,9 @@ private:
   TextureLibrary2D textures_;
   struct TextureSource {
     std::filesystem::path path;
+    // Embedded model images are re-read from their authored model only when
+    // another sampling role is first used; no image bytes stay in this record.
+    std::function<std::vector<std::byte>(std::string &)> readEmbedded;
     TextureSampling2D sampling;
     std::array<bool, 3> failedVariants{};
   };
@@ -190,6 +196,12 @@ private:
   std::array<ProgramHandle, 6> pbrPrograms_{};
   std::string pbrProgramError_;
   TextureView2D materialTexture(std::string_view id, ImageMipSemantic semantic);
+  void finishMaterialTexturePresentation(bool succeeded);
+  std::unordered_map<std::string, std::array<std::uint64_t, 3>, StringHash,
+                     std::equal_to<>>
+      materialTextureUse_;
+  std::uint64_t texturePresentationSerial_ = 0;
+  std::uint64_t successfulTexturePresentation_ = 0;
   ProgramHandle meshProgram_;
   ProgramHandle directionalMeshProgram_, directionalInstancedProgram_,
       directionalSkinnedProgram_;
@@ -219,11 +231,14 @@ private:
   TerrainLodResidency terrainLodResidency_;
   TerrainCameraDemand3D terrainCameraDemand_;
   TerrainGpuFieldCache3D terrainGpuFields_;
+  TerrainMaterialResidency3D terrainMaterials_;
   TerrainPatchBatch3D terrainPatches_;
   std::string terrainGpuCapabilityReason_;
   std::string reportedTerrainGpuFallback_;
   ProgramHandle terrainProgram_;
   ProgramHandle directionalTerrainProgram_;
+  ProgramHandle mappedTerrainProgram_;
+  ProgramHandle directionalMappedTerrainProgram_;
   TerrainRenderStatistics3D terrainStatistics_;
   std::size_t reportedTerrainFailures_ = 0;
   std::string terrainDiagnostic_;

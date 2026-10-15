@@ -70,10 +70,14 @@ public:
     return canvas_.statistics();
   }
   [[nodiscard]] std::size_t loadedTextureCount() const {
+    return textures_.availableCount();
+  }
+  // Registered availability is independent of first-use GPU residency.
+  [[nodiscard]] std::size_t residentTextureCount() const {
     return textures_.size();
   }
   [[nodiscard]] bool hasTexture(const std::string_view id) const {
-    return static_cast<bool>(textures_.find(id).handle);
+    return textures_.contains(id);
   }
 
 private:

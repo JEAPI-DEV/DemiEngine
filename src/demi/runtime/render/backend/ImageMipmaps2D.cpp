@@ -75,7 +75,11 @@ std::array<std::byte, 4> filteredTexel(const std::vector<std::byte> &source,
 } // namespace
 
 std::vector<std::byte> imageMipChain2D(const ImageData2D &image,
-                                       ImageMipSemantic semantic) {
+                                       ImageMipSemantic semantic,
+                                       std::stop_token stop) {
+  if (stop.stop_requested()) {
+    return {};
+  }
   const auto expectedBytes = std::size_t(image.width) * image.height * 4;
   if (image.width == 0 || image.height == 0 ||
       image.rgba.size() != expectedBytes) {
@@ -91,6 +95,9 @@ std::vector<std::byte> imageMipChain2D(const ImageData2D &image,
     const auto nextOffset = packed.size();
     packed.resize(nextOffset + std::size_t(nextWidth) * nextHeight * 4);
     for (unsigned y = 0; y < nextHeight; ++y) {
+      if (stop.stop_requested()) {
+        return {};
+      }
       for (unsigned x = 0; x < nextWidth; ++x) {
         const unsigned x0 = x * width / nextWidth;
         const unsigned x1 = (x + 1) * width / nextWidth;
@@ -107,6 +114,6 @@ std::vector<std::byte> imageMipChain2D(const ImageData2D &image,
     width = nextWidth;
     height = nextHeight;
   }
-  return packed;
+  return stop.stop_requested() ? std::vector<std::byte>{} : packed;
 }
 } // namespace demi::runtime::render

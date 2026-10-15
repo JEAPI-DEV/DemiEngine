@@ -53,7 +53,12 @@ bool BgfxRenderer3D::drawCosmeticDebris(
     const std::array<float, 4> tint{fragment.color.r, fragment.color.g,
                                     fragment.color.b, fragment.opacity()};
     uniforms.front().values = tint;
-    const auto texture = materialTexture(fragment.texture, ImageMipSemantic::Color);
+    const auto texture =
+        materialTexture(fragment.texture, ImageMipSemantic::Color);
+    auto parameters = std::array<float, 4>{};
+    std::copy_n(lighting[7].values.begin(), 4, parameters.begin());
+    parameters[3] = texture.handle && !texture.srgbDecoded ? 1.F : 0.F;
+    uniforms[7].values = parameters;
     if (!mesh->draw(commands_, frame.viewId, program,
                     texture.handle ? texture.handle : whiteTexture_,
                     meshSampler_,
@@ -63,7 +68,7 @@ bool BgfxRenderer3D::drawCosmeticDebris(
                     state, error, uniforms))
       return false;
     ++draws;
-    triangles += mesh->indexCount()/3U;
+    triangles += mesh->indexCount() / 3U;
   }
   return true;
 }

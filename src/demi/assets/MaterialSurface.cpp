@@ -56,6 +56,12 @@ MaterialSurface materialSurface(const MaterialAsset &material) {
   surface.normalStrength = number("normal_strength", surface.normalStrength);
   surface.tiling = number("tiling", surface.tiling);
   surface.detailStrength = number("detail_strength", surface.detailStrength);
+  surface.heightBlendStrength =
+      number("height_blend_strength", surface.heightBlendStrength);
+  surface.macroVariationStrength =
+      number("macro_variation_strength", surface.macroVariationStrength);
+  surface.macroVariationScale =
+      number("macro_variation_scale", surface.macroVariationScale);
   surface.mapping = material.mapping == "triplanar" ? MaterialMapping::Triplanar
                                                     : MaterialMapping::Uv;
   surface.normalMapYDown = material.normalMapConvention == "directx";
@@ -115,10 +121,11 @@ Diagnostics validateMaterialSurface(const MaterialAsset &material,
   }
   for (const auto &[name, number] : material.numbers) {
     const bool normalized =
-        name == "roughness" || name == "metallic" || name == "opacity";
+        name == "roughness" || name == "metallic" || name == "opacity" ||
+        name == "height_blend_strength" || name == "macro_variation_strength";
     const bool nonnegative =
         name == "normal_strength" || name == "detail_strength";
-    const bool positive = name == "tiling";
+    const bool positive = name == "tiling" || name == "macro_variation_scale";
     const bool wrongType = name == "base_color";
     const bool outOfRange = (normalized && (number < 0 || number > 1)) ||
                             (nonnegative && number < 0) ||
@@ -129,9 +136,11 @@ Diagnostics validateMaterialSurface(const MaterialAsset &material,
     }
   }
   for (const auto &[name, color] : material.colors) {
-    const bool numericOnly = name == "roughness" || name == "metallic" ||
-                             name == "opacity" || name == "normal_strength" ||
-                             name == "tiling" || name == "detail_strength";
+    const bool numericOnly =
+        name == "roughness" || name == "metallic" || name == "opacity" ||
+        name == "normal_strength" || name == "tiling" ||
+        name == "detail_strength" || name == "height_blend_strength" ||
+        name == "macro_variation_strength" || name == "macro_variation_scale";
     const bool normalized = name == "base_color";
     const std::array channels{color.r, color.g, color.b, color.a};
     const bool validChannels =

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/render/backend/ImageDecoder2D.h"
+#include <stop_token>
 
 namespace demi::runtime::render {
 
@@ -13,6 +14,7 @@ enum class ImageMipSemantic { Linear, Color, Normal };
 // Box filtering retains every source texel, including odd image dimensions.
 [[nodiscard]] std::vector<std::byte>
 imageMipChain2D(const ImageData2D &image,
-                ImageMipSemantic semantic = ImageMipSemantic::Linear);
+                ImageMipSemantic semantic = ImageMipSemantic::Linear,
+                std::stop_token stop = {});
 
 } // namespace demi::runtime::render

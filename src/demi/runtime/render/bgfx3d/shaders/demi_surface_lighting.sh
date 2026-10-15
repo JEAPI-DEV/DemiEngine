@@ -186,14 +186,22 @@ void main()
     vec3 worldDy = dFdy(v_relativePos);
 #ifdef DEMI_TERRAIN
     vec4 surfaceParameters;
-    vec4 albedo = terrainSurface(v_texcoord0, gl_FrontFacing, v_terrainBlend, surfaceParameters);
+    vec3 receiverNormal = normalize(v_normal);
+    vec3 lightingNormal;
+    float occlusion;
+    vec3 emissive;
+    vec3 localDx = dFdx(v_localPos);
+    vec3 localDy = dFdy(v_localPos);
+    vec4 albedo = terrainSurface(v_texcoord0, gl_FrontFacing, v_terrainBlend,
+        localDx, localDy, worldDx, worldDy, receiverNormal, v_localPos, v_localNormal,
+        length(v_relativePos), surfaceParameters, lightingNormal, occlusion, emissive);
 #elif defined(DEMI_MESH_PBR)
     vec4 surfaceParameters = u_metalRough;
     vec3 receiverNormal = pbrNormalize(v_normal, vec3(0.0, 1.0, 0.0));
     vec3 lightingNormal = receiverNormal;
     float occlusion = 1.0;
     vec3 emissive = vec3(0.0);
-    vec4 mappedAlbedo = pbrSampleMap(s_texColor, true, v_texcoord0, v_localPos, v_localNormal);
+    vec4 mappedAlbedo = pbrSampleMap(s_texColor, u_metalRough.w > 0.5, v_texcoord0, v_localPos, v_localNormal);
     vec4 albedo = vec4(mappedAlbedo.rgb * decodeColor(u_tint.rgb) * decodeColor(v_color0.rgb),
                       mappedAlbedo.a * u_tint.a * v_color0.a);
     // Coverage discards must not precede normal-frame derivatives or implicit
@@ -208,11 +216,17 @@ void main()
         if (u_pbrMapFlags.w > 0.5)
             occlusion = clamp(pbrSampleMap(s_pbrOcclusion, false, v_texcoord0, v_localPos, v_localNormal).r, 0.0, 1.0);
         if (u_pbrMapFlags2.y > 0.5)
-            emissive = pbrSampleMap(s_pbrEmissive, true, v_texcoord0, v_localPos, v_localNormal).rgb;
+            emissive = pbrSampleMap(s_pbrEmissive, u_pbrMapFlags2.w > 0.5, v_texcoord0, v_localPos, v_localNormal).rgb;
     }
 #else
     vec4 surfaceParameters = u_metalRough;
-    vec4 albedo = texture2D(s_texColor, v_texcoord0) * v_color0 * u_tint;
+    vec4 sampledAlbedo = texture2D(s_texColor, v_texcoord0);
+    // Color image variants decode before hardware filtering. Presentation
+    // RenderTargets retain display-sRGB contents and need one shader decode.
+    vec3 imageColor = u_metalRough.w > 0.5
+                   ? decodeColor(sampledAlbedo.rgb) : sampledAlbedo.rgb;
+    vec4 albedo = vec4(imageColor * decodeColor(v_color0.rgb) * decodeColor(u_tint.rgb),
+                      sampledAlbedo.a * v_color0.a * u_tint.a);
 #endif
     if (albedo.a < u_alphaCutoff.x)
     {
@@ -229,7 +243,7 @@ void main()
         return;
     }
 
-#ifdef DEMI_MESH_PBR
+#if defined(DEMI_MESH_PBR) || defined(DEMI_TERRAIN)
     vec3 normal = lightingNormal;
 #else
     float normalLength = length(v_normal);
@@ -262,11 +276,7 @@ void main()
             visibility = mix(visibility, 1.0, blend);
         if (viewDepth < 0.0 || viewDepth > farDepth) visibility = 1.0;
     }
-#if defined(DEMI_TERRAIN) || defined(DEMI_MESH_PBR)
     DEMI_GGX_PRECISION vec3 baseColor = albedo.rgb;
-#else
-    DEMI_GGX_PRECISION vec3 baseColor = decodeColor(albedo.rgb);
-#endif
     DEMI_GGX_PRECISION float metallic = clamp(surfaceParameters.x, 0.0, 1.0);
     DEMI_GGX_PRECISION float roughness = clamp(surfaceParameters.y, 0.04, 1.0);
     DEMI_GGX_PRECISION vec3 toView = u_viewPosition.xyz - v_worldPos;
@@ -274,7 +284,7 @@ void main()
     vec3 lighting = u_ambientColor.rgb +
                     u_lightColor.rgb * u_lightDirection.w * diffuse * visibility;
     vec3 shadedColor = baseColor * u_ambientColor.rgb * (1.0 - metallic);
-#ifdef DEMI_MESH_PBR
+#if defined(DEMI_MESH_PBR) || defined(DEMI_TERRAIN)
     shadedColor *= occlusion;
 #endif
     shadedColor += u_lightColor.rgb * u_lightDirection.w * visibility *
@@ -328,7 +338,7 @@ void main()
     if (surfaceParameters.z > 0.5)
         shadedColor = baseColor;
 #endif
-#ifdef DEMI_MESH_PBR
+#if defined(DEMI_MESH_PBR) || defined(DEMI_TERRAIN)
     shadedColor += emissive;
 #endif
     if (u_debugMode.x > 0.5 && u_debugMode.x < 1.5)

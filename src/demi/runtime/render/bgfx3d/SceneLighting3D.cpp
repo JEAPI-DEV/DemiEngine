@@ -38,6 +38,9 @@ SceneLighting3D collectSceneLighting3D(const World &world,
       lighting.terrainLodCacheBytes = environment->terrainLodCacheBytes;
       lighting.terrainGpuCacheBytes = environment->terrainGpuCacheBytes;
       lighting.terrainLodPrepareJobs = environment->terrainLodPrepareJobs;
+      lighting.terrainTextureMaxSize = environment->terrainTextureMaxSize;
+      lighting.terrainTextureCacheBytes = environment->terrainTextureCacheBytes;
+      lighting.terrainDetailDistance = environment->terrainDetailDistance;
       lighting.shadowDistance = environment->shadowDistance;
       lighting.shadowResolution = environment->shadowResolution;
       lighting.shadowCascades = environment->shadowCascades;

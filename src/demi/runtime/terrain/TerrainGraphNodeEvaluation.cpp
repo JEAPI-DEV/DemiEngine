@@ -2,6 +2,7 @@
 #include "demi/runtime/terrain/TerrainGraphSedimentMasks.h"
 #include "demi/runtime/terrain/TerrainGraphSpatialMasks.h"
 #include "demi/runtime/terrain/TerrainGraphWater.h"
+#include "demi/runtime/terrain/TerrainSurfaceSediment.h"
 
 #include "demi/runtime/terrain/TerrainBiomeRules.h"
 #include "demi/runtime/terrain/TerrainErosion.h"
@@ -154,6 +155,14 @@ evaluateHeightModifier(const TerrainGraphNode &node,
                                              b->heights[index] * weight
                                        : a->heights[index] + weight));
   }
+  if (b) {
+    const auto sediment = blendTerrainSurfaceSediment(
+        *a, *b, mask ? &mask->samples : nullptr, amount, stop);
+    if (!sediment) {
+      return std::nullopt;
+    }
+    field->surfaceSedimentBalance = *sediment;
+  }
   if (!TerrainGenerator::recomputeTerrainNormals(*field, stop))
     return std::nullopt;
   GraphNodeResult result;
@@ -218,6 +227,12 @@ evaluateErosion(const nlohmann::json &values, const TerrainRecipe &sourceRecipe,
     return std::nullopt;
   auto field = std::make_shared<HeightField>(*source);
   field->heights = std::move(*eroded);
+  const auto selectedSediment =
+      accumulateTerrainSurfaceSediment(*source, balance, stop);
+  if (!selectedSediment) {
+    return std::nullopt;
+  }
+  field->surfaceSedimentBalance = *selectedSediment;
   if (!TerrainGenerator::recomputeTerrainNormals(*field, stop))
     return std::nullopt;
   auto sediment =

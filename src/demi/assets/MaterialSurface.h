@@ -30,6 +30,10 @@ struct MaterialSurface {
   float normalStrength = 1;
   float tiling = 1;
   float detailStrength = 0;
+  // Terrain layer shading only; these never displace geometry or collision.
+  float heightBlendStrength = 0.5F;
+  float macroVariationStrength = 0;
+  float macroVariationScale = 0.02F;
   MaterialMapping mapping = MaterialMapping::Uv;
   bool normalMapYDown = false;
   std::map<MaterialMapSlot, std::string> maps;

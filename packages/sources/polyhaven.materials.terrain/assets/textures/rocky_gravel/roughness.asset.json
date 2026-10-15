@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "id": "asset://polyhaven/terrain/textures/rocky_gravel/roughness",
+  "type": "Texture2D",
+  "source": "roughness.jpg",
+  "importer": "image",
+  "importer_version": 1,
+  "source_hash": "fnv1a64:a454943a61c8c780",
+  "dependencies": [],
+  "settings": {
+    "filter": "trilinear",
+    "mipmaps": true,
+    "wrap": "repeat"
+  }
+}

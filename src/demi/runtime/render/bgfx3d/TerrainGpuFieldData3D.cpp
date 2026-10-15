@@ -1,6 +1,7 @@
 #include "demi/runtime/render/bgfx3d/TerrainGpuFieldData3D.h"
 
 #include "demi/runtime/render/MaterialLibrary.h"
+#include "demi/runtime/render/bgfx3d/TerrainMaterialResidency3D.h"
 #include "demi/runtime/terrain/TerrainHeightField.h"
 #include "demi/runtime/terrain/TerrainSurfaceMaterials.h"
 
@@ -10,6 +11,7 @@
 #include <limits>
 #include <map>
 #include <optional>
+#include <set>
 #include <stdexcept>
 
 namespace demi::runtime::render {
@@ -77,6 +79,8 @@ struct ResolvedMaterial {
   float metallic = 0;
   float roughness = 0.8F;
   bool unlit = false;
+  assets::MaterialSurface surface;
+  TextureWrap wrap = TextureWrap::Repeat;
 };
 
 ResolvedMaterial resolve(const std::string &id,
@@ -91,13 +95,10 @@ ResolvedMaterial resolve(const std::string &id,
   if (material->program) {
     throw UnsupportedField("Terrain material uses a custom shader: " + id);
   }
-  if (!material->albedoTexture.empty()) {
-    throw UnsupportedField("Terrain material uses an albedo texture: " + id);
-  }
-  if (!material->surface.maps.empty() || material->usesPbrSurface ||
-      material->surface.mapping != assets::MaterialMapping::Uv) {
+  if (!material->albedoTexture.empty() &&
+      !material->surface.maps.contains(assets::MaterialMapSlot::Albedo)) {
     throw UnsupportedField(
-        "Terrain PBR maps/projection require the ordinary material path until GPU map arrays are supported: " + id);
+        "Terrain albedo binding is missing its shared surface map: " + id);
   }
   if (material->alphaCutoff != 0 || material->opacity != 1) {
     throw UnsupportedField(
@@ -124,7 +125,9 @@ ResolvedMaterial resolve(const std::string &id,
           .baseColor = material->baseColor,
           .metallic = std::clamp(material->metallic, 0.0F, 1.0F),
           .roughness = std::clamp(material->roughness, 0.0F, 1.0F),
-          .unlit = material->unlit};
+          .unlit = material->unlit,
+          .surface = material->surface,
+          .wrap = material->terrainWrap};
 }
 
 std::array<std::uint8_t, 4> encodeIndex(std::uint32_t index) {
@@ -139,7 +142,16 @@ public:
   PaletteBuilder(const HeightField &field,
                  const TerrainGpuMaterialResolver3D &resolver,
                  std::uint64_t maximumEntries)
-      : field_(field), resolver_(resolver), maximumEntries_(maximumEntries) {}
+      : field_(field), resolver_(resolver), maximumEntries_(maximumEntries) {
+    std::set<std::string> ids{""};
+    ids.insert(field.biomeMaterials.begin(), field.biomeMaterials.end());
+    if (field.surfaceMaterials) {
+      for (const auto &[role, id] : field.surfaceMaterials->bindings) {
+        ids.insert(id);
+      }
+    }
+    materialIds_.assign(ids.begin(), ids.end());
+  }
 
   std::uint32_t entry(std::size_t biome, std::size_t role) {
     const bool override = !field_.biomeMaterial(biome).empty();
@@ -189,18 +201,60 @@ public:
     const std::array<float, 4> parameters{
         resolved.metallic, resolved.roughness, resolved.unlit ? 1.0F : 0.0F,
         resolved.state.cull == CullMode::Clockwise ? 1.0F : 0.0F};
-    std::array<std::uint32_t, 8> bits;
+    const auto &surface = resolved.surface;
+    const bool mapped =
+        !surface.maps.empty() || surface.macroVariationStrength > 0;
+    mapped_ = mapped_ || mapped;
+    const auto layer =
+        std::lower_bound(materialIds_.begin(), materialIds_.end(), id);
+    const float effectiveTiling =
+        surface.tiling * field_.biomeTextureScale(biome);
+    if (!std::isfinite(effectiveTiling) || effectiveTiling <= 0) {
+      throw UnsupportedField(
+          "Terrain material texture scale must remain finite and positive");
+    }
+    const std::array<float, 4> mapping{
+        float(layer - materialIds_.begin()), effectiveTiling,
+        surface.mapping == assets::MaterialMapping::Triplanar ? 1.F : 0.F,
+        surface.normalMapYDown ? -1.F : 1.F};
+    const std::array<float, 4> strengths{
+        surface.maps.contains(assets::MaterialMapSlot::Normal)
+            ? surface.normalStrength
+            : 0.F,
+        surface.maps.contains(assets::MaterialMapSlot::DetailNormal)
+            ? surface.detailStrength
+            : 0.F,
+        surface.maps.contains(assets::MaterialMapSlot::Height)
+            ? surface.heightBlendStrength
+            : 0.F,
+        surface.macroVariationStrength};
+    const std::array<float, 4> detail{
+        surface.macroVariationScale,
+        float(terrainMaterialWrapCode3D(resolved.wrap)),
+        surface.maps.contains(assets::MaterialMapSlot::Emissive) ? 1.F : 0.F, 0};
+    std::array<std::uint32_t, 20> bits{};
     for (std::size_t channel = 0; channel < 4; ++channel) {
       bits[channel] = std::bit_cast<std::uint32_t>(
           tinted[channel] == 0 ? 0.0F : tinted[channel]);
       bits[channel + 4] = std::bit_cast<std::uint32_t>(parameters[channel]);
+    }
+    for (std::size_t channel = 0; channel < 4; ++channel) {
+      bits[channel + 8] = std::bit_cast<std::uint32_t>(mapping[channel]);
+      bits[channel + 12] = std::bit_cast<std::uint32_t>(strengths[channel]);
+      bits[channel + 16] = std::bit_cast<std::uint32_t>(detail[channel]);
+    }
+    if (!mapped) {
+      // Mapping controls have no visible effect on a solid surface. Equal
+      // scalar/tint entries can still share one palette record, even when
+      // authored through different Material IDs.
+      std::fill(bits.begin() + 8, bits.end(), 0U);
     }
     auto found = deduplicated_.find(bits);
     std::uint32_t index = 0;
     if (found != deduplicated_.end()) {
       index = found->second;
     } else {
-      const auto count = texels_.size() / 2;
+      const auto count = texels_.size() / 5;
       if (count >= maximumEntries_ ||
           count >= std::numeric_limits<std::uint32_t>::max()) {
         throw UnsupportedField(
@@ -210,13 +264,47 @@ public:
       deduplicated_.emplace(bits, index);
       texels_.push_back(tinted);
       texels_.push_back(parameters);
+      texels_.push_back(mapping);
+      texels_.push_back(strengths);
+      texels_.push_back(detail);
     }
     entries_.emplace(key, index);
     return index;
   }
 
   const DrawState &state() const { return *state_; }
-  std::vector<std::array<float, 4>> takeTexels() { return std::move(texels_); }
+  void retainUsedMaterials() {
+    std::set<std::string> selected{""};
+    for (std::size_t offset = 0; offset < texels_.size(); offset += 5) {
+      const auto layer = static_cast<std::size_t>(texels_[offset + 2][0]);
+      selected.insert(materialIds_.at(layer));
+    }
+    std::vector<std::string> used(selected.begin(), selected.end());
+    // The worker resolves only selected biome/role pairs. Unused palette
+    // bindings must not load image sources or consume resident array layers.
+    for (std::size_t offset = 0; offset < texels_.size(); offset += 5) {
+      auto &layer = texels_[offset + 2][0];
+      const auto &id = materialIds_.at(static_cast<std::size_t>(layer));
+      layer =
+          float(std::lower_bound(used.begin(), used.end(), id) - used.begin());
+    }
+    materialIds_ = std::move(used);
+  }
+
+  bool mapped() const { return mapped_; }
+  const std::vector<std::string> &materialIds() const { return materialIds_; }
+  std::vector<std::array<float, 4>> takeTexels() {
+    if (mapped_) {
+      return std::move(texels_);
+    }
+    std::vector<std::array<float, 4>> solid;
+    solid.reserve(texels_.size() / 5 * 2);
+    for (std::size_t index = 0; index < texels_.size(); index += 5) {
+      solid.push_back(texels_[index]);
+      solid.push_back(texels_[index + 1]);
+    }
+    return solid;
+  }
 
 private:
   const HeightField &field_;
@@ -225,8 +313,10 @@ private:
   std::optional<DrawState> state_;
   std::map<std::string, ResolvedMaterial, std::less<>> materials_;
   std::map<std::pair<std::size_t, std::size_t>, std::uint32_t> entries_;
-  std::map<std::array<std::uint32_t, 8>, std::uint32_t> deduplicated_;
+  std::map<std::array<std::uint32_t, 20>, std::uint32_t> deduplicated_;
   std::vector<std::array<float, 4>> texels_;
+  std::vector<std::string> materialIds_;
+  bool mapped_ = false;
 };
 
 TerrainGpuFieldData3D prepare(const HeightField &field,
@@ -249,7 +339,9 @@ TerrainGpuFieldData3D prepare(const HeightField &field,
       field.biomeIndices.size() < samples ||
       field.biomeColors.size() < field.biomeIds.size() ||
       (!field.biomeMaterials.empty() &&
-       field.biomeMaterials.size() < field.biomeIds.size())) {
+       field.biomeMaterials.size() < field.biomeIds.size()) ||
+      (!field.biomeTextureScales.empty() &&
+       field.biomeTextureScales.size() < field.biomeIds.size())) {
     throw UnsupportedField(
         "Terrain field buffers or biome colors are incomplete");
   }
@@ -289,8 +381,15 @@ TerrainGpuFieldData3D prepare(const HeightField &field,
     result.materialIndices.push_back(encodeIndex(palette.entry(biome, role)));
   }
   result.state = palette.state();
+  palette.retainUsedMaterials();
+  result.mapped = palette.mapped();
+  result.materialIds = palette.materialIds();
   result.palette = palette.takeTexels();
-  result.paletteEntries = result.palette.size() / 2;
+  result.paletteEntries = result.palette.size() / (result.mapped ? 5 : 2);
+  if (result.palette.size() > std::uint64_t(limit) * limit) {
+    throw UnsupportedField(
+        "Terrain mapped palette exceeds device texture addressing");
+  }
   result.paletteWidth = static_cast<std::uint16_t>(
       std::min<std::size_t>(limit, result.palette.size()));
   result.paletteHeight = static_cast<std::uint16_t>(

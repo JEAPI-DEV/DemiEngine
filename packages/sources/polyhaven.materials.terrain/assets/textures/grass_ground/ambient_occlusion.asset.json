@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "id": "asset://polyhaven/terrain/textures/grass_ground/ambient_occlusion",
+  "type": "Texture2D",
+  "source": "ambient_occlusion.jpg",
+  "importer": "image",
+  "importer_version": 1,
+  "source_hash": "fnv1a64:d08e5f2771a26cfa",
+  "dependencies": [],
+  "settings": {
+    "filter": "trilinear",
+    "mipmaps": true,
+    "wrap": "repeat"
+  }
+}

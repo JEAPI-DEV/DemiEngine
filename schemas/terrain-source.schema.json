@@ -150,7 +150,8 @@
             "type": "object",
             "properties": {
               "material": {"type": "string", "pattern": "^(asset://.+)?$"},
-              "texture_scale": {"type": "number", "exclusiveMinimum": 0, "default": 1}
+              "texture_scale": {"type": "number", "exclusiveMinimum": 0, "default": 1},
+              "allow_snow": {"type": "boolean", "default": true}
             }
           }
         }

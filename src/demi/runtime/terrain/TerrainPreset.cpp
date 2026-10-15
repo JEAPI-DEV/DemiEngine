@@ -19,7 +19,8 @@ constexpr std::string_view Kind = "Terrain preset";
                               std::string(what));
 }
 
-void requireAt(bool condition, std::string_view pointer, std::string_view what) {
+void requireAt(bool condition, std::string_view pointer,
+               std::string_view what) {
   if (!condition)
     reject(pointer, what);
 }
@@ -121,10 +122,9 @@ void readLayers(const assets::DataValue &root, TerrainPreset &preset) {
   for (const auto &entry : *entries) {
     requireAt(entry.isObject(), "layers", "must contain layer objects");
     const auto *id = assets::data_read::field(entry, "id");
-    const auto pointer =
-        "layers/" + (id == nullptr || !id->isString()
-                         ? std::string()
-                         : std::get<std::string>(id->value));
+    const auto pointer = "layers/" + (id == nullptr || !id->isString()
+                                          ? std::string()
+                                          : std::get<std::string>(id->value));
     TerrainLayer layer;
     layer.id = readString(entry, "id", pointer, true);
     layer.name = readString(entry, "name", pointer, false, layer.id);
@@ -226,8 +226,8 @@ parseTerrainPreset(const assets::DataDocument &document, std::string_view id) {
   TerrainPreset preset;
   preset.id = id;
   preset.version = readInt(root, "format_version", "format_version", 0);
-  requireAt(preset.version == TerrainPreset::formatVersion,
-            "format_version", "must be 1");
+  requireAt(preset.version == TerrainPreset::formatVersion, "format_version",
+            "must be 1");
   preset.name = readString(root, "name", "name", true);
   preset.label = readString(root, "label", "label", false, preset.name);
   preset.description = readString(root, "description", "description", false);
@@ -239,15 +239,14 @@ parseTerrainPreset(const assets::DataDocument &document, std::string_view id) {
   preset.size = readVec2(root, "size", "size", preset.size);
   preset.cellsX = readInt(root, "cells_x", "cells_x", preset.cellsX);
   preset.cellsZ = readInt(root, "cells_z", "cells_z", preset.cellsZ);
-  preset.chunkCells = readInt(root, "chunk_cells", "chunk_cells",
-                              preset.chunkCells);
+  preset.chunkCells =
+      readInt(root, "chunk_cells", "chunk_cells", preset.chunkCells);
   preset.seed = readInt(root, "seed", "seed", preset.seed);
-  preset.defaultBiome =
-      readString(root, "default_biome", "default_biome", false,
-                 preset.defaultBiome);
-  preset.defaultLandform = readString(root, "default_landform",
-                                      "default_landform", false,
-                                      preset.defaultLandform);
+  preset.defaultBiome = readString(root, "default_biome", "default_biome",
+                                   false, preset.defaultBiome);
+  preset.defaultLandform =
+      readString(root, "default_landform", "default_landform", false,
+                 preset.defaultLandform);
 
   if (const auto *biomes = assets::data_read::field(root, "biomes")) {
     requireAt(biomes->isObject() && !biomes->object()->empty(), "biomes",
@@ -256,11 +255,17 @@ parseTerrainPreset(const assets::DataDocument &document, std::string_view id) {
       const auto pointer = "biomes/" + name;
       requireAt(entry.isObject(), pointer, "must be an object");
       TerrainBiome biome;
-      biome.landform = readString(entry, "landform", pointer + "/landform", false);
+      biome.landform =
+          readString(entry, "landform", pointer + "/landform", false);
       biome.material =
           readString(entry, "material", pointer + "/material", false);
-      biome.textureScale = readNumber(entry, "texture_scale",
-                                      pointer + "/texture_scale", 1.F);
+      biome.textureScale =
+          readNumber(entry, "texture_scale", pointer + "/texture_scale", 1.F);
+      if (const auto *snow = assets::data_read::field(entry, "allow_snow")) {
+        requireAt(std::holds_alternative<bool>(snow->value),
+                  pointer + "/allow_snow", "must be a boolean");
+        biome.allowSnow = std::get<bool>(snow->value);
+      }
       biome.color = readColor(entry, "color", pointer + "/color", biome.color);
       preset.biomes.emplace(name, biome);
     }
@@ -268,8 +273,8 @@ parseTerrainPreset(const assets::DataDocument &document, std::string_view id) {
   // Landforms carry the ground shape, so a preset declares them alongside the
   // biomes rather than folding elevation into each biome.
   if (const auto *landforms = assets::data_read::field(root, "landforms")) {
-    requireAt(landforms->isObject() && !landforms->object()->empty(), "landforms",
-              "must be a non-empty object keyed by landform name");
+    requireAt(landforms->isObject() && !landforms->object()->empty(),
+              "landforms", "must be a non-empty object keyed by landform name");
     for (const auto &[name, entry] : *landforms->object()) {
       const auto pointer = "landforms/" + name;
       requireAt(entry.isObject(), pointer, "must be an object");
@@ -325,9 +330,9 @@ std::optional<TerrainPreset> loadTerrainPreset(const AssetRegistry &registry,
                                 std::string(id) + " is " + manifest->type);
   const auto metadata = assets::dataAssetMetadata(*manifest);
   if (!metadata || metadata->contentType != "terrain_preset")
-    throw std::invalid_argument(
-        "Terrain preset must declare settings.content_type \"terrain_preset\": " +
-        std::string(id));
+    throw std::invalid_argument("Terrain preset must declare "
+                                "settings.content_type \"terrain_preset\": " +
+                                std::string(id));
   const auto loaded = assets::loadDataAsset(*manifest);
   if (!loaded)
     throw std::invalid_argument("Terrain preset could not be read: " +

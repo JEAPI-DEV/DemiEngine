@@ -1819,6 +1819,17 @@
           "x-demi-lua-writable": true,
           "x-demi-reference": "asset"
         },
+        "terrain_detail_distance": {
+          "default": 200.0,
+          "maximum": 3.4028234663852886e+38,
+          "minimum": 1.401298464324817e-45,
+          "type": "number",
+          "x-demi-editor-help": "Positive world distance for detail-normal fade and distant terrain material texture quality.",
+          "x-demi-editor-label": "Terrain Detail Distance",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
         "terrain_gpu_cache_mb": {
           "default": 128,
           "maximum": 17592186044415.0,
@@ -1846,6 +1857,36 @@
           "type": "integer",
           "x-demi-editor-help": "Maximum outstanding background terrain mesh jobs. Zero disables new preparation; available worker threads also limit concurrency.",
           "x-demi-editor-label": "Terrain LOD Preparation Jobs",
+          "x-demi-editor-step": 1.0,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "terrain_texture_cache_mb": {
+          "default": 128,
+          "maximum": 17592186044415.0,
+          "minimum": 0.0,
+          "type": "integer",
+          "x-demi-editor-help": "GPU terrain material array budget, separate from field textures. Zero disables GPU arrays and uses ordinary mesh materials.",
+          "x-demi-editor-label": "Terrain Texture Cache (MiB)",
+          "x-demi-editor-step": 1.0,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "terrain_texture_max_size": {
+          "default": 1024,
+          "enum": [
+            64,
+            128,
+            256,
+            512,
+            1024,
+            2048,
+            4096,
+            8192
+          ],
+          "type": "integer",
+          "x-demi-editor-help": "GPU terrain material quality cap per texture dimension. Source images remain unchanged; smaller device limits constrain this setting.",
+          "x-demi-editor-label": "Terrain Texture Maximum Size",
           "x-demi-editor-step": 1.0,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true

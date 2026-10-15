@@ -55,10 +55,12 @@ struct TerrainDerivedState {
   std::shared_ptr<const TerrainGraphArtifacts> graphArtifacts;
   std::shared_ptr<const TerrainSurfaceMaterials> surfaceMaterials;
   std::shared_ptr<const TerrainPalette> palette;
+  std::shared_ptr<const TerrainSamples<float>> surfaceSedimentBalance;
 };
 inline TerrainDerivedState terrainDerivedState(const HeightField &field) {
-  return {field.scatterPlacements, field.scatterTruncated, field.graphArtifacts,
-          field.surfaceMaterials, field.resolvedPalette};
+  return {field.scatterPlacements, field.scatterTruncated,
+          field.graphArtifacts,    field.surfaceMaterials,
+          field.resolvedPalette,   field.surfaceSedimentBalance};
 }
 
 struct TerrainPatch {

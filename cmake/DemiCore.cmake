@@ -32,9 +32,8 @@ add_library(demi-core STATIC
   src/demi/runtime/terrain/TerrainScatterConstraints.cpp
   src/demi/runtime/terrain/TerrainMaskBuilder.cpp
   src/demi/runtime/terrain/TerrainSurfaceMaterials.cpp
+  src/demi/runtime/terrain/TerrainSurfaceSediment.cpp
   src/demi/runtime/terrain/TerrainMaterialLayers.cpp
-  src/demi/runtime/terrain/TerrainMaterialBlend.cpp
-  src/demi/runtime/terrain/TerrainTextureResidency.cpp
   src/demi/runtime/terrain/TerrainScatterLayout.cpp
   src/demi/runtime/terrain/TerrainCook.cpp
   src/demi/runtime/terrain/TerrainCookFormat.cpp

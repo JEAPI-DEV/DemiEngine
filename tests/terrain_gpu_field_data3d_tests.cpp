@@ -3,6 +3,10 @@
 #include "demi/runtime/terrain/TerrainHeightField.h"
 #include "demi/runtime/terrain/TerrainSurfaceMaterials.h"
 
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
+#include <algorithm>
 #include <cassert>
 #include <functional>
 #include <iostream>
@@ -15,6 +19,7 @@ using namespace demi::runtime::render;
 namespace {
 
 using uint = std::uint32_t;
+float max(float first, float second) { return std::max(first, second); }
 struct vec2 {
   float x;
   float y;
@@ -23,6 +28,19 @@ struct vec2 {
 #include "demi/runtime/render/bgfx3d/shaders/demi_terrain_blending.sh"
 
 void sharpMaterialsFollowCellTrianglesWithoutInterpolatingIds() {
+  assert(terrainHeightBlendFactor(0, 0) == 1);
+  assert(terrainHeightBlendFactor(1, 0) == 1);
+  assert(terrainHeightBlendFactor(0.5F, 1) == 1);
+  assert(terrainHeightBlendFactor(0, 0.5F) == 0.5F);
+  assert(terrainHeightBlendFactor(1, 0.5F) == 1.5F);
+  assert(terrainHeightBlendFactor(0, 1) > 0);
+  // With equal base weights and default strength, height 1 versus 0 gives a
+  // 3:1 preference. A material outside the original footprint stays absent.
+  const auto lower = 0.5F * terrainHeightBlendFactor(0, 0.5F);
+  const auto upper = 0.5F * terrainHeightBlendFactor(1, 0.5F);
+  assert(upper / (upper + lower) == 0.75F);
+  assert(0 * terrainHeightBlendFactor(1, 1) == 0);
+
   assert(terrainTriangleMaterialIndex(9, 5, 5, 2, {0.2F, 0.3F}) == 5);
   assert(terrainTriangleMaterialIndex(9, 5, 7, 7, {0.9F, 0.7F}) == 7);
   assert(terrainTriangleMaterialIndex(9, 5, 7, 2, {0.2F, 0.3F}) == 9);
@@ -165,15 +183,82 @@ void expectFallback(const HeightField &field, const MaterialBinding &binding,
   assert(result.materialIndices.empty() && result.palette.empty());
 }
 
+void mappedPalettesRetainMaterialIdentityAndSurfaceControls() {
+  auto field = fixture();
+  field.biomeTextureScales = {2, 3};
+  auto earth = material({0.2F, 0.4F, 0.6F, 1});
+  earth.albedoTexture = "asset://textures/earth";
+  earth.usesPbrSurface = true;
+  earth.terrainWrap = TextureWrap::Mirror;
+  earth.surface.maps = {
+      {demi::assets::MaterialMapSlot::Albedo, earth.albedoTexture},
+      {demi::assets::MaterialMapSlot::Normal, "asset://textures/normal"},
+      {demi::assets::MaterialMapSlot::DetailNormal, "asset://textures/detail"},
+      {demi::assets::MaterialMapSlot::Height, "asset://textures/height"}};
+  earth.surface.mapping = demi::assets::MaterialMapping::Triplanar;
+  earth.surface.tiling = 4;
+  earth.surface.normalMapYDown = true;
+  earth.surface.normalStrength = 2;
+  earth.surface.detailStrength = 0.3F;
+  earth.surface.heightBlendStrength = 0.75F;
+  earth.surface.macroVariationStrength = 0.6F;
+  earth.surface.macroVariationScale = 0.04F;
+  auto stone = material({0.8F, 0.7F, 0.5F, 1});
+  stone.terrainWrap = TextureWrap::Clamp;
+  stone.unlit = true;
+  stone.surface.macroVariationStrength = 0.4F;
+  stone.surface.normalStrength = 3;
+  stone.surface.detailStrength = 0.9F;
+  const auto resolve = [&](std::string_view id) {
+    return id == "asset://earth" ? &earth : &stone;
+  };
+  const auto result = prepareTerrainGpuFieldData3D(field, resolve, 16);
+  assert(result.compatible && result.mapped);
+  assert(result.materialIds ==
+         std::vector<std::string>({"", "asset://earth", "asset://stone"}));
+  for (std::size_t sample = 0; sample < field.heights.size(); ++sample) {
+    const auto biome = field.biomeIndices[sample];
+    const bool isEarth = sample % 2 == 0;
+    const auto &material = isEarth ? earth : stone;
+    const auto entry = decode(result.materialIndices[sample]);
+    const auto offset = entry * 5;
+    const auto tint = field.biomeColors[biome];
+    assert(result.palette[offset] ==
+           (std::array<float, 4>{tint.r * material.baseColor[0],
+                                 tint.g * material.baseColor[1],
+                                 tint.b * material.baseColor[2], 1}));
+    assert(result.palette[offset + 1][2] == (isEarth ? 0.F : 1.F));
+    assert(result.palette[offset + 2][0] == (isEarth ? 1.F : 2.F));
+    assert(result.palette[offset + 2][1] ==
+           material.surface.tiling * field.biomeTextureScale(biome));
+    assert(result.palette[offset + 2][2] == (isEarth ? 1.F : 0.F));
+    assert(result.palette[offset + 2][3] == (isEarth ? -1.F : 1.F));
+    assert(result.palette[offset + 3][0] == (isEarth ? 2.F : 0.F));
+    assert(result.palette[offset + 3][1] == (isEarth ? 0.3F : 0.F));
+    assert(result.palette[offset + 3][2] == (isEarth ? 0.75F : 0.F));
+    assert(result.palette[offset + 3][3] ==
+           material.surface.macroVariationStrength);
+    assert(result.palette[offset + 4][0] ==
+           material.surface.macroVariationScale);
+    assert(result.palette[offset + 4][1] == (isEarth ? 2.F : 1.F));
+  }
+  // Builtin projection and map metadata are admitted to the field path;
+  // actual map-array preparation remains a separate transactional request.
+  earth.surface.maps.clear();
+  earth.albedoTexture.clear();
+  earth.surface.macroVariationStrength = 0;
+  stone.surface.macroVariationStrength = 0;
+  const auto solid = prepareTerrainGpuFieldData3D(field, resolve, 16);
+  assert(solid.compatible && !solid.mapped);
+}
+
 void unsupportedMaterialsNeverBecomeDefaultPaletteEntries() {
   const auto field = fixture();
   const auto original = material({1, 1, 1, 1});
   const std::array<
-      std::pair<std::function<void(MaterialBinding &)>, std::string_view>, 9>
+      std::pair<std::function<void(MaterialBinding &)>, std::string_view>, 8>
       cases{{
           {[](auto &m) { m.program = {.index = 0}; }, "custom shader"},
-          {[](auto &m) { m.albedoTexture = "asset://texture"; },
-           "albedo texture"},
           {[](auto &m) { m.opacity = 0.5F; }, "transparency"},
           {[](auto &m) { m.alphaCutoff = 0.5F; }, "cutout"},
           {[](auto &m) { m.state.blend = BlendMode::Alpha; }, "raster/depth"},
@@ -310,6 +395,7 @@ int main() {
   overridesAndDeduplicationAreIndependentOfRoles();
   intrinsicUniformMetadataIsSupported();
   unsupportedMaterialsNeverBecomeDefaultPaletteEntries();
+  mappedPalettesRetainMaterialIdentityAndSurfaceControls();
   mixedCullModesUsePerPixelFlagsAndOtherStatesStillFallBack();
   paletteHasNoFixedEightBitEntryLimit();
   actualDeviceLimitsAndInvalidSamplesAreReported();

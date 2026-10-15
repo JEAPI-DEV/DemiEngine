@@ -22,6 +22,8 @@ struct TerrainBiome {
   std::string material;
   // Texture repetitions per terrain-local unit.
   float textureScale = 1;
+  // Automatic snow remains permitted unless the authored biome is warm/dry.
+  bool allowSnow = true;
 };
 
 // Substrate is derived from the finished field, not authored, so rules can key

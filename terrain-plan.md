@@ -599,74 +599,44 @@ prominent cliff grid; finite-resolution and contact limitations remain.
 
 ## Milestone 4: automatic high-quality surface materials
 
-- [x] Expose per-placement Surface Blending for comparing smooth GPU solid-color
-  transitions with sharp cell-triangle material assignment. The default stays
-  smooth; toggling is an appearance edit that preserves terrain/collision data.
+Complete for the Linux Vulkan capability scope, qualified on 2026-10-15.
+See [Milestone 4 qualification](docs/terrain-milestone4-qualification.md) for
+native pixels, source/cooked parity, memory measurements and explicit limits.
 
+- [x] Unify mesh and terrain Material authoring, validation, import, dependency
+  closure and editor controls. Ordinary Materials support albedo, normal,
+  roughness, metalness, AO, height, detail-normal and emissive maps, with explicit
+  normal convention, UV/triplanar projection and physical texture scale.
+- [x] Assign editable palette roles from generated surface masks, including
+  selected-output erosion deposition/cut, vegetation ground, permitted snow and
+  finite shorelines. `allow_snow` controls biome permission; overlapping ground
+  and rock eligibility prevents unassigned finite slope bands. Explicit biome
+  Material assignments retain precedence.
+- [x] Use correct image color semantics: hardware sRGB filtering for color maps,
+  linear scalar channels and renormalized normal mips. Preserve source maps and
+  coherent physical scale through import, package installation and cooking.
+- [x] Render GPU material arrays with smooth height-biased layer weights,
+  triplanar cliff mapping, macro variation and detail normals. Source material
+  count is not capped at four; four corners define a local blend footprint.
+  Surface Blending can select sharp original-cell triangles instead, without
+  rebuilding terrain or collision, including Undo/Redo and prefab inheritance.
+- [x] Expose distance/platform texture quality and bounded array residency.
+  Camera demand is shared across views, neutral-only slots use 1x1 arrays, and
+  temporary ordinary-map variants retire after use. Unsupported material or
+  device features retain an explicit ordinary-renderer fallback.
+- [x] Supply the installable `polyhaven.materials.terrain` starter package: five
+  CC0 1K surfaces, a wet variant, physical scale/provenance and reusable alpine
+  role bindings. Rocky Valley consumes the package without changing its shape.
+- [x] Validate native broad/close views, alternate lighting, height/neutral/sharp
+  pixel fixtures, source/cooked parity, editor controls, regression suites and
+  repository examples. Remove the unused older global-four-role blending and
+  nominal-size texture-budget implementations.
 
-- [x] Render ordinary Material asset references assigned to biomes through the
-  shared Mesh Renderer path. Store positive finite texture scale in terrain-local
-  units, with continuous UVs across chunks. Preserve geometry/collision on
-  material changes and only update UV resources for scale changes. Retain both
-  values in cooked fields so shipped loading does not need authored recipes.
-  Shared PBR map rendering is delivered below; smooth terrain layers remain unfinished.
-  See [binding qualification](docs/terrain-material-binding-qualification.md).
-
-In progress. Per the user's 2026-10-14 decision, surfaces now use one ordinary
-Material format for meshes and terrain. The separate terrain-material DataAsset
-workflow is removed. Shared PBR map sampling, UV/triplanar mapping, normal-map
-conventions, semantic mipmaps and editor controls are implemented. Terrain role
-sets bind these same Material IDs. Textured terrain currently uses the ordinary
-mesh path; GPU arrays, height-aware layers, measured residency and starter art
-remain open. See [shared material qualification](docs/terrain-shared-material-qualification.md).
-
-- [x] Unify terrain and mesh material authoring, validation and import. Preserve
-  stable IDs, custom shader vocabulary, dependency closure and reversible editor
-  commands. Expose normal/roughness/metallic/AO/detail-normal/emissive maps through
-  the shared builtin renderer, with explicit convention and projection settings.
-
-- [x] Create and edit surface materials, material sets and scatter palettes
-  through the editor without hand-writing JSON. Reuse shared reference/color
-  controls and native validation, retain source formatting and Undo/Redo, and
-  reimport dependencies when saving. Ordinary renderer materials remain valid
-  material-set choices. Failed reimport keeps a retryable, recoverable pending
-  state rather than pretending the asset was imported successfully.
-  See [asset authoring qualification](docs/editor-asset-authoring-qualification.md).
-  The shared mapped renderer now consumes these ordinary Materials. The editor
-  swatch is explicitly a base-color display; a native shaded asset preview is
-  still deferred.
-
-- [ ] Assign materials automatically from palette roles and generated masks:
-  rock on exposed/steep surfaces, sediment in deposition areas, appropriate
-  vegetation ground layers, snow where the biome permits, and wet shoreline
-  materials near water. All assignments remain editable.
-- [ ] Import and validate PBR material sets, including base colour, normal,
-  roughness, optional metalness, occlusion and height maps. Preserve correct
-  colour spaces, normal-map conventions, units and texture scale.
-  Shared import, map semantics, normal conventions and linear-light color mipmaps
-  are implemented. Hardware sRGB filtering remains open: current bilinear
-  sampling filters encoded color before shader decoding.
-- [ ] Replace discrete triangle tints with smooth, height-aware material-layer
-  blending. Support suitable steep-slope mapping, macro variation to reduce
-  visible repetition, and detail normals. Preserve authored overrides.
-  GPU-compatible solid palettes now interpolate neighboring sample colors in
-  linear space and blend metallic, roughness and lit/unlit contributions, while
-  keeping face eligibility categorical. This removes hard GPU sample boundaries
-  without changing terrain resolution. It is a first surface transition step:
-  height-aware weights and GPU texture-map layering remain unfinished. Individual
-  mapped Materials now support triplanar projection in the ordinary mesh path,
-  whose role boundaries remain discrete.
-
-- [ ] Choose distance/platform quality settings for texture residency and
-  surface detail. Parallax/height shading is not actual geometric displacement;
-  distinguish them and use geometry where silhouettes or collision require it.
-- [ ] Provide licensed starter palettes with coherent material scale and
-  optional high-detail rock/cliff meshes. A preset must not pretend to synthesize
-  high-quality source art from a colour or noise setting alone.
-
-Acceptance: generated terrain assigns the selected high-quality materials
-without painting every texture, avoids stretched cliffs and obvious layer seams,
-and remains readable under multiple lighting conditions.
+Height maps affect shading weights, not geometry or collision. Large cliff
+shapes, vegetation, atmospheric lighting and water belong to later milestones;
+these materials do not imply Unreal-level landscape fidelity. Broad tiled
+surfaces can still reveal source repetition. The shaded Material asset preview
+remains separate editor work; the current swatch is explicitly base color.
 
 ## Milestone 5: native water integrated with terrain
 

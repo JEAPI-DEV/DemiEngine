@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "id": "asset://polyhaven/terrain/textures/snow_02/height",
+  "type": "Texture2D",
+  "source": "height.png",
+  "importer": "image",
+  "importer_version": 1,
+  "source_hash": "fnv1a64:f8afcba39d22c914",
+  "dependencies": [],
+  "settings": {
+    "filter": "trilinear",
+    "mipmaps": true,
+    "wrap": "repeat"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "id": "asset://polyhaven/terrain/textures/grass_ground/height",
+  "type": "Texture2D",
+  "source": "height.png",
+  "importer": "image",
+  "importer_version": 1,
+  "source_hash": "fnv1a64:fb9ee1cfed8e1745",
+  "dependencies": [],
+  "settings": {
+    "filter": "trilinear",
+    "mipmaps": true,
+    "wrap": "repeat"
+  }
+}
