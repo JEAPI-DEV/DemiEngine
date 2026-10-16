@@ -657,6 +657,9 @@ depending on rendered meshes. Uncontained bounded lakes warn rather than
 silently clamping an authored level or inventing banks.
 Reflection/refraction, waves, foam and underwater
 appearance remain pending; this is not completion of the water quality gate.
+The [water rendering prerequisite audit](docs/terrain-water-rendering-design.md)
+records why sampleable opaque colour/depth and explicit camera pass allocation
+must precede those effects while retaining MSAA.
 
 Design water-body data and hydrology interfaces alongside milestones 2–3;
 complete rendering and gameplay integration against the material pipeline.
@@ -679,6 +682,11 @@ complete rendering and gameplay integration against the material pipeline.
 - [ ] Make river-channel, lake-basin and shoreline carving non-destructive
   terrain layers. Changing water level or a river path invalidates the required
   terrain, wetness, material and scatter data while preserving unrelated edits.
+  - [x] Connect resolved water to biome and scatter graph inputs; refresh
+    coverage after downstream height changes without recarving. Shared wet
+    masks exclude dry interpolation corners, and wet scatter candidates are
+    rejected before spacing and placement budgets. See
+    [water-rule integration](docs/terrain-water-rule-integration.md).
 - [ ] Render water with depth-dependent colour/absorption, Fresnel response,
   reflections, refraction where supported, animated surface normals/waves and
   shoreline/flow foam. Correctly handle river-to-lake/ocean transitions and

@@ -8,6 +8,6 @@
   "importer_version": 1,
   "settings": {},
   "source": "landscape.terrain.json",
-  "type": "Terrain",
-  "source_hash": "fnv1a64:c87c581c62d3d493"
+  "source_hash": "fnv1a64:663b5a9a1eb60de5",
+  "type": "Terrain"
 }

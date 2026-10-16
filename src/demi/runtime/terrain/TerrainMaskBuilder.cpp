@@ -91,16 +91,16 @@ bool applyTerrainWaterMasks(
     const terrain_water_detail::WaterLevelField &coverage, TerrainMasks &masks,
     std::stop_token stop) {
   const auto sampleCount = field.heights.size();
-  const bool matchingGrid = coverage.cellsX == field.cellsX &&
-                            coverage.cellsZ == field.cellsZ &&
-                            coverage.size.x == field.size.x &&
-                            coverage.size.y == field.size.y;
-  if (!matchingGrid || coverage.level.size() != sampleCount ||
-      coverage.wet.size() != sampleCount || masks.count() != sampleCount) {
+  if (masks.count() != sampleCount) {
     throw std::invalid_argument("Water coverage does not match material masks");
   }
-
-  const auto distances = computeTerrainWaterDistances(field, coverage.wet, stop);
+  const auto submergedSamples =
+      terrain_water_detail::submergedWaterSamples(field, coverage, stop);
+  if (stop.stop_requested()) {
+    return false;
+  }
+  const auto distances =
+      computeTerrainWaterDistances(field, submergedSamples, stop);
   if (stop.stop_requested()) {
     return false;
   }
@@ -112,10 +112,9 @@ bool applyTerrainWaterMasks(
     if ((sample & 255) == 0 && stop.stop_requested()) {
       return false;
     }
-    const bool submerged = coverage.wet[sample] != 0;
-    const float depth = submerged
-                            ? coverage.level[sample] - field.heights[sample]
-                            : -1.F;
+    const bool submerged = submergedSamples[sample] != 0;
+    const float depth =
+        submerged ? coverage.level[sample] - field.heights[sample] : -1.F;
     masks.waterDepth.set(sample, depth);
     masks.waterDistance.set(sample, distances[sample]);
 

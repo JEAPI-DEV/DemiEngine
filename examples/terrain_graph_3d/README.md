@@ -74,3 +74,9 @@ automatic assignment. Role boundaries are discrete, without texture blending.
 Edit the material set and reimport it, then Generate to refresh the preview.
 Binding-only changes retain terrain heights and collision geometry. The Terrain
 Graph panel reports missing bindings or samples without a matching role.
+
+The combined lake/river Water output also connects to Biome Rules. The
+`lowland_sediment` rule limits shore material to 12 terrain units from resolved
+water, rather than assigning it to every low area. Connect Water to Scatter
+Palette as well when adding vegetation, so submerged candidates cannot consume
+spacing or placement budgets.

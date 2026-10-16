@@ -130,11 +130,17 @@ std::vector<std::string> scatterableRoles(const HeightField &field,
   return roles;
 }
 
-TerrainScatterResult scatterTerrain(const HeightField &field,
-                                    const TerrainRecipe &recipe,
-                                    const TerrainPalette &palette,
-                                    const TerrainScatterSettings &settings,
-                                    const TerrainScatterConstraints *constraints) {
+TerrainScatterResult
+scatterTerrain(const HeightField &field, const TerrainRecipe &recipe,
+               const TerrainPalette &palette,
+               const TerrainScatterSettings &settings,
+               const TerrainScatterConstraints *constraints,
+               std::span<const std::uint8_t> resolvedWetSamples) {
+  if (!resolvedWetSamples.empty() &&
+      resolvedWetSamples.size() != field.heights.size()) {
+    throw std::invalid_argument(
+        "Terrain scatter water coverage does not match the heightfield");
+  }
   TerrainScatterResult result;
   if (settings.density <= 0.F)
     return result;
@@ -187,15 +193,21 @@ TerrainScatterResult scatterTerrain(const HeightField &field,
     for (int x = 0; x <= recipe.cellsX; ++x) {
       const auto cell = field.index(x, z);
       const auto height = field.heights[cell];
-      // The constraints object is the single answer when one is supplied, so the
-      // editor can explain a gap and the solver agrees. Null keeps the inline
-      // water and exclusion tests this function always had.
+      // Resolved coverage rejects wet candidates before they can reserve
+      // spacing or consume the budget. Other authored constraints still apply;
+      // absent both inputs, preserve inferred sea and exclusion behavior.
+      const bool resolvedWet =
+          !resolvedWetSamples.empty() && resolvedWetSamples[cell] != 0;
+      if (resolvedWet) {
+        continue;
+      }
       if (constraints != nullptr) {
         if (constraints->blocked(cell))
           continue;
       } else {
-        if (height <= sea)
+        if (resolvedWetSamples.empty() && height <= sea) {
           continue;
+        }
         if (field.exclusions[cell] > 0.F)
           continue;
       }

@@ -67,7 +67,7 @@ struct TerrainBiomeRule {
   TerrainRuleBand elevation;
   TerrainRuleBand slope;
   TerrainRuleBand moisture;
-  // Distance in world units to the nearest sample at or below sea level.
+  // Distance to resolved water when supplied, otherwise inferred sea coverage.
   TerrainRuleBand waterDistance;
   std::vector<TerrainSubstrate> substrate;
 

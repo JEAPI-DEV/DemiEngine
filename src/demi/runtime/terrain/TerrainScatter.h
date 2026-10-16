@@ -3,6 +3,7 @@
 #include "demi/runtime/terrain/TerrainGenerator.h"
 #include "demi/runtime/terrain/TerrainPalette.h"
 #include "demi/runtime/terrain/TerrainScatterPlacement.h"
+#include <cstdint>
 #include <span>
 #include <stop_token>
 #include <string>
@@ -46,11 +47,15 @@ struct TerrainScatterResult {
 // placed here", so the editor's explanation and the solver's decision cannot
 // disagree. Null keeps the inline water and exclusion tests this function
 // always had, which is what a caller with no constraint authoring wants.
+// A supplied wet grid replaces inferred sea coverage and rejects candidates
+// before spacing or placement budgets. Explicit constraints remain additional
+// blockers; they never override a supplied wet sample.
 [[nodiscard]] TerrainScatterResult
 scatterTerrain(const HeightField &field, const TerrainRecipe &recipe,
                const TerrainPalette &palette,
                const TerrainScatterSettings &settings = {},
-               const class TerrainScatterConstraints *constraints = nullptr);
+               const class TerrainScatterConstraints *constraints = nullptr,
+               std::span<const std::uint8_t> resolvedWetSamples = {});
 
 // The palette roles that would place on this field at all, sorted. Used to
 // report a palette that cannot contribute rather than failing generation.

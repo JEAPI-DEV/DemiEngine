@@ -424,6 +424,38 @@ void substrateSeparatesRock() {
 
 // Water distance is a real distance field: zero in water, growing inland, and
 // large everywhere when the terrain has no water at all.
+void resolvedWaterCoverageReplacesInferredSea() {
+  const auto recipe = flatRecipe();
+  std::vector<float> heights(recipe.sampleCount(), -2.F);
+  std::vector<std::uint8_t> wet(recipe.sampleCount(), 0);
+  const auto center =
+      std::size_t(recipe.cellsZ / 2) * (recipe.cellsX + 1) + recipe.cellsX / 2;
+  wet[center] = 1;
+  TerrainRuleContextBuilder builder(recipe);
+  builder.build(recipe, heights, recipe.cellsX, recipe.cellsZ, recipe.size,
+                &wet);
+  assert(builder.contexts()[center].substrate == TerrainSubstrate::Wet);
+  assert(builder.contexts()[center].waterDistance == 0.F);
+  assert(builder.contexts().front().substrate == TerrainSubstrate::Soil);
+  assert(builder.contexts().front().waterDistance > 0.F);
+  wet[center] = 0;
+  builder.build(recipe, heights, recipe.cellsX, recipe.cellsZ, recipe.size,
+                &wet);
+  for (const auto &context : builder.contexts()) {
+    assert(context.substrate == TerrainSubstrate::Soil);
+    assert(context.waterDistance > 1000.F);
+  }
+  wet.pop_back();
+  bool rejected = false;
+  try {
+    builder.build(recipe, heights, recipe.cellsX, recipe.cellsZ, recipe.size,
+                  &wet);
+  } catch (const std::invalid_argument &) {
+    rejected = true;
+  }
+  assert(rejected);
+}
+
 void waterDistanceIsMeasured() {
   auto recipe = ruleRecipe();
   const auto builder = contexts(recipe);
@@ -507,6 +539,7 @@ int main() {
   decisionsExplainThemselves();
   substrateSeparatesRock();
   waterDistanceIsMeasured();
+  resolvedWaterCoverageReplacesInferredSea();
   rulesInvalidateLocalReplay();
   std::cout << "Terrain biome rule checks passed\n";
 }

@@ -1,5 +1,6 @@
 #include "demi/runtime/terrain/TerrainGraphExecutor.h"
 #include "demi/runtime/terrain/TerrainGraphNodeEvaluation.h"
+#include "demi/runtime/terrain/TerrainMaskBuilder.h"
 #include "demi/runtime/terrain/TerrainMaterialLayers.h"
 #include "demi/runtime/terrain/TerrainPalette.h"
 #include "demi/runtime/terrain/TerrainSurfaceMaterials.h"
@@ -966,6 +967,53 @@ void surfaceRebindingPreservesClassificationAndHeights() {
   assert(scene.field.surfaceMaterials == previousSurface);
 }
 
+void dryWaterFootprintDoesNotCreateMaterialShorelines() {
+  for (const bool hasSubmergedGround : {false, true}) {
+    auto scene = plainScene();
+    const auto center = scene.field.index(4, 4);
+    const auto farDry = scene.field.index(0, 0);
+    if (hasSubmergedGround) {
+      scene.field.heights.set(center, 8.F);
+    }
+    TerrainWaterAuthoring water;
+    water.authored = true;
+    TerrainWaterBodySpec sea;
+    sea.id = "sea";
+    sea.kind = TerrainWaterBody::Ocean;
+    sea.level = 9.F;
+    sea.shorelineSoftening = false;
+    water.bodies.push_back(sea);
+    const auto result =
+        refreshTerrainWaterResult(scene.field, water, scene.field.heights);
+    assert(result && result->resolvedCoverage);
+    const auto &coverage = *result->resolvedCoverage;
+    assert(coverage.wet[farDry] == 1);
+    assert(scene.field.heights[farDry] > coverage.level[farDry]);
+    assert(applyTerrainWaterMasks(scene.field, coverage, scene.masks));
+    assert(scene.masks.waterDepth[farDry] < 0.F);
+    assert(scene.masks.substrate[farDry] ==
+           static_cast<std::size_t>(TerrainSubstrate::Soil));
+    assert(scene.masks.waterDistance[farDry] > 16.F);
+    assert(roleAt(scene, fullSet(), farDry) == "ground");
+    if (hasSubmergedGround) {
+      assert(scene.masks.waterDepth[center] == 1.F);
+      assert(scene.masks.waterDistance[center] == 0.F);
+      assert(scene.masks.substrate[center] ==
+             static_cast<std::size_t>(TerrainSubstrate::Wet));
+      assert(roleAt(scene, fullSet(), center) == "underwater");
+    }
+    // The footprint used by surface tessellation remains immutable.
+    assert(coverage.wet[farDry] == 1);
+    std::stop_source cancellation;
+    cancellation.request_stop();
+    assert(terrain_water_detail::submergedWaterSamples(scene.field, coverage,
+                                                       cancellation.get_token())
+               .empty());
+    assert(!applyTerrainWaterMasks(scene.field, coverage, scene.masks,
+                                   cancellation.get_token()));
+  }
+}
+
 void finiteWaterCoverageControlsSurfaceRoles() {
   for (const float groundHeight : {8.F, -2.F}) {
     auto scene = plainScene();
@@ -1020,6 +1068,7 @@ int main() {
   productionClassificationConsumesSelectedDeposition();
   surfaceRebindingPreservesClassificationAndHeights();
   finiteWaterCoverageControlsSurfaceRoles();
+  dryWaterFootprintDoesNotCreateMaterialShorelines();
   dryOpenGroundIsGround();
   steepGroundIsRock();
   flatWetCellIsWetGround();

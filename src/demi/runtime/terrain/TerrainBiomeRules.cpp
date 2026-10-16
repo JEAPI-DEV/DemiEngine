@@ -56,52 +56,68 @@ float TerrainRuleContextBuilder::seaLevel(const TerrainRecipe &recipe) {
   return std::max(0.F, highest * .25F);
 }
 
-void TerrainRuleContextBuilder::build(const TerrainRecipe &recipe,
-                                      const std::vector<float> &baseHeights,
-                                      int cellsX, int cellsZ, Vec2 size) {
+void TerrainRuleContextBuilder::build(
+    const TerrainRecipe &recipe, const std::vector<float> &baseHeights,
+    int cellsX, int cellsZ, Vec2 size,
+    const std::vector<std::uint8_t> *resolvedWetSamples) {
   const auto count = recipe.sampleCount();
-  if (baseHeights.size() != count || contexts_.size() != count)
+  if (baseHeights.size() != count || contexts_.size() != count) {
     throw std::invalid_argument(
         "Terrain rule context does not match the heightfield");
+  }
+  if (resolvedWetSamples != nullptr && resolvedWetSamples->size() != count) {
+    throw std::invalid_argument(
+        "Terrain rule water coverage does not match the heightfield");
+  }
   const float sea = seaLevel(recipe);
+  const auto isWet = [&](std::size_t sample) {
+    return resolvedWetSamples != nullptr ? (*resolvedWetSamples)[sample] != 0
+                                         : baseHeights[sample] <= sea;
+  };
   const float stepX = size.x / float(cellsX);
   const float stepZ = size.y / float(cellsZ);
 
   // Water distance: a multi-source chamfer transform seeded from every sample
-  // at or below sea level, so a basin measures to the nearest shoreline.
-  std::vector<float> distance(count,
-                              std::numeric_limits<float>::max());
+  // selected by resolved coverage or inferred sea level, so disconnected
+  // low ground outside an authored body does not invent another shoreline.
+  std::vector<float> distance(count, std::numeric_limits<float>::max());
   std::queue<std::size_t> frontier;
-  const auto index = [&](int x, int z) { return std::size_t(z) * (cellsX + 1) + x; };
-  for (int z = 0; z <= cellsZ; ++z)
-    for (int x = 0; x <= cellsX; ++x)
-      if (baseHeights[index(x, z)] <= sea) {
+  const auto index = [&](int x, int z) {
+    return std::size_t(z) * (cellsX + 1) + x;
+  };
+  for (int z = 0; z <= cellsZ; ++z) {
+    for (int x = 0; x <= cellsX; ++x) {
+      if (isWet(index(x, z))) {
         distance[index(x, z)] = 0;
         frontier.push(index(x, z));
       }
+    }
+  }
   if (frontier.empty()) {
     // No water anywhere: every sample is maximally far from it, so a
     // water-distance rule cannot accidentally match a narrow band.
-    for (int z = 0; z <= cellsZ; ++z)
-      for (int x = 0; x <= cellsX; ++x)
-        distance[index(x, z)] =
-            std::numeric_limits<float>::max() / 4.F;
+    for (int z = 0; z <= cellsZ; ++z) {
+      for (int x = 0; x <= cellsX; ++x) {
+        distance[index(x, z)] = std::numeric_limits<float>::max() / 4.F;
+      }
+    }
   } else {
-    const float diagonal =
-        std::min(stepX, stepZ) * DiagonalWeight;
+    const float diagonal = std::min(stepX, stepZ) * DiagonalWeight;
     const float straight = std::min(stepX, stepZ);
     while (!frontier.empty()) {
       const auto current = frontier.front();
       frontier.pop();
       const int x = int(current % std::size_t(cellsX + 1));
       const int z = int(current / std::size_t(cellsX + 1));
-      for (int dz = -1; dz <= 1; ++dz)
+      for (int dz = -1; dz <= 1; ++dz) {
         for (int dx = -1; dx <= 1; ++dx) {
-          if (!dx && !dz)
+          if (!dx && !dz) {
             continue;
+          }
           const int nx = x + dx, nz = z + dz;
-          if (nx < 0 || nz < 0 || nx > cellsX || nz > cellsZ)
+          if (nx < 0 || nz < 0 || nx > cellsX || nz > cellsZ) {
             continue;
+          }
           const auto neighbour = index(nx, nz);
           const float step = dx && dz ? diagonal : straight;
           if (distance[neighbour] > distance[current] + step) {
@@ -109,10 +125,11 @@ void TerrainRuleContextBuilder::build(const TerrainRecipe &recipe,
             frontier.push(neighbour);
           }
         }
+      }
     }
   }
 
-  for (int z = 0; z <= cellsZ; ++z)
+  for (int z = 0; z <= cellsZ; ++z) {
     for (int x = 0; x <= cellsX; ++x) {
       const auto cell = index(x, z);
       auto &context = contexts_[cell];
@@ -123,12 +140,12 @@ void TerrainRuleContextBuilder::build(const TerrainRecipe &recipe,
       // borders, which matches how the normal pass reflects its edges.
       const int left = std::max(0, x - 1), right = std::min(cellsX, x + 1);
       const int near = std::max(0, z - 1), far = std::min(cellsZ, z + 1);
-      const float dx = (baseHeights[index(right, z)] -
-                        baseHeights[index(left, z)]) /
-                       std::max(1e-6F, float(right - left) * stepX);
-      const float dz = (baseHeights[index(x, far)] -
-                        baseHeights[index(x, near)]) /
-                       std::max(1e-6F, float(far - near) * stepZ);
+      const float dx =
+          (baseHeights[index(right, z)] - baseHeights[index(left, z)]) /
+          std::max(1e-6F, float(right - left) * stepX);
+      const float dz =
+          (baseHeights[index(x, far)] - baseHeights[index(x, near)]) /
+          std::max(1e-6F, float(far - near) * stepZ);
       context.slope = std::atan(std::hypot(dx, dz)) * 180.F / 3.14159265F;
 
       const Vec2 sample = positionOf(x, z, size, cellsX, cellsZ);
@@ -136,15 +153,17 @@ void TerrainRuleContextBuilder::build(const TerrainRecipe &recipe,
           0.5F + 0.5F * moisture_->noise.GetNoise(sample.x, sample.y), 0.F,
           1.F);
 
-      if (context.height <= sea)
+      if (isWet(cell)) {
         context.substrate = TerrainSubstrate::Wet;
-      else if (context.slope >= 38.F)
+      } else if (context.slope >= 38.F) {
         context.substrate = TerrainSubstrate::Rock;
-      else if (context.waterDistance <= std::max(stepX, stepZ) * 2.F)
+      } else if (context.waterDistance <= std::max(stepX, stepZ) * 2.F) {
         context.substrate = TerrainSubstrate::Sand;
-      else
+      } else {
         context.substrate = TerrainSubstrate::Soil;
+      }
     }
+  }
 }
 
 const std::vector<TerrainRuleContext> &

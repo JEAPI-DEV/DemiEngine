@@ -182,10 +182,16 @@ struct WaterLevelField {
   }
 };
 
-[[nodiscard]] WaterLevelField
-buildWaterLevelField(Vec2 size, int cellsX, int cellsZ,
-                     const TerrainSamples<float> &ground,
-                     const TerrainWaterAuthoring &authoring);
+// Geometry coverage may retain dry corners for shoreline interpolation. Rule,
+// material and scatter consumers share this actual submerged-ground mask.
+// Empty means cancellation; malformed coverage is diagnosed.
+[[nodiscard]] std::vector<std::uint8_t>
+submergedWaterSamples(const HeightField &field, const WaterLevelField &coverage,
+                      std::stop_token stop = {});
+
+[[nodiscard]] WaterLevelField buildWaterLevelField(
+    Vec2 size, int cellsX, int cellsZ, const TerrainSamples<float> &ground,
+    const TerrainWaterAuthoring &authoring, std::stop_token stop = {});
 
 } // namespace terrain_water_detail
 } // namespace demi::runtime

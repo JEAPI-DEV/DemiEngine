@@ -257,6 +257,42 @@ evaluateErosion(const nlohmann::json &values, const TerrainRecipe &sourceRecipe,
   return result;
 }
 
+std::optional<std::vector<std::uint8_t>>
+waterWetSamplesInput(const GraphValues &connected, const HeightField &field,
+                     std::stop_token stop) {
+  const auto *value = input(connected, "water");
+  if (value == nullptr) {
+    return std::nullopt;
+  }
+  const auto &water = *std::get<std::shared_ptr<const GraphWater>>(*value);
+  auto coverage = water.data.resolvedCoverage;
+  if (coverage != nullptr) {
+    const bool matchingGrid =
+        coverage->cellsX == field.cellsX && coverage->cellsZ == field.cellsZ &&
+        coverage->size.x == field.size.x && coverage->size.y == field.size.y;
+    if (!matchingGrid) {
+      throw std::invalid_argument(
+          "Connected water data does not match the input field grid");
+    }
+  } else if (!water.authoring.authored || !water.authoring.bodies.empty()) {
+    throw std::invalid_argument(
+        "Connected water data has no resolved coverage");
+  }
+  if (coverage == nullptr || water.data.carvedHeights != field.heights) {
+    // Refresh coverage after downstream height operations without recarving or
+    // preparing render meshes. An empty route is authoritative all-dry water.
+    auto refreshed = terrain_water_detail::buildWaterLevelField(
+        field.size, field.cellsX, field.cellsZ, field.heights, water.authoring,
+        stop);
+    if (stop.stop_requested()) {
+      return std::nullopt;
+    }
+    coverage = std::make_shared<const terrain_water_detail::WaterLevelField>(
+        std::move(refreshed));
+  }
+  return terrain_water_detail::submergedWaterSamples(field, *coverage, stop);
+}
+
 std::optional<GraphNodeResult>
 evaluateBiomes(const TerrainRecipe &sourceRecipe,
                const TerrainRecipe &authoredRecipe,
@@ -272,9 +308,13 @@ evaluateBiomes(const TerrainRecipe &sourceRecipe,
   }
   if (stop.stop_requested())
     return std::nullopt;
+  const auto wetSamples = waterWetSamplesInput(connected, *field, stop);
+  if (stop.stop_requested()) {
+    return std::nullopt;
+  }
   TerrainRuleContextBuilder contexts(biomeRecipe);
   contexts.build(biomeRecipe, heights, field->cellsX, field->cellsZ,
-                 field->size);
+                 field->size, wetSamples ? &*wetSamples : nullptr);
   if (stop.stop_requested())
     return std::nullopt;
   const auto decisions =
@@ -302,7 +342,14 @@ evaluateScatter(const TerrainRecipe &sourceRecipe,
     auto field = *fieldInput(connected, "field");
     if (field.exclusions.empty())
       field.exclusions.resize(field.heights.size());
-    auto scattered = scatterTerrain(field, sourceRecipe, *inputs.palette);
+    const auto coverage = waterWetSamplesInput(connected, field, stop);
+    if (stop.stop_requested()) {
+      return std::nullopt;
+    }
+    const auto wetSamples = coverage ? std::span<const std::uint8_t>(*coverage)
+                                     : std::span<const std::uint8_t>{};
+    auto scattered = scatterTerrain(field, sourceRecipe, *inputs.palette, {},
+                                    nullptr, wetSamples);
     if (stop.stop_requested())
       return std::nullopt;
     placements->placements = std::move(scattered.placements);

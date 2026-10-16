@@ -610,16 +610,48 @@ std::vector<std::size_t> acceptedBodies(const TerrainWaterAuthoring &authoring,
   return accepted;
 }
 
+std::vector<std::uint8_t> submergedWaterSamples(const HeightField &field,
+                                                const WaterLevelField &coverage,
+                                                std::stop_token stop) {
+  if (stop.stop_requested()) {
+    return {};
+  }
+  const auto count = field.heights.size();
+  const bool matchingGrid =
+      coverage.cellsX == field.cellsX && coverage.cellsZ == field.cellsZ &&
+      coverage.size.x == field.size.x && coverage.size.y == field.size.y;
+  if (!matchingGrid || coverage.wet.size() != count ||
+      coverage.level.size() != count) {
+    throw std::invalid_argument(
+        "Water coverage does not match the submerged-ground grid");
+  }
+  std::vector<std::uint8_t> submerged(count);
+  for (std::size_t sample = 0; sample < count; ++sample) {
+    if ((sample & 255) == 0 && stop.stop_requested()) {
+      return {};
+    }
+    submerged[sample] = coverage.wet[sample] != 0 &&
+                        field.heights[sample] <= coverage.level[sample];
+  }
+  return submerged;
+}
+
 WaterLevelField buildWaterLevelField(Vec2 size, int cellsX, int cellsZ,
                                      const TerrainSamples<float> &ground,
-                                     const TerrainWaterAuthoring &authoring) {
+                                     const TerrainWaterAuthoring &authoring,
+                                     std::stop_token stop) {
   const auto count = sampleCount(cellsX, cellsZ);
-  if (ground.size() != count)
+  if (stop.stop_requested() || ground.size() != count) {
     return {};
+  }
   std::vector<float> samples(count);
-  for (std::size_t sample = 0; sample < count; ++sample)
+  for (std::size_t sample = 0; sample < count; ++sample) {
+    if ((sample & 255) == 0 && stop.stop_requested()) {
+      return {};
+    }
     samples[sample] = ground[sample];
-  return buildField(size, cellsX, cellsZ, samples, authoring);
+  }
+  return buildField(size, cellsX, cellsZ, samples, authoring, stop);
 }
 
 WaterLevelField buildWaterGeometryField(Vec2 size, int cellsX, int cellsZ,

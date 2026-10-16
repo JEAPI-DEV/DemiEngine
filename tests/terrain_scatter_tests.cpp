@@ -1,11 +1,12 @@
-#include "demi/runtime/terrain/TerrainScatter.h"
 #include "demi/runtime/terrain/TerrainBiomeRules.h"
 #include "demi/runtime/terrain/TerrainGenerator.h"
+#include "demi/runtime/terrain/TerrainScatter.h"
 #include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <iostream>
 #include <set>
+#include <stdexcept>
 #include <string>
 
 using namespace demi::runtime;
@@ -49,6 +50,42 @@ TerrainPalette paletteWith(TerrainPaletteEntry tree, TerrainPaletteEntry grass) 
 // Placement must not depend on traversal order, worker count, or repetition:
 // that is the property that lets scatter stay correct alongside incremental
 // editing. Every other test here is worthless if this one fails.
+void resolvedWaterRejectsCandidatesBeforeSpacingAndBudget() {
+  const auto recipe = flatRecipe();
+  auto field = *TerrainGenerator::generate(recipe);
+  for (std::size_t sample = 0; sample < field.heights.size(); ++sample) {
+    field.heights.set(sample, -2.F);
+  }
+  TerrainPalette palette;
+  palette.placements.emplace("cover", entry("cover", "asset://cover", 1, 0));
+  std::vector<std::uint8_t> wet(field.heights.size(), 1);
+  wet.back() = 0;
+  const TerrainScatterSettings settings{.maximumPlacements = 1};
+  const auto filtered =
+      scatterTerrain(field, recipe, palette, settings, nullptr, wet);
+  assert(filtered.placements.size() == 1);
+  assert(filtered.placements.front().position.x == field.size.x);
+  assert(filtered.placements.front().position.z == field.size.y);
+  assert(scatterTerrain(field, recipe, palette, settings).placements.empty());
+  wet.back() = 1;
+  assert(scatterTerrain(field, recipe, palette, settings, nullptr, wet)
+             .placements.empty());
+  std::fill(wet.begin(), wet.end(), 0);
+  const auto dry =
+      scatterTerrain(field, recipe, palette, settings, nullptr, wet);
+  assert(dry.placements.size() == 1);
+  assert(dry.placements.front().position.x == 0);
+  assert(dry.placements.front().position.z == 0);
+  wet.pop_back();
+  bool rejected = false;
+  try {
+    (void)scatterTerrain(field, recipe, palette, settings, nullptr, wet);
+  } catch (const std::invalid_argument &) {
+    rejected = true;
+  }
+  assert(rejected);
+}
+
 void placementIsDeterministic() {
   auto recipe = flatRecipe();
   recipe.paletteId = "asset://terrain/palettes/test";
@@ -338,6 +375,7 @@ void generationConsumesThePalette() {
 
 int main() {
   placementIsDeterministic();
+  resolvedWaterRejectsCandidatesBeforeSpacingAndBudget();
   namedRulesRemainIndependent();
   paletteIsOptIn();
   zeroWeightNeverScatters();

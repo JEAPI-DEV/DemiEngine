@@ -386,6 +386,17 @@
           }
         },
         {
+          "id": "water_biomes",
+          "from": {
+            "node": "valley_river",
+            "port": "water"
+          },
+          "to": {
+            "node": "surface_rules",
+            "port": "water"
+          }
+        },
+        {
           "id": "rules_output",
           "from": {
             "node": "surface_rules",
