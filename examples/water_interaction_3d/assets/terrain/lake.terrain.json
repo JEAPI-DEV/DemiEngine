@@ -42,14 +42,22 @@
           "type": "constant",
           "parameters": {
             "height": 4
-          }
+          },
+          "position": [
+            -997.0254516601563,
+            421.6004638671875
+          ]
         },
         {
           "id": "bed",
           "type": "constant",
           "parameters": {
             "height": 0
-          }
+          },
+          "position": [
+            -997.8460693359375,
+            665.6759643554688
+          ]
         },
         {
           "id": "basin",
@@ -74,14 +82,22 @@
               ]
             ],
             "falloff": 4
-          }
+          },
+          "position": [
+            -1292.965087890625,
+            192.06985473632813
+          ]
         },
         {
           "id": "blend",
           "type": "height_blend",
           "parameters": {
             "amount": 1
-          }
+          },
+          "position": [
+            -652.3553466796875,
+            710.40478515625
+          ]
         },
         {
           "id": "lake",
@@ -94,7 +110,11 @@
             "radius": 0,
             "foam_width": 0.25,
             "foam_strength": 0.25
-          }
+          },
+          "position": [
+            -260.9367980957031,
+            559.822021484375
+          ]
         },
         {
           "id": "inlet_river",
@@ -122,15 +142,27 @@
                 22
               ]
             ]
-          }
+          },
+          "position": [
+            118.33114624023438,
+            568.8167114257813
+          ]
         },
         {
           "id": "appearance",
-          "type": "biomes"
+          "type": "biomes",
+          "position": [
+            461.599365234375,
+            1711.0877685546875
+          ]
         },
         {
           "id": "output",
-          "type": "output"
+          "type": "output",
+          "position": [
+            719.6513671875,
+            1904.7362060546875
+          ]
         }
       ],
       "links": [
