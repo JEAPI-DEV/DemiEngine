@@ -84,6 +84,13 @@
   add_executable(demi-editor-prefab-authoring-tests tests/editor_prefab_authoring_tests.cpp)
   add_executable(demi-editor-prefab-components-tests tests/editor_prefab_components_tests.cpp)
   add_executable(demi-editor-structured-value-tests tests/editor_structured_value_tests.cpp)
+  add_executable(demi-editor-reference-control-tests tests/editor_reference_control_tests.cpp)
+  target_link_libraries(demi-editor-reference-control-tests PRIVATE demi-editor-ui)
+  target_include_directories(demi-editor-reference-control-tests PRIVATE
+    "${DEMI_IMGUI_DOCKING_OVERLAY}" "${imgui_docking_SOURCE_DIR}"
+    "${bgfx_SOURCE_DIR}/bgfx/3rdparty/dear-imgui" "${bgfx_SOURCE_DIR}/bgfx/3rdparty")
+  target_compile_definitions(demi-editor-reference-control-tests PRIVATE
+    IMGUI_USER_CONFIG="${CMAKE_SOURCE_DIR}/src/editor/EditorImGuiConfig.h")
   add_executable(demi-editor-profiler-overview-tests tests/editor_profiler_overview_tests.cpp)
   target_link_libraries(demi-editor-profiler-overview-tests PRIVATE demi-editor-ui)
   target_include_directories(demi-editor-profiler-overview-tests PRIVATE
@@ -212,6 +219,9 @@
     tests/editor_inspector_model_tests.cpp)
   target_link_libraries(demi-editor-inspector-model-tests
     PRIVATE demi-editor-model)
+  add_executable(demi-editor-entity-hierarchy-tests
+    tests/editor_entity_hierarchy_tests.cpp)
+  target_link_libraries(demi-editor-entity-hierarchy-tests PRIVATE demi-editor-model)
   add_executable(demi-editor-hud-hierarchy-tests
     tests/editor_hud_hierarchy_tests.cpp)
   target_link_libraries(demi-editor-hud-hierarchy-tests

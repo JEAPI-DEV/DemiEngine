@@ -1,7 +1,7 @@
 #include "editor/EditorInspectorModel.h"
+#include "editor/EditorHierarchyIndex.h"
 
 #include "editor/EditorSceneJson.h"
-#include "editor/EditorScenePreview.h"
 #include "demi/runtime/scene/model/World.h"
 
 #include "demi/assets/AssetRegistry.h"
@@ -180,10 +180,14 @@ editorReferenceFromPayload(std::span<const char> payload,
 std::vector<EditorReferenceChoice>
 editorEntityReferenceChoices(const runtime::World &world) {
   std::vector<EditorReferenceChoice> choices;
-  for (const auto &entity : world.entities) {
-    const std::string generatedOwner = editorPlacementOwner(world, entity.id);
-    if (!generatedOwner.empty() && generatedOwner != entity.id)
+  const EditorHierarchyIndex hierarchy(world, nlohmann::json::object(), "");
+  choices.reserve(hierarchy.size());
+  for (std::size_t index = 0; index < hierarchy.size(); ++index) {
+    const auto &node = hierarchy.node(index);
+    if (node.hiddenPreview) {
       continue;
+    }
+    const auto &entity = *node.entity;
     choices.push_back({entity.id, entity.name + " (" + entity.id + ")"});
   }
   std::ranges::sort(choices, {}, &EditorReferenceChoice::label);

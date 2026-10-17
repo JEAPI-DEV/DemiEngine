@@ -5,21 +5,23 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <optional>
 
 namespace demi::editor {
 
-bool drawEditorReferenceControl(const char *label,
-                                std::span<const EditorReferenceChoice> choices,
-                                std::string &selected, bool allowNone,
-                                const char *payloadType) {
-  bool changed = false;
-  const auto current =
-      std::ranges::find(choices, selected, &EditorReferenceChoice::id);
-  const char *preview = selected.empty() ? "None" : selected.c_str();
-  if (current != choices.end())
-    preview = current->label.c_str();
+namespace {
+using ChoicesProvider = std::function<std::span<const EditorReferenceChoice>()>;
 
-  if (ImGui::BeginCombo(label, preview)) {
+bool drawReferenceControl(const char *label, const ChoicesProvider &choices,
+                          std::string &selected, bool allowNone,
+                          const char *payloadType,
+                          std::string_view previewLabel) {
+  bool changed = false;
+  std::string preview = selected.empty() ? "None" : selected;
+  if (!selected.empty() && !previewLabel.empty()) {
+    preview = previewLabel;
+  }
+  if (ImGui::BeginCombo(label, preview.c_str())) {
     static std::array<char, 128> filter{};
     if (ImGui::IsWindowAppearing()) {
       filter.fill('\0');
@@ -39,7 +41,7 @@ bool drawEditorReferenceControl(const char *label,
       changed = !selected.empty();
       selected.clear();
     }
-    for (const auto &choice : choices) {
+    for (const auto &choice : choices()) {
       if (!matches(choice.label + " " + choice.id))
         continue;
       const bool isSelected = choice.id == selected;
@@ -58,7 +60,7 @@ bool drawEditorReferenceControl(const char *label,
       const auto reference = editorReferenceFromPayload(
           {static_cast<const char *>(payload->Data),
            static_cast<std::size_t>(payload->DataSize)},
-          choices);
+          choices());
       if (reference && *reference != selected) {
         selected = *reference;
         changed = true;
@@ -69,6 +71,38 @@ bool drawEditorReferenceControl(const char *label,
   if (payloadType && ImGui::IsItemHovered())
     ImGui::SetTooltip("Choose an object or drag it here from the Hierarchy.");
   return changed;
+}
+
+} // namespace
+
+bool drawEditorReferenceControl(const char *label,
+                                std::span<const EditorReferenceChoice> choices,
+                                std::string &selected, bool allowNone,
+                                const char *payloadType) {
+  const auto current =
+      std::ranges::find(choices, selected, &EditorReferenceChoice::id);
+  const std::string_view preview = current == choices.end()
+                                       ? std::string_view{}
+                                       : std::string_view(current->label);
+  return drawReferenceControl(
+      label, [choices] { return choices; }, selected, allowNone, payloadType,
+      preview);
+}
+
+bool drawEditorLazyReferenceControl(
+    const char *label,
+    const std::function<std::vector<EditorReferenceChoice>()> &choices,
+    std::string &selected, bool allowNone, const char *payloadType,
+    std::string_view previewLabel) {
+  std::optional<std::vector<EditorReferenceChoice>> prepared;
+  const auto provide = [&]() -> std::span<const EditorReferenceChoice> {
+    if (!prepared) {
+      prepared = choices();
+    }
+    return *prepared;
+  };
+  return drawReferenceControl(label, provide, selected, allowNone, payloadType,
+                              previewLabel);
 }
 
 } // namespace demi::editor

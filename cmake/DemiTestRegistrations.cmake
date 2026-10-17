@@ -9,6 +9,7 @@ add_test(NAME demi-editor-prefab-conversion-tests COMMAND demi-editor-prefab-con
 add_test(NAME demi-editor-prefab-authoring-tests COMMAND demi-editor-prefab-authoring-tests)
 add_test(NAME demi-editor-prefab-components-tests COMMAND demi-editor-prefab-components-tests)
 add_test(NAME demi-editor-structured-value-tests COMMAND demi-editor-structured-value-tests)
+add_test(NAME demi-editor-reference-control-tests COMMAND demi-editor-reference-control-tests)
 add_test(NAME demi-editor-drag-authoring-tests COMMAND demi-editor-drag-authoring-tests)
 add_test(NAME demi-editor-terrain-graph-ui-tests COMMAND demi-editor-terrain-graph-ui-tests)
 add_test(NAME demi-editor-data-asset-creation-tests COMMAND demi-editor-data-asset-creation-tests)
@@ -92,6 +93,8 @@ add_test(NAME demi-editor-authoring-workflow-tests
   COMMAND demi-editor-authoring-workflow-tests)
 add_test(NAME demi-editor-inspector-model-tests
   COMMAND demi-editor-inspector-model-tests)
+add_test(NAME demi-editor-entity-hierarchy-tests
+  COMMAND demi-editor-entity-hierarchy-tests)
 add_test(NAME demi-editor-hud-hierarchy-tests
   COMMAND demi-editor-hud-hierarchy-tests)
 add_test(NAME demi-editor-hud-document-tests

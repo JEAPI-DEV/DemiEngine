@@ -1,4 +1,6 @@
 #include "editor/EditorHierarchyPanel.h"
+#include "editor/EditorHierarchyIndex.h"
+#include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/scene/components/3dcomponents/Camera3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/DirectionalLightComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/PointLightComponent.h"
@@ -60,28 +62,6 @@ std::string_view entityParent(const runtime::Entity &entity) {
           entity.component<runtime::IsoTransformComponent>())
     return transform->parent;
   return {};
-}
-
-bool placementPreview(const EditorWorkspace &workspace,
-                      const runtime::Entity &entity) {
-  if (workspace.sceneDocument().entity(entity.id))
-    return false;
-  const auto owner = editorPlacementOwner(workspace.project().world, entity.id);
-  return !owner.empty() && owner != entity.id;
-}
-
-bool hasChildren(const EditorWorkspace &workspace, const runtime::World &world,
-                 const std::string_view parent) {
-  const runtime::Entity *entity =
-      runtime::findEntity(world, std::string(parent));
-  const auto *grid = entity == nullptr
-                         ? nullptr
-                         : entity->component<runtime::IsoGridComponent>();
-  return (grid != nullptr && !grid->cellTextures.empty()) ||
-         std::ranges::any_of(world.entities, [&](const auto &candidate) {
-           return entityParent(candidate) == parent &&
-                  !placementPreview(workspace, candidate);
-         });
 }
 
 struct SelectionReveal {
@@ -222,10 +202,9 @@ bool applyHierarchyAction(EditorWorkspace &workspace,
 }
 
 void drawPaintedCells(EditorWorkspace &workspace, const runtime::Entity &entity,
+                      const std::vector<EditorIsoGridCell> &cells,
                       const std::string_view filter,
                       std::optional<HierarchyAction> &pending) {
-  const std::vector<EditorIsoGridCell> cells =
-      paintedIsoGridCells(workspace.project().world, entity.id);
   if (cells.empty())
     return;
   const std::string groupLabel =
@@ -418,34 +397,27 @@ void drawHudHierarchy(EditorWorkspace &workspace, const std::string_view filter,
   }
 }
 
-void drawEntityNode(EditorWorkspace &workspace, const runtime::Entity &entity,
-                    const runtime::World &world, const std::string_view filter,
+void drawEntityNode(EditorWorkspace &workspace,
+                    const EditorHierarchyIndex &hierarchy,
+                    const EditorHierarchyIndex::Node &node,
+                    const std::unordered_set<std::string> &selectedIds,
+                    const std::string_view filter,
                     std::optional<HierarchyAction> &pending,
                     std::string &notice, const SelectionReveal &reveal) {
-  if (placementPreview(workspace, entity))
+  if (!node.visible) {
     return;
-  const bool childMatch =
-      std::ranges::any_of(world.entities, [&](const auto &candidate) {
-        return entityParent(candidate) == entity.id &&
-               containsCaseInsensitive(candidate.name, filter);
+  }
+  const auto &entity = *node.entity;
+  const bool entityHasChildren = !node.paintedCells.empty() ||
+      std::ranges::any_of(node.children, [&](std::size_t index) {
+        return !hierarchy.node(index).hiddenPreview;
       });
-  const bool paintedCellMatch = std::ranges::any_of(
-      paintedIsoGridCells(world, entity.id),
-      [&](const EditorIsoGridCell &cell) {
-        return containsCaseInsensitive("Cell " + isoGridCellKey(cell.x, cell.y),
-                                       filter);
-      });
-  if (!containsCaseInsensitive(entity.name, filter) && !childMatch &&
-      !paintedCellMatch)
-    return;
-
-  const bool entityHasChildren = hasChildren(workspace, world, entity.id);
   ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow |
                              ImGuiTreeNodeFlags_SpanAvailWidth |
                              ImGuiTreeNodeFlags_DefaultOpen;
   if (!entityHasChildren)
     flags |= ImGuiTreeNodeFlags_Leaf;
-  const bool selected = workspace.isEntitySelected(entity.id);
+  const bool selected = selectedIds.contains(entity.id);
   if (selected)
     flags |= ImGuiTreeNodeFlags_Selected;
   const bool prefabRow =
@@ -455,8 +427,10 @@ void drawEntityNode(EditorWorkspace &workspace, const runtime::Entity &entity,
     const ImVec2 rowMin = ImGui::GetCursorScreenPos();
     const ImVec2 rowMax{rowMin.x + ImGui::GetContentRegionAvail().x,
                         rowMin.y + ImGui::GetTextLineHeight()};
-    ImGui::GetWindowDrawList()->AddRectFilled(rowMin, rowMax,
-                                              IM_COL32(35, 67, 99, 105), 2.0F);
+    if (ImGui::IsRectVisible(rowMin, rowMax)) {
+      ImGui::GetWindowDrawList()->AddRectFilled(
+          rowMin, rowMax, IM_COL32(35, 67, 99, 105), 2.0F);
+    }
   }
   if (!entity.enabled)
     ImGui::PushStyleColor(ImGuiCol_Text,
@@ -471,26 +445,37 @@ void drawEntityNode(EditorWorkspace &workspace, const runtime::Entity &entity,
     ImGui::PopStyleColor();
   const ImVec2 rowMin = ImGui::GetItemRectMin();
   const ImVec2 rowMax = ImGui::GetItemRectMax();
-  EditorIcon icon = EditorIcon::Scene;
-  if (!entity.prefabInstance.empty()) icon = EditorIcon::Prefab;
-  else if (entity.hasComponent<runtime::Camera3DComponent>()) icon = EditorIcon::Camera;
-  else if (entity.hasComponent<runtime::DirectionalLightComponent>() ||
-           entity.hasComponent<runtime::PointLightComponent>() ||
-           entity.hasComponent<runtime::SpotLightComponent>()) icon = EditorIcon::Light;
-  else if (entity.hasComponent<runtime::Terrain3DComponent>()) icon = EditorIcon::Terrain;
-  else if (entity.hasComponent<runtime::MeshRendererComponent>()) icon = EditorIcon::Modules;
-  drawEditorGlyph(*ImGui::GetWindowDrawList(), icon,
-      {rowMin.x + ImGui::GetTreeNodeToLabelSpacing() + 6.0F, (rowMin.y + rowMax.y) * .5F},
-      ImGui::GetColorU32(ImGuiCol_TextDisabled), .75F);
+  const bool rowVisible = ImGui::IsItemVisible();
+  if (rowVisible) {
+    EditorIcon icon = EditorIcon::Scene;
+    if (!entity.prefabInstance.empty()) {
+      icon = EditorIcon::Prefab;
+    } else if (entity.hasComponent<runtime::Camera3DComponent>()) {
+      icon = EditorIcon::Camera;
+    } else if (entity.hasComponent<runtime::DirectionalLightComponent>() ||
+               entity.hasComponent<runtime::PointLightComponent>() ||
+               entity.hasComponent<runtime::SpotLightComponent>()) {
+      icon = EditorIcon::Light;
+    } else if (entity.hasComponent<runtime::Terrain3DComponent>()) {
+      icon = EditorIcon::Terrain;
+    } else if (entity.hasComponent<runtime::MeshRendererComponent>()) {
+      icon = EditorIcon::Modules;
+    }
+    drawEditorGlyph(*ImGui::GetWindowDrawList(), icon,
+        {rowMin.x + ImGui::GetTreeNodeToLabelSpacing() + 6.0F, (rowMin.y + rowMax.y) * .5F},
+        ImGui::GetColorU32(ImGuiCol_TextDisabled), .75F);
+  }
   const ImVec2 visibilityCenter{rowMax.x - 13.0F, (rowMin.y + rowMax.y) * 0.5F};
   const ImVec2 mouse = ImGui::GetIO().MousePos;
-  const bool overVisibility = mouse.x >= visibilityCenter.x - 10.0F &&
+  const bool overVisibility = rowVisible && mouse.x >= visibilityCenter.x - 10.0F &&
                               mouse.x <= visibilityCenter.x + 10.0F &&
                               mouse.y >= rowMin.y && mouse.y <= rowMax.y;
-  drawEditorGlyph(
-      *ImGui::GetWindowDrawList(), EditorIcon::Eye, visibilityCenter,
-      entity.enabled ? IM_COL32(169, 173, 183, 255) : IM_COL32(85, 88, 98, 255),
-      0.72F);
+  if (rowVisible) {
+    drawEditorGlyph(
+        *ImGui::GetWindowDrawList(), EditorIcon::Eye, visibilityCenter,
+        entity.enabled ? IM_COL32(169, 173, 183, 255) : IM_COL32(85, 88, 98, 255),
+        0.72F);
+  }
   if (overVisibility)
     ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
   if (overVisibility && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
@@ -507,7 +492,7 @@ void drawEntityNode(EditorWorkspace &workspace, const runtime::Entity &entity,
       workspace.selectEntity(entity.id);
   }
 
-  const bool authored = workspace.sceneDocument().entity(entity.id) != nullptr;
+  const bool authored = node.authored;
   if ((authored || !entity.prefabInstance.empty()) &&
       ImGui::BeginDragDropSource()) {
     ImGui::SetDragDropPayload(EditorSceneEntityPayload, entity.id.c_str(),
@@ -545,11 +530,11 @@ void drawEntityNode(EditorWorkspace &workspace, const runtime::Entity &entity,
   }
 
   if (open) {
-    for (const runtime::Entity &candidate : world.entities)
-      if (entityParent(candidate) == entity.id)
-        drawEntityNode(workspace, candidate, world, filter, pending, notice,
-                       reveal);
-    drawPaintedCells(workspace, entity, filter, pending);
+    for (const auto child : node.children) {
+      drawEntityNode(workspace, hierarchy, hierarchy.node(child), selectedIds,
+                      filter, pending, notice, reveal);
+    }
+    drawPaintedCells(workspace, entity, node.paintedCells, filter, pending);
     ImGui::TreePop();
   }
 }
@@ -560,6 +545,7 @@ void EditorHierarchyPanel::draw(EditorWorkspace &workspace,
                                 const ImVec2 position, const ImVec2 size,
                                 const bool hudOnly, std::string &notice,
                                 bool *open) {
+  runtime::ProfileScope hierarchyScope("Editor.hierarchy");
   if (!beginEditorPanel("Hierarchy", position, size, open)) {
     ImGui::End();
     return;
@@ -695,6 +681,13 @@ void EditorHierarchyPanel::draw(EditorWorkspace &workspace,
   SelectionReveal reveal;
   const bool hudSelection =
       workspace.activeDocument() == EditorWorkspaceDocument::Hud;
+  std::optional<EditorHierarchyIndex> hierarchy;
+  if (!hudOnly || !hudSelection) {
+    runtime::ProfileScope indexScope("Editor.hierarchy.index");
+    hierarchy.emplace(workspace.project().world,
+                       workspace.sceneDocument().json(), filter_.data());
+    runtime::RuntimeProfiler::setGauge("Editor.hierarchy.entities", hierarchy->size());
+  }
   const auto &selection = hudSelection ? workspace.selectedHudNodeIds()
                                        : workspace.selectedEntityIds();
   const auto *hudDocument = workspace.hudDocument();
@@ -721,11 +714,18 @@ void EditorHierarchyPanel::draw(EditorWorkspace &workspace,
             matchesFilter = hudNodeMatches(nodes, node, filter_.data());
         }
       } else {
-        for (const auto &entity : workspace.project().world.entities) {
-          parents.emplace(entity.id, entityParent(entity));
-          if (entity.id == reveal.target)
-            matchesFilter =
-                containsCaseInsensitive(entity.name, filter_.data());
+        const auto *selected = hierarchy->find(reveal.target);
+        matchesFilter = selected && containsCaseInsensitive(
+            selected->entity->name, filter_.data());
+        for (const auto &id : selection) {
+          auto *current = hierarchy->find(id);
+          while (current && current->parent) {
+            const auto &parent = hierarchy->node(*current->parent);
+            if (!reveal.ancestors.insert(parent.entity->id).second) {
+              break;
+            }
+            current = &parent;
+          }
         }
       }
       for (const auto &id : selection) {
@@ -738,11 +738,17 @@ void EditorHierarchyPanel::draw(EditorWorkspace &workspace,
       // Typing into the search alone does not trigger a reveal or clear it.
       if (filter_[0] &&
           (!matchesFilter ||
-           !ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)))
+           !ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows))) {
         filter_[0] = '\0';
+      }
+      if (hierarchy) {
+        hierarchy->filter(filter_.data());
+      }
     }
   }
 
+  const std::unordered_set<std::string> selectedEntities(
+      workspace.selectedEntityIds().begin(), workspace.selectedEntityIds().end());
   if (hudOnly) {
     drawHudHierarchy(workspace, filter_.data(), pending, notice, reveal);
   } else {
@@ -753,10 +759,10 @@ void EditorHierarchyPanel::draw(EditorWorkspace &workspace,
                                        ImGuiTreeNodeFlags_SpanAvailWidth);
     acceptEntityDrop(pending, std::nullopt);
     if (sceneOpen) {
-      for (const runtime::Entity &entity : workspace.project().world.entities)
-        if (entityParent(entity).empty())
-          drawEntityNode(workspace, entity, workspace.project().world,
-                         filter_.data(), pending, notice, reveal);
+      for (const auto root : hierarchy->roots()) {
+        drawEntityNode(workspace, *hierarchy, hierarchy->node(root),
+                        selectedEntities, filter_.data(), pending, notice, reveal);
+      }
       drawHudHierarchy(workspace, filter_.data(), pending, notice, reveal);
       ImGui::TreePop();
     }

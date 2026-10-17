@@ -10,6 +10,7 @@
 
 namespace demi::runtime {
 struct World;
+struct Entity;
 }
 
 namespace demi::editor {
@@ -17,6 +18,8 @@ namespace demi::editor {
 [[nodiscard]] std::string isoGridCellKey(int x, int y);
 [[nodiscard]] std::vector<EditorIsoGridCell>
 paintedIsoGridCells(const runtime::World &world, std::string_view gridEntityId);
+[[nodiscard]] std::vector<EditorIsoGridCell>
+paintedIsoGridCells(const runtime::Entity &entity);
 [[nodiscard]] std::optional<EditorIsoGridCell> pickPaintedIsoGridCell(
     const runtime::World &world, const EditorSceneView2DCamera &camera,
     runtime::Vec2 viewportPosition, runtime::Vec2 viewportSize);

@@ -7,6 +7,9 @@ are registered in `tools/package-store/src/Docs.php`.
 
 This directory keeps material that has a different job:
 
+- [Editor hierarchy startup qualification](editor-hierarchy-startup-qualification.md)
+  records the dense-terrain first-window stall, hierarchy indexing, deferred
+  reference pickers and measured startup/UI costs.
 - [Terrain Milestone 6 qualification](terrain-milestone6-qualification.md) records
   procedural vegetation, stable placement rules, scene-object conversion,
   package prefabs, rendering costs and native editor/source/cooked checks.

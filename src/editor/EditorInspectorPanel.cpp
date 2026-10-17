@@ -1,4 +1,5 @@
 #include "editor/EditorInspectorPanel.h"
+#include "demi/runtime/profiling/RuntimeProfiler.h"
 
 #include "editor/EditorColorControl.h"
 #include "editor/EditorMaterialPropertiesControl.h"
@@ -14,6 +15,7 @@
 #include "editor/EditorStructuredValue.h"
 #include "editor/EditorWorkspace.h"
 #include "demi/runtime/scene/EntityPresets.h"
+#include "demi/runtime/scene/WorldQueries.h"
 
 #include "demi/runtime/scene/ComponentRegistry.h"
 #include "demi/runtime/scene/composition/PrefabResolver.h"
@@ -163,6 +165,19 @@ nlohmann::json initialScriptPropertyValue(const std::string_view type,
   return nullptr;
 }
 
+std::string entityReferencePreview(const runtime::World &world,
+                                   std::string_view selected) {
+  if (selected.empty()) {
+    return {};
+  }
+  const auto owner = editorPlacementOwner(world, selected);
+  if (!owner.empty() && owner != selected) {
+    return {};
+  }
+  const auto *entity = runtime::findEntity(world, std::string(selected));
+  return entity ? entity->name + " (" + entity->id + ")" : std::string{};
+}
+
 void drawScriptProperties(EditorWorkspace &workspace,
                           const std::string_view entityId,
                           const nlohmann::json &component,
@@ -268,9 +283,13 @@ void drawScriptProperties(EditorWorkspace &workspace,
     std::optional<StructuredValueEdit> structured;
     if (type == "entity" && (!hasValue || value.is_string())) {
       std::string edited = hasValue ? value.get<std::string>() : std::string{};
-      const auto choices = editorEntityReferenceChoices(workspace.project().world);
-      changed = drawEditorReferenceControl("##value", choices, edited, true,
-                                            EditorSceneEntityPayload);
+      const auto choices = [&] {
+        runtime::ProfileScope scope("Editor.inspector.reference_options");
+        return editorEntityReferenceChoices(workspace.project().world);
+      };
+      changed = drawEditorLazyReferenceControl(
+          "##value", choices, edited, true, EditorSceneEntityPayload,
+          entityReferencePreview(workspace.project().world, edited));
       value = std::move(edited);
     } else if (type == "boolean" && value.is_boolean()) {
       bool edited = value.get<bool>();
@@ -518,14 +537,20 @@ bool drawReferenceString(EditorWorkspace &workspace,
   std::string selected = value.get<std::string>();
   const bool entityReference =
       field.referenceKind == runtime::ComponentReferenceKind::Entity;
-  const auto choices = entityReference ? editorEntityReferenceChoices(workspace.project().world)
-                                      : editorReferenceChoices(
-        field.referenceKind, workspace.project().project.projectDirectory,
-        workspace.sceneDocument().path(), workspace.sceneDocument().json(),
-        workspace.sources(), target.component);
-  const bool changed = drawEditorReferenceControl(
+  const auto choices = [&] {
+    runtime::ProfileScope scope("Editor.inspector.reference_options");
+    return entityReference
+        ? editorEntityReferenceChoices(workspace.project().world)
+        : editorReferenceChoices(
+            field.referenceKind, workspace.project().project.projectDirectory,
+            workspace.sceneDocument().path(), workspace.sceneDocument().json(),
+            workspace.sources(), target.component);
+  };
+  const auto preview = entityReference
+      ? entityReferencePreview(workspace.project().world, selected) : std::string{};
+  const bool changed = drawEditorLazyReferenceControl(
       "##value", choices, selected, field.nullable,
-      entityReference ? EditorSceneEntityPayload : nullptr);
+      entityReference ? EditorSceneEntityPayload : nullptr, preview);
   return !changed || (targets == nullptr
                           ? commit(workspace, target, selected, notice)
                           : commitMany(workspace, *targets, selected, notice));
@@ -1501,6 +1526,7 @@ void drawEditorInspector(EditorWorkspace &workspace, const ImVec2 position,
                          const ImVec2 size, EditorInspectorPanelState &state,
                          EditorHudInspectorState &hudState, std::string &notice,
                          bool *open) {
+  runtime::ProfileScope inspectorScope("Editor.inspector");
   if (!beginEditorPanel("Inspector", position, size, open)) {
     ImGui::End();
     return;

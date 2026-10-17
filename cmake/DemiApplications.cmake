@@ -86,6 +86,7 @@ else()
     src/editor/EditorInspectorModel.cpp
     src/editor/EditorModuleCatalog.cpp
     src/editor/EditorHudHierarchy.cpp
+    src/editor/EditorHierarchyIndex.cpp
     src/editor/EditorHudDocument.cpp
     src/editor/EditorHudHierarchyCommands.cpp
     src/editor/EditorHudPrefabOverrides.cpp
