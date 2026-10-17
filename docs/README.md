@@ -7,12 +7,15 @@ are registered in `tools/package-store/src/Docs.php`.
 
 This directory keeps material that has a different job:
 
+- [Terrain Milestone 5 qualification](terrain-milestone5-qualification.md) records
+  water authoring, scene capture/optics, underwater views, opt-in gameplay,
+  cooked loading and measured native rendering costs.
 - [Water-driven terrain rules](terrain-water-rule-integration.md) records
   connected water inputs, shoreline-mask ownership, early scatter rejection
   and derived-cache invalidation.
-- [Water renderer prerequisites](terrain-water-rendering-design.md) records
+- [Water rendering architecture](terrain-water-rendering-design.md) records
   the opaque-scene capture, sampleable depth, MSAA and pass-order boundaries
-  needed before Milestone 5 reflection/refraction work.
+  used by Milestone 5 reflection/refraction and underwater rendering.
 - [Terrain Milestone 4 qualification](terrain-milestone4-qualification.md)
   records GPU material layers, real starter art, color semantics, native/cooked
   checks, measured texture residency, matched-scene performance comparisons and

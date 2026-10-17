@@ -1,5 +1,7 @@
 #include "demi/runtime/terrain/TerrainGraphWater.h"
 #include "demi/runtime/terrain/TerrainDrainageRoute.h"
+#include "demi/runtime/terrain/TerrainWaterAuthoring.h"
+#include "demi/runtime/terrain/TerrainWaterFlow.h"
 #include "demi/runtime/terrain/TerrainWaterQueries.h"
 
 #include <algorithm>
@@ -61,32 +63,11 @@ evaluateTerrainGraphWater(const TerrainGraphNode &node,
     }
     water->authoring = previous->authoring;
   }
-  TerrainWaterBodySpec body;
-  body.id = node.id;
+  auto body = parseTerrainWaterBodyParameters(values, node.id);
   if (std::ranges::any_of(water->authoring.bodies, [&](const auto &entry) {
         return entry.id == body.id;
       })) {
     throw std::invalid_argument("Duplicate water body ID: " + body.id);
-  }
-  const auto kind = values.at("kind").get<std::string>();
-  body.kind = kind == "river"   ? TerrainWaterBody::River
-              : kind == "ocean" ? TerrainWaterBody::Ocean
-                                : TerrainWaterBody::Lake;
-  body.level = values.at("level").get<float>();
-  body.center = {values.at("center_x").get<float>(),
-                 values.at("center_z").get<float>()};
-  body.radius = values.at("radius").get<float>();
-  body.riverWidth = values.at("river_width").get<float>();
-  body.riverSurfaceMode = parseTerrainRiverSurfaceMode(
-      values.at("river_surface_mode").get<std::string>());
-  body.riverDepth = values.at("river_depth").get<float>();
-  body.appearance = parseTerrainWaterAppearance(values);
-  for (const auto &point : values.at("river_path")) {
-    if (stop.stop_requested()) {
-      return std::nullopt;
-    }
-    const auto position = point.get<std::array<float, 3>>();
-    body.riverPath.push_back({position[0], position[1], position[2]});
   }
   TerrainWaterAuthoring nextBody;
   nextBody.authored = true;
@@ -217,6 +198,7 @@ evaluateTerrainRiverRoute(const TerrainGraphNode &node,
       {"river_surface_mode", "follow_bed"},
       {"river_width", parameters.at("channel_width")},
       {"river_depth", parameters.at("water_depth")},
+      {"flow_speed", parameters.at("flow_speed")},
       {"radius", 0},
       {"river_path", nlohmann::json::array()},
   };

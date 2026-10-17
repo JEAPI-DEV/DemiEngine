@@ -1,6 +1,7 @@
 #include "demi/runtime/terrain/TerrainWaterQueries.h"
 
 #include "demi/runtime/terrain/TerrainMasks.h"
+#include "demi/runtime/terrain/TerrainWaterFlow.h"
 #include "demi/runtime/terrain/TerrainWaterGeometry.h"
 
 #include <algorithm>
@@ -79,13 +80,7 @@ std::optional<TerrainWaterQueryContext> TerrainWaterQueryContext::build(
   context.cellsZ_ = cellsZ;
   context.ground_ = result.carvedHeights;
   context.coverage_ = std::move(coverage);
-  if (masks)
-    context.flow_ = masks->flow;
-  context.ids_.reserve(authoring.bodies.size());
-  for (const auto &body : authoring.bodies) {
-    context.ids_.push_back(body.id);
-    context.kinds_.push_back(body.kind);
-  }
+  context.bodies_ = authoring.bodies;
   return context;
 }
 
@@ -138,7 +133,6 @@ TerrainWaterQueryContext::sample(Vec3 localPosition) const {
 
   double ground = 0.0;
   double level = 0.0;
-  double flow = 0.0;
   auto owner = terrain_water_detail::WaterLevelField::noBody;
   for (std::size_t corner = 0; corner < corners.size(); ++corner) {
     const auto sample = corners[corner];
@@ -147,8 +141,6 @@ TerrainWaterQueryContext::sample(Vec3 localPosition) const {
     if (!std::isfinite(ground_[sample]))
       return TerrainWaterQuery{};
     ground += weights[corner] * double(ground_[sample]);
-    if (!flow_.empty())
-      flow += weights[corner] * double(std::clamp(flow_[sample], 0.F, 1.F));
     if (!wet_[sample]) {
       continue;
     }
@@ -209,16 +201,12 @@ TerrainWaterQueryContext::sample(Vec3 localPosition) const {
   }
   query.underwater = localPosition.y >= query.groundHeight &&
                      localPosition.y < query.surfaceHeight;
-  if (owner < ids_.size()) {
-    query.bodyId = ids_[owner];
-    // Still water is still by definition. A lake or an ocean fed by a river has
-    // flow at its mouth in the simulation of record, and reporting it here
-    // would make a swimmer depend on a drain rate nobody authored.
-    if (kinds_[owner] == TerrainWaterBody::River)
-      query.flowSpeed =
-          float(std::clamp(flow, 0.0, 1.0)) * terrainWaterReferenceFlowSpeed;
-    query.swimmable = query.depth >= terrainWaterMinSwimDepth &&
-                      query.flowSpeed <= terrainWaterMaxSwimFlow;
+  if (owner < bodies_.size()) {
+    query.bodyId = bodies_[owner].id;
+    query.flowVelocity =
+        terrainWaterFlowVelocity(bodies_[owner], localPosition, query.normal);
+    query.flowSpeed = std::hypot(query.flowVelocity.x, query.flowVelocity.y,
+                                 query.flowVelocity.z);
   }
   return query;
 }

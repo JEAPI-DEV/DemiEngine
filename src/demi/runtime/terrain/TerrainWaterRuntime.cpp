@@ -17,7 +17,8 @@ bool finite(Vec3 value) {
   return std::isfinite(value.x) && std::isfinite(value.y) &&
          std::isfinite(value.z);
 }
-bool enabledHierarchy(World &world, const Entity &owner) {
+bool enabledHierarchy(const World &world, const Entity &owner,
+                      EntityLookup &lookup) {
   const auto *entity = &owner;
   for (std::size_t depth = 0; depth < world.entities.size(); ++depth) {
     if (!entity->enabled)
@@ -25,7 +26,7 @@ bool enabledHierarchy(World &world, const Entity &owner) {
     const auto *transform = entity->component<Transform3DComponent>();
     if (!transform || transform->parent.empty())
       return true;
-    entity = world.terrainEntityLookup.find(world.entities, transform->parent);
+    entity = lookup.find(world.entities, transform->parent);
     if (!entity)
       return false;
   }
@@ -54,6 +55,7 @@ struct TerrainWaterRuntime::State {
     bool active = false;
   };
   std::unordered_map<const HeightField *, CachedField> fields;
+  EntityLookup owners;
 };
 
 TerrainWaterRuntime::TerrainWaterRuntime()
@@ -64,7 +66,7 @@ std::size_t TerrainWaterRuntime::cachedFieldCount() const {
 }
 
 std::optional<TerrainWaterSample>
-TerrainWaterRuntime::sample(World &world, Vec3 position,
+TerrainWaterRuntime::sample(const World &world, Vec3 position,
                             std::string_view terrainId) {
   if (!finite(position))
     throw std::invalid_argument(
@@ -76,8 +78,7 @@ TerrainWaterRuntime::sample(World &world, Vec3 position,
   std::optional<TerrainWaterSample> selected;
   float selectedDistance = 0;
   for (const auto &ownership : world.terrainOwners) {
-    const auto *owner =
-        world.terrainEntityLookup.find(world.entities, ownership.id);
+    const auto *owner = state_->owners.find(world.entities, ownership.id);
     if (!owner)
       continue;
     const auto *terrain = owner->component<Terrain3DComponent>();
@@ -88,7 +89,7 @@ TerrainWaterRuntime::sample(World &world, Vec3 position,
         retained != state_->fields.end())
       retained->second.active = true;
     if ((!terrainId.empty() && ownership.id != terrainId) ||
-        !enabledHierarchy(world, *owner))
+        !enabledHierarchy(world, *owner, state_->owners))
       continue;
     const auto &artifacts = *field->graphArtifacts;
     if (!artifacts.waterResult)
@@ -148,10 +149,16 @@ TerrainWaterRuntime::sample(World &world, Vec3 position,
     result.normal = {result.normal.x / normalLength,
                      result.normal.y / normalLength,
                      result.normal.z / normalLength};
+    result.columnUp = transformDirection3D(
+        *transform, {0.F, std::copysign(1.F, transform->scale.y), 0.F});
+    result.flowVelocity = transformDirection3D(
+        *transform, {sample->flowVelocity.x * transform->scale.x,
+                     sample->flowVelocity.y * transform->scale.y,
+                     sample->flowVelocity.z * transform->scale.z});
     result.depth = sample->depth * std::abs(transform->scale.y);
     result.underwater = sample->underwater;
     if (!finite(result.surface) || !finite(result.normal) ||
-        !std::isfinite(result.depth))
+        !finite(result.flowVelocity) || !std::isfinite(result.depth))
       continue;
     const float candidateDistance = distance(position, result.surface);
     if (!selected || (result.underwater && !selected->underwater) ||

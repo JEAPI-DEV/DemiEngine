@@ -54,7 +54,7 @@ bool BgfxRenderer3D::submitVisibleMeshes(
     const std::array<DrawUniformValue, 8> &lightingUniforms,
     ProgramHandle defaultMeshProgram, ProgramHandle defaultInstancedProgram,
     ProgramHandle defaultSkinnedProgram, MeshSubmissionStatistics &statistics,
-    std::string &error) {
+    std::string &error, int selectedSurfacePass) {
   const bool hasTransparentMeshes = firstTransparent < visibility.meshes.size();
   auto &bufferedDraws = statistics.draws;
   auto &bufferedTriangles = statistics.triangles;
@@ -64,6 +64,9 @@ bool BgfxRenderer3D::submitVisibleMeshes(
   MeshInstanceBatch3D instanceGroups;
   for (int surfacePass = 0; surfacePass < (hasTransparentMeshes ? 2 : 1);
        ++surfacePass) {
+    if (selectedSurfacePass >= 0 && surfacePass != selectedSurfacePass) {
+      continue;
+    }
     const auto passBegin =
         visibility.meshes.begin() + (surfacePass == 0 ? 0 : firstTransparent);
     const auto passEnd =
@@ -98,6 +101,12 @@ bool BgfxRenderer3D::submitVisibleMeshes(
         }
         const auto &materialId = section ? section->material : mesh->material;
         const MaterialBinding *material = materials_.find(materialId);
+        if (frame.captureLinearDepth && material && material->program) {
+          error = "Water depth capture does not support custom material "
+                  "programs: " +
+                  materialId;
+          return false;
+        }
         const auto modelLighting = modelUnlit_.find(selectedModel);
         const bool modelUnlit =
             (modelLighting != modelUnlit_.end() && modelLighting->second) ||
@@ -134,7 +143,8 @@ bool BgfxRenderer3D::submitVisibleMeshes(
         PreparedMeshDraw3D prepared(
             *mesh, material,
             fade ? std::optional<float>(fade->value) : std::nullopt, modelUnlit,
-            shadowPass, frame.camera.debugMode == "overdraw", meshProgram);
+            shadowPass || frame.captureLinearDepth,
+            frame.camera.debugMode == "overdraw", meshProgram);
         const auto &surface = prepared.surface;
         const auto &state = prepared.state;
         const auto program = prepared.program;

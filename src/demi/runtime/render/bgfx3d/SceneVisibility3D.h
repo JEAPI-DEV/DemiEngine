@@ -62,4 +62,10 @@ extractVisibleMeshes3D(const World &world, const BgfxCameraFrame3D &frame,
                                          const WorldTransform3D &transform,
                                          const BgfxCameraFrame3D &frame);
 
+// Bounds-only visibility for immutable meshes, including native water. Missing
+// bounds remain conservatively visible; gameplay data is never consulted.
+[[nodiscard]] bool meshBoundsVisible3D(const MeshRendererComponent &mesh,
+                                       const WorldTransform3D &transform,
+                                       const BgfxCameraFrame3D &frame);
+
 } // namespace demi::runtime::render

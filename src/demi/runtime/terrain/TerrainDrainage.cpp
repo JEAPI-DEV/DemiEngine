@@ -319,6 +319,8 @@ computeTerrainDrainage(const HeightField &field, const TerrainRecipe &recipe,
     const auto position = field.position(int(edge % std::size_t(grid.width)),
                                          int(edge / std::size_t(grid.width)));
     outlets.push_back({position.x, heights[edge], position.y});
+    drainage.basinSinks.push_back(edge);
+    drainage.basinSpillLevels.push_back(filled[edge]);
   }
   // The pool doubles as the traversal queue, so a depression is walked once.
   std::vector<std::size_t> pool;
@@ -337,8 +339,11 @@ computeTerrainDrainage(const HeightField &field, const TerrainRecipe &recipe,
         if ((head & 255) == 0 && stop.stop_requested())
           return std::nullopt;
         const auto current = pool[head];
-        if (heights[current] < heights[lowestInPool])
+        if (heights[current] < heights[lowestInPool] ||
+            (heights[current] == heights[lowestInPool] &&
+             current < lowestInPool)) {
           lowestInPool = current;
+        }
         const int cx = int(current % std::size_t(grid.width));
         const int cz = int(current / std::size_t(grid.width));
         for (int neighbour = 0; neighbour < 8; ++neighbour) {
@@ -361,6 +366,8 @@ computeTerrainDrainage(const HeightField &field, const TerrainRecipe &recipe,
           field.position(int(lowestInPool % std::size_t(grid.width)),
                          int(lowestInPool / std::size_t(grid.width)));
       outlets.push_back({position.x, heights[lowestInPool], position.y});
+      drainage.basinSinks.push_back(lowestInPool);
+      drainage.basinSpillLevels.push_back(filled[lowestInPool]);
       for (const auto member : pool)
         basinOf[member] = id;
     }

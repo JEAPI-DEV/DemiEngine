@@ -30,8 +30,8 @@ terrainWaterContainmentWarnings(const HeightField &ground,
         continue;
       const auto bodyIndex = coverage.body[sample];
       const auto &body = authoring.bodies.at(bodyIndex);
-      if (body.kind != TerrainWaterBody::Lake || body.radius <= 0 ||
-          spills[bodyIndex])
+      if (body.kind != TerrainWaterBody::Lake ||
+          (body.radius <= 0 && body.boundary.empty()) || spills[bodyIndex])
         continue;
       for (const auto &offset : neighbours) {
         const int nextX = x + offset[0], nextZ = z + offset[1];

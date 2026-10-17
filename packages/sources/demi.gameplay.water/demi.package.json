@@ -1,0 +1,19 @@
+{
+  "format_version": 1,
+  "name": "demi.gameplay.water",
+  "version": "1.0.0",
+  "engine": "^0.1.0",
+  "dependencies": {},
+  "public_modules": [
+    "demi.gameplay.water.buoyancy",
+    "demi.gameplay.water.swimming"
+  ],
+  "files": [
+    "LICENSE",
+    "README.md",
+    "scripts/demi/gameplay/water/buoyancy.lua",
+    "scripts/demi/gameplay/water/motion.lua",
+    "scripts/demi/gameplay/water/swimming.lua",
+    "tests/water_test.lua"
+  ]
+}

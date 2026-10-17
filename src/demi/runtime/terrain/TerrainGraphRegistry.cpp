@@ -201,6 +201,54 @@ std::vector<TerrainGraphNodeDefinition> makeDefinitions() {
         {"flow", "Flow accumulation", Kind::Mask}},
        {number("sea_level", "Sea level", 0,
                "Water level; zero and negative levels are valid.")}},
+      {"basin_water",
+       "Basin Water",
+       "Water",
+       "Propose connected lakes from measured closed drainage basins without "
+       "carving.",
+       {{"drainage", "Drainage", Kind::Drainage},
+        {"water", "Existing water", Kind::Water, false}},
+       {field("field"), {"water", "Water", Kind::Water}},
+       {number("minimum_depth", "Minimum depth", 1,
+               "Minimum sink-to-surface depth in terrain-local metres."),
+        number("minimum_area", "Minimum area", 16,
+               "Minimum submerged sample footprint in square local metres."),
+        integer("maximum_bodies", "Maximum bodies", 16,
+                "Positive user budget; largest basins are retained first."),
+        {"level_offset",
+         "Level offset",
+         "Lower the surface from its measured spill level; zero or negative.",
+         Parameter::Number,
+         0,
+         {},
+         {},
+         0,
+         false}}},
+      {"water_edit",
+       "Water Edit",
+       "Water",
+       "Exclude or override stable body IDs without undoing upstream terrain "
+       "carving.",
+       {field("field"), {"water", "Water", Kind::Water}},
+       {field("field"), {"water", "Water", Kind::Water}},
+       {{"excluded_ids",
+         "Excluded body IDs",
+         "Stable IDs to remove from published water.",
+         Parameter::Structured,
+         nlohmann::json::array(),
+         {},
+         {},
+         {},
+         false},
+        {"overrides",
+         "Body overrides",
+         "Partial Water Body parameters with an explicit id per object.",
+         Parameter::Structured,
+         nlohmann::json::array(),
+         {},
+         {},
+         {},
+         false}}},
       {"river_route",
        "River Route",
        "Water",
@@ -217,7 +265,10 @@ std::vector<TerrainGraphNodeDefinition> makeDefinitions() {
                "Positive cut below the traced terrain surface."),
         number("water_depth", "Water depth", 1,
                "Positive depth above the channel bed, no greater than channel "
-               "depth.")}},
+               "depth."),
+        number("flow_speed", "Flow speed", 0,
+               "Prescribed current along the routed river, in local metres per "
+               "second.")}},
       {"erosion",
        "Erosion",
        "Simulation",
@@ -272,8 +323,63 @@ std::vector<TerrainGraphNodeDefinition> makeDefinitions() {
          {},
          {},
          false},
+        {"boundary",
+         "Boundary polygon XZ",
+         "Optional simple lake/ocean polygon; replaces Radius. Lake center "
+         "must be inside.",
+         Parameter::Structured,
+         nlohmann::json::array(),
+         {},
+         {},
+         {},
+         false},
+        {"shoreline_softening",
+         "Soften shoreline",
+         "Lower a narrow band beside the waterline while carving.",
+         Parameter::Boolean,
+         true,
+         {},
+         {},
+         {},
+         false},
         number("river_depth", "River depth", 1,
                "Positive depth above the authored bed in Follow bed mode."),
+        number(
+            "flow_speed", "Flow speed", 0,
+            "Prescribed terrain-local metres per second; zero is still water."),
+        {"flow_direction",
+         "Flow direction XZ",
+         "Lake/ocean direction, normalized when sampled; rivers follow their "
+         "path.",
+         Parameter::Structured,
+         nlohmann::json::array({1, 0}),
+         {},
+         {},
+         {},
+         false},
+        number(
+            "wave_amplitude", "Normal wave amplitude", 0.05,
+            "Normal-only wave amplitude in local metres; queries do not move."),
+        number("wave_length", "Wave length", 2,
+               "Positive terrain-local wave length in metres."),
+        number("wave_speed", "Wave speed", 0.5,
+               "Normal-wave travel speed in terrain-local metres per second."),
+        number("normal_strength", "Normal strength", 1,
+               "Nonnegative multiplier for animated surface-normal detail."),
+        number(
+            "foam_width", "Foam width", 0.5,
+            "Shallow-water foam band in local metres; zero disables the band."),
+        number("foam_strength", "Foam strength", 0.5,
+               "Foam intensity between zero and one."),
+        {"foam_color",
+         "Foam RGBA",
+         "Shoreline and flow foam colour.",
+         Parameter::Color,
+         nlohmann::json::array({1, 1, 1, 1}),
+         {},
+         {},
+         {},
+         false},
         {"shallow_color",
          "Shallow RGBA",
          "Colour and opacity at the shoreline.",
@@ -311,6 +417,25 @@ std::vector<TerrainGraphNodeDefinition> makeDefinitions() {
          0.0,
          1.0,
          false},
+        {"river_path_interpolation",
+         "River interpolation",
+         "Linear segments or a sampled Catmull-Rom spline through XYZ "
+         "controls.",
+         Parameter::Choice,
+         "linear",
+         {"linear", "catmull_rom"},
+         {},
+         {},
+         false},
+        {"river_curve_steps",
+         "Curve steps per segment",
+         "Spline sampling quality from 1 to 64; linear paths are unchanged.",
+         Parameter::Integer,
+         8,
+         {},
+         1,
+         64,
+         false},
         {"river_path",
          "River path",
          "Terrain-local XYZ bed points.",
@@ -343,24 +468,30 @@ std::vector<TerrainGraphNodeDefinition> makeDefinitions() {
       const auto &name = parameter.name;
       if (name == "height_variation" || name == "falloff" || name == "radius" ||
           name == "iterations" || name == "warp_amplitude" ||
+          name == "flow_speed" || name == "wave_amplitude" ||
+          name == "wave_speed" || name == "normal_strength" ||
+          name == "foam_width" ||
           (definition.type == "path_distance_mask" && name == "width")) {
         parameter.minimum = 0;
-      } else if (name == "feature_size" || name == "river_width" ||
-                 name == "warp_feature_size" || name == "stretch" ||
-                 name == "river_depth" || name == "channel_width" ||
-                 name == "channel_depth" || name == "water_depth") {
+      } else if (name == "feature_size" || name == "wave_length" ||
+                 name == "river_width" || name == "warp_feature_size" ||
+                 name == "stretch" || name == "river_depth" ||
+                 name == "channel_width" || name == "channel_depth" ||
+                 name == "water_depth" || name == "minimum_depth" ||
+                 name == "minimum_area") {
         parameter.minimum = 0;
         parameter.exclusiveMinimum = true;
-      } else if (name == "roughness" || name == "thermal_strength" ||
+      } else if (name == "roughness" || name == "foam_strength" ||
+                 name == "thermal_strength" ||
                  (definition.type == "height_blend" && name == "amount")) {
         parameter.minimum = 0;
         parameter.maximum = 1;
-      } else if (name == "octaves") {
+      } else if (name == "octaves" || name == "maximum_bodies") {
         parameter.minimum = 1;
       }
-      const bool floatDomain = definition.type == "noise" ||
-                               definition.type == "water" ||
-                               definition.type == "river_route";
+      const bool floatDomain =
+          definition.type == "noise" || definition.type == "water" ||
+          definition.type == "river_route" || definition.type == "basin_water";
       if (floatDomain && parameter.kind == Parameter::Number) {
         if (!parameter.minimum) {
           parameter.minimum = -std::numeric_limits<float>::max();

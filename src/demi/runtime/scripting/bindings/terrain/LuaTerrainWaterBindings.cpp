@@ -48,6 +48,8 @@ sol::table sampleTable(lua_State *state, const TerrainWaterSample &sample) {
   result["kind"] = sample.kind;
   result["surface"] = vectorTable(state, sample.surface);
   result["normal"] = vectorTable(state, sample.normal);
+  result["column_up"] = vectorTable(state, sample.columnUp);
+  result["flow_velocity"] = vectorTable(state, sample.flowVelocity);
   result["depth"] = sample.depth;
   result["underwater"] = sample.underwater;
   return result;

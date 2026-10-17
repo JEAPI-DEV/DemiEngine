@@ -169,28 +169,16 @@ tools on the Terrain component. Terrain surface materials, material sets and
 scatter palettes now have native creation dialogs and typed asset controls,
 shared reference picking, Undo/Redo and validated dependency-aware reimport.
 See [asset authoring qualification](docs/editor-asset-authoring-qualification.md).
-Ordinary biome Material references now reach terrain meshes with per-biome
-texture scale and source/cooked appearance metadata. Material edits retain
-geometry/collision and texture-scale edits update UVs only. Typed terrain PBR
-definitions, blended layers and advanced water shading remain rendering work.
-Fifteen scoped checks and source/cooked native Vulkan probes qualify this binding
-step; [evidence](docs/terrain-material-binding-qualification.md) records the
-new derived-data versions and the remaining renderer scope.
-Connected graph water outputs now publish transparent native surfaces in the
-scene preview and prepared runtime. Water follows its terrain owner, has no
-solid collider and updates transactionally across shared placements. The
-water stage now includes configurable appearance, depth-derived vertex colours
-and terrain-triangle shoreline clipping. Uncontained lakes warn rather than
-silently changing their level. Reflection/refraction, waves, foam and
-underwater/gameplay integration remain. See
-[water publication evidence](docs/terrain-water-publication-qualification.md).
-Nineteen focused checks pass, and source/cooked native Vulkan captures verify
-visible water. Both terrain examples validate without diagnostics.
-The subsequent shore/depth stage passes fourteen focused renderer, component,
-editor and terrain checks. Source/cooked native captures now use a contained
-basin and replace the earlier levitating probe; derived terrain requires recook
-for generator/envelope v3. No full water-quality or full-suite gate is claimed.
-The expanded visual-quality and performance milestones remain planned.
+Shared mesh/terrain PBR materials and bounded texture arrays are implemented;
+[Milestone 4 qualification](docs/terrain-milestone4-qualification.md) records the
+material contract, native checks and matched-scene optimization evidence.
+Native terrain water now includes smooth authored paths, polygon boundaries,
+basin proposals, stable body edits, prescribed flow, optical shading and
+underwater transitions. Its main render target retains MSAA, with independent
+scene-depth capture. Opt-in buoyancy and swimming live in a reusable package,
+not automatic physics behavior. See [Milestone 5 qualification](docs/terrain-milestone5-qualification.md)
+for scope, native/cooked evidence and reflection/platform limits. Full fluid
+simulation and geometric waves are not claimed.
 
 Brush source now groups shared settings with ordered points, and full sculpt
 replay is bounded to each brush footprint. Existing source can be compacted

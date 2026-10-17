@@ -13,6 +13,9 @@ void BgfxRenderer3D::beginPresentation() {
     return;
   }
   presentationActive_ = true;
+  waterTimeAdvanced_ = false;
+  opaqueCapture_.beginPresentation();
+  waterRenderer_.beginPresentation();
   texturePresentationSerial_ = successfulTexturePresentation_ + 1;
   terrainStatistics_ = {};
   terrainUploadsAtPresentationStart_ = terrainMeshes_.uploads();
@@ -29,6 +32,8 @@ void BgfxRenderer3D::endPresentation(bool succeeded) {
   if (!presentationActive_) {
     return;
   }
+  opaqueCapture_.endPresentation();
+  waterRenderer_.endPresentation();
   terrainGpuFields_.endPresentation();
   terrainMaterials_.endPresentation();
   terrainMeshes_.endPresentation(succeeded);

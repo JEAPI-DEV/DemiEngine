@@ -158,6 +158,7 @@ public:
   std::vector<float> bufferedAlpha;
   std::vector<std::array<float, 4>> bufferedTint;
   std::vector<std::array<float, 4>> bufferedMetalRough;
+  std::vector<std::array<float, 4>> batchDebugValues;
   std::vector<std::array<float, 16>> bufferedTransforms;
   std::vector<View2DConfig> views2D;
   std::vector<View3DConfig> views3D;
@@ -176,6 +177,7 @@ public:
     return target_.submit(draw, error);
   }
   bool submit(const BufferedDraw &draw, std::string &error) override {
+    recordBatchDebugValues(draw.uniforms);
     lastTextureBindings.assign(draw.textures.begin(), draw.textures.end());
     lastUniformValues.clear();
     for (const auto &uniform : draw.uniforms) {
@@ -204,6 +206,7 @@ public:
     return forwardDraws ? target_.submit(draw, error) : true;
   }
   bool submit(const InstancedBufferedDraw &draw, std::string &error) override {
+    recordBatchDebugValues(draw.uniforms);
     recordShadowParameters(draw.viewId, draw.uniforms);
     ++instanceDrawCalls;
     if (draw.instances.stride == sizeof(std::array<float, 16>) &&
@@ -224,6 +227,16 @@ public:
   }
 
 private:
+  void recordBatchDebugValues(std::span<const DrawUniformValue> uniforms) {
+    if (uniforms.size() < 3 || uniforms[2].values.size() != 4) {
+      return;
+    }
+    std::array<float, 4> values;
+    std::copy(uniforms[2].values.begin(), uniforms[2].values.end(),
+              values.begin());
+    batchDebugValues.push_back(values);
+  }
+
   void recordShadowParameters(std::uint16_t view,
                               std::span<const DrawUniformValue> uniforms) {
     // DirectionalShadow3D interleaves each cascade array with a shared
@@ -563,6 +576,31 @@ int main() {
     assert(batchCapture.textures[2] == recycled);
     assert(batchCapture.bufferedTint[2][0] == distinctTint[0]);
     assert(batchCapture.bufferedMetalRough.back()[1] == distinctMetalRough[1]);
+
+    // Both the instanced group and the individual draws must retain the
+    // camera direction used to encode eye-space depth. Grouping diagnostics
+    // share this uniform, but must not overwrite another pass's payload.
+    const std::array<float, 4> captureDirection{8.F, 0.25F, -23.F, -26.F};
+    lighting[2].values = captureDirection;
+    batchCapture.batchDebugValues.clear();
+    assert(batches.flush(batchCapture, 0, {}, {}, {}, {}, lighting, draws,
+                         triangles, error));
+    assert(batchCapture.batchDebugValues.size() == 6);
+    for (const auto &values : batchCapture.batchDebugValues) {
+      assert(values == captureDirection);
+    }
+
+    const std::array<float, 4> groupingDebug{6.F, 0.F, 0.F, 0.F};
+    lighting[2].values = groupingDebug;
+    batchCapture.batchDebugValues.clear();
+    assert(batches.flush(batchCapture, 0, {}, {}, {}, {}, lighting, draws,
+                         triangles, error));
+    assert(batchCapture.batchDebugValues.size() == 6);
+    assert(batchCapture.batchDebugValues.front()[1] == 1.F);
+    for (std::size_t index = 1; index < batchCapture.batchDebugValues.size();
+         ++index) {
+      assert(batchCapture.batchDebugValues[index] == groupingDebug);
+    }
   }
   TextureCapture capture(*commands);
   BgfxRenderer3D renderer(*resources, capture,
@@ -1237,6 +1275,32 @@ int main() {
   targetFrame.updateContent = false;
   assert(renderer.renderFrame(world, targetFrame, 0.016F, error));
   static_cast<void>(graphics.endFrame());
+
+  // A cached target already contains its post-processing. A skipped update
+  // must present that target directly, rather than process whichever camera
+  // most recently wrote the shared scratch surface.
+  targetFrame.updateContent = true;
+  targetFrame.postProcess = PostProcessStackComponent{.exposure = 0.5F};
+  capture.views2D.clear();
+  assert(renderer.renderFrame(world, targetFrame, 0.016F, error));
+  assert(std::ranges::any_of(capture.views2D, [](const View2DConfig &view) {
+    return view.debugName == "PostProcess";
+  }));
+  static_cast<void>(graphics.endFrame());
+  assert(renderer.renderFrame(world, postProcessFrame, 0.016F, error));
+  static_cast<void>(graphics.endFrame());
+  targetFrame.updateContent = false;
+  capture.views2D.clear();
+  capture.views3D.clear();
+  assert(renderer.renderFrame(world, targetFrame, 0.016F, error));
+  assert(capture.views3D.empty());
+  assert(!capture.views2D.empty());
+  for (const auto &view : capture.views2D) {
+    assert(view.debugName != "PostProcess");
+    assert(view.frameBuffer == targetFrame.frameBuffer);
+  }
+  static_cast<void>(graphics.endFrame());
+  targetFrame.postProcess.reset();
   Entity targetQuality;
   targetQuality.id = "target-quality";
   targetQuality.setComponent(Environment3DComponent{.msaaSamples = 0});

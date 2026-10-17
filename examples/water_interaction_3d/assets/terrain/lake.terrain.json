@@ -1,0 +1,250 @@
+{
+  "format_version": 1,
+  "id": "asset://water_interaction/lake",
+  "name": "Contained gameplay lake",
+  "recipe": {
+    "format_version": 1,
+    "size": [
+      32,
+      32
+    ],
+    "resolution": [
+      32,
+      32
+    ],
+    "chunk_cells": 8,
+    "biomes": {
+      "default": {
+        "color": [
+          0.3,
+          0.44,
+          0.2,
+          1
+        ],
+        "allow_snow": false
+      }
+    },
+    "graph": {
+      "format_version": 1,
+      "output": "output",
+      "nodes": [
+        {
+          "id": "banks",
+          "type": "constant",
+          "parameters": {
+            "height": 4
+          }
+        },
+        {
+          "id": "bed",
+          "type": "constant",
+          "parameters": {
+            "height": 0
+          }
+        },
+        {
+          "id": "basin",
+          "type": "polygon_mask",
+          "parameters": {
+            "points": [
+              [
+                5,
+                5
+              ],
+              [
+                27,
+                5
+              ],
+              [
+                27,
+                27
+              ],
+              [
+                5,
+                27
+              ]
+            ],
+            "falloff": 4
+          }
+        },
+        {
+          "id": "blend",
+          "type": "height_blend",
+          "parameters": {
+            "amount": 1
+          }
+        },
+        {
+          "id": "lake",
+          "type": "water",
+          "parameters": {
+            "kind": "lake",
+            "level": 2,
+            "center_x": 16,
+            "center_z": 16,
+            "radius": 0
+          }
+        },
+        {
+          "id": "inlet_river",
+          "type": "water",
+          "parameters": {
+            "kind": "river",
+            "river_surface_mode": "follow_bed",
+            "river_depth": 1,
+            "river_width": 3,
+            "flow_speed": 0.8,
+            "river_path": [
+              [
+                16,
+                3,
+                31
+              ],
+              [
+                16,
+                1,
+                26
+              ],
+              [
+                16,
+                1,
+                22
+              ]
+            ]
+          }
+        },
+        {
+          "id": "appearance",
+          "type": "biomes"
+        },
+        {
+          "id": "output",
+          "type": "output"
+        }
+      ],
+      "links": [
+        {
+          "id": "banks_mask",
+          "from": {
+            "node": "banks",
+            "port": "field"
+          },
+          "to": {
+            "node": "basin",
+            "port": "field"
+          }
+        },
+        {
+          "id": "banks_blend",
+          "from": {
+            "node": "banks",
+            "port": "field"
+          },
+          "to": {
+            "node": "blend",
+            "port": "a"
+          }
+        },
+        {
+          "id": "bed_blend",
+          "from": {
+            "node": "bed",
+            "port": "field"
+          },
+          "to": {
+            "node": "blend",
+            "port": "b"
+          }
+        },
+        {
+          "id": "mask_blend",
+          "from": {
+            "node": "basin",
+            "port": "mask"
+          },
+          "to": {
+            "node": "blend",
+            "port": "mask"
+          }
+        },
+        {
+          "id": "blend_lake",
+          "from": {
+            "node": "blend",
+            "port": "field"
+          },
+          "to": {
+            "node": "lake",
+            "port": "field"
+          }
+        },
+        {
+          "id": "lake_appearance",
+          "from": {
+            "node": "inlet_river",
+            "port": "field"
+          },
+          "to": {
+            "node": "appearance",
+            "port": "field"
+          }
+        },
+        {
+          "id": "appearance_output",
+          "from": {
+            "node": "appearance",
+            "port": "field"
+          },
+          "to": {
+            "node": "output",
+            "port": "field"
+          }
+        },
+        {
+          "id": "lake_output",
+          "from": {
+            "node": "inlet_river",
+            "port": "water"
+          },
+          "to": {
+            "node": "output",
+            "port": "water"
+          }
+        },
+        {
+          "id": "lake_river_ground",
+          "from": {
+            "node": "lake",
+            "port": "field"
+          },
+          "to": {
+            "node": "inlet_river",
+            "port": "field"
+          }
+        },
+        {
+          "id": "lake_river_water",
+          "from": {
+            "node": "lake",
+            "port": "water"
+          },
+          "to": {
+            "node": "inlet_river",
+            "port": "water"
+          }
+        },
+        {
+          "id": "water_rules",
+          "from": {
+            "node": "inlet_river",
+            "port": "water"
+          },
+          "to": {
+            "node": "appearance",
+            "port": "water"
+          }
+        }
+      ]
+    }
+  }
+}

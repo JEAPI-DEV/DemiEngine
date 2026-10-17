@@ -351,7 +351,10 @@ void chunkPartitionsPreserveRoutedRiverAndSeamQueries() {
     const auto b = secondQueries->sample({position.x, 0, position.y});
     assert(a && b);
     assert(a->submerged == b->submerged && a->underwater == b->underwater);
-    assert(a->bodyId == b->bodyId && a->swimmable == b->swimmable);
+    assert(a->bodyId == b->bodyId);
+    assert(a->flowVelocity.x == b->flowVelocity.x &&
+           a->flowVelocity.y == b->flowVelocity.y &&
+           a->flowVelocity.z == b->flowVelocity.z);
     assert(a->groundHeight == b->groundHeight &&
            a->surfaceHeight == b->surfaceHeight);
     assert(a->depth == b->depth && a->flowSpeed == b->flowSpeed);

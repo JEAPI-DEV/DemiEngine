@@ -65,9 +65,15 @@
 #include <fs_demi_terrain_mapped_opaque_spv.h>
 #include <fs_demi_terrain_mapped_spv.h>
 #include <fs_demi_terrain_spv.h>
+#include <fs_demi_water_essl.h>
+#include <fs_demi_water_glsl.h>
+#include <fs_demi_water_spv.h>
 #include <vs_demi_terrain_essl.h>
 #include <vs_demi_terrain_glsl.h>
 #include <vs_demi_terrain_spv.h>
+#include <vs_demi_water_essl.h>
+#include <vs_demi_water_glsl.h>
+#include <vs_demi_water_spv.h>
 
 namespace demi::runtime::render {
 namespace {
@@ -75,6 +81,26 @@ namespace {
 constexpr std::uint16_t Invalid = std::numeric_limits<std::uint16_t>::max();
 
 const bgfx::EmbeddedShader EmbeddedShaders[] = {
+    {"vs_demi_water",
+     {{bgfx::RendererType::OpenGLES, vs_demi_water_essl,
+       sizeof(vs_demi_water_essl)},
+      {bgfx::RendererType::OpenGL, vs_demi_water_glsl,
+       sizeof(vs_demi_water_glsl)},
+      {bgfx::RendererType::Vulkan, vs_demi_water_spv,
+       sizeof(vs_demi_water_spv)},
+      {bgfx::RendererType::Noop,
+       reinterpret_cast<const std::uint8_t *>("VSH\x5\x0\x0\x0\x0\x0\x0"), 10},
+      {bgfx::RendererType::Count, nullptr, 0}}},
+    {"fs_demi_water",
+     {{bgfx::RendererType::OpenGLES, fs_demi_water_essl,
+       sizeof(fs_demi_water_essl)},
+      {bgfx::RendererType::OpenGL, fs_demi_water_glsl,
+       sizeof(fs_demi_water_glsl)},
+      {bgfx::RendererType::Vulkan, fs_demi_water_spv,
+       sizeof(fs_demi_water_spv)},
+      {bgfx::RendererType::Noop,
+       reinterpret_cast<const std::uint8_t *>("FSH\x5\x0\x0\x0\x0\x0\x0"), 10},
+      {bgfx::RendererType::Count, nullptr, 0}}},
     {"vs_demi_terrain",
      {{bgfx::RendererType::OpenGLES, vs_demi_terrain_essl,
        sizeof(vs_demi_terrain_essl)},
@@ -290,6 +316,9 @@ std::uint64_t renderTargetFlags(int samples) {
 std::uint64_t textureFlags(const TextureCreateInfo &info) {
   std::uint64_t flags = info.renderTarget ? renderTargetFlags(info.msaaSamples)
                                           : BGFX_TEXTURE_NONE;
+  if (info.blitDestination) {
+    flags |= BGFX_TEXTURE_BLIT_DST;
+  }
   if (info.srgb) {
     flags |= BGFX_TEXTURE_SRGB;
   }
@@ -372,7 +401,9 @@ public:
             .originBottomLeft = caps->originBottomLeft,
             .maxTextureSamplers = caps->limits.maxTextureSamplers,
             .supportsInstancing = (caps->supported & BGFX_CAPS_INSTANCING) != 0,
-            .maxTextureLayers = caps->limits.maxTextureLayers};
+            .maxTextureLayers = caps->limits.maxTextureLayers,
+            .supportsTextureBlit =
+                (caps->supported & BGFX_CAPS_TEXTURE_BLIT) != 0};
   }
 
   TextureCapabilities textureCapabilities(TextureFormat format) const override {
@@ -668,6 +699,10 @@ public:
     case BuiltinProgram::Sky3D:
       vertexName = "vs_demi_sky";
       fragmentName = "fs_demi_sky";
+      break;
+    case BuiltinProgram::WaterSurface3D:
+      vertexName = "vs_demi_water";
+      fragmentName = "fs_demi_water";
       break;
     case BuiltinProgram::Lit3DInstanced:
       vertexName = "vs_demi_lit_instanced";

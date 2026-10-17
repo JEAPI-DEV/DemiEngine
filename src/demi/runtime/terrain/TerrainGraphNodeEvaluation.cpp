@@ -2,6 +2,7 @@
 #include "demi/runtime/terrain/TerrainGraphSedimentMasks.h"
 #include "demi/runtime/terrain/TerrainGraphSpatialMasks.h"
 #include "demi/runtime/terrain/TerrainGraphWater.h"
+#include "demi/runtime/terrain/TerrainGraphWaterAuthoring.h"
 #include "demi/runtime/terrain/TerrainSurfaceSediment.h"
 
 #include "demi/runtime/terrain/TerrainBiomeRules.h"
@@ -466,6 +467,12 @@ std::optional<GraphNodeResult> evaluateTerrainGraphNode(
                            stop, quality, progress);
   if (node.type == "biomes")
     return evaluateBiomes(sourceRecipe, authoredRecipe, connected, stop);
+  if (node.type == "basin_water") {
+    return evaluateTerrainBasinWater(node, values, connected, stop);
+  }
+  if (node.type == "water_edit") {
+    return evaluateTerrainWaterEdit(values, connected, stop);
+  }
   if (node.type == "river_route") {
     return evaluateTerrainRiverRoute(node, values, connected, stop);
   }

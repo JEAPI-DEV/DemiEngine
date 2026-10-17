@@ -1,4 +1,5 @@
 #include "demi/assets/TerrainAssetPayloadData.h"
+#include "demi/runtime/terrain/TerrainWaterFlow.h"
 
 #include "demi/runtime/terrain/TerrainPalette.h"
 #include "demi/runtime/terrain/TerrainSurfaceMaterials.h"
@@ -244,10 +245,15 @@ TerrainWaterBody readWaterKind(const Json &value) {
 }
 
 Json waterBody(const TerrainWaterBodySpec &value) {
+  validateTerrainWaterFlow(value);
   require(std::isfinite(value.riverDepth) && value.riverDepth > 0 &&
               (value.kind == TerrainWaterBody::River ||
                value.riverSurfaceMode == TerrainRiverSurfaceMode::Level),
           "river surface mode/depth do not match the water body");
+  Json boundary = Json::array();
+  for (const auto &point : value.boundary) {
+    boundary.push_back(vec2(point));
+  }
   Json path = Json::array();
   for (const auto &point : value.riverPath)
     path.push_back(vec3(point));
@@ -257,10 +263,13 @@ Json waterBody(const TerrainWaterBodySpec &value) {
           {"river_surface_mode",
            std::string(terrainRiverSurfaceModeName(value.riverSurfaceMode))},
           {"river_depth", value.riverDepth},
+          {"flow_speed", value.flowSpeed},
+          {"flow_direction", vec2(value.flowDirection)},
           {"river_path", std::move(path)},
           {"river_width", value.riverWidth},
           {"center", vec2(value.center)},
           {"radius", value.radius},
+          {"boundary", std::move(boundary)},
           {"shoreline_softening", value.shorelineSoftening},
           {"appearance", terrainWaterAppearanceJson(value.appearance)}};
 }
@@ -274,6 +283,9 @@ TerrainWaterBodySpec readWaterBody(const Json &value) {
   result.riverSurfaceMode = parseTerrainRiverSurfaceMode(
       value.at("river_surface_mode").get<std::string>());
   result.riverDepth = finiteFloat(value.at("river_depth"), "river depth");
+  result.flowSpeed = finiteFloat(value.at("flow_speed"), "flow speed");
+  result.flowDirection = readVec2(value.at("flow_direction"), "flow direction");
+  validateTerrainWaterFlow(result);
   require(result.riverDepth > 0 &&
               (result.kind == TerrainWaterBody::River ||
                result.riverSurfaceMode == TerrainRiverSurfaceMode::Level),
@@ -285,10 +297,18 @@ TerrainWaterBodySpec readWaterBody(const Json &value) {
   result.riverWidth = finiteFloat(value.at("river_width"), "river width");
   result.center = readVec2(value.at("center"), "water center");
   result.radius = finiteFloat(value.at("radius"), "water radius");
+  const auto &boundary = value.at("boundary");
+  require(boundary.is_array(), "water boundary must be an array");
+  for (const auto &point : boundary) {
+    result.boundary.push_back(readVec2(point, "water boundary point"));
+  }
   result.shorelineSoftening = value.at("shoreline_softening").get<bool>();
   result.appearance = parseTerrainWaterAppearance(value.at("appearance"));
   require(result.riverWidth >= 0 && result.radius >= 0,
           "water body dimensions must be nonnegative");
+  // Authored data retains bodies dropped during generation, including rivers
+  // with incomplete paths. Preserve those IDs and their coverage indices;
+  // acceptedBodies decides which geometry is usable after decoding.
   return result;
 }
 

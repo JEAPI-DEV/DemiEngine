@@ -1,10 +1,16 @@
-# Terrain water rendering: next boundary
+# Terrain water rendering architecture
 
-Status: prerequisite audit on 2026-10-17, not implemented rendering support.
+Status: implemented on 2026-10-17; see [qualification](terrain-milestone5-qualification.md).
+The prerequisite audit below records the original constraints and sequence.
+The implementation uses an independent single-sample R32F depth prepass,
+normalized camera-forward eye depth, and an explicit target transition before
+copying resolved opaque colour. The main scene retains its authored MSAA.
+Camera ranges reserve twelve views; water, presentation and HUD passes have
+distinct slots. Queries and optical camera sampling share prepared water data.
 Milestone 5 currently publishes actual clipped river/lake/ocean meshes. Native
 water queries retain their own prepared coverage and do not depend on rendering.
 
-## What the renderer has today
+## Starting renderer constraints
 
 `TerrainWaterMesh` expands prepared water triangles into a transparent mesh,
 with depth-derived vertex colours, roughness and local XZ UVs. The ordinary
@@ -21,7 +27,7 @@ The eight camera view slots are already allocated to shadows, scene and
 presentation/overlays. A water pass cannot safely use an unexplained next view
 ID. Camera pass allocation and capacity validation must change together.
 
-## Implementation sequence
+## Implemented sequence
 
 1. Add a camera-owned opaque-scene capture boundary in the shared renderer.
    Separate opaque and transparent submission. Retain resolved opaque colour

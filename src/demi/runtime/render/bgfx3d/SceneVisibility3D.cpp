@@ -318,6 +318,13 @@ SceneVisibility3D extractVisibleMeshes3D(
   return result;
 }
 
+bool meshBoundsVisible3D(const MeshRendererComponent &mesh,
+                         const WorldTransform3D &transform,
+                         const BgfxCameraFrame3D &frame) {
+  return !mesh.hasBounds ||
+         sphereVisible(worldBounds(mesh, transform, {}), frame);
+}
+
 bool terrainChunkVisible3D(const PreparedTerrainChunkLod &chunk,
                            const WorldTransform3D &transform,
                            const BgfxCameraFrame3D &frame) {

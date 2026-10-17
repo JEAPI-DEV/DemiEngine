@@ -69,6 +69,8 @@ void tests() {
     assert(sample.terrain_id == 'terrain' and sample.body_id == 'lake' and sample.kind == 'lake')
     assert(sample.underwater and math.abs(sample.surface[2]-11) < 0.001)
     assert(math.abs(sample.depth-7.5) < 0.001 and #sample.normal == 3)
+    assert(#sample.column_up == 3 and math.abs(sample.column_up[2]-1) < 0.001)
+    assert(#sample.flow_velocity == 3 and sample.flow_velocity[1] == 0)
     assert(Water.sample({14,100,24}).underwater == false)
     assert(Water.sample({0,0,0}) == nil)
     assert(Water.sample({14,8,24}, 'missing') == nil)

@@ -183,6 +183,26 @@ public:
     return bgfx::getAvailInstanceDataBuffer(requested, stride);
   }
 
+  bool copyTexture(std::uint16_t view, TextureHandle source,
+                   TextureHandle destination, std::uint16_t width,
+                   std::uint16_t height, std::string &error) override {
+    const auto sourceTexture = resources_.bgfxTexture(source);
+    const auto destinationTexture = resources_.bgfxTexture(destination);
+    const auto *caps = bgfx::getCaps();
+    if (!caps || view >= caps->limits.maxViews ||
+        !(caps->supported & BGFX_CAPS_TEXTURE_BLIT) ||
+        !bgfx::isValid(sourceTexture) || !bgfx::isValid(destinationTexture) ||
+        source == destination || width == 0 || height == 0) {
+      error = "Scene capture requires distinct valid textures and texture blit "
+              "support.";
+      return false;
+    }
+    bgfx::setViewName(view, "OpaqueColorCapture");
+    bgfx::blit(view, destinationTexture, 0, 0, sourceTexture, 0, 0, width,
+               height);
+    return true;
+  }
+
   bool configureView2D(const View2DConfig &view, std::string &error) override {
     if (!positiveView(view.width, view.height, error, "2D"))
       return false;
@@ -290,11 +310,19 @@ public:
                                    "Transient draw")) {
       return false;
     }
+    const auto *caps = bgfx::getCaps();
+    const std::uint16_t maximumSamplers =
+        caps ? caps->limits.maxTextureSamplers : 256;
+    if (!bindings_.resolveTextures(draw.textures, resources_, maximumSamplers,
+                                   error)) {
+      return false;
+    }
     bgfx::ProgramHandle program = BGFX_INVALID_HANDLE;
     if (!bindProgramAndTexture(draw.program, draw.texture, draw.sampler,
                                resources_, program, error, "Transient draw")) {
       return false;
     }
+    bindExtraTextures(bindings_.textures());
 
     bgfx::TransientVertexBuffer vertices;
     bgfx::TransientIndexBuffer indices;

@@ -1,6 +1,7 @@
 $input v_color0, v_texcoord0
 
 #include "bgfx_shader.sh"
+#include "demi_underwater.sh"
 
 SAMPLER2D(s_postColor, 0);
 uniform vec4 u_colorAdjust;
@@ -15,6 +16,7 @@ void main()
     uv.y = 1.0 - uv.y;
 #endif
     vec4 source = texture2D(s_postColor, uv) * v_color0;
+    source.rgb = underwaterComposite(source.rgb, uv, v_texcoord0);
     vec3 color = source.rgb * exp2(u_colorAdjust.x);
     float luminance = dot(color, vec3(0.2126, 0.7152, 0.0722));
     color = mix(vec3(luminance), color, u_colorAdjust.z);

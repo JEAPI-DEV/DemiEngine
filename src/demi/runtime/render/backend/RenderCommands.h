@@ -95,6 +95,7 @@ struct TransientDraw {
   DrawState state;
   ScissorRect scissor;
   std::span<const DrawUniformValue> uniforms;
+  std::span<const DrawTextureBinding> textures;
 };
 
 struct BufferedDraw {
@@ -172,6 +173,14 @@ public:
                                     std::string &error) = 0;
   [[nodiscard]] virtual bool submit(const InstancedBufferedDraw &draw,
                                     std::string &error) = 0;
+  // Copies resolved texture contents between distinct resources in an ordered
+  // view. The destination must have been created with blitDestination enabled.
+  [[nodiscard]] virtual bool copyTexture(std::uint16_t, TextureHandle,
+                                         TextureHandle, std::uint16_t,
+                                         std::uint16_t, std::string &error) {
+    error = "This renderer cannot capture scene textures.";
+    return false;
+  }
   // Submits legal prefixes using current transient availability. A failure
   // returns the already-submitted prefix so callers never redraw it by
   // accident.

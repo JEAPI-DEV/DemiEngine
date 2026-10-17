@@ -3,6 +3,7 @@
 #include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/Transform3DComponent.h"
 #include "demi/runtime/terrain/TerrainGraphExecutor.h"
+#include "demi/runtime/terrain/TerrainWaterFlow.h"
 
 #include <algorithm>
 #include <cmath>
@@ -20,14 +21,22 @@ std::span<const TerrainWaterSurface> waterSurfaces(const HeightField *field) {
   return field->graphArtifacts->waterResult->surfaces;
 }
 
+const TerrainWaterBodySpec &bodySpec(const HeightField &field,
+                                     std::string_view id) {
+  if (field.graphArtifacts) {
+    for (const auto &body : field.graphArtifacts->water.bodies) {
+      if (body.id == id) {
+        return body;
+      }
+    }
+  }
+  static const TerrainWaterBodySpec defaults;
+  return defaults;
+}
+
 const TerrainWaterAppearance &bodyAppearance(const HeightField &field,
                                              std::string_view id) {
-  if (field.graphArtifacts)
-    for (const auto &body : field.graphArtifacts->water.bodies)
-      if (body.id == id)
-        return body.appearance;
-  static const TerrainWaterAppearance defaults;
-  return defaults;
+  return bodySpec(field, id).appearance;
 }
 
 bool sameWaterSurface(const TerrainWaterSurface &before,
@@ -106,7 +115,9 @@ bool validateSurface(const Entity &owner, const TerrainWaterSurface &surface,
 }
 
 Entity waterEntity(const Entity &owner, const TerrainWaterSurface &surface,
-                   MeshRendererComponent mesh) {
+                   MeshRendererComponent mesh,
+                   const TerrainWaterAppearance &appearance,
+                   const std::shared_ptr<const HeightField> &sourceField) {
   Entity entity;
   entity.id = owner.id + "/__water/" + encodedBodyId(surface.id);
   entity.name = "Terrain water " + surface.id;
@@ -119,7 +130,10 @@ Entity waterEntity(const Entity &owner, const TerrainWaterSurface &surface,
   entity.setComponent(Transform3DComponent{.parent = owner.id});
   entity.setComponent(std::move(mesh));
   entity.setComponent(
-      terrain_detail::TerrainGeneratedWaterSurface{.owner = owner.id});
+      terrain_detail::TerrainGeneratedWaterSurface{.owner = owner.id,
+                                                   .bodyId = surface.id,
+                                                   .appearance = appearance,
+                                                   .sourceField = sourceField});
   return entity;
 }
 } // namespace
@@ -133,6 +147,9 @@ std::vector<Entity> buildTerrainWaterMeshes(const Entity &owner,
   if (owner.id.empty())
     throw std::invalid_argument("Terrain water meshes require an owner ID");
 
+  // Retain the candidate field, which can differ from the owner's currently
+  // published field during an atomic update. Sample pages remain shared/COW.
+  const auto sourceField = std::make_shared<const HeightField>(field);
   const auto &surfaces = field.graphArtifacts->waterResult->surfaces;
   std::vector<Entity> entities;
   std::unordered_set<std::string_view> bodyIds;
@@ -170,7 +187,8 @@ std::vector<Entity> buildTerrainWaterMeshes(const Entity &owner,
     mesh.metallic = 0.F;
     mesh.opacity = 1.F;
     mesh.markGeometryChanged();
-    entities.push_back(waterEntity(owner, surface, std::move(mesh)));
+    entities.push_back(
+        waterEntity(owner, surface, std::move(mesh), appearance, sourceField));
   }
   if (stop.stop_requested())
     return {};
@@ -200,6 +218,10 @@ bool terrainWaterMeshesChanged(const HeightField *before,
         !sameTerrainWaterAppearance(bodyAppearance(*before, previousBody->id),
                                     bodyAppearance(after, currentBody->id)))
       return true;
+    if (before && !sameTerrainWaterFlow(bodySpec(*before, previousBody->id),
+                                        bodySpec(after, currentBody->id))) {
+      return true;
+    }
     ++previousBody;
     ++currentBody;
   }

@@ -5,6 +5,7 @@
 #include "demi/runtime/terrain/TerrainGraphSpatialMasks.h"
 #include "demi/runtime/terrain/TerrainPipeline.h"
 #include "demi/runtime/terrain/TerrainUpdate.h"
+#include "demi/runtime/terrain/TerrainWaterGeometry.h"
 
 #include <algorithm>
 #include <cassert>
@@ -705,6 +706,30 @@ void graphWaterAppearanceValidation() {
   graph["nodes"].back()["parameters"]["shallow_color"] = {0, 0, 0, 1};
   graph["nodes"].back()["parameters"]["absorption_distance"] = 0;
   assert(rejects(graph));
+  graph["nodes"].back()["parameters"] = {{"flow_speed", 2},
+                                         {"flow_direction", {0, 1}},
+                                         {"wave_amplitude", 0.1},
+                                         {"wave_length", 3},
+                                         {"wave_speed", 0.7},
+                                         {"normal_strength", 0.8},
+                                         {"foam_width", 0.25},
+                                         {"foam_strength", 0.6},
+                                         {"foam_color", {1, 1, 1, 0.8}}};
+  assert(!rejects(graph));
+  for (const auto &invalid : std::vector<nlohmann::json>{
+           {{"flow_speed", -1}},
+           {{"flow_speed", 1}, {"flow_direction", {0, 0}}},
+           {{"flow_direction", {1, 2, 3}}},
+           {{"wave_amplitude", -0.1}},
+           {{"wave_length", 0}},
+           {{"wave_speed", -1}},
+           {{"normal_strength", -1}},
+           {{"foam_width", -1}},
+           {{"foam_strength", 1.1}},
+           {{"foam_color", {2, 1, 1, 1}}}}) {
+    graph["nodes"].back()["parameters"] = invalid;
+    assert(rejects(graph));
+  }
 }
 
 void commentNodesAreAuthoringOnly() {
@@ -839,7 +864,89 @@ void pathDistanceMaskBlendsValleyAndCachesIndependently() {
   assert(rejected);
 }
 
+void basinWaterEditsUseStableIdsAndPreserveTerrain() {
+  auto settings = recipe();
+  settings.graph = {
+      {"format_version", 1},
+      {"output", "output"},
+      {"nodes",
+       {{{"id", "banks"},
+         {"type", "constant"},
+         {"parameters", {{"height", 3}}}},
+        {{"id", "bed"}, {"type", "constant"}, {"parameters", {{"height", -2}}}},
+        {{"id", "footprint"},
+         {"type", "polygon_mask"},
+         {"parameters",
+          {{"points", {{4, 4}, {12, 4}, {12, 12}, {4, 12}}}, {"falloff", 0}}}},
+        {{"id", "bowl"},
+         {"type", "height_blend"},
+         {"parameters", {{"amount", 1}}}},
+        {{"id", "drainage"}, {"type", "drainage"}},
+        {{"id", "lakes"}, {"type", "basin_water"}},
+        {{"id", "edits"}, {"type", "water_edit"}},
+        {{"id", "output"}, {"type", "output"}}}},
+      {"links", nlohmann::json::array()}};
+  const auto connect = [&](std::string_view source, std::string_view sourcePort,
+                           std::string_view destination,
+                           std::string_view destinationPort) {
+    settings.graph["links"].push_back(
+        {{"id", std::string(source) + "_" + std::string(destination) + "_" +
+                    std::string(destinationPort)},
+         {"from", {{"node", source}, {"port", sourcePort}}},
+         {"to", {{"node", destination}, {"port", destinationPort}}}});
+  };
+  connect("banks", "field", "footprint", "field");
+  connect("banks", "field", "bowl", "a");
+  connect("bed", "field", "bowl", "b");
+  connect("footprint", "mask", "bowl", "mask");
+  connect("bowl", "field", "drainage", "field");
+  connect("drainage", "drainage", "lakes", "drainage");
+  connect("lakes", "field", "edits", "field");
+  connect("lakes", "water", "edits", "water");
+  connect("edits", "field", "output", "field");
+  connect("edits", "water", "output", "water");
+
+  const auto proposed = executeTerrainGraph(settings);
+  assert(proposed && proposed->graphArtifacts);
+  const auto &water = proposed->graphArtifacts->water;
+  assert(water.bodies.size() == 1);
+  const auto bodyId = water.bodies.front().id;
+  assert(bodyId == "lakes/basin/4_4");
+  assert(water.bodies.front().level == 3.F);
+  assert(proposed->height(8, 8) == -2.F);
+  assert(proposed->height(0, 0) == 3.F);
+  const auto &initialResult = *proposed->graphArtifacts->waterResult;
+  assert(initialResult.resolvedCoverage->wet[proposed->index(8, 8)]);
+
+  settings.graph["nodes"][6]["parameters"]["overrides"] =
+      nlohmann::json::array({{{"id", bodyId}, {"level", 1}}});
+  const auto lowered = executeTerrainGraph(
+      settings, {nullptr, {}, proposed->graphArtifacts->cache});
+  assert(lowered && lowered->heights == proposed->heights);
+  assert(lowered->graphArtifacts->water.bodies.front().id == bodyId);
+  assert(lowered->graphArtifacts->water.bodies.front().level == 1.F);
+  assert(wasCached(*lowered, "bowl"));
+  assert(wasCached(*lowered, "drainage"));
+  assert(wasCached(*lowered, "lakes"));
+  assert(!wasCached(*lowered, "edits"));
+
+  settings.graph["nodes"][6]["parameters"] = {
+      {"excluded_ids", nlohmann::json::array({bodyId})}};
+  const auto excluded = executeTerrainGraph(
+      settings, {nullptr, {}, lowered->graphArtifacts->cache});
+  assert(excluded && excluded->heights == proposed->heights);
+  assert(excluded->graphArtifacts->water.authored);
+  assert(excluded->graphArtifacts->water.bodies.empty());
+  assert(excluded->graphArtifacts->waterResult->surfaces.empty());
+  assert(wasCached(*excluded, "lakes") && !wasCached(*excluded, "edits"));
+
+  std::stop_source cancellation;
+  cancellation.request_stop();
+  assert(!executeTerrainGraph(settings, {}, cancellation.get_token()));
+}
+
 int main() {
+  basinWaterEditsUseStableIdsAndPreserveTerrain();
   pathDistanceMaskPreservesCorridorAndEndpoints();
   pathDistanceMaskBlendsValleyAndCachesIndependently();
   commentNodesAreAuthoringOnly();

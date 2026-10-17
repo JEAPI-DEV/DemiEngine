@@ -46,6 +46,11 @@ struct TerrainDrainage {
   // basinOutlets[b] is a valid read for any id found in `basin`, and it holds
   // basinCount + 1 entries.
   std::vector<Vec3> basinOutlets;
+  // Parallel to basinOutlets, including index 0 for the field outlet. Sinks
+  // retain exact grid identity; spill levels come from the priority-flood
+  // surface rather than a guessed height or a simulated accumulation rate.
+  std::vector<std::size_t> basinSinks;
+  std::vector<float> basinSpillLevels;
   // The sample below which water stands, in world units.
   float seaLevel = 0;
   // Parent in the priority-flood tree. It descends on the filled surface and

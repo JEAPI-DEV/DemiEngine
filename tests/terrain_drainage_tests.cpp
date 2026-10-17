@@ -1,4 +1,7 @@
 #include "demi/runtime/terrain/TerrainDrainage.h"
+#include "demi/runtime/terrain/TerrainWaterAuthoring.h"
+#include "demi/runtime/terrain/TerrainWaterProposals.h"
+#include <nlohmann/json.hpp>
 #ifdef NDEBUG
 #undef NDEBUG
 #endif
@@ -452,9 +455,30 @@ void gridMismatchIsRejected() {
   }
   assert(recipeFailed);
 }
+void basinProposalsUseMeasuredSpillAndStableSink() {
+  const auto ground = makeField(8, 8, [](double x, double z) {
+    return (x > 1 && x < 7 && z > 1 && z < 7) ? -2.F : 3.F;
+  });
+  TerrainRecipe recipe;
+  recipe.cellsX = ground.cellsX;
+  recipe.cellsZ = ground.cellsZ;
+  recipe.size = ground.size;
+  const auto drainage = computeTerrainDrainage(ground, recipe, {});
+  assert(drainage && drainage->basinCount == 1);
+  const auto proposed = proposeTerrainBasinWater(ground, *drainage, "lakes");
+  assert(proposed && proposed->eligibleBodies == 1);
+  assert(proposed->water.bodies.size() == 1);
+  const auto &body = proposed->water.bodies.front();
+  assert(body.id == "lakes/basin/2_2" && body.level == 3.F);
+  const auto edited = editTerrainWaterAuthoring(
+      proposed->water, {},
+      nlohmann::json::array({{{"id", body.id}, {"level", 2}}}));
+  assert(edited.bodies.front().level == 2);
+}
 } // namespace
 
 int main() {
+  basinProposalsUseMeasuredSpillAndStableSink();
   flowIsZeroOnTheBorderAndPositiveInland();
   flowIsNormalisedToTheFieldMaximum();
   aSingleBowlHasExactlyOneBasin();

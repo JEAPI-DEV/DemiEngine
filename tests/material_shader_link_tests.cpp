@@ -22,10 +22,14 @@
 #include "fs_demi_terrain_mapped_opaque_spv.h"
 #include "fs_demi_terrain_mapped_spv.h"
 #include "fs_demi_terrain_spv.h"
+#include "fs_demi_water_essl.h"
+#include "fs_demi_water_glsl.h"
+#include "fs_demi_water_spv.h"
 #include "vs_demi_lit_instanced_spv.h"
 #include "vs_demi_lit_spv.h"
 #include "vs_demi_skinned_spv.h"
 #include "vs_demi_terrain_spv.h"
+#include "vs_demi_water_spv.h"
 
 #ifdef NDEBUG
 #undef NDEBUG
@@ -211,6 +215,28 @@ void requireOpaqueCoverage(const Shader &shader) {
 
 int main() {
   for (const auto &compiled :
+       {shader("water Vulkan", fs_demi_water_spv),
+        shader("water OpenGL", fs_demi_water_glsl, ShaderCode::Glsl),
+        shader("water OpenGLES", fs_demi_water_essl, ShaderCode::Glsl)}) {
+    const auto interface = readCompiledShaderInterface(compiled);
+    for (const std::string_view sampler :
+         {"s_waterSceneColor", "s_waterSceneDepth", "s_waterEnvironment"}) {
+      bool present = false;
+      if (compiled.code == ShaderCode::Spirv) {
+        present =
+            std::find(interface.samplers.begin(), interface.samplers.end(),
+                      sampler) != interface.samplers.end();
+      } else {
+        const std::string_view code(
+            reinterpret_cast<const char *>(interface.code.data()),
+            interface.code.size());
+        present = code.find("(" + std::string(sampler) + ",") !=
+                  std::string_view::npos;
+      }
+      assert(present);
+    }
+  }
+  for (const auto &compiled :
        {shader("mapped Vulkan", fs_demi_terrain_mapped_spv),
         shader("mapped directional Vulkan",
                fs_demi_terrain_mapped_directional_spv),
@@ -300,7 +326,19 @@ int main() {
     ++linked;
   }
   assert(linked == 18);
+  const auto waterVertex = shader("water", vs_demi_water_spv);
+  const auto waterFragment = shader("water", fs_demi_water_spv);
+  const auto waterProgram =
+      resources->createProgram({.vertexShader = waterVertex.bytes,
+                                .fragmentShader = waterFragment.bytes,
+                                .debugName = "water surface"},
+                               error);
+  assert(waterProgram);
+  resources->destroy(waterProgram);
+  ++linked;
   resources.reset();
   graphics.shutdown();
-  std::cout << "All 18 generated mesh and terrain shader interfaces link\n";
+  assert(linked == 19);
+  std::cout
+      << "All 19 generated mesh, terrain and water shader interfaces link\n";
 }

@@ -138,6 +138,44 @@
                         }
                       }
                     }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "type": {
+                          "const": "water_edit"
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ]
+                    },
+                    "then": {
+                      "properties": {
+                        "parameters": {
+                          "$ref": "#/$defs/waterEditParameters"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "type": {
+                          "const": "basin_water"
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ]
+                    },
+                    "then": {
+                      "properties": {
+                        "parameters": {
+                          "$ref": "#/$defs/basinWaterParameters"
+                        }
+                      }
+                    }
                   }
                 ]
               }
@@ -447,6 +485,17 @@
           "maximum": 3.4028234663852886e+38,
           "default": 1
         },
+        "river_path_interpolation": {
+          "type": "string",
+          "enum": ["linear", "catmull_rom"],
+          "default": "linear"
+        },
+        "river_curve_steps": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64,
+          "default": 8
+        },
         "river_path": {
           "type": "array",
           "items": {
@@ -491,6 +540,248 @@
           "minimum": 0,
           "maximum": 1,
           "default": 0.12
+        },
+        "flow_speed": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 3.4028234663852886e+38,
+          "default": 0
+        },
+        "flow_direction": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "number",
+            "minimum": -3.4028234663852886e+38,
+            "maximum": 3.4028234663852886e+38
+          },
+          "default": [
+            1,
+            0
+          ]
+        },
+        "wave_amplitude": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 3.4028234663852886e+38,
+          "default": 0.05
+        },
+        "wave_length": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 3.4028234663852886e+38,
+          "default": 2
+        },
+        "wave_speed": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 3.4028234663852886e+38,
+          "default": 0.5
+        },
+        "normal_strength": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 3.4028234663852886e+38,
+          "default": 1
+        },
+        "foam_width": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 3.4028234663852886e+38,
+          "default": 0.5
+        },
+        "foam_strength": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.5
+        },
+        "foam_color": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "default": [
+            1,
+            1,
+            1,
+            1
+          ]
+        },
+        "boundary": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": {
+              "type": "number",
+              "minimum": -3.4028234663852886e+38,
+              "maximum": 3.4028234663852886e+38
+            }
+          },
+          "anyOf": [
+            {
+              "maxItems": 0
+            },
+            {
+              "minItems": 3
+            }
+          ],
+          "default": []
+        },
+        "shoreline_softening": {
+          "type": "boolean",
+          "default": true
+        }
+      }
+    },
+    "waterEditParameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "excluded_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "default": []
+        },
+        "overrides": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id"
+            ],
+            "dependentRequired": {
+              "river_path_interpolation": ["river_path"],
+              "river_curve_steps": ["river_path"]
+            },
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "$ref": "#/$defs/waterNodeParameters/properties/kind"
+              },
+              "level": {
+                "$ref": "#/$defs/waterNodeParameters/properties/level"
+              },
+              "center_x": {
+                "$ref": "#/$defs/waterNodeParameters/properties/center_x"
+              },
+              "center_z": {
+                "$ref": "#/$defs/waterNodeParameters/properties/center_z"
+              },
+              "radius": {
+                "$ref": "#/$defs/waterNodeParameters/properties/radius"
+              },
+              "river_width": {
+                "$ref": "#/$defs/waterNodeParameters/properties/river_width"
+              },
+              "river_surface_mode": {
+                "$ref": "#/$defs/waterNodeParameters/properties/river_surface_mode"
+              },
+              "river_depth": {
+                "$ref": "#/$defs/waterNodeParameters/properties/river_depth"
+              },
+              "river_path_interpolation": {
+                "$ref": "#/$defs/waterNodeParameters/properties/river_path_interpolation"
+              },
+              "river_curve_steps": {
+                "$ref": "#/$defs/waterNodeParameters/properties/river_curve_steps"
+              },
+              "river_path": {
+                "$ref": "#/$defs/waterNodeParameters/properties/river_path"
+              },
+              "shallow_color": {
+                "$ref": "#/$defs/waterNodeParameters/properties/shallow_color"
+              },
+              "deep_color": {
+                "$ref": "#/$defs/waterNodeParameters/properties/deep_color"
+              },
+              "absorption_distance": {
+                "$ref": "#/$defs/waterNodeParameters/properties/absorption_distance"
+              },
+              "roughness": {
+                "$ref": "#/$defs/waterNodeParameters/properties/roughness"
+              },
+              "flow_speed": {
+                "$ref": "#/$defs/waterNodeParameters/properties/flow_speed"
+              },
+              "flow_direction": {
+                "$ref": "#/$defs/waterNodeParameters/properties/flow_direction"
+              },
+              "wave_amplitude": {
+                "$ref": "#/$defs/waterNodeParameters/properties/wave_amplitude"
+              },
+              "wave_length": {
+                "$ref": "#/$defs/waterNodeParameters/properties/wave_length"
+              },
+              "wave_speed": {
+                "$ref": "#/$defs/waterNodeParameters/properties/wave_speed"
+              },
+              "normal_strength": {
+                "$ref": "#/$defs/waterNodeParameters/properties/normal_strength"
+              },
+              "foam_width": {
+                "$ref": "#/$defs/waterNodeParameters/properties/foam_width"
+              },
+              "foam_strength": {
+                "$ref": "#/$defs/waterNodeParameters/properties/foam_strength"
+              },
+              "foam_color": {
+                "$ref": "#/$defs/waterNodeParameters/properties/foam_color"
+              },
+              "boundary": {
+                "$ref": "#/$defs/waterNodeParameters/properties/boundary"
+              },
+              "shoreline_softening": {
+                "$ref": "#/$defs/waterNodeParameters/properties/shoreline_softening"
+              },
+              "id": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "default": []
+        }
+      }
+    },
+    "basinWaterParameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "minimum_depth": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 3.4028234663852886e+38,
+          "default": 1
+        },
+        "minimum_area": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 3.4028234663852886e+38,
+          "default": 16
+        },
+        "maximum_bodies": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647,
+          "default": 16
+        },
+        "level_offset": {
+          "type": "number",
+          "minimum": -3.4028234663852886e+38,
+          "maximum": 0,
+          "default": 0
         }
       }
     }

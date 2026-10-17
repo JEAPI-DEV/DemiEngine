@@ -42,6 +42,10 @@ struct TerrainWaterBodySpec {
   TerrainRiverSurfaceMode riverSurfaceMode = TerrainRiverSurfaceMode::Level;
   // FollowBed adds this positive vertical depth to the interpolated path bed.
   float riverDepth = 1;
+  // Prescribed terrain-local current, independent of drainage accumulation.
+  float flowSpeed = 0.F;
+  // Lake/ocean XZ direction; normalized when sampled. Rivers follow their path.
+  Vec2 flowDirection{1.F, 0.F};
   // River only: the channel centreline in terrain-local (x, z) with the
   // authored bed height in y, and the authored channel width along it.
   std::vector<Vec3> riverPath;
@@ -52,6 +56,8 @@ struct TerrainWaterBodySpec {
   // Zero removes the radius bound. Lakes still select the basin connected to
   // their centre; oceans cover all submerged regions in their footprint.
   float radius = 0;
+  // Optional simple XZ polygon for lakes/oceans; replaces the circular bound.
+  std::vector<Vec2> boundary;
   // Eases the ground into the waterline over a band, so a shore is a slope
   // rather than a cliff. Never changes which samples are water.
   bool shorelineSoftening = true;

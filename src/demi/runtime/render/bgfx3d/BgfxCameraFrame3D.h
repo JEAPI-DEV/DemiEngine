@@ -3,6 +3,7 @@
 #include "demi/runtime/render/backend/GpuResources.h"
 #include "demi/runtime/render/bgfx3d/DebugGeometry3D.h"
 #include "demi/runtime/render/bgfx3d/SceneLighting3D.h"
+#include "demi/runtime/render/bgfx3d/UnderwaterAppearance3D.h"
 #include "demi/runtime/scene/components/3dcomponents/Camera3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/PostProcessStackComponent.h"
 
@@ -11,13 +12,15 @@
 #include <string>
 
 namespace demi::runtime::render {
-// Four shadow cascades, the scene pass, and up to three resolve/post passes.
-inline constexpr std::uint16_t CameraViewCount3D = 8;
+// Four shadow cascades, opaque depth/main/capture/water and presentation.
+// Reserve the entire range per camera, including disabled passes.
+inline constexpr std::uint16_t CameraViewCount3D = 12;
 
 struct BgfxCameraFrame3D {
   std::string cameraId;
   Camera3DComponent camera;
   std::optional<PostProcessStackComponent> postProcess;
+  std::optional<UnderwaterAppearance3D> underwater;
   DebugGeometry3DRequest debugGeometry;
   Vec3 position;
   Vec3 forward{0.0F, 0.0F, 1.0F};
@@ -33,6 +36,8 @@ struct BgfxCameraFrame3D {
   std::optional<Vec3> lodPosition;
   // Native host backbuffer/target sample mode; editor images default to 1.
   int destinationSamples = 1;
+  // Internal sampling pass; never an authored camera setting.
+  bool captureLinearDepth = false;
 };
 
 } // namespace demi::runtime::render

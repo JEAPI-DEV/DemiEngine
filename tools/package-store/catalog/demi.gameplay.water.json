@@ -1,0 +1,19 @@
+{
+  "format_version": 1,
+  "title": "Water Gameplay",
+  "description": "Opt-in dynamic-body buoyancy, flow-relative drag and swimming over native terrain water queries. Fixed-step force integration, configurable depth/flow policy and explicit gravity. Includes package tests; the repository provides a native integration example.",
+  "publisher": "DemiEngine",
+  "license": "BSD-3-Clause",
+  "kind": "code",
+  "category": "Gameplay",
+  "price": 0,
+  "images": [],
+  "tags": [
+    "water",
+    "buoyancy",
+    "swimming",
+    "physics",
+    "terrain",
+    "3d"
+  ]
+}

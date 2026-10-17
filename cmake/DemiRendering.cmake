@@ -163,6 +163,7 @@ add_custom_command(
     "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_lit_instanced.sc"
     "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_post_process.sc"
     "${DEMI_BGFX_SHADER_SOURCE_DIR}/fs_demi_post_process.sc"
+    "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_underwater.sh"
     "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
   VERBATIM)
 
@@ -302,6 +303,44 @@ foreach(pbr_variant glsl essl spv)
   endforeach()
 endforeach()
 
+# Water uses explicit opaque snapshots and modern portable fragment operations.
+foreach(water_variant glsl essl spv)
+  if(water_variant STREQUAL "glsl")
+    set(water_profile 150)
+    set(water_platform linux)
+  elseif(water_variant STREQUAL "essl")
+    set(water_profile 300_es)
+    set(water_platform android)
+  else()
+    set(water_profile spirv)
+    set(water_platform linux)
+  endif()
+  foreach(water_stage vs fs)
+    if(water_stage STREQUAL "vs")
+      set(water_type vertex)
+    else()
+      set(water_type fragment)
+    endif()
+    set(water_symbol "${water_stage}_demi_water_${water_variant}")
+    set(water_header "${DEMI_BGFX_BUILTIN_SHADER_DIR}/${water_symbol}.h")
+    add_custom_command(OUTPUT "${water_header}"
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${DEMI_BGFX_BUILTIN_SHADER_DIR}"
+      COMMAND "${DEMI_SHADERC_EXECUTABLE}"
+        -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/${water_stage}_demi_water.sc"
+        -o "${water_header}" --type ${water_type}
+        --platform ${water_platform} -p ${water_profile}
+        --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/water_varying.def.sc"
+        -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" -i "${DEMI_BGFX_SHADER_SOURCE_DIR}"
+        --bin2c ${water_symbol}
+      DEPENDS ${DEMI_SHADERC_DEPENDENCY}
+        "${DEMI_BGFX_SHADER_SOURCE_DIR}/${water_stage}_demi_water.sc"
+        "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_water_optics.sh"
+        "${DEMI_BGFX_SHADER_SOURCE_DIR}/water_varying.def.sc"
+      VERBATIM)
+    list(APPEND DEMI_BGFX_BUILTIN_SHADER_HEADERS "${water_header}")
+  endforeach()
+endforeach()
+
 add_library(demi-graphics-bgfx STATIC
   ${DEMI_BGFX_BUILTIN_SHADER_HEADERS}
   "${DEMI_RENDER_GENERATED_INCLUDE_DIR}/demi/runtime/render/InterFontData.h"
@@ -414,6 +453,10 @@ add_library(demi-render3d-bgfx STATIC
   src/demi/runtime/render/bgfx3d/PrimitiveCanvas3D.cpp
   src/demi/runtime/render/bgfx3d/PrimitiveMeshFactory3D.cpp
   src/demi/runtime/render/bgfx3d/SkyRenderer3D.cpp
+  src/demi/runtime/render/bgfx3d/WaterSurfaceRenderer3D.cpp
+  src/demi/runtime/render/bgfx3d/UnderwaterCamera3D.cpp
+  src/demi/runtime/render/bgfx3d/OpaqueSceneCapture3D.cpp
+  src/demi/runtime/render/BgfxRenderer3DWater.cpp
   src/demi/runtime/render/bgfx3d/PostProcessRenderer3D.cpp
   src/demi/runtime/render/bgfx3d/DirectionalShadow3D.cpp
   src/demi/runtime/render/bgfx3d/ShadowCascadeLayout3D.cpp

@@ -74,6 +74,7 @@ void followingBedNormalRespectsNonuniformTransform() {
   river.riverSurfaceMode = TerrainRiverSurfaceMode::FollowBed;
   river.riverDepth = 2;
   river.riverWidth = 4;
+  river.flowSpeed = 2.F;
   river.riverPath = {{1, 8, 4}, {7, 2, 4}};
   river.shorelineSoftening = false;
   auto artifacts = std::make_shared<TerrainGraphArtifacts>();
@@ -103,6 +104,23 @@ void followingBedNormalRespectsNonuniformTransform() {
                    sample->normal.z * expectedNormal.z;
   check(dot > 0.9999F,
         "Sloped river normal ignored nonuniform inverse-transpose scale");
+  const auto expectedFlow = transformDirection3D(
+      *transform, {std::sqrt(2.F) * transform->scale.x,
+                   -std::sqrt(2.F) * transform->scale.y, 0.F});
+  check(std::hypot(sample->flowVelocity.x - expectedFlow.x,
+                   sample->flowVelocity.y - expectedFlow.y,
+                   sample->flowVelocity.z - expectedFlow.z) < 1e-4F,
+        "Water current ignored terrain scale/rotation");
+  const float normalCurrent = sample->normal.x * sample->flowVelocity.x +
+                              sample->normal.y * sample->flowVelocity.y +
+                              sample->normal.z * sample->flowVelocity.z;
+  check(std::abs(normalCurrent) < 1e-4F,
+        "Transformed current left the rendered water tangent plane");
+  const auto expectedUp = transformDirection3D(*transform, {0, 1, 0});
+  check(std::hypot(sample->columnUp.x - expectedUp.x,
+                   sample->columnUp.y - expectedUp.y,
+                   sample->columnUp.z - expectedUp.z) < 1e-4F,
+        "Water column axis incorrectly followed the sloped surface normal");
   const auto expectedSurface = transformPoint3D(*transform, {4, 7, 4});
   check(std::hypot(sample->surface.x - expectedSurface.x,
                    sample->surface.y - expectedSurface.y,
@@ -166,6 +184,15 @@ void tests() {
                    rotated->surface.y - expected.y,
                    rotated->surface.z - expected.z) < 1e-4F,
         "Rotated surface point incorrect");
+  owner->component<Transform3DComponent>()->scale.y = -3.F;
+  const auto mirroredTransform = *resolveWorldTransform3D(world, *owner);
+  const auto mirrored = runtime.sample(
+      world, transformPoint3D(mirroredTransform, {2, 1, 2}), "first");
+  const auto mirroredUp = transformDirection3D(mirroredTransform, {0, -1, 0});
+  check(mirrored && std::hypot(mirrored->columnUp.x - mirroredUp.x,
+                               mirrored->columnUp.y - mirroredUp.y,
+                               mirrored->columnUp.z - mirroredUp.z) < 1e-4F,
+        "Mirrored terrain column axis did not follow its local Y scale");
   owner->component<Transform3DComponent>()->position = {};
   owner->component<Transform3DComponent>()->rotation = {};
   owner->component<Transform3DComponent>()->scale = {1e-7F, 1e-7F, 1e-7F};

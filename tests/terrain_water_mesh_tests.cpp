@@ -143,6 +143,9 @@ void inheritsMetadataAndParent() {
       entity.component<terrain_detail::TerrainGeneratedWaterSurface>();
   check(marker && marker->owner == owner.id,
         "Water ownership marker does not identify the terrain owner");
+  check(marker->bodyId == "lake" && marker->sourceField &&
+            marker->sourceField->graphArtifacts,
+        "Water marker lost stable body identity or prepared-field lifetime");
   check(entity.serializedComponents.empty() &&
             entity.authoredComponents.empty() && entity.prefabLocalId.empty(),
         "Generated water acquired authored document identity");
@@ -383,6 +386,16 @@ void depthAppearanceAndContainment() {
   edited.graphArtifacts = changed;
   check(terrainWaterMeshesChanged(&field, edited),
         "Water appearance edit was invisible to native publication");
+  changed = std::make_shared<TerrainGraphArtifacts>(*artifacts);
+  changed->water.bodies.front().flowSpeed = 1.F;
+  edited.graphArtifacts = changed;
+  check(terrainWaterMeshesChanged(&field, edited),
+        "Current-only edit left stale source metadata on the water entity");
+  changed = std::make_shared<TerrainGraphArtifacts>(*artifacts);
+  changed->water.bodies.front().appearance.waveAmplitude = 0.2F;
+  edited.graphArtifacts = changed;
+  check(terrainWaterMeshesChanged(&field, edited),
+        "Normal-wave appearance edit did not refresh native metadata");
   bool rejected = false;
   try {
     (void)parseTerrainWaterAppearance({{"absorption_distance", 0}});

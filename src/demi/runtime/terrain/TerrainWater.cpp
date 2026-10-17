@@ -2,7 +2,10 @@
 
 #include "demi/runtime/terrain/TerrainHeightField.h"
 #include "demi/runtime/terrain/TerrainMasks.h"
+#include "demi/runtime/terrain/TerrainPolygon.h"
+#include "demi/runtime/terrain/TerrainWaterAuthoring.h"
 #include "demi/runtime/terrain/TerrainWaterConnectivity.h"
+#include "demi/runtime/terrain/TerrainWaterFlow.h"
 #include "demi/runtime/terrain/TerrainWaterGeometry.h"
 #include "demi/runtime/terrain/TerrainWaterSurfaceBuilder.h"
 
@@ -186,6 +189,9 @@ bool covers(const BodyProbe &probe, double x, double z, double ground) {
   }
   if (ground > double(spec.level)) {
     return false;
+  }
+  if (!spec.boundary.empty()) {
+    return terrainPolygonContains(spec.boundary, {float(x), float(z)});
   }
   if (double(spec.radius) > 0) {
     const double dx = x - double(spec.center.x);
@@ -569,41 +575,13 @@ std::vector<std::size_t> acceptedBodies(const TerrainWaterAuthoring &authoring,
     const auto &spec = authoring.bodies[index];
     if (spec.id.empty() || !seenIds.insert(spec.id).second)
       continue;
-    if (!std::isfinite(spec.level) || !std::isfinite(spec.radius) ||
-        !std::isfinite(spec.center.x) || !std::isfinite(spec.center.y))
-      continue;
-    if (!std::isfinite(spec.riverDepth) || !(spec.riverDepth > 0) ||
-        (spec.riverSurfaceMode != TerrainRiverSurfaceMode::Level &&
-         spec.riverSurfaceMode != TerrainRiverSurfaceMode::FollowBed) ||
-        (spec.kind != TerrainWaterBody::River &&
-         spec.riverSurfaceMode != TerrainRiverSurfaceMode::Level)) {
-      continue;
-    }
     try {
-      validateTerrainWaterAppearance(spec.appearance);
+      validateTerrainWaterBody(spec, stop);
     } catch (const std::invalid_argument &) {
       continue;
     }
-    if (spec.kind == TerrainWaterBody::River) {
-      if (spec.riverPath.size() < 2 || !std::isfinite(spec.riverWidth) ||
-          !(spec.riverWidth > 0))
-        continue;
-      bool finite = true;
-      double length = 0;
-      Vec3 previous = spec.riverPath.front();
-      for (const auto &point : spec.riverPath) {
-        if (stop.stop_requested())
-          return accepted;
-        finite = finite && finitePoint(point);
-        if (spec.riverSurfaceMode == TerrainRiverSurfaceMode::FollowBed) {
-          finite = finite && std::isfinite(point.y + spec.riverDepth);
-        }
-        length += std::hypot(double(point.x) - previous.x,
-                             double(point.z) - previous.z);
-        previous = point;
-      }
-      if (!finite || !(length > 0))
-        continue;
+    if (stop.stop_requested()) {
+      return accepted;
     }
     accepted.push_back(index);
   }

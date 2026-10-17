@@ -49,6 +49,7 @@ exports. See [core concepts](https://demiengine.de/docs/core-concepts) for the d
 | `demi.gameplay.checkpoints` | checkpoints, entrances, respawn data |
 | `demi.gameplay.camera` | follow, bounds, zones, shake, look-ahead |
 | `demi.gameplay.inventory` | stacks, capacity-aware transfers and equipment state |
+| [`demi.gameplay.water`](sources/demi.gameplay.water/README.md) | Opt-in fixed-step buoyancy, flow-relative drag and dynamic-body swimming over native water queries |
 | `demi.gameplay.needs` | bounded needs, drain/recovery rates and thresholds |
 | `demi.navigation.ground` | terrain surveys, obstacle-aware routes and continuous-direction movement |
 | `demi.gameplay.encounters` | waves, spawn failures, objectives |

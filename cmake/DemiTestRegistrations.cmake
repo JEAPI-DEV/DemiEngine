@@ -269,6 +269,9 @@ set_tests_properties(demi-gpu-skinning3d-tests PROPERTIES ENVIRONMENT "DEMI_GPU_
 add_test(NAME demi-mesh-deformation3d-tests COMMAND demi-mesh-deformation3d-tests)
 add_test(NAME demi-mesh-geometry3d-tests COMMAND demi-mesh-geometry3d-tests)
 add_test(NAME demi-bgfx-renderer3d-tests COMMAND demi-bgfx-renderer3d-tests)
+add_test(NAME demi-underwater-camera3d-tests COMMAND demi-underwater-camera3d-tests)
+add_test(NAME demi-opaque-scene-capture3d-tests COMMAND demi-opaque-scene-capture3d-tests)
+add_test(NAME demi-water-surface-renderer3d-tests COMMAND demi-water-surface-renderer3d-tests)
 add_test(NAME demi-shadow-receiver-gradient-tests
   COMMAND demi-shadow-receiver-gradient-tests)
 add_test(NAME demi-shadow-cascade-layout-tests COMMAND demi-shadow-cascade-layout-tests)
@@ -332,6 +335,8 @@ add_test(NAME demi-simulation-tests COMMAND demi-simulation-tests)
   add_test(NAME demi-terrain-water-mesh-tests COMMAND demi-terrain-water-mesh-tests)
   add_test(NAME demi-terrain-water-world-tests COMMAND demi-terrain-water-world-tests)
   add_test(NAME demi-terrain-water-runtime-tests COMMAND demi-terrain-water-runtime-tests)
+  add_test(NAME demi-water-gameplay-tests COMMAND demi-water-gameplay-tests)
+  set_tests_properties(demi-water-gameplay-tests PROPERTIES TIMEOUT 30)
   add_test(NAME demi-lua-terrain-water-tests COMMAND demi-lua-terrain-water-tests)
   set_tests_properties(demi-terrain-water-mesh-tests demi-terrain-water-world-tests
     demi-terrain-water-runtime-tests demi-lua-terrain-water-tests

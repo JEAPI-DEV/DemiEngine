@@ -16,6 +16,7 @@
 #include "demi/runtime/render/bgfx3d/GpuSkinnedMesh3D.h"
 #include "demi/runtime/render/bgfx3d/MeshPbrBindings3D.h"
 #include "demi/runtime/render/bgfx3d/MeshResourceRetention3D.h"
+#include "demi/runtime/render/bgfx3d/OpaqueSceneCapture3D.h"
 #include "demi/runtime/render/bgfx3d/ParticleBillboardRenderer3D.h"
 #include "demi/runtime/render/bgfx3d/PostProcessRenderer3D.h"
 #include "demi/runtime/render/bgfx3d/PrimitiveCanvas3D.h"
@@ -29,6 +30,7 @@
 #include "demi/runtime/render/bgfx3d/TerrainGpuMeshCache3D.h"
 #include "demi/runtime/render/bgfx3d/TerrainMaterialResidency3D.h"
 #include "demi/runtime/render/bgfx3d/TerrainPatchBatch3D.h"
+#include "demi/runtime/render/bgfx3d/UnderwaterCamera3D.h"
 #include "demi/runtime/render/bgfx3d/VisualAnimationBudget3D.h"
 #include "demi/runtime/scene/model/World.h"
 #include "demi/runtime/terrain/TerrainLodResidency.h"
@@ -120,7 +122,11 @@ private:
                           std::uint32_t &, std::uint32_t &, std::string &);
   bool renderView(const World &, const BgfxCameraFrame3D &, float,
                   std::string &, bool shadowPass, const SceneLighting3D &,
-                  const BgfxCameraFrame3D &lodCamera);
+                  const BgfxCameraFrame3D &lodCamera,
+                  OpaqueSceneCapture3D::Target *waterCapture = nullptr);
+  OpaqueSceneCapture3D::Target *prepareWaterCapture(const World &,
+                                                    const BgfxCameraFrame3D &,
+                                                    std::string &error);
   bool prepareTerrainMeshes(SceneVisibility3D &, std::string &error);
   struct MeshSubmissionStatistics {
     std::uint32_t draws = 0;
@@ -129,13 +135,22 @@ private:
     std::uint32_t mediumLodMeshes = 0;
     std::uint32_t lowLodMeshes = 0;
   };
+  bool renderWaterAndTransparent(const SceneVisibility3D &, BgfxCameraFrame3D &,
+                                 const RenderTargetHandles &,
+                                 OpaqueSceneCapture3D::Target &,
+                                 const SceneLighting3D &,
+                                 const std::array<DrawUniformValue, 8> &,
+                                 std::size_t firstTransparent,
+                                 MeshSubmissionStatistics &,
+                                 std::string &error);
   bool submitVisibleMeshes(const SceneVisibility3D &, const BgfxCameraFrame3D &,
                            bool shadowPass, std::size_t firstTransparent,
                            const std::array<DrawUniformValue, 8> &,
                            ProgramHandle defaultMeshProgram,
                            ProgramHandle defaultInstancedProgram,
                            ProgramHandle defaultSkinnedProgram,
-                           MeshSubmissionStatistics &, std::string &error);
+                           MeshSubmissionStatistics &, std::string &error,
+                           int selectedSurfacePass = -1);
   struct ModelLodSelection {
     const std::string *model = nullptr;
     bool isCulled = false;
@@ -178,6 +193,11 @@ private:
   RenderCommands &commands_;
   PrimitiveCanvas3D primitives_;
   PostProcessRenderer3D postProcess_;
+  OpaqueSceneCapture3D opaqueCapture_;
+  WaterSurfaceRenderer3D waterRenderer_;
+  UnderwaterCamera3D underwaterCamera_;
+  float waterTime_ = 0.F;
+  bool waterTimeAdvanced_ = false;
   ParticleBillboardRenderer3D particleRenderer_;
   BgfxRenderer2D overlay_;
   TextureLibrary2D textures_;

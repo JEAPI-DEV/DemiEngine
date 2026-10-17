@@ -56,7 +56,10 @@ bool MeshInstanceBatch3D::flush(
     groupUniforms[7].values = groupMetalRough;
     const std::array<float, 4> groupingMode{
         debugMode[0], group.transforms.size() > 1U ? 1.0F : 0.0F, 0.0F, 0.0F};
-    groupUniforms[2].values = groupingMode;
+    // Other internal passes use the remaining lanes for camera data.
+    if (debugMode[0] == 6.F) {
+      groupUniforms[2].values = groupingMode;
+    }
     const std::array<float, 4> unlitAmbient{1.0F, 1.0F, 1.0F, 1.0F};
     const std::array<float, 4> noLight{};
     if (group.unlit) {

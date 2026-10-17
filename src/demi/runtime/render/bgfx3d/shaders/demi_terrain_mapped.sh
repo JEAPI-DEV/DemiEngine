@@ -206,7 +206,7 @@ vec4 terrainMappedSurface(uvec4 indices, vec4 weights, bool clockwiseFacing,
     vec3 receiverNormal, vec3 localPosition, vec3 localNormal, float viewDistance,
     out vec4 parameters, out vec3 lightingNormal, out float occlusion, out vec3 emissive)
 {
-    if (u_shadowConfig.x < -0.5)
+    if (u_shadowConfig.x < -0.5 || u_debugMode.x > 7.5)
     {
 #ifndef DEMI_TERRAIN_OPAQUE
         // Supported mapped terrain is opaque. Height factors stay positive,

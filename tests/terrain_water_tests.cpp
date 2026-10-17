@@ -1,4 +1,5 @@
 #include "demi/runtime/terrain/TerrainWater.h"
+#include "demi/runtime/terrain/TerrainWaterAuthoring.h"
 
 #include "demi/runtime/terrain/TerrainHeightField.h"
 #include "demi/runtime/terrain/TerrainMasks.h"
@@ -12,7 +13,9 @@
 #include <cmath>
 #include <functional>
 #include <iostream>
+#include <nlohmann/json.hpp>
 #include <set>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -837,6 +840,7 @@ void followingBedSharesSlopedSurfaceWithQueries() {
       fieldWith({8, 8}, 8, 8, [](double, double) { return 10.F; });
   TerrainWaterBodySpec river;
   river.id = "descending";
+  river.flowSpeed = 3.F;
   river.kind = TerrainWaterBody::River;
   river.riverSurfaceMode = TerrainRiverSurfaceMode::FollowBed;
   river.riverDepth = 2;
@@ -855,6 +859,12 @@ void followingBedSharesSlopedSurfaceWithQueries() {
          centre->depth == 2);
   assert(std::abs(centre->normal.x - std::sqrt(0.5F)) < 1e-5F);
   assert(std::abs(centre->normal.y - std::sqrt(0.5F)) < 1e-5F);
+  assert(std::abs(centre->flowSpeed - 3.F) < 1e-5F);
+  assert(centre->flowVelocity.x > 0 && centre->flowVelocity.y < 0);
+  const float normalFlow = centre->normal.x * centre->flowVelocity.x +
+                           centre->normal.y * centre->flowVelocity.y +
+                           centre->normal.z * centre->flowVelocity.z;
+  assert(std::abs(normalFlow) < 1e-5F);
   const auto &surface = result->surfaces.front();
   assert(surface.riverSurfaceMode == TerrainRiverSurfaceMode::FollowBed);
   assert(!surface.indices.empty());
@@ -894,8 +904,124 @@ void followingBedSharesSlopedSurfaceWithQueries() {
   assert(invalid && invalid->dropped == 1 && invalid->surfaces.empty());
 }
 
+void appearanceRoundTripsAndValidatesSurfaceDetail() {
+  TerrainWaterAppearance appearance;
+  appearance.waveAmplitude = 0.1F;
+  appearance.waveLength = 3.F;
+  appearance.waveSpeed = 0.7F;
+  appearance.normalStrength = 0.8F;
+  appearance.foamWidth = 0.3F;
+  appearance.foamStrength = 0.6F;
+  appearance.foamColor = {0.8F, 0.9F, 1.F, 0.7F};
+  const auto document = terrainWaterAppearanceJson(appearance);
+  const auto decoded = parseTerrainWaterAppearance(document);
+  assert(sameTerrainWaterAppearance(appearance, decoded));
+  assert(!sameTerrainWaterAppearance(appearance, TerrainWaterAppearance{}));
+  for (const auto &invalid :
+       std::vector<nlohmann::json>{{{"wave_amplitude", -0.1}},
+                                   {{"wave_length", 0}},
+                                   {{"wave_speed", -1}},
+                                   {{"normal_strength", -1}},
+                                   {{"foam_width", -1}},
+                                   {{"foam_strength", 1.1}},
+                                   {{"foam_color", {1, 1, 1, -1}}}}) {
+    bool rejected = false;
+    try {
+      (void)parseTerrainWaterAppearance(invalid);
+    } catch (const std::invalid_argument &) {
+      rejected = true;
+    }
+    assert(rejected);
+  }
+}
+
+void polygonBoundariesAndStableEdits() {
+  const auto ground =
+      fieldWith({8, 8}, 8, 8, [](double, double) { return -2.F; });
+  const auto body = parseTerrainWaterBodyParameters(
+      {{"kind", "ocean"}, {"boundary", {{1, 1}, {6, 1}, {6, 6}, {1, 6}}}},
+      "bounded");
+  auto authoring = authoringWith(body);
+  const auto result =
+      refreshTerrainWaterResult(ground, authoring, ground.heights);
+  assert(result && result->dropped == 0);
+  const auto context = TerrainWaterQueryContext::build(authoring, *result,
+                                                       nullptr, 8, 8, {8, 8});
+  assert(context && context->sample({3, -1, 3})->submerged);
+  assert(!context->sample({8, -1, 8})->submerged);
+  const auto edited = editTerrainWaterAuthoring(
+      authoring, {},
+      nlohmann::json::array({{{"id", "bounded"}, {"level", 1}}}));
+  assert(edited.bodies.front().id == "bounded");
+  assert(edited.bodies.front().level == 1);
+  const std::vector<std::string> excluded{"bounded"};
+  assert(editTerrainWaterAuthoring(edited, excluded, nlohmann::json::array())
+             .bodies.empty());
+  bool rejected = false;
+  try {
+    (void)parseTerrainWaterBodyParameters(
+        {{"boundary", {{0, 0}, {4, 4}, {0, 4}, {4, 0}}}}, "crossed");
+  } catch (const std::invalid_argument &) {
+    rejected = true;
+  }
+  assert(rejected);
+}
+
+void riverCurvesSampleOnceAndRetainAuthoredControlPoints() {
+  const nlohmann::json controls = {{1, 8, 1}, {3, 6, 1}, {5, 4, 5}, {7, 2, 5}};
+  const nlohmann::json source = {{"kind", "river"},
+                                 {"river_path", controls},
+                                 {"river_path_interpolation", "catmull_rom"},
+                                 {"river_curve_steps", 8}};
+  const auto curved = parseTerrainWaterBodyParameters(source, "curved");
+  assert(curved.riverPath.size() == 25);
+  assert(source.at("river_path") == controls);
+  assert(curved.riverPath.front().x == 1 && curved.riverPath.front().y == 8);
+  assert(curved.riverPath.back().x == 7 && curved.riverPath.back().y == 2);
+  assert(curved.riverPath[8].x == 3 && curved.riverPath[8].y == 6);
+  assert(curved.riverPath[4].z < 1); // A curve, rather than linear subdivision.
+  const auto unchanged =
+      parseTerrainWaterBodyParameters({{"roughness", 0.4}}, "curved", curved);
+  assert(unchanged.riverPath.size() == curved.riverPath.size());
+  for (std::size_t index = 0; index < curved.riverPath.size(); ++index) {
+    assert(unchanged.riverPath[index].x == curved.riverPath[index].x);
+    assert(unchanged.riverPath[index].y == curved.riverPath[index].y);
+    assert(unchanged.riverPath[index].z == curved.riverPath[index].z);
+  }
+  auto linearSource = source;
+  linearSource["river_path_interpolation"] = "linear";
+  const auto linear = parseTerrainWaterBodyParameters(linearSource, "linear");
+  assert(linear.riverPath.size() == controls.size());
+  auto repeated = source;
+  repeated["river_path"][1] = repeated["river_path"][0];
+  const auto coincident = parseTerrainWaterBodyParameters(repeated, "repeated");
+  for (const auto &point : coincident.riverPath) {
+    assert(std::isfinite(point.x) && std::isfinite(point.y) &&
+           std::isfinite(point.z));
+  }
+  for (const auto &invalid : std::vector<nlohmann::json>{
+           {{"river_path_interpolation", "catmull_rom"}},
+           {{"river_curve_steps", 4}},
+           {{"river_path", controls}, {"river_curve_steps", 0}},
+           {{"river_path", controls}, {"river_curve_steps", 65}},
+           {{"river_path", controls}, {"river_curve_steps", 1.5}},
+           {{"river_path", controls},
+            {"river_path_interpolation", "unknown"}}}) {
+    bool rejected = false;
+    try {
+      (void)parseTerrainWaterBodyParameters(invalid, "invalid", curved);
+    } catch (const std::invalid_argument &) {
+      rejected = true;
+    }
+    assert(rejected);
+  }
+}
+
 int main() {
+  riverCurvesSampleOnceAndRetainAuthoredControlPoints();
+  polygonBoundariesAndStableEdits();
   followingBedSharesSlopedSurfaceWithQueries();
+  appearanceRoundTripsAndValidatesSurfaceDetail();
   riverCarvesChannelAndLeavesFieldUnchanged();
   riverDepthFollowsDrainage();
   lakeFillsBasinWithLevelSurface();

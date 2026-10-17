@@ -6,7 +6,9 @@
 ---@field body_id string Stable water-body ID within that terrain.
 ---@field kind "lake"|"ocean"|"river"
 ---@field surface Vec3 World-space surface point projected along terrain-local up, not necessarily global vertical.
----@field normal Vec3 World-space unit surface normal.
+---@field normal Vec3 World-space unit base surface normal; shading waves do not displace queries.
+---@field column_up Vec3 World-space unit axis from the bed toward the surface; depth follows this axis.
+---@field flow_velocity Vec3 Prescribed world-space current in world units per second.
 ---@field depth number Bed-to-surface depth in world units along terrain-local up.
 ---@field underwater boolean The queried point lies at or above the bed and below the surface.
 
@@ -51,7 +53,7 @@ function TerrainWater.sample(position, terrain_id) end
 
 ---Creates an opaque point-immersion tracker with the optional terrain filter.
 ---Gameplay mechanics such as swimming and buoyancy remain script-owned;
----automatic buoyancy and animated waves are not implemented.
+---queries retain the base water surface independently of shading animation.
 ---@param terrain_id? string Optional terrain placement entity ID.
 ---@return WaterTracker
 function TerrainWater.tracker(terrain_id) end

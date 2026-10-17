@@ -32,6 +32,7 @@ enum class TextureWrap { Clamp, Repeat, Mirror };
 enum class BufferKind { Vertex, DynamicVertex, Index16, Index32 };
 enum class BuiltinProgram {
   Textured2D,
+  WaterSurface3D,
   VertexColor3D,
   Textured3D,
   Lit3D,
@@ -102,6 +103,7 @@ struct TextureCreateInfo {
   int msaaSamples = 1;
   // Array data is layer-major; each layer contains its complete mip chain.
   std::uint16_t layers = 1;
+  bool blitDestination = false;
 };
 
 struct TextureUpdateInfo {
@@ -158,6 +160,7 @@ struct RenderDeviceLimits {
   std::uint32_t maxTextureSamplers = 0;
   bool supportsInstancing = false;
   std::uint32_t maxTextureLayers = 1;
+  bool supportsTextureBlit = false;
 };
 
 struct TextureCapabilities {

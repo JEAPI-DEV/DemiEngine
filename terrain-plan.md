@@ -643,26 +643,19 @@ remains separate editor work; the current swatch is explicitly base color.
 
 ## Milestone 5: native water integrated with terrain
 
-Partly implemented. River, lake and ocean authoring, non-destructive carving and
-render-ready water surfaces with per-vertex depth are done and tested, as are
-gameplay queries kept deliberately independent of render tessellation. Graph
-water outputs now publish native transparent meshes in editor previews and
-runtime, including prepared assets. They inherit terrain transforms/visibility,
-never acquire solid collision, and reconcile atomically on Generate and history
-updates. Basic direct lighting uses the shared transparent mesh renderer.
-Graph-authored shallow/deep RGBA, absorption distance and roughness now produce
-depth-derived vertex colours through the shared mesh renderer. Shore geometry
-clips against terrain triangles; queries use the same interpolation without
-depending on rendered meshes. Uncontained bounded lakes warn rather than
-silently clamping an authored level or inventing banks.
-Reflection/refraction, waves, foam and underwater
-appearance remain pending; this is not completion of the water quality gate.
-The [water rendering prerequisite audit](docs/terrain-water-rendering-design.md)
-records why sampleable opaque colour/depth and explicit camera pass allocation
-must precede those effects while retaining MSAA.
+Complete for the Linux/Vulkan water-integration scope on 2026-10-17.
+See [Milestone 5 qualification](docs/terrain-milestone5-qualification.md) for
+native above/underwater captures, gameplay probes, cooking and measured costs.
+Authoring includes editable river curves and polygon boundaries, basin proposals,
+stable-ID overrides, non-destructive graph carving and prescribed currents.
+Water optics use opaque-scene refraction, environment reflection, absorption,
+animated shading normals and foam while retaining the main scene's MSAA.
+Underwater appearance and opt-in package buoyancy/swimming share native queries.
 
-Design water-body data and hydrology interfaces alongside milestones 2–3;
-complete rendering and gameplay integration against the material pipeline.
+Waves animate normals without moving the queried surface. Reflections do not
+include reflected scene geometry; refraction excludes later transparent draws.
+Full fluid simulation, boat hull simulation and Android/Windows native
+qualification are outside this completed scope, not implied by the checkbox.
 
 - [x] Separate sampled field/mask data from generation and water tessellation.
   Pure water tests link sampling/hydrology targets without the engine core.
@@ -675,11 +668,11 @@ complete rendering and gameplay integration against the material pipeline.
   Game scripts choose cadence and mechanics; an optional Lua sensor emits
   regular events without engine-wide automatic polling or collider scans.
 
-- [ ] Add distinct river, lake and ocean authoring with stable IDs, editable
+- [x] Add distinct river, lake and ocean authoring with stable IDs, editable
   spline/boundary shapes, water level, depth/bathymetry and flow parameters.
   Automatically propose water bodies from drainage/basin data, with manual
   additions, exclusions and overrides.
-- [ ] Make river-channel, lake-basin and shoreline carving non-destructive
+- [x] Make river-channel, lake-basin and shoreline carving non-destructive
   terrain layers. Changing water level or a river path invalidates the required
   terrain, wetness, material and scatter data while preserving unrelated edits.
   - [x] Connect resolved water to biome and scatter graph inputs; refresh
@@ -687,7 +680,7 @@ complete rendering and gameplay integration against the material pipeline.
     masks exclude dry interpolation corners, and wet scatter candidates are
     rejected before spacing and placement budgets. See
     [water-rule integration](docs/terrain-water-rule-integration.md).
-- [ ] Render water with depth-dependent colour/absorption, Fresnel response,
+- [x] Render water with depth-dependent colour/absorption, Fresnel response,
   reflections, refraction where supported, animated surface normals/waves and
   shoreline/flow foam. Correctly handle river-to-lake/ocean transitions and
   transparent ordering. Identify renderer prerequisites rather than faking
@@ -701,13 +694,13 @@ complete rendering and gameplay integration against the material pipeline.
   - [x] Restrict lake coverage to its centre-selected connected basin, preserving
     authored river paths and ocean coverage. Retain connectivity in prepared
     results for mesh/query parity and avoid frame-time flood-fill work.
-- [ ] Add underwater appearance and camera transitions, plus shared queries for
+- [x] Add underwater appearance and camera transitions, plus shared queries for
   surface height, depth, containment and flow. Expose gameplay APIs/components
   for water interaction; provide opt-in buoyancy/drag and swimming integration.
-- [ ] Keep render detail separate from gameplay water queries. A distant or
+- [x] Keep render detail separate from gameplay water queries. A distant or
   culled water surface must not disappear from gameplay. Synchronize query and
   visible-wave conventions where objects interact with the surface.
-- [ ] Keep full fluid dynamics/flood simulation outside the initial water scope.
+- [x] Keep full fluid dynamics/flood simulation outside the initial water scope.
   Lakes, rivers and oceans must work without requiring that simulation. Design
   later extensions without coupling the core contract to one wave technique.
 

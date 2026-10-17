@@ -184,6 +184,17 @@ vec4 encodedShadowDepth(vec4 worldPosition)
     return packedDepth - packedDepth.yzww * vec4(1.0/255.0, 1.0/255.0, 1.0/255.0, 0.0);
 }
 
+vec4 capturedLinearDepth(vec3 worldPosition)
+{
+    // Internal opaque capture phase: YZW is the camera forward direction,
+    // viewPosition.W is inverse far clip. Public debug modes remain 0..7.
+    // Authored target offsets encode a direction and may have any length.
+    // Optical consumers reconstruct eye-space metres with a unit forward.
+    vec3 forward = u_debugMode.yzw / max(length(u_debugMode.yzw), 0.0001);
+    float depth = dot(worldPosition - u_viewPosition.xyz, forward);
+    return vec4(clamp(depth * u_viewPosition.w, 0.0, 1.0), 0.0, 0.0, 1.0);
+}
+
 void main()
 {
     // Receiver-plane derivatives require the complete fragment quad. Capture
@@ -193,6 +204,11 @@ void main()
     // Uniform opaque coverage is enforced by raster culling. A shadow caster
     // needs no material lookups or normal-frame derivatives. This branch is
     // draw-uniform, so receiving fragments still have complete derivative quads.
+    if (u_debugMode.x > 7.5)
+    {
+        gl_FragColor = capturedLinearDepth(v_worldPos);
+        return;
+    }
     if (u_shadowConfig.x < -0.5)
     {
         gl_FragColor = encodedShadowDepth(worldPosition);
@@ -225,7 +241,7 @@ void main()
                       mappedAlbedo.a * u_tint.a * v_color0.a);
     // Coverage discards must not precede normal-frame derivatives or implicit
     // texture LOD. Casting needs only albedo alpha; phase is draw-uniform.
-    if (u_shadowConfig.x >= -0.5)
+    if (u_shadowConfig.x >= -0.5 && u_debugMode.x < 7.5)
     {
         lightingNormal = pbrSurfaceNormal(receiverNormal, worldDx, worldDy, v_texcoord0, v_localPos, v_localNormal);
         if (u_pbrMapFlags.y > 0.5)
@@ -254,6 +270,13 @@ void main()
     }
 #endif
 
+    if (u_debugMode.x > 7.5)
+    {
+        // Ordinary cutouts and mixed terrain culling already established
+        // coverage; no lighting, normal maps or shadow filtering is required.
+        gl_FragColor = capturedLinearDepth(v_worldPos);
+        return;
+    }
     if (u_shadowConfig.x < -0.5)
     {
         gl_FragColor = encodedShadowDepth(worldPosition);

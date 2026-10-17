@@ -302,7 +302,8 @@ void waterCoverageRoundTrip() {
   assert(encoded["body"][0] == 0 && encoded["body"][1] == 2 &&
          encoded["body"][2] == -1);
   const auto payload = serializeTerrainAssetPayload(field, "recipe", "inputs");
-  assert(terrainAssetPayloadVersion == 9 && payload[7] == std::byte{'9'});
+  assert(terrainAssetPayloadVersion == 10 && payload[7] == std::byte{'1'} &&
+         payload[8] == std::byte{'0'});
   const auto restored = deserializeTerrainAssetPayload(payload);
   assert(restored->surfaceSedimentBalance);
   assert(*restored->surfaceSedimentBalance == *selectedBalance);
@@ -340,6 +341,15 @@ void followingBedWaterPayloadRoundTrip() {
   river.riverSurfaceMode = TerrainRiverSurfaceMode::FollowBed;
   river.riverDepth = 2;
   river.riverWidth = 6;
+  river.flowSpeed = 2.5F;
+  river.flowDirection = {0, 1};
+  river.appearance.waveAmplitude = 0.12F;
+  river.appearance.waveLength = 3.F;
+  river.appearance.waveSpeed = 0.7F;
+  river.appearance.normalStrength = 0.8F;
+  river.appearance.foamWidth = 0.3F;
+  river.appearance.foamStrength = 0.75F;
+  river.appearance.foamColor = {0.9F, 0.8F, 0.7F, 0.6F};
   river.riverPath = {{2, 8, 6}, {14, 2, 6}};
   river.shorelineSoftening = false;
   artifacts->water.authored = true;
@@ -355,6 +365,10 @@ void followingBedWaterPayloadRoundTrip() {
   assert(after.water.bodies.front().riverSurfaceMode ==
          TerrainRiverSurfaceMode::FollowBed);
   assert(after.water.bodies.front().riverDepth == 2);
+  assert(after.water.bodies.front().flowSpeed == 2.5F);
+  assert(after.water.bodies.front().flowDirection.y == 1.F);
+  assert(sameTerrainWaterAppearance(after.water.bodies.front().appearance,
+                                    river.appearance));
   const auto &beforeProfile =
       field.graphArtifacts->waterResult->resolvedCoverage->bodyLevels.front();
   const auto &afterProfile =
