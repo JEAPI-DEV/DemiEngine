@@ -32,4 +32,14 @@ float waterShoreFoam(float depth, float width)
     return width > 0.0 ? 1.0 - smoothstep(0.0, width, depth) : 0.0;
 }
 
+float waterContactCoverage(float depth, float pixelDepthFootprint)
+{
+    // A flat depth field has no screen-space transition to antialias.
+    if (pixelDepthFootprint <= 0.0)
+    {
+        return depth > 0.0 ? 1.0 : 0.0;
+    }
+    return smoothstep(0.0, pixelDepthFootprint, depth);
+}
+
 #endif

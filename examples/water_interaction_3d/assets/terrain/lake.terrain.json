@@ -22,6 +22,15 @@
           1
         ],
         "allow_snow": false
+      },
+      "shore": {
+        "color": [
+          0.48,
+          0.4,
+          0.26,
+          1
+        ],
+        "allow_snow": false
       }
     },
     "graph": {
@@ -57,11 +66,11 @@
               ],
               [
                 27,
-                27
+                23
               ],
               [
                 5,
-                27
+                23
               ]
             ],
             "falloff": 4
@@ -82,7 +91,9 @@
             "level": 2,
             "center_x": 16,
             "center_z": 16,
-            "radius": 0
+            "radius": 0,
+            "foam_width": 0.25,
+            "foam_strength": 0.25
           }
         },
         {
@@ -92,18 +103,18 @@
             "kind": "river",
             "river_surface_mode": "follow_bed",
             "river_depth": 1,
-            "river_width": 3,
+            "river_width": 4,
             "flow_speed": 0.8,
             "river_path": [
               [
                 16,
                 3,
-                31
+                32
               ],
               [
                 16,
                 1,
-                26
+                25
               ],
               [
                 16,
@@ -245,6 +256,17 @@
           }
         }
       ]
-    }
+    },
+    "rules": [
+      {
+        "id": "wet_bank",
+        "biome": "shore",
+        "priority": 10,
+        "water_distance": [
+          0,
+          1.5
+        ]
+      }
+    ]
   }
 }

@@ -55,6 +55,17 @@ void opticsRespectDepthAndGrazingAngles() {
   assert(waterShoreFoam(0.5F, 0.5F) == 0);
 }
 
+void contactCoverageUsesOnlyThePixelDepthFootprint() {
+  assert(waterContactCoverage(0, 2) == 0);
+  assert(waterContactCoverage(1, 2) == 0.5F);
+  assert(waterContactCoverage(2, 2) == 1);
+  assert(waterContactCoverage(4, 2) == 1);
+  assert(waterContactCoverage(-1, 2) == 0);
+  assert(waterContactCoverage(0, 0) == 0);
+  assert(waterContactCoverage(1, 0) == 1);
+  assert(waterContactCoverage(-1, 0) == 0);
+}
+
 class CaptureCommands final : public RenderCommands {
 public:
   struct Draw {
@@ -239,6 +250,7 @@ void underwaterPostProcessingHasExplicitViewsAndNeutralAboveWaterState(
 
 int main() {
   opticsRespectDepthAndGrazingAngles();
+  contactCoverageUsesOnlyThePixelDepthFootprint();
   BgfxGraphicsDevice graphics;
   std::string error;
   assert(graphics.initialize(

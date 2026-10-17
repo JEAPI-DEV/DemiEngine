@@ -70,11 +70,11 @@ void main()
 {
     float time = u_waterFoam.z;
     vec2 flow = v_waterData.yz;
-    float flowLength = length(flow);
-    vec2 direction = flowLength > 0.0001 ? flow / flowLength : vec2(1.0, 0.0);
-    vec2 secondary = vec2(direction.x * 0.6 - direction.y * 0.8,
-        direction.x * 0.8 + direction.y * 0.6);
-    vec2 position = v_waterLocal.xz - flow * time;
+    // Normal waves share terrain-local axes and time across connected bodies.
+    // Changing body ownership or current must not rotate or advect their phase.
+    vec2 direction = vec2(1.0, 0.0);
+    vec2 secondary = vec2(0.6, 0.8);
+    vec2 position = v_waterLocal.xz;
     float frequency = 6.28318530718 / max(u_waterWaves.y, 0.0001);
     float phase = dot(position, direction) * frequency - time * u_waterWaves.z * frequency;
     float secondPhase = dot(position, secondary) * frequency * 1.73 +
@@ -141,9 +141,25 @@ void main()
     color += u_waterLightColor.rgb * u_waterLightDirection.w * highlight * fresnel;
     float foamDepth = below ? v_waterData.x : min(v_waterData.x, localPath);
     float foamBand = waterShoreFoam(foamDepth, u_waterFoam.x);
-    float streak = 0.65 + 0.35 * sin(phase * 0.37 + secondPhase * 0.23);
+    // Foam follows the local current independently of the shared normal waves.
+    float flowLength = length(flow);
+    vec2 foamDirection = flowLength > 0.0001 ? flow / flowLength : direction;
+    vec2 foamSecondary = vec2(foamDirection.x * 0.6 - foamDirection.y * 0.8,
+        foamDirection.x * 0.8 + foamDirection.y * 0.6);
+    vec2 foamPosition = position - flow * time;
+    float foamPhase = dot(foamPosition, foamDirection) * frequency -
+        time * u_waterWaves.z * frequency;
+    float secondFoamPhase = dot(foamPosition, foamSecondary) * frequency * 1.73 +
+        time * u_waterWaves.z * frequency * 0.73;
+    float streak = 0.65 + 0.35 * sin(foamPhase * 0.37 + secondFoamPhase * 0.23);
     float foam = clamp(foamBand * u_waterFoam.y * streak * u_waterFoamColor.a, 0.0, 1.0);
     color = mix(color, u_waterFoamColor.rgb, foam);
+    // The clipped mesh meets the bed at zero depth. Antialias the complete
+    // optical contribution over one pixel, including reflection and foam.
+    // The contact background must stay undistorted to meet the opaque bank.
+    float contactCoverage = waterContactCoverage(v_waterData.x, fwidth(v_waterData.x));
+    vec3 contactBackground = waterDecode(texture2D(s_waterSceneColor, uv).rgb);
+    color = mix(contactBackground, color, contactCoverage);
     // This is the complete optical composite over immutable opaque colour.
     // Ordinary alpha blending here would apply the background a second time.
     gl_FragColor = vec4(waterEncode(color), 1.0);

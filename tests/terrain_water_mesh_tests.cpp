@@ -426,6 +426,69 @@ void depthAppearanceAndContainment() {
   check(terrainWaterContainmentWarnings(*ground, authoring).empty(),
         "Contained lake was incorrectly reported as spilling");
 }
+
+void riverContainmentUsesLocalSurfaceAndAllowsOpenEnds() {
+  TerrainRecipe recipe;
+  recipe.size = {16, 16};
+  recipe.cellsX = recipe.cellsZ = 16;
+  recipe.landforms.at("default").baseHeight = 3;
+  recipe.landforms.at("default").heightVariation = 0;
+  auto ground = TerrainGenerator::generate(recipe);
+  check(bool(ground), "Could not generate river containment fixture");
+
+  TerrainWaterBodySpec river;
+  river.id = "raised_inlet";
+  river.kind = TerrainWaterBody::River;
+  river.level = -100;
+  river.riverSurfaceMode = TerrainRiverSurfaceMode::FollowBed;
+  river.riverDepth = 1;
+  river.riverWidth = 4;
+  river.riverPath = {{8, 5, 0}, {8, 3, 16}};
+  TerrainWaterAuthoring authoring;
+  authoring.authored = true;
+  authoring.bodies.push_back(river);
+  const auto warnings = terrainWaterContainmentWarnings(*ground, authoring);
+  check(warnings.size() == 1 &&
+            warnings.front().find("River 'raised_inlet'") !=
+                std::string::npos &&
+            warnings.front().find("does not raise banks") != std::string::npos,
+        "River without banks did not diagnose its local sloped surface");
+
+  // The bed stays low while lateral banks contain the entire sloped surface.
+  // The two flow endpoints remain open, including where they leave the grid.
+  for (int z = 0; z <= 16; ++z) {
+    for (int x = 0; x <= 16; ++x) {
+      const bool channel = x == 8;
+      const bool openEndpoint = (z == 0 || z == 16) && x >= 7 && x <= 9;
+      ground->heights.set(ground->index(x, z),
+                          channel || openEndpoint ? 3.F : 7.F);
+    }
+  }
+  check(terrainWaterContainmentWarnings(*ground, authoring).empty(),
+        "Contained river with open flow endpoints produced a warning");
+
+  // Extend the bed to the authored width before opening the bank outside it.
+  // Lowering only x=9 would widen the submerged channel without spilling.
+  ground->heights.set(ground->index(9, 12), 3);
+  ground->heights.set(ground->index(10, 12), 3);
+  // A low downstream bank must be compared with the downstream level (4.5),
+  // rather than the upstream level (6) or the ignored authored scalar level.
+  ground->heights.set(ground->index(11, 12), 5);
+  check(terrainWaterContainmentWarnings(*ground, authoring).empty(),
+        "Sloped river bank was compared with the wrong local surface");
+  ground->heights.set(ground->index(11, 12), 3);
+  check(terrainWaterContainmentWarnings(*ground, authoring).size() == 1,
+        "Low lateral bank on a sloped river produced no warning");
+
+  TerrainWaterBodySpec lake;
+  lake.id = "receiving_water";
+  lake.kind = TerrainWaterBody::Ocean;
+  lake.level = 4;
+  authoring.bodies.push_back(lake);
+  check(terrainWaterContainmentWarnings(*ground, authoring).empty(),
+        "River joining another wet body was incorrectly reported as spilling");
+}
+
 } // namespace
 
 int main() {
@@ -440,6 +503,7 @@ int main() {
     detectsWaterAdditionAndRemoval();
     detectsWaterSurfaceChanges();
     depthAppearanceAndContainment();
+    riverContainmentUsesLocalSurfaceAndAllowsOpenEnds();
     std::cout << "Terrain water mesh tests passed\n";
     return 0;
   } catch (const std::exception &error) {

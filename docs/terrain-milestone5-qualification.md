@@ -147,3 +147,44 @@ The final gate also covers cached authored camera targets: an unchanged target
 presents its completed image without reprocessing shared scratch data from
 another camera. Underwater optical state is evaluated only when content updates.
 The full 25-suite focused gate passes after this fix and native policy cleanup.
+
+
+## Low-angle visual follow-up
+
+The initial overhead acceptance missed an incorrectly authored inlet. Its
+water profile stood above adjacent basin ground, and carving cannot raise
+retaining banks. The gameplay example now leaves a longer upstream bank, routes
+the descending profile through that bank, and reaches lake level at the shore.
+The dry control retains its physics test but no longer has a visible mesh;
+all probes have descriptive hierarchy names.
+
+Default and near-Full LOD captures plus a normal-debug view confirmed mesh
+contact in the lake fixture. The apparent separation was reinforced by the
+opaque optical rim and dark bank shading. Contact coverage now blends the
+complete optical result over the undistorted opaque scene within one pixel of
+zero depth; geometry and gameplay elevations are not moved. The example also
+uses a distinguishable wet-bank biome, calmer lake foam and outdoor fill light.
+
+A second join issue was a per-body change of ripple direction and phase. Normal
+waves now share terrain-local coordinates and clock for matching wave settings;
+foam still advects with each body's current. This removes the artificial ribbon
+inside the coplanar lake without changing its current queries.
+
+Generation now warns about low lateral river banks using the body's local
+surface profile. It permits open flow endpoints and joins with wet bodies.
+Tests cover contained and exposed sloped channels, local-level comparisons,
+open ends and receiving water. The warning does not change authored elevations
+or add invented retaining walls.
+
+The follow-up Release CLI/editor and six focused shader, water, graph and asset
+suites pass. The updated example validates, its headless gameplay E2E reports
+1 passed/0 failed, and the Linux cooked project validates. Fresh native captures
+check the corrected inlet from the side and the lake from a low angle:
+`/tmp/water-contact-overview.png`, `/tmp/water-contact-final.png` and
+`/tmp/water-joined-final.png`. No terrain or water height was shifted in the
+renderer to conceal contact errors. These checks replace the inadequate
+overhead-only acceptance for this example.
+
+The updated terrain guide was deployed as `20261017-water-shore-contact` after
+Composer tests, 106 Twig template checks and production cache warmup. The live
+health endpoint and river containment guidance were verified.
