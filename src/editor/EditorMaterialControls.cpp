@@ -107,6 +107,16 @@ void drawEditorMaterialSurfaceControls(EditorWorkspace &workspace,
       "OpenGL normals use +Y (green up); DirectX normals use -Y (green down). "
       "Choose the convention of the imported maps.");
 
+  ImGui::SeparatorText("Mesh wind");
+  scalar("Wind strength (world units)", "wind_strength", surface.windStrength,
+         0, std::numeric_limits<float>::max());
+  scalar("Wind frequency (Hz)", "wind_frequency", surface.windFrequency, 0,
+         std::numeric_limits<float>::max());
+  scalar("Wind full-bend height (local Y)", "wind_height", surface.windHeight,
+         std::numeric_limits<float>::min(), std::numeric_limits<float>::max());
+  ImGui::TextWrapped("Built-in static meshes bend above their local Y=0 root. "
+                     "Wind is visual; collision remains fixed.");
+
   ImGui::SeparatorText("Terrain layer shading");
   scalar("Height blend strength", "height_blend_strength",
          surface.heightBlendStrength, 0, 1);

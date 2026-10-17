@@ -28,7 +28,7 @@ collectSceneAssetReferences(const World &world,
             nlohmann::json::parse(authored->json(), nullptr, false);
         if (!values.is_object())
           continue;
-        const auto assets = extractAssetReferences(values.dump());
+        const auto assets = extractAssetReferencesFromJson(values);
         references.insert(assets.begin(), assets.end());
       } catch (const nlohmann::json::exception &) {
         continue;
@@ -36,8 +36,11 @@ collectSceneAssetReferences(const World &world,
     }
     for (const auto &[unused, serialized] : entity.serializedComponents) {
       (void)unused;
-      const auto assets = extractAssetReferences(serialized);
-      references.insert(assets.begin(), assets.end());
+      const auto values = nlohmann::json::parse(serialized, nullptr, false);
+      if (values.is_object()) {
+        const auto assets = extractAssetReferencesFromJson(values);
+        references.insert(assets.begin(), assets.end());
+      }
     }
   }
   for (const ui::UiNode &node : world.ui.nodes) {

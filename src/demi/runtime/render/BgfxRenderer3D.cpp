@@ -399,6 +399,12 @@ bool BgfxRenderer3D::renderFrame(const World &world,
   if (!shadows_.prepare(lighting, frame, error)) {
     return false;
   }
+  // Advance shared visual time before any shadow/depth/color view consumes
+  // it. The presentation guard keeps multiple cameras on the same wind phase.
+  if (!waterTimeAdvanced_) {
+    waterTime_ += std::max(deltaSeconds, 0.F);
+    waterTimeAdvanced_ = true;
+  }
   auto mainFrame = frame;
   std::size_t shadowBatches = 0;
   const auto depthFrames = shadows_.depthFrames();
@@ -415,10 +421,6 @@ bool BgfxRenderer3D::renderFrame(const World &world,
   RuntimeProfiler::setGauge("Renderer3D.shadow_batches", shadowBatches);
   RuntimeProfiler::setGauge("Renderer3D.shadow_cascades", depthFrames.size());
   shadows_.receive();
-  if (!waterTimeAdvanced_) {
-    waterTime_ += std::max(deltaSeconds, 0.F);
-    waterTimeAdvanced_ = true;
-  }
   if (frame.updateContent && frame.camera.debugMode == "shaded" &&
       resources_.shaderBackend() != "noop") {
     mainFrame.underwater = underwaterCamera_.sample(world, frame.position);
@@ -579,10 +581,15 @@ bool BgfxRenderer3D::renderView(const World &world,
                                ? world.destruction3D->cosmeticFragments()
                                : std::vector<CosmeticFragment3D>{};
   if (frame.updateContent) {
+    ProfileScope scope("Renderer3D.extract_view");
     const auto extractionStarted = std::chrono::steady_clock::now();
     visibility = extractVisibleMeshes3D(
         world, frame, &extractionJobs_, &terrainSelection_, &lodCamera,
-        &terrainLodResidency_, &terrainCameraDemand_, &terrainPatches_);
+        &terrainLodResidency_, &terrainCameraDemand_, &terrainPatches_, &materials_,
+        [this](std::string_view model) -> std::optional<MeshBounds3D> {
+          const auto cached = modelMeshes_.find(std::string(model));
+          return cached == modelMeshes_.end() ? std::nullopt : cached->second->bounds;
+        }, &instancePreparation_);
     lastExtractionMilliseconds_ =
         std::chrono::duration<double, std::milli>(
             std::chrono::steady_clock::now() - extractionStarted)
@@ -590,20 +597,26 @@ bool BgfxRenderer3D::renderView(const World &world,
   } else {
     lastExtractionMilliseconds_ = 0.0;
   }
-  if (frame.updateContent && !prepareTerrainMeshes(visibility, error)) {
-    return false;
+  if (frame.updateContent) {
+    ProfileScope scope("Renderer3D.prepare_terrain_meshes");
+    if (!prepareTerrainMeshes(visibility, error)) {
+      return false;
+    }
   }
   if (shadowPass) {
+    ProfileScope scope("Renderer3D.compact_shadow_sections");
     compactOpaqueShadowSections3D(visibility.meshes, materials_);
   }
   if (frame.updateContent &&
       !prepareAnimatedMeshes(visibility.meshes, frame, error)) {
     return false;
   }
-  std::size_t firstTransparent =
-      shadowPass ? visibility.meshes.size()
-                 : orderMeshSurfaces3D(visibility.meshes, materials_,
-                                       frame.position, frame.forward);
+  std::size_t firstTransparent = visibility.meshes.size();
+  if (!shadowPass) {
+    ProfileScope scope("Renderer3D.order_surfaces");
+    firstTransparent = orderMeshSurfaces3D(visibility.meshes, materials_,
+                                          frame.position, frame.forward);
+  }
   if (depthCapture) {
     visibility.meshes.resize(firstTransparent);
   }
@@ -714,16 +727,21 @@ bool BgfxRenderer3D::renderView(const World &world,
     if (!fallback.empty()) {
       visibility.meshes.insert(visibility.meshes.end(), fallback.begin(),
                                fallback.end());
-      if (!prepareTerrainMeshes(visibility, error)) {
-        return false;
+      {
+        ProfileScope scope("Renderer3D.prepare_terrain_meshes");
+        if (!prepareTerrainMeshes(visibility, error)) {
+          return false;
+        }
       }
       if (shadowPass) {
+        ProfileScope scope("Renderer3D.compact_shadow_sections");
         compactOpaqueShadowSections3D(visibility.meshes, materials_);
+        firstTransparent = visibility.meshes.size();
+      } else {
+        ProfileScope scope("Renderer3D.order_surfaces");
+        firstTransparent = orderMeshSurfaces3D(visibility.meshes, materials_,
+                                              frame.position, frame.forward);
       }
-      firstTransparent =
-          shadowPass ? visibility.meshes.size()
-                     : orderMeshSurfaces3D(visibility.meshes, materials_,
-                                           frame.position, frame.forward);
     }
   }
   const auto &patches = terrainPatches_.statistics();
@@ -758,11 +776,14 @@ bool BgfxRenderer3D::renderView(const World &world,
   }
   reliefMeshes_.beginFrame();
   MeshSubmissionStatistics meshStatistics;
-  if (!submitVisibleMeshes(visibility, frame, shadowPass, firstTransparent,
-                           lightingUniforms, defaultMeshProgram,
-                           defaultInstancedProgram, defaultSkinnedProgram,
-                           meshStatistics, error, waterCapture ? 0 : -1)) {
-    return false;
+  {
+    ProfileScope scope("Renderer3D.submit_meshes");
+    if (!submitVisibleMeshes(visibility, frame, shadowPass, firstTransparent,
+                             lightingUniforms, defaultMeshProgram,
+                             defaultInstancedProgram, defaultSkinnedProgram,
+                             meshStatistics, error, waterCapture ? 0 : -1)) {
+      return false;
+    }
   }
   if (waterCapture != nullptr &&
       !renderWaterAndTransparent(visibility, frame, sourceTarget, *waterCapture,

@@ -350,7 +350,7 @@ evaluateScatter(const TerrainRecipe &sourceRecipe,
     const auto wetSamples = coverage ? std::span<const std::uint8_t>(*coverage)
                                      : std::span<const std::uint8_t>{};
     auto scattered = scatterTerrain(field, sourceRecipe, *inputs.palette, {},
-                                    nullptr, wetSamples);
+                                    nullptr, wetSamples, stop);
     if (stop.stop_requested())
       return std::nullopt;
     placements->placements = std::move(scattered.placements);

@@ -3,6 +3,7 @@
 #include "demi/runtime/assets/RegistryAssetResourceLoader.h"
 #include "demi/runtime/assets/RuntimeAssetReload.h"
 #include "demi/runtime/assets/RuntimeAssetService.h"
+#include "demi/runtime/scene/SceneAssetReferences.h"
 #include "demi/runtime/scripting/LuaScriptHost.h"
 
 #include <cassert>
@@ -23,6 +24,30 @@ void write(const std::filesystem::path &path, const std::string &text) {
 } // namespace
 
 int main() {
+  {
+    demi::runtime::World probe;
+    demi::runtime::Entity entity;
+    entity.id = "terrain/__scatter/asset://palette/woodland/scatter|tree|0|21/body";
+    entity.serializedComponents["Transform3D"] = nlohmann::json{
+        {"parent", entity.id},
+        {"asset://label/only", "ordinary label"}}.dump();
+    entity.serializedComponents["MeshRenderer"] = nlohmann::json{
+        {"model", "asset://models/high"},
+        {"medium_lod_model", "asset://models/medium"},
+        {"low_lod_model", "asset://models/low"},
+        {"material", "asset://materials/foliage"}}.dump();
+    entity.serializedComponents["Terrain3D"] = nlohmann::json{
+        {"scatter_exclusions", {entity.id}}}.dump();
+    probe.entities.push_back(entity);
+    assert(demi::extractAssetReferences(entity.serializedComponents["Terrain3D"]).empty());
+    assert(demi::extractAssetReferences(entity.serializedComponents["Transform3D"]).empty());
+    assert(demi::extractAssetReferences(R"(local model = "asset://models/scripted")") ==
+           std::vector<std::string>({"asset://models/scripted"}));
+    const auto references = demi::runtime::collectSceneAssetReferences(probe);
+    assert(references == std::vector<std::string>({
+        "asset://materials/foliage", "asset://models/high",
+        "asset://models/low", "asset://models/medium"}));
+  }
   const auto nonce =
       std::chrono::steady_clock::now().time_since_epoch().count();
   const auto root = std::filesystem::temp_directory_path() /

@@ -56,6 +56,9 @@ MaterialSurface materialSurface(const MaterialAsset &material) {
   surface.normalStrength = number("normal_strength", surface.normalStrength);
   surface.tiling = number("tiling", surface.tiling);
   surface.detailStrength = number("detail_strength", surface.detailStrength);
+  surface.windStrength = number("wind_strength", surface.windStrength);
+  surface.windFrequency = number("wind_frequency", surface.windFrequency);
+  surface.windHeight = number("wind_height", surface.windHeight);
   surface.heightBlendStrength =
       number("height_blend_strength", surface.heightBlendStrength);
   surface.macroVariationStrength =
@@ -124,8 +127,10 @@ Diagnostics validateMaterialSurface(const MaterialAsset &material,
         name == "roughness" || name == "metallic" || name == "opacity" ||
         name == "height_blend_strength" || name == "macro_variation_strength";
     const bool nonnegative =
-        name == "normal_strength" || name == "detail_strength";
-    const bool positive = name == "tiling" || name == "macro_variation_scale";
+        name == "normal_strength" || name == "detail_strength" ||
+        name == "wind_strength" || name == "wind_frequency";
+    const bool positive = name == "tiling" || name == "macro_variation_scale" ||
+                          name == "wind_height";
     const bool wrongType = name == "base_color";
     const bool outOfRange = (normalized && (number < 0 || number > 1)) ||
                             (nonnegative && number < 0) ||
@@ -140,7 +145,9 @@ Diagnostics validateMaterialSurface(const MaterialAsset &material,
         name == "roughness" || name == "metallic" || name == "opacity" ||
         name == "normal_strength" || name == "tiling" ||
         name == "detail_strength" || name == "height_blend_strength" ||
-        name == "macro_variation_strength" || name == "macro_variation_scale";
+        name == "macro_variation_strength" || name == "macro_variation_scale" ||
+        name == "wind_strength" || name == "wind_frequency" ||
+        name == "wind_height";
     const bool normalized = name == "base_color";
     const std::array channels{color.r, color.g, color.b, color.a};
     const bool validChannels =

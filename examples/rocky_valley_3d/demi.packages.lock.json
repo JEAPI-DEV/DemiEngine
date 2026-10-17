@@ -2,8 +2,8 @@
   "format_version": 1,
   "packages": [
     {
-      "archive_hash": "sha256:eba1a3956c2f0563a65ebfdb664d4597bc57c2e4f5ffb978bb1baef090c5ff2e",
-      "archive_uri": "package://polyhaven.materials.terrain/1.1.0",
+      "archive_hash": "sha256:3221966fc8a99731aa76f5555fbea817ac40ebe28b6b8f043d715cdb5e8a1166",
+      "archive_uri": "package://polyhaven.materials.terrain/1.2.0",
       "manifest": {
         "asset_manifests": [
           "assets/materials/grass_ground/grass_ground.material.asset.json",
@@ -138,9 +138,9 @@
         "format_version": 1,
         "name": "polyhaven.materials.terrain",
         "public_modules": [],
-        "version": "1.1.0"
+        "version": "1.2.0"
       },
-      "manifest_hash": "sha256:52072f408fe6d8db2e83b73498dcd73086427eafc3c3e041013abc07806d2b72",
+      "manifest_hash": "sha256:158733e1833e19847587c2c37025627df42e33720cc260c7d2c88d216e83e595",
       "yanked": false
     }
   ],

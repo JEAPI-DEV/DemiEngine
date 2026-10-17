@@ -35,9 +35,9 @@ std::uint64_t mix(std::uint64_t value) noexcept {
   return value ^ (value >> 31);
 }
 
-// Canonical bit pattern for a float, so the hash of an instance never depends on
-// a NaN payload, on a sign bit a comparison would ignore, or on the order the
-// arithmetic was folded in.
+// Canonical bit pattern for a float, so the hash of an instance never depends
+// on a NaN payload, on a sign bit a comparison would ignore, or on the order
+// the arithmetic was folded in.
 std::uint32_t canonicalFloat(float value) noexcept {
   if (std::isnan(value))
     return 0x7FC00000U;
@@ -75,8 +75,8 @@ std::string drawableOf(const TerrainScatterInstance &instance) {
 } // namespace
 
 std::string terrainScatterInstanceKey(std::string_view paletteId,
-                                      std::string_view ruleId, std::size_t cell,
-                                      std::string_view regionId,
+                                      std::string_view ruleId, int candidateX,
+                                      int candidateZ, std::string_view regionId,
                                       std::string_view layerId) {
   std::string key;
   key.reserve(paletteId.size() + regionId.size() + layerId.size() + 32);
@@ -92,35 +92,31 @@ std::string terrainScatterInstanceKey(std::string_view paletteId,
   key += keySeparator;
   key += escapeSegment(layerId);
   key += keySeparator;
-  key += std::to_string(cell);
+  key += std::to_string(candidateX);
+  key += keySeparator;
+  key += std::to_string(candidateZ);
   return key;
 }
 
 std::uint64_t terrainScatterInstanceSeed(int worldSeed, std::string_view ruleId,
-                                         std::size_t cell) {
-  const auto channel =
-      deriveTerrainSubSeed(worldSeed, TerrainSeedChannel::Scatter);
-  // Identical to the cellRandom() derivation in TerrainScatter.cpp for sample
-  // slot 1, which is the slot that draws yaw and scale. Duplicated rather than
-  // called because scatterTerrain's helper is file-local; the exact patch that
-  // moves this single definition into scatterTerrain is in the change report.
-  std::uint64_t state = static_cast<std::uint64_t>(std::uint32_t(channel));
-  state ^= static_cast<std::uint64_t>(cell) * 0x9E3779B97F4A7C15ull;
-  state ^= terrainPlacementRuleHash(ruleId) * 0xC2B2AE3D27D4EB4Full;
-  state ^= static_cast<std::uint64_t>(1) * 0x165667B19E3779F9ull;
-  return state;
+                                         int candidateX, int candidateZ) {
+  return deriveTerrainScatterSeed(
+      worldSeed, terrainPlacementRuleHash(ruleId),
+      terrainScatterCandidateKey(candidateX, candidateZ), 1);
 }
 
-TerrainScatterInstance
-terrainScatterInstanceFrom(const TerrainScatterPlacement &placement,
-                           std::string_view paletteId, int worldSeed,
-                           std::string_view regionId, std::string_view layerId) {
+TerrainScatterInstance terrainScatterInstanceFrom(
+    const TerrainScatterPlacement &placement, std::string_view paletteId,
+    int worldSeed, std::string_view regionId, std::string_view layerId) {
   TerrainScatterInstance instance;
-  instance.id = terrainScatterInstanceKey(paletteId, placement.ruleId,
-                                          placement.cell, regionId, layerId);
-  instance.seed =
-      terrainScatterInstanceSeed(worldSeed, placement.ruleId, placement.cell);
+  instance.id = terrainScatterInstanceKey(
+      paletteId, placement.ruleId, placement.candidateX, placement.candidateZ,
+      regionId, layerId);
+  instance.seed = terrainScatterInstanceSeed(
+      worldSeed, placement.ruleId, placement.candidateX, placement.candidateZ);
   instance.cell = placement.cell;
+  instance.candidateX = placement.candidateX;
+  instance.candidateZ = placement.candidateZ;
   instance.ruleId = placement.ruleId;
   instance.biome = placement.biome;
   instance.model = placement.model;
@@ -129,15 +125,17 @@ terrainScatterInstanceFrom(const TerrainScatterPlacement &placement,
   instance.yaw = placement.yaw;
   instance.scale = placement.scale;
   instance.collision = placement.collision;
-  instance.lod = placement.lod;
   return instance;
 }
 
-std::uint64_t terrainScatterInstanceHash(const TerrainScatterInstance &instance) {
+std::uint64_t
+terrainScatterInstanceHash(const TerrainScatterInstance &instance) {
   std::uint64_t hash = fnvOffset;
   absorbText(hash, instance.id);
   absorb(hash, instance.seed);
   absorb(hash, instance.cell);
+  absorb(hash, static_cast<std::uint64_t>(instance.candidateX));
+  absorb(hash, static_cast<std::uint64_t>(instance.candidateZ));
   // Enum names rather than ordinals, for the reason given on the key.
   absorbText(hash, instance.ruleId);
   absorb(hash, instance.biome);
@@ -149,7 +147,6 @@ std::uint64_t terrainScatterInstanceHash(const TerrainScatterInstance &instance)
   absorbFloat(hash, instance.yaw);
   absorbFloat(hash, instance.scale);
   absorbText(hash, terrainCollisionPolicyName(instance.collision));
-  absorb(hash, static_cast<std::uint64_t>(instance.lod));
   // instanceGroup is intentionally absent: it is derived from the rest of the
   // set, so folding it in would break "an unrelated placement changes nothing".
   return mix(hash);
@@ -200,25 +197,6 @@ terrainScatterCollisionSkipReason(const TerrainScatterInstance &instance) {
   if (terrainScatterWantsCollision(instance))
     return {};
   return "palette collision policy is none";
-}
-
-int terrainScatterLodFor(const TerrainScatterInstance &instance, float distance,
-                         float lodDistance, float cullDistance) {
-  const auto levels = std::max(1, instance.lod + 1);
-  const auto coarsest = levels - 1;
-  // No LOD distance means no distance switching, not "already at the far end".
-  if (!(lodDistance > 0.F))
-    return 0;
-  const auto reach = std::max(0.F, distance);
-  if (reach <= lodDistance)
-    return 0;
-  const auto span = std::max(0.F, cullDistance) - lodDistance;
-  if (!(span > 0.F))
-    return coarsest;
-  const auto t = (reach - lodDistance) / span;
-  // Clamped on both sides, so no camera position, however wrong, can produce an
-  // index a mesh array does not have.
-  return std::clamp(static_cast<int>(t * float(levels)), 0, coarsest);
 }
 
 } // namespace demi::runtime

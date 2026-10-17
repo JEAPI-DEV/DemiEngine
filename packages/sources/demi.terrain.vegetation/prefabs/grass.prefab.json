@@ -1,0 +1,29 @@
+{
+  "format_version": 1,
+  "id": "prefab://demi/vegetation/grass",
+  "name": "Grass",
+  "entities": [
+    {
+      "id": "body",
+      "name": "Grass",
+      "components": {
+        "Transform3D": {},
+        "MeshRenderer": {
+          "model": "asset://demi/vegetation/models/grass",
+          "medium_lod_model": "asset://demi/vegetation/models/grass_medium",
+          "medium_lod_distance": 12,
+          "low_lod_model": "asset://demi/vegetation/models/grass_low",
+          "low_lod_distance": 28,
+          "cull_distance": 55,
+          "material": "asset://demi/vegetation/materials/grass",
+          "color": [
+            1,
+            1,
+            1,
+            1
+          ]
+        }
+      }
+    }
+  ]
+}

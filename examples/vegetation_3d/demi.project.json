@@ -1,0 +1,14 @@
+{
+  "format_version": 1,
+  "name": "Woodland vegetation qualification",
+  "main_scene": "scene://vegetation_3d/main",
+  "scenes": [
+    {
+      "id": "scene://vegetation_3d/main"
+    }
+  ],
+  "package_registry": "../../packages",
+  "packages": {
+    "demi.terrain.vegetation": "^1.0.0"
+  }
+}

@@ -1,25 +1,32 @@
-#include "demi/runtime/scripting/LuaScriptHost.h"
-#include "demi/assets/TerrainAsset.h"
 #include "demi/assets/AssetHash.h"
-#include "demi/schema/Validation.h"
-#include "demi/runtime/terrain/TerrainScatterRuntime.h"
-#include "demi/runtime/terrain/TerrainWorld.h"
-#include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
+#include "demi/assets/TerrainAsset.h"
 #include "demi/runtime/scene/SceneLoader.h"
-#include <filesystem>
-#include <chrono>
-#include <fstream>
-#include <nlohmann/json.hpp>
-#include <system_error>
-#include <stdexcept>
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/Transform3DComponent.h"
+#include "demi/runtime/scripting/LuaScriptHost.h"
 #include "demi/runtime/terrain/TerrainGenerator.h"
+#include "demi/runtime/terrain/TerrainScatterRuntime.h"
+#include "demi/runtime/assets/RuntimeAssetService.h"
+#include <thread>
+#include "demi/runtime/terrain/TerrainScatterBatches.h"
+#include "demi/runtime/terrain/TerrainScatterCollision.h"
+#include "demi/runtime/scene/components/3dcomponents/MeshInstances3DComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/SphereCollider3DComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/Rigidbody3DComponent.h"
+#include "demi/runtime/terrain/TerrainWorld.h"
+#include "demi/schema/Validation.h"
 #include <algorithm>
 #include <cassert>
+#include <chrono>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
+#include <nlohmann/json.hpp>
+#include <stdexcept>
 #include <string>
+#include <system_error>
 
 using namespace demi::runtime;
 
@@ -53,11 +60,11 @@ World worldWithTerrain() {
 }
 
 std::size_t scatterChildren(const World &world) {
-  const std::string prefix = std::string(OwnerId) + "/__scatter/" + PaletteId + "/";
-  return std::count_if(world.entities.begin(), world.entities.end(),
-                       [&](const Entity &entity) {
-                         return entity.id.rfind(prefix, 0) == 0;
-                       });
+  const std::string prefix =
+      std::string(OwnerId) + "/__scatter/" + PaletteId + "/";
+  return std::count_if(
+      world.entities.begin(), world.entities.end(),
+      [&](const Entity &entity) { return entity.id.rfind(prefix, 0) == 0; });
 }
 
 TerrainScatterPlacement placementAt(std::size_t cell, float height,
@@ -66,6 +73,8 @@ TerrainScatterPlacement placementAt(std::size_t cell, float height,
   placement.ruleId = ruleId;
   placement.model = "asset://terrain/props/tree";
   placement.cell = cell;
+  placement.candidateX = static_cast<int>(cell);
+  placement.candidateZ = 0;
   placement.position = {float(cell), height, 0};
   placement.yaw = yaw;
   placement.scale = 1;
@@ -79,14 +88,14 @@ void flush(WorldCommandBuffer &commands, World &world) {
 // The key must be stable for a cell and must separate roles and palettes,
 // otherwise two roles landing in one cell would overwrite each other.
 void instanceIdIsStableAndSeparating() {
-  const auto a = terrainScatterInstanceId(OwnerId, PaletteId, "tree", 42);
-  const auto b = terrainScatterInstanceId(OwnerId, PaletteId, "tree", 42);
+  const auto a = terrainScatterInstanceId(OwnerId, PaletteId, "tree", 42, 0);
+  const auto b = terrainScatterInstanceId(OwnerId, PaletteId, "tree", 42, 0);
   assert(a == b);
-  assert(a != terrainScatterInstanceId(OwnerId, PaletteId, "bush", 42));
-  assert(a != terrainScatterInstanceId(OwnerId, PaletteId, "tree", 43));
-  assert(a != terrainScatterInstanceId("other", PaletteId, "tree", 42));
+  assert(a != terrainScatterInstanceId(OwnerId, PaletteId, "bush", 42, 0));
+  assert(a != terrainScatterInstanceId(OwnerId, PaletteId, "tree", 43, 0));
+  assert(a != terrainScatterInstanceId("other", PaletteId, "tree", 42, 0));
   assert(a != terrainScatterInstanceId(OwnerId, "asset://other/palette", "tree",
-                                       42));
+                                       42, 0));
   assert(a.find(OwnerId) == 0);
 }
 
@@ -102,13 +111,15 @@ void repeatSyncIsIdempotent() {
                              placementAt(2, 3.F, "tree", 1.5F)};
 
   std::string error;
-  const auto first = syncTerrainScatter(world, commands, OwnerId, field, &prefabs, error);
+  const auto first =
+      syncTerrainScatter(world, commands, OwnerId, field, &prefabs, error);
   assert(error.empty());
   assert(first.created == 2);
   flush(commands, world);
   assert(scatterChildren(world) == 2);
 
-  const auto second = syncTerrainScatter(world, commands, OwnerId, field, &prefabs, error);
+  const auto second =
+      syncTerrainScatter(world, commands, OwnerId, field, &prefabs, error);
   assert(error.empty());
   assert(second.created == 0 && second.removed == 0);
   assert(second.retained == 2);
@@ -128,14 +139,15 @@ void movementUpdatesInPlace() {
   std::string error;
   (void)syncTerrainScatter(world, commands, OwnerId, field, &prefabs, error);
   flush(commands, world);
-  const auto id = terrainScatterInstanceId(OwnerId, PaletteId, "tree", 1);
+  const auto id = terrainScatterInstanceId(OwnerId, PaletteId, "tree", 1, 0);
   const auto *before = findEntity(world, id);
   assert(before != nullptr);
   assert(before->component<Transform3DComponent>()->position.y == 2.F);
 
   // Same cell, new height and yaw: a sculpt moved the ground under it.
   field.scatterPlacements = {placementAt(1, 7.F, "tree", 2.5F)};
-  const auto stats = syncTerrainScatter(world, commands, OwnerId, field, &prefabs, error);
+  const auto stats =
+      syncTerrainScatter(world, commands, OwnerId, field, &prefabs, error);
   assert(error.empty());
   assert(stats.updated == 1 && stats.created == 0 && stats.removed == 0);
   flush(commands, world);
@@ -164,13 +176,14 @@ void removedCellsAreCleanedUp() {
 
   // A ruleId's weight dropped to zero, or its biome no longer matches.
   field.scatterPlacements = {placementAt(1, 2.F, "tree", 0.F)};
-  const auto stats = syncTerrainScatter(world, commands, OwnerId, field, &prefabs, error);
+  const auto stats =
+      syncTerrainScatter(world, commands, OwnerId, field, &prefabs, error);
   assert(error.empty());
   assert(stats.removed == 2 && stats.retained == 1);
   flush(commands, world);
   assert(scatterChildren(world) == 1);
   assert(findEntity(world, terrainScatterInstanceId(OwnerId, PaletteId, "tree",
-                                                    1)) != nullptr);
+                                                    1, 0)) != nullptr);
 }
 
 // Two roles in the same cell are two instances, not one overwriting the other.
@@ -183,14 +196,15 @@ void sameCellDifferentRolesCoexist() {
   field.scatterPlacements = {placementAt(9, 5.F, "tree", 0.F),
                              placementAt(9, 5.F, "grass", 0.F)};
   std::string error;
-  const auto stats = syncTerrainScatter(world, commands, OwnerId, field, &prefabs, error);
+  const auto stats =
+      syncTerrainScatter(world, commands, OwnerId, field, &prefabs, error);
   assert(stats.created == 2);
   flush(commands, world);
   assert(scatterChildren(world) == 2);
   assert(findEntity(world, terrainScatterInstanceId(OwnerId, PaletteId, "tree",
-                                                    9)) != nullptr);
+                                                    9, 0)) != nullptr);
   assert(findEntity(world, terrainScatterInstanceId(OwnerId, PaletteId, "grass",
-                                                    9)) != nullptr);
+                                                    9, 0)) != nullptr);
 }
 
 // A missing owner is an error, never a silent no-op that looks like a success.
@@ -202,8 +216,8 @@ void missingOwnerIsReported() {
   field.paletteId = PaletteId;
   field.scatterPlacements = {placementAt(1, 2.F, "tree", 0.F)};
   std::string error;
-  const auto stats = syncTerrainScatter(world, commands, "no_such_terrain", field,
-                                        &prefabs, error);
+  const auto stats = syncTerrainScatter(world, commands, "no_such_terrain",
+                                        field, &prefabs, error);
   assert(!error.empty());
   assert(stats.total() == 0);
 }
@@ -220,7 +234,8 @@ void unresolvablePrefabIsCounted() {
                              placementAt(2, 2.F, "tree", 0.F)};
   field.scatterPlacements[0].prefab = "prefab://does/not/exist";
   std::string error;
-  const auto stats = syncTerrainScatter(world, commands, OwnerId, field, &prefabs, error);
+  const auto stats =
+      syncTerrainScatter(world, commands, OwnerId, field, &prefabs, error);
   assert(stats.unresolved == 1);
   flush(commands, world);
   // The direct entry still placed, so one bad prefab does not sink the field.
@@ -266,8 +281,8 @@ void sharedServiceIsVisibleToBothConsumers() {
   shared.configure(std::filesystem::temp_directory_path());
   LuaScriptHost host;
   host.setPrefabService(&shared);
-  // The host forwards the same service to the scene flow it owns, so there is no
-  // second wiring point that can be forgotten.
+  // The host forwards the same service to the scene flow it owns, so there is
+  // no second wiring point that can be forgotten.
   assert(host.prefabService() == &shared);
   // A service the host does not own must not be reachable after the host dies.
   {
@@ -298,8 +313,8 @@ void noServiceSkipsPrefabRoles() {
   field.scatterPlacements = {placementAt(1, 2.F, "tree", 0.F)};
   field.scatterPlacements[0].prefab = "prefab://tree";
   std::string error;
-  const auto stats = syncTerrainScatter(world, commands, OwnerId, field,
-                                        nullptr, error);
+  const auto stats =
+      syncTerrainScatter(world, commands, OwnerId, field, nullptr, error);
   assert(error.empty());
   assert(stats.unresolved == 1 && stats.created == 0);
   flush(commands, world);
@@ -334,7 +349,8 @@ void unresolvedSceneScatterDoesNotCommitPartialEntities() {
 
 void prefabPrototypeKeepsGeometryAndStableCellId() {
   const auto project = exampleProjectPath();
-  assert(std::filesystem::exists(project / "prefabs/scatter_prototype.prefab.json"));
+  assert(std::filesystem::exists(project /
+                                 "prefabs/scatter_prototype.prefab.json"));
   RuntimePrefabService prefabs;
   prefabs.configure(project);
   auto world = worldWithTerrain();
@@ -344,23 +360,23 @@ void prefabPrototypeKeepsGeometryAndStableCellId() {
   field.scatterPlacements = {placementAt(7, 2.F, "grass", 0.5F)};
   field.scatterPlacements.front().model = "asset://terrain/surfaces/grass";
   field.scatterPlacements.front().prefab = "prefab://scatter_prototype";
-  const auto id = terrainScatterInstanceId(OwnerId, PaletteId, "grass", 7);
+  const auto id = terrainScatterInstanceId(OwnerId, PaletteId, "grass", 7, 0);
   std::string error;
-  const auto created = syncTerrainScatter(world, commands, OwnerId, field,
-                                           &prefabs, error);
+  const auto created =
+      syncTerrainScatter(world, commands, OwnerId, field, &prefabs, error);
   assert(error.empty() && created.created == 1 && created.unresolved == 0);
   flush(commands, world);
   const auto *body = findEntity(world, id + "/body");
   assert(body != nullptr && body->prefabInstance == id);
   assert(body->component<MeshRendererComponent>() != nullptr);
   assert(body->component<MeshRendererComponent>()->model.empty());
-  const auto retained = syncTerrainScatter(world, commands, OwnerId, field,
-                                            &prefabs, error);
+  const auto retained =
+      syncTerrainScatter(world, commands, OwnerId, field, &prefabs, error);
   assert(error.empty() && retained.retained == 1 && retained.created == 0);
 
   field.scatterPlacements.front().position.y = 5.F;
-  const auto moved = syncTerrainScatter(world, commands, OwnerId, field,
-                                         &prefabs, error);
+  const auto moved =
+      syncTerrainScatter(world, commands, OwnerId, field, &prefabs, error);
   assert(error.empty() && moved.updated == 1 && moved.created == 0);
   flush(commands, world);
   body = findEntity(world, id + "/body");
@@ -368,21 +384,216 @@ void prefabPrototypeKeepsGeometryAndStableCellId() {
   assert(body->component<Transform3DComponent>()->position.y == 5.F);
 
   field.scatterPlacements.clear();
-  const auto removed = syncTerrainScatter(world, commands, OwnerId, field,
-                                           &prefabs, error);
+  const auto removed =
+      syncTerrainScatter(world, commands, OwnerId, field, &prefabs, error);
   assert(error.empty() && removed.removed == 1);
   flush(commands, world);
   assert(findEntity(world, id + "/body") == nullptr);
 
   field.scatterPlacements = {placementAt(8, 1.F, "grass", 0.F)};
   field.scatterPlacements.front().prefab = "prefab://scatter_prototype";
-  const auto nextId = terrainScatterInstanceId(OwnerId, PaletteId, "grass", 8);
-  const auto next = syncTerrainScatter(world, commands, OwnerId, field,
-                                       &prefabs, error);
+  const auto nextId =
+      terrainScatterInstanceId(OwnerId, PaletteId, "grass", 8, 0);
+  const auto next =
+      syncTerrainScatter(world, commands, OwnerId, field, &prefabs, error);
   assert(error.empty() && next.created == 1);
   flush(commands, world);
   assert(findEntity(world, nextId + "/body") != nullptr);
   assert(findEntity(world, id + "/body") == nullptr);
+}
+
+void collisionFreePlacementsShareRenderOwners() {
+  auto world = worldWithTerrain();
+  world.entities.front().setComponent(Terrain3DComponent{});
+  HeightField field;
+  field.paletteId = PaletteId;
+  for (int index = 0; index < 100; ++index) {
+    auto placement = placementAt(index, 2.F, "grass", 0.F);
+    placement.collision = TerrainCollisionPolicy::None;
+    field.scatterPlacements.push_back(placement);
+  }
+  WorldCommandBuffer commands;
+  std::string error;
+  const auto created = syncTerrainScatter(world, commands, OwnerId, field,
+                                           nullptr, error);
+  assert(error.empty() && created.created == 100);
+  flush(commands, world);
+  assert(world.entities.size() == 2);
+  const auto *instances = world.entities.back().component<MeshInstances3DComponent>();
+  assert(instances && instances->transforms.size() == 100);
+  assert(world.entities.back().prefabInstance.empty());
+  const auto retained = syncTerrainScatter(world, commands, OwnerId, field,
+                                            nullptr, error);
+  assert(error.empty() && retained.retained == 100 && commands.empty());
+
+  const auto excluded = terrainScatterInstanceId(OwnerId, PaletteId, "grass", 7, 0);
+  world.entities.front().component<Terrain3DComponent>()->scatterExclusions = {excluded};
+  const auto removed = syncTerrainScatter(world, commands, OwnerId, field,
+                                           nullptr, error);
+  assert(error.empty() && removed.removed == 1 && removed.retained == 99);
+  flush(commands, world);
+  instances = world.entities.back().component<MeshInstances3DComponent>();
+  assert(instances && instances->transforms.size() == 99);
+  assert(!instances->transforms.contains(excluded));
+}
+
+void visualPrefabBatchesPreserveHierarchyAndMaterials() {
+  const auto directory = std::filesystem::temp_directory_path() /
+      ("demi-scatter-batches-" + std::to_string(
+          std::chrono::steady_clock::now().time_since_epoch().count()));
+  std::filesystem::create_directories(directory / "prefabs");
+  struct Cleanup {
+    std::filesystem::path directory;
+    ~Cleanup() { std::filesystem::remove_all(directory); }
+  } cleanup{directory};
+  {
+    std::ofstream project(directory / "demi.project.json");
+    project << R"({"format_version":1,"name":"Batch probe"})";
+    std::ofstream prefab(directory / "prefabs/reed.prefab.json");
+    prefab << R"({"format_version":1,"id":"prefab://reed","entities":[
+      {"id":"root","components":{"Transform3D":{"position":[1,0,0]}},
+       "children":[{"id":"blade","components":{
+         "Transform3D":{"position":[0,2,0]},
+         "MeshRenderer":{"shape":"cube","material":"asset://reed/material",
+           "medium_lod_model":"asset://reed/low","medium_lod_distance":20},
+         "SphereCollider3D":{"radius":0.25},
+         "Rigidbody3D":{}}}]}]})";
+  }
+  RuntimePrefabService prefabs;
+  prefabs.configure(directory);
+  auto world = worldWithTerrain();
+  HeightField field;
+  field.paletteId = PaletteId;
+  for (int index = 0; index < 20; ++index) {
+    auto placement = placementAt(index, 3.F, "reeds", 0.F);
+    placement.prefab = "prefab://reed";
+    placement.collision = TerrainCollisionPolicy::None;
+    field.scatterPlacements.push_back(placement);
+  }
+  WorldCommandBuffer commands;
+  std::string error;
+  const auto created = syncTerrainScatter(world, commands, OwnerId, field,
+                                           &prefabs, error);
+  assert(error.empty() && created.created == 20 && created.prefabInstances == 0);
+  flush(commands, world);
+  assert(world.entities.size() == 2);
+  const auto &batch = world.entities.back();
+  const auto *mesh = batch.component<MeshRendererComponent>();
+  assert(mesh && mesh->material == "asset://reed/material");
+  assert(mesh->mediumLodModel == "asset://reed/low" && mesh->mediumLodDistance == 20);
+  assert(!batch.hasComponent<SphereCollider3DComponent>());
+  assert(!batch.hasComponent<Rigidbody3DComponent>());
+  const auto *instances = batch.component<MeshInstances3DComponent>();
+  assert(instances && instances->transforms.size() == 20);
+  const auto key = terrainScatterInstanceId(OwnerId, PaletteId, "reeds", 0, 0);
+  const auto &transform = instances->transforms.at(key);
+  assert(transform.position.x == 1 && transform.position.y == 5);
+
+  {
+    std::ofstream prefab(directory / "prefabs/pine.prefab.json");
+    prefab << R"({"format_version":1,"id":"prefab://pine","entities":[
+      {"id":"root","components":{"Transform3D":{}},"children":[
+        {"id":"needles","components":{"Transform3D":{},
+          "MeshRenderer":{"shape":"sphere"},"SphereCollider3D":{"radius":0.75}}}
+      ]}]})";
+  }
+  auto collisionWorld = worldWithTerrain();
+  HeightField collisionField;
+  collisionField.paletteId = PaletteId;
+  auto colliding = placementAt(7, 2.F, "tree", 0.F);
+  colliding.prefab = "prefab://reed";
+  colliding.collision = TerrainCollisionPolicy::Static;
+  collisionField.scatterPlacements = {colliding};
+  const auto stableId = terrainScatterInstanceId(OwnerId, PaletteId, "tree", 7, 0);
+  WorldCommandBuffer replacementCommands;
+  const auto initial = syncTerrainScatter(collisionWorld, replacementCommands,
+      OwnerId, collisionField, &prefabs, error);
+  assert(error.empty() && initial.created == 1);
+  flush(replacementCommands, collisionWorld);
+  assert(findEntity(collisionWorld, stableId + "/blade"));
+
+  collisionField.scatterPlacements.front().prefab = "prefab://pine";
+  const auto replacement = syncTerrainScatter(collisionWorld, replacementCommands,
+      OwnerId, collisionField, &prefabs, error);
+  assert(error.empty() && replacement.updated == 1 && replacement.created == 0);
+  assert(findEntity(collisionWorld, stableId + "/blade"));
+  flush(replacementCommands, collisionWorld);
+  assert(!findEntity(collisionWorld, stableId + "/blade"));
+  const auto *needles = findEntity(collisionWorld, stableId + "/needles");
+  assert(needles && needles->prefabInstance == stableId);
+  assert(needles->component<SphereCollider3DComponent>()->radius == .75F);
+  assert(prefabs.sourcePrefab(stableId) == std::optional<std::string_view>("prefab://pine"));
+  const auto retainedReplacement = syncTerrainScatter(collisionWorld,
+      replacementCommands, OwnerId, collisionField, &prefabs, error);
+  assert(error.empty() && retainedReplacement.retained == 1 && replacementCommands.empty());
+
+  collisionField.scatterPlacements.front().prefab = "prefab://missing_replacement";
+  const auto rejected = syncTerrainScatter(collisionWorld, replacementCommands,
+      OwnerId, collisionField, &prefabs, error);
+  assert(!error.empty() && rejected.unresolved == 1);
+  assert(replacementCommands.empty());
+  assert(findEntity(collisionWorld, stableId + "/needles"));
+  assert(prefabs.sourcePrefab(stableId) == std::optional<std::string_view>("prefab://pine"));
+
+  // A policy change transfers this durable placement between live prefab
+  // ownership and render-only batching; neither representation may survive
+  // alongside the other or retain a collider after becoming decorative.
+  collisionField.scatterPlacements.front().prefab = "prefab://pine";
+  collisionField.scatterPlacements.front().collision = TerrainCollisionPolicy::None;
+  const auto decorative = syncTerrainScatter(collisionWorld, replacementCommands,
+      OwnerId, collisionField, &prefabs, error);
+  assert(error.empty() && decorative.unresolved == 0);
+  flush(replacementCommands, collisionWorld);
+  assert(!findEntity(collisionWorld, stableId + "/root"));
+  assert(!findEntity(collisionWorld, stableId + "/needles"));
+  assert(!prefabs.sourcePrefab(stableId));
+  assert(collisionWorld.entities.size() == 2);
+  const auto *decorativeCopies = collisionWorld.entities.back()
+      .component<MeshInstances3DComponent>();
+  assert(decorativeCopies && decorativeCopies->transforms.contains(stableId));
+  for (const auto &entity : collisionWorld.entities) {
+    assert(!entity.hasComponent<SphereCollider3DComponent>());
+    assert(entity.prefabInstance.empty());
+  }
+
+  collisionField.scatterPlacements.front().collision = TerrainCollisionPolicy::Static;
+  const auto physical = syncTerrainScatter(collisionWorld, replacementCommands,
+      OwnerId, collisionField, &prefabs, error);
+  assert(error.empty() && physical.unresolved == 0);
+  flush(replacementCommands, collisionWorld);
+  assert(collisionWorld.entities.size() == 3);
+  const auto *physicalNeedles = findEntity(collisionWorld, stableId + "/needles");
+  assert(physicalNeedles && physicalNeedles->prefabInstance == stableId);
+  assert(physicalNeedles->component<SphereCollider3DComponent>()->radius == .75F);
+  assert(prefabs.sourcePrefab(stableId) == std::optional<std::string_view>("prefab://pine"));
+  for (const auto &entity : collisionWorld.entities) {
+    assert(!entity.hasComponent<MeshInstances3DComponent>());
+    assert(!entity.hasComponent<TerrainScatterBatch>());
+  }
+}
+
+void collisionPolicyKeepsAuthoredShapes() {
+  const nlohmann::json preset{{"id", "body"}, {"preset", "static_box_3d"}};
+  const auto removed = terrainScatterCollisionOverrides(preset, TerrainCollisionPolicy::None);
+  assert(removed.contains("BoxCollider3D") && removed["BoxCollider3D"].is_null());
+  const nlohmann::json controller{{"components", {{"CharacterController3D", nlohmann::json::object()}}}};
+  assert(terrainScatterCollisionOverrides(controller, TerrainCollisionPolicy::Static).empty());
+  assert(terrainScatterCollisionOverrides(controller, TerrainCollisionPolicy::None)
+             .at("CharacterController3D").is_null());
+  Entity entity;
+  entity.setComponent(SphereCollider3DComponent{.radius = 2.F});
+  entity.setComponent(Rigidbody3DComponent{});
+  applyTerrainScatterCollision(entity, TerrainCollisionPolicy::Trigger);
+  const auto *collider = entity.component<SphereCollider3DComponent>();
+  assert(collider && collider->radius == 2.F && collider->isTrigger);
+  assert(entity.component<Rigidbody3DComponent>()->bodyType == "static");
+  applyTerrainScatterCollision(entity, TerrainCollisionPolicy::None);
+  assert(!entity.hasComponent<SphereCollider3DComponent>());
+  assert(!entity.hasComponent<Rigidbody3DComponent>());
+  applyTerrainScatterCollision(entity, TerrainCollisionPolicy::Static);
+  collider = entity.component<SphereCollider3DComponent>();
+  assert(collider && collider->radius == 2.F && !collider->isTrigger);
+  assert(entity.component<Rigidbody3DComponent>()->bodyType == "static");
 }
 
 void initialSceneScatterUsesConfiguredPrefabService() {
@@ -475,12 +686,12 @@ void initialSceneScatterUsesConfiguredPrefabService() {
     "dependencies": ["asset://terrain/palettes/test"]
   })");
   fixture.write("assets/palette.json", R"({
-    "format_version": 2,
+    "format_version": 3,
     "name": "Startup prefab placement",
     "placements": {
       "probe": {
         "prefab": "prefab://startup_probe",
-        "weight": 1,
+        "density": 1,
         "spacing": 0,
         "collision": "none"
       }
@@ -496,6 +707,15 @@ void initialSceneScatterUsesConfiguredPrefabService() {
     "dependencies": [],
     "settings": {"content_type": "terrain_palette"}
   })");
+  for (const auto tier : {"high", "medium", "low"}) {
+    const std::string stem = "assets/model_" + std::string(tier);
+    fixture.write(stem + ".gltf", R"({"asset":{"version":"2.0"}})");
+    fixture.writeManifest(stem + ".asset.json", nlohmann::json{
+        {"format_version", 1}, {"id", "asset://scatter/model_" + std::string(tier)},
+        {"type", "Model3D"}, {"importer", "gltf-model"},
+        {"importer_version", 1}, {"source", "model_" + std::string(tier) + ".gltf"},
+        {"dependencies", nlohmann::json::array()}}.dump());
+  }
   fixture.write("prefabs/startup_probe.prefab.json", R"({
     "format_version": 1,
     "id": "prefab://startup_probe",
@@ -503,7 +723,13 @@ void initialSceneScatterUsesConfiguredPrefabService() {
       "id": "body",
       "components": {
         "Transform3D": {},
-        "MeshRenderer": {"shape": "cube"}
+        "MeshRenderer": {
+          "model": "asset://scatter/model_high",
+          "medium_lod_model": "asset://scatter/model_medium",
+          "medium_lod_distance": 10,
+          "low_lod_model": "asset://scatter/model_low",
+          "low_lod_distance": 20
+        }
       }
     }]
   })");
@@ -528,6 +754,26 @@ void initialSceneScatterUsesConfiguredPrefabService() {
   assert(terrain->generated->scatterPlacements.size() <= 25);
   const auto expectedPlacements = terrain->generated->scatterPlacements.size();
 
+  const auto registry = demi::loadAssetRegistry(fixture.directory);
+  RuntimeAssetService assets;
+  demi::Diagnostics assetDiagnostics;
+  assert(assets.configure(loaded->project, registry, &assetDiagnostics));
+  const auto request = assets.prepareScene("scene://scatter_probe/main", &assetDiagnostics);
+  assert(request != 0 && !demi::hasErrors(assetDiagnostics));
+  for (int attempt = 0; attempt < 1000 &&
+       assets.progress(request).stage != demi::assets::AssetGroupStage::Ready; ++attempt) {
+    assets.update();
+    std::this_thread::yield();
+  }
+  assert(assets.activate(request, &assetDiagnostics));
+  for (const auto tier : {"high", "medium", "low"}) {
+    const auto id = "asset://scatter/model_" + std::string(tier);
+    const auto memory = assets.memoryReport();
+    assert(std::ranges::any_of(memory.assets, [&](const auto &asset) {
+      return asset.assetId == id;
+    }));
+  }
+
   RuntimePrefabService prefabs;
   prefabs.configure(loaded->project.projectDirectory);
   const auto report = materializeTerrainScatter(loaded->world, &prefabs, error);
@@ -535,8 +781,9 @@ void initialSceneScatterUsesConfiguredPrefabService() {
   assert(report.placed == expectedPlacements);
   const auto prefix = std::string("terrain/__scatter/") + PaletteId + "/";
   assert(std::ranges::any_of(loaded->world.entities, [&](const Entity &entity) {
-    return entity.id.starts_with(prefix) && !entity.prefabInstance.empty() &&
-           entity.component<MeshRendererComponent>() != nullptr;
+    return entity.id.starts_with(prefix) &&
+           entity.hasComponent<TerrainScatterBatch>() &&
+           entity.component<MeshInstances3DComponent>() != nullptr;
   }));
 }
 
@@ -564,7 +811,7 @@ void paletteSwapDoesNotCrossRemove() {
   // The previous palette's instance is still there, and now unreachable by a
   // later sync, which is why releaseTerrainScatter is the explicit teardown.
   assert(findEntity(world, terrainScatterInstanceId(OwnerId, PaletteId, "tree",
-                                                    1)) != nullptr);
+                                                    1, 0)) != nullptr);
 }
 } // namespace
 
@@ -581,6 +828,9 @@ int main() {
   noServiceSkipsPrefabRoles();
   unresolvedSceneScatterDoesNotCommitPartialEntities();
   prefabPrototypeKeepsGeometryAndStableCellId();
+  collisionFreePlacementsShareRenderOwners();
+  visualPrefabBatchesPreserveHierarchyAndMaterials();
+  collisionPolicyKeepsAuthoredShapes();
   initialSceneScatterUsesConfiguredPrefabService();
   sharedServiceIsVisibleToBothConsumers();
   hostWithoutServiceIsSafe();

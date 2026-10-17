@@ -1,0 +1,20 @@
+{
+  "format_version": 1,
+  "shader": "builtin://lit",
+  "parameters": {
+    "base_color": [
+      0.42,
+      0.48,
+      0.18,
+      1
+    ],
+    "roughness": 0.92,
+    "wind_strength": 0.07,
+    "wind_frequency": 0.75,
+    "wind_height": 1.8
+  },
+  "render_state": {
+    "blend": "opaque",
+    "cull": "none"
+  }
+}

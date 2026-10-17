@@ -29,6 +29,8 @@ struct TerrainScatterInstance {
   // instead of a second one that would not match after a regeneration.
   std::uint64_t seed = 0;
   std::size_t cell = 0;
+  int candidateX = 0;
+  int candidateZ = 0;
   std::string ruleId;
   std::size_t biome = 0;
   std::string model;
@@ -37,7 +39,6 @@ struct TerrainScatterInstance {
   float yaw = 0;
   float scale = 1;
   TerrainCollisionPolicy collision = TerrainCollisionPolicy::Static;
-  int lod = 0;
   // Render grouping, so an instancer can batch without re-deriving anything.
   // Assigned by terrainScatterGroupInstances; it is a property of the whole
   // set, not of this instance, which is why it is excluded from the hash.
@@ -62,18 +63,20 @@ struct TerrainScatterInstance {
 // key.
 [[nodiscard]] std::string
 terrainScatterInstanceKey(std::string_view paletteId, std::string_view ruleId,
-                          std::size_t cell, std::string_view regionId = {},
+                          int candidateX, int candidateZ,
+                          std::string_view regionId = {},
                           std::string_view layerId = {});
 
 // The seed stream for one placement's jitter.
 //
 // The derivation is deliberately identical to the one scatterTerrain() uses for
-// the sample slot that produces yaw and scale, so an instance's recorded seed is
-// the seed its own numbers came from rather than a plausible-looking unrelated
-// value.
+// the sample slot that produces yaw and scale, so an instance's recorded seed
+// is the seed its own numbers came from rather than a plausible-looking
+// unrelated value.
 [[nodiscard]] std::uint64_t terrainScatterInstanceSeed(int worldSeed,
                                                        std::string_view ruleId,
-                                                       std::size_t cell);
+                                                       int candidateX,
+                                                       int candidateZ);
 
 // Fills an instance from a placement, deriving the id and the seed.
 [[nodiscard]] TerrainScatterInstance
@@ -86,8 +89,8 @@ terrainScatterInstanceFrom(const TerrainScatterPlacement &placement,
 //
 // Equal hashes mean equal instances: the same identity resolving to the same
 // asset, transform, collision and LOD, so a consumer can skip an upload it has
-// already sent. The grouping index is deliberately excluded, because grouping is
-// derived from the rest of the set and folding it in would make an unrelated
+// already sent. The grouping index is deliberately excluded, because grouping
+// is derived from the rest of the set and folding it in would make an unrelated
 // placement change an existing instance's hash, which is the exact failure the
 // identity contract exists to prevent.
 //
@@ -134,22 +137,5 @@ terrainScatterWantsCollision(const TerrainScatterInstance &instance);
 // bug.
 [[nodiscard]] std::string_view
 terrainScatterCollisionSkipReason(const TerrainScatterInstance &instance);
-
-// The LOD level this instance draws at, always within [0, instance.lod].
-//
-// instance.lod is the palette's coarsest level, so the range has levels+1
-// entries and the function can never return an index a mesh array does not have.
-// `lodDistance` is where the finest level holds; `cullDistance` is where the
-// coarsest one has certainly taken over; the levels between are distributed
-// evenly across that span.
-//
-// Two deliberate degenerate cases, both of which mean "no distance switching":
-//   lodDistance <= 0 -> level 0 always, because a zero LOD distance must not be
-//     read as "already past every threshold" and collapse to the coarsest mesh.
-//   cullDistance <= 0 (or not past lodDistance) -> the full range is decided by
-//     lodDistance alone: level 0 up to it, the coarsest level beyond it.
-[[nodiscard]] int terrainScatterLodFor(const TerrainScatterInstance &instance,
-                                       float distance, float lodDistance,
-                                       float cullDistance);
 
 } // namespace demi::runtime

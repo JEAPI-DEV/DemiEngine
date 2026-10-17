@@ -2,10 +2,12 @@
 
 #include "demi/runtime/terrain/TerrainGeneration.h"
 #include "demi/runtime/terrain/TerrainGenerator.h"
+#include "demi/runtime/terrain/TerrainPalette.h"
 #include "demi/runtime/terrain/TerrainRecipe.h"
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <optional>
 #include <string_view>
 #include <vector>
 
@@ -21,8 +23,9 @@ struct TerrainScatterConstraintOptions {
   float maximumSlopeDegrees = 40;
   // A terrain exclusion sample at or above this weight is treated as authored
   // exclusion paint. The default is deliberately tiny but non-zero: an exact
-  // zero test would treat a brush that barely touched a cell as unpainted, which
-  // is indistinguishable from a rounding artefact in the authored document.
+  // zero test would treat a brush that barely touched a cell as unpainted,
+  // which is indistinguishable from a rounding artefact in the authored
+  // document.
   float terrainExclusionThreshold = 0.001F;
   // Same threshold for weights added through addExclusionWeight.
   float paintedExclusionThreshold = 0.001F;
@@ -82,6 +85,14 @@ public:
   // cell the generator cannot produce.
   [[nodiscard]] bool blocked(std::size_t cell) const;
 
+  // Per-rule environment ranges share the same measurement and exclusion path.
+  // Missing measurements fail closed for a non-default authored range.
+  [[nodiscard]] bool allows(std::size_t cell, const TerrainPaletteEntry &entry,
+                            std::optional<Vec2> position = {}) const;
+  [[nodiscard]] std::string_view
+  rejectionReason(std::size_t cell, const TerrainPaletteEntry &entry,
+                  std::optional<Vec2> position = {}) const;
+
   // Why a cell is blocked, for the editor and for diagnostics. Empty when it is
   // not blocked, so an empty string is a usable "allowed" answer.
   //
@@ -135,7 +146,9 @@ public:
     return maximumSlope_;
   }
   // Shapes registered through the three add* calls, for a diagnostics summary.
-  [[nodiscard]] std::size_t shapeCount() const noexcept { return shapes_.size(); }
+  [[nodiscard]] std::size_t shapeCount() const noexcept {
+    return shapes_.size();
+  }
 
 private:
   // Blocking kinds, in the reason precedence order above. The bit index is the
@@ -187,6 +200,7 @@ private:
   // once at build time. Authored shapes are deliberately absent, because they
   // can be added after the build.
   std::vector<std::uint8_t> mask_;
+  TerrainMasks measurements_;
   std::vector<float> painted_;
   std::vector<Shape> shapes_;
   std::vector<std::vector<std::uint32_t>> shapeBuckets_;

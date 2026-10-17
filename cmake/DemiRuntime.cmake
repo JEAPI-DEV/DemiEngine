@@ -8,11 +8,12 @@ target_link_libraries(demi-destruction PRIVATE demi-blast-lowlevel)
 
 set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/terrain/TerrainWorld.cpp
-  src/demi/runtime/terrain/TerrainWaterRuntime.cpp
   src/demi/runtime/scripting/LuaScriptHostWaterServices.cpp
   src/demi/runtime/scripting/bindings/terrain/LuaTerrainWaterBindings.cpp
   src/demi/runtime/terrain/TerrainWorldBatch.cpp
   src/demi/runtime/terrain/TerrainScatterRuntime.cpp
+  src/demi/runtime/terrain/TerrainScatterBatches.cpp
+  src/demi/runtime/terrain/TerrainScatterCollision.cpp
   src/demi/runtime/terrain/TerrainMeshBuilder.cpp
   src/demi/runtime/terrain/TerrainWaterMesh.cpp
   src/demi/runtime/network/TcpClient.cpp

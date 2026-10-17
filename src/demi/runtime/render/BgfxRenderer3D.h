@@ -23,6 +23,7 @@
 #include "demi/runtime/render/bgfx3d/ReliefMeshCache3D.h"
 #include "demi/runtime/render/bgfx3d/SceneLightBuffer3D.h"
 #include "demi/runtime/render/bgfx3d/SceneVisibility3D.h"
+#include "demi/runtime/render/bgfx3d/MeshInstancePreparation3D.h"
 #include "demi/runtime/render/bgfx3d/SkyRenderer3D.h"
 #include "demi/runtime/render/bgfx3d/TerrainCameraDemand3D.h"
 #include "demi/runtime/render/bgfx3d/TerrainDrawSelection3D.h"
@@ -177,6 +178,7 @@ private:
     std::uint64_t inlineColorSignature = 0;
     std::vector<std::uint32_t> inlineColors;
     MeshGeometry3D restGeometry;
+    std::optional<MeshBounds3D> bounds;
     std::string animationModel;
     std::unique_ptr<GpuSkinnedMesh3D> gpuSkin;
     std::vector<float> skinPalette;
@@ -234,6 +236,7 @@ private:
   UniformHandle tintUniform_;
   UniformHandle alphaCutoffUniform_;
   UniformHandle debugModeUniform_;
+  MeshInstancePreparation3D instancePreparation_;
   UniformHandle viewPositionUniform_;
   UniformHandle metalRoughUniform_;
   UniformHandle lightDirectionUniform_;

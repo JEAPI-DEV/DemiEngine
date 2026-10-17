@@ -1,0 +1,41 @@
+{
+  "format_version": 1,
+  "id": "prefab://demi/vegetation/boulder",
+  "name": "Boulder",
+  "entities": [
+    {
+      "id": "body",
+      "name": "Boulder",
+      "components": {
+        "Transform3D": {},
+        "MeshRenderer": {
+          "model": "asset://demi/vegetation/models/boulder",
+          "medium_lod_model": "asset://demi/vegetation/models/boulder_medium",
+          "medium_lod_distance": 28,
+          "low_lod_model": "asset://demi/vegetation/models/boulder_low",
+          "low_lod_distance": 65,
+          "cull_distance": 180,
+          "material": "asset://demi/vegetation/materials/stone",
+          "color": [
+            1,
+            1,
+            1,
+            1
+          ]
+        },
+        "BoxCollider3D": {
+          "size": [
+            1.6,
+            1.2,
+            1.3
+          ],
+          "offset": [
+            0,
+            0.5,
+            0
+          ]
+        }
+      }
+    }
+  ]
+}

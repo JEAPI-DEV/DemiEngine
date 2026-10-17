@@ -7,6 +7,9 @@ are registered in `tools/package-store/src/Docs.php`.
 
 This directory keeps material that has a different job:
 
+- [Terrain Milestone 6 qualification](terrain-milestone6-qualification.md) records
+  procedural vegetation, stable placement rules, scene-object conversion,
+  package prefabs, rendering costs and native editor/source/cooked checks.
 - [Terrain Milestone 5 qualification](terrain-milestone5-qualification.md) records
   water authoring, scene capture/optics, underwater views, opt-in gameplay,
   cooked loading and measured native rendering costs.

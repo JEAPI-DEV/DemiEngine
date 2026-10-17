@@ -138,7 +138,8 @@ bool MaterialLibrary::load(const AssetRegistry &registry,
            name == "normal_strength" || name == "tiling" ||
            name == "detail_strength" || name == "height_blend_strength" ||
            name == "macro_variation_strength" ||
-           name == "macro_variation_scale");
+           name == "macro_variation_scale" || name == "wind_strength" ||
+           name == "wind_frequency" || name == "wind_height");
       if (builtinIntrinsic) {
         continue;
       }

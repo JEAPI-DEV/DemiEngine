@@ -1,5 +1,14 @@
 # DemiEngine Roadmap
 
+Terrain Milestone 6 is complete for Linux lightweight 3D: stable physical-density
+scatter, shared environmental rules, conversion into editable scene objects,
+batched groundcover, selective collision, real model LOD and shared Material
+wind. The original CC0 vegetation package is available from the package store.
+The qualified 9,937-placement scene uses 99 renderable entities; measured
+overview render submission fell from 47.38 ms to 6.44 ms without reducing
+density. See [Milestone 6 qualification](docs/terrain-milestone6-qualification.md).
+Large-world streaming and coordinated residency remain Milestone 7 work.
+
 Terrain Milestone 4 is complete for the Linux Vulkan surface-material scope:
 shared PBR Materials, GPU texture layers, height-biased/sharp blending,
 triplanar/detail/macro shading, automatic roles and bounded distance-based

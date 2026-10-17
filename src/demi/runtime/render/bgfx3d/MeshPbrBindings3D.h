@@ -30,6 +30,7 @@ public:
                const MeshRendererComponent &mesh, TextureHandle white,
                float terrainTextureScale, std::string &error);
   void reset();
+  void setFrameTime(float seconds) { frameTime_ = seconds; }
   std::uint32_t availableInstances(std::uint16_t stride,
                                    std::uint32_t requested) const override;
   bool configureView2D(const View2DConfig &view, std::string &error) override;
@@ -44,6 +45,9 @@ private:
   RenderCommands &commands_;
   TextureResolver resolve_;
   bool enabled_ = false;
+  UniformHandle windUniform_;
+  float frameTime_ = 0;
+  std::array<float, 4> windValues_{};
   std::array<SamplerHandle, 6> samplers_{};
   std::array<UniformHandle, 4> uniforms_{};
   std::array<std::array<float, 4>, 4> values_{};

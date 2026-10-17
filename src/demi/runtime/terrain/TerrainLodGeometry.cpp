@@ -252,6 +252,23 @@ float terrainLodGeometricError(const HeightField &field,
   if (level == TerrainLod::Full) {
     return 0.0F;
   }
+  // Every reduced topology interpolates the same horizontal plane when all
+  // samples, including the perimeter, agree. Avoid constructing topology and
+  // clipping triangle overlays for this exact and common case.
+  const float firstHeight = field.height(chunk.firstCellX, chunk.firstCellZ);
+  bool constantHeight = std::isfinite(firstHeight);
+  for (int z = chunk.firstCellZ;
+       constantHeight && z <= chunk.firstCellZ + chunk.cellsZ; ++z) {
+    for (int x = chunk.firstCellX; x <= chunk.firstCellX + chunk.cellsX; ++x) {
+      if (field.height(x, z) != firstHeight) {
+        constantHeight = false;
+        break;
+      }
+    }
+  }
+  if (constantHeight) {
+    return 0.F;
+  }
   const auto topology = terrain_detail::buildTerrainLodTopology(chunk, level);
   double worst = 0;
   for (std::size_t index = 0; index < topology.triangles.size(); ++index) {

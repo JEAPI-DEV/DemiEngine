@@ -266,6 +266,7 @@ bool BgfxRenderer3D::loadAssets(const AssetRegistry &registry,
         diagnostics.push_back(asset.id + ": " + error);
         success = false;
       } else {
+        cached->bounds = meshBounds3D(positions);
         cached->restGeometry = {.positions = std::move(positions),
                                 .uvs = std::move(textureCoordinates),
                                 .indices = std::move(indices),

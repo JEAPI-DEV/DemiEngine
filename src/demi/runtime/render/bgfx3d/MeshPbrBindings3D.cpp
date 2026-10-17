@@ -48,6 +48,10 @@ void MeshPbrBindings3D::shutdown() {
       resources_.destroy(handle);
     }
   }
+  if (windUniform_) {
+    resources_.destroy(windUniform_);
+    windUniform_ = {};
+  }
   samplers_ = {};
   uniforms_ = {};
 }
@@ -73,13 +77,21 @@ bool MeshPbrBindings3D::initialize(std::string &error) {
   return true;
 }
 
-void MeshPbrBindings3D::reset() { enabled_ = false; }
+void MeshPbrBindings3D::reset() {
+  enabled_ = false;
+  windValues_ = {};
+}
 
 bool MeshPbrBindings3D::prepare(const MaterialBinding *material,
                                 const MeshRendererComponent &mesh,
                                 TextureHandle white, float terrainTextureScale,
                                 std::string &error) {
   reset();
+  if (material && !material->program) {
+    const auto &surface = material->surface;
+    windValues_ = {surface.windStrength, surface.windFrequency,
+                   surface.windHeight, frameTime_};
+  }
   if (!usesMeshPbrSurface3D(material, mesh)) {
     return true;
   }
@@ -178,19 +190,28 @@ bool MeshPbrBindings3D::submit(const TransientDraw &draw, std::string &error) {
 
 template <class Draw>
 bool MeshPbrBindings3D::submitMesh(Draw draw, std::string &error) {
-  if (!enabled_) {
-    return commands_.submit(draw, error);
+  if (!windUniform_) {
+    windUniform_ =
+        resources_.createUniform("u_meshWind", UniformType::Vec4, 1, error);
+    if (!windUniform_) {
+      return false;
+    }
   }
   joinedUniforms_.assign(draw.uniforms.begin(), draw.uniforms.end());
-  for (std::size_t index = 0; index < uniforms_.size(); ++index) {
-    joinedUniforms_.push_back(
-        {.handle = uniforms_[index], .values = values_[index]});
+  if (enabled_) {
+    for (std::size_t index = 0; index < uniforms_.size(); ++index) {
+      joinedUniforms_.push_back(
+          {.handle = uniforms_[index], .values = values_[index]});
+    }
+    joinedTextures_.assign(draw.textures.begin(), draw.textures.end());
+    joinedTextures_.insert(joinedTextures_.end(), bindings_.begin(),
+                           bindings_.end());
+    draw.textures = joinedTextures_;
   }
-  joinedTextures_.assign(draw.textures.begin(), draw.textures.end());
-  joinedTextures_.insert(joinedTextures_.end(), bindings_.begin(),
-                         bindings_.end());
+  // Append the independent wind binding after the established PBR layout.
+  // Disabled surfaces still publish zero to prevent previous-draw leakage.
+  joinedUniforms_.push_back({.handle = windUniform_, .values = windValues_});
   draw.uniforms = joinedUniforms_;
-  draw.textures = joinedTextures_;
   return commands_.submit(draw, error);
 }
 bool MeshPbrBindings3D::submit(const BufferedDraw &draw, std::string &error) {

@@ -1,9 +1,12 @@
 #include "demi/runtime/scene/composition/PrefabResolver.h"
 #include "demi/schema/Validation.h"
+#include "demi/packages/PackageLock.h"
+#include "demi/packages/PackageManifest.h"
 
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <map>
 #include <ranges>
 
 namespace {
@@ -12,6 +15,99 @@ bool write(const std::filesystem::path &path, const char *text) {
   std::ofstream output(path);
   output << text;
   return static_cast<bool>(output);
+}
+
+bool testPackagePrefabResolution(const std::filesystem::path &root) {
+  using demi::runtime::composition::resolvePrefabReference;
+  using Json = nlohmann::json;
+  const auto project = root / "package-project";
+  write(project / "demi.project.json",
+        R"({"format_version":1,"name":"Package prefabs"})");
+  std::map<std::string, demi::packages::PackageRelease> releases;
+  for (const std::string name :
+       {"test.trees", "test.rocks", "test.unrelated"}) {
+    Json manifest{{"format_version", 1},
+                  {"name", name},
+                  {"version", "1.0.0"},
+                  {"engine", "^0.1.0"},
+                  {"public_modules", Json::array()},
+                  {"files", {"prefabs/model.prefab.json"}}};
+    if (name == "test.trees") {
+      manifest["dependencies"] = {{"test.rocks", "^1.0.0"}};
+    }
+    const auto packageRoot = project / ".demi/packages" / name;
+    write(packageRoot / "demi.package.json", manifest.dump().c_str());
+    const Json prefab{{"format_version", 1},
+                      {"id", "prefab://" + name + "/model"},
+                      {"entities", Json::array()}};
+    write(packageRoot / "prefabs/model.prefab.json", prefab.dump().c_str());
+    const auto loaded =
+        demi::packages::loadPackageManifest(packageRoot / "demi.package.json");
+    if (!loaded.manifest) {
+      return false;
+    }
+    releases.emplace(name, demi::packages::PackageRelease{
+                               .manifest = *loaded.manifest,
+                               .archiveHash = "sha256:fixture",
+                               .archiveUri = "package://" + name + "/1.0.0"});
+  }
+  const auto lock = demi::packages::packageLockJson(releases, "fixture");
+  write(project / demi::packages::PackageLockFilename, lock.dump().c_str());
+  const auto scenePath = project / "scenes/main.scene.json";
+  const auto trees = project / ".demi/packages/test.trees";
+  const auto treeOwner = trees / "prefabs/model.prefab.json";
+  const auto rocks =
+      project / ".demi/packages/test.rocks/prefabs/model.prefab.json";
+  write(trees / "prefabs/private.prefab.json",
+        R"({"format_version":1,"id":"prefab://private","entities":[]})");
+  if (resolvePrefabReference(scenePath, "prefab://test.trees/model") !=
+          treeOwner ||
+      resolvePrefabReference(treeOwner, "prefab://test.trees/model") !=
+          treeOwner ||
+      resolvePrefabReference(treeOwner, "prefab://test.rocks/model") != rocks ||
+      resolvePrefabReference(treeOwner, "prefab://test.unrelated/model") ||
+      resolvePrefabReference(treeOwner, "prefab://private") ||
+      resolvePrefabReference(scenePath, "prefab://../outside")) {
+    std::cerr
+        << "Source package prefab lookup ignored identity or visibility.\n";
+    return false;
+  }
+
+  // Cooked packages have no installer manifests. The lock remains the owner
+  // and dependency authority after relocation.
+  std::filesystem::rename(project / ".demi/packages", project / "packages");
+  for (const auto &[name, release] : releases) {
+    (void)release;
+    std::filesystem::remove(project / "packages" / name / "demi.package.json");
+  }
+  write(project / "cook.manifest.json", R"({"files":[],"assets":[]})");
+  const auto cookedOwner =
+      project / "packages/test.trees/prefabs/model.prefab.json";
+  const auto cookedRocks =
+      project / "packages/test.rocks/prefabs/model.prefab.json";
+  if (resolvePrefabReference(scenePath, "prefab://test.trees/model") !=
+          cookedOwner ||
+      resolvePrefabReference(cookedOwner, "prefab://test.rocks/model") !=
+          cookedRocks ||
+      resolvePrefabReference(cookedOwner, "prefab://test.unrelated/model") ||
+      resolvePrefabReference(cookedOwner, "prefab://private")) {
+    std::cerr << "Cooked package prefab lookup lost dependency boundaries.\n";
+    return false;
+  }
+  write(project / "packages/test.unrelated/prefabs/model.prefab.json",
+        R"({"format_version":1,"id":"prefab://test.trees/model","entities":[]})");
+  if (resolvePrefabReference(scenePath, "prefab://test.trees/model")) {
+    std::cerr << "Duplicate package prefab identities were not rejected.\n";
+    return false;
+  }
+  const auto localPrefab = project / "prefabs/test.trees/model.prefab.json";
+  write(localPrefab,
+        R"({"format_version":1,"id":"prefab://test.trees/model","entities":[]})");
+  if (resolvePrefabReference(scenePath, "prefab://test.trees/model") != localPrefab) {
+    std::cerr << "Project conventional prefab precedence was lost.\n";
+    return false;
+  }
+  return true;
 }
 } // namespace
 
@@ -206,6 +302,9 @@ int main() {
       })) {
     std::cerr << "Prefab cycles were not diagnosed.\n";
     return 1;
+  }
+  if (!testPackagePrefabResolution(root)) {
+    return 45;
   }
   return 0;
 }

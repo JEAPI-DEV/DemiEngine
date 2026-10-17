@@ -21,7 +21,8 @@ struct TerrainGraphArtifacts;
 // 8: priority flooding preserves physical elevations, including flat basins.
 // 9: adaptive hydraulic descent, open-edge export and bounded deposition.
 // 12: wet material masks exclude dry corners retained for water triangulation.
-inline constexpr int terrainGeneratorVersion = 13;
+// 14: physical scatter candidate lattices and independent palette density.
+inline constexpr int terrainGeneratorVersion = 14;
 
 class TerrainGenerator {
 public:

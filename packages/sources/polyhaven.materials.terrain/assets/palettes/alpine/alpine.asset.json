@@ -5,7 +5,7 @@
   "source": "alpine.json",
   "importer": "json_data",
   "importer_version": 1,
-  "source_hash": "fnv1a64:059e50a71dc0e70b",
+  "source_hash": "fnv1a64:fa02971c619c2270",
   "dependencies": [
     "asset://polyhaven/terrain/surfaces/alpine"
   ],

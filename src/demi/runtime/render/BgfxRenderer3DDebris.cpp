@@ -34,6 +34,7 @@ bool BgfxRenderer3D::drawCosmeticDebris(
                         .cull = CullMode::None,
                         .topology = PrimitiveTopology::Triangles,
                         .writeDepth = false};
+  meshPbr_.reset();
   for (const auto &fragment : fragments) {
     if (!frame.camera.renderMask.empty() && !fragment.renderLayer.empty() &&
         frame.camera.renderMask != fragment.renderLayer)
@@ -59,7 +60,7 @@ bool BgfxRenderer3D::drawCosmeticDebris(
     std::copy_n(lighting[7].values.begin(), 4, parameters.begin());
     parameters[3] = texture.handle && !texture.srgbDecoded ? 1.F : 0.F;
     uniforms[7].values = parameters;
-    if (!mesh->draw(commands_, frame.viewId, program,
+    if (!mesh->draw(meshPbr_, frame.viewId, program,
                     texture.handle ? texture.handle : whiteTexture_,
                     meshSampler_,
                     composeMeshTransform3D(

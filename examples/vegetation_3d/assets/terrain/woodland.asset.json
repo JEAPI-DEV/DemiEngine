@@ -1,0 +1,13 @@
+{
+  "format_version": 1,
+  "id": "asset://vegetation_3d/woodland",
+  "type": "Terrain",
+  "source": "woodland.terrain.json",
+  "importer": "terrain_heightfield",
+  "importer_version": 1,
+  "dependencies": [
+    "asset://demi/vegetation/palettes/woodland"
+  ],
+  "settings": {},
+  "source_hash": "fnv1a64:048d6fca0d5e8b4e"
+}

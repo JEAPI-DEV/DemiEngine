@@ -273,8 +273,8 @@ executeTerrainGraph(const TerrainRecipe &recipe,
           ? std::span<const TerrainScatterPlacement>(*artifacts->basePlacements)
           : std::span<const TerrainScatterPlacement>{};
   if (!refreshTerrainScatterPlacements(
-          result, candidates,
-          artifacts->water.bodies.empty() ? nullptr : &artifacts->water, stop))
+          result, candidates, recipe, inputs.palette,
+          artifacts->water.authored ? &artifacts->water : nullptr, stop))
     return std::nullopt;
   if (inputs.palette) {
     result.paletteId = inputs.palette->id;

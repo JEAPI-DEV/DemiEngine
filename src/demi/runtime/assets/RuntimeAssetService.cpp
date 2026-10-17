@@ -1,5 +1,6 @@
 #include "demi/runtime/assets/RuntimeAssetService.h"
 #include "demi/runtime/assets/TerrainAssetResourceLoader.h"
+#include "demi/runtime/scene/RuntimePrefabService.h"
 
 #include "demi/filesystem/ProjectPaths.h"
 #include "demi/runtime/scene/SceneAssetReferences.h"
@@ -394,7 +395,12 @@ RuntimeAssetService::resolveRoot(const std::string_view root,
     return {};
   }
   std::string error;
-  auto world = loadScene(project_, std::string(root), error);
+  // Resolve the same generated prefab scenery as actual scene startup before
+  // collecting resource references. Loading only the terrain owner misses the
+  // prefab's materials and reduced model tiers, which are not palette assets.
+  RuntimePrefabService prefabs;
+  prefabs.configure(project_.projectDirectory);
+  auto world = loadScene(project_, std::string(root), error, &prefabs);
   if (!world) {
     report(diagnostics, "ASSET_GROUP_SCENE_LOAD_FAILED", std::move(error),
            std::string(root));

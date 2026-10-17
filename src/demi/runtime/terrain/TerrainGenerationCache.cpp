@@ -1,9 +1,9 @@
 #include "demi/runtime/terrain/TerrainGenerationCache.h"
-#include "demi/runtime/terrain/TerrainSurfaceMaterials.h"
 #include "demi/assets/AssetHash.h"
 #include "demi/assets/AssetRegistry.h"
 #include "demi/runtime/terrain/TerrainGenerator.h"
 #include "demi/runtime/terrain/TerrainGraph.h"
+#include "demi/runtime/terrain/TerrainSurfaceMaterials.h"
 
 #include <algorithm>
 #include <cmath>
@@ -34,25 +34,36 @@ std::string recipeKey(const TerrainRecipe &parsed,
   auto semantic = parsed.toJson();
   if (!parsed.graph.is_null())
     semantic["graph"] = TerrainGraph::parse(parsed.graph).contentKey();
-  return std::to_string(terrainGeneratorVersion) + "\n" +
-         semantic.dump() + "\n" + std::string(inputFingerprint);
+  return std::to_string(terrainGeneratorVersion) + "\n" + semantic.dump() +
+         "\n" + std::string(inputFingerprint);
 }
 
 std::string paletteFingerprint(const TerrainPalette &palette,
                                const AssetRegistry &registry) {
   nlohmann::json semantic{{"format_version", palette.formatVersion},
                           {"id", palette.id},
+                          {"art_density", palette.artDensity},
+                          {"grass_density", palette.grassDensity},
+                          {"tree_density", palette.treeDensity},
+                          {"rock_density", palette.rockDensity},
                           {"placements", nlohmann::json::object()},
                           {"assets", nlohmann::json::object()}};
   for (const auto &[name, entry] : palette.placements)
     semantic["placements"][name] = {
         {"model", entry.model},
         {"prefab", entry.prefab},
-        {"weight", entry.weight},
+        {"density", entry.density},
+        {"candidate_spacing", entry.candidateSpacing},
+        {"category", terrainScatterCategoryName(entry.category)},
+        {"slope", {entry.slope.minimum, entry.slope.maximum}},
+        {"moisture", {entry.moisture.minimum, entry.moisture.maximum}},
+        {"water_distance",
+         {entry.waterDistance.minimum, entry.waterDistance.maximum}},
+        {"yaw", {entry.yawDegrees.minimum, entry.yawDegrees.maximum}},
+        {"cluster", {entry.clusterSize, entry.clusterStrength}},
         {"scale", {entry.scaleMin, entry.scaleMax}},
         {"spacing", entry.spacing},
         {"collision", std::string(terrainCollisionPolicyName(entry.collision))},
-        {"lod", entry.lod},
         {"biomes", entry.biomes}};
   for (const auto &id : palette.assetDependencies()) {
     if (!id.starts_with("asset://") || id == palette.materialSet)
@@ -60,13 +71,14 @@ std::string paletteFingerprint(const TerrainPalette &palette,
     const auto *asset = findAsset(registry, id);
     if (asset == nullptr || asset->sourceHash.empty())
       throw std::invalid_argument("Terrain palette dependency has no content "
-                                  "hash: " + id);
+                                  "hash: " +
+                                  id);
     semantic["assets"][id] = asset->sourceHash;
   }
   const std::string serialized = semantic.dump();
-  return assets::hashBytes(std::span(
-      reinterpret_cast<const unsigned char *>(serialized.data()),
-      serialized.size()));
+  return assets::hashBytes(
+      std::span(reinterpret_cast<const unsigned char *>(serialized.data()),
+                serialized.size()));
 }
 
 void validateInputs(const TerrainRecipe &recipe,
@@ -93,7 +105,8 @@ void validateField(const TerrainRecipe &recipe, const HeightField &field) {
   if (field.baseHeights.size() != sampleCount ||
       field.heights.size() != sampleCount ||
       field.normals.size() != sampleCount ||
-      field.biomeIndices.size() != sampleCount || field.exclusions.size() != sampleCount)
+      field.biomeIndices.size() != sampleCount ||
+      field.exclusions.size() != sampleCount)
     throw std::invalid_argument(
         "Terrain result arrays do not match its sample count");
 
@@ -118,8 +131,8 @@ void validateField(const TerrainRecipe &recipe, const HeightField &field) {
   for (std::size_t sample = 0; sample < sampleCount; ++sample) {
     if (!std::isfinite(field.baseHeights[sample]) ||
         !std::isfinite(field.heights[sample]) ||
-        !std::isfinite(field.exclusions[sample]) || field.exclusions[sample] < 0 ||
-        field.exclusions[sample] > 1)
+        !std::isfinite(field.exclusions[sample]) ||
+        field.exclusions[sample] < 0 || field.exclusions[sample] > 1)
       throw std::invalid_argument("Terrain result contains a nonfinite height");
     const auto normal = field.normals[sample];
     if (!std::isfinite(normal.x) || !std::isfinite(normal.y) ||
@@ -228,13 +241,14 @@ void publishTerrain(const nlohmann::json &recipe,
 }
 
 std::shared_ptr<const HeightField>
-acquireTerrain(const nlohmann::json &recipe, std::string_view inputFingerprint) {
+acquireTerrain(const nlohmann::json &recipe,
+               std::string_view inputFingerprint) {
   if (!TerrainRecipe::parse(recipe).paletteId.empty())
     throw std::invalid_argument(
         "Palette terrain requires resolved generation inputs");
-  return acquireTerrain(recipe, TerrainGenerationInputs{
-                                    .palette = {},
-                                    .fingerprint = std::string(inputFingerprint)});
+  return acquireTerrain(
+      recipe, TerrainGenerationInputs{
+                  .palette = {}, .fingerprint = std::string(inputFingerprint)});
 }
 
 std::shared_ptr<const HeightField>
@@ -264,16 +278,15 @@ acquireTerrain(const nlohmann::json &recipe,
     store.fields[key] = rebound;
     return rebound;
   }
-  auto generated = TerrainGenerator::generate(
-      parsed, inputs.palette.get(), {}, {}, inputs.fingerprint);
+  auto generated = TerrainGenerator::generate(parsed, inputs.palette.get(), {},
+                                              {}, inputs.fingerprint);
   if (!generated)
     throw std::runtime_error("Terrain generation unexpectedly cancelled");
   auto field = std::make_shared<const HeightField>(std::move(*generated));
   validateField(parsed, *field);
-  if (inputs.palette &&
-      (field->paletteId != parsed.paletteId ||
-       field->inputFingerprint != inputs.fingerprint ||
-       !field->resolvedPalette))
+  if (inputs.palette && (field->paletteId != parsed.paletteId ||
+                         field->inputFingerprint != inputs.fingerprint ||
+                         !field->resolvedPalette))
     throw std::logic_error("Terrain generator dropped resolved palette inputs");
   std::scoped_lock lock(store.mutex);
   if (auto existing = findLocked(store, key)) {

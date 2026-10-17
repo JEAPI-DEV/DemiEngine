@@ -233,10 +233,12 @@ int main() {
             "Palette import did not register its content and dependency");
     require(
         readJson(project.root / "assets/terrain_palettes/forest/forest.json") ==
-            Json({{"format_version", 2},
+            Json({{"format_version", 3},
                   {"name", "forest"},
                   {"placements",
-                   {{"placement", {{"model", paletteOptions.initialAsset}}}}}}),
+                   {{"placement",
+                     {{"model", paletteOptions.initialAsset},
+                      {"collision", "none"}}}}}}),
         "Palette did not author one valid soil role");
     registry = loadAssetRegistry(project.root);
     require(
@@ -278,7 +280,7 @@ int main() {
             error);
     const auto surfaceManifest = loadAssetManifest(created);
     const auto surfaces = readJson(surfaceManifest->sourcePath);
-    require(surfaces.at("format_version") == 2 &&
+    require(surfaces.at("format_version") == 3 &&
                 surfaces.at("material_set") ==
                     "asset://terrain_material_sets/starter" &&
                 !surfaces.contains("placements"),

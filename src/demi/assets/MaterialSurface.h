@@ -30,6 +30,11 @@ struct MaterialSurface {
   float normalStrength = 1;
   float tiling = 1;
   float detailStrength = 0;
+  // Visual world-space bending only; authored geometry and collision stay
+  // fixed.
+  float windStrength = 0;
+  float windFrequency = 1;
+  float windHeight = 1;
   // Terrain layer shading only; these never displace geometry or collision.
   float heightBlendStrength = 0.5F;
   float macroVariationStrength = 0;

@@ -175,6 +175,18 @@ void completePayloadRoundTrip() {
   field.surfaceMaterials = appearance;
   TerrainPaletteEntry ruleId;
   ruleId.model = "asset://tree";
+  ruleId.collision = TerrainCollisionPolicy::None;
+  ruleId.category = TerrainScatterCategory::Tree;
+  ruleId.density = 0.03F;
+  ruleId.candidateSpacing = 2;
+  ruleId.slope = {5, 45};
+  ruleId.moisture = {0.2F, 0.8F};
+  ruleId.waterDistance = {2, 30};
+  ruleId.yawDegrees = {-30, 50};
+  ruleId.clusterSize = 12;
+  ruleId.clusterStrength = 0.7F;
+  palette->artDensity = 0.8F;
+  palette->treeDensity = 1.2F;
   palette->placements.emplace("tree", ruleId);
   field.resolvedPalette = palette;
   TerrainScatterPlacement tree;
@@ -183,6 +195,8 @@ void completePayloadRoundTrip() {
   tree.biome = 0;
   tree.biomeName = field.biomeIds[0];
   tree.cell = 1;
+  tree.candidateX = 4;
+  tree.candidateZ = 7;
   tree.position = {2, field.height(1, 0), 0};
   field.scatterPlacements.push_back(tree);
 
@@ -225,6 +239,22 @@ void completePayloadRoundTrip() {
   }
   assert(restored->biomeIndices == field.biomeIndices);
   assert(restored->chunks.size() == field.chunks.size());
+  assert(restored->scatterPlacements.front().candidateX == 4);
+  assert(restored->scatterPlacements.front().candidateZ == 7);
+  const auto &restoredRule = restored->resolvedPalette->placements.at("tree");
+  assert(restoredRule.category == TerrainScatterCategory::Tree);
+  assert(restoredRule.density == 0.03F && restoredRule.candidateSpacing == 2);
+  assert(restoredRule.slope.minimum == 5 && restoredRule.slope.maximum == 45);
+  assert(restoredRule.moisture.minimum == 0.2F &&
+         restoredRule.moisture.maximum == 0.8F);
+  assert(restoredRule.waterDistance.minimum == 2 &&
+         restoredRule.waterDistance.maximum == 30);
+  assert(restoredRule.yawDegrees.minimum == -30 &&
+         restoredRule.yawDegrees.maximum == 50);
+  assert(restoredRule.clusterSize == 12 &&
+         restoredRule.clusterStrength == 0.7F);
+  assert(restored->resolvedPalette->artDensity == 0.8F &&
+         restored->resolvedPalette->treeDensity == 1.2F);
   assert(restored->scatterPlacements.size() == 1);
   assert(restored->resolvedPalette &&
          restored->resolvedPalette->placements.size() == 1);
@@ -302,8 +332,8 @@ void waterCoverageRoundTrip() {
   assert(encoded["body"][0] == 0 && encoded["body"][1] == 2 &&
          encoded["body"][2] == -1);
   const auto payload = serializeTerrainAssetPayload(field, "recipe", "inputs");
-  assert(terrainAssetPayloadVersion == 10 && payload[7] == std::byte{'1'} &&
-         payload[8] == std::byte{'0'});
+  assert(terrainAssetPayloadVersion == 11 && payload[7] == std::byte{'1'} &&
+         payload[8] == std::byte{'1'});
   const auto restored = deserializeTerrainAssetPayload(payload);
   assert(restored->surfaceSedimentBalance);
   assert(*restored->surfaceSedimentBalance == *selectedBalance);

@@ -105,4 +105,9 @@ bool runtimeFieldJson(const std::vector<Color> &value, nlohmann::json &out) {
   return true;
 }
 
+bool runtimeFieldJson(const std::vector<std::string> &value, nlohmann::json &out) {
+  out = value;
+  return true;
+}
+
 } // namespace demi::runtime

@@ -29,6 +29,9 @@ add_library(demi-core STATIC
   src/demi/runtime/terrain/TerrainDrainage.cpp
   src/demi/runtime/terrain/TerrainDrainageRoute.cpp
   src/demi/runtime/terrain/TerrainErosion.cpp
+  # Scene-facing prepared-water queries are shared by rendering and gameplay;
+  # they must not depend on the application/runtime composition library.
+  src/demi/runtime/terrain/TerrainWaterRuntime.cpp
   src/demi/runtime/terrain/TerrainWaterDiagnostics.cpp
   src/demi/runtime/terrain/TerrainScatterConstraints.cpp
   src/demi/runtime/terrain/TerrainMaskBuilder.cpp

@@ -105,9 +105,10 @@ bool samePlacement(const TerrainScatterPlacement &a,
                    const TerrainScatterPlacement &b) {
   return a.ruleId == b.ruleId && a.model == b.model && a.prefab == b.prefab &&
          a.biome == b.biome && a.biomeName == b.biomeName && a.cell == b.cell &&
+         a.candidateX == b.candidateX && a.candidateZ == b.candidateZ &&
          a.position.x == b.position.x && a.position.y == b.position.y &&
          a.position.z == b.position.z && a.yaw == b.yaw && a.scale == b.scale &&
-         a.collision == b.collision && a.lod == b.lod;
+         a.collision == b.collision;
 }
 bool sameDerived(const TerrainDerivedState &a, const TerrainDerivedState &b) {
   if (a.scatterTruncated != b.scatterTruncated ||

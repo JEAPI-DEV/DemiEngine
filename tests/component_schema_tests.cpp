@@ -250,6 +250,61 @@ void testTerrainSurfaceBlendingContract() {
   }
 }
 
+void testTerrainScatterExclusionsContract() {
+  using namespace demi::runtime;
+  using namespace demi::runtime::scene_loading;
+  const auto require = [](bool condition, const char *message) {
+    if (!condition) {
+      throw std::runtime_error(message);
+    }
+  };
+  const auto *descriptor = findComponentDescriptor("Terrain3D");
+  require(descriptor != nullptr, "Terrain3D descriptor is missing");
+  require(descriptor->defaults().at("scatter_exclusions") ==
+              nlohmann::json::array(),
+          "Terrain3D scatter exclusions lost their native empty default");
+  const auto schema = componentSchema(*descriptor);
+  const auto &field = schema.at("properties").at("scatter_exclusions");
+  require(field.at("type") == "array" &&
+              field.at("items").at("type") == "string",
+          "Terrain3D scatter exclusions lost reflected string-array schema");
+  Entity entity;
+  const nlohmann::json authored{{"asset", "asset://terrain/test"}};
+  descriptor->parse(authored, entity);
+  auto *terrain = entity.component<Terrain3DComponent>();
+  require(terrain && terrain->scatterExclusions.empty(),
+          "Omitted scatter exclusions did not default to an empty list");
+  require(descriptor->serialize(entity) == authored,
+          "Omitted scatter exclusions were materialized into source");
+  const auto generated = std::make_shared<const HeightField>();
+  terrain->generated = generated;
+  terrain->recipe = {{"retained_input", true}};
+  const nlohmann::json changed{
+      {"asset", "asset://terrain/test"},
+      {"scatter_exclusions", {"land|scatter|tree|4|7"}}};
+  require(descriptor->patch(entity, "scatter_exclusions", changed),
+          "Scatter exclusions native field patch failed");
+  require(terrain->scatterExclusions ==
+              std::vector<std::string>{"land|scatter|tree|4|7"},
+          "Scatter exclusion patch did not update native storage");
+  require(terrain->generated == generated &&
+              terrain->recipe.at("retained_input") == true,
+          "Scatter exclusion patch rebuilt geometry or changed unrelated live "
+          "state");
+  require(descriptor->serialize(entity) == changed,
+          "Scatter exclusions did not round trip");
+  for (const auto &invalid :
+       {nlohmann::json(1), nlohmann::json::array({1}),
+        nlohmann::json::array({""}), nlohmann::json::array({"same", "same"})}) {
+    std::string error;
+    require(!Terrain3DComponent::validateAuthored(
+                {{"scatter_exclusions", invalid}}, error),
+            "Terrain3D accepted invalid scatter exclusions");
+    require(error.find("scatter_exclusions") != std::string::npos,
+            "Scatter exclusion validation omitted the field name");
+  }
+}
+
 void testTerrainLodQualityContract() {
   using namespace demi::runtime;
   using namespace demi::runtime::scene_loading;
@@ -322,6 +377,7 @@ int main() {
     testTerrainPreparationBudgets();
     testTerrainTextureQuality();
     testTerrainLodQualityContract();
+    testTerrainScatterExclusionsContract();
     testTerrainSurfaceBlendingContract();
     using namespace demi::runtime;
     using namespace demi::runtime::scene_loading;

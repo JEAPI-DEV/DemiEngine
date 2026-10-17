@@ -8,6 +8,7 @@
 #include "demi/runtime/render/bgfx3d/PrimitiveMeshFactory3D.h"
 #include "demi/runtime/render/bgfx3d/VisibleMeshGeometry3D.h"
 #include "demi/runtime/scene/components/3dcomponents/AnimationPlayer3DComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/MeshInstances3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
 #include "demi/runtime/scene/model/MeshMaterialSections3D.h"
 #include "demi/runtime/terrain/TerrainRenderLod.h"
@@ -55,6 +56,7 @@ bool BgfxRenderer3D::submitVisibleMeshes(
     ProgramHandle defaultMeshProgram, ProgramHandle defaultInstancedProgram,
     ProgramHandle defaultSkinnedProgram, MeshSubmissionStatistics &statistics,
     std::string &error, int selectedSurfacePass) {
+  meshPbr_.setFrameTime(waterTime_);
   const bool hasTransparentMeshes = firstTransparent < visibility.meshes.size();
   auto &bufferedDraws = statistics.draws;
   auto &bufferedTriangles = statistics.triangles;
@@ -72,6 +74,11 @@ bool BgfxRenderer3D::submitVisibleMeshes(
     const auto passEnd =
         visibility.meshes.begin() +
         (surfacePass == 0 ? firstTransparent : visibility.meshes.size());
+    // A source and selected model have one immutable resolved surface in this
+    // pass. Cache the collector token, not duplicate Material/PBR ownership.
+    std::unordered_map<const Entity *,
+                       std::unordered_map<const std::string *, std::size_t>>
+        preparedGroups;
     if (frame.updateContent) {
       for (auto visibleIt = passBegin; visibleIt != passEnd; ++visibleIt) {
         const VisibleMesh3D &visible = *visibleIt;
@@ -94,6 +101,20 @@ bool BgfxRenderer3D::submitVisibleMeshes(
         const std::string &selectedModel = *lod.model;
         mediumLodMeshes += lod.level == 1 ? 1U : 0U;
         lowLodMeshes += lod.level == 2 ? 1U : 0U;
+        std::array<float, 16> uncachedModelMatrix;
+        const auto *modelMatrix = visible.preparedModelMatrix;
+        if (!modelMatrix) {
+          uncachedModelMatrix = composeMeshTransform3D(transform, mesh->size);
+          modelMatrix = &uncachedModelMatrix;
+        }
+        const auto preparedSource = preparedGroups.find(&entity);
+        if (preparedSource != preparedGroups.end()) {
+          const auto preparedLod = preparedSource->second.find(lod.model);
+          if (preparedLod != preparedSource->second.end()) {
+            instanceGroups.appendTransform(preparedLod->second, *modelMatrix);
+            continue;
+          }
+        }
         const auto *sections = visibleMeshSections3D(visible);
         const MeshMaterialSection3D *section = nullptr;
         if (visible.materialSection) {
@@ -164,6 +185,23 @@ bool BgfxRenderer3D::submitVisibleMeshes(
               texture.handle && !texture.srgbDecoded ? 1.F : 0.F;
           return texture;
         };
+        const auto queueSurfaceInstances = [&](const GpuMesh3D &gpu,
+                                               TextureHandle texture) {
+          const bool sharedStaticInstances =
+              entity.hasComponent<MeshInstances3DComponent>() && !player &&
+              dents.empty() && !fade && !surface.transparent() &&
+              !(material && material->program) && !visible.materialSection;
+          if (!sharedStaticInstances) {
+            return false;
+          }
+          const auto instancedProgram =
+              pbr ? pbrPrograms_[pbrFamily + 1] : defaultInstancedProgram;
+          const auto group =
+              instanceGroups.addSurface(gpu, texture, *mesh, material, prepared,
+                                        instancedProgram, *modelMatrix);
+          preparedGroups[&entity].emplace(lod.model, group);
+          return true;
+        };
         bool queued = false;
         if (const auto *relief = entity.component<SurfaceRelief3DComponent>();
             relief && (!relief->heightMap.empty() || relief->tiles.x > 1 ||
@@ -187,17 +225,17 @@ bool BgfxRenderer3D::submitVisibleMeshes(
             return false;
           }
           const auto resolved = texture.handle ? texture.handle : whiteTexture_;
-          if (!material && !surface.transparent() && !fade) {
+          if (queueSurfaceInstances(*gpu, resolved)) {
+            queued = true;
+          } else if (!material && !surface.transparent() && !fade) {
             instanceGroups.add(*gpu, resolved, builtinSurfaceTint, metalRough,
-                               false,
-                               composeMeshTransform3D(transform, mesh->size));
+                               false, *modelMatrix);
             queued = true;
           } else {
             prepared.fillUniforms(lightingUniforms, material, drawUniforms);
             queued = gpu->draw(meshPbr_, frame.viewId, program, resolved,
-                               meshSampler_,
-                               composeMeshTransform3D(transform, mesh->size),
-                               state, error, drawUniforms);
+                               meshSampler_, *modelMatrix, state, error,
+                               drawUniforms);
             if (queued) {
               ++bufferedDraws;
               bufferedTriangles += gpu->indexCount() / 3U;
@@ -220,12 +258,12 @@ bool BgfxRenderer3D::submitVisibleMeshes(
           }
           const bool drawSectionRange = section && !visible.drawAllSections;
           prepared.fillUniforms(lightingUniforms, material, drawUniforms);
-          queued = gpu->draw(
-              meshPbr_, frame.viewId, program,
-              texture.handle ? texture.handle : whiteTexture_, meshSampler_,
-              composeMeshTransform3D(transform, mesh->size), state, error,
-              drawUniforms, drawSectionRange ? section->firstIndex : 0,
-              drawSectionRange ? section->indexCount : UINT32_MAX);
+          queued =
+              gpu->draw(meshPbr_, frame.viewId, program,
+                        texture.handle ? texture.handle : whiteTexture_,
+                        meshSampler_, *modelMatrix, state, error, drawUniforms,
+                        drawSectionRange ? section->firstIndex : 0,
+                        drawSectionRange ? section->indexCount : UINT32_MAX);
           if (queued) {
             ++bufferedDraws;
             const auto drawnIndices =
@@ -291,18 +329,24 @@ bool BgfxRenderer3D::submitVisibleMeshes(
             }
           }
           const bool drawSectionRange = section && !visible.drawAllSections;
-          prepared.fillUniforms(lightingUniforms, material, drawUniforms);
-          queued = drawMesh->draw(
-              meshPbr_, frame.viewId, program,
-              texture.handle ? texture.handle : whiteTexture_, meshSampler_,
-              composeMeshTransform3D(transform, mesh->size), state, error,
-              drawUniforms, drawSectionRange ? section->firstIndex : 0,
-              drawSectionRange ? section->indexCount : UINT32_MAX);
-          if (queued) {
-            ++bufferedDraws;
-            const auto drawnIndices =
-                drawSectionRange ? section->indexCount : drawMesh->indexCount();
-            bufferedTriangles += drawnIndices / 3U;
+          const auto resolvedTexture =
+              texture.handle ? texture.handle : whiteTexture_;
+          if (queueSurfaceInstances(*drawMesh, resolvedTexture)) {
+            queued = true;
+          } else {
+            prepared.fillUniforms(lightingUniforms, material, drawUniforms);
+            queued = drawMesh->draw(
+                meshPbr_, frame.viewId, program, resolvedTexture, meshSampler_,
+                *modelMatrix, state, error, drawUniforms,
+                drawSectionRange ? section->firstIndex : 0,
+                drawSectionRange ? section->indexCount : UINT32_MAX);
+            if (queued) {
+              ++bufferedDraws;
+              const auto drawnIndices = drawSectionRange
+                                            ? section->indexCount
+                                            : drawMesh->indexCount();
+              bufferedTriangles += drawnIndices / 3U;
+            }
           }
         } else if (!selectedModel.empty()) {
           const auto cached = modelMeshes_.find(selectedModel);
@@ -379,26 +423,25 @@ bool BgfxRenderer3D::submitVisibleMeshes(
             drawUniforms.push_back(
                 {.handle = skinImportUniform_,
                  .values = animatedModels_.at(selectedModel).importTransform});
-            queued = gpuSkin->draw(
-                meshPbr_, frame.viewId, skinProgram, resolvedTexture,
-                meshSampler_, composeMeshTransform3D(transform, mesh->size),
-                state, drawUniforms, error);
+            queued = gpuSkin->draw(meshPbr_, frame.viewId, skinProgram,
+                                   resolvedTexture, meshSampler_, *modelMatrix,
+                                   state, drawUniforms, error);
             if (queued) {
               ++bufferedDraws;
               bufferedTriangles += gpuSkin->indexCount() / 3;
             }
+          } else if (queueSurfaceInstances(*drawGpu, resolvedTexture)) {
+            queued = true;
           } else if (player == nullptr && material == nullptr &&
                      dents.empty() && !surface.transparent() && !fade) {
             instanceGroups.add(*drawGpu, resolvedTexture, builtinSurfaceTint,
-                               metalRough, modelUnlit,
-                               composeMeshTransform3D(transform, mesh->size));
+                               metalRough, modelUnlit, *modelMatrix);
             queued = true;
           } else {
             prepared.fillUniforms(lightingUniforms, material, drawUniforms);
-            queued = drawGpu->draw(
-                meshPbr_, frame.viewId, program, resolvedTexture, meshSampler_,
-                composeMeshTransform3D(transform, mesh->size), state, error,
-                drawUniforms);
+            queued = drawGpu->draw(meshPbr_, frame.viewId, program,
+                                   resolvedTexture, meshSampler_, *modelMatrix,
+                                   state, error, drawUniforms);
             if (queued) {
               ++bufferedDraws;
               bufferedTriangles += drawGpu->indexCount() / 3U;
@@ -434,17 +477,17 @@ bool BgfxRenderer3D::submitVisibleMeshes(
           }
           const TextureHandle resolvedTexture =
               texture.handle ? texture.handle : whiteTexture_;
-          if (material == nullptr && !surface.transparent() && !fade) {
+          if (queueSurfaceInstances(cached->gpu, resolvedTexture)) {
+            queued = true;
+          } else if (material == nullptr && !surface.transparent() && !fade) {
             instanceGroups.add(cached->gpu, resolvedTexture, builtinSurfaceTint,
-                               metalRough, false,
-                               composeMeshTransform3D(transform, mesh->size));
+                               metalRough, false, *modelMatrix);
             queued = true;
           } else {
             prepared.fillUniforms(lightingUniforms, material, drawUniforms);
-            queued = cached->gpu.draw(
-                meshPbr_, frame.viewId, program, resolvedTexture, meshSampler_,
-                composeMeshTransform3D(transform, mesh->size), state, error,
-                drawUniforms);
+            queued = cached->gpu.draw(meshPbr_, frame.viewId, program,
+                                      resolvedTexture, meshSampler_,
+                                      *modelMatrix, state, error, drawUniforms);
             if (queued) {
               ++bufferedDraws;
               bufferedTriangles += cached->gpu.indexCount() / 3U;
@@ -471,7 +514,8 @@ bool BgfxRenderer3D::submitVisibleMeshes(
       if (!instanceGroups.flush(commands_, frame.viewId, defaultMeshProgram,
                                 defaultInstancedProgram, meshSampler_, state,
                                 lightingUniforms, bufferedDraws,
-                                bufferedTriangles, error)) {
+                                bufferedTriangles, error, &meshPbr_,
+                                whiteTexture_)) {
         return false;
       }
     }

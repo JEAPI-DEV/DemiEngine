@@ -1,10 +1,10 @@
 #include "demi/runtime/scene/RuntimePrefabService.h"
 
+#include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/scene/RuntimeObjectModel.h"
 #include "demi/runtime/scene/WorldQueries.h"
-#include "demi/runtime/scene/composition/PrefabResolver.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
-#include "demi/runtime/profiling/RuntimeProfiler.h"
+#include "demi/runtime/scene/composition/PrefabResolver.h"
 
 #include <algorithm>
 #include <unordered_set>
@@ -62,9 +62,10 @@ void RuntimePrefabService::configure(std::filesystem::path projectDirectory) {
   templates_.configure(projectDirectory_);
 }
 
-PrefabInstanceResult RuntimePrefabService::build(
-    const std::string_view prefab,
-    const PrefabInstantiateOptions &options, nlohmann::json &expanded) {
+PrefabInstanceResult
+RuntimePrefabService::build(const std::string_view prefab,
+                            const PrefabInstantiateOptions &options,
+                            nlohmann::json &expanded) {
   PrefabInstanceResult result;
   if (projectDirectory_.empty() || options.id.empty()) {
     result.diagnostics.push_back(prefabError(
@@ -75,26 +76,34 @@ PrefabInstanceResult RuntimePrefabService::build(
   const std::string reference(prefab);
   constexpr std::string_view TemplateId = "template";
   if (const auto *cached = templates_.find(reference, options.overrides)) {
-    expanded = composition::rebasePrefabEntities(*cached, TemplateId, options.id);
+    expanded =
+        composition::rebasePrefabEntities(*cached, TemplateId, options.id);
   } else {
     ProfileScope preparation("Prefab.prepare_template");
-    const auto dependencies = templates_.dependencies(reference, options.overrides);
-    const nlohmann::json instance = {
-        {"id", TemplateId}, {"prefab", reference}, {"overrides", options.overrides}};
+    const auto dependencies =
+        templates_.dependencies(reference, options.overrides);
+    const nlohmann::json instance = {{"id", TemplateId},
+                                     {"prefab", reference},
+                                     {"overrides", options.overrides}};
     const auto expansion = composition::expandPrefabInstance(
         projectDirectory_ / "demi.project.json", instance);
     result.diagnostics = expansion.diagnostics;
     if (!expansion.document) {
       return result;
     }
-    templates_.store(reference, options.overrides, *expansion.document, dependencies);
-    expanded = composition::rebasePrefabEntities(*expansion.document, TemplateId, options.id);
+    templates_.store(reference, options.overrides, *expansion.document,
+                     dependencies);
+    expanded = composition::rebasePrefabEntities(*expansion.document,
+                                                 TemplateId, options.id);
   }
   const auto cache = templates_.statistics();
-  RuntimeProfiler::setGauge("Prefab.template_cache_entries", double(cache.entries));
+  RuntimeProfiler::setGauge("Prefab.template_cache_entries",
+                            double(cache.entries));
   RuntimeProfiler::setGauge("Prefab.template_cache_hits", double(cache.hits));
-  RuntimeProfiler::setGauge("Prefab.template_cache_misses", double(cache.misses));
-  RuntimeProfiler::setGauge("Prefab.template_cache_bypasses", double(cache.bypasses));
+  RuntimeProfiler::setGauge("Prefab.template_cache_misses",
+                            double(cache.misses));
+  RuntimeProfiler::setGauge("Prefab.template_cache_bypasses",
+                            double(cache.bypasses));
 
   result.instanceId = options.id;
   for (const nlohmann::json &json : expanded)
@@ -102,9 +111,35 @@ PrefabInstanceResult RuntimePrefabService::build(
   return result;
 }
 
-PrefabInstanceResult RuntimePrefabService::instantiate(
-    World &world, WorldCommandBuffer &commands, std::string prefab,
-    PrefabInstantiateOptions options) {
+std::optional<std::vector<Entity>>
+RuntimePrefabService::prepareEntities(std::string_view prefab,
+                                      Diagnostics &diagnostics) {
+  nlohmann::json expanded;
+  const auto result = build(
+      prefab, PrefabInstantiateOptions{.id = "scatter_template"}, expanded);
+  diagnostics = result.diagnostics;
+  if (!result) {
+    return std::nullopt;
+  }
+  std::vector<Entity> entities;
+  entities.reserve(expanded.size());
+  for (const auto &document : expanded) {
+    std::string error;
+    auto entity = RuntimeObjectModel::buildEntity(document, error);
+    if (!entity) {
+      diagnostics.push_back(
+          prefabError("PREFAB_RUNTIME_ENTITY_INVALID", error));
+      return std::nullopt;
+    }
+    entities.push_back(std::move(*entity));
+  }
+  return entities;
+}
+
+PrefabInstanceResult
+RuntimePrefabService::instantiate(World &world, WorldCommandBuffer &commands,
+                                  std::string prefab,
+                                  PrefabInstantiateOptions options) {
   ProfileScope instantiation("Prefab.instantiate");
   if (options.pooled)
     for (auto &[instanceId, instance] : instances_) {
@@ -129,8 +164,8 @@ PrefabInstanceResult RuntimePrefabService::instantiate(
           const std::string entityId = entity.id;
           entity.prefabInstance = options.id;
           entity.sceneOwner = world.activeSceneId;
-          entity.prefabLocalId =
-              entity.id.substr(std::min(entity.id.size(), options.id.size() + 1));
+          entity.prefabLocalId = entity.id.substr(
+              std::min(entity.id.size(), options.id.size() + 1));
           if (options.position)
             applyRootPosition(entity, *options.position, result.entityIds);
           if (!commands.create(world, std::move(entity), true)) {
@@ -151,9 +186,9 @@ PrefabInstanceResult RuntimePrefabService::instantiate(
     return result;
   if (instances_.contains(options.id)) {
     result.instanceId.clear();
-    result.diagnostics.push_back(prefabError(
-        "PREFAB_RUNTIME_DUPLICATE_INSTANCE",
-        "Prefab instance already exists: " + options.id));
+    result.diagnostics.push_back(
+        prefabError("PREFAB_RUNTIME_DUPLICATE_INSTANCE",
+                    "Prefab instance already exists: " + options.id));
     return result;
   }
   std::vector<Entity> entities;
@@ -169,9 +204,9 @@ PrefabInstanceResult RuntimePrefabService::instantiate(
     if (findEntity(world, entity->id) != nullptr ||
         commands.pendingEntity(entity->id) != nullptr) {
       result.instanceId.clear();
-      result.diagnostics.push_back(prefabError(
-          "PREFAB_RUNTIME_CREATE_FAILED",
-          "Prefab entity id already exists: " + entity->id));
+      result.diagnostics.push_back(
+          prefabError("PREFAB_RUNTIME_CREATE_FAILED",
+                      "Prefab entity id already exists: " + entity->id));
       return result;
     }
     entity->prefabInstance = options.id;
@@ -185,16 +220,109 @@ PrefabInstanceResult RuntimePrefabService::instantiate(
   for (Entity &entity : entities) {
     if (!commands.create(world, std::move(entity))) {
       result.instanceId.clear();
-      result.diagnostics.push_back(prefabError(
-          "PREFAB_RUNTIME_CREATE_FAILED",
-          "Could not queue prefab entity creation."));
+      result.diagnostics.push_back(
+          prefabError("PREFAB_RUNTIME_CREATE_FAILED",
+                      "Could not queue prefab entity creation."));
       return result;
     }
   }
-  instances_.emplace(options.id,
-                     Instance{.prefab = std::move(prefab),
-                              .entityIds = result.entityIds,
-                              .pooled = options.pooled});
+  instances_.emplace(options.id, Instance{.prefab = std::move(prefab),
+                                          .entityIds = result.entityIds,
+                                          .pooled = options.pooled});
+  return result;
+}
+
+std::optional<std::string_view>
+RuntimePrefabService::sourcePrefab(std::string_view instanceId) const {
+  const auto instance = instances_.find(std::string(instanceId));
+  if (instance == instances_.end()) {
+    return std::nullopt;
+  }
+  return instance->second.prefab;
+}
+
+PrefabInstanceResult
+RuntimePrefabService::replace(World &world, WorldCommandBuffer &commands,
+                              std::string prefab,
+                              PrefabInstantiateOptions options) {
+  const auto previous = instances_.find(options.id);
+  if (previous == instances_.end() || previous->second.available) {
+    PrefabInstanceResult result;
+    result.diagnostics.push_back(
+        prefabError("PREFAB_RUNTIME_INSTANCE_MISSING",
+                    "Cannot replace missing prefab instance: " + options.id));
+    return result;
+  }
+  nlohmann::json expansion;
+  auto result = build(prefab, options, expansion);
+  if (!result) {
+    return result;
+  }
+  const std::unordered_set<std::string> oldIds(
+      previous->second.entityIds.begin(), previous->second.entityIds.end());
+  std::string sceneOwner = world.activeSceneId;
+  for (const auto &id : previous->second.entityIds) {
+    const auto *owned = findEntity(world, id);
+    if (!owned) {
+      continue;
+    }
+    if (owned->prefabInstance != options.id) {
+      result.instanceId.clear();
+      result.diagnostics.push_back(
+          prefabError("PREFAB_RUNTIME_REPLACE_FAILED",
+                      "Previous prefab entity is no longer owned: " + id));
+      return result;
+    }
+    sceneOwner = owned->sceneOwner;
+  }
+  std::vector<Entity> entities;
+  for (const auto &document : expansion) {
+    std::string error;
+    auto entity = RuntimeObjectModel::buildEntity(document, error);
+    const auto *existing = entity ? findEntity(world, entity->id) : nullptr;
+    if (!entity || commands.pendingEntity(entity->id) ||
+        (existing && !oldIds.contains(existing->id))) {
+      result.instanceId.clear();
+      result.diagnostics.push_back(prefabError(
+          "PREFAB_RUNTIME_REPLACE_FAILED",
+          entity ? "Replacement entity ID is already owned: " + entity->id
+                 : error));
+      return result;
+    }
+    entity->prefabInstance = options.id;
+    entity->sceneOwner = sceneOwner;
+    entity->prefabLocalId = entity->id.substr(options.id.size() + 1);
+    if (options.position) {
+      applyRootPosition(*entity, *options.position, result.entityIds);
+    }
+    entities.push_back(std::move(*entity));
+  }
+  WorldCommandBuffer staged = commands;
+  for (auto &entity : entities) {
+    const bool exists = findEntity(world, entity.id) != nullptr;
+    if (!staged.create(world, std::move(entity), exists)) {
+      result.instanceId.clear();
+      result.diagnostics.push_back(
+          prefabError("PREFAB_RUNTIME_REPLACE_FAILED",
+                      "Could not stage replacement prefab entities."));
+      return result;
+    }
+  }
+  for (const auto &id : oldIds) {
+    if (std::ranges::find(result.entityIds, id) == result.entityIds.end() &&
+        findEntity(world, id) && !staged.destroy(world, id)) {
+      result.instanceId.clear();
+      result.diagnostics.push_back(
+          prefabError("PREFAB_RUNTIME_REPLACE_FAILED",
+                      "Could not retire previous prefab entity: " + id));
+      return result;
+    }
+  }
+  Instance replacement{.prefab = std::move(prefab),
+                       .entityIds = result.entityIds,
+                       .pooled = options.pooled};
+  previous->second = std::move(replacement);
+  commands = std::move(staged);
   return result;
 }
 
@@ -217,7 +345,8 @@ bool RuntimePrefabService::release(World &world, WorldCommandBuffer &commands,
     return true;
   }
   for (const std::string &id : found->second.entityIds)
-    if ((findEntity(world,id) || commands.pendingEntity(id)) && !commands.destroy(world, id))
+    if ((findEntity(world, id) || commands.pendingEntity(id)) &&
+        !commands.destroy(world, id))
       return false;
   instances_.erase(found);
   return true;
@@ -232,17 +361,16 @@ void RuntimePrefabService::prune(const World &world) {
   for (const auto &entity : world.entities)
     liveIds.insert(entity.id);
   std::erase_if(instances_, [&](const auto &entry) {
-    return std::ranges::none_of(entry.second.entityIds,
-                                [&](const std::string &id) {
-                                  return liveIds.contains(id);
-                                });
+    return std::ranges::none_of(
+        entry.second.entityIds,
+        [&](const std::string &id) { return liveIds.contains(id); });
   });
 }
 
 std::size_t
 RuntimePrefabService::pooledCount(const std::string_view prefab) const {
-  return static_cast<std::size_t>(std::ranges::count_if(
-      instances_, [&](const auto &entry) {
+  return static_cast<std::size_t>(
+      std::ranges::count_if(instances_, [&](const auto &entry) {
         return entry.second.prefab == prefab && entry.second.available;
       }));
 }

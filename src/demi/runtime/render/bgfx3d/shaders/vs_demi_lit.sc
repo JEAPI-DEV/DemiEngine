@@ -2,12 +2,15 @@ $input a_position, a_normal, a_color0, a_texcoord0
 $output v_color0, v_normal, v_texcoord0, v_worldPos, v_relativePos, v_localPos, v_localNormal
 
 #include "bgfx_shader.sh"
+#include "mesh_wind.sh"
 
 uniform vec4 u_viewPosition;
 
 void main()
 {
-    gl_Position = mul(u_modelViewProj, vec4(a_position, 1.0));
+    vec3 worldPosition = mul(u_model[0], vec4(a_position, 1.0)).xyz;
+    worldPosition = demiMeshWind(worldPosition, u_model[0][3].xyz, a_position.y);
+    gl_Position = mul(u_viewProj, vec4(worldPosition, 1.0));
     // Cofactors are the inverse-transpose normal matrix multiplied by its
     // determinant. Normalization in the fragment stage removes that scalar.
     // Unlike multiplying by the model matrix, this remains correct when a
@@ -19,7 +22,7 @@ void main()
     v_normal = handedness * (cross(modelY, modelZ) * a_normal.x +
                              cross(modelZ, modelX) * a_normal.y +
                              cross(modelX, modelY) * a_normal.z);
-    v_worldPos = mul(u_model[0], vec4(a_position, 1.0)).xyz;
+    v_worldPos = worldPosition;
     v_relativePos = v_worldPos - u_viewPosition.xyz;
     v_localPos = a_position;
     v_localNormal = a_normal;

@@ -532,7 +532,7 @@ void verifyPrefabScatterInScene() {
   })json"));
   writeAsset(
       temporary.root, "palette", paletteId, "DataAsset", "json_data",
-      {{"format_version", 2},
+      {{"format_version", 3},
        {"name", "Prefab palette"},
        {"placements",
         {{"tree",
@@ -566,7 +566,7 @@ void verifyPrefabScatterInScene() {
       terrainIn(workspace.project().world, "land").generated;
   const auto placement = preparedField->scatterPlacements.at(12);
   const auto instanceId = runtime::terrainScatterInstanceId(
-      "land", paletteId, placement.ruleId, placement.cell);
+      "land", paletteId, placement.ruleId, placement.candidateX, placement.candidateZ);
   const std::string rootId = instanceId + "/body";
   auto *root = runtime::findEntity(workspace.project().world, rootId);
   require(root && root->prefabInstance == instanceId,

@@ -664,6 +664,26 @@ void buildingOneChunkIgnoresTheRestOfTheField() {
   }
 }
 
+void constantHeightErrorIncludesBoundaryAndReflectsEdits() {
+  auto field = generate(flatRecipe(16, 16));
+  const auto chunk = field.chunks.front();
+  for (const float height : {-7.5F, 0.F, 13.25F}) {
+    field.heights.assign(field.heights.size(), height);
+    for (const auto level : {TerrainLod::Half, TerrainLod::Quarter, TerrainLod::Coarse}) {
+      assert(terrainLodGeometricError(field, chunk, level) == 0.F);
+    }
+  }
+  field.heights.set(field.index(3, 3), 20.F);
+  assert(terrainLodGeometricError(field, chunk, TerrainLod::Quarter) > 1.F);
+  field.heights.assign(field.heights.size(), 0.F);
+  for (int x = 0; x <= field.cellsX; ++x) {
+    field.heights.set(field.index(x, field.cellsZ), 4.F);
+  }
+  assert(terrainLodGeometricError(field, chunk, TerrainLod::Quarter) > 0.F);
+  field.heights.assign(field.heights.size(), 0.F);
+  assert(terrainLodGeometricError(field, chunk, TerrainLod::Quarter) == 0.F);
+}
+
 void planarSlopesHaveNoDecimationError() {
   auto field = generate(flatRecipe(16, 16));
   for (int z = 0; z <= field.cellsZ; ++z) {
@@ -887,6 +907,7 @@ void overlayErrorBoundsBoundaryFansAndFractionalPoints() {
 } // namespace
 
 int main() {
+  constantHeightErrorIncludesBoundaryAndReflectsEdits();
   planarSlopesHaveNoDecimationError();
   oddShiftedChunksShareEveryBoundarySegment();
   crossingDiagonalsExceedEveryIntegerSampleError();

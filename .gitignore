@@ -17,6 +17,7 @@ examples/**/build/
 examples/**/generated/
 examples/**/.demi/
 packages/.registry-cache/
+/packages/packages/
 android/.gradle/
 android/build/
 android/app/build/

@@ -74,6 +74,10 @@ validateAudioClipSettings(const nlohmann::json &settings,
                           const std::filesystem::path &path);
 [[nodiscard]] std::vector<std::string>
 extractAssetReferences(const std::string &text);
+// Structured documents contain references in complete string values. Object
+// keys and embedded URI fragments in durable entity identities are labels.
+[[nodiscard]] std::vector<std::string>
+extractAssetReferencesFromJson(const nlohmann::json &document);
 [[nodiscard]] std::vector<std::string>
 extractScriptReferences(const std::string &text);
 [[nodiscard]] std::filesystem::path

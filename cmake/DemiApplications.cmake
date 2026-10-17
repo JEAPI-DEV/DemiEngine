@@ -122,6 +122,7 @@ else()
     src/editor/EditorPrefabAuthoring.cpp
     src/editor/EditorPrefabConversion.cpp
     src/editor/EditorPrefabUnpack.cpp
+    src/editor/EditorTerrainScatterPromotion.cpp
     src/editor/EditorEntityBounds3D.cpp
     src/editor/EditorCodeEditor.cpp
     src/editor/EditorSceneView2DState.cpp

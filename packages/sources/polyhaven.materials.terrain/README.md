@@ -11,7 +11,7 @@ Poly Haven and the original artists do not endorse DemiEngine.
 Install from the package manager:
 
 ```sh
-demi package add polyhaven.materials.terrain@1.1.0
+demi package add polyhaven.materials.terrain@1.2.0
 ```
 
 For source development, add `--registry /path/to/DemiEngine/packages`.
@@ -19,6 +19,11 @@ Installed assets are discovered by the engine;
 no copying into a project's assets directory or global startup preload is needed.
 
 Use `asset://polyhaven/terrain/palettes/alpine` as a terrain recipe's `palette`.
+Version 1.2.0 migrates the surface palette to terrain palette format 3.
+Older package releases retain their original bytes; use 1.2.0 with the current
+engine and reinstall/recook existing terrain projects. Surface bindings and
+asset IDs are unchanged.
+
 The Material Set `asset://polyhaven/terrain/surfaces/alpine` binds ground/grass,
 rock/cliff, sediment, sand, snow, wet_ground and underwater roles. It contains no
 object placements. Its rock/cliff roles use the pale gray, fractured Marble

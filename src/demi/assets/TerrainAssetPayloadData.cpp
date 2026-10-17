@@ -96,11 +96,12 @@ Json placement(const TerrainScatterPlacement &value) {
       {"biome", value.biome},
       {"biome_name", value.biomeName},
       {"cell", value.cell},
+      {"candidate_x", value.candidateX},
+      {"candidate_z", value.candidateZ},
       {"position", vec3(value.position)},
       {"yaw", value.yaw},
       {"scale", value.scale},
-      {"collision", std::string(terrainCollisionPolicyName(value.collision))},
-      {"lod", value.lod}};
+      {"collision", std::string(terrainCollisionPolicyName(value.collision))}};
 }
 
 TerrainCollisionPolicy readCollision(const Json &value) {
@@ -131,11 +132,19 @@ TerrainScatterPlacement readPlacement(const Json &value,
   result.biome = checkedSize(value.at("biome"), "placement biome");
   result.biomeName = value.at("biome_name").get<std::string>();
   result.cell = checkedSize(value.at("cell"), "placement cell");
+  const auto candidateX =
+      checkedSize(value.at("candidate_x"), "placement candidate X");
+  const auto candidateZ =
+      checkedSize(value.at("candidate_z"), "placement candidate Z");
+  require(candidateX <= std::size_t(std::numeric_limits<int>::max()) &&
+              candidateZ <= std::size_t(std::numeric_limits<int>::max()),
+          "placement candidate coordinates are out of range");
+  result.candidateX = static_cast<int>(candidateX);
+  result.candidateZ = static_cast<int>(candidateZ);
   result.position = readVec3(value.at("position"), "placement position");
   result.yaw = finiteFloat(value.at("yaw"), "placement yaw");
   result.scale = finiteFloat(value.at("scale"), "placement scale");
   result.collision = readCollision(value.at("collision"));
-  result.lod = value.at("lod").get<int>();
   require(result.biome < field.biomeIds.size() &&
               result.biomeName == field.biomeIds[result.biome],
           "placement biome does not match the field");
@@ -163,23 +172,35 @@ std::vector<TerrainScatterPlacement> readPlacements(const Json &value,
 }
 
 Json palette(const TerrainPalette &value) {
-  Json roles = Json::object();
+  Json rules = Json::object();
   for (const auto &[name, entry] : value.placements) {
-    roles[name] = {
+    rules[name] = {
         {"model", entry.model},
         {"prefab", entry.prefab},
-        {"weight", entry.weight},
+        {"density", entry.density},
+        {"candidate_spacing", entry.candidateSpacing},
+        {"category", terrainScatterCategoryName(entry.category)},
+        {"slope", {entry.slope.minimum, entry.slope.maximum}},
+        {"moisture", {entry.moisture.minimum, entry.moisture.maximum}},
+        {"water_distance",
+         {entry.waterDistance.minimum, entry.waterDistance.maximum}},
+        {"yaw", {entry.yawDegrees.minimum, entry.yawDegrees.maximum}},
+        {"cluster_size", entry.clusterSize},
+        {"cluster_strength", entry.clusterStrength},
         {"scale_min", entry.scaleMin},
         {"scale_max", entry.scaleMax},
         {"spacing", entry.spacing},
         {"collision", std::string(terrainCollisionPolicyName(entry.collision))},
-        {"lod", entry.lod},
         {"biomes", entry.biomes}};
   }
   return {{"format_version", value.formatVersion},
           {"id", value.id},
           {"name", value.name},
-          {"placements", std::move(roles)},
+          {"art_density", value.artDensity},
+          {"grass_density", value.grassDensity},
+          {"tree_density", value.treeDensity},
+          {"rock_density", value.rockDensity},
+          {"placements", std::move(rules)},
           {"material_set", value.materialSet},
           {"surface_materials", value.surfaceMaterials}};
 }
@@ -192,12 +213,23 @@ TerrainPalette readPalette(const Json &value) {
           "palette format is unsupported");
   result.id = value.at("id").get<std::string>();
   result.name = value.at("name").get<std::string>();
+  result.artDensity =
+      finiteFloat(value.at("art_density"), "palette art density");
+  result.grassDensity =
+      finiteFloat(value.at("grass_density"), "palette grass density");
+  result.treeDensity =
+      finiteFloat(value.at("tree_density"), "palette tree density");
+  result.rockDensity =
+      finiteFloat(value.at("rock_density"), "palette rock density");
+  require(result.artDensity >= 0 && result.grassDensity >= 0 &&
+              result.treeDensity >= 0 && result.rockDensity >= 0,
+          "palette density multipliers must be nonnegative");
   result.materialSet = value.at("material_set").get<std::string>();
   result.surfaceMaterials =
       value.at("surface_materials").get<decltype(result.surfaceMaterials)>();
-  const auto &roles = value.at("placements");
-  require(roles.is_object(), "palette roles must be an object");
-  for (const auto &[name, item] : roles.items()) {
+  const auto &rules = value.at("placements");
+  require(rules.is_object(), "palette placements must be an object");
+  for (const auto &[name, item] : rules.items()) {
     require(validTerrainPlacementRuleId(name),
             "palette has an invalid rule ID");
     TerrainPaletteEntry entry;
@@ -205,16 +237,60 @@ TerrainPalette readPalette(const Json &value) {
     entry.prefab = item.at("prefab").get<std::string>();
     require(entry.model.empty() != entry.prefab.empty(),
             "palette placement requires exactly one model or prefab");
-    entry.weight = finiteFloat(item.at("weight"), "palette weight");
+    entry.density = finiteFloat(item.at("density"), "palette density");
+    entry.candidateSpacing =
+        finiteFloat(item.at("candidate_spacing"), "palette candidate spacing");
+    const auto category = item.at("category").get<std::string>();
+    bool categoryFound = false;
+    for (const auto candidate :
+         {TerrainScatterCategory::Prop, TerrainScatterCategory::Grass,
+          TerrainScatterCategory::Tree, TerrainScatterCategory::Rock}) {
+      if (terrainScatterCategoryName(candidate) == category) {
+        entry.category = candidate;
+        categoryFound = true;
+        break;
+      }
+    }
+    require(categoryFound, "palette contains an invalid category");
+    const auto range = [&](const char *field, float lower, float upper) {
+      const auto &values = item.at(field);
+      require(values.is_array() && values.size() == 2,
+              "palette range needs two values");
+      TerrainScatterRange parsed{finiteFloat(values[0], field),
+                                 finiteFloat(values[1], field)};
+      require(parsed.minimum >= lower && parsed.maximum <= upper &&
+                  parsed.minimum <= parsed.maximum,
+              "palette range is invalid");
+      return parsed;
+    };
+    entry.slope = range("slope", 0, 90);
+    entry.moisture = range("moisture", 0, 1);
+    entry.waterDistance =
+        range("water_distance", 0, std::numeric_limits<float>::max());
+    entry.yawDegrees = range("yaw", -360, 360);
+    entry.clusterSize =
+        finiteFloat(item.at("cluster_size"), "palette cluster size");
+    entry.clusterStrength =
+        finiteFloat(item.at("cluster_strength"), "palette cluster strength");
     entry.scaleMin = finiteFloat(item.at("scale_min"), "palette minimum scale");
     entry.scaleMax = finiteFloat(item.at("scale_max"), "palette maximum scale");
     entry.spacing = finiteFloat(item.at("spacing"), "palette spacing");
     entry.collision = readCollision(item.at("collision"));
-    entry.lod = item.at("lod").get<int>();
+    require(entry.model.empty() ||
+                entry.collision == TerrainCollisionPolicy::None,
+            "palette direct model placements require collision none; use an "
+            "authored prefab collider");
     entry.biomes = item.at("biomes").get<std::vector<std::string>>();
-    require(entry.weight >= 0 && entry.scaleMin > 0 &&
-                entry.scaleMin <= entry.scaleMax && entry.spacing >= 0,
+    require(entry.density >= 0 && entry.candidateSpacing >= 0 &&
+                entry.scaleMin > 0 && entry.scaleMin <= entry.scaleMax &&
+                entry.spacing >= 0 && entry.clusterSize > 0 &&
+                entry.clusterStrength >= 0 && entry.clusterStrength <= 1,
             "palette contains invalid placement dimensions");
+    const double step = entry.candidateStep();
+    const double probability =
+        double(entry.density) * result.densityFor(entry.category) * step * step;
+    require(std::isfinite(probability) && probability <= 1.000001,
+            "palette density exceeds candidate capacity");
     result.placements.emplace(name, std::move(entry));
   }
   return result;

@@ -710,21 +710,23 @@ probes agree with water queries. Verify above-water and underwater views.
 
 ## Milestone 6: procedural vegetation and scene detail
 
-Partly implemented. Scatter constraints (water, slope, terrain and painted
-exclusions, protected areas, roads, building footprints) and stable scatter
-identities with render grouping, LOD selection and collision policy are done and
-tested. They are not yet consulted by the scatter solver, which still tests water
-and exclusions inline, so the two can disagree until they are wired.
+Complete for the qualified Linux lightweight-3D scope. Physical-density palettes,
+shared placement constraints, stable candidates, scene-object conversion,
+batched groundcover, real model LOD and shared Material wind are integrated.
+Source/cooked native rendering, editor conversion/Undo/Save and focused
+regressions are qualified in
+[Milestone 6 evidence](docs/terrain-milestone6-qualification.md).
+Large-world spatial residency remains in Milestone 7.
 
-- [ ] Scatter palette assets using biome, slope, moisture, water-distance and
+- [x] Scatter palette assets using biome, slope, moisture, water-distance and
   exclusion rules. Provide separate grass/tree/rock density controls, clusters,
   spacing, scale/rotation variation and an overall art-density setting.
-- [ ] Give generated placements stable identities from seed, region and layer.
+- [x] Give generated placements stable identities from seed, region and layer.
   Editing one region must not reposition unrelated forests or rock formations.
-- [ ] Respect roads, water, buildings, protected areas and explicit painted
+- [x] Respect roads, water, buildings, protected areas and explicit painted
   exclusions. Allow chosen generated instances to become authored objects that
   are no longer replaced by procedural regeneration.
-- [ ] Use instancing, culling, appropriate LOD and selective collision. Include
+- [x] Use instancing, culling, appropriate LOD and selective collision. Include
   vegetation shading/wind requirements in rendering work; do not create one
   authored entity or full physics body per grass blade.
 

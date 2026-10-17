@@ -1,0 +1,23 @@
+{
+  "format_version": 1,
+  "id": "asset://demi/vegetation/models/oak_crown",
+  "type": "Model3D",
+  "source": "oak_crown.gltf",
+  "importer": "gltf-model",
+  "importer_version": 1,
+  "source_hash": "fnv1a64:1e84414bcca2e359",
+  "dependencies": [],
+  "settings": {
+    "model_import": {
+      "format_version": 1,
+      "preset": "static_prop",
+      "source_up": "+y",
+      "source_forward": "+z",
+      "meters_per_unit": 1,
+      "root_node": "preserve",
+      "material_policy": "import",
+      "import_animations": false,
+      "optimize_meshes": true
+    }
+  }
+}

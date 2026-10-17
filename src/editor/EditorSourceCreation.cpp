@@ -6,6 +6,7 @@
 #include "demi/assets/DataDocument.h"
 #include "demi/assets/MaterialSet.h"
 #include "demi/assets/RenderAsset.h"
+#include "demi/runtime/terrain/TerrainPalette.h"
 #include "editor/EditorDocumentStore.h"
 #include "editor/EditorPrefabAuthoring.h"
 #include "editor/EditorSpecializedDocument.h"
@@ -327,7 +328,8 @@ bool createEditorSource(EditorWorkspace &workspace, EditorSourceKind kind,
         }
         document["roles"] = {{role, assetOptions.initialAsset}};
       } else {
-        document["format_version"] = 2;
+        document["format_version"] =
+            runtime::TerrainPalette::CurrentFormatVersion;
         if (!assetOptions.initialMaterialSet.empty()) {
           if (std::ranges::find(choices.materialSets,
                                 assetOptions.initialMaterialSet) ==
@@ -353,8 +355,12 @@ bool createEditorSource(EditorWorkspace &workspace, EditorSourceKind kind,
           }
           entry = {{"model", assetOptions.initialAsset}};
         }
-        if (!entry.is_null())
+        if (!entry.is_null()) {
+          if (entry.contains("model")) {
+            entry["collision"] = "none";
+          }
           document["placements"] = {{role, std::move(entry)}};
+        }
       }
       const auto registry = loadAssetRegistry(root);
       if (!validateTypedSource(kind, document, registry, assetId, target,

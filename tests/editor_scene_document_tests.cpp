@@ -1,4 +1,5 @@
 #include "editor/EditorSceneDocument.h"
+#include "demi/runtime/terrain/TerrainScatterRuntime.h"
 
 #ifdef NDEBUG
 #undef NDEBUG
@@ -38,6 +39,102 @@ void write(const std::filesystem::path &path, const std::string &text) {
   std::ofstream output(path);
   output << text;
   assert(output.good());
+}
+
+void testTerrainScatterPromotion(const std::filesystem::path &root) {
+  using demi::editor::EditorSceneDocument;
+  using demi::editor::SceneValueTarget;
+  using Json = nlohmann::json;
+  const auto project = root / "promotion";
+  std::filesystem::create_directories(project / "prefabs");
+  write(project / "demi.project.json",
+        R"({"format_version":1,"name":"Promotion"})");
+  write(project / "prefabs/tree.prefab.json", R"({
+    "format_version":1,"id":"prefab://tree","entities":[
+      {"id":"trunk","components":{"Transform3D":{},
+       "MeshRenderer":{"shape":"cylinder"}}}]})");
+  const Json source = Json::parse(R"({
+    "format_version":1,"id":"scene://promotion/main","entities":[
+      {"id":"terrain","components":{"Transform3D":{},"Terrain3D":{
+        "recipe":{"format_version":1,"size":[8,8],"resolution":[4,4]}}}},
+      {"id":"ordinary","components":{"Transform3D":{}}}]})");
+  const auto path = project / "main.scene.json";
+  write(path, source.dump(2));
+  EditorSceneDocument document;
+  std::string error;
+  assert(document.open(path, error));
+  const SceneValueTarget target{.entityId = "terrain"};
+  const auto placementKey = [](std::string_view owner, int x, int z) {
+    return demi::runtime::terrainScatterInstanceId(
+        owner, "asset://vegetation/palette", "detail", x, z);
+  };
+  const std::string modelKey = placementKey("terrain", 2, 3);
+  const Json model = Json::parse(R"({
+    "name":"Promoted grass","components":{
+      "Transform3D":{"parent":"terrain","position":[2,1,3],
+                     "rotation":[0,47,0],"scale":[1.2,1.2,1.2]},
+      "MeshRenderer":{"model":"asset://vegetation/grass"}}})");
+  assert(document.promoteTerrainScatter(target, modelKey, model, error));
+  const Json afterModel = document.json();
+  const auto modelId = std::string(document.lastChangedEntityId());
+  assert(afterModel["entities"].size() == source["entities"].size());
+  assert(document.entity("terrain")->at("children").size() == 1);
+  auto expectedComponents = model.at("components");
+  expectedComponents["Transform3D"].erase("parent");
+  assert(document.entity(modelId)->at("components") == expectedComponents);
+  assert(document.component("terrain", "Terrain3D")->at("scatter_exclusions") ==
+         Json::array({modelKey}));
+  assert(document.undo(error));
+  assert(document.json() == source);
+  assert(!document.canUndo());
+  assert(document.redo(error));
+  assert(document.json() == afterModel);
+  assert(!document.canRedo());
+
+  // Rejection must leave both procedural suppression and authored history
+  // untouched. The following undo must still remove the successful promotion.
+  assert(!document.promoteTerrainScatter(target, modelKey, model, error));
+  assert(!document.promoteTerrainScatter(target, "", model, error));
+  assert(!document.promoteTerrainScatter({.entityId = "missing"},
+                                         placementKey("missing", 1, 1), model, error));
+  assert(!document.promoteTerrainScatter({.entityId = "ordinary"},
+                                         placementKey("ordinary", 1, 1), model, error));
+  assert(!document.promoteTerrainScatter(target, placementKey("terrain", 12, 3),
+                                         Json::array({1}), error));
+  Json invalid = model;
+  invalid["components"]["Transform3D"]["position"] = "invalid";
+  assert(!document.promoteTerrainScatter(target, placementKey("terrain", 13, 3), invalid,
+                                         error));
+  assert(document.json() == afterModel);
+  assert(document.undo(error));
+  assert(document.json() == source);
+  assert(!document.canUndo());
+  assert(document.redo(error));
+
+  const std::string prefabKey = placementKey("terrain", 7, 9);
+  const Json wrapper = Json::parse(R"({
+    "name":"Promoted tree","components":{
+      "Transform3D":{"parent":"terrain","position":[7,2,9]}},
+    "children":[{"prefab":"prefab://tree"}]})");
+  assert(document.promoteTerrainScatter(target, prefabKey, wrapper, error));
+  const Json afterPrefab = document.json();
+  const auto prefabId = std::string(document.lastChangedEntityId());
+  const auto *promoted = document.entity(prefabId);
+  assert(promoted != nullptr);
+  assert(promoted->at("children").size() == 1);
+  assert(promoted->at("children")[0]["prefab"] == "prefab://tree");
+  assert(promoted->at("children")[0]["id"].is_string());
+  assert(document.component("terrain", "Terrain3D")->at("scatter_exclusions") ==
+         Json::array({modelKey, prefabKey}));
+  assert(document.undo(error));
+  assert(document.json() == afterModel);
+  assert(document.redo(error));
+  assert(document.json() == afterPrefab);
+  assert(document.save(error));
+  EditorSceneDocument reopened;
+  assert(reopened.open(path, error));
+  assert(reopened.json() == afterPrefab);
+  assert(!reopened.isDirty());
 }
 
 } // namespace
@@ -242,6 +339,7 @@ int main() {
   }
 #endif
 
+  testTerrainScatterPromotion(root);
   fs::remove_all(root, ignored);
   return 0;
 }

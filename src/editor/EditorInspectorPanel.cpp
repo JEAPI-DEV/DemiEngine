@@ -380,6 +380,7 @@ nlohmann::json initialFieldValue(const ComponentDescriptor &descriptor,
     return nlohmann::json::object();
   case ComponentFieldType::Vec2Array:
   case ComponentFieldType::Vec3Array:
+  case ComponentFieldType::StringArray:
   case ComponentFieldType::ColorArray:
     return nlohmann::json::array();
   case ComponentFieldType::Boolean:
@@ -667,6 +668,7 @@ bool drawFieldValue(EditorWorkspace &workspace, const SceneValueTarget &target,
   case ComponentFieldType::Object:
   case ComponentFieldType::Vec2Array:
   case ComponentFieldType::Vec3Array:
+  case ComponentFieldType::StringArray:
   case ComponentFieldType::ColorArray: {
     int vectorSize = 0;
     if (field.type == ComponentFieldType::Vec2Array)
@@ -755,7 +757,8 @@ void drawComponentFields(EditorWorkspace &workspace,
     const bool collection = field.type == ComponentFieldType::Object ||
                             field.type == ComponentFieldType::Vec2Array ||
                             field.type == ComponentFieldType::Vec3Array ||
-                            field.type == ComponentFieldType::ColorArray;
+                            field.type == ComponentFieldType::ColorArray ||
+                            field.type == ComponentFieldType::StringArray;
     if (!collection && !beginPropertyTable("##component-properties")) {
       ImGui::PopID();
       continue;
@@ -1005,6 +1008,9 @@ static void drawInspectorContents(EditorWorkspace &workspace,
   const runtime::Entity *selected = workspace.selectedEntity();
   if (selected == nullptr) {
     ImGui::TextDisabled("Select an entity to inspect its authored data.");
+    return;
+  }
+  if (drawGeneratedTerrainDetailInspector(workspace, notice)) {
     return;
   }
   ImGui::SetNextItemWidth(-1.0F);

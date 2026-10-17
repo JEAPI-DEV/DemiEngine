@@ -21,6 +21,7 @@ bool runtimeFieldJson(std::uint64_t value, nlohmann::json &out);
 bool runtimeFieldJson(float value, nlohmann::json &out);
 bool runtimeFieldJson(double value, nlohmann::json &out);
 bool runtimeFieldJson(const std::string &value, nlohmann::json &out);
+bool runtimeFieldJson(const std::vector<std::string> &value, nlohmann::json &out);
 bool runtimeFieldJson(const Vec2 &value, nlohmann::json &out);
 bool runtimeFieldJson(const Vec3 &value, nlohmann::json &out);
 bool runtimeFieldJson(const Color &value, nlohmann::json &out);

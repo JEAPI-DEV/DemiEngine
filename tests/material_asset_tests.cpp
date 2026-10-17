@@ -34,6 +34,8 @@ void defaultsComeFromOrdinaryMaterial() {
   assert(surface.heightBlendStrength == 0.5F);
   assert(surface.macroVariationStrength == 0);
   assert(surface.macroVariationScale == 0.02F);
+  assert(surface.windStrength == 0 && surface.windFrequency == 1 &&
+         surface.windHeight == 1);
   assert(surface.mapping == MaterialMapping::Uv && !surface.normalMapYDown);
   assert(surface.maps.empty());
 }
@@ -57,7 +59,10 @@ void typedViewUsesTheCanonicalDescriptor() {
       "detail_strength":0.6,
       "height_blend_strength":0.8,
       "macro_variation_strength":0.3,
-      "macro_variation_scale":0.01
+      "macro_variation_scale":0.01,
+      "wind_strength":0.25,
+      "wind_frequency":1.5,
+      "wind_height":2
     }
   })");
   const auto material = parseMaterialAsset(document);
@@ -70,6 +75,9 @@ void typedViewUsesTheCanonicalDescriptor() {
   assert(surface.heightBlendStrength == 0.8F);
   assert(surface.macroVariationStrength == 0.3F);
   assert(surface.macroVariationScale == 0.01F);
+  assert(surface.windStrength == 0.25F);
+  assert(surface.windFrequency == 1.5F);
+  assert(surface.windHeight == 2.F);
   assert(surface.mapping == MaterialMapping::Triplanar &&
          surface.normalMapYDown);
   assert(surface.maps.at(MaterialMapSlot::Albedo) == "asset://textures/color");
@@ -90,14 +98,25 @@ void builtinSurfaceDomainsAreValidated() {
   assert(rejected({{"format_version", 1}, {"textures", Json::array()}}));
   assert(rejected({{"format_version", 1}, {"textures", {{"albedo", 42}}}}));
   for (const auto parameters :
-       {Json{{"roughness", -1}}, Json{{"metallic", 2}},
-        Json{{"normal_strength", -1}}, Json{{"tiling", 0}},
-        Json{{"tiling", 1e100}}, Json{{"detail_strength", -1}},
+       {Json{{"roughness", -1}},
+        Json{{"metallic", 2}},
+        Json{{"normal_strength", -1}},
+        Json{{"tiling", 0}},
+        Json{{"wind_strength", -1}},
+        Json{{"wind_frequency", -1}},
+        Json{{"wind_height", 0}},
+        Json{{"wind_height", -1}},
+        Json{{"wind_strength", {1, 1, 1, 1}}},
+        Json{{"wind_frequency", {1, 1, 1, 1}}},
+        Json{{"wind_height", {1, 1, 1, 1}}},
+        Json{{"tiling", 1e100}},
+        Json{{"detail_strength", -1}},
         Json{{"height_blend_strength", -0.1}},
         Json{{"height_blend_strength", 1.1}},
         Json{{"macro_variation_strength", -0.1}},
         Json{{"macro_variation_strength", 1.1}},
-        Json{{"macro_variation_scale", 0}}, Json{{"macro_variation_scale", -1}},
+        Json{{"macro_variation_scale", 0}},
+        Json{{"macro_variation_scale", -1}},
         Json{{"macro_variation_scale", 1e100}},
         Json{{"height_blend_strength", {1, 1, 1, 1}}},
         Json{{"macro_variation_strength", {1, 1, 1, 1}}},

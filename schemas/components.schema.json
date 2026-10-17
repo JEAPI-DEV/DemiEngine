@@ -4702,6 +4702,18 @@
     },
     "Terrain3D": {
       "additionalProperties": false,
+      "allOf": [
+        {
+          "properties": {
+            "scatter_exclusions": {
+              "items": {
+                "minLength": 1
+              },
+              "uniqueItems": true
+            }
+          }
+        }
+      ],
       "not": {
         "properties": {
           "asset": {
@@ -4737,6 +4749,19 @@
           "type": "object",
           "x-demi-editor-label": "Recipe",
           "x-demi-editor-read-only": true,
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
+        "scatter_exclusions": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "x-demi-editor-advanced": true,
+          "x-demi-editor-help": "Stable generated placement keys suppressed on this terrain placement. Promoting scenery records its source key here.",
+          "x-demi-editor-label": "Scatter Exclusions",
           "x-demi-editor-step": 0.05,
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true

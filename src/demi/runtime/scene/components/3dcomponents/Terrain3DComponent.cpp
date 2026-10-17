@@ -2,6 +2,7 @@
 #include "demi/runtime/scene/model/Entity.h"
 #include <cmath>
 #include <limits>
+#include <set>
 #include <stdexcept>
 
 namespace demi::runtime {
@@ -30,6 +31,26 @@ bool Terrain3DComponent::validateAuthored(const nlohmann::json &json,
       return false;
     }
   }
+  if (const auto exclusions = json.find("scatter_exclusions");
+      exclusions != json.end()) {
+    if (!exclusions->is_array()) {
+      error = "Terrain3D scatter_exclusions requires an array of stable "
+              "placement keys";
+      return false;
+    }
+    std::set<std::string> unique;
+    for (const auto &key : *exclusions) {
+      if (!key.is_string() || key.get_ref<const std::string &>().empty()) {
+        error = "Terrain3D scatter_exclusions requires nonempty string "
+                "placement keys";
+        return false;
+      }
+      if (!unique.insert(key.get<std::string>()).second) {
+        error = "Terrain3D scatter_exclusions must not repeat a placement key";
+        return false;
+      }
+    }
+  }
   const auto asset = json.value("asset", std::string{});
   if (!asset.empty() && !asset.starts_with("asset://")) {
     error = "Terrain3D asset requires an asset:// reference";
@@ -51,10 +72,17 @@ bool Terrain3DComponent::validateAuthored(const nlohmann::json &json,
   return true;
 }
 nlohmann::json Terrain3DComponent::schemaConstraints() {
-  return {{"not",
-           {{"required", {"asset", "recipe"}},
-            {"properties", {{"asset", {{"minLength", 1}}}}}}}};
+  nlohmann::json constraints{
+      {"not",
+       {{"required", {"asset", "recipe"}},
+        {"properties", {{"asset", {{"minLength", 1}}}}}}}};
+  const nlohmann::json exclusionItems{{"uniqueItems", true},
+                                      {"items", {{"minLength", 1}}}};
+  constraints["allOf"] = nlohmann::json::array(
+      {{{"properties", {{"scatter_exclusions", exclusionItems}}}}});
+  return constraints;
 }
+
 void Terrain3DComponent::parse(const nlohmann::json &json, Entity &entity) {
   std::string error;
   if (!validateAuthored(json, error)) {
@@ -64,6 +92,8 @@ void Terrain3DComponent::parse(const nlohmann::json &json, Entity &entity) {
   value.asset = json.value("asset", std::string{});
   value.lodErrorPixels = json.value("lod_error_pixels", value.lodErrorPixels);
   value.surfaceBlending = json.value("surface_blending", value.surfaceBlending);
+  value.scatterExclusions =
+      json.value("scatter_exclusions", value.scatterExclusions);
   if (json.contains("recipe")) {
     value.recipe = json.at("recipe");
   }
@@ -80,6 +110,9 @@ bool Terrain3DComponent::serializeField(const Terrain3DComponent &component,
   }
   if (field == "recipe") {
     return readRecipe(component, out);
+  }
+  if (field == "scatter_exclusions") {
+    return runtimeFieldJson(component.scatterExclusions, out);
   }
   if (field == "surface_blending") {
     return runtimeFieldJson(component.surfaceBlending, out);

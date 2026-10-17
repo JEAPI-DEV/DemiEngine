@@ -604,15 +604,15 @@ updateTerrainWithInputs(const TerrainRecipe &before, const TerrainRecipe &after,
                                         *artifacts.basePlacements)
                                   : std::span<const TerrainScatterPlacement>{};
       if (!refreshTerrainScatterPlacements(
-              *field, candidates,
-              artifacts.water.bodies.empty() ? nullptr : &artifacts.water,
+              *field, candidates, after, inputs.palette.get(),
+              artifacts.water.authored ? &artifacts.water : nullptr,
               stop))
         return std::nullopt;
     } else {
       auto candidates = scatterTerrain(*field, after, *inputs.palette);
       if (stop.stop_requested() ||
-          !refreshTerrainScatterPlacements(*field, candidates.placements,
-                                           nullptr, stop))
+          !refreshTerrainScatterPlacements(*field, candidates.placements, after,
+                                           inputs.palette.get(), nullptr, stop))
         return std::nullopt;
       field->scatterTruncated = candidates.truncated;
     }

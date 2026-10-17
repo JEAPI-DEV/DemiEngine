@@ -1,5 +1,5 @@
 {
-  "format_version": 2,
+  "format_version": 3,
   "name": "Rocky valley surface palette",
   "material_set": "asset://rocky_valley/surface_materials"
 }

@@ -1,0 +1,62 @@
+{
+  "format_version": 1,
+  "id": "prefab://demi/vegetation/oak",
+  "name": "Oak",
+  "entities": [
+    {
+      "id": "body",
+      "name": "Oak",
+      "components": {
+        "Transform3D": {},
+        "MeshRenderer": {
+          "model": "asset://demi/vegetation/models/trunk",
+          "medium_lod_model": "asset://demi/vegetation/models/trunk_medium",
+          "medium_lod_distance": 28,
+          "low_lod_model": "asset://demi/vegetation/models/trunk_low",
+          "low_lod_distance": 65,
+          "cull_distance": 180,
+          "material": "asset://demi/vegetation/materials/bark",
+          "color": [
+            1,
+            1,
+            1,
+            1
+          ]
+        },
+        "CapsuleCollider3D": {
+          "radius": 0.21,
+          "height": 3.5,
+          "offset": [
+            0,
+            1.75,
+            0
+          ]
+        }
+      },
+      "children": [
+        {
+          "id": "crown",
+          "name": "Oak crown",
+          "components": {
+            "Transform3D": {},
+            "MeshRenderer": {
+              "model": "asset://demi/vegetation/models/oak_crown",
+              "medium_lod_model": "asset://demi/vegetation/models/oak_crown_medium",
+              "medium_lod_distance": 28,
+              "low_lod_model": "asset://demi/vegetation/models/oak_crown_low",
+              "low_lod_distance": 65,
+              "cull_distance": 180,
+              "material": "asset://demi/vegetation/materials/leaves",
+              "color": [
+                1,
+                1,
+                1,
+                1
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

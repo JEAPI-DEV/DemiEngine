@@ -14,8 +14,8 @@ namespace {
 constexpr std::string_view PaletteId = "asset://terrain/palettes/meadow";
 
 // One placement as the solver would have produced it. Two independent calls to
-// this are two runs of the same generation, which is the comparison the identity
-// contract is about.
+// this are two runs of the same generation, which is the comparison the
+// identity contract is about.
 TerrainScatterPlacement placementAt(std::size_t cell, float height,
                                     std::string ruleId,
                                     std::string_view asset) {
@@ -24,11 +24,12 @@ TerrainScatterPlacement placementAt(std::size_t cell, float height,
   placement.model = std::string(asset);
   placement.biome = 2;
   placement.cell = cell;
+  placement.candidateX = static_cast<int>(cell);
+  placement.candidateZ = 0;
   placement.position = {12.5F, height, 30.25F};
   placement.yaw = 1.25F;
   placement.scale = 1.5F;
   placement.collision = TerrainCollisionPolicy::Static;
-  placement.lod = 2;
   return placement;
 }
 
@@ -41,15 +42,16 @@ TerrainScatterInstance instanceAt(std::size_t cell, std::string ruleId,
 // The key is a pure function of its inputs, so calling it twice cannot differ,
 // and nothing about the order two calls happen in can reach it.
 void keyIsDeterministic() {
-  const auto first = terrainScatterInstanceKey(PaletteId, "tree", 42);
-  const auto second = terrainScatterInstanceKey(PaletteId, "tree", 42);
+  const auto first = terrainScatterInstanceKey(PaletteId, "tree", 42, 0);
+  const auto second = terrainScatterInstanceKey(PaletteId, "tree", 42, 0);
   assert(first == second);
   // Order independence, expressed by building the same key through a different
   // route and by making sure a fresh call after other work is unchanged.
-  const auto third = terrainScatterInstanceKey(PaletteId, "tree", 42, {}, {});
+  const auto third =
+      terrainScatterInstanceKey(PaletteId, "tree", 42, 0, {}, {});
   assert(first == third);
-  (void)terrainScatterInstanceKey(PaletteId, "grass", 7);
-  assert(terrainScatterInstanceKey(PaletteId, "tree", 42) == first);
+  (void)terrainScatterInstanceKey(PaletteId, "grass", 7, 0);
+  assert(terrainScatterInstanceKey(PaletteId, "tree", 42, 0) == first);
   // Readable, and built from names rather than ordinals, so adding a ruleId to
   // the enum cannot renumber every existing instance's identity.
   assert(first.rfind("scatter|", 0) == 0);
@@ -61,21 +63,23 @@ void keyIsDeterministic() {
 // Every input has to separate, or two different placements would reconcile onto
 // one instance and one of them would silently vanish.
 void keySeparatesEveryInput() {
-  const auto base = terrainScatterInstanceKey(PaletteId, "tree", 42);
+  const auto base = terrainScatterInstanceKey(PaletteId, "tree", 42, 0);
   assert(base != terrainScatterInstanceKey("asset://terrain/palettes/other",
-                                           "tree", 42));
-  assert(base != terrainScatterInstanceKey(PaletteId, "bush", 42));
-  assert(base != terrainScatterInstanceKey(PaletteId, "tree", 43));
-  assert(base != terrainScatterInstanceKey(PaletteId, "tree", 42, "region"));
-  assert(base != terrainScatterInstanceKey(PaletteId, "tree", 42, {}, "decor"));
+                                           "tree", 42, 0));
+  assert(base != terrainScatterInstanceKey(PaletteId, "bush", 42, 0));
+  assert(base != terrainScatterInstanceKey(PaletteId, "tree", 43, 0));
+  assert(base != terrainScatterInstanceKey(PaletteId, "tree", 42, 1));
+  assert(base != terrainScatterInstanceKey(PaletteId, "tree", 42, 0, "region"));
+  assert(base !=
+         terrainScatterInstanceKey(PaletteId, "tree", 42, 0, {}, "decor"));
   // A region and a layer are separate identities, not one combined slot.
-  assert(terrainScatterInstanceKey(PaletteId, "tree", 42, "a", "b") !=
-         terrainScatterInstanceKey(PaletteId, "tree", 42, "b", "a"));
+  assert(terrainScatterInstanceKey(PaletteId, "tree", 42, 0, "a", "b") !=
+         terrainScatterInstanceKey(PaletteId, "tree", 42, 0, "b", "a"));
   // An id containing the separator must not be able to forge another input set.
-  assert(terrainScatterInstanceKey("a|b", "tree", 42) !=
-         terrainScatterInstanceKey("a", "tree", 42, "b"));
-  assert(terrainScatterInstanceKey("a\\b", "tree", 42) !=
-         terrainScatterInstanceKey("a", "tree", 42, "\\b"));
+  assert(terrainScatterInstanceKey("a|b", "tree", 42, 0) !=
+         terrainScatterInstanceKey("a", "tree", 42, 0, "b"));
+  assert(terrainScatterInstanceKey("a\\b", "tree", 42, 0) !=
+         terrainScatterInstanceKey("a", "tree", 42, 0, "\\b"));
 }
 
 // The whole contract in one assertion: the same placement resolves to the same
@@ -87,8 +91,14 @@ void identitySurvivesRegeneration() {
   const auto second = terrainScatterInstanceFrom(
       placementAt(11, 4.F, "tree", "asset://t/pine"), PaletteId, 1337);
   assert(first.id == second.id);
-  assert(terrainScatterInstanceHash(first) == terrainScatterInstanceHash(second));
+  assert(terrainScatterInstanceHash(first) ==
+         terrainScatterInstanceHash(second));
   assert(first.seed == second.seed);
+
+  auto resampled = placementAt(11, 4.F, "tree", "asset://t/pine");
+  resampled.cell = 999;
+  const auto refined = terrainScatterInstanceFrom(resampled, PaletteId, 1337);
+  assert(refined.id == first.id && refined.seed == first.seed);
 
   // A neighbour being added, and another neighbour being removed, are what a
   // single region re-scatter looks like from outside that region.
@@ -106,7 +116,8 @@ void identitySurvivesRegeneration() {
   const auto aloneGroups = terrainScatterGroupInstances(alone);
   assert(aloneGroups.size() == 1);
   assert(alone[0].instanceGroup == 0);
-  assert(terrainScatterInstanceHash(alone[0]) == terrainScatterInstanceHash(first));
+  assert(terrainScatterInstanceHash(alone[0]) ==
+         terrainScatterInstanceHash(first));
 }
 
 // The identity has to follow every input, or a renderer would keep an uploaded
@@ -139,14 +150,14 @@ void hashFollowsEveryInput() {
   auto reCell = base;
   reCell.cell = 12;
   differs(reCell);
+  auto otherCandidate = base;
+  otherCandidate.candidateZ = 1;
+  differs(otherCandidate);
   auto reSeeded = base;
   reSeeded.seed += 1;
   differs(reSeeded);
-  auto relodded = base;
-  relodded.lod = 3;
-  differs(relodded);
   auto rekeyed = base;
-  rekeyed.id = terrainScatterInstanceKey(PaletteId, "bush", 11);
+  rekeyed.id = terrainScatterInstanceKey(PaletteId, "bush", 11, 0);
   differs(rekeyed);
 }
 
@@ -212,18 +223,18 @@ void groupingBatchesByDrawable() {
 
   // Group numbers depend only on which drawables exist, so visiting the set in
   // another order produces the same numbering for the same instances.
-  std::vector<TerrainScatterInstance> shuffled{
-      instances[2], instances[0], instances[1]};
+  std::vector<TerrainScatterInstance> shuffled{instances[2], instances[0],
+                                               instances[1]};
   const auto again = terrainScatterGroupInstances(shuffled);
   assert(again.size() == groups.size());
   for (std::size_t i = 0; i < groups.size(); ++i)
     assert(again[i].model == groups[i].model);
   for (const auto &instance : shuffled) {
-    const auto original = std::find_if(
-        instances.begin(), instances.end(),
-        [&](const TerrainScatterInstance &other) {
-          return other.id == instance.id;
-        });
+    const auto original =
+        std::find_if(instances.begin(), instances.end(),
+                     [&](const TerrainScatterInstance &other) {
+                       return other.id == instance.id;
+                     });
     assert(original != instances.end());
     assert(instance.instanceGroup == original->instanceGroup);
   }
@@ -238,65 +249,15 @@ void groupingBatchesByDrawable() {
   assert(prefabGroups[0].model == "prefab://rock");
 }
 
-// LOD is a pure function of the instance and the camera distance, always inside
-// the range the palette declared.
-void lodStaysInsideTheDeclaredRange() {
-  auto instance = instanceAt(11, "tree", "asset://t/pine");
-  instance.lod = 3; // four levels, 0 through 3
-
-  // Up to the LOD distance the finest level holds.
-  assert(terrainScatterLodFor(instance, 0.F, 20.F, 60.F) == 0);
-  assert(terrainScatterLodFor(instance, 19.9F, 20.F, 60.F) == 0);
-  assert(terrainScatterLodFor(instance, 20.F, 20.F, 60.F) == 0);
-  // Between the two distances the levels are distributed across the span, and
-  // they only ever get coarser as the camera pulls away.
-  assert(terrainScatterLodFor(instance, 21.F, 20.F, 60.F) == 0);
-  const auto middle = terrainScatterLodFor(instance, 40.F, 20.F, 60.F);
-  assert(middle > 0 && middle < 3);
-  assert(terrainScatterLodFor(instance, 60.F, 20.F, 60.F) == 3);
-
-  // No cull distance means lodDistance alone decides: finest up to it, coarsest
-  // beyond it.
-  assert(terrainScatterLodFor(instance, 20.F, 20.F, 0.F) == 0);
-  assert(terrainScatterLodFor(instance, 20.5F, 20.F, 0.F) == 3);
-
-  // A zero LOD distance disables the switching. Reading it as "already past every
-  // threshold" would collapse a whole forest to its coarsest mesh.
-  assert(terrainScatterLodFor(instance, 0.F, 0.F, 60.F) == 0);
-  assert(terrainScatterLodFor(instance, 5000.F, 0.F, 60.F) == 0);
-  assert(terrainScatterLodFor(instance, 5000.F, -1.F, 60.F) == 0);
-
-  // Whatever the camera does, the answer indexes a mesh array the palette built.
-  for (float distance = -10.F; distance < 500.F; distance += 3.5F)
-    for (const auto lod : {0, 1, 2, 3}) {
-      instance.lod = lod;
-      const auto level =
-          terrainScatterLodFor(instance, distance, 20.F, 60.F);
-      assert(level >= 0 && level <= lod);
-    }
-
-  // A palette that declares no extra levels is pinned to level 0, and a negative
-  // declaration cannot produce a negative index.
-  instance.lod = 0;
-  assert(terrainScatterLodFor(instance, 5000.F, 20.F, 60.F) == 0);
-  instance.lod = -1;
-  assert(terrainScatterLodFor(instance, 5000.F, 20.F, 60.F) == 0);
-
-  // A negative distance is a camera on the wrong side of the terrain, and it
-  // resolves to the nearest level rather than into the array.
-  instance.lod = 3;
-  assert(terrainScatterLodFor(instance, -500.F, 20.F, 60.F) == 0);
-}
-
 // The seed is part of the identity, so it must be derived from the placement's
 // own inputs and separate roles and cells that would otherwise share a stream.
 void seedIsPerPlacement() {
-  const auto tree = terrainScatterInstanceSeed(1337, "tree", 11);
-  assert(tree == terrainScatterInstanceSeed(1337, "tree", 11));
-  assert(tree != terrainScatterInstanceSeed(1337, "bush", 11));
-  assert(tree != terrainScatterInstanceSeed(1337, "tree", 12));
+  const auto tree = terrainScatterInstanceSeed(1337, "tree", 11, 0);
+  assert(tree == terrainScatterInstanceSeed(1337, "tree", 11, 0));
+  assert(tree != terrainScatterInstanceSeed(1337, "bush", 11, 0));
+  assert(tree != terrainScatterInstanceSeed(1337, "tree", 12, 0));
   // A different world seed reshuffles, which is what a new terrain is for.
-  assert(tree != terrainScatterInstanceSeed(4242, "tree", 11));
+  assert(tree != terrainScatterInstanceSeed(4242, "tree", 11, 0));
   // Never zero: a derived seed has to be distinguishable from an unset one.
   assert(tree != 0);
 
@@ -305,8 +266,9 @@ void seedIsPerPlacement() {
   assert(instance.seed == tree);
 }
 
-// Two equal reals must hash equally and two non-finite values must not depend on
-// their payloads, or an instance would look changed while nothing about it was.
+// Two equal reals must hash equally and two non-finite values must not depend
+// on their payloads, or an instance would look changed while nothing about it
+// was.
 void hashCanonicalisesFloats() {
   auto reference = instanceAt(11, "tree", "asset://t/pine");
   const auto digest = terrainScatterInstanceHash(reference);
@@ -345,7 +307,6 @@ int main() {
   hashFollowsEveryInput();
   collisionFollowsThePalette();
   groupingBatchesByDrawable();
-  lodStaysInsideTheDeclaredRange();
   seedIsPerPlacement();
   hashCanonicalisesFloats();
   std::cout << "Terrain scatter layout checks passed\n";

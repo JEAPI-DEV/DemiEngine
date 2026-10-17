@@ -52,6 +52,7 @@ public:
   explicit MeshUploadCapture(GpuResources &target) : target_(target) {}
   std::vector<std::vector<GpuMeshVertex3D>> meshUploads;
   bool failNextMeshUpload = false;
+  UniformHandle meshWindUniform;
   std::vector<bool> textureSrgbSampling;
   std::vector<std::string> textureNames;
   std::vector<TextureHandle> textureHandles;
@@ -79,7 +80,11 @@ public:
   UniformHandle createUniform(std::string_view name, UniformType type,
                               std::uint16_t count,
                               std::string &error) override {
-    return target_.createUniform(name, type, count, error);
+    const auto handle = target_.createUniform(name, type, count, error);
+    if (name == "u_meshWind") {
+      meshWindUniform = handle;
+    }
+    return handle;
   }
   BufferHandle createBuffer(const BufferCreateInfo &info,
                             std::string &error) override {
@@ -154,7 +159,12 @@ public:
   std::vector<DrawState> bufferedStates;
   std::vector<BufferSlice> bufferedIndices;
   std::size_t instanceDrawCalls = 0;
+  std::vector<DrawState> instanceStates;
+  std::vector<std::array<float, 4>> instanceCutoffs;
+  std::vector<std::array<float, 4>> lastInstanceUniforms;
   bool forwardDraws = true;
+  const UniformHandle *meshWindUniform = nullptr;
+  std::map<std::uint16_t, float> windTimeByView;
   std::vector<float> bufferedAlpha;
   std::vector<std::array<float, 4>> bufferedTint;
   std::vector<std::array<float, 4>> bufferedMetalRough;
@@ -177,6 +187,7 @@ public:
     return target_.submit(draw, error);
   }
   bool submit(const BufferedDraw &draw, std::string &error) override {
+    recordWindTime(draw.viewId, draw.uniforms);
     recordBatchDebugValues(draw.uniforms);
     lastTextureBindings.assign(draw.textures.begin(), draw.textures.end());
     lastUniformValues.clear();
@@ -206,9 +217,19 @@ public:
     return forwardDraws ? target_.submit(draw, error) : true;
   }
   bool submit(const InstancedBufferedDraw &draw, std::string &error) override {
+    recordWindTime(draw.viewId, draw.uniforms);
     recordBatchDebugValues(draw.uniforms);
     recordShadowParameters(draw.viewId, draw.uniforms);
     ++instanceDrawCalls;
+    instanceStates.push_back(draw.state);
+    if (!draw.uniforms.empty() && draw.uniforms.back().values.size() == 4) {
+      const auto values = draw.uniforms.back().values;
+      lastInstanceUniforms.push_back({values[0], values[1], values[2], values[3]});
+    }
+    if (draw.uniforms.size() > 1) {
+      const auto values = draw.uniforms[1].values;
+      instanceCutoffs.push_back({values[0], values[1], values[2], values[3]});
+    }
     if (draw.instances.stride == sizeof(std::array<float, 16>) &&
         draw.instances.data.size() % draw.instances.stride == 0) {
       for (std::size_t offset = 0; offset < draw.instances.data.size();
@@ -227,6 +248,18 @@ public:
   }
 
 private:
+  void recordWindTime(std::uint16_t view,
+                      std::span<const DrawUniformValue> uniforms) {
+    if (!meshWindUniform) {
+      return;
+    }
+    for (const auto &uniform : uniforms) {
+      if (uniform.handle == *meshWindUniform && uniform.values.size() == 4) {
+        windTimeByView[view] = uniform.values[3];
+      }
+    }
+  }
+
   void recordBatchDebugValues(std::span<const DrawUniformValue> uniforms) {
     if (uniforms.size() < 3 || uniforms[2].values.size() != 4) {
       return;
@@ -473,6 +506,8 @@ int main() {
     assert(capture.lastUniformValues[1] == std::vector<float>({0, 1, 1, 0}));
     assert(capture.lastUniformValues[2][3] == -1);
     assert(capture.lastUniformValues[3] == std::vector<float>({12, 8, 4, 3}));
+    assert(capture.lastUniformValues.size() == 5);
+    assert(capture.lastUniformValues.back() == std::vector<float>({0, 1, 1, 0}));
     assert(resolvedMaps[0].second == ImageMipSemantic::Normal);
     assert(resolvedMaps[1].second == ImageMipSemantic::Linear);
     assert(resolvedMaps[3].second == ImageMipSemantic::Color);
@@ -523,12 +558,14 @@ int main() {
     assert(!usesMeshPbrSurface3D(&albedoOnly, tiledMesh));
     assert(bindings.prepare(&albedoOnly, tiledMesh, {}, 1, error));
     assert(bindings.submit(BufferedDraw{}, error));
-    assert(capture.lastUniformValues.empty());
+    assert(capture.lastUniformValues ==
+           std::vector<std::vector<float>>({{0, 0, 0, 0}}));
     // A following plain material must not inherit the preceding map slots.
     assert(bindings.prepare(nullptr, mesh, {}, 1, error));
     assert(bindings.submit(BufferedDraw{}, error));
     assert(capture.lastTextureBindings.empty());
-    assert(capture.lastUniformValues.empty());
+    assert(capture.lastUniformValues ==
+           std::vector<std::vector<float>>({{0, 0, 0, 0}}));
   }
 
   {
@@ -601,6 +638,71 @@ int main() {
          ++index) {
       assert(batchCapture.batchDebugValues[index] == groupingDebug);
     }
+  }
+  {
+    // Inspect material batch intent with symbolic program/texture handles,
+    // matching the material-free grouping probe above.
+    TextureCapture surfaceCapture(*commands);
+    surfaceCapture.forwardDraws = false;
+    int resolvedSurfaceMaps = 0;
+    MeshPbrBindings3D surfaceBindings(
+        *resources, surfaceCapture,
+        [&](std::string_view, ImageMipSemantic) {
+          ++resolvedSurfaceMaps;
+          return TextureView2D{TextureHandle{.index = 7, .generation = 1}, 4, 4, false};
+        });
+    GpuMesh3D geometry(*resources);
+    const std::array<Vec3, 3> positions{{{-1, 0, 0}, {1, 0, 0}, {0, 1, 0}}};
+    assert(geometry.upload(positions, {}, {}, 0xffffffffU, error));
+    MeshRendererComponent source;
+    MaterialBinding material;
+    material.alphaCutoff = 0.4F;
+    material.usesPbrSurface = true;
+    material.surface.maps[demi::assets::MaterialMapSlot::Normal] = "normal";
+    material.surface.windStrength = 0.2F;
+    material.surface.windFrequency = 1.5F;
+    material.surface.windHeight = 2.F;
+    surfaceBindings.setFrameTime(3.F);
+    material.state.cull = CullMode::Clockwise;
+    material.state.writeDepth = true;
+    PreparedMeshDraw3D prepared(source, &material, std::nullopt, false,
+                                false, false, {});
+    const std::array<float, 16> transform{1, 0, 0, 0, 0, 1, 0, 0,
+                                         0, 0, 1, 0, 0, 0, 0, 1};
+    MeshInstanceBatch3D batches;
+    const auto surfaceGroup = batches.addSurface(
+        geometry, {}, source, &material, prepared, {}, transform);
+    batches.appendTransform(surfaceGroup, transform);
+    batches.appendTransform(surfaceGroup, transform);
+    std::array<std::array<float, 4>, 8> values{};
+    std::array<DrawUniformValue, 8> lighting;
+    for (std::size_t index = 0; index < lighting.size(); ++index) {
+      lighting[index].values = values[index];
+    }
+    std::uint32_t draws = 0;
+    std::uint32_t triangles = 0;
+    assert(batches.flush(surfaceCapture, 0, {}, {}, {}, {}, lighting, draws,
+                         triangles, error, &surfaceBindings));
+    assert(draws == 1 && triangles == 3);
+    assert(resolvedSurfaceMaps == 1);
+    assert(surfaceCapture.instanceDrawCalls == 1);
+    assert(surfaceCapture.instanceStates.back().cull == CullMode::Clockwise);
+    assert(surfaceCapture.instanceStates.back().writeDepth);
+    assert(surfaceCapture.instanceCutoffs.back()[0] == 0.4F);
+    assert(surfaceCapture.lastInstanceUniforms.back() ==
+           (std::array<float, 4>{0.2F, 1.5F, 2.F, 3.F}));
+
+    // A subsequent material-free batch must clear the bending uniform rather
+    // than inheriting the previous foliage surface's GPU state.
+    MeshInstanceBatch3D plain;
+    const std::array<float, 4> tint{1, 1, 1, 1};
+    const std::array<float, 4> parameters{0, 0.8F, 0, 0};
+    plain.add(geometry, {}, tint, parameters, false, transform);
+    plain.add(geometry, {}, tint, parameters, false, transform);
+    assert(plain.flush(surfaceCapture, 0, {}, {}, {}, {}, lighting, draws,
+                       triangles, error, &surfaceBindings));
+    assert(surfaceCapture.lastInstanceUniforms.back() ==
+           (std::array<float, 4>{}));
   }
   TextureCapture capture(*commands);
   BgfxRenderer3D renderer(*resources, capture,
@@ -1634,6 +1736,95 @@ int main() {
     (void)graphics.endFrame();
   }
   {
+    World boundsWorld;
+    auto owner = shape("model-bounds", "", {});
+    auto *mesh = owner.component<MeshRendererComponent>();
+    mesh->model = "asset://bounds/high";
+    mesh->mediumLodModel = "asset://bounds/medium";
+    MeshInstances3DComponent instances;
+    instances.transforms["visible"].position = {0, 0, 5};
+    instances.transforms["outside"].position = {100, 0, 5};
+    owner.setComponent(instances);
+    boundsWorld.entities.push_back(owner);
+    BgfxCameraFrame3D boundsFrame;
+    boundsFrame.camera.perspective = false;
+    boundsFrame.camera.orthographicSize = 1.F;
+    boundsFrame.viewportWidth = 100;
+    boundsFrame.viewportHeight = 100;
+    int modelLookups = 0;
+    const ModelBoundsResolver3D resolver = [&](std::string_view id) {
+      ++modelLookups;
+      const float extent = id == "asset://bounds/medium" ? 2.F : .5F;
+      return std::optional<MeshBounds3D>(MeshBounds3D{
+          {-extent, -extent, -extent}, {extent, extent, extent}});
+    };
+    const auto visible = extractVisibleMeshes3D(
+        boundsWorld, boundsFrame, nullptr, nullptr, nullptr, nullptr, nullptr,
+        nullptr, nullptr, resolver);
+    assert(visible.considered == 2 && visible.culled == 1);
+    assert(visible.meshes.size() == 1 && modelLookups == 2);
+
+    // A reduced model can have larger bounds than its source. Their union
+    // preserves visibility near a frustum edge regardless of selected tier.
+    boundsWorld.entities.front().component<MeshInstances3DComponent>()
+        ->transforms["visible"].position.x = 3.F;
+    assert(extractVisibleMeshes3D(
+        boundsWorld, boundsFrame, nullptr, nullptr, nullptr, nullptr, nullptr,
+        nullptr, nullptr, resolver).meshes.size() == 1);
+
+    // Ordinary primitives use canonical unit bounds without authored vertices.
+    auto primitive = shape("primitive-bounds", "cube", {100, 0, 5});
+    World primitiveWorld;
+    primitiveWorld.entities.push_back(primitive);
+    assert(extractVisibleMeshes3D(primitiveWorld, boundsFrame).meshes.empty());
+
+    const auto windPath = std::filesystem::temp_directory_path() /
+        ("demi-wind-bounds-" + std::to_string(
+            std::chrono::steady_clock::now().time_since_epoch().count()) + ".json");
+    struct RemoveWindFixture {
+      std::filesystem::path path;
+      ~RemoveWindFixture() { std::filesystem::remove(path); }
+    } cleanup{windPath};
+    {
+      std::ofstream output(windPath);
+      output << R"({"format_version":1,"parameters":{"wind_strength":5}})";
+    }
+    demi::AssetRegistry windRegistry;
+    windRegistry.assets.push_back({.id = "asset://bounds/wind",
+                                   .type = "Material", .sourcePath = windPath});
+    MaterialLibrary windMaterials(*resources);
+    std::vector<std::string> windDiagnostics;
+    assert(windMaterials.load(windRegistry, windDiagnostics));
+    primitiveWorld.entities.front().component<Transform3DComponent>()->position.x = 3.F;
+    primitiveWorld.entities.front().component<MeshRendererComponent>()->material = "asset://bounds/wind";
+    assert(extractVisibleMeshes3D(primitiveWorld, boundsFrame).meshes.empty());
+    assert(extractVisibleMeshes3D(
+        primitiveWorld, boundsFrame, nullptr, nullptr, nullptr, nullptr, nullptr,
+        nullptr, &windMaterials).meshes.size() == 1);
+
+    MeshUploadCapture windResources(*resources);
+    TextureCapture windCapture(*commands);
+    windCapture.meshWindUniform = &windResources.meshWindUniform;
+    BgfxRenderer3D windRenderer(windResources, windCapture);
+    assert(windRenderer.initialize(error));
+    assert(windRenderer.loadAssets(windRegistry, windDiagnostics));
+    World windWorld;
+    auto foliage = shape("wind-phase", "cube", {});
+    foliage.component<MeshRendererComponent>()->material = "asset://bounds/wind";
+    windWorld.entities.push_back(foliage);
+    Entity sun;
+    sun.id = "wind-sun";
+    sun.setComponent(DirectionalLightComponent{.castsShadows = true});
+    sun.setComponent(Environment3DComponent{.shadowCascades = 1});
+    windWorld.entities.push_back(sun);
+    assert(windRenderer.renderFrame(windWorld, frame, .125F, error));
+    assert(windCapture.windTimeByView.contains(frame.viewId));
+    assert(windCapture.windTimeByView.contains(frame.viewId + 1));
+    assert(windCapture.windTimeByView.at(frame.viewId) == .125F);
+    assert(windCapture.windTimeByView.at(frame.viewId + 1) == .125F);
+    (void)graphics.endFrame();
+  }
+  {
     World instanceWorld;
     auto owner = shape("instance-owner", "cube", {100.0F, 0.0F, 0.0F});
     auto *mesh = owner.component<MeshRendererComponent>();
@@ -1655,6 +1846,14 @@ int main() {
     capture.instanceDrawCalls = 0;
     assert(renderer.renderFrame(instanceWorld, frame, 0.016F, error));
     assert(capture.transformsByView.at(frame.viewId).size() == 2);
+    assert(capture.instanceDrawCalls == 1);
+    (void)graphics.endFrame();
+
+    auto *inlineMesh = instanceWorld.entities.front()
+                           .component<MeshRendererComponent>();
+    inlineMesh->vertices = {{-0.5F, 0, 0}, {0.5F, 0, 0}, {0, 1, 0}};
+    capture.instanceDrawCalls = 0;
+    assert(renderer.renderFrame(instanceWorld, frame, 0.016F, error));
     assert(capture.instanceDrawCalls == 1);
     (void)graphics.endFrame();
 

@@ -179,6 +179,44 @@ int main() {
     std::filesystem::remove_all(root);
     return 1;
   }
+  const auto referenceProject = root / "references";
+  std::filesystem::create_directories(referenceProject);
+  {
+    std::ofstream project(referenceProject / "demi.project.json");
+    project << R"({"format_version":1,"name":"Reference identity probe",
+      "main_scene":"scene://references/main", "scenes":[
+      {"id":"scene://references/main","path":"main.scene.json"}]})";
+  }
+  const auto promotedScene = referenceProject / "main.scene.json";
+  {
+    std::ofstream output(promotedScene);
+    output << R"({"format_version":1,"id":"scene://references/main","entities":[
+      {"id":"terrain","components":{"Transform3D":{},"Terrain3D":{
+        "scatter_exclusions":["terrain/__scatter/asset://palette/woodland/scatter||oak|||9|0"]}}},
+      {"id":"promoted","components":{"Transform3D":{"parent":"terrain"},
+        "MeshRenderer":{"shape":"cube"}}}
+    ]})";
+  }
+  const auto promotedDiagnostics = demi::validateTextFile(
+      promotedScene, demi::SourceFileKind::Scene);
+  if (hasCode(promotedDiagnostics, "ASSET_REFERENCE_NOT_FOUND")) {
+    std::cerr << "Scatter suppression identities were mistaken for asset references.\n";
+    std::filesystem::remove_all(root);
+    return 1;
+  }
+  {
+    std::ofstream output(promotedScene);
+    output << R"({"format_version":1,"id":"scene://references/main","entities":[
+      {"id":"model","components":{"Transform3D":{},
+        "MeshRenderer":{"model":"asset://actual/missing"}}}
+    ]})";
+  }
+  if (!hasCode(demi::validateTextFile(promotedScene, demi::SourceFileKind::Scene),
+               "ASSET_REFERENCE_NOT_FOUND")) {
+    std::cerr << "Actual asset reference validation was bypassed.\n";
+    std::filesystem::remove_all(root);
+    return 1;
+  }
   std::filesystem::remove_all(root);
   return 0;
 }

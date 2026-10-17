@@ -276,7 +276,7 @@ generateTerrainStages(const TerrainRecipe &recipe,
         *field, recipe, result.masks.empty() ? nullptr : &result.masks,
         result.water);
     auto scattered =
-        scatterTerrain(*field, recipe, *settings.palette, {}, &constraints);
+        scatterTerrain(*field, recipe, *settings.palette, {}, &constraints, {}, stop);
     field->scatterPlacements = std::move(scattered.placements);
     field->scatterTruncated = scattered.truncated;
     field->paletteId = settings.palette->id;

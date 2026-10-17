@@ -153,6 +153,7 @@ add_custom_command(
         "${DEMI_PERFORMANCE_DEBUG_SHADER_HEADER}"
     "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_skinned.sc"
     "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_lit.sc"
+    "${DEMI_BGFX_SHADER_SOURCE_DIR}/mesh_wind.sh"
     "${DEMI_BGFX_SHADER_SOURCE_DIR}/fs_demi_lit.sc"
     "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_surface_lighting.sh"
     "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_shadow_receiver.sh"
@@ -464,6 +465,7 @@ add_library(demi-render3d-bgfx STATIC
   src/demi/runtime/render/bgfx3d/SceneLightBuffer3D.cpp
   src/demi/runtime/render/bgfx3d/SceneLighting3D.cpp
   src/demi/runtime/render/bgfx3d/SceneVisibility3D.cpp
+  src/demi/runtime/render/bgfx3d/MeshInstancePreparation3D.cpp
   src/demi/runtime/render/bgfx3d/WorldTextProjection3D.cpp
 )
 target_include_directories(demi-render3d-bgfx PUBLIC src)

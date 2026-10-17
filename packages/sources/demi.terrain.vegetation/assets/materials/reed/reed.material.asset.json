@@ -1,0 +1,11 @@
+{
+  "format_version": 1,
+  "id": "asset://demi/vegetation/materials/reed",
+  "type": "Material",
+  "source": "reed.material.json",
+  "importer": "material",
+  "importer_version": 1,
+  "dependencies": [],
+  "settings": {},
+  "source_hash": "fnv1a64:b374c940ad136d5d"
+}

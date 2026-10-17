@@ -17,8 +17,8 @@ namespace demi::assets::terrain_payload {
 namespace {
 
 constexpr std::array<char, 9> Magic{'D', 'M', 'T', 'R', 'A',
-                                    'S', 'T', '1', '0'};
-static_assert(terrainAssetPayloadVersion == 10,
+                                    'S', 'T', '1', '1'};
+static_assert(terrainAssetPayloadVersion == 11,
               "Update terrain payload magic when changing its format");
 static_assert(Version >= 10 && Version < 100);
 static_assert(Magic[7] == static_cast<char>('0' + Version / 10) &&

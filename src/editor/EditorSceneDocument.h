@@ -91,6 +91,10 @@ public:
                              nlohmann::json entityIds, std::string &error);
   [[nodiscard]] bool createPresetEntity(std::string_view preset,
                                         std::string &error);
+  [[nodiscard]] bool promoteTerrainScatter(SceneValueTarget terrainTarget,
+                                            std::string placementId,
+                                            nlohmann::json authoredObject,
+                                            std::string &error);
   [[nodiscard]] bool unpackPrefab(std::string_view id, std::string &error);
   [[nodiscard]] bool unpackPreset(std::string_view id, std::string &error);
   [[nodiscard]] bool deleteEntity(std::string_view id, std::string &error);

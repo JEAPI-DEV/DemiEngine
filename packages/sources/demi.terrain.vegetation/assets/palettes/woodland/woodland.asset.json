@@ -1,0 +1,13 @@
+{
+  "format_version": 1,
+  "id": "asset://demi/vegetation/palettes/woodland",
+  "type": "DataAsset",
+  "source": "woodland.json",
+  "importer": "json_data",
+  "importer_version": 1,
+  "dependencies": [],
+  "settings": {
+    "content_type": "terrain_palette"
+  },
+  "source_hash": "fnv1a64:b5d038ad0beb4e13"
+}

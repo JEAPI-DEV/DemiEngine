@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -366,7 +367,7 @@ void emptyConnectedWaterRemainsAuthoritativeForRulesAndScatter() {
   TerrainPalette palette;
   palette.placements.emplace(
       "cover", TerrainPaletteEntry{
-                   .model = "asset://cover", .weight = 1.F, .spacing = 0.F});
+                   .model = "asset://cover", .density = 1.F, .spacing = 0.F});
   const TerrainGraphNode scatter{"scatter", "scatter"};
   const auto scattered = evaluateTerrainGraphNode(
       scatter, {}, authored, authored, {.palette = &palette}, connected, {});
@@ -500,16 +501,26 @@ void biomeRulesUseConnectedWaterInsteadOfInferredSea() {
     TerrainPalette palette;
     palette.placements.emplace(
         "cover", TerrainPaletteEntry{
-                     .model = "asset://cover", .weight = 1.F, .spacing = 0.F});
+                     .model = "asset://cover", .density = 1.F, .spacing = 0.F});
     const auto scattered = executeTerrainGraph(authored, {.palette = &palette});
     assert(scattered && scattered->graphArtifacts->basePlacements);
     assert(!scattered->graphArtifacts->basePlacements->empty());
     const auto &wet =
         scattered->graphArtifacts->waterResult->resolvedCoverage->wet;
     for (const auto &placement : *scattered->graphArtifacts->basePlacements) {
-      const auto x = static_cast<int>(placement.position.x);
-      const auto z = static_cast<int>(placement.position.z);
-      assert(wet[scattered->index(x, z)] == 0);
+      // Physical candidate sites need not coincide with heightfield samples.
+      // Environment masks use the nearest sample, recorded separately from
+      // the candidate's stable lattice identity.
+      const int sampleX = std::clamp(
+          int(std::lround(placement.position.x * float(scattered->cellsX) /
+                          scattered->size.x)),
+          0, scattered->cellsX);
+      const int sampleZ = std::clamp(
+          int(std::lround(placement.position.z * float(scattered->cellsZ) /
+                          scattered->size.y)),
+          0, scattered->cellsZ);
+      assert(placement.cell == scattered->index(sampleX, sampleZ));
+      assert(wet[placement.cell] == 0);
     }
 
     authored.graph["nodes"].push_back({{"id", "unrelated"},
@@ -945,7 +956,68 @@ void basinWaterEditsUseStableIdsAndPreserveTerrain() {
   assert(!executeTerrainGraph(settings, {}, cancellation.get_token()));
 }
 
+void graphSurfaceEditsRefilterRetainedCandidatesWithoutRegeneration() {
+  auto authored = recipe();
+  authored.landforms.at("high").baseHeight = 3;
+  authored.paletteId = "asset://palette/refilter";
+  authored.graph["nodes"].push_back({{"id", "placement"}, {"type", "scatter"}});
+  authored.graph["links"].push_back(
+      {{"id", "landform_placement"},
+       {"from", {{"node", "landform"}, {"port", "field"}}},
+       {"to", {{"node", "placement"}, {"port", "field"}}}});
+  authored.graph["links"].push_back(
+      {{"id", "placement_output"},
+       {"from", {{"node", "placement"}, {"port", "instances"}}},
+       {"to", {{"node", "terrain_output"}, {"port", "instances"}}}});
+  TerrainPalette palette;
+  palette.id = authored.paletteId;
+  TerrainPaletteEntry cover;
+  cover.model = "asset://cover";
+  cover.candidateSpacing = 1;
+  cover.biomes = {"default"};
+  cover.slope = {0, 20};
+  palette.placements.emplace("cover", cover);
+  const auto generated = executeTerrainGraph(authored, {&palette, "refilter", {}});
+  assert(generated && !generated->scatterPlacements.empty());
+  const auto previous = retained(*generated);
+  const auto candidates = previous->graphArtifacts->basePlacements;
+
+  auto painted = authored;
+  TerrainRegion region;
+  region.biome = "high";
+  region.center = {8, 8};
+  region.radius = 3;
+  region.falloff = 0;
+  painted.regions.push_back(region);
+  const auto update = updateTerrain(authored, painted, previous);
+  assert(update && !update->invalidation.fullGeneration);
+  assert(update->field->graphArtifacts->basePlacements == candidates);
+  assert(update->field->scatterPlacements.size() < previous->scatterPlacements.size());
+  for (const auto &placement : update->field->scatterPlacements) {
+    assert(placement.biomeName == "default");
+  }
+  const auto restored = updateTerrain(painted, authored, update->field);
+  assert(restored && !restored->invalidation.fullGeneration);
+  assert(restored->field->scatterPlacements.size() == previous->scatterPlacements.size());
+  assert(restored->field->graphArtifacts->basePlacements == candidates);
+
+  auto sculpted = authored;
+  TerrainEdit raise;
+  raise.kind = TerrainEditKind::Raise;
+  raise.center = {8, 8};
+  raise.radius = 3;
+  raise.amount = 30;
+  sculpted.edits.push_back(raise);
+  const auto slopeUpdate = updateTerrain(authored, sculpted, previous);
+  assert(slopeUpdate && !slopeUpdate->invalidation.fullGeneration);
+  assert(slopeUpdate->field->scatterPlacements.size() < previous->scatterPlacements.size());
+  assert(slopeUpdate->field->graphArtifacts->basePlacements == candidates);
+  const auto undone = applyTerrainPatch(slopeUpdate->field, *slopeUpdate->patch, false);
+  assert(undone.field->scatterPlacements.size() == previous->scatterPlacements.size());
+}
+
 int main() {
+  graphSurfaceEditsRefilterRetainedCandidatesWithoutRegeneration();
   basinWaterEditsUseStableIdsAndPreserveTerrain();
   pathDistanceMaskPreservesCorridorAndEndpoints();
   pathDistanceMaskBlendsValleyAndCachesIndependently();

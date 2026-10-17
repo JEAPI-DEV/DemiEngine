@@ -123,16 +123,18 @@ void writeClay(const std::string_view document) {
 }
 
 constexpr std::string_view PaletteDocument = R"json({
-  "format_version": 2,
+  "format_version": 3,
   "name": "Test meadow",
   "placements": {
     "grass": {
+      "collision": "none",
       "model": "asset://terrain/surfaces/grass",
-      "weight": 1
+      "density": 1
     },
     "soil": {
+      "collision": "none",
       "model": "asset://terrain/surfaces/rock",
-      "weight": 1,
+      "density": 1,
       "scale": [
         1,
         2
@@ -276,11 +278,12 @@ void cleanProjectIsShippable() {
                                          "oak.glb", shippableSettings("prop")));
   std::ranges::sort(meshRegistry.assets, {}, &AssetManifest::id);
   writePalette(R"json({
-  "format_version": 2,
+  "format_version": 3,
   "name": "Test meadow",
   "placements": {
     "tree": {
-      "weight": 1,
+      "density": 1,
+      "collision": "none",
       "model": "asset://terrain/props/oak"
     }
   }
@@ -319,11 +322,12 @@ void unboundRequiredRoleIsReported() {
 void unresolvedReferenceBlocks() {
   resetDocuments();
   writePalette(R"json({
-  "format_version": 2,
+  "format_version": 3,
   "name": "Test meadow",
   "placements": {
     "grass": {
-      "weight": 1,
+      "density": 1,
+      "collision": "none",
       "model": "asset://terrain/surfaces/absent"
     }
   }
@@ -340,11 +344,12 @@ void unresolvedReferenceBlocks() {
   // A bare path is the same mistake written differently, and it is named the
   // same way rather than silently finding nothing.
   writePalette(R"json({
-  "format_version": 2,
+  "format_version": 3,
   "name": "Test meadow",
   "placements": {
     "grass": {
-      "weight": 1,
+      "density": 1,
+      "collision": "none",
       "model": "terrain/surfaces/grass"
     }
   }
@@ -356,9 +361,9 @@ void unresolvedReferenceBlocks() {
                 "must be an asset:// reference");
   // An absent binding is not a reference at all, and says so.
   writePalette(R"json({
-    "format_version": 2,
+    "format_version": 3,
     "name": "Test meadow",
-    "placements": {"grass": {"weight": 1}}
+    "placements": {"grass": {"density": 1}}
   })json");
   const TerrainAssetValidationReport unbound =
       validateTerrainAssets(request(registry));
@@ -379,7 +384,7 @@ void unresolvedReferenceBlocks() {
   // A document whose shape hides every role is reported as uninspectable rather
   // than as a clean run, because "no findings" would be a lie there.
   writePalette(
-      R"json({"format_version": 2, "name": "Test meadow", "placements": 7})json");
+      R"json({"format_version": 3, "name": "Test meadow", "placements": 7})json");
   const TerrainAssetValidationReport uninspectable =
       validateTerrainAssets(request(registry));
   assert(!uninspectable.shippable());
@@ -409,11 +414,12 @@ void wrongAssetTypeBlocks() {
                 "Point the role at a material asset");
 
   writePalette(R"json({
-  "format_version": 2,
+  "format_version": 3,
   "name": "Test meadow",
   "placements": {
     "grass": {
-      "weight": 1,
+      "density": 1,
+      "collision": "none",
       "model": "asset://audio/wind"
     }
   }
@@ -426,11 +432,12 @@ void wrongAssetTypeBlocks() {
   expectFinding(palette, TerrainAssetFindingKind::WrongAssetType, "AudioClip");
 
   writePalette(R"json({
-  "format_version": 2,
+  "format_version": 3,
   "name": "Test meadow",
   "placements": {
     "grass": {
-      "weight": 1,
+      "density": 1,
+      "collision": "none",
       "model": "asset://terrain/surfaces/ground"
     }
   }
@@ -712,12 +719,13 @@ void materialMapsAreOptionalUnlessRequired() {
 void scaleOutOfRangeIsReported() {
   resetDocuments();
   writePalette(R"json({
-  "format_version": 2,
+  "format_version": 3,
   "name": "Test meadow",
   "placements": {
     "grass": {
+      "collision": "none",
       "model": "asset://terrain/surfaces/grass",
-      "weight": 1,
+      "density": 1,
       "scale": [
         0.0001,
         400
@@ -802,23 +810,26 @@ void findingsAreDeterministicAndSorted() {
     "required_roles": ["rock", "snow"]
   })json");
   writePalette(R"json({
-  "format_version": 2,
+  "format_version": 3,
   "name": "Test meadow",
   "placements": {
     "grass": {
-      "weight": 1,
+      "density": 1,
       "scale": [
         0.0001,
         1
       ],
+      "collision": "none",
       "model": "asset://terrain/surfaces/grass"
     },
     "tree": {
-      "weight": 1,
+      "density": 1,
+      "collision": "none",
       "model": "asset://terrain/props/absent"
     },
     "soil": {
-      "weight": 1,
+      "density": 1,
+      "collision": "none",
       "model": "asset://audio/wind"
     }
   }
@@ -909,19 +920,21 @@ void rejectsImpossibleRequests() {
 void summaryNamesEveryFinding() {
   resetDocuments();
   writePalette(R"json({
-  "format_version": 2,
+  "format_version": 3,
   "name": "Test meadow",
   "placements": {
     "grass": {
-      "weight": 1,
+      "density": 1,
       "scale": [
         1,
         900
       ],
+      "collision": "none",
       "model": "asset://terrain/surfaces/grass"
     },
     "soil": {
-      "weight": 1,
+      "density": 1,
+      "collision": "none",
       "model": "asset://terrain/surfaces/absent"
     }
   }
@@ -1005,7 +1018,7 @@ int main() {
   std::filesystem::create_directories(root, filesystemError);
   if (!write(
           root / "palette_schema.json",
-          R"({"format_version":1,"type":"object","required":["format_version","name"],"properties":{"format_version":{"type":"integer","enum":[2]},"name":{"type":"string"},"placements":{"type":"object"},"material_set":{"type":"string","reference":"asset"}})") ||
+          R"({"format_version":1,"type":"object","required":["format_version","name"],"properties":{"format_version":{"type":"integer","enum":[3]},"name":{"type":"string"},"placements":{"type":"object"},"material_set":{"type":"string","reference":"asset"}})") ||
       !write(root / "set_schema.json", R"({
         "format_version": 1,
         "type": "object",

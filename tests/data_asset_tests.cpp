@@ -183,7 +183,7 @@ count: 3
           R"({"format_version":1,"name":"Ground","roles":{"rock":"asset://terrain/stone"}})") ||
       !write(typedSources / "palette.json",
              R"({
-  "format_version": 2,
+  "format_version": 3,
   "name": "Props",
   "placements": {
     "soil": {

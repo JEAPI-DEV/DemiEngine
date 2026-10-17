@@ -1,9 +1,14 @@
 #include "editor/EditorTerrainInspector.h"
 #include "demi/assets/TerrainAsset.h"
+#include "demi/runtime/scene/WorldQueries.h"
+#include "demi/runtime/scene/components/3dcomponents/Transform3DComponent.h"
 
 #include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
 #include "demi/runtime/scene/model/Entity.h"
 #include "demi/runtime/terrain/TerrainRecipe.h"
+#include "demi/runtime/terrain/TerrainGenerator.h"
+#include "demi/runtime/terrain/TerrainScatterRuntime.h"
+#include "demi/runtime/terrain/TerrainScatterBatches.h"
 #include "editor/EditorWorkspace.h"
 
 #include <algorithm>
@@ -11,9 +16,72 @@
 #include <imgui.h>
 #include <string_view>
 #include <utility>
+#include <unordered_set>
 
 namespace demi::editor {
 namespace {
+
+bool drawScatterPlacements(EditorWorkspace &workspace,
+                           const runtime::Entity &owner,
+                           const runtime::Terrain3DComponent &terrain,
+                           std::string &notice) {
+  if (!terrain.generated ||
+      !ImGui::CollapsingHeader("Generated vegetation and detail")) {
+    return false;
+  }
+  ImGui::TextWrapped(
+      "Convert a placement into an ordinary editable scene object. "
+      "Regeneration will leave it alone. Undo restores procedural ownership.");
+  static ImGuiTextFilter filter;
+  filter.Draw("Filter rules");
+  const auto &field = *terrain.generated;
+  const std::unordered_set<std::string> excluded(
+      terrain.scatterExclusions.begin(), terrain.scatterExclusions.end());
+  std::vector<std::size_t> visible;
+  for (std::size_t index = 0; index < field.scatterPlacements.size(); ++index) {
+    const auto &placement = field.scatterPlacements[index];
+    if (!filter.PassFilter(placement.ruleId.c_str())) {
+      continue;
+    }
+    const auto id = runtime::terrainScatterInstanceId(
+        owner.id, field.paletteId, placement.ruleId, placement.candidateX,
+        placement.candidateZ);
+    if (!excluded.contains(id)) {
+      visible.push_back(index);
+    }
+  }
+  ImGui::Text("%zu procedural placements", visible.size());
+  std::string promoteId;
+  if (ImGui::BeginChild("Scatter placements", {0, 220}, true)) {
+    ImGuiListClipper clipper;
+    clipper.Begin(static_cast<int>(visible.size()),
+                  ImGui::GetFrameHeightWithSpacing());
+    while (clipper.Step()) {
+      for (int row = clipper.DisplayStart; row < clipper.DisplayEnd; ++row) {
+        const auto &placement = field.scatterPlacements[visible[row]];
+        ImGui::PushID(static_cast<int>(visible[row]));
+        if (ImGui::Button("Convert")) {
+          promoteId = runtime::terrainScatterInstanceId(
+              owner.id, field.paletteId, placement.ruleId, placement.candidateX,
+              placement.candidateZ);
+        }
+        ImGui::SameLine();
+        ImGui::Text("%s (%.1f, %.1f)", placement.ruleId.c_str(),
+                    placement.position.x, placement.position.z);
+        ImGui::PopID();
+      }
+    }
+  }
+  ImGui::EndChild();
+  if (!promoteId.empty()) {
+    std::string error;
+    notice = workspace.promoteTerrainScatter(owner.id, promoteId, error)
+                 ? "Placement converted to a scene object."
+                 : std::move(error);
+    return true;
+  }
+  return false;
+}
 
 std::string brushField(const char *label) {
   ImGui::TextUnformatted(label);
@@ -181,16 +249,71 @@ void drawBrush(EditorTerrainAuthoring &authoring) {
 
 } // namespace
 
+bool drawGeneratedTerrainDetailInspector(EditorWorkspace &workspace,
+                                         std::string &notice) {
+  const auto *selected = workspace.selectedEntity();
+  if (!selected || selected->id.find("/__scatter/") == std::string::npos ||
+      workspace.activeDocument() != EditorWorkspaceDocument::Scene) {
+    return false;
+  }
+  const auto *owner = selected;
+  std::unordered_set<std::string> visited;
+  while (owner && !owner->hasComponent<runtime::Terrain3DComponent>()) {
+    if (!visited.insert(owner->id).second) {
+      return false;
+    }
+    const auto *transform = owner->component<runtime::Transform3DComponent>();
+    owner =
+        transform && !transform->parent.empty()
+            ? runtime::findEntity(workspace.project().world, transform->parent)
+            : nullptr;
+  }
+  if (!owner || !selected->id.starts_with(owner->id + "/__scatter/")) {
+    return false;
+  }
+  const std::string ownerId = owner->id;
+  const std::string placementId = selected->prefabInstance.empty()
+                                      ? selected->id
+                                      : selected->prefabInstance;
+  const bool individual = !selected->hasComponent<runtime::TerrainScatterBatch>();
+  ImGui::TextWrapped("Generated terrain detail");
+  ImGui::TextWrapped(
+      "Convert this placement before editing it. Regeneration owns "
+      "procedural objects; converted objects belong to the scene.");
+  if (individual && ImGui::Button("Convert to Scene Object")) {
+    std::string error;
+    notice = workspace.promoteTerrainScatter(ownerId, placementId, error)
+                 ? "Placement converted to a scene object."
+                 : std::move(error);
+    return true;
+  }
+  if (!individual) {
+    ImGui::TextWrapped(
+        "This is a render batch. Choose an individual placement in "
+        "the terrain's Generated vegetation and detail list.");
+  }
+  if (ImGui::Button("Select owning terrain")) {
+    workspace.selectEntity(ownerId);
+  }
+  return true;
+}
+
 void drawEditorTerrainInspector(EditorWorkspace &workspace,
                                 std::string &notice) {
   if (workspace.activeDocument() == EditorWorkspaceDocument::Scene) {
     const auto *entity = workspace.selectedEntity();
     const auto *terrain =
         entity ? entity->component<runtime::Terrain3DComponent>() : nullptr;
-    if (entity && terrain)
+    if (entity && terrain) {
       drawSceneAssetActions(workspace, *entity, *terrain, notice);
+      // Promotion rebuilds the preview and invalidates the selected pointers.
+      if (drawScatterPlacements(workspace, *entity, *terrain, notice)) {
+        return;
+      }
+    }
     if (terrain && !terrain->asset.empty()) {
-      const auto *asset = findAsset(workspace.assetIndex().registry(), terrain->asset);
+      const auto *asset =
+          findAsset(workspace.assetIndex().registry(), terrain->asset);
       if (asset && assets::isPreparedTerrainAsset(*asset)) {
         ImGui::TextWrapped("Prepared terrain is read-only. Open the authored "
                            "source project to edit its graph and brushes.");

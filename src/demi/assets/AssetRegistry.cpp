@@ -33,10 +33,33 @@ std::string readFile(const std::filesystem::path &path) {
   return buffer.str();
 }
 
+void collectJsonReferences(const nlohmann::json &value, std::string_view prefix,
+                           std::vector<std::string> &references) {
+  if (value.is_string()) {
+    const auto &text = value.get_ref<const std::string &>();
+    if (text.starts_with(prefix) &&
+        std::ranges::find(references, text) == references.end()) {
+      references.push_back(text);
+    }
+  } else if (value.is_object() || value.is_array()) {
+    for (const auto &child : value) {
+      collectJsonReferences(child, prefix, references);
+    }
+  }
+}
+
 std::vector<std::string>
 extractReferencesWithPrefix(const std::string &text,
                             const std::string &prefix) {
   std::vector<std::string> references;
+  const auto document = nlohmann::json::parse(text, nullptr, false);
+  if (!document.is_discarded()) {
+    collectJsonReferences(document, prefix, references);
+    return references;
+  }
+  // Lua and other text sources retain lexical discovery. JSON documents never
+  // use substring matching: stable IDs can embed resource URIs as identity
+  // data.
   std::size_t cursor = 0;
   while (true) {
     const std::size_t found = text.find(prefix, cursor);
@@ -616,6 +639,13 @@ Diagnostics validateAudioClipSettings(const nlohmann::json &settings,
          .path = path.string(),
          .suggestion = {}});
   return diagnostics;
+}
+
+std::vector<std::string>
+extractAssetReferencesFromJson(const nlohmann::json &document) {
+  std::vector<std::string> references;
+  collectJsonReferences(document, "asset://", references);
+  return references;
 }
 
 std::vector<std::string> extractAssetReferences(const std::string &text) {

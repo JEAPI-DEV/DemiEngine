@@ -210,6 +210,9 @@ public:
                                   std::optional<runtime::Vec3> worldPosition = {});
   [[nodiscard]] bool createPresetEntity(std::string_view preset,
                                         std::string &error);
+  [[nodiscard]] bool promoteTerrainScatter(std::string_view ownerId,
+                                            std::string_view placementId,
+                                            std::string &error);
   [[nodiscard]] bool unpackPrefab(std::string_view id, std::string &error);
   [[nodiscard]] bool unpackHudPrefab(std::string_view id, std::string &error);
   [[nodiscard]] bool unpackPreset(std::string_view id, std::string &error);

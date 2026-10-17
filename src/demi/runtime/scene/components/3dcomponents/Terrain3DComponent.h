@@ -4,6 +4,8 @@
 #include "demi/runtime/scene/components/RuntimeFieldBinding.h"
 #include "demi/runtime/terrain/TerrainRecipe.h"
 #include <memory>
+#include <string>
+#include <vector>
 
 namespace demi::runtime {
 struct HeightField;
@@ -24,6 +26,14 @@ struct Terrain3DComponent {
           .withLabel("LOD Error Pixels")
           .withHelp("Maximum projected terrain error in pixels. Zero disables "
                     "render LOD."),
+      ComponentFieldDescriptor{"scatter_exclusions",
+                               ComponentFieldType::StringArray}
+          .withLabel("Scatter Exclusions")
+          .withHelp(
+              "Stable generated placement keys suppressed on this terrain "
+              "placement. Promoting scenery records its source key here.")
+          .asAdvanced()
+          .withEditableCollection(),
       ComponentFieldDescriptor{"surface_blending", ComponentFieldType::Boolean}
           .withLabel("Surface Blending")
           .withHelp(
@@ -34,6 +44,8 @@ struct Terrain3DComponent {
   std::string asset;
   float lodErrorPixels = 2.0F;
   bool surfaceBlending = true;
+  // Scene-placement state. Shared Terrain asset generation never reads it.
+  std::vector<std::string> scatterExclusions;
   // Inline authored recipe for procedural terrain, or the editable source
   // resolved by the asset loader. Resolved recipes never serialize into scenes.
   nlohmann::json recipe;
@@ -59,6 +71,8 @@ struct Terrain3DComponent {
       RuntimeFieldBinding<Terrain3DComponent>::member<
           &Terrain3DComponent::lodErrorPixels>("lod_error_pixels"),
       RuntimeFieldBinding<Terrain3DComponent>::member<
-          &Terrain3DComponent::surfaceBlending>("surface_blending")};
+          &Terrain3DComponent::surfaceBlending>("surface_blending"),
+      RuntimeFieldBinding<Terrain3DComponent>::member<
+          &Terrain3DComponent::scatterExclusions>("scatter_exclusions")};
 };
 } // namespace demi::runtime

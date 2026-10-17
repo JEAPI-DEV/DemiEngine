@@ -253,6 +253,7 @@ void editPaletteRole(EditorWorkspace &workspace, EditorJsonDocument &document,
           },
           asset, false)) {
     entry["model"] = asset;
+    entry["collision"] = "none";
     entry.erase("prefab");
     (void)commit(document, "/placements/" + key, entry, notice);
     ImGui::TreePop();
@@ -285,8 +286,75 @@ void editPaletteRole(EditorWorkspace &workspace, EditorJsonDocument &document,
       (void)commit(document, "/placements/" + key, entry, notice);
       return true;
     };
-    if (floatEntry("weight", 1.F, 0.F, std::numeric_limits<float>::max()) ||
-        floatEntry("spacing", 1.F, 0.F, std::numeric_limits<float>::max())) {
+    const float spacing = entry.value("spacing", 0.F);
+    const float automaticCandidateSpacing =
+        spacing > 0.F ? spacing * 0.5F : 0.25F;
+    if (floatEntry("density", 1.F, 0.F, std::numeric_limits<float>::max()) ||
+        floatEntry("candidate_spacing", automaticCandidateSpacing,
+                   std::numeric_limits<float>::min(),
+                   std::numeric_limits<float>::max()) ||
+        floatEntry("spacing", 0.F, 0.F, std::numeric_limits<float>::max())) {
+      ImGui::TreePop();
+      ImGui::PopID();
+      return;
+    }
+    if (entry.contains("candidate_spacing") &&
+        ImGui::SmallButton("Use automatic candidate spacing")) {
+      entry.erase("candidate_spacing");
+      (void)commit(document, "/placements/" + key, entry, notice);
+      ImGui::TreePop();
+      ImGui::PopID();
+      return;
+    }
+    const std::string category = entry.value("category", "prop");
+    if (ImGui::BeginCombo("Category", category.c_str())) {
+      for (const char *choice : {"prop", "grass", "tree", "rock"}) {
+        if (ImGui::Selectable(choice, category == choice)) {
+          entry["category"] = choice;
+          (void)commit(document, "/placements/" + key, entry, notice);
+        }
+      }
+      ImGui::EndCombo();
+    }
+    const auto rangeEntry = [&](const char *field, float lower, float upper,
+                                float defaultMinimum, float defaultMaximum) {
+      const auto range =
+          entry.value(field, Json::array({defaultMinimum, defaultMaximum}));
+      float values[]{range[0].get<float>(), range[1].get<float>()};
+      if (!ImGui::DragFloat2(field, values, 0.1F, lower, upper, "%.3f",
+                             ImGuiSliderFlags_AlwaysClamp)) {
+        return false;
+      }
+      if (values[0] > values[1]) {
+        notice = std::string(field) + " minimum must not exceed maximum.";
+      } else {
+        entry[field] = Json::array({values[0], values[1]});
+        (void)commit(document, "/placements/" + key, entry, notice);
+      }
+      return true;
+    };
+    if (rangeEntry("slope", 0, 90, 0, 90) ||
+        rangeEntry("moisture", 0, 1, 0, 1) ||
+        rangeEntry("water_distance", 0, std::numeric_limits<float>::max(), 0,
+                   std::numeric_limits<float>::max()) ||
+        rangeEntry("yaw", -360, 360, 0, 360)) {
+      ImGui::TreePop();
+      ImGui::PopID();
+      return;
+    }
+    Json cluster = entry.value("cluster", Json::object());
+    float clusterSize = cluster.value("size", 16.F);
+    float clusterStrength = cluster.value("strength", 0.F);
+    const bool sizeChanged = editFloat(
+        "Cluster size", clusterSize, std::numeric_limits<float>::min(),
+        std::numeric_limits<float>::max(), clusterSize);
+    const bool strengthChanged =
+        editFloat("Cluster strength", clusterStrength, 0, 1, clusterStrength);
+    if (sizeChanged || strengthChanged) {
+      cluster["size"] = clusterSize;
+      cluster["strength"] = clusterStrength;
+      entry["cluster"] = std::move(cluster);
+      (void)commit(document, "/placements/" + key, entry, notice);
       ImGui::TreePop();
       ImGui::PopID();
       return;
@@ -319,12 +387,6 @@ void editPaletteRole(EditorWorkspace &workspace, EditorJsonDocument &document,
           (void)commit(document, "/placements/" + key, entry, notice);
         }
       ImGui::EndCombo();
-    }
-    int lod = entry.value("lod", 0);
-    if (ImGui::DragInt("LOD", &lod, 1.F, 0, std::numeric_limits<int>::max(),
-                       "%d", ImGuiSliderFlags_AlwaysClamp)) {
-      entry["lod"] = lod;
-      (void)commit(document, "/placements/" + key, entry, notice);
     }
     const Json biomes = entry.value("biomes", Json::array());
     std::string biome;
@@ -388,6 +450,16 @@ void drawPalette(EditorWorkspace &workspace, EditorJsonDocument &document,
     (void)commitRoot(document, std::move(replacement), notice);
     return;
   }
+  ImGui::SeparatorText("Art density");
+  for (const char *field :
+       {"art_density", "grass_density", "tree_density", "rock_density"}) {
+    float density;
+    if (editFloat(field, snapshot.value(field, 1.F), 0,
+                  std::numeric_limits<float>::max(), density)) {
+      (void)commit(document, std::string("/") + field, density, notice);
+      return;
+    }
+  }
   ImGui::SeparatorText("Object Placements");
   const Json entries = snapshot.value("placements", Json::object());
   for (const auto &[key, entry] : entries.items())
@@ -402,6 +474,9 @@ void drawPalette(EditorWorkspace &workspace, EditorJsonDocument &document,
     for (int suffix = 2; placements.contains(id); ++suffix)
       id = "placement_" + std::to_string(suffix);
     placements[id] = {{field, reference}};
+    if (std::string_view(field) == "model") {
+      placements[id]["collision"] = "none";
+    }
     (void)commitRoot(document, std::move(replacement), notice);
   };
   std::string model;
