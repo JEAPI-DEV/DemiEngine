@@ -88,6 +88,13 @@ void typedViewUsesTheCanonicalDescriptor() {
 }
 
 void builtinSurfaceDomainsAreValidated() {
+  assert(rejected({{"format_version", 1}, {"alpha_cutoff", 0.5}}));
+  const auto cutout = parseMaterialAsset(
+      {{"format_version", 1},
+       {"render_state", {{"alpha_cutoff", 0.5}, {"cull", "none"}}}});
+  assert(cutout);
+  assert(cutout->renderState.alphaCutoff == 0.5F);
+  assert(cutout->renderState.cull == "none");
   assert(rejected(Json::array()));
   assert(rejected(Json::object()));
   assert(rejected({{"format_version", "1"}}));

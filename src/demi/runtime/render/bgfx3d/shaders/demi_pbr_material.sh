@@ -59,9 +59,54 @@ vec2 pbrProjectionUv(int axis, vec3 localPosition, vec3 localNormal)
     return vec2(normal.z < 0.0 ? -position.x : position.x, position.y);
 }
 
-vec4 pbrReadMap(sampler2D mapSampler, vec2 uv, bool encodedColor)
+// Snapshot derivatives while every fragment lane is live. Later coverage
+// rejection must not change texture mip selection or the normal-map frame.
+struct PbrTextureCoordinate
 {
-    vec4 value = texture2D(mapSampler, uv);
+    vec2 uv;
+    vec2 dx;
+    vec2 dy;
+};
+
+struct PbrSamplingCoordinates
+{
+    PbrTextureCoordinate first;
+    PbrTextureCoordinate second;
+    PbrTextureCoordinate third;
+    vec3 weights;
+};
+
+PbrTextureCoordinate pbrTextureCoordinate(vec2 uv)
+{
+    PbrTextureCoordinate result;
+    result.uv = uv;
+    result.dx = dFdx(uv);
+    result.dy = dFdy(uv);
+    return result;
+}
+
+PbrSamplingCoordinates pbrSamplingCoordinates(vec2 uv, vec3 localPosition,
+                                              vec3 localNormal)
+{
+    PbrSamplingCoordinates result;
+    if (u_pbrMapFlags2.z < 0.5)
+    {
+        result.first = pbrTextureCoordinate(uv * u_pbrSurface.y);
+        result.second = result.first;
+        result.third = result.first;
+        result.weights = vec3(1.0, 0.0, 0.0);
+        return result;
+    }
+    result.first = pbrTextureCoordinate(pbrProjectionUv(0, localPosition, localNormal));
+    result.second = pbrTextureCoordinate(pbrProjectionUv(1, localPosition, localNormal));
+    result.third = pbrTextureCoordinate(pbrProjectionUv(2, localPosition, localNormal));
+    result.weights = pbrProjectionWeights(localNormal);
+    return result;
+}
+
+vec4 pbrReadMap(sampler2D mapSampler, PbrTextureCoordinate coordinate, bool encodedColor)
+{
+    vec4 value = texture2DGrad(mapSampler, coordinate.uv, coordinate.dx, coordinate.dy);
     if (encodedColor)
     {
         value.rgb = decodeColor(value.rgb);
@@ -69,38 +114,37 @@ vec4 pbrReadMap(sampler2D mapSampler, vec2 uv, bool encodedColor)
     return value;
 }
 
-vec4 pbrSampleMap(sampler2D mapSampler, bool encodedColor, vec2 uv,
-                  vec3 localPosition, vec3 localNormal)
+vec4 pbrSampleMap(sampler2D mapSampler, bool encodedColor,
+                  PbrSamplingCoordinates coordinates)
 {
     if (u_pbrMapFlags2.z < 0.5)
     {
-        return pbrReadMap(mapSampler, uv * u_pbrSurface.y, encodedColor);
+        return pbrReadMap(mapSampler, coordinates.first, encodedColor);
     }
-    vec3 weights = pbrProjectionWeights(localNormal);
-    return pbrReadMap(mapSampler, pbrProjectionUv(0, localPosition, localNormal), encodedColor) * weights.x +
-           pbrReadMap(mapSampler, pbrProjectionUv(1, localPosition, localNormal), encodedColor) * weights.y +
-           pbrReadMap(mapSampler, pbrProjectionUv(2, localPosition, localNormal), encodedColor) * weights.z;
+    return pbrReadMap(mapSampler, coordinates.first, encodedColor) * coordinates.weights.x +
+           pbrReadMap(mapSampler, coordinates.second, encodedColor) * coordinates.weights.y +
+           pbrReadMap(mapSampler, coordinates.third, encodedColor) * coordinates.weights.z;
 }
 
-vec3 pbrReadTangentNormal(sampler2D mapSampler, vec2 uv, float strength)
+vec3 pbrReadTangentNormal(sampler2D mapSampler, PbrTextureCoordinate coordinate, float strength)
 {
-    vec3 value = texture2D(mapSampler, uv).xyz * 2.0 - 1.0;
+    vec3 value = texture2DGrad(mapSampler, coordinate.uv, coordinate.dx, coordinate.dy).xyz * 2.0 - 1.0;
     value.y *= u_pbrSurface.w;
     value.xy *= strength;
     value.z = mix(1.0, value.z, min(strength, 1.0));
     return pbrNormalize(value, vec3(0.0, 0.0, 1.0));
 }
 
-vec3 pbrTangentNormal(vec2 uv)
+vec3 pbrTangentNormal(PbrTextureCoordinate coordinate)
 {
     vec3 normal = vec3(0.0, 0.0, 1.0);
     if (u_pbrMapFlags.x > 0.5)
     {
-        normal = pbrReadTangentNormal(s_pbrNormal, uv, u_pbrSurface.x);
+        normal = pbrReadTangentNormal(s_pbrNormal, coordinate, u_pbrSurface.x);
     }
     if (u_pbrMapFlags2.x > 0.5 && u_pbrSurface.z > 0.0)
     {
-        vec3 detail = pbrReadTangentNormal(s_pbrDetailNormal, uv, u_pbrSurface.z);
+        vec3 detail = pbrReadTangentNormal(s_pbrDetailNormal, coordinate, u_pbrSurface.z);
         normal = pbrNormalize(vec3(normal.xy + detail.xy, normal.z * detail.z),
                               vec3(0.0, 0.0, 1.0));
     }
@@ -110,10 +154,10 @@ vec3 pbrTangentNormal(vec2 uv)
 // Derivative-based cotangent frames support inline, imported and skinned
 // meshes without assuming tangent attributes. Row scaling avoids dependence
 // on world magnitude or pixel footprint, including translated terrain.
-vec3 pbrPerturbNormal(vec3 normal, vec3 worldDx, vec3 worldDy, vec2 uv)
+vec3 pbrPerturbNormal(vec3 normal, vec3 worldDx, vec3 worldDy, PbrTextureCoordinate coordinate)
 {
-    vec2 uvDx = dFdx(uv);
-    vec2 uvDy = dFdy(uv);
+    vec2 uvDx = coordinate.dx;
+    vec2 uvDy = coordinate.dy;
     float scaleX = max(abs(worldDx.x), max(abs(worldDx.y), abs(worldDx.z)));
     float scaleY = max(abs(worldDy.x), max(abs(worldDy.y), abs(worldDy.z)));
     if (!(scaleX > 0.0) || !(scaleY > 0.0))
@@ -137,13 +181,13 @@ vec3 pbrPerturbNormal(vec3 normal, vec3 worldDx, vec3 worldDy, vec2 uv)
     tangent /= extent;
     bitangent /= extent;
     float inverseLength = inversesqrt(max(dot(tangent, tangent), dot(bitangent, bitangent)));
-    vec3 mapped = pbrTangentNormal(uv);
+    vec3 mapped = pbrTangentNormal(coordinate);
     return pbrNormalize(tangent * inverseLength * mapped.x +
                          bitangent * inverseLength * mapped.y + normal * mapped.z, normal);
 }
 
-vec3 pbrSurfaceNormal(vec3 normal, vec3 worldDx, vec3 worldDy, vec2 uv,
-                      vec3 localPosition, vec3 localNormal)
+vec3 pbrSurfaceNormal(vec3 normal, vec3 worldDx, vec3 worldDy,
+                      PbrSamplingCoordinates coordinates)
 {
     if (u_pbrMapFlags.x < 0.5 && u_pbrMapFlags2.x < 0.5)
     {
@@ -151,12 +195,11 @@ vec3 pbrSurfaceNormal(vec3 normal, vec3 worldDx, vec3 worldDy, vec2 uv,
     }
     if (u_pbrMapFlags2.z < 0.5)
     {
-        return pbrPerturbNormal(normal, worldDx, worldDy, uv * u_pbrSurface.y);
+        return pbrPerturbNormal(normal, worldDx, worldDy, coordinates.first);
     }
-    vec3 weights = pbrProjectionWeights(localNormal);
     return pbrNormalize(
-        pbrPerturbNormal(normal, worldDx, worldDy, pbrProjectionUv(0, localPosition, localNormal)) * weights.x +
-        pbrPerturbNormal(normal, worldDx, worldDy, pbrProjectionUv(1, localPosition, localNormal)) * weights.y +
-        pbrPerturbNormal(normal, worldDx, worldDy, pbrProjectionUv(2, localPosition, localNormal)) * weights.z,
+        pbrPerturbNormal(normal, worldDx, worldDy, coordinates.first) * coordinates.weights.x +
+        pbrPerturbNormal(normal, worldDx, worldDy, coordinates.second) * coordinates.weights.y +
+        pbrPerturbNormal(normal, worldDx, worldDy, coordinates.third) * coordinates.weights.z,
         normal);
 }

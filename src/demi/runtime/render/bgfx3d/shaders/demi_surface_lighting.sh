@@ -114,7 +114,9 @@ float compareShadowTap(int cascade, vec2 tap, float receiverDepth)
     if (u_shadowAtlas.w < 0.5)
         tile.y = u_shadowAtlas.y - 1.0 - tile.y;
     vec2 atlasUv = (tile + tap) / u_shadowAtlas.xy;
-    vec4 encoded = texture2D(s_shadowMap, atlasUv);
+    // Shadow targets have one mip level. Explicit LOD avoids requesting quad
+    // derivatives after cutout rejection, without changing their filtering.
+    vec4 encoded = texture2DLod(s_shadowMap, atlasUv, 0.0);
     float stored = dot(encoded, vec4(1.0, 1.0/255.0, 1.0/65025.0, 1.0/16581375.0));
     return step(receiverDepth, stored);
 }
@@ -236,22 +238,30 @@ void main()
     vec3 lightingNormal = receiverNormal;
     float occlusion = 1.0;
     vec3 emissive = vec3(0.0);
-    vec4 mappedAlbedo = pbrSampleMap(s_texColor, u_metalRough.w > 0.5, v_texcoord0, v_localPos, v_localNormal);
+    PbrSamplingCoordinates materialCoordinates = pbrSamplingCoordinates(
+        v_texcoord0, v_localPos, v_localNormal);
+    vec4 mappedAlbedo = pbrSampleMap(s_texColor, u_metalRough.w > 0.5, materialCoordinates);
     vec4 albedo = vec4(mappedAlbedo.rgb * decodeColor(u_tint.rgb) * decodeColor(v_color0.rgb),
                       mappedAlbedo.a * u_tint.a * v_color0.a);
-    // Coverage discards must not precede normal-frame derivatives or implicit
-    // texture LOD. Casting needs only albedo alpha; phase is draw-uniform.
+    // Derivatives were captured with the complete quad. Reject coverage before
+    // normal/scalar maps and lighting; later reads use explicit gradients.
+    if (albedo.a < u_alphaCutoff.x)
+    {
+        discard;
+    }
+    // Casting and depth capture need only the same albedo coverage.
+
     if (u_shadowConfig.x >= -0.5 && u_debugMode.x < 7.5)
     {
-        lightingNormal = pbrSurfaceNormal(receiverNormal, worldDx, worldDy, v_texcoord0, v_localPos, v_localNormal);
+        lightingNormal = pbrSurfaceNormal(receiverNormal, worldDx, worldDy, materialCoordinates);
         if (u_pbrMapFlags.y > 0.5)
-            surfaceParameters.y = pbrSampleMap(s_pbrRoughness, false, v_texcoord0, v_localPos, v_localNormal).r;
+            surfaceParameters.y = pbrSampleMap(s_pbrRoughness, false, materialCoordinates).r;
         if (u_pbrMapFlags.z > 0.5)
-            surfaceParameters.x = pbrSampleMap(s_pbrMetallic, false, v_texcoord0, v_localPos, v_localNormal).r;
+            surfaceParameters.x = pbrSampleMap(s_pbrMetallic, false, materialCoordinates).r;
         if (u_pbrMapFlags.w > 0.5)
-            occlusion = clamp(pbrSampleMap(s_pbrOcclusion, false, v_texcoord0, v_localPos, v_localNormal).r, 0.0, 1.0);
+            occlusion = clamp(pbrSampleMap(s_pbrOcclusion, false, materialCoordinates).r, 0.0, 1.0);
         if (u_pbrMapFlags2.y > 0.5)
-            emissive = pbrSampleMap(s_pbrEmissive, u_pbrMapFlags2.w > 0.5, v_texcoord0, v_localPos, v_localNormal).rgb;
+            emissive = pbrSampleMap(s_pbrEmissive, u_pbrMapFlags2.w > 0.5, materialCoordinates).rgb;
     }
 #else
     vec4 surfaceParameters = u_metalRough;
@@ -263,7 +273,7 @@ void main()
     vec4 albedo = vec4(imageColor * decodeColor(v_color0.rgb) * decodeColor(u_tint.rgb),
                       sampledAlbedo.a * v_color0.a * u_tint.a);
 #endif
-#ifndef DEMI_TERRAIN_OPAQUE
+#if !defined(DEMI_TERRAIN_OPAQUE) && !defined(DEMI_MESH_PBR)
     if (albedo.a < u_alphaCutoff.x)
     {
         discard;

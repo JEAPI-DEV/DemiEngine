@@ -113,6 +113,15 @@ parseMaterialAsset(const nlohmann::json &value,
               "Only material format_version 1 is supported.");
       return std::nullopt;
     }
+    for (const auto *field :
+         {"alpha_cutoff", "blend", "cull", "depth_test", "depth_write"}) {
+      if (document->contains(field)) {
+        invalid(diagnostics, path, "MATERIAL_RENDER_STATE_MISPLACED",
+                std::string("Material ") + field +
+                    " belongs inside render_state, not at the document root.");
+        return std::nullopt;
+      }
+    }
     material.shader = document->value("shader", "builtin://lit");
     material.fallback = document->value("fallback", "builtin://unlit");
     for (const auto *name : {"mapping", "normal_map_convention"}) {

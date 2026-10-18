@@ -27,6 +27,14 @@
 <tr><td><code>height</code></td><td>Linear red channel biases existing terrain layer weights through <code>height_blend_strength</code>. Ordinary mesh shaders do not sample it. It does not displace vertices or change collision.</td></tr>
 </tbody></table>
 <p>Color mipmaps average in linear light before returning to sRGB storage. Normal mipmaps renormalize averaged vectors; scalar maps average linear values. Color image variants use hardware sRGB decoding before bilinear and mip-level filtering; alpha remains linear. Scalar and normal variants do not decode their channels. Live scene RenderTargets contain display-sRGB in raw storage: color slots decode those contents once in the shader, after their existing raw texture filtering. A source used for different purposes can have separate GPU sampling variants, so interpreting a normal map does not change a UI texture using the same image.</p>
+<h3>Cutout foliage</h3>
+<p>For leaves, grass and other opaque silhouettes with transparent gaps, put <code>alpha_cutoff</code> inside <code>render_state</code>. It tests the albedo alpha in both the main view and shadow passes. A top-level cutoff is rejected with an actionable diagnostic. Use <code>cull: none</code> for cards that need both sides visible; keep back-face culling for closed solids with correct winding.</p>
+<pre><code>"render_state": {
+  "blend": "opaque",
+  "cull": "none",
+  "alpha_cutoff": 0.5
+}</code></pre>
+<p>Cutout coverage is evaluated before normal, roughness, metallic, occlusion and emissive shading. Texture gradients are captured before rejection so mip selection and normal mapping remain defined at silhouette edges. Dense foliage still needs suitable geometry LOD and view distances; alpha cutoff does not remove geometry processing or all overdraw.</p>
 <h3>Mapping and normal conventions</h3>
 <p><code>mapping</code> is <code>uv</code> by default and uses ordinary mesh texture coordinates; terrain uses its continuous local X/Z coordinates. <code>triplanar</code> projects onto three local surface axes and blends them by surface orientation, avoiding the stretched top-down projection on cliffs. <code>parameters.tiling</code> is positive, defaults to 1, and increases repetition when raised. In UV mode it multiplies the mesh UVs; in triplanar mode it specifies repeats per local surface unit. Transform scale therefore changes the world size of the pattern.</p>
 <p>Texture wrapping remains an import setting. Use <code>repeat</code> on tileable terrain maps; clamping a map intentionally stretches its edge outside its authored range. Triplanar projection does not make a non-tileable source seamless.</p>

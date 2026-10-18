@@ -6,7 +6,11 @@
 
 #include "fs_demi_directional_spv.h"
 #include "fs_demi_lit_spv.h"
+#include "fs_demi_pbr_directional_essl.h"
+#include "fs_demi_pbr_directional_glsl.h"
 #include "fs_demi_pbr_directional_spv.h"
+#include "fs_demi_pbr_essl.h"
+#include "fs_demi_pbr_glsl.h"
 #include "fs_demi_pbr_spv.h"
 #include "fs_demi_terrain_directional_spv.h"
 #include "fs_demi_terrain_mapped_directional_essl.h"
@@ -118,6 +122,50 @@ CompiledShaderInterface readCompiledShaderInterface(const Shader &shader) {
   return {std::move(samplers), bytes.subspan(cursor, codeSize)};
 }
 
+void requireEarlyPbrCoverage(const Shader &shader) {
+  const auto compiled = readCompiledShaderInterface(shader);
+  const std::string_view code(
+      reinterpret_cast<const char *>(compiled.code.data()),
+      compiled.code.size());
+  const auto coverageDiscard = code.find("discard");
+  if (coverageDiscard == std::string_view::npos) {
+    throw std::runtime_error(std::string(shader.name) +
+                             ": PBR alpha coverage is missing");
+  }
+  // Inspect the actual optimized production GLSL/ESSL, rather than a duplicate
+  // CPU shader. All expensive shading-map reads must follow coverage rejection.
+  for (const auto sampler :
+       {"s_pbrNormal", "s_pbrRoughness", "s_pbrMetallic", "s_pbrOcclusion",
+        "s_pbrDetailNormal", "s_pbrEmissive"}) {
+    const auto sampledUse = "(" + std::string(sampler) + ",";
+    const auto sample = code.find(sampledUse);
+    if (sample == std::string_view::npos || sample < coverageDiscard) {
+      throw std::runtime_error(
+          std::string(shader.name) +
+          ": shading map sampled before coverage: " + sampler);
+    }
+  }
+  // Derivatives evaluated after discard would depend on inactive quad lanes,
+  // breaking normal frames or mip selection at the cutout's visible edge.
+  if (code.find("dFdx", coverageDiscard) != std::string_view::npos ||
+      code.find("dFdy", coverageDiscard) != std::string_view::npos) {
+    throw std::runtime_error(
+        std::string(shader.name) +
+        ": derivatives evaluated after coverage rejection");
+  }
+  if (code.find("texture2D (", coverageDiscard) != std::string_view::npos ||
+      code.find("texture2D(", coverageDiscard) != std::string_view::npos) {
+    throw std::runtime_error(
+        std::string(shader.name) +
+        ": implicit texture LOD evaluated after coverage rejection");
+  }
+  if (code.find("texture2DGrad") == std::string_view::npos &&
+      code.find("textureGrad") == std::string_view::npos) {
+    throw std::runtime_error(std::string(shader.name) +
+                             ": explicit material gradients are missing");
+  }
+}
+
 void requireMappedArraySamplers(const Shader &shader) {
   const auto compiled = readCompiledShaderInterface(shader);
   constexpr std::array<std::string_view, 5> expected{
@@ -214,6 +262,16 @@ void requireOpaqueCoverage(const Shader &shader) {
 } // namespace
 
 int main() {
+  for (const auto &fragment :
+       {shader("pbr_glsl", fs_demi_pbr_glsl, ShaderCode::Glsl),
+        shader("pbr_essl", fs_demi_pbr_essl, ShaderCode::Glsl),
+        shader("pbr_directional_glsl", fs_demi_pbr_directional_glsl,
+               ShaderCode::Glsl),
+        shader("pbr_directional_essl", fs_demi_pbr_directional_essl,
+               ShaderCode::Glsl)}) {
+    requireEarlyPbrCoverage(fragment);
+  }
+
   for (const auto &compiled :
        {shader("water Vulkan", fs_demi_water_spv),
         shader("water OpenGL", fs_demi_water_glsl, ShaderCode::Glsl),
