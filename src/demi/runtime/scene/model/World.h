@@ -6,6 +6,7 @@
 #include "demi/runtime/physics/Physics3DTypes.h"
 #include "demi/runtime/scene/model/Entity.h"
 #include "demi/runtime/scene/EntityLookup.h"
+#include "demi/runtime/scene/EntityComponentQuery.h"
 #include "demi/runtime/ui/UiModel.h"
 #include "demi/runtime/ui/UiTweenSystem.h"
 #include "demi/runtime/ui/UiVirtualCollection.h"
@@ -82,6 +83,7 @@ struct World {
   std::unordered_map<std::string, std::unique_ptr<ui::UiVirtualRecycler>>
       uiVirtualRecyclers;
   std::vector<Entity> entities;
+  EntityComponentQuery componentQueries;
   std::vector<TerrainRuntimeOwner> terrainOwners;
   EntityLookup terrainEntityLookup;
   std::vector<DebugLine> debugLines;

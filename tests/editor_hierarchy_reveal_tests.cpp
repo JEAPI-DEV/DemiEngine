@@ -1,4 +1,7 @@
 #include "editor/EditorHierarchyPanel.h"
+#include "editor/EditorGameViewPanel.h"
+#include "demi/runtime/profiling/RuntimeProfiler.h"
+#include <ranges>
 #include "editor/EditorModuleCatalog.h"
 #include "editor/EditorWorkspace.h"
 #include <cstdlib>
@@ -186,6 +189,37 @@ void check(const fs::path &root) {
   require(workspace.hudDocument()->json() == hud,
           "Reveal added an authored Undo command");
 }
+void checkRuntimeClipping() {
+  demi::runtime::World world;
+  world.entities.resize(20000);
+  for (std::size_t index = 0; index < world.entities.size(); ++index) {
+    world.entities[index].id = "runtime-" + std::to_string(index);
+  }
+  std::string selected = world.entities.back().id;
+  demi::runtime::RuntimeProfiler::setEnabled(true);
+  const auto draw = [&] {
+    demi::runtime::RuntimeProfiler::beginFrame();
+    ImGui::NewFrame();
+    drawRuntimeHierarchy(world, {0, 0}, {340, 280}, selected, nullptr);
+    ImGui::Render();
+    require(ImGui::GetCurrentContext()->ErrorCountCurrentFrame == 0,
+            "Runtime hierarchy ImGui error");
+    const auto entries = demi::runtime::RuntimeProfiler::frameEntries();
+    const auto rows = std::ranges::find(entries, "Editor.runtime_hierarchy.rows",
+                                       &demi::runtime::RuntimeProfiler::Entry::name);
+    require(rows != entries.end() && rows->gauge > 0 && rows->gauge < 30,
+            "Runtime hierarchy submitted offscreen rows");
+    require(selected == world.entities.back().id,
+            "Runtime hierarchy changed the stable selection");
+  };
+  draw();
+  draw();
+  require(window().ScrollMax.y > 100000,
+          "Runtime clipping removed offscreen scroll content");
+  window().Scroll.y = window().ScrollMax.y;
+  draw();
+  demi::runtime::RuntimeProfiler::setEnabled(false);
+}
 } // namespace
 int main() {
   auto pattern =
@@ -210,6 +244,7 @@ int main() {
   io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
   try {
     check(root);
+    checkRuntimeClipping();
     ImGui::DestroyContext();
     fs::remove_all(root);
     std::cout << "Hierarchy reveal checks passed\n";

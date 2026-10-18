@@ -21,6 +21,7 @@
 #include "demi/runtime/scene/components/3dcomponents/Environment3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshInstances3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/SurfaceRelief3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/ParticleEmitter3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/Transform3DComponent.h"
@@ -502,8 +503,138 @@ int main() {
       assert(meshes[index].materialSection == 0);
       assert(meshes[index + 1].materialSection == 1);
     }
+
+    World orderedWorld;
+    orderedWorld.entities.push_back(shape("prepared-surface", "cube", {}));
+    auto &orderedEntity = orderedWorld.entities.front();
+    orderedEntity.setComponent(sections);
+    MeshInstancePreparation3D preparation;
+    const auto preparedCopies = [&](const MeshMaterialSections3D *terrain = nullptr) {
+      const auto &prepared = preparation.worldSources(orderedWorld).front();
+      std::vector<VisibleMesh3D> draws;
+      for (int index = 0; index < 3; ++index) {
+        for (std::size_t section = 0; section < 2; ++section) {
+          draws.push_back({.entity = &orderedEntity,
+                           .transform = {.position = {0, 0, float(index)}},
+                           .materialSection = section,
+                           .terrainSections = terrain,
+                           .preparedSource = &prepared});
+        }
+      }
+      return draws;
+    };
+    auto forwardDraws = preparedCopies();
+    assert(orderMeshSurfaces3D(forwardDraws, materials, {}, {0, 0, 1}) == 3);
+    assert(forwardDraws[3].transform.position.z == 2);
+    // A second camera shares classification, but computes its own depth order.
+    auto reverseDraws = preparedCopies();
+    assert(orderMeshSurfaces3D(reverseDraws, materials, {}, {0, 0, -1}) == 3);
+    assert(reverseDraws[3].transform.position.z == 0);
+
+    MeshMaterialSections3D terrainSections;
+    terrainSections.sections = {
+        {.id = "glass", .material = "asset://order/glass"}, {.id = "opaque"}};
+    auto terrainDraws = preparedCopies(&terrainSections);
+    assert(orderMeshSurfaces3D(terrainDraws, materials, {}, {0, 0, 1}) == 3);
+    assert(terrainDraws.front().materialSection == 1);
+    // A different selected terrain LOD must not inherit section-index decisions.
+    auto originalSections = preparedCopies();
+    assert(orderMeshSurfaces3D(originalSections, materials, {}, {0, 0, 1}) == 3);
+    assert(originalSections.front().materialSection == 0);
+
+    {
+      std::ofstream output(materialPath);
+      output << R"({"format_version":1,"render_state":{"blend":"opaque"}})";
+    }
+    diagnostics.clear();
+    assert(materials.load(registry, diagnostics));
+    preparation.reset();
+    auto editedMaterial = preparedCopies();
+    assert(orderMeshSurfaces3D(editedMaterial, materials, {}, {0, 0, 1}) == 6);
+
+    orderedEntity.setComponent(FragmentOpacity3D{.value = .5F});
+    preparation.reset();
+    auto fadedDraws = preparedCopies();
+    assert(orderMeshSurfaces3D(fadedDraws, materials, {}, {0, 0, 1}) == 0);
+    assert(fadedDraws.front().transform.position.z == 2);
+
+    orderedEntity.removeComponent<FragmentOpacity3D>();
+    preparation.reset();
+    const auto unsectionedDraw = [&] {
+      return std::vector<VisibleMesh3D>{
+          {.entity = &orderedEntity,
+           .preparedSource = &preparation.worldSources(orderedWorld).front()}};
+    };
+    auto opaqueDraw = unsectionedDraw();
+    assert(orderMeshSurfaces3D(opaqueDraw, materials, {}, {0, 0, 1}) == 1);
+    orderedEntity.component<MeshRendererComponent>()->surfaceMode = "transparent";
+    preparation.reset();
+    auto transparentDraw = unsectionedDraw();
+    assert(orderMeshSurfaces3D(transparentDraw, materials, {}, {0, 0, 1}) == 0);
   }
   auto commands = createBgfxRenderCommands(*resources);
+  {
+    World sparseWorld;
+    sparseWorld.entities.push_back(shape("sparse-mesh", "cube", {}));
+    Entity nonMesh;
+    nonMesh.id = "animation-without-mesh";
+    nonMesh.setComponent(AnimationPlayer3DComponent{});
+    sparseWorld.entities.push_back(std::move(nonMesh));
+    MeshInstancePreparation3D preparation;
+    const auto &initial = preparation.worldSources(sparseWorld);
+    assert(initial[0].plainPrimitive);
+    assert(!initial[1].animation);
+    assert(!preparation.hasAnimations(sparseWorld));
+
+    auto &entity = sparseWorld.entities.front();
+    entity.setComponent(MeshInstances3DComponent{});
+    entity.setComponent(MeshMaterialSections3D{});
+    entity.setComponent(TerrainRenderLod{});
+    entity.setComponent(AnimationPlayer3DComponent{});
+    entity.setComponent(FragmentOpacity3D{.value = .4F});
+    entity.setComponent(SurfaceRelief3DComponent{});
+    Dentable3DComponent dentable;
+    dentable.dents.push_back({.radius = 2});
+    entity.setComponent(std::move(dentable));
+    preparation.reset();
+    const auto &populated = preparation.worldSources(sparseWorld);
+    assert(populated.size() == 2);
+    assert(populated[0].instances && populated[0].sections && populated[0].terrain);
+    assert(populated[0].animation && populated[0].fade && populated[0].relief);
+    assert(populated[0].dents.size() == 1);
+    assert(populated[0].dents.front().radius == 2);
+    assert(!populated[0].plainPrimitive);
+    assert(preparation.hasAnimations(sparseWorld));
+
+    entity.component<FragmentOpacity3D>()->value = .8F;
+    entity.component<Dentable3DComponent>()->dents.front().radius = 3;
+    preparation.reset();
+    const auto &edited = preparation.worldSources(sparseWorld);
+    assert(edited[0].fade->value == .8F);
+    assert(edited[0].dents.front().radius == 3);
+
+    entity.removeComponent<MeshInstances3DComponent>();
+    entity.removeComponent<MeshMaterialSections3D>();
+    entity.removeComponent<TerrainRenderLod>();
+    entity.removeComponent<AnimationPlayer3DComponent>();
+    entity.removeComponent<FragmentOpacity3D>();
+    entity.removeComponent<SurfaceRelief3DComponent>();
+    entity.removeComponent<Dentable3DComponent>();
+    preparation.reset();
+    const auto &removed = preparation.worldSources(sparseWorld);
+    assert(!removed[0].instances && !removed[0].sections && !removed[0].terrain);
+    assert(!removed[0].animation && !removed[0].fade && !removed[0].relief);
+    assert(removed[0].dents.empty());
+    assert(removed[0].plainPrimitive);
+    assert(!preparation.hasAnimations(sparseWorld));
+
+    entity.removeComponent<MeshRendererComponent>();
+    preparation.reset();
+    assert(!preparation.worldSources(sparseWorld)[0].mesh);
+    entity.setComponent(MeshRendererComponent{});
+    preparation.reset();
+    assert(preparation.worldSources(sparseWorld)[0].mesh);
+  }
   {
     World cachedWorld;
     auto parent = shape("cached-parent", "cube", {1, 0, 5});
@@ -1882,8 +2013,8 @@ int main() {
     mesh->model = "asset://bounds/high";
     mesh->mediumLodModel = "asset://bounds/medium";
     MeshInstances3DComponent instances;
-    instances.transforms["visible"].position = {0, 0, 5};
-    instances.transforms["outside"].position = {100, 0, 5};
+    instances.setTransform("visible", {.position = {0, 0, 5}});
+    instances.setTransform("outside", {.position = {100, 0, 5}});
     owner.setComponent(instances);
     boundsWorld.entities.push_back(owner);
     BgfxCameraFrame3D boundsFrame;
@@ -1907,7 +2038,7 @@ int main() {
     // A reduced model can have larger bounds than its source. Their union
     // preserves visibility near a frustum edge regardless of selected tier.
     boundsWorld.entities.front().component<MeshInstances3DComponent>()
-        ->transforms["visible"].position.x = 3.F;
+        ->setTransform("visible", {.position = {3.F, 0, 5}});
     assert(extractVisibleMeshes3D(
         boundsWorld, boundsFrame, nullptr, nullptr, nullptr, nullptr, nullptr,
         nullptr, nullptr, resolver).meshes.size() == 1);
@@ -1973,9 +2104,9 @@ int main() {
     mesh->boundsMax = {0.5F, 0.5F, 0.5F};
 
     MeshInstances3DComponent instances;
-    instances.transforms["left"].position = {-101.0F, 0.0F, 0.0F};
-    instances.transforms["right"].position = {-99.0F, 0.0F, 0.0F};
-    instances.transforms["outside"].position = {100.0F, 0.0F, 0.0F};
+    instances.setTransform("left", {.position = {-101.0F, 0.0F, 0.0F}});
+    instances.setTransform("right", {.position = {-99.0F, 0.0F, 0.0F}});
+    instances.setTransform("outside", {.position = {100.0F, 0.0F, 0.0F}});
     owner.setComponent(instances);
     instanceWorld.entities.push_back(owner);
 
@@ -2005,7 +2136,7 @@ int main() {
 
     instanceWorld.entities.front()
         .component<MeshInstances3DComponent>()
-        ->transforms.clear();
+        ->clearTransforms();
     assert(extractVisibleMeshes3D(instanceWorld, frame).meshes.empty());
   }
   {

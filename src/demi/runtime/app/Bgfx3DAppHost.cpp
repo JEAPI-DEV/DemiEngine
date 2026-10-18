@@ -139,9 +139,11 @@ bool Bgfx3DAppHost::renderFrames(
     error = "The bgfx 3D application host is not initialized.";
     return false;
   }
-  const int samples=std::max(render::collectSceneLighting3D(world,{}).msaaSamples,1);
-  if (!context_.beginFrame(error,samples))
+  const int samples = std::max(
+      render::collectSceneLighting3D(world, {}, &lightingQuery_).msaaSamples, 1);
+  if (!context_.beginFrame(error, samples)) {
     return false;
+  }
   bool rendered = !cameras.empty();
   frameStatistics_.reset();
   frameExtractionMilliseconds_ = 0.0;

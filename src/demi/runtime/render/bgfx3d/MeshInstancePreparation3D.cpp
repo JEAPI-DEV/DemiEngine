@@ -3,6 +3,7 @@
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/scene/WorldTransformSnapshot3D.h"
 #include "demi/runtime/scene/components/3dcomponents/AnimationPlayer3DComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/Dentable3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshInstances3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/SurfaceRelief3DComponent.h"
@@ -64,26 +65,45 @@ MeshInstancePreparation3D::worldSources(const World &world) {
   ProfileScope prepareScope("Renderer3D.prepare_sources");
   const auto &transforms = transformSnapshot_.refresh(world);
   sources.clear();
-  sources.reserve(world.entities.size());
-  bool hasAnimation = false;
+  sources.resize(world.entities.size());
   for (std::size_t index = 0; index < world.entities.size(); ++index) {
-    const auto &entity = world.entities[index];
-    const auto *mesh = entity.component<MeshRendererComponent>();
-    EntitySource source{
-        .entity = &entity,
-        .mesh = mesh,
-        .instances = entity.component<MeshInstances3DComponent>(),
-        .sections = entity.component<MeshMaterialSections3D>(),
-        .terrain = entity.component<TerrainRenderLod>(),
-        .animation =
-            mesh ? entity.component<AnimationPlayer3DComponent>() : nullptr,
-        .fade = mesh ? entity.component<FragmentOpacity3D>() : nullptr,
-        .relief = mesh ? entity.component<SurfaceRelief3DComponent>() : nullptr,
-        .dents =
-            mesh ? entityMeshDents3D(entity) : std::span<const MeshDent3D>{},
-        .transform = transforms[index]};
+    sources[index].entity = &world.entities[index];
+    sources[index].transform = transforms[index];
+  }
+
+  // Membership survives presentations; borrowed pointers and values do not.
+  // Sparse components need lookups only on their actual owners.
+  const auto populateComponents = [&]<typename Component>(
+                                      const Component *EntitySource::*member,
+                                      bool requireMesh = false) {
+    const auto &indices =
+        sourceMembership_.queryAny<Component>(world.entities);
+    for (const auto index : indices) {
+      auto &source = sources[index];
+      if (!requireMesh || source.mesh) {
+        source.*member = world.entities[index].template component<Component>();
+      }
+    }
+  };
+  populateComponents(&EntitySource::mesh);
+  populateComponents(&EntitySource::instances);
+  populateComponents(&EntitySource::sections);
+  populateComponents(&EntitySource::terrain);
+  populateComponents(&EntitySource::animation, true);
+  populateComponents(&EntitySource::fade, true);
+  populateComponents(&EntitySource::relief, true);
+  for (const auto index :
+       sourceMembership_.queryAny<Dentable3DComponent>(world.entities)) {
+    auto &source = sources[index];
+    if (source.mesh) {
+      source.dents = world.entities[index].component<Dentable3DComponent>()->dents;
+    }
+  }
+
+  bool hasAnimation = false;
+  for (auto &source : sources) {
     hasAnimation |= source.animation != nullptr;
-    if (mesh) {
+    if (const auto *mesh = source.mesh) {
       const bool primitive = mesh->shape == "cube" || mesh->shape == "sphere" ||
                              mesh->shape == "cylinder" ||
                              mesh->shape == "plane";
@@ -97,7 +117,6 @@ MeshInstancePreparation3D::worldSources(const World &world) {
           !source.relief && !source.sections && !source.terrain &&
           source.dents.empty();
     }
-    sources.push_back(source);
   }
   animations_[&world] = hasAnimation;
   return sources;
@@ -114,25 +133,27 @@ MeshInstancePreparation3D::source(const World &world, const Entity &entity,
                                   const MeshInstances3DComponent &instances) {
   auto [entry, created] = sources_[&world].try_emplace(&entity);
   auto &prepared = entry->second;
-  if (!created && prepared.visited && prepared.component == &instances &&
-      prepared.copies.size() == instances.transforms.size() &&
+  if (!created && prepared.contentRevision == instances.contentRevision() &&
       sameTransform(prepared.owner, owner)) {
+    prepared.component = &instances;
+    prepared.visited = true;
     return prepared;
   }
   ProfileScope scope("Renderer3D.prepare_instance_copies");
   const bool ownerChanged = created || !sameTransform(prepared.owner, owner);
   prepared.owner = owner;
   prepared.component = &instances;
+  prepared.contentRevision = instances.contentRevision();
   prepared.visited = true;
   prepared.geometryPrepared = false;
   const auto oldCount = prepared.copies.size();
-  prepared.copies.resize(instances.transforms.size());
+  prepared.copies.resize(instances.transforms().size());
   const auto basis = transformBasis3D(owner);
   const auto &basisX = basis.right;
   const auto &basisY = basis.up;
   const auto &basisZ = basis.forward;
   std::size_t index = 0;
-  for (const auto &[id, local] : instances.transforms) {
+  for (const auto &[id, local] : instances.transforms()) {
     auto &copy = prepared.copies[index];
     const bool changed = ownerChanged || index >= oldCount ||
                          !sameTransform(copy.local, local);
@@ -146,9 +167,6 @@ MeshInstancePreparation3D::source(const World &world, const Entity &entity,
                               basisY.z * point.y + basisZ.z * point.z};
       copy = Copy{.local = local, .position = position};
     }
-    // Bounds also depend on current model/material data. Recompute those each
-    // presentation; unchanged transform/matrix values are safe to retain.
-    copy.bounds.reset();
     ++index;
   }
   return prepared;

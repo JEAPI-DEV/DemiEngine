@@ -28,6 +28,9 @@ public:
                            std::string &error, const std::string &sceneId = {});
   void stop();
   void setPaused(bool paused);
+  // Hosts may begin profiling before drawing their UI. The next update/step
+  // consumes this frame instead of discarding those earlier measurements.
+  void beginProfilerFrame();
   [[nodiscard]] bool update(InputState input, float deltaSeconds,
                             std::uint16_t viewportWidth,
                             std::uint16_t viewportHeight, std::string &error);

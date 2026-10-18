@@ -190,9 +190,10 @@ int main(const int argc, char **argv) {
       ui->acknowledgeCloseRequest();
     }
     const auto frameStarted = std::chrono::steady_clock::now();
-    const bool profileAuthoring =
-        profile.is_open() && !shell.playSession().isEmbedded();
-    if (profileAuthoring) {
+    const bool embeddedFrame = shell.playSession().isEmbedded();
+    if (embeddedFrame) {
+      shell.playSession().beginProfilerFrame();
+    } else if (profile.is_open()) {
       demi::runtime::RuntimeProfiler::setEnabled(true);
       demi::runtime::RuntimeProfiler::beginFrame();
     }
@@ -228,10 +229,14 @@ int main(const int argc, char **argv) {
     }
     shell.setGameTextureIndex(ui->gameTextureIndex());
     shell.playSession().setGpuTiming(ui->gpuTimingSample());
+    const auto uiStarted = std::chrono::steady_clock::now();
     {
       demi::runtime::ProfileScope scope("Editor.ui");
       shell.draw(ui->width(), ui->height(), ui->rendererName());
     }
+    const double uiMilliseconds = std::chrono::duration<double, std::milli>(
+                                      std::chrono::steady_clock::now() - uiStarted)
+                                      .count();
     if (shell.playSession().isEmbedded() && !gameRendererReady) {
       gameRendererReady = ui->configureGameRenderer(
           workspace.project().project.projectDirectory, error);
@@ -246,15 +251,22 @@ int main(const int argc, char **argv) {
           ui->gameInput(area, shell.gameViewFocused());
       const std::uint16_t gameWidth = area.width == 0 ? 960 : area.width;
       const std::uint16_t gameHeight = area.height == 0 ? 540 : area.height;
+      const bool stepRequested = shell.takeStepRequest();
       const bool advanced =
-          shell.takeStepRequest()
+          stepRequested
               ? shell.playSession().step(std::move(gameInput), gameWidth,
                                          gameHeight, error)
               : shell.playSession().update(std::move(gameInput),
                                            ui->deltaSeconds(), gameWidth,
                                            gameHeight, error);
-      if (!advanced)
+      if (!advanced) {
         shell.setNotice("Play session failed: " + error);
+      }
+      if (!embeddedFrame) {
+        // Starting Play during UI dispatch creates its first profiler frame.
+        // Preserve the UI cost that preceded that transition.
+        demi::runtime::RuntimeProfiler::record("Editor.ui", uiMilliseconds);
+      }
     }
     const bool gameOwnsPointer = shell.showingGameView() &&
                                  shell.gameViewFocused() &&
@@ -314,7 +326,10 @@ int main(const int argc, char **argv) {
       ui->releaseGameRenderer();
       gameRendererReady = false;
     }
-    if (profileAuthoring && !shell.playSession().isEmbedded()) {
+    if (profile.is_open()) {
+      demi::runtime::RuntimeProfiler::setEnabled(true);
+      demi::runtime::RuntimeProfiler::setGauge(
+          "Editor.playing", shell.playSession().isEmbedded() ? 1.0 : 0.0);
       demi::runtime::RuntimeProfiler::record(
           "Editor.frame", std::chrono::duration<double, std::milli>(
                               std::chrono::steady_clock::now() - frameStarted)

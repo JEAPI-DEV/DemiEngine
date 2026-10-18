@@ -5,6 +5,7 @@
 #include "demi/runtime/camera/CameraRenderScheduler3D.h"
 #include "demi/runtime/render/BgfxRenderer3D.h"
 #include "demi/runtime/render/RenderStatistics.h"
+#include "demi/runtime/scene/EntityComponentQuery.h"
 
 #include <memory>
 #include <span>
@@ -67,6 +68,7 @@ private:
   BgfxAppContext context_;
   std::unique_ptr<RendererOwner> renderer_;
   CameraRenderScheduler3D cameraScheduler_;
+  EntityComponentQuery lightingQuery_;
   RenderStatistics frameStatistics_;
   double frameExtractionMilliseconds_ = 0.0;
 };

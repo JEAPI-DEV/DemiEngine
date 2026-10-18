@@ -7,6 +7,10 @@
 #include <string_view>
 #include <vector>
 
+namespace demi::runtime {
+class EntityComponentQuery;
+}
+
 namespace demi::runtime::render {
 
 enum class SceneLightKind3D { Point, Spot, Directional };
@@ -51,6 +55,7 @@ struct SceneLighting3D {
 };
 
 [[nodiscard]] SceneLighting3D
-collectSceneLighting3D(const World &world, std::string_view renderMask);
+collectSceneLighting3D(const World &world, std::string_view renderMask,
+                       EntityComponentQuery *query = nullptr);
 
 } // namespace demi::runtime::render

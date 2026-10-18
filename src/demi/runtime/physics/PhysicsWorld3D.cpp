@@ -671,7 +671,11 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
 
   {
     ProfileScope scope("Physics3D.sync_bodies");
-    for (Entity &entity : world.entities) {
+    for (const auto entityIndex : world.componentQueries.queryAny<
+             BoxCollider3DComponent, SphereCollider3DComponent,
+             CapsuleCollider3DComponent, ConvexCollider3DComponent,
+             ModelCollider3DComponent, Destructible3DComponent>(world.entities)) {
+      Entity &entity = world.entities[entityIndex];
       const bool needsDestructionWorld =
           !world.destruction3D && entity.enabled &&
           entity.hasComponent<Destructible3DComponent>();
@@ -975,7 +979,10 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
   std::vector<PhysicsContact3D> characterContacts;
   {
     ProfileScope scope("Physics3D.update_characters");
-    for (Entity &entity : world.entities) {
+    for (const auto entityIndex :
+         world.componentQueries.queryAny<CharacterController3DComponent>(
+             world.entities)) {
+      Entity &entity = world.entities[entityIndex];
       auto *transform = entity.component<Transform3DComponent>();
       auto *controller = entity.component<CharacterController3DComponent>();
       if (!entity.enabled || transform == nullptr || controller == nullptr)

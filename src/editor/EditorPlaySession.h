@@ -43,6 +43,7 @@ public:
   [[nodiscard]] bool update(runtime::InputState input, float deltaSeconds,
                             std::uint16_t width, std::uint16_t height,
                             std::string &error);
+  void beginProfilerFrame();
   void reportFailure(std::string message);
   void stop();
 

@@ -1,8 +1,10 @@
 #pragma once
 
 #include <any>
+#include <atomic>
 #include <concepts>
 #include <cstddef>
+#include <cstdint>
 #include <type_traits>
 #include <typeindex>
 #include <unordered_map>
@@ -12,6 +14,46 @@ namespace demi::runtime {
 
 class ComponentStorage {
 public:
+  ComponentStorage() = default;
+
+  ~ComponentStorage() {
+    // Even an empty observed slot may be reconstructed in the same allocation.
+    invalidateMembership();
+  }
+
+  ComponentStorage(const ComponentStorage &other)
+      : components_(other.components_) {}
+
+  ComponentStorage(ComponentStorage &&other) noexcept
+      : components_(std::move(other.components_)) {
+    other.invalidateMembership();
+  }
+
+  ComponentStorage &operator=(const ComponentStorage &other) {
+    if (this != &other) {
+      invalidateMembership();
+      components_ = other.components_;
+    }
+    return *this;
+  }
+
+  ComponentStorage &operator=(ComponentStorage &&other) noexcept {
+    if (this != &other) {
+      invalidateMembership();
+      other.invalidateMembership();
+      components_ = std::move(other.components_);
+    }
+    return *this;
+  }
+
+  [[nodiscard]] static std::uint64_t membershipEpoch() noexcept {
+    return membershipEpoch_.load(std::memory_order_relaxed);
+  }
+
+  // Query scans observe every slot, including entities with no matching type.
+  // Standalone parser/default-value temporaries do not invalidate live queries.
+  void observeMembership() const noexcept { membershipObserved_ = true; }
+
   template <typename ComponentType> [[nodiscard]] bool contains() const {
     return components_.contains(typeKey<ComponentType>());
   }
@@ -38,17 +80,39 @@ public:
     auto [iterator, inserted] = components_.insert_or_assign(
         typeKey<StoredType>(),
         StoredType(std::forward<ComponentType>(component)));
-    (void)inserted;
+    if (inserted) {
+      invalidateMembership();
+    }
     return *std::any_cast<StoredType>(&iterator->second);
   }
 
   template <typename ComponentType> bool remove() {
-    return components_.erase(typeKey<ComponentType>()) != 0;
+    const bool removed = components_.erase(typeKey<ComponentType>()) != 0;
+    if (removed) {
+      invalidateMembership();
+    }
+    return removed;
   }
 
-  void clear() { components_.clear(); }
+  void clear() {
+    if (!components_.empty()) {
+      components_.clear();
+      invalidateMembership();
+    }
+  }
 
 private:
+  // Membership can change through public entity storage, vector replacement or
+  // reordering. A shared epoch makes those mutations visible to world queries.
+  void invalidateMembership() const noexcept {
+    if (membershipObserved_) {
+      membershipEpoch_.fetch_add(1, std::memory_order_relaxed);
+    }
+  }
+
+  mutable bool membershipObserved_ = false;
+  inline static std::atomic<std::uint64_t> membershipEpoch_{1};
+
   struct TypeKey {
     explicit TypeKey(std::type_index componentType)
         : type(componentType), hash(componentType.hash_code()) {}

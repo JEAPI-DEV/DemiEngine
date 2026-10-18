@@ -1,5 +1,6 @@
 #include "demi/runtime/physics/ColliderAsset3D.h"
 #include "demi/runtime/render/bgfx3d/DebugGeometry3D.h"
+#include "demi/runtime/scene/EntityComponentQuery.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
 #include "demi/runtime/scene/model/World.h"
 
@@ -202,5 +203,47 @@ int main() {
   assert(buildDebugGeometry3D(overlayWorld, {.cameras = true}).size() == 8U);
   assert(buildDebugGeometry3D(overlayWorld, {.lights = true, .cameras = true})
              .size() == 3U + 3U * 24U + 8U);
+  EntityComponentQuery query;
+  World cachedWorld;
+  Entity first = transformedEntity("first", {10, 0, 0});
+  first.setComponent(BoxCollider3DComponent{});
+  first.setComponent(PointLightComponent{});
+  cachedWorld.entities.push_back(std::move(first));
+  Entity second = transformedEntity("second", {20, 0, 0});
+  second.setComponent(CapsuleCollider3DComponent{});
+  cachedWorld.entities.push_back(std::move(second));
+  assert(buildDebugGeometry3D(cachedWorld, {}, &query).empty());
+  cachedWorld.entities[1].component<CapsuleCollider3DComponent>()->debugVisible = true;
+  assert(buildDebugGeometry3D(cachedWorld, {}, &query).size() == 100);
+  cachedWorld.debug.colliders = true;
+  const DebugGeometry3DRequest allOverlays{
+      .bounds = true, .lights = true, .cameras = true};
+  auto combined = buildDebugGeometry3D(cachedWorld, allOverlays, &query);
+  auto expected = buildDebugGeometry3D(cachedWorld, allOverlays);
+  assert(combined.size() == 75 + 12 + 100);
+  assert(combined.size() == expected.size());
+  for (std::size_t index = 0; index < combined.size(); ++index) {
+    assert(close(combined[index].start.x, expected[index].start.x));
+    assert(close(combined[index].start.y, expected[index].start.y));
+    assert(close(combined[index].start.z, expected[index].start.z));
+    assert(close(combined[index].end.x, expected[index].end.x));
+    assert(close(combined[index].end.y, expected[index].end.y));
+    assert(close(combined[index].end.z, expected[index].end.z));
+  }
+  // Multiple selected components draw once, in entity order and then light,
+  // camera, bounds, collider order within each entity.
+  assert(close(combined.front().start.x, 9.7F));
+  assert(close(combined[75].start.x, 9.5F));
+  cachedWorld.entities[0].removeComponent<BoxCollider3DComponent>();
+  cachedWorld.entities[0].removeComponent<PointLightComponent>();
+  assert(buildDebugGeometry3D(cachedWorld, allOverlays, &query).size() == 100);
+  cachedWorld.entities[0].setComponent(SphereCollider3DComponent{});
+  assert(buildDebugGeometry3D(cachedWorld, {}, &query).size() == 72 + 100);
+  cachedWorld.debug.colliders = false;
+  assert(buildDebugGeometry3D(cachedWorld, {}, &query).size() == 100);
+  cachedWorld.entities[1].enabled = false;
+  assert(buildDebugGeometry3D(cachedWorld, {}, &query).empty());
+  cachedWorld.debug.grid = true;
+  assert(buildDebugGeometry3D(cachedWorld, {}, &query).size() == 82);
   return 0;
 }

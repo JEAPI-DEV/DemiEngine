@@ -3,6 +3,7 @@
 #include "demi/runtime/geometry/MeshDeformation3D.h"
 #include "demi/runtime/render/bgfx3d/MeshBounds3D.h"
 #include "demi/runtime/scene/WorldTransformSnapshot3D.h"
+#include "demi/runtime/scene/EntityComponentQuery.h"
 #include <array>
 #include <optional>
 #include <unordered_map>
@@ -44,6 +45,7 @@ public:
   struct Source {
     WorldTransform3D owner;
     const MeshInstances3DComponent *component = nullptr;
+    std::uint64_t contentRevision = 0;
     std::vector<Copy> copies;
     bool visited = false;
     bool geometryPrepared = false;
@@ -55,6 +57,10 @@ public:
   };
 
   struct EntitySource {
+    struct SectionTransparency {
+      const MeshMaterialSections3D *sections = nullptr;
+      std::vector<std::optional<bool>> transparent;
+    };
     const Entity *entity = nullptr;
     const MeshRendererComponent *mesh = nullptr;
     const MeshInstances3DComponent *instances = nullptr;
@@ -70,6 +76,10 @@ public:
     bool bounded = false;
     Sphere bounds;
     std::optional<std::array<float, 16>> modelMatrix;
+    // Surface classification is camera-independent. These values expire with
+    // this presentation's source pointers; terrain LODs have distinct sections.
+    mutable std::optional<bool> transparent;
+    mutable std::vector<SectionTransparency> sectionTransparency;
   };
 
   // Immutable source preparation is shared by camera, shadow and depth views.
@@ -84,6 +94,7 @@ public:
 
 private:
   WorldTransformSnapshot3D transformSnapshot_;
+  EntityComponentQuery sourceMembership_;
   // Reset invalidates all values, but keeps the previous presentation's vector
   // storage for reuse. These empty vectors contain no borrowed world pointers.
   std::vector<std::vector<EntitySource>> spareWorldSources_;

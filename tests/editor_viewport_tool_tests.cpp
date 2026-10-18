@@ -179,7 +179,7 @@ int main() {
     runtime::World instanceWorld;
     auto owner = cube("instances", 20.0F);
     runtime::MeshInstances3DComponent instances;
-    instances.transforms["center"].position = {-20.0F, 0.0F, 0.0F};
+    instances.setTransform("center", {.position = {-20.0F, 0.0F, 0.0F}});
     owner.setComponent(instances);
     instanceWorld.entities.push_back(owner);
     assert(editor::pickSceneEntity3D(instanceWorld, sceneView.camera(),
@@ -187,7 +187,7 @@ int main() {
                                      viewport) == "instances");
     instanceWorld.entities.front()
         .component<runtime::MeshInstances3DComponent>()
-        ->transforms.clear();
+        ->clearTransforms();
     assert(!editor::pickSceneEntity3D(instanceWorld, sceneView.camera(),
                                       {400.0F, 300.0F}, viewport));
   }

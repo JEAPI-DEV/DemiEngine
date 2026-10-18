@@ -158,3 +158,8 @@ so it remains unsuitable for an exact speedup ratio.
 Evidence: `/tmp/terrain-navigation-verified.csv`,
 `/tmp/viewport-navigation-verified.log`, and
 `/tmp/terrain-navigation-verified-{before,after}.png`.
+
+The later [Game View performance investigation](terrain-game-view-performance.md)
+records shared membership queries, revisioned instance input, runtime hierarchy
+clipping and removal of empty debug/text transform traversals. Its final embedded
+comparison remains pending desktop input access.

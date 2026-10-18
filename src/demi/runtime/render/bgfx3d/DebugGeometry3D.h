@@ -6,7 +6,8 @@
 
 namespace demi::runtime {
 struct World;
-}
+class EntityComponentQuery;
+} // namespace demi::runtime
 
 namespace demi::runtime::render {
 
@@ -29,10 +30,12 @@ struct DebugGeometry3DRequest {
 // resolved transforms used by PhysicsWorld3D. Keeping extraction separate from
 // GPU submission makes shape/transform regressions testable without a backend.
 [[nodiscard]] std::vector<DebugLine3D>
-buildDebugGeometry3D(const World &world, DebugGeometry3DRequest request = {});
+buildDebugGeometry3D(const World &world, DebugGeometry3DRequest request = {},
+                     EntityComponentQuery *query = nullptr);
 
 [[nodiscard]] bool appendDebugGeometry3D(const World &world,
                                          PrimitiveCanvas3D &canvas,
-                                         DebugGeometry3DRequest request = {});
+                                         DebugGeometry3DRequest request = {},
+                                         EntityComponentQuery *query = nullptr);
 
 } // namespace demi::runtime::render

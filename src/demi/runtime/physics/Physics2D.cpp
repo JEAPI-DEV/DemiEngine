@@ -97,8 +97,11 @@ bool samePresentationRotation(const float left, const float right) {
 
 void beginPhysicsPresentationStep2D(World &world) {
   std::unordered_set<std::string> liveEntityIds;
-  liveEntityIds.reserve(world.entities.size());
-  for (const Entity &entity : world.entities) {
+  liveEntityIds.reserve(
+      world.componentQueries.queryAny<Transform2DComponent>(world.entities).size());
+  for (const auto entityIndex :
+       world.componentQueries.queryAny<Transform2DComponent>(world.entities)) {
+    const Entity &entity = world.entities[entityIndex];
     const auto *transform = entity.component<Transform2DComponent>();
     if (!entity.enabled || transform == nullptr ||
         (!entity.hasComponent<Rigidbody2DComponent>() &&
@@ -134,7 +137,9 @@ void beginPhysicsPresentationStep2D(World &world) {
 }
 
 void finishPhysicsPresentationStep2D(World &world) {
-  for (const Entity &entity : world.entities) {
+  for (const auto entityIndex :
+       world.componentQueries.queryAny<Transform2DComponent>(world.entities)) {
+    const Entity &entity = world.entities[entityIndex];
     const auto *transform = entity.component<Transform2DComponent>();
     if (!entity.enabled || transform == nullptr)
       continue;
@@ -364,9 +369,11 @@ void stepPhysics2D(World &world, const float fixedDt,
   };
 
   std::unordered_set<std::string> liveEntityIds;
-  liveEntityIds.reserve(world.entities.size());
+  liveEntityIds.reserve(
+      world.componentQueries.queryAny<Transform2DComponent>(world.entities).size());
   std::unordered_map<const b2Body *, Entity *> entitiesByBody;
-  entitiesByBody.reserve(world.entities.size());
+  entitiesByBody.reserve(
+      world.componentQueries.queryAny<Transform2DComponent>(world.entities).size());
 
   auto createFixtures = [&](Entity &entity, b2Body *body) {
     const Transform2DComponent &transform =
@@ -540,7 +547,9 @@ void stepPhysics2D(World &world, const float fixedDt,
 
   {
     ProfileScope scope("Physics2D.sync_bodies");
-    for (Entity &entity : world.entities) {
+    for (const auto entityIndex :
+         world.componentQueries.queryAny<Transform2DComponent>(world.entities)) {
+      Entity &entity = world.entities[entityIndex];
       if (!entity.enabled)
         continue;
     if (!entity.hasComponent<Transform2DComponent>())
@@ -657,7 +666,9 @@ void stepPhysics2D(World &world, const float fixedDt,
   {
     ProfileScope scope("Physics2D.sync_joints");
     std::vector<b2DistanceJointDef> jointDefs;
-    for (const Entity &entity : world.entities) {
+    for (const auto entityIndex :
+         world.componentQueries.queryAny<DistanceJoint2DComponent>(world.entities)) {
+      const Entity &entity = world.entities[entityIndex];
       const auto *joint = entity.component<DistanceJoint2DComponent>();
     if (joint == nullptr)
       continue;
@@ -684,7 +695,9 @@ void stepPhysics2D(World &world, const float fixedDt,
   for (b2DistanceJointDef &definition : jointDefs) {
     state.joints.push_back(physicsWorld.CreateJoint(&definition));
   }
-  for (const Entity &entity : world.entities) {
+  for (const auto entityIndex :
+       world.componentQueries.queryAny<Joint2DComponent>(world.entities)) {
+    const Entity &entity = world.entities[entityIndex];
     const auto *joint = entity.component<Joint2DComponent>();
     if (joint == nullptr)
       continue;
@@ -848,7 +861,9 @@ void stepPhysics2D(World &world, const float fixedDt,
 
   {
     ProfileScope scope("Physics2D.sync_components");
-    for (Entity &entity : world.entities) {
+    for (const auto entityIndex :
+         world.componentQueries.queryAny<Transform2DComponent>(world.entities)) {
+      Entity &entity = world.entities[entityIndex];
       if (!entity.enabled)
         continue;
     if (!entity.hasComponent<Transform2DComponent>())
@@ -872,7 +887,9 @@ void stepPhysics2D(World &world, const float fixedDt,
     }
   }
 #else
-  for (Entity &entity : world.entities) {
+  for (const auto entityIndex :
+       world.componentQueries.queryAny<Transform2DComponent>(world.entities)) {
+    Entity &entity = world.entities[entityIndex];
     if (!entity.enabled || !isDynamic(entity) ||
         !entity.hasComponent<Transform2DComponent>()) {
       continue;

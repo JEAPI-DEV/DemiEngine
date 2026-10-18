@@ -35,6 +35,7 @@
 #include "demi/runtime/render/bgfx3d/UnderwaterCamera3D.h"
 #include "demi/runtime/render/bgfx3d/VisualAnimationBudget3D.h"
 #include "demi/runtime/scene/model/World.h"
+#include "demi/runtime/scene/EntityComponentQuery.h"
 #include "demi/runtime/terrain/TerrainLodResidency.h"
 
 #include <chrono>
@@ -239,6 +240,7 @@ private:
   UniformHandle alphaCutoffUniform_;
   UniformHandle debugModeUniform_;
   MeshInstancePreparation3D instancePreparation_;
+  EntityComponentQuery entityQueries_;
   PrimitiveSurfacePreparation3D primitiveSurfaces_;
   UniformHandle viewPositionUniform_;
   UniformHandle metalRoughUniform_;

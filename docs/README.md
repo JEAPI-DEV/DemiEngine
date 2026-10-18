@@ -7,6 +7,9 @@ are registered in `tools/package-store/src/Docs.php`.
 
 This directory keeps material that has a different job:
 
+- [Dense-terrain Game View performance](terrain-game-view-performance.md) records
+  simulation membership queries, revisioned instance inputs, clipped runtime
+  hierarchy rows and embedded Play profiling.
 - [Dense-terrain viewport navigation](editor-viewport-navigation-qualification.md)
   records presentation-local render preparation, dedicated instance buffers,
   retained hierarchy rows and navigation performance checks.

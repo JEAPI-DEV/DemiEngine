@@ -1,6 +1,8 @@
 #include "demi/runtime/render/bgfx3d/DebugGeometry3D.h"
 
 #include "demi/runtime/physics/ColliderAsset3D.h"
+#include "demi/runtime/profiling/RuntimeProfiler.h"
+#include "demi/runtime/scene/EntityComponentQuery.h"
 #include "demi/runtime/render/bgfx2d/ColorPacking2D.h"
 #include "demi/runtime/render/bgfx3d/PrimitiveCanvas3D.h"
 #include "demi/runtime/scene/Transform3DHierarchy.h"
@@ -287,7 +289,9 @@ void addCamera(std::vector<DebugLine3D> &lines, const Camera3DComponent &camera,
 } // namespace
 
 std::vector<DebugLine3D>
-buildDebugGeometry3D(const World &world, const DebugGeometry3DRequest request) {
+buildDebugGeometry3D(const World &world, const DebugGeometry3DRequest request,
+                     EntityComponentQuery *query) {
+  ProfileScope scope("Renderer3D.debug_geometry");
   std::vector<DebugLine3D> lines;
   if (world.debug.grid) {
     constexpr int HalfExtent = 20;
@@ -300,39 +304,88 @@ buildDebugGeometry3D(const World &world, const DebugGeometry3DRequest request) {
               {HalfExtent, Height, static_cast<float>(coordinate)}, GridColor);
     }
   }
-  for (const Entity &entity : world.entities) {
-    if (!entity.enabled)
+  EntityComponentQuery uncached;
+  auto &membership = query ? *query : uncached;
+  const bool allColliders = request.forceColliders || world.debug.colliders;
+  std::vector<std::size_t> candidates;
+  const auto appendCandidates = [&](const std::vector<std::size_t> &indices) {
+    candidates.insert(candidates.end(), indices.begin(), indices.end());
+  };
+  if (allColliders) {
+    appendCandidates(
+        membership
+            .queryAny<BoxCollider3DComponent, SphereCollider3DComponent,
+                      CapsuleCollider3DComponent, ConvexCollider3DComponent,
+                      ModelCollider3DComponent>(world.entities));
+  } else {
+    appendCandidates(
+        membership.queryAny<CapsuleCollider3DComponent,
+                            ConvexCollider3DComponent>(world.entities));
+  }
+  if (request.lights) {
+    appendCandidates(
+        membership.queryAny<DirectionalLightComponent, PointLightComponent,
+                            SpotLightComponent>(world.entities));
+  }
+  if (request.cameras) {
+    appendCandidates(membership.queryAny<Camera3DComponent>(world.entities));
+  }
+  if (request.bounds) {
+    appendCandidates(
+        membership.queryAny<MeshRendererComponent>(world.entities));
+  }
+  std::ranges::sort(candidates);
+  candidates.erase(std::unique(candidates.begin(), candidates.end()),
+                   candidates.end());
+  for (const auto index : candidates) {
+    const Entity &entity = world.entities[index];
+    if (!entity.enabled) {
       continue;
-    const auto transform = resolveWorldTransform3D(world, entity);
-    if (!transform)
-      continue;
-    if (request.lights && (entity.hasComponent<DirectionalLightComponent>() ||
+    }
+    const bool drawCollider =
+        allColliders ? entity.hasComponent<BoxCollider3DComponent>() ||
+                           entity.hasComponent<SphereCollider3DComponent>() ||
+                           entity.hasComponent<CapsuleCollider3DComponent>() ||
+                           entity.hasComponent<ConvexCollider3DComponent>() ||
+                           entity.hasComponent<ModelCollider3DComponent>()
+                     : individuallyVisible(entity);
+    const bool drawLight =
+        request.lights && (entity.hasComponent<DirectionalLightComponent>() ||
                            entity.hasComponent<PointLightComponent>() ||
-                           entity.hasComponent<SpotLightComponent>()))
-      addLight(lines, entity, *transform);
-    if (request.cameras) {
-      if (const auto *camera = entity.component<Camera3DComponent>())
-        addCamera(lines, *camera, *transform);
-    }
-    if (request.bounds) {
-      if (const auto *mesh = entity.component<MeshRendererComponent>()) {
-        const Vec3 minimum =
-            mesh->hasBounds ? mesh->boundsMin : Vec3{-0.5F, -0.5F, -0.5F};
-        const Vec3 maximum =
-            mesh->hasBounds ? mesh->boundsMax : Vec3{0.5F, 0.5F, 0.5F};
-        const Vec3 size{(maximum.x - minimum.x) * mesh->size.x,
-                        (maximum.y - minimum.y) * mesh->size.y,
-                        (maximum.z - minimum.z) * mesh->size.z};
-        const Vec3 offset{(minimum.x + maximum.x) * 0.5F * mesh->size.x,
-                          (minimum.y + maximum.y) * 0.5F * mesh->size.y,
-                          (minimum.z + maximum.z) * 0.5F * mesh->size.z};
-        addBox(lines, *transform, {.size = size, .offset = offset},
-               BoundsColor);
-      }
-    }
-    if (!request.forceColliders && !world.debug.colliders &&
-        !individuallyVisible(entity))
+                           entity.hasComponent<SpotLightComponent>());
+    const auto *camera =
+        request.cameras ? entity.component<Camera3DComponent>() : nullptr;
+    const auto *mesh =
+        request.bounds ? entity.component<MeshRendererComponent>() : nullptr;
+    if (!drawCollider && !drawLight && !camera && !mesh) {
       continue;
+    }
+    const auto transform = resolveWorldTransform3D(world, entity);
+    if (!transform) {
+      continue;
+    }
+    if (drawLight) {
+      addLight(lines, entity, *transform);
+    }
+    if (camera) {
+      addCamera(lines, *camera, *transform);
+    }
+    if (mesh) {
+      const Vec3 minimum =
+          mesh->hasBounds ? mesh->boundsMin : Vec3{-0.5F, -0.5F, -0.5F};
+      const Vec3 maximum =
+          mesh->hasBounds ? mesh->boundsMax : Vec3{0.5F, 0.5F, 0.5F};
+      const Vec3 size{(maximum.x - minimum.x) * mesh->size.x,
+                      (maximum.y - minimum.y) * mesh->size.y,
+                      (maximum.z - minimum.z) * mesh->size.z};
+      const Vec3 offset{(minimum.x + maximum.x) * 0.5F * mesh->size.x,
+                        (minimum.y + maximum.y) * 0.5F * mesh->size.y,
+                        (minimum.z + maximum.z) * 0.5F * mesh->size.z};
+      addBox(lines, *transform, {.size = size, .offset = offset}, BoundsColor);
+    }
+    if (!drawCollider) {
+      continue;
+    }
     const Color color =
         isTrigger(entity) ? TriggerColliderColor : SolidColliderColor;
     if (const auto *sphere = entity.component<SphereCollider3DComponent>()) {
@@ -365,8 +418,9 @@ buildDebugGeometry3D(const World &world, const DebugGeometry3DRequest request) {
 }
 
 bool appendDebugGeometry3D(const World &world, PrimitiveCanvas3D &canvas,
-                           const DebugGeometry3DRequest request) {
-  for (const DebugLine3D &line : buildDebugGeometry3D(world, request))
+                           const DebugGeometry3DRequest request,
+                           EntityComponentQuery *query) {
+  for (const DebugLine3D &line : buildDebugGeometry3D(world, request, query))
     if (!canvas.line(line.start, line.end, packVertexColorRgba8(line.color)))
       return false;
   return true;

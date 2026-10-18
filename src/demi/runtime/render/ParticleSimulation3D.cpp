@@ -69,9 +69,10 @@ Vec3 emissionOffset(const ParticleEmitter3DComponent &emitter,
 void ParticleSimulation3D::update(const World &world, const float deltaTime) {
   const float step = std::max(deltaTime, 0.0F);
   std::unordered_set<std::string> liveEmitters;
-  for (const Entity &entity : world.entities) {
-    if (!entity.enabled || !entity.hasComponent<ParticleEmitter3DComponent>() ||
-        !entity.hasComponent<Transform3DComponent>())
+  for (const auto index :
+       emitterMembership_.queryAny<ParticleEmitter3DComponent>(world.entities)) {
+    const Entity &entity = world.entities[index];
+    if (!entity.enabled || !entity.hasComponent<Transform3DComponent>())
       continue;
     liveEmitters.insert(entity.id);
     const auto &emitter = *entity.component<ParticleEmitter3DComponent>();

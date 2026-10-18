@@ -420,7 +420,7 @@ void collisionFreePlacementsShareRenderOwners() {
   flush(commands, world);
   assert(world.entities.size() == 2);
   const auto *instances = world.entities.back().component<MeshInstances3DComponent>();
-  assert(instances && instances->transforms.size() == 100);
+  assert(instances && instances->transforms().size() == 100);
   assert(world.entities.back().prefabInstance.empty());
   const auto retained = syncTerrainScatter(world, commands, OwnerId, field,
                                             nullptr, error);
@@ -433,8 +433,8 @@ void collisionFreePlacementsShareRenderOwners() {
   assert(error.empty() && removed.removed == 1 && removed.retained == 99);
   flush(commands, world);
   instances = world.entities.back().component<MeshInstances3DComponent>();
-  assert(instances && instances->transforms.size() == 99);
-  assert(!instances->transforms.contains(excluded));
+  assert(instances && instances->transforms().size() == 99);
+  assert(!instances->transforms().contains(excluded));
 }
 
 void visualPrefabBatchesPreserveHierarchyAndMaterials() {
@@ -484,9 +484,9 @@ void visualPrefabBatchesPreserveHierarchyAndMaterials() {
   assert(!batch.hasComponent<SphereCollider3DComponent>());
   assert(!batch.hasComponent<Rigidbody3DComponent>());
   const auto *instances = batch.component<MeshInstances3DComponent>();
-  assert(instances && instances->transforms.size() == 20);
+  assert(instances && instances->transforms().size() == 20);
   const auto key = terrainScatterInstanceId(OwnerId, PaletteId, "reeds", 0, 0);
-  const auto &transform = instances->transforms.at(key);
+  const auto &transform = instances->transforms().at(key);
   assert(transform.position.x == 1 && transform.position.y == 5);
 
   {
@@ -550,7 +550,7 @@ void visualPrefabBatchesPreserveHierarchyAndMaterials() {
   assert(collisionWorld.entities.size() == 2);
   const auto *decorativeCopies = collisionWorld.entities.back()
       .component<MeshInstances3DComponent>();
-  assert(decorativeCopies && decorativeCopies->transforms.contains(stableId));
+  assert(decorativeCopies && decorativeCopies->transforms().contains(stableId));
   for (const auto &entity : collisionWorld.entities) {
     assert(!entity.hasComponent<SphereCollider3DComponent>());
     assert(entity.prefabInstance.empty());

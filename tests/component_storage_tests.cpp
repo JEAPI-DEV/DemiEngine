@@ -1,9 +1,12 @@
+#include "demi/runtime/scene/EntityComponentQuery.h"
 #include "demi/runtime/scene/model/ComponentStorage.h"
 
 #ifdef NDEBUG
 #undef NDEBUG
 #endif
+#include <algorithm>
 #include <cassert>
+#include <memory>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -96,9 +99,110 @@ void copyAndMovePreserveIndependentAnyValues() {
   moved.set(Velocity{91});
   assert(moved.get<Velocity>()->value == 91);
 }
+
+void orderedQueriesFollowStructuralMutation() {
+  using demi::runtime::Entity;
+  using demi::runtime::EntityComponentQuery;
+  std::vector<Entity> entities(3);
+  entities[0].setComponent(Position{1});
+  entities[1].setComponent(Velocity{2});
+  entities[2].setComponent(Position{3});
+  EntityComponentQuery queries;
+  const auto expectPositions = [&](std::vector<std::size_t> expected) {
+    assert(queries.queryAny<Position>(entities) == expected);
+  };
+  expectPositions({0, 2});
+  const auto epoch = ComponentStorage::membershipEpoch();
+  entities[0].component<Position>()->value = 7;
+  entities[0].setComponent(Position{9});
+  assert(ComponentStorage::membershipEpoch() == epoch);
+  entities[1].setComponent(Position{4});
+  expectPositions({0, 1, 2});
+  entities[0].removeComponent<Position>();
+  expectPositions({1, 2});
+  std::swap(entities[0], entities[2]);
+  expectPositions({0, 1});
+  entities[1].components.clear();
+  expectPositions({0});
+  entities[1] = entities[0];
+  expectPositions({0, 1});
+  entities.erase(entities.begin());
+  expectPositions({0});
+  entities[0].enabled = false;
+  expectPositions({0});
+  EntityComponentQuery copiedQueries = queries;
+  auto copiedEntities = entities;
+  copiedEntities[0].removeComponent<Position>();
+  assert(copiedQueries.queryAny<Position>(copiedEntities).empty());
+  expectPositions({0});
+  assert((queries.queryAny<Position, Velocity>(entities) ==
+          std::vector<std::size_t>{0}));
+  // Same collection address and size, replaced membership.
+  entities[0] = Entity{};
+  expectPositions({});
+  entities.clear();
+  expectPositions({});
+  entities.resize(2);
+  entities[0].setComponent(Position{12});
+  expectPositions({0});
+  const auto *retainedAllocation = entities.data();
+  entities.clear();
+  entities.resize(2);
+  assert(entities.data() == retainedAllocation);
+  expectPositions({});
+  entities[1].setComponent(Position{13});
+  expectPositions({1});
+  std::destroy_at(&entities[1]);
+  std::construct_at(&entities[1]);
+  expectPositions({});
+  // Empty observed slots also need invalidation before same-slot replacement.
+  std::destroy_at(&entities[1]);
+  std::construct_at(&entities[1]);
+  entities[1].setComponent(Position{14});
+  expectPositions({1});
+}
+void temporaryStorageDoesNotInvalidateObservedQueries() {
+  using demi::runtime::Entity;
+  using demi::runtime::EntityComponentQuery;
+  std::vector<Entity> entities(2);
+  entities[0].setComponent(Position{1});
+  EntityComponentQuery queries;
+  assert((queries.queryAny<Position>(entities) == std::vector<std::size_t>{0}));
+  auto epoch = ComponentStorage::membershipEpoch();
+  {
+    ComponentStorage parsed;
+    parsed.set(Position{2});
+    ComponentStorage copied = entities[0].components;
+    copied.set(Velocity{3});
+    copied.remove<Position>();
+    ComponentStorage moved = std::move(copied);
+    parsed = moved;
+    parsed.clear();
+  }
+  assert(ComponentStorage::membershipEpoch() == epoch);
+  auto copiedEntities = entities;
+  assert(ComponentStorage::membershipEpoch() == epoch);
+  copiedEntities[1].setComponent(Position{4});
+  assert(ComponentStorage::membershipEpoch() == epoch);
+  EntityComponentQuery copiedQueries;
+  assert((copiedQueries.queryAny<Position>(copiedEntities) ==
+          std::vector<std::size_t>{0, 1}));
+  copiedEntities[0].removeComponent<Position>();
+  assert(ComponentStorage::membershipEpoch() != epoch);
+  assert((copiedQueries.queryAny<Position>(copiedEntities) ==
+          std::vector<std::size_t>{1}));
+  epoch = ComponentStorage::membershipEpoch();
+  entities[1].setComponent(Position{5});
+  assert(ComponentStorage::membershipEpoch() != epoch);
+  assert(
+      (queries.queryAny<Position>(entities) == std::vector<std::size_t>{0, 1}));
+}
+
 } // namespace
 
 int main() {
+  temporaryStorageDoesNotInvalidateObservedQueries();
+  orderedQueriesFollowStructuralMutation();
   distinctTypesAndReplacementRemainChecked();
   cvrefKeysAndConstAccessKeepExistingSemantics();
   copyAndMovePreserveIndependentAnyValues();

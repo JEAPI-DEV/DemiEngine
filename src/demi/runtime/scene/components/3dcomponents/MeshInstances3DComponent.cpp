@@ -1,10 +1,27 @@
 #include "demi/runtime/scene/components/3dcomponents/MeshInstances3DComponent.h"
 #include "demi/runtime/scene/model/Entity.h"
+#include <atomic>
 #include <cmath>
 #include <nlohmann/json.hpp>
 #include <stdexcept>
+#include <utility>
 namespace demi::runtime {
 namespace {
+
+std::uint64_t nextContentRevision() {
+  static std::atomic<std::uint64_t> revision{1};
+  return revision.fetch_add(1, std::memory_order_relaxed);
+}
+
+bool sameTransform(const WorldTransform3D &left,
+                   const WorldTransform3D &right) {
+  const auto sameVector = [](Vec3 left, Vec3 right) {
+    return left.x == right.x && left.y == right.y && left.z == right.z;
+  };
+  return sameVector(left.position, right.position) &&
+         sameVector(left.rotation, right.rotation) &&
+         sameVector(left.scale, right.scale);
+}
 
 Vec3 readInstanceVector(const nlohmann::json &value,
                         const std::string &fieldName) {
@@ -44,6 +61,85 @@ WorldTransform3D readInstanceTransform(const nlohmann::json &value) {
 
 } // namespace
 
+MeshInstances3DComponent::MeshInstances3DComponent()
+    : contentRevision_(nextContentRevision()) {}
+
+MeshInstances3DComponent &
+MeshInstances3DComponent::operator=(const MeshInstances3DComponent &other) {
+  if (this != &other) {
+    MeshInstances3DComponent replacement(other);
+    *this = std::move(replacement);
+  }
+  return *this;
+}
+
+MeshInstances3DComponent::MeshInstances3DComponent(
+    MeshInstances3DComponent &&other) noexcept
+    : transforms_(std::move(other.transforms_)),
+      contentRevision_(other.contentRevision_) {
+  other.transforms_.clear();
+  other.contentRevision_ = nextContentRevision();
+}
+
+MeshInstances3DComponent &
+MeshInstances3DComponent::operator=(MeshInstances3DComponent &&other) noexcept {
+  if (this != &other) {
+    transforms_ = std::move(other.transforms_);
+    contentRevision_ = other.contentRevision_;
+    other.transforms_.clear();
+    other.contentRevision_ = nextContentRevision();
+  }
+  return *this;
+}
+
+void MeshInstances3DComponent::setTransform(std::string label,
+                                            const WorldTransform3D &transform) {
+  if (label.empty()) {
+    throw std::invalid_argument("Mesh instance requires a nonempty label");
+  }
+  const auto found = transforms_.find(label);
+  if (found != transforms_.end() && sameTransform(found->second, transform)) {
+    return;
+  }
+  transforms_.insert_or_assign(std::move(label), transform);
+  contentRevision_ = nextContentRevision();
+}
+
+bool MeshInstances3DComponent::eraseTransform(const std::string &label) {
+  if (transforms_.erase(label) == 0) {
+    return false;
+  }
+  contentRevision_ = nextContentRevision();
+  return true;
+}
+
+void MeshInstances3DComponent::clearTransforms() {
+  if (!transforms_.empty()) {
+    transforms_.clear();
+    contentRevision_ = nextContentRevision();
+  }
+}
+
+void MeshInstances3DComponent::copyTransforms(
+    MeshInstances3DComponent &destination,
+    const MeshInstances3DComponent &source) {
+  destination = source;
+}
+
+bool MeshInstances3DComponent::readTransforms(
+    const MeshInstances3DComponent &source, nlohmann::json &out) {
+  out = nlohmann::json::object();
+  for (const auto &[label, transform] : source.transforms()) {
+    out[label] = {
+        {"position",
+         {transform.position.x, transform.position.y, transform.position.z}},
+        {"rotation",
+         {transform.rotation.x, transform.rotation.y, transform.rotation.z}},
+        {"scale", {transform.scale.x, transform.scale.y, transform.scale.z}}};
+  }
+  return true;
+}
+
 nlohmann::json MeshInstances3DComponent::defaults() {
   return {{"transforms", nlohmann::json::object()}};
 }
@@ -60,7 +156,7 @@ void MeshInstances3DComponent::parse(const nlohmann::json &json,
     if (instanceId.empty()) {
       throw std::invalid_argument("Mesh instance requires a nonempty label");
     }
-    result.transforms.emplace(instanceId, readInstanceTransform(transform));
+    result.setTransform(instanceId, readInstanceTransform(transform));
   }
   entity.setComponent(std::move(result));
 }

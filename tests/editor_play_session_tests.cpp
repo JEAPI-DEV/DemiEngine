@@ -2,6 +2,7 @@
 
 #include "demi/runtime/app/EmbeddedRuntimeSession.h"
 #include "demi/runtime/input/replay/InputReplay.h"
+#include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/scene/model/World.h"
 
 // Exercise lifecycle calls in optimized/offline builds too: assertions here
@@ -91,7 +92,16 @@ int main() {
     stepInput.keysDown.insert("W");
     stepInput.mouseButtonsDown.insert("left");
     assert(session.executeLuaConsole("collectgarbage('collect')").succeeded);
+    session.beginProfilerFrame();
+    const auto preparedFrame = demi::runtime::RuntimeProfiler::frameCount();
+    demi::runtime::RuntimeProfiler::record("Editor.ui-test", 3.0);
     assert(session.step(std::move(stepInput), 960, 540, error));
+    assert(demi::runtime::RuntimeProfiler::frameCount() == preparedFrame);
+    const auto entries = demi::runtime::RuntimeProfiler::frameEntries();
+    assert(std::ranges::any_of(entries, [](const auto &entry) {
+      return entry.name == "Editor.ui-test" && entry.calls == 1 &&
+             entry.totalMilliseconds == 3.0;
+    }));
     assert(session.fixedTickCount() == beforeStep + 1);
     const auto profile = session.profilerSnapshot();
     assert(profile.attached && profile.frameCount >= 1 &&
@@ -126,6 +136,12 @@ int main() {
     assert(session.debugSnapshot().overlays.colliders &&
            session.debugSnapshot().overlays.uiBounds &&
            session.debugSnapshot().focusedEntityId == focus);
+    assert(session.step({}, 960, 540, error));
+    assert(demi::runtime::RuntimeProfiler::frameCount() == preparedFrame + 1);
+    const auto nextEntries = demi::runtime::RuntimeProfiler::frameEntries();
+    assert(std::ranges::none_of(nextEntries, [](const auto &entry) {
+      return entry.name == "Editor.ui-test";
+    }));
     session.stop();
     assert(!session.runtimeLogs().empty());
     assert(session.state() == demi::editor::EditorPlayState::Stopped);

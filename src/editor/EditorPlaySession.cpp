@@ -100,6 +100,12 @@ bool EditorPlaySession::update(runtime::InputState input,
   return true;
 }
 
+void EditorPlaySession::beginProfilerFrame() {
+  if (embedded_ != nullptr) {
+    embedded_->beginProfilerFrame();
+  }
+}
+
 void EditorPlaySession::stop() {
   if (embedded_ != nullptr)
     retainedLogs_ = embedded_->runtimeLogs();

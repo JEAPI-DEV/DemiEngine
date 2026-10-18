@@ -113,8 +113,8 @@ editorEntityBounds3D(const runtime::World &world,
   EditorEntityBounds3D result{.local = orderedBounds(minimum, maximum),
                               .isSceneGeometry = isSceneGeometry};
   if (instances != nullptr) {
-    result.worldTransforms.reserve(instances->transforms.size());
-    for (const auto &[instanceId, localTransform] : instances->transforms) {
+    result.worldTransforms.reserve(instances->transforms().size());
+    for (const auto &[instanceId, localTransform] : instances->transforms()) {
       (void)instanceId;
       result.worldTransforms.push_back(
           runtime::composeWorldTransform3D(*transform, localTransform));

@@ -17,10 +17,12 @@ OpaqueSceneCapture3D::Target *BgfxRenderer3D::prepareWaterCapture(
       frame.camera.debugMode != "shaded") {
     return nullptr;
   }
+  const auto &waterSurfaces = entityQueries_.queryAny<
+      terrain_detail::TerrainGeneratedWaterSurface>(world.entities);
   const bool hasWater =
-      std::ranges::any_of(world.entities, [&](const Entity &entity) {
-        if (!entity.enabled ||
-            !entity.component<terrain_detail::TerrainGeneratedWaterSurface>()) {
+      std::ranges::any_of(waterSurfaces, [&](std::size_t index) {
+        const Entity &entity = world.entities[index];
+        if (!entity.enabled) {
           return false;
         }
         const auto *mesh = entity.component<MeshRendererComponent>();

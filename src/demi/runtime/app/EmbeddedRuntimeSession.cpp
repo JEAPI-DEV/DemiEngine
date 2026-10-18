@@ -61,6 +61,7 @@ public:
   LuaScriptHost lua;
   double fixedAccumulator = 0.0;
   std::uint64_t fixedTicks = 0;
+  bool profilerFramePrepared = false;
   bool running = false;
   bool paused = false;
   bool audioInitialized = false;
@@ -204,13 +205,24 @@ void EmbeddedRuntimeSession::setPaused(const bool paused) {
   state_->audio.setGamePaused(paused);
 }
 
+void EmbeddedRuntimeSession::beginProfilerFrame() {
+  if (state_ == nullptr) {
+    return;
+  }
+  RuntimeProfiler::beginFrame();
+  state_->profilerFramePrepared = true;
+}
+
 bool EmbeddedRuntimeSession::advance(State &state, InputState input,
                                      const float deltaSeconds,
                                      const std::uint16_t viewportWidth,
                                      const std::uint16_t viewportHeight,
                                      const bool oneFixedTick,
                                      std::string &error) {
-  RuntimeProfiler::beginFrame();
+  if (!state.profilerFramePrepared) {
+    RuntimeProfiler::beginFrame();
+  }
+  state.profilerFramePrepared = false;
   ProfileScope frameScope("Frame.update");
   error.clear();
   state.input = std::move(input);

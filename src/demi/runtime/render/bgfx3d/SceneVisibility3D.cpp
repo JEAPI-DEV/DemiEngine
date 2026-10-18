@@ -220,6 +220,10 @@ void appendVisibleInstances(
   auto &prepared =
       preparation.source(world, *source.entity, source.transform, instances);
   if (!prepared.geometryPrepared) {
+    const auto oldBounds = prepared.localBounds;
+    const auto oldCenter = prepared.localCenter;
+    const auto oldExtent = prepared.localExtent;
+    const auto oldWindExpansion = prepared.windExpansion;
     const auto oldSize = prepared.meshSize;
     const bool sizeChanged = !oldSize || oldSize->x != mesh.size.x ||
                              oldSize->y != mesh.size.y || oldSize->z != mesh.size.z;
@@ -242,6 +246,19 @@ void appendVisibleInstances(
       prepared.localExtent = {(maximum.x - minimum.x) * .5F + expansion.x,
                               (maximum.y - minimum.y) * .5F + expansion.y,
                               (maximum.z - minimum.z) * .5F + expansion.z};
+    }
+    const auto sameVector = [](Vec3 left, Vec3 right) {
+      return left.x == right.x && left.y == right.y && left.z == right.z;
+    };
+    const bool boundsChanged =
+        sizeChanged || oldBounds.has_value() != prepared.localBounds.has_value() ||
+        !sameVector(oldCenter, prepared.localCenter) ||
+        !sameVector(oldExtent, prepared.localExtent) ||
+        oldWindExpansion != prepared.windExpansion;
+    if (boundsChanged) {
+      for (auto &copy : prepared.copies) {
+        copy.bounds.reset();
+      }
     }
     prepared.geometryPrepared = true;
   }
@@ -393,6 +410,7 @@ SceneVisibility3D extractVisibleMeshes3D(
   }
 
   SceneVisibility3D result;
+  bool needsSectionSelection = false;
   result.meshes.reserve(world.entities.size());
   {
     ProfileScope gatherScope("Renderer3D.gather_instances");
@@ -400,7 +418,12 @@ SceneVisibility3D extractVisibleMeshes3D(
       if (extracted[index]) {
         const auto &source = *extracted[index];
         const auto sourceIndex = source.entity - world.entities.data();
-        const auto *instances = sources[sourceIndex].instances;
+        const auto &metadata = sources[sourceIndex];
+        const bool hasInlineSections = metadata.sections &&
+            !metadata.sections->sections.empty() && !metadata.mesh->vertices.empty();
+        needsSectionSelection = needsSectionSelection || metadata.terrain ||
+                                hasInlineSections;
+        const auto *instances = metadata.instances;
         if (instances) {
           appendVisibleInstances(world, source, *instances, result, materials,
                                  modelBounds, frustum, instanceLodPosition,
@@ -414,6 +437,11 @@ SceneVisibility3D extractVisibleMeshes3D(
         result.meshes.push_back(std::move(*extracted[index]));
       }
     }
+  }
+  // Ordinary meshes and instance copies already are final draw records. Do not
+  // allocate and copy the entire visible list when no source needs expansion.
+  if (!needsSectionSelection) {
+    return result;
   }
   ProfileScope sectionScope("Renderer3D.select_sections");
   std::vector<VisibleMesh3D> draws;

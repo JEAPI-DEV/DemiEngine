@@ -110,8 +110,8 @@ syncTerrainScatterBatches(World &world, WorldCommandBuffer &commands,
     oldBatches.push_back(entity.id);
     const auto *instances = entity.component<MeshInstances3DComponent>();
     if (instances) {
-      previous.insert(instances->transforms.begin(),
-                      instances->transforms.end());
+      previous.insert(instances->transforms().begin(),
+                      instances->transforms().end());
     }
   }
 
@@ -167,7 +167,7 @@ syncTerrainScatterBatches(World &world, WorldCommandBuffer &commands,
       }
       const auto transform =
           composeWorldTransform3D(placementTransform, part.transform);
-      batch->second.component<MeshInstances3DComponent>()->transforms.emplace(
+      batch->second.component<MeshInstances3DComponent>()->setTransform(
           placementId, transform);
       current.try_emplace(placementId, transform);
     }
@@ -178,13 +178,13 @@ syncTerrainScatterBatches(World &world, WorldCommandBuffer &commands,
     const auto *oldInstances =
         existing ? existing->component<MeshInstances3DComponent>() : nullptr;
     const auto &newInstances =
-        batch.component<MeshInstances3DComponent>()->transforms;
+        batch.component<MeshInstances3DComponent>()->transforms();
     const bool unchanged =
         oldInstances &&
         existing->serializedComponents == batch.serializedComponents &&
-        oldInstances->transforms.size() == newInstances.size() &&
-        std::equal(oldInstances->transforms.begin(),
-                   oldInstances->transforms.end(), newInstances.begin(),
+        oldInstances->transforms().size() == newInstances.size() &&
+        std::equal(oldInstances->transforms().begin(),
+                   oldInstances->transforms().end(), newInstances.begin(),
                    [](const auto &left, const auto &right) {
                      return left.first == right.first &&
                             sameTransform(left.second, right.second);

@@ -4,9 +4,14 @@
 #include "demi/runtime/scene/model/World.h"
 #include "demi/runtime/ui/UiModel.h"
 
+namespace demi::runtime {
+class EntityComponentQuery;
+}
+
 namespace demi::runtime::render {
 
-[[nodiscard]] ui::UiDocument projectWorldText3D(const World &world,
-                                                const BgfxCameraFrame3D &frame);
+[[nodiscard]] ui::UiDocument
+projectWorldText3D(const World &world, const BgfxCameraFrame3D &frame,
+                   EntityComponentQuery *query = nullptr);
 
 } // namespace demi::runtime::render

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/scene/model/SceneTypes.h"
+#include "demi/runtime/scene/EntityComponentQuery.h"
 
 #include <cstdint>
 #include <string>
@@ -61,6 +62,7 @@ private:
     int sortingOrder = 0;
   };
 
+  EntityComponentQuery emitterMembership_;
   std::unordered_map<std::string, EmitterState> emitters_;
 };
 

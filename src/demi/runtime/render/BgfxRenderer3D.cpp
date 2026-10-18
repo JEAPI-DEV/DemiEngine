@@ -368,10 +368,10 @@ bool BgfxRenderer3D::renderFrame(const World &world,
     }
   } presentationScope{*this, ownsPresentation, presentationSucceeded};
   if (frame.updateContent) {
-    meshRetention_.collect(world);
+    meshRetention_.collect(instancePreparation_.worldSources(world));
   }
   const auto sceneLighting =
-      collectSceneLighting3D(world, frame.camera.renderMask);
+      collectSceneLighting3D(world, frame.camera.renderMask, &entityQueries_);
   terrainLodResidency_.setSettings(
       {.maximumResidentBytes = sceneLighting.terrainLodCacheBytes,
        .maximumPendingJobs = sceneLighting.terrainLodPrepareJobs,
@@ -853,7 +853,7 @@ bool BgfxRenderer3D::renderView(const World &world,
     debugRequest.bounds =
         debugRequest.bounds || frame.camera.debugMode == "bounds";
     if (!shadowPass && !depthCapture &&
-        !appendDebugGeometry3D(world, primitives_, debugRequest)) {
+        !appendDebugGeometry3D(world, primitives_, debugRequest, &entityQueries_)) {
       error = "3D debug geometry exceeded the transient line capacity.";
       return false;
     }
@@ -880,7 +880,7 @@ bool BgfxRenderer3D::renderView(const World &world,
     targetFrame.viewportHeight = renderHeight;
     const bool rendered =
         overlay_.drawHud(world) &&
-        overlay_.drawUi(projectWorldText3D(world, targetFrame));
+        overlay_.drawUi(projectWorldText3D(world, targetFrame, &entityQueries_));
     if (!rendered || !overlay_.endFrame(error)) {
       if (error.empty()) {
         error = "Could not queue the render-target HUD.";
@@ -923,7 +923,7 @@ bool BgfxRenderer3D::renderView(const World &world,
       hudFrame.viewportWidth = renderWidth;
       hudFrame.viewportHeight = renderHeight;
       if (!overlay_.drawHud(world) ||
-          !overlay_.drawUi(projectWorldText3D(world, hudFrame)) ||
+          !overlay_.drawUi(projectWorldText3D(world, hudFrame, &entityQueries_)) ||
           !overlay_.endFrame(error)) {
         return false;
       }
@@ -969,7 +969,7 @@ bool BgfxRenderer3D::renderView(const World &world,
         return false;
       }
       const bool rendered = overlay_.drawHud(world) &&
-                            overlay_.drawUi(projectWorldText3D(world, frame));
+                            overlay_.drawUi(projectWorldText3D(world, frame, &entityQueries_));
       if (!rendered || !overlay_.endFrame(error)) {
         if (error.empty()) {
           error = "Could not render the camera HUD.";
@@ -989,7 +989,7 @@ bool BgfxRenderer3D::renderView(const World &world,
     const bool hudRendered = !frame.camera.renderHud || overlay_.drawHud(world);
     const bool worldTextRendered =
         !frame.camera.renderHud ||
-        overlay_.drawUi(projectWorldText3D(world, frame));
+        overlay_.drawUi(projectWorldText3D(world, frame, &entityQueries_));
     const bool hudFlushed = overlay_.endFrame(error);
     if (!hudRendered || !worldTextRendered) {
       error = "Could not queue the 3D scene overlay.";

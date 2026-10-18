@@ -3,6 +3,7 @@
 #include "editor/EditorPanelStyle.h"
 
 #include "demi/runtime/scene/ComponentRegistry.h"
+#include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/scene/WorldQueries.h"
 
 #include <imgui.h>
@@ -65,12 +66,22 @@ void drawRuntimeHierarchy(const runtime::World &world, const ImVec2 position,
   if (!selectedEntityId.empty() &&
       runtime::findEntity(world, selectedEntityId) == nullptr)
     selectedEntityId.clear();
-  for (const runtime::Entity &entity : world.entities) {
-    const std::string label = entity.name.empty() ? entity.id : entity.name;
-    const std::string widgetLabel = label + "###runtime-entity-" + entity.id;
-    if (ImGui::Selectable(widgetLabel.c_str(), selectedEntityId == entity.id))
-      selectedEntityId = entity.id;
+  runtime::ProfileScope hierarchyScope("Editor.runtime_hierarchy");
+  int drawnRows = 0;
+  ImGuiListClipper rows;
+  rows.Begin(static_cast<int>(world.entities.size()));
+  while (rows.Step()) {
+    for (int index = rows.DisplayStart; index < rows.DisplayEnd; ++index) {
+      const auto &entity = world.entities[static_cast<std::size_t>(index)];
+      const std::string &label = entity.name.empty() ? entity.id : entity.name;
+      const std::string widgetLabel = label + "###runtime-entity-" + entity.id;
+      if (ImGui::Selectable(widgetLabel.c_str(), selectedEntityId == entity.id)) {
+        selectedEntityId = entity.id;
+      }
+      ++drawnRows;
+    }
   }
+  runtime::RuntimeProfiler::setGauge("Editor.runtime_hierarchy.rows", drawnRows);
   ImGui::End();
 }
 

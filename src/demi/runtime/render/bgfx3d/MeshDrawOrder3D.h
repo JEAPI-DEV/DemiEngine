@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <iterator>
 #include <optional>
 #include <ranges>
 #include <utility>
@@ -29,6 +30,43 @@ orderMeshSurfaces3D(std::vector<VisibleMesh3D> &meshes,
   const MeshMaterialSections3D *terrainSections = nullptr;
   std::vector<std::pair<std::optional<std::size_t>, bool>> sectionTransparency;
   const auto isTransparent = [&](const VisibleMesh3D &visible) {
+    if (const auto *prepared = visible.preparedSource) {
+      const auto resolve = [&](const MaterialBinding *material) {
+        return resolveMeshSurface3D(
+                   *prepared->mesh, material,
+                   prepared->fade
+                       ? std::optional<float>(prepared->fade->value)
+                       : std::nullopt)
+            .transparent();
+      };
+      if (!visible.materialSection) {
+        if (!prepared->transparent) {
+          prepared->transparent =
+              resolve(materials.find(prepared->mesh->material));
+        }
+        return *prepared->transparent;
+      }
+      const auto *sections = visible.terrainSections
+                                 ? visible.terrainSections
+                                 : prepared->sections;
+      auto &variants = prepared->sectionTransparency;
+      auto variant = std::ranges::find(
+          variants, sections,
+          &MeshInstancePreparation3D::EntitySource::SectionTransparency::sections);
+      if (variant == variants.end()) {
+        variants.push_back(
+            {.sections = sections,
+             .transparent = std::vector<std::optional<bool>>(
+                 sections->sections.size())});
+        variant = std::prev(variants.end());
+      }
+      auto &decision = variant->transparent.at(*visible.materialSection);
+      if (!decision) {
+        const auto &section = sections->sections.at(*visible.materialSection);
+        decision = resolve(materials.find(section.material));
+      }
+      return *decision;
+    }
     // Instance copies share immutable source state throughout this call.
     // Reuse its section decisions while copies stay adjacent, without a
     // persistent cache that could hide live material/fade edits next frame.

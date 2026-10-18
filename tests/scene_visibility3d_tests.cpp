@@ -30,6 +30,31 @@ Entity mesh(std::string id, const Vec3 position, const Vec3 minimum,
 } // namespace
 
 int main() {
+  {
+    MeshInstances3DComponent instances;
+    instances.setTransform("tree", {.position = {1, 0, 4}});
+    const auto initialRevision = instances.contentRevision();
+    instances.setTransform("tree", {.position = {1, 0, 4}});
+    assert(instances.contentRevision() == initialRevision);
+    assert(!instances.eraseTransform("missing"));
+    assert(instances.contentRevision() == initialRevision);
+    auto copied = instances;
+    assert(copied.contentRevision() == initialRevision);
+    copied.setTransform("tree", {.position = {2, 0, 4}});
+    assert(copied.contentRevision() != initialRevision);
+    assert(instances.transforms().at("tree").position.x == 1);
+    MeshInstances3DComponent moved(std::move(copied));
+    assert(moved.transforms().at("tree").position.x == 2);
+    assert(copied.transforms().empty());
+    assert(copied.contentRevision() != moved.contentRevision());
+    copied = instances;
+    assert(copied.contentRevision() == initialRevision);
+    assert(copied.eraseTransform("tree"));
+    assert(copied.contentRevision() != initialRevision);
+    instances.clearTransforms();
+    assert(instances.transforms().empty());
+    assert(instances.contentRevision() != initialRevision);
+  }
   World world;
   world.entities.push_back(mesh("center", {0.0F, 0.0F, 8.0F},
                                 {-1.0F, -1.0F, -1.0F}, {1.0F, 1.0F, 1.0F}));
@@ -102,8 +127,8 @@ int main() {
     owner.component<MeshRendererComponent>()->cullDistance = 10;
     owner.component<MeshRendererComponent>()->size = {2, 3, 4};
     MeshInstances3DComponent instances;
-    instances.transforms["near-viewer"].position = {-5, 0, 2.5F};
-    instances.transforms["far-viewer"].position = {-5, 0, 12.5F};
+    instances.setTransform("near-viewer", {.position = {-5, 0, 2.5F}});
+    instances.setTransform("far-viewer", {.position = {-5, 0, 12.5F}});
     owner.setComponent(instances);
     copies.entities.push_back(owner);
     auto shadowFrame = frame;
@@ -161,13 +186,22 @@ int main() {
     assert(prepared.copies.data() == preparedCopies);
     assert(prepared.copies[0].world && prepared.copies[0].bounds);
 
+    // Unchanged copy values retain owned bounds and matrices across
+    // presentations; camera visibility itself is evaluated again.
+    const auto retainedRadius = prepared.copies[1].bounds->radius;
+    const auto retainedMatrix = prepared.copies[1].modelMatrix;
+    preparation.reset();
+    auto &retained = preparation.source(
+        copies, copies.entities.front(), ownerTransform,
+        *copies.entities.front().component<MeshInstances3DComponent>());
+    assert(retained.copies[1].bounds->radius == retainedRadius);
+    assert(retained.copies[1].modelMatrix == retainedMatrix);
+
     // A new presentation observes edits even when the component address and
-    // number of copies stay unchanged. No persistent component-map cache
-    // exists.
+    // number of copies stay unchanged.
     copies.entities.front()
         .component<MeshInstances3DComponent>()
-        ->transforms["near-viewer"]
-        .position.z = 3.F;
+        ->setTransform("near-viewer", {.position = {-5, 0, 3.F}});
     preparation.reset();
     const auto nextPresentation = extractVisibleMeshes3D(
         copies, shadowFrame, nullptr, nullptr, nullptr, nullptr, nullptr,
@@ -223,7 +257,7 @@ int main() {
     appearance->hasBounds = false;
     appearance->model = "asset://changing/model";
     MeshInstances3DComponent instances;
-    instances.transforms["edge"].position = {30, 0, 8};
+    instances.setTransform("edge", {.position = {30, 0, 8}});
     owner.setComponent(instances);
     copies.entities.push_back(std::move(owner));
     MeshInstancePreparation3D preparation;
