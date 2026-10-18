@@ -17,6 +17,7 @@ public:
   [[nodiscard]] bool open(const std::filesystem::path &source,
                           const EditorAssetIndex &assets, std::string &error);
   void draw(EditorWorkspace &workspace, std::string &notice);
+  [[nodiscard]] bool isOpen() const { return active_.has_value(); }
   [[nodiscard]] bool needsContinuousFrames() const {
     return animatedPreviewVisible_;
   }

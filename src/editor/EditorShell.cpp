@@ -406,6 +406,12 @@ bool EditorShell::pollBackgroundChanges() {
 }
 
 bool EditorShell::needsContinuousFrames() const {
+  // Dock focus may select a tab for the next ImGui frame. Keep drawing until
+  // focusPanel confirms the requested document's contents are actually visible.
+  if (!focusWindow_.empty() && documentFocusAvailable() &&
+      !dockingWorkspace_.focusBlockedByModal(focusWindow_)) {
+    return true;
+  }
   if ((playSession_.isRunning() && !playSession_.isPaused()) ||
       runPanel_.running() || buildPanel_.operation().running ||
       specializedPanel_.needsContinuousFrames())
@@ -740,8 +746,12 @@ void EditorShell::draw(const int width, const int height,
         recoveryFingerprint_ = canonical;
     }
   }
-  if (!focusWindow_.empty() && dockingWorkspace_.focusPanel(focusWindow_))
-    focusWindow_.clear();
+  if (!focusWindow_.empty()) {
+    const bool unavailable = !documentFocusAvailable();
+    if (unavailable || dockingWorkspace_.focusPanel(focusWindow_)) {
+      focusWindow_.clear();
+    }
+  }
   dispatchShortcuts();
   const EditorPreferences currentPreferences{
       .uiScale = uiScale_,

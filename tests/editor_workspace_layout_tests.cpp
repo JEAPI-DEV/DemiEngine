@@ -1,10 +1,60 @@
 #include "editor/EditorActivity.h"
+#include "editor/EditorViewportTargetDemand.h"
 #include "editor/EditorWorkspaceLayout.h"
 
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <cassert>
 #include <cmath>
 
 namespace {
+
+void targetPreparationHandoffSurvivesIdleAndFailedAttempts() {
+  demi::editor::EditorActivity activity;
+  demi::editor::EditorViewportTargetDemand target;
+  assert(activity.needsFrame(0, false));
+  assert(!activity.needsFrame(1, false));
+  assert(!target.needsPreparation());
+
+  // A newly visible docked document publishes its first area after target
+  // preparation. Focus may already be settled and must not own this work.
+  target.observe(640, 480);
+  assert(target.needsPreparation());
+  assert(activity.needsFrame(2, target.needsPreparation()));
+  target.recordAttempt(640, 480);
+  target.observe(640, 480);
+  assert(!target.needsPreparation());
+  // A slow initialization can outlast the ordinary input settling window.
+  // Its first actual texture frame still completes, then the host can sleep.
+  assert(!activity.needsFrame(4, target.needsPreparation()));
+
+  target.observe(800, 600);
+  assert(target.needsPreparation());
+  target.recordAttempt(640, 480);
+  assert(target.needsPreparation());
+  target.recordAttempt(800, 600);
+  assert(!target.needsPreparation());
+
+  // Failed attempts are acknowledged too. An unchanged failing allocation
+  // does not create an automatic idle retry loop; new activity may retry it.
+  target.observe(1280, 720);
+  assert(activity.needsFrame(5, target.needsPreparation()));
+  target.recordAttempt(1280, 720);
+  target.observe(1280, 720);
+  assert(!activity.needsFrame(7, target.needsPreparation()));
+
+  // Closing a document schedules resource release, and reopening the same
+  // dimensions must subsequently schedule fresh preparation.
+  target.observe(0, 0);
+  assert(target.needsPreparation());
+  target.clear();
+  assert(!target.needsPreparation());
+  target.observe(1280, 720);
+  assert(target.needsPreparation());
+  target.observe(1280, 0);
+  assert(!target.needsPreparation());
+}
 
 bool near(const float left, const float right) {
   return std::abs(left - right) < 0.01F;
@@ -21,6 +71,7 @@ void verify(const float width, const float height) {
 } // namespace
 
 int main() {
+  targetPreparationHandoffSurvivesIdleAndFailedAttempts();
   demi::editor::EditorActivity activity;
   assert(activity.needsFrame(10, false));
   assert(activity.needsFrame(10.5, false));

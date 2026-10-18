@@ -96,6 +96,13 @@ shared batched release removes that repeated renderer reconstruction.
 - Amber Pass validation: 131 files (after removing the unused prototype vegetation dependency), no diagnostics. Rocky Valley and Vegetation
   example validation also passed.
 - Native riding E2E passed movement, grounding, braking and camera placement.
+- The mounted prefab opened and rendered in the native editor at 3840 × 2022.
+  This exposed and fixed two idle handoffs: deferred dock focus and target
+  preparation after a view first publishes its size. Docking/target lifecycle
+  tests cover hidden panels, modal blocking, resize, close, reopen and failed
+  allocation without a redraw spin. Screenshot: `/tmp/amber-prefab-verified.jpg`.
+  Its initial framing clips the helmet; that nonblocking camera-framing issue
+  is recorded in `tofix.md`.
 - Linux cook completed; the cooked project passed a six-frame headless smoke.
   No editable Blender source entered the cooked output.
 - Lua script checks passed. Horse package source test has no Lua tests;

@@ -2,6 +2,7 @@
 #include "demi/runtime/render/PerformanceDebug.h"
 #include "demi/runtime/render/backend/DefaultFont.h"
 #include "editor/EditorActivity.h"
+#include "editor/EditorViewportTargetDemand.h"
 #include "editor/EditorDockingState.h"
 #include "editor/EditorDockingWorkspace.h"
 #include "editor/EditorFontLoader.h"
@@ -212,8 +213,14 @@ public:
         gameRenderer_ && gameRenderer_->terrainNeedsFrame();
     const bool hasVisibleTerrainWork =
         viewportTerrainPending || gameTerrainPending;
-    if (activity_.needsFrame(activityTime(), continuous || heldInput ||
-                                                 hasVisibleTerrainWork)) {
+    const bool viewportTargetsPending =
+        !platform_->frameState().minimized &&
+        std::ranges::any_of(viewports_, [](const auto &viewport) {
+          return viewport.targetDemand.needsPreparation();
+        });
+    const bool continuousWork = continuous || heldInput ||
+                                hasVisibleTerrainWork || viewportTargetsPending;
+    if (activity_.needsFrame(activityTime(), continuousWork)) {
       return true;
     }
     // Timeouts permit cheap source-watch maintenance without drawing. Text
@@ -306,6 +313,7 @@ public:
     }
     auto &viewport = viewports_.at(static_cast<std::size_t>(view));
     viewport.renderer.reset();
+    viewport.targetDemand.clear();
     viewport.projectDirectory = projectDirectory;
     return true;
   }
@@ -313,6 +321,8 @@ public:
   bool prepareViewportTarget(const EditorAuthoringView view,
                              const EditorViewportArea area,
                              std::string &error) override {
+    auto &viewport = viewports_.at(static_cast<std::size_t>(view));
+    viewport.targetDemand.recordAttempt(area.width, area.height);
     if (!initialized_) {
       error = "The editor graphics host is not initialized.";
       return false;
@@ -320,7 +330,6 @@ public:
     if (area.width == 0 || area.height == 0 ||
         platform_->frameState().minimized)
       return true;
-    auto &viewport = viewports_.at(static_cast<std::size_t>(view));
     if (!viewport.renderer) {
       if (!viewport.projectDirectory) {
         error = "The authored view has no configured project.";
@@ -335,6 +344,12 @@ public:
     return viewport.renderer->prepareTarget(framebufferArea(area), error);
   }
 
+  void observeViewportTarget(const EditorAuthoringView view,
+                             const EditorViewportArea area) override {
+    viewports_.at(static_cast<std::size_t>(view)).targetDemand.observe(
+        area.width, area.height);
+  }
+
   std::uint16_t
   viewportTextureIndex(const EditorAuthoringView view) const override {
     const auto &viewport = viewports_.at(static_cast<std::size_t>(view));
@@ -342,7 +357,9 @@ public:
   }
 
   void releaseViewport(const EditorAuthoringView view) override {
-    viewports_.at(static_cast<std::size_t>(view)).renderer.reset();
+    auto &viewport = viewports_.at(static_cast<std::size_t>(view));
+    viewport.renderer.reset();
+    viewport.targetDemand.clear();
   }
 
   bool renderViewport(const EditorAuthoringView view,
@@ -567,6 +584,7 @@ private:
   }
 
   struct AuthoredViewport {
+    EditorViewportTargetDemand targetDemand;
     std::optional<std::filesystem::path> projectDirectory;
     std::unique_ptr<EditorViewportRenderer> renderer;
   };

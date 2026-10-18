@@ -57,6 +57,10 @@ public:
   [[nodiscard]] virtual bool prepareViewportTarget(EditorAuthoringView view,
                                                    EditorViewportArea area,
                                                    std::string &error) = 0;
+  // Report the sizes published by shell.draw(), including hidden views as an
+  // empty area. The host schedules the next preparation/release frame.
+  virtual void observeViewportTarget(EditorAuthoringView view,
+                                      EditorViewportArea area) = 0;
   [[nodiscard]] virtual std::uint16_t
   viewportTextureIndex(EditorAuthoringView view) const = 0;
   // Release closed views before queuing images; retain their project

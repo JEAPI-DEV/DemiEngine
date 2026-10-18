@@ -289,10 +289,15 @@ int main(const int argc, char **argv) {
     for (const auto view : demi::editor::EditorAuthoringViews) {
       const auto &state =
           shell.authoringViews()[static_cast<std::size_t>(view)];
+      const auto requestedArea = state.workspace
+                                     ? state.area
+                                     : demi::editor::EditorViewportArea{};
+      ui->observeViewportTarget(view, requestedArea);
       if (!state.workspace || !state.area.width || !state.area.height)
         continue;
       // Docked view rectangles first become available during shell.draw(). A
-      // newly opened view has no target until the next frame's preparation.
+      // newly opened view has no target until the next frame's preparation;
+      // observeViewportTarget keeps that work scheduled after focus settles.
       // Preparation and rendering failures still report their owning errors.
       if (!viewportTargetsReady[static_cast<std::size_t>(view)] ||
           ui->viewportTextureIndex(view) == UINT16_MAX)

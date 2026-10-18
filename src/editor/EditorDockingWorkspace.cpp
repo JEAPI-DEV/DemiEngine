@@ -147,6 +147,14 @@ void EditorDockingWorkspace::drawViewMenu(const bool uiPaletteAvailable,
     persistVisibilityIfChanged();
 }
 
+bool EditorDockingWorkspace::focusBlockedByModal(std::string_view windowName) const {
+  if (!ImGui::GetCurrentContext()) {
+    return false;
+  }
+  const std::string name(windowName);
+  return ImGui::FindBlockingModal(ImGui::FindWindowByName(name.c_str())) != nullptr;
+}
+
 bool EditorDockingWorkspace::focusPanel(std::string_view windowName) {
   const std::string name(windowName);
   auto *window = ImGui::FindWindowByName(name.c_str());

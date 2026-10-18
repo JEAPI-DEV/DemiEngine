@@ -25,3 +25,12 @@
   still a labeled base-color swatch. Add an actual sphere/plane preview through
   the shared native renderer, with the same map semantics and lights as a scene.
   Keep it isolated from authored scene state and pause rendering when unchanged.
+
+## Prefab initial framing
+
+- Opening Amber Pass's mounted traveller prefab selects and renders the correct
+  document, but the initial camera clips the rider's helmet above the viewport.
+  Check automatic framing against the complete visible child hierarchy, not
+  only the root collider or selection pivot. Reproduce with
+  `demi-editor --project examples/amber_pass_3d --open prefabs/amber_pass/mounted_traveller.prefab.json`.
+  Evidence: `/tmp/amber-prefab-verified.jpg`. Camera navigation remains available.

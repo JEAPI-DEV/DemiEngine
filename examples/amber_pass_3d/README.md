@@ -25,6 +25,8 @@ To inspect or author the scene:
 
 ```sh
 ./build/linux-release/demi editor --project examples/amber_pass_3d
+# Open the reusable mounted hierarchy directly:
+./build/linux-release/demi-editor --project examples/amber_pass_3d --open prefabs/amber_pass/mounted_traveller.prefab.json
 ```
 
 W rides forward; S brakes and reverses slowly. A/D steer, including while
