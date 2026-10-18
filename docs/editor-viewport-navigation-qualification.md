@@ -130,3 +130,31 @@ Session evidence: `/tmp/viewport-final-tests.log`,
 `/tmp/viewport-retained-tests.log`, `/tmp/terrain-navigation-final.csv`,
 `/tmp/terrain-retained-final.csv` and `/tmp/terrain-retained-final.png`.
 Temporary evidence files are not packaged assets or permanent archival storage.
+
+## Navigation repeat after permission renewal
+
+Desktop input access was renewed and the committed Release build (`aeda5edb`)
+was tested at 5120 x 2806 with one editor, no concurrent runtime or compilation.
+The right-button camera movement completed; camera gauges identify 222 moving
+frames after initialization. Screenshots show intact terrain and editor panels.
+
+| Scope | Median | p95 |
+| --- | ---: | ---: |
+| Editor CPU work | 66.60 ms | 68.21 ms |
+| Viewport | 63.46 ms | 64.95 ms |
+| Extraction, all views | 31.50 ms | 32.53 ms |
+| Content-checked world transforms | 3.88 ms | 4.89 ms |
+| Instance extraction, all views | 13.02 ms | 14.44 ms |
+| Surface ordering | 9.36 ms | 9.71 ms |
+| Mesh submission | 8.05 ms | 8.61 ms |
+| GPU | 6.45 ms | 10.72 ms |
+
+Every moving frame reported `Editor.viewport3d.failed = 0`. This resolves the
+permission-related verification gap above, but not the CPU performance issue.
+These scopes overlap; do not add child scopes to their enclosing viewport cost.
+The previous intermediate movement run used a different resolution/camera path,
+so it remains unsuitable for an exact speedup ratio.
+
+Evidence: `/tmp/terrain-navigation-verified.csv`,
+`/tmp/viewport-navigation-verified.log`, and
+`/tmp/terrain-navigation-verified-{before,after}.png`.
