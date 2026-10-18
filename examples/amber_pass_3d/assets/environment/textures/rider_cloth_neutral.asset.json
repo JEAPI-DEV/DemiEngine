@@ -1,0 +1,15 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://amber_pass/textures/rider_cloth/albedo",
+  "importer": "image",
+  "importer_version": 1,
+  "settings": {
+    "filter": "trilinear",
+    "mipmaps": true,
+    "wrap": "repeat"
+  },
+  "source": "rider_cloth_neutral.png",
+  "source_hash": "fnv1a64:78811422f84e13ff",
+  "type": "Texture2D"
+}

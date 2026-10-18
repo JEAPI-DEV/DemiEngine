@@ -1,0 +1,15 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://amber_pass/textures/coastal_cliff_02/ambient_occlusion",
+  "importer": "image",
+  "importer_version": 1,
+  "settings": {
+    "filter": "trilinear",
+    "mipmaps": true,
+    "wrap": "repeat"
+  },
+  "source": "coastal_cliff_02_ao_2k.png",
+  "source_hash": "fnv1a64:166bede51a4b3bb8",
+  "type": "Texture2D"
+}

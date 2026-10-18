@@ -1,0 +1,15 @@
+{
+  "dependencies": [
+    "asset://amber_pass/textures/rock_moss_set_01/albedo",
+    "asset://amber_pass/textures/rock_moss_set_01/normal",
+    "asset://amber_pass/textures/rock_moss_set_01/roughness"
+  ],
+  "format_version": 1,
+  "id": "asset://amber_pass/materials/rock_moss_set_01",
+  "importer": "material",
+  "importer_version": 1,
+  "settings": {},
+  "source": "rock_moss_set_01.material.json",
+  "source_hash": "fnv1a64:015bbea9b13eb987",
+  "type": "Material"
+}

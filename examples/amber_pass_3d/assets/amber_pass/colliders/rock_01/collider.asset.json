@@ -1,0 +1,55 @@
+{
+  "dependencies": [
+    "asset://amber_pass/models/rock_01_mid"
+  ],
+  "detail": 0.6000000238418579,
+  "format_version": 1,
+  "generation": {
+    "body": "static",
+    "detail": 0.6000000238418579,
+    "model_import": {
+      "format_version": 1,
+      "import_animations": false,
+      "material_policy": "import",
+      "meters_per_unit": 1.0,
+      "optimize_meshes": true,
+      "preset": "static_prop",
+      "root_node": "preserve",
+      "source_forward": "+z",
+      "source_up": "+y"
+    },
+    "source_asset": "asset://amber_pass/models/rock_01_mid",
+    "source_hash": "fnv1a64:5740a3c55db15cea"
+  },
+  "id": "asset://amber_pass/colliders/rock_01",
+  "importer": "collider-generator",
+  "importer_version": 1,
+  "offset": [
+    0.0023946762084960938,
+    0.7337159514427185,
+    0.009964704513549805
+  ],
+  "settings": {
+    "model_import": {
+      "format_version": 1,
+      "import_animations": false,
+      "material_policy": "import",
+      "meters_per_unit": 1.0,
+      "optimize_meshes": true,
+      "preset": "static_prop",
+      "root_node": "preserve",
+      "source_forward": "+z",
+      "source_up": "+y"
+    }
+  },
+  "shape": "triangle_mesh",
+  "size": [
+    2.235445499420166,
+    1.4805761575698853,
+    3.379237651824951
+  ],
+  "source": "../../../environment/rock_01_mid.glb",
+  "source_asset": "asset://amber_pass/models/rock_01_mid",
+  "source_hash": "fnv1a64:5740a3c55db15cea",
+  "type": "Collider3D"
+}

@@ -1,0 +1,16 @@
+{
+  "format_version": 1,
+  "shader": "builtin://lit",
+  "mapping": "triplanar",
+  "parameters": {
+    "base_color": [0.63, 0.64, 0.54, 1],
+    "roughness": 0.95,
+    "normal_strength": 0.65,
+    "tiling": 0.6
+  },
+  "textures": {
+    "albedo": "asset://polyhaven/terrain/textures/marble_cliff_05/albedo",
+    "normal": "asset://polyhaven/terrain/textures/marble_cliff_05/normal",
+    "roughness": "asset://polyhaven/terrain/textures/marble_cliff_05/roughness"
+  }
+}

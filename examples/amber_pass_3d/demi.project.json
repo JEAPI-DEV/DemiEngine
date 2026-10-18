@@ -1,0 +1,78 @@
+{
+  "format_version": 1,
+  "name": "Amber Pass",
+  "main_scene": "scene://amber_pass/main",
+  "assets": [
+    "asset-group://amber_pass/showcase"
+  ],
+  "scenes": [
+    {
+      "id": "scene://amber_pass/main"
+    }
+  ],
+  "package_registry": "../../packages",
+  "packages": {
+    "polyhaven.materials.terrain": "^1.2.0",
+    "demi.animals.horse": "^0.1.0"
+  },
+  "input": {
+    "actions": {
+      "riding_move": {
+        "type": "vector2",
+        "bindings": [
+          {
+            "input": "key:w",
+            "vector": [
+              0,
+              -1
+            ]
+          },
+          {
+            "input": "key:s",
+            "vector": [
+              0,
+              1
+            ]
+          },
+          {
+            "input": "key:a",
+            "vector": [
+              -1,
+              0
+            ]
+          },
+          {
+            "input": "key:d",
+            "vector": [
+              1,
+              0
+            ]
+          },
+          {
+            "input": "virtual:riding_move"
+          }
+        ]
+      },
+      "riding_gallop": {
+        "type": "button",
+        "bindings": [
+          {
+            "input": "key:left_shift"
+          }
+        ]
+      },
+      "riding_reset": {
+        "type": "button",
+        "bindings": [
+          {
+            "input": "key:r"
+          }
+        ]
+      }
+    }
+  },
+  "scripting": {
+    "language": "lua54",
+    "modules": []
+  }
+}

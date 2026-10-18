@@ -1,0 +1,15 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://amber_pass/textures/coastal_cliff_02/roughness",
+  "importer": "image",
+  "importer_version": 1,
+  "settings": {
+    "filter": "trilinear",
+    "mipmaps": true,
+    "wrap": "repeat"
+  },
+  "source": "coastal_cliff_02_roughness_2k.png",
+  "source_hash": "fnv1a64:68502b2c8881a7ad",
+  "type": "Texture2D"
+}

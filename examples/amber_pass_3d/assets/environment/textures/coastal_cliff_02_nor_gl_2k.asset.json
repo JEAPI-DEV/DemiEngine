@@ -1,0 +1,15 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://amber_pass/textures/coastal_cliff_02/normal",
+  "importer": "image",
+  "importer_version": 1,
+  "settings": {
+    "filter": "trilinear",
+    "mipmaps": true,
+    "wrap": "repeat"
+  },
+  "source": "coastal_cliff_02_nor_gl_2k.jpg",
+  "source_hash": "fnv1a64:22030ea4349d1ad5",
+  "type": "Texture2D"
+}

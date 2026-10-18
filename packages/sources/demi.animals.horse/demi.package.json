@@ -1,0 +1,19 @@
+{
+  "format_version": 1,
+  "name": "demi.animals.horse",
+  "version": "0.1.0",
+  "engine": "^0.1.0",
+  "dependencies": {},
+  "public_modules": [],
+  "files": [
+    "README.md",
+    "CREDITS.txt",
+    "LICENSE",
+    "assets/horse/horse.glb",
+    "assets/horse/horse.asset.json",
+    "prefabs/horse.prefab.json"
+  ],
+  "asset_manifests": [
+    "assets/horse/horse.asset.json"
+  ]
+}

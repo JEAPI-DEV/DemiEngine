@@ -1,0 +1,16 @@
+{
+  "format_version": 1,
+  "shader": "builtin://lit",
+  "mapping": "triplanar",
+  "parameters": {
+    "roughness": 0.6,
+    "metallic": 0.3,
+    "normal_strength": 0.25,
+    "tiling": 5
+  },
+  "textures": {
+    "albedo": "asset://amber_pass/textures/rider_metal/albedo",
+    "normal": "asset://amber_pass/textures/rider_metal/normal",
+    "roughness": "asset://amber_pass/textures/rider_metal/roughness"
+  }
+}

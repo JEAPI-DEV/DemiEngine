@@ -1,0 +1,19 @@
+{
+  "format_version": 1,
+  "shader": "builtin://lit",
+  "mapping": "uv",
+  "parameters": {
+    "roughness": 0.88,
+    "normal_strength": 0.7
+  },
+  "textures": {
+    "albedo": "asset://amber_pass/textures/coastal_cliff_02/albedo",
+    "normal": "asset://amber_pass/textures/coastal_cliff_02/normal",
+    "roughness": "asset://amber_pass/textures/coastal_cliff_02/roughness",
+    "ambient_occlusion": "asset://amber_pass/textures/coastal_cliff_02/ambient_occlusion"
+  },
+  "render_state": {
+    "cull": "none",
+    "blend": "opaque"
+  }
+}

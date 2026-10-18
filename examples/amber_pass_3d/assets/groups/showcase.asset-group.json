@@ -1,0 +1,12 @@
+{
+  "format_version": 1,
+  "id": "asset-group://amber_pass/showcase",
+  "roots": [
+    "scene://amber_pass/main"
+  ],
+  "budget": {
+    "resident_mb": 384,
+    "decoded_mb": 256,
+    "upload_ms_per_frame": 3
+  }
+}

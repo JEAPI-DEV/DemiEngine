@@ -1,0 +1,25 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://demi/animals/horse",
+  "importer": "gltf-model",
+  "importer_version": 1,
+  "settings": {
+    "filter": "trilinear",
+    "mipmaps": true,
+    "model_import": {
+      "format_version": 1,
+      "import_animations": true,
+      "material_policy": "import",
+      "meters_per_unit": 1,
+      "optimize_meshes": false,
+      "preset": "animated_character",
+      "root_node": "preserve",
+      "source_forward": "+z",
+      "source_up": "+y"
+    }
+  },
+  "source": "horse.glb",
+  "source_hash": "fnv1a64:da863edfadcb7254",
+  "type": "Model3D"
+}

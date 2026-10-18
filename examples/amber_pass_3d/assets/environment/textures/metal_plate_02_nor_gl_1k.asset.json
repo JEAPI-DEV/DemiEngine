@@ -1,0 +1,15 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://amber_pass/textures/rider_metal/normal",
+  "importer": "image",
+  "importer_version": 1,
+  "settings": {
+    "filter": "trilinear",
+    "mipmaps": true,
+    "wrap": "repeat"
+  },
+  "source": "metal_plate_02_nor_gl_1k.png",
+  "source_hash": "fnv1a64:eab5e1347937db97",
+  "type": "Texture2D"
+}

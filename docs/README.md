@@ -7,6 +7,9 @@ are registered in `tools/package-store/src/Docs.php`.
 
 This directory keeps material that has a different job:
 
+- [Amber Pass mounted demo](amber-pass-qualification.md) records native mountain
+  terrain, reusable horse art, riding checks, foliage coverage and AC-power GPU
+  measurements, plus shared asset lifetime and shader fixes.
 - [Dense-terrain Game View performance](terrain-game-view-performance.md) records
   simulation membership queries, revisioned instance inputs, clipped runtime
   hierarchy rows and embedded Play profiling.

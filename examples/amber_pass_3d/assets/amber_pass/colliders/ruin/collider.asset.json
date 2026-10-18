@@ -1,0 +1,55 @@
+{
+  "dependencies": [
+    "asset://amber_pass/models/ruin"
+  ],
+  "detail": 1.0,
+  "format_version": 1,
+  "generation": {
+    "body": "static",
+    "detail": 1.0,
+    "model_import": {
+      "format_version": 1,
+      "import_animations": false,
+      "material_policy": "import",
+      "meters_per_unit": 1.0,
+      "optimize_meshes": true,
+      "preset": "static_prop",
+      "root_node": "preserve",
+      "source_forward": "+z",
+      "source_up": "+y"
+    },
+    "source_asset": "asset://amber_pass/models/ruin",
+    "source_hash": "fnv1a64:11df3a3252540b3a"
+  },
+  "id": "asset://amber_pass/colliders/ruin",
+  "importer": "collider-generator",
+  "importer_version": 1,
+  "offset": [
+    0.18266010284423828,
+    8.59999942779541,
+    -1.9404065608978271
+  ],
+  "settings": {
+    "model_import": {
+      "format_version": 1,
+      "import_animations": false,
+      "material_policy": "import",
+      "meters_per_unit": 1.0,
+      "optimize_meshes": true,
+      "preset": "static_prop",
+      "root_node": "preserve",
+      "source_forward": "+z",
+      "source_up": "+y"
+    }
+  },
+  "shape": "triangle_mesh",
+  "size": [
+    17.135318756103516,
+    17.19999885559082,
+    12.579185485839844
+  ],
+  "source": "../../../ruins/ruin.glb",
+  "source_asset": "asset://amber_pass/models/ruin",
+  "source_hash": "fnv1a64:11df3a3252540b3a",
+  "type": "Collider3D"
+}

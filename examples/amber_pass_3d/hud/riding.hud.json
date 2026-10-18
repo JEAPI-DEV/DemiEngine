@@ -1,0 +1,66 @@
+{
+  "format_version": 1,
+  "canvas_size": [1280, 720],
+  "children": [
+    {
+      "id": "title",
+      "type": "label",
+      "text": "AMBER PASS",
+      "at": [38, 28],
+      "size": [320, 36],
+      "font_size": 26,
+      "color": "#F2DFB8FF"
+    },
+    {
+      "id": "subtitle",
+      "type": "label",
+      "text": "THE OLD ROAD  /  DEMI ENGINE",
+      "at": [40, 66],
+      "size": [360, 24],
+      "font_size": 12,
+      "color": "#D3C9B6DD"
+    },
+    {
+      "id": "controls",
+      "type": "label",
+      "text": "WASD Ride   \u2022   Shift Gallop   \u2022   RMB Look   \u2022   R Return",
+      "dock": "bottom",
+      "size": [600, 26],
+      "at": [320, -22],
+      "font_size": 14,
+      "color": "#F2DFB8DD"
+    },
+    {
+      "id": "touch_toggle",
+      "type": "button",
+      "text": "Touch controls",
+      "at": [40, 680],
+      "size": [130, 28],
+      "font_size": 12,
+      "background_color": "#171C1F55",
+      "color": "#E0CD99AA"
+    },
+    {
+      "id": "riding_stick",
+      "type": "virtual_stick",
+      "control": "riding_move",
+      "visible": false,
+      "at": [40, 566],
+      "size": [110, 110],
+      "radius": 55,
+      "deadzone": 0.12,
+      "background_color": "#171C1F55",
+      "color": "#E0CD9955"
+    },
+    {
+      "id": "riding_forward",
+      "type": "label",
+      "text": "\u2191",
+      "visible": false,
+      "at": [85, 566],
+      "size": [20, 20],
+      "font_size": 17,
+      "color": "#E0CD99AA"
+    }
+  ]
+}

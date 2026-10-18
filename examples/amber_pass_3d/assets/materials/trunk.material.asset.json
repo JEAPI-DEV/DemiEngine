@@ -1,0 +1,16 @@
+{
+  "dependencies": [
+    "asset://amber_pass/textures/trunk/albedo",
+    "asset://amber_pass/textures/trunk/ambient_occlusion",
+    "asset://amber_pass/textures/trunk/normal",
+    "asset://amber_pass/textures/trunk/roughness"
+  ],
+  "format_version": 1,
+  "id": "asset://amber_pass/materials/trunk",
+  "importer": "material",
+  "importer_version": 1,
+  "settings": {},
+  "source": "trunk.material.json",
+  "source_hash": "fnv1a64:74fb87317ad2a485",
+  "type": "Material"
+}

@@ -1,0 +1,15 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://amber_pass/textures/rider_cloth/roughness",
+  "importer": "image",
+  "importer_version": 1,
+  "settings": {
+    "filter": "trilinear",
+    "mipmaps": true,
+    "wrap": "repeat"
+  },
+  "source": "fabric_pattern_07_rough_1k.png",
+  "source_hash": "fnv1a64:8f59926ec67e6972",
+  "type": "Texture2D"
+}

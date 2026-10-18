@@ -1,0 +1,16 @@
+{
+  "dependencies": [
+    "asset://amber_pass/textures/leaves/albedo",
+    "asset://amber_pass/textures/leaves/ambient_occlusion",
+    "asset://amber_pass/textures/leaves/normal",
+    "asset://amber_pass/textures/leaves/roughness"
+  ],
+  "format_version": 1,
+  "id": "asset://amber_pass/materials/leaves",
+  "importer": "material",
+  "importer_version": 1,
+  "settings": {},
+  "source": "leaves.material.json",
+  "source_hash": "fnv1a64:dab93e5249f2dd2d",
+  "type": "Material"
+}

@@ -1,0 +1,15 @@
+{
+  "dependencies": [
+    "asset://amber_pass/textures/rider_metal/albedo",
+    "asset://amber_pass/textures/rider_metal/normal",
+    "asset://amber_pass/textures/rider_metal/roughness"
+  ],
+  "format_version": 1,
+  "id": "asset://amber_pass/materials/armor",
+  "importer": "material",
+  "importer_version": 1,
+  "settings": {},
+  "source": "armor.material.json",
+  "source_hash": "fnv1a64:c5b5cd90bf8c5266",
+  "type": "Material"
+}

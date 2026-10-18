@@ -1,0 +1,15 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://amber_pass/textures/rock_moss_set_01/roughness",
+  "importer": "image",
+  "importer_version": 1,
+  "settings": {
+    "filter": "trilinear",
+    "mipmaps": true,
+    "wrap": "repeat"
+  },
+  "source": "rock_moss_set_01_rough_2k.jpg",
+  "source_hash": "fnv1a64:7ca327a1d89a6194",
+  "type": "Texture2D"
+}

@@ -1,0 +1,55 @@
+{
+  "dependencies": [
+    "asset://amber_pass/models/coastal_cliff_mid"
+  ],
+  "detail": 0.5,
+  "format_version": 1,
+  "generation": {
+    "body": "static",
+    "detail": 0.5,
+    "model_import": {
+      "format_version": 1,
+      "import_animations": false,
+      "material_policy": "import",
+      "meters_per_unit": 1.0,
+      "optimize_meshes": true,
+      "preset": "static_prop",
+      "root_node": "preserve",
+      "source_forward": "+z",
+      "source_up": "+y"
+    },
+    "source_asset": "asset://amber_pass/models/coastal_cliff_mid",
+    "source_hash": "fnv1a64:f90d98ba15ba146f"
+  },
+  "id": "asset://amber_pass/colliders/cliff",
+  "importer": "collider-generator",
+  "importer_version": 1,
+  "offset": [
+    -0.06781864166259766,
+    4.775510787963867,
+    -0.17810487747192383
+  ],
+  "settings": {
+    "model_import": {
+      "format_version": 1,
+      "import_animations": false,
+      "material_policy": "import",
+      "meters_per_unit": 1.0,
+      "optimize_meshes": true,
+      "preset": "static_prop",
+      "root_node": "preserve",
+      "source_forward": "+z",
+      "source_up": "+y"
+    }
+  },
+  "shape": "triangle_mesh",
+  "size": [
+    40.921180725097656,
+    10.04024887084961,
+    8.634366989135742
+  ],
+  "source": "../../../environment/coastal_cliff_mid.glb",
+  "source_asset": "asset://amber_pass/models/coastal_cliff_mid",
+  "source_hash": "fnv1a64:f90d98ba15ba146f",
+  "type": "Collider3D"
+}

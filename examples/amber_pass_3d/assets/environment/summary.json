@@ -1,0 +1,463 @@
+{
+  "license": "CC0-1.0",
+  "source": "https://polyhaven.com/license",
+  "models": [
+    {
+      "name": "rock_01",
+      "file": "rock_01.glb",
+      "triangles": 6000,
+      "bytes": 150984,
+      "bounds_min": [
+        -1.1194143295288086,
+        0.0,
+        -1.6844022274017334
+      ],
+      "bounds_max": [
+        1.1179031133651733,
+        1.4733775854110718,
+        1.6844021081924438
+      ],
+      "material": "rock_moss_set_01"
+    },
+    {
+      "name": "rock_01_mid",
+      "file": "rock_01_mid.glb",
+      "triangles": 1999,
+      "bytes": 58852,
+      "bounds_min": [
+        -1.115328073501587,
+        -0.006572127342224121,
+        -1.6796541213989258
+      ],
+      "bounds_max": [
+        1.120117425918579,
+        1.4740040302276611,
+        1.6995835304260254
+      ],
+      "material": "rock_moss_set_01"
+    },
+    {
+      "name": "rock_02",
+      "file": "rock_02.glb",
+      "triangles": 5999,
+      "bytes": 155208,
+      "bounds_min": [
+        -1.3262386322021484,
+        -0.002897500991821289,
+        -1.6328401565551758
+      ],
+      "bounds_max": [
+        1.3276903629302979,
+        1.263140320777893,
+        1.6301348209381104
+      ],
+      "material": "rock_moss_set_01"
+    },
+    {
+      "name": "rock_02_mid",
+      "file": "rock_02_mid.glb",
+      "triangles": 1999,
+      "bytes": 62212,
+      "bounds_min": [
+        -1.3208301067352295,
+        -0.000978320837020874,
+        -1.630620002746582
+      ],
+      "bounds_max": [
+        1.321890115737915,
+        1.26056706905365,
+        1.6307841539382935
+      ],
+      "material": "rock_moss_set_01"
+    },
+    {
+      "name": "rock_03",
+      "file": "rock_03.glb",
+      "triangles": 5000,
+      "bytes": 118840,
+      "bounds_min": [
+        -1.0542912483215332,
+        0.0,
+        -1.0397928953170776
+      ],
+      "bounds_max": [
+        1.0542913675308228,
+        1.0996944904327393,
+        1.039792776107788
+      ],
+      "material": "rock_moss_set_01"
+    },
+    {
+      "name": "rock_03_mid",
+      "file": "rock_03_mid.glb",
+      "triangles": 2000,
+      "bytes": 52488,
+      "bounds_min": [
+        -1.0538419485092163,
+        0.0008182823657989502,
+        -1.0402449369430542
+      ],
+      "bounds_max": [
+        1.052864670753479,
+        1.1009132862091064,
+        1.039792776107788
+      ],
+      "material": "rock_moss_set_01"
+    },
+    {
+      "name": "rock_04",
+      "file": "rock_04.glb",
+      "triangles": 5999,
+      "bytes": 145660,
+      "bounds_min": [
+        -1.0627083778381348,
+        7.259845733642578e-05,
+        -0.9816391468048096
+      ],
+      "bounds_max": [
+        1.0636690855026245,
+        1.7685474157333374,
+        0.9817482233047485
+      ],
+      "material": "rock_moss_set_01"
+    },
+    {
+      "name": "rock_04_mid",
+      "file": "rock_04_mid.glb",
+      "triangles": 1999,
+      "bytes": 55228,
+      "bounds_min": [
+        -1.0650572776794434,
+        -0.001094818115234375,
+        -0.9810135960578918
+      ],
+      "bounds_max": [
+        1.0657827854156494,
+        1.7692424058914185,
+        0.9811586141586304
+      ],
+      "material": "rock_moss_set_01"
+    },
+    {
+      "name": "rock_05",
+      "file": "rock_05.glb",
+      "triangles": 5999,
+      "bytes": 141380,
+      "bounds_min": [
+        -0.9079478979110718,
+        -0.00012063980102539062,
+        -1.4983059167861938
+      ],
+      "bounds_max": [
+        0.9083837270736694,
+        1.2070324420928955,
+        1.4993318319320679
+      ],
+      "material": "rock_moss_set_01"
+    },
+    {
+      "name": "rock_05_mid",
+      "file": "rock_05_mid.glb",
+      "triangles": 2000,
+      "bytes": 52132,
+      "bounds_min": [
+        -0.9144879579544067,
+        -0.003900468349456787,
+        -1.5025259256362915
+      ],
+      "bounds_max": [
+        0.9093303680419922,
+        1.2075949907302856,
+        1.5024319887161255
+      ],
+      "material": "rock_moss_set_01"
+    },
+    {
+      "name": "rock_06",
+      "file": "rock_06.glb",
+      "triangles": 5999,
+      "bytes": 141092,
+      "bounds_min": [
+        -1.0629910230636597,
+        0.0,
+        -1.37865149974823
+      ],
+      "bounds_max": [
+        1.0629911422729492,
+        1.261852741241455,
+        1.3786516189575195
+      ],
+      "material": "rock_moss_set_01"
+    },
+    {
+      "name": "rock_06_mid",
+      "file": "rock_06_mid.glb",
+      "triangles": 1999,
+      "bytes": 52256,
+      "bounds_min": [
+        -1.0670641660690308,
+        0.002700328826904297,
+        -1.3799011707305908
+      ],
+      "bounds_max": [
+        1.0704946517944336,
+        1.2599897384643555,
+        1.3786516189575195
+      ],
+      "material": "rock_moss_set_01"
+    },
+    {
+      "name": "coastal_cliff",
+      "file": "coastal_cliff.glb",
+      "triangles": 25000,
+      "bytes": 645016,
+      "bounds_min": [
+        -20.54766845703125,
+        -0.23045766353607178,
+        -4.495288372039795
+      ],
+      "bounds_max": [
+        20.41048812866211,
+        9.837514877319336,
+        4.142533779144287
+      ],
+      "material": "coastal_cliff_02"
+    },
+    {
+      "name": "coastal_cliff_mid",
+      "file": "coastal_cliff_mid.glb",
+      "triangles": 6000,
+      "bytes": 169088,
+      "bounds_min": [
+        -20.52840805053711,
+        -0.2446136474609375,
+        -4.495288372039795
+      ],
+      "bounds_max": [
+        20.392770767211914,
+        9.795635223388672,
+        4.139078617095947
+      ],
+      "material": "coastal_cliff_02"
+    },
+    {
+      "name": "tree_trunk",
+      "file": "tree_trunk.glb",
+      "triangles": 2499,
+      "bytes": 94628,
+      "bounds_min": [
+        -0.7644301056861877,
+        -0.0249857809394598,
+        -0.39514777064323425
+      ],
+      "bounds_max": [
+        0.9315205812454224,
+        3.663884162902832,
+        1.9181606769561768
+      ],
+      "material": "trunk"
+    },
+    {
+      "name": "tree_trunk_mid",
+      "file": "tree_trunk_mid.glb",
+      "triangles": 1000,
+      "bytes": 42624,
+      "bounds_min": [
+        -0.7644301056861877,
+        -0.02626684680581093,
+        -0.385596364736557
+      ],
+      "bounds_max": [
+        0.9277400970458984,
+        3.663884162902832,
+        1.9146603345870972
+      ],
+      "material": "trunk"
+    },
+    {
+      "name": "tree_branches",
+      "file": "tree_branches.glb",
+      "triangles": 3498,
+      "bytes": 210064,
+      "bounds_min": [
+        -1.094990849494934,
+        1.625041127204895,
+        -1.2630988359451294
+      ],
+      "bounds_max": [
+        1.418458342552185,
+        4.392492294311523,
+        2.792675018310547
+      ],
+      "material": "branches"
+    },
+    {
+      "name": "tree_branches_mid",
+      "file": "tree_branches_mid.glb",
+      "triangles": 1000,
+      "bytes": 93868,
+      "bounds_min": [
+        -1.094990849494934,
+        1.625041127204895,
+        -1.2630988359451294
+      ],
+      "bounds_max": [
+        1.418458342552185,
+        4.392492294311523,
+        2.792675018310547
+      ],
+      "material": "branches"
+    },
+    {
+      "name": "tree_leaves",
+      "file": "tree_leaves.glb",
+      "triangles": 14000,
+      "bytes": 981040,
+      "material": "leaves",
+      "bounds_min": [
+        -1.341055154800415,
+        1.4368587732315063,
+        -1.4081178903579712
+      ],
+      "bounds_max": [
+        1.6421077251434326,
+        4.583418846130371,
+        2.9323267936706543
+      ]
+    },
+    {
+      "name": "tree_leaves_mid",
+      "file": "tree_leaves_mid.glb",
+      "triangles": 4000,
+      "bytes": 281040,
+      "material": "leaves",
+      "bounds_min": [
+        -1.3140270709991455,
+        1.4368587732315063,
+        -1.4081178903579712
+      ],
+      "bounds_max": [
+        1.6421077251434326,
+        4.511632442474365,
+        2.903308868408203
+      ]
+    },
+    {
+      "name": "grass_patch",
+      "file": "grass_patch.glb",
+      "triangles": 1008,
+      "bytes": 54740,
+      "material": "grass_photo",
+      "bounds_min": [
+        -0.1599999964237213,
+        0.0,
+        -0.1599999964237213
+      ],
+      "bounds_max": [
+        0.1599999964237213,
+        0.1600000113248825,
+        0.1599999964237213
+      ]
+    },
+    {
+      "name": "grass_patch_mid",
+      "file": "grass_patch_mid.glb",
+      "triangles": 237,
+      "bytes": 18852,
+      "material": "grass_photo",
+      "bounds_min": [
+        -0.1599999964237213,
+        0.0,
+        -0.1599999964237213
+      ],
+      "bounds_max": [
+        0.1599999964237213,
+        0.1599999964237213,
+        0.1599999964237213
+      ]
+    },
+    {
+      "name": "grass_patch_low",
+      "file": "grass_patch_low.glb",
+      "triangles": 8,
+      "bytes": 1556,
+      "material": "grass_photo",
+      "bounds_min": [
+        -0.1599999964237213,
+        0.0,
+        -0.1600000113248825
+      ],
+      "bounds_max": [
+        0.1599999964237213,
+        0.1600000113248825,
+        0.1600000113248825
+      ]
+    }
+  ],
+  "materials": {
+    "rock_moss_set_01": {
+      "albedo": "textures/rock_moss_set_01_diff_2k.jpg",
+      "normal": "textures/rock_moss_set_01_nor_gl_2k.jpg",
+      "roughness": "textures/rock_moss_set_01_rough_2k.jpg"
+    },
+    "coastal_cliff_02": {
+      "albedo": "textures/coastal_cliff_02_diff_2k.jpg",
+      "normal": "textures/coastal_cliff_02_nor_gl_2k.jpg",
+      "arm": "textures/coastal_cliff_02_arm_2k.jpg",
+      "ao": "textures/coastal_cliff_02_ao_2k.png",
+      "roughness": "textures/coastal_cliff_02_roughness_2k.png"
+    },
+    "trunk": {
+      "albedo": "textures/tree_small_02_diff_2k.jpg",
+      "normal": "textures/tree_small_02_nor_gl_2k.jpg",
+      "arm": "textures/tree_small_02_arm_2k.jpg",
+      "ao": "textures/tree_small_02_ao_2k.png",
+      "roughness": "textures/tree_small_02_roughness_2k.png"
+    },
+    "branches": {
+      "albedo": "textures/tree_small_02_branch_diff_2k.jpg",
+      "normal": "textures/tree_small_02_branch_nor_gl_2k.jpg",
+      "arm": "textures/tree_small_02_branch_arm_2k.jpg",
+      "ao": "textures/tree_small_02_branch_ao_2k.png",
+      "roughness": "textures/tree_small_02_branch_roughness_2k.png"
+    },
+    "leaves": {
+      "albedo": "textures/autumn_leaves.png",
+      "normal": "textures/tree_small_02_leaves_nor_gl_2k.jpg",
+      "arm": "textures/tree_small_02_leaves_arm_2k.jpg",
+      "alpha_cutoff": 0.5,
+      "double_sided": true,
+      "ao": "textures/tree_small_02_leaves_ao_2k.png",
+      "roughness": "textures/tree_small_02_leaves_roughness_2k.png"
+    },
+    "rider_cloth": {
+      "albedo": "textures/rider_cloth_neutral.png",
+      "normal": "textures/fabric_pattern_07_nor_gl_1k.png",
+      "roughness": "textures/fabric_pattern_07_rough_1k.png",
+      "source": "https://polyhaven.com/a/fabric_pattern_07"
+    },
+    "rider_leather": {
+      "albedo": "textures/rider_leather_neutral.png",
+      "normal": "textures/fabric_leather_01_nor_gl_1k.png",
+      "roughness": "textures/fabric_leather_01_rough_1k.png",
+      "source": "https://polyhaven.com/a/fabric_leather_01"
+    },
+    "rider_metal": {
+      "albedo": "textures/rider_metal_neutral.png",
+      "normal": "textures/metal_plate_02_nor_gl_1k.png",
+      "roughness": "textures/metal_plate_02_rough_1k.png",
+      "source": "https://polyhaven.com/a/metal_plate_02"
+    },
+    "grass_photo": {
+      "albedo": "textures/grass_photo.png",
+      "normal": "textures/grass_medium_01_nor_gl_1k.jpg",
+      "arm": "textures/grass_medium_01_arm_1k.jpg",
+      "alpha_cutoff": 0.5,
+      "double_sided": true,
+      "source": "https://polyhaven.com/a/grass_medium_01",
+      "ao": "textures/grass_medium_01_ao_1k.png",
+      "roughness": "textures/grass_medium_01_roughness_1k.png"
+    }
+  },
+  "sky": "textures/kloppenheim_06_puresky.png"
+}
