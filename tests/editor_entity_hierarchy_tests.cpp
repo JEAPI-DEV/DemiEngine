@@ -68,8 +68,7 @@ void deepMatchesAndMalformedParentsRemainBounded() {
         std::to_string(index), index == 0 ? "" : std::to_string(index - 1)));
   }
   world.entities.back().name = "Deep match";
-  EditorHierarchyIndex hierarchy(world, nlohmann::json::object(),
-                                  "deep MATCH");
+  EditorHierarchyIndex hierarchy(world, nlohmann::json::object(), "deep MATCH");
   for (int index = 0; index < Depth; ++index) {
     assert(hierarchy.find(std::to_string(index))->visible);
   }
@@ -123,8 +122,65 @@ void placementPreviewVisibilityMatchesAuthoredOwnership() {
   assert(extended.find("grid")->visible);
   assert(extended.find("grid")->paintedCells.size() == 1);
 }
+void retainedProjectionInvalidatesByRevisionAndClosesRows() {
+  World world;
+  world.entities = {entity("parent"), entity("child", "parent"),
+                    entity("other")};
+  const auto document = nlohmann::json::object();
+  EditorHierarchyProjection projection;
+  projection.refresh(world, document, 1, 1, "");
+  assert(projection.indexBuildCount() == 1);
+  assert(projection.rows().size() == 3);
+  const auto rowBuilds = projection.rowBuildCount();
+  for (int frame = 0; frame < 100; ++frame) {
+    projection.refresh(world, document, 1, 1, "");
+    assert(projection.rows().size() == 3);
+  }
+  assert(projection.indexBuildCount() == 1);
+  assert(projection.rowBuildCount() == rowBuilds);
+  projection.setEntityOpen("parent", false);
+  assert(projection.rows().size() == 2);
+  projection.setEntityOpen("parent", true);
+  assert(projection.rows().size() == 3);
+  world.entities[1].name = "Renamed child";
+  projection.refresh(world, document, 2, 1, "renamed");
+  assert(projection.indexBuildCount() == 2);
+  assert(projection.rows().size() == 2);
+  world.entities[1].component<Transform3DComponent>()->parent = "other";
+  projection.refresh(world, document, 3, 1, "renamed");
+  assert(projection.rows().size() == 2);
+  assert(projection.index()
+             .node(*projection.index().find("child")->parent)
+             .entity->id == "other");
+  std::swap(world.entities[0], world.entities[2]);
+  projection.refresh(world, document, 3, 2, "");
+  assert(projection.index().find("other")->entity == &world.entities[0]);
+  assert(projection.indexBuildCount() == 4);
+}
+
+void retainedLargeProjectionDoesNotRewalkIdleRows() {
+  World world;
+  constexpr int Count = 24000;
+  world.entities.reserve(Count);
+  for (int index = 0; index < Count; ++index) {
+    world.entities.push_back(entity("entity_" + std::to_string(index)));
+  }
+  EditorHierarchyProjection projection;
+  const auto document = nlohmann::json::object();
+  projection.refresh(world, document, 1, 1, "");
+  assert(projection.rows().size() == Count);
+  for (int frame = 0; frame < 50; ++frame) {
+    projection.refresh(world, document, 1, 1, "");
+    (void)projection.rows();
+  }
+  assert(projection.indexBuildCount() == 1);
+  assert(projection.rowBuildCount() == 1);
+}
+
 } // namespace
 int main() {
+  retainedProjectionInvalidatesByRevisionAndClosesRows();
+  retainedLargeProjectionDoesNotRewalkIdleRows();
   largeFlatHierarchyUsesIndexedRelationships();
   deepMatchesAndMalformedParentsRemainBounded();
   placementPreviewVisibilityMatchesAuthoredOwnership();

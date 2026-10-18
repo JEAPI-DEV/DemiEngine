@@ -1,4 +1,7 @@
 # Native test executables. Test registration lives in dedicated modules.
+add_executable(demi-component-storage-tests tests/component_storage_tests.cpp)
+target_include_directories(demi-component-storage-tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
+target_compile_features(demi-component-storage-tests PRIVATE cxx_std_20)
   # Explicitly requested generation probe; not part of the default test build.
   add_executable(demi-terrain-generation-benchmark EXCLUDE_FROM_ALL
     scripts/benchmark_terrain_generation.cpp)

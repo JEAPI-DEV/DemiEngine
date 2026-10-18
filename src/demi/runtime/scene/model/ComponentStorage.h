@@ -2,8 +2,9 @@
 
 #include <any>
 #include <concepts>
-#include <typeindex>
+#include <cstddef>
 #include <type_traits>
+#include <typeindex>
 #include <unordered_map>
 #include <utility>
 
@@ -11,13 +12,11 @@ namespace demi::runtime {
 
 class ComponentStorage {
 public:
-  template <typename ComponentType>
-  [[nodiscard]] bool contains() const {
+  template <typename ComponentType> [[nodiscard]] bool contains() const {
     return components_.contains(typeKey<ComponentType>());
   }
 
-  template <typename ComponentType>
-  [[nodiscard]] ComponentType *get() {
+  template <typename ComponentType> [[nodiscard]] ComponentType *get() {
     const auto iterator = components_.find(typeKey<ComponentType>());
     return iterator == components_.end()
                ? nullptr
@@ -37,7 +36,8 @@ public:
   std::remove_cvref_t<ComponentType> &set(ComponentType &&component) {
     using StoredType = std::remove_cvref_t<ComponentType>;
     auto [iterator, inserted] = components_.insert_or_assign(
-        typeKey<StoredType>(), StoredType(std::forward<ComponentType>(component)));
+        typeKey<StoredType>(),
+        StoredType(std::forward<ComponentType>(component)));
     (void)inserted;
     return *std::any_cast<StoredType>(&iterator->second);
   }
@@ -49,12 +49,35 @@ public:
   void clear() { components_.clear(); }
 
 private:
+  struct TypeKey {
+    explicit TypeKey(std::type_index componentType)
+        : type(componentType), hash(componentType.hash_code()) {}
+
+    bool operator==(const TypeKey &other) const noexcept {
+      return type == other.type;
+    }
+
+    std::type_index type;
+    std::size_t hash;
+  };
+
+  struct TypeKeyHash {
+    std::size_t operator()(const TypeKey &key) const noexcept {
+      return key.hash;
+    }
+  };
+
   template <typename ComponentType>
-  [[nodiscard]] static std::type_index typeKey() {
-    return std::type_index(typeid(std::remove_cvref_t<ComponentType>));
+  [[nodiscard]] static const TypeKey &typeKey() {
+    using StoredType = std::remove_cvref_t<ComponentType>;
+    // RTTI hash_code may hash the full type name on every call. Retain the
+    // hash with the key while keeping type_index equality for collisions and
+    // std::any_cast for checked value access.
+    static const TypeKey key{std::type_index(typeid(StoredType))};
+    return key;
   }
 
-  std::unordered_map<std::type_index, std::any> components_;
+  std::unordered_map<TypeKey, std::any, TypeKeyHash> components_;
 };
 
 } // namespace demi::runtime

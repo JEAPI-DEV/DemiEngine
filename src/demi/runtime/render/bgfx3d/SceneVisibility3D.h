@@ -2,6 +2,7 @@
 
 #include "demi/runtime/render/bgfx3d/BgfxCameraFrame3D.h"
 #include "demi/runtime/render/bgfx3d/MeshBounds3D.h"
+#include "demi/runtime/render/bgfx3d/MeshInstancePreparation3D.h"
 #include "demi/runtime/scene/Transform3DHierarchy.h"
 #include "demi/runtime/terrain/TerrainRenderLod.h"
 #include <array>
@@ -49,6 +50,7 @@ struct VisibleMesh3D {
   // Transient renderer preparation, valid through the current presentation.
   // Null for ordinary entities and callers using uncached extraction.
   const std::array<float, 16> *preparedModelMatrix = nullptr;
+  const MeshInstancePreparation3D::EntitySource *preparedSource = nullptr;
 };
 
 struct SceneVisibility3D {

@@ -21,11 +21,12 @@ std::size_t MeshInstanceBatch3D::KeyHash::operator()(const Key &key) const {
   return hash;
 }
 
-void MeshInstanceBatch3D::add(const GpuMesh3D &mesh, TextureHandle texture,
-                              const std::array<float, 4> &tint,
-                              const std::array<float, 4> &metalRough,
-                              bool unlit,
-                              const std::array<float, 16> &transform) {
+std::size_t MeshInstanceBatch3D::add(const GpuMesh3D &mesh,
+                                     TextureHandle texture,
+                                     const std::array<float, 4> &tint,
+                                     const std::array<float, 4> &metalRough,
+                                     bool unlit,
+                                     const std::array<float, 16> &transform) {
   Key key{.mesh = &mesh, .texture = texture, .unlit = unlit};
   for (std::size_t index = 0; index < 4; ++index) {
     key.uniformBits[index] = std::bit_cast<std::uint32_t>(tint[index]);
@@ -40,7 +41,8 @@ void MeshInstanceBatch3D::add(const GpuMesh3D &mesh, TextureHandle texture,
                        .metalRough = metalRough,
                        .unlit = unlit});
   }
-  groups_[found->second].transforms.push_back(transform);
+  appendTransform(found->second, transform);
+  return found->second;
 }
 
 std::size_t MeshInstanceBatch3D::addSurface(

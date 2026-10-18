@@ -440,6 +440,13 @@ public:
   [[nodiscard]] bool alignSelectedCameraToView(std::string &error);
   // Explicit selection events include selecting the same object again, so
   // presentation can reveal a collapsed hierarchy without changing documents.
+  // Preview publishers and external native preview mutations invalidate
+  // retained presentation projections explicitly, even when entity counts
+  // match.
+  void invalidateHierarchyPreview() { ++hierarchyPreviewRevision_; }
+  [[nodiscard]] std::uint64_t hierarchyPreviewRevision() const {
+    return hierarchyPreviewRevision_;
+  }
   [[nodiscard]] std::uint64_t selectionRevision() const {
     return selectionRevision_;
   }
@@ -570,6 +577,7 @@ private:
   std::unordered_map<std::string, runtime::TilemapAsset2D> tilemaps2D_;
   Diagnostics diagnostics_;
   std::uint64_t selectionRevision_ = 0;
+  std::uint64_t hierarchyPreviewRevision_ = 0;
   std::vector<std::string> selectedEntityIds_;
   std::string selectedHudNodeId_;
   std::vector<std::string> selectedHudNodeIds_;

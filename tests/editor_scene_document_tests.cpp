@@ -152,18 +152,27 @@ int main() {
   demi::editor::EditorSceneDocument document;
   std::string error;
   assert(document.open(scene, error));
+  const auto openedRevision = document.contentRevision();
+  assert(openedRevision != 0);
   const demi::editor::SceneValueTarget position{.entityId = "ent_player",
                                                 .component = "Transform3D",
                                                 .field = "position"};
   assert(document.setValue(position, {1.0, 2.0, 3.0}, true, error));
+  const auto firstEditRevision = document.contentRevision();
+  assert(firstEditRevision != openedRevision);
   assert(document.setValue(position, {2.0, 3.0, 4.0}, true, error));
+  const auto coalescedRevision = document.contentRevision();
+  assert(coalescedRevision != firstEditRevision);
   document.endContinuousEdit();
   assert(document.isDirty());
   assert(document.canUndo());
   assert(document.undo(error));
+  const auto undoRevision = document.contentRevision();
+  assert(undoRevision != coalescedRevision);
   assert((*document.component("ent_player", "Transform3D"))["position"] ==
          nlohmann::json({0.0, 0.0, 0.0}));
   assert(document.redo(error));
+  assert(document.contentRevision() != undoRevision);
   assert((*document.component("ent_player", "Transform3D"))["position"] ==
          nlohmann::json({2.0, 3.0, 4.0}));
 
@@ -222,7 +231,9 @@ int main() {
 
   const std::string beforeRejectedEdit = document.json().dump();
   const bool couldUndoBeforeRejectedEdit = document.canUndo();
+  const auto beforeRejectedRevision = document.contentRevision();
   assert(!document.setValue(position, "not-a-vector", false, error));
+  assert(document.contentRevision() == beforeRejectedRevision);
   assert(!error.empty());
   assert(document.json().dump() == beforeRejectedEdit);
   assert(document.canUndo() == couldUndoBeforeRejectedEdit);

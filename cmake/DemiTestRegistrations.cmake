@@ -1,4 +1,5 @@
 # Unit, subsystem, CLI, and networking test registration.
+add_test(NAME demi-component-storage-tests COMMAND demi-component-storage-tests)
 add_test(NAME demi-prefab-origin-index-tests COMMAND demi-prefab-origin-index-tests)
 add_test(NAME demi-editor-game-authoring-tests COMMAND demi-editor-game-authoring-tests $<TARGET_FILE:demi-runtime>)
 set_tests_properties(demi-editor-game-authoring-tests PROPERTIES ENVIRONMENT "DEMI_HEADLESS=1" TIMEOUT 60)

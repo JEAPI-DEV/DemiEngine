@@ -24,6 +24,7 @@
 #include "demi/runtime/render/bgfx3d/SceneLightBuffer3D.h"
 #include "demi/runtime/render/bgfx3d/SceneVisibility3D.h"
 #include "demi/runtime/render/bgfx3d/MeshInstancePreparation3D.h"
+#include "demi/runtime/render/bgfx3d/PrimitiveSurfacePreparation3D.h"
 #include "demi/runtime/render/bgfx3d/SkyRenderer3D.h"
 #include "demi/runtime/render/bgfx3d/TerrainCameraDemand3D.h"
 #include "demi/runtime/render/bgfx3d/TerrainDrawSelection3D.h"
@@ -144,6 +145,7 @@ private:
                                  std::size_t firstTransparent,
                                  MeshSubmissionStatistics &,
                                  std::string &error);
+  const GpuMesh3D *primitiveMesh(const std::string &shape, std::string &error);
   bool submitVisibleMeshes(const SceneVisibility3D &, const BgfxCameraFrame3D &,
                            bool shadowPass, std::size_t firstTransparent,
                            const std::array<DrawUniformValue, 8> &,
@@ -237,6 +239,7 @@ private:
   UniformHandle alphaCutoffUniform_;
   UniformHandle debugModeUniform_;
   MeshInstancePreparation3D instancePreparation_;
+  PrimitiveSurfacePreparation3D primitiveSurfaces_;
   UniformHandle viewPositionUniform_;
   UniformHandle metalRoughUniform_;
   UniformHandle lightDirectionUniform_;

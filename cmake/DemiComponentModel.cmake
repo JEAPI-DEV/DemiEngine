@@ -39,6 +39,7 @@ set(DEMI_COMPONENT_MODEL_SOURCES
   src/demi/runtime/scene/ResourceLifetimeRegistry.cpp
   src/demi/runtime/scene/SceneJson.cpp
   src/demi/runtime/scene/Transform3DHierarchy.cpp
+  src/demi/runtime/scene/WorldTransformSnapshot3D.cpp
   src/demi/runtime/scene/WorldCommandBuffer.cpp
   ${DEMI_COMPONENT_SOURCES}
 )

@@ -49,6 +49,26 @@ meshCacheRevision(const MeshRendererComponent &mesh,
 
 } // namespace
 
+const GpuMesh3D *BgfxRenderer3D::primitiveMesh(const std::string &shape,
+                                               std::string &error) {
+  auto &cached = primitiveMeshes_[shape];
+  if (!cached) {
+    cached = std::make_unique<CachedMesh>(resources_);
+  }
+  if (!cached->gpu.valid()) {
+    PrimitiveMeshData3D primitive;
+    if (!createPrimitiveMesh3D(shape, primitive)) {
+      error = "unsupported primitive shape '" + shape + "'.";
+      return nullptr;
+    }
+    if (!cached->gpu.upload(primitive.positions, primitive.textureCoordinates,
+                            primitive.indices, 0xffffffffU, error)) {
+      return nullptr;
+    }
+  }
+  return &cached->gpu;
+}
+
 bool BgfxRenderer3D::submitVisibleMeshes(
     const SceneVisibility3D &visibility, const BgfxCameraFrame3D &frame,
     bool shadowPass, std::size_t firstTransparent,
@@ -79,18 +99,24 @@ bool BgfxRenderer3D::submitVisibleMeshes(
     std::unordered_map<const Entity *,
                        std::unordered_map<const std::string *, std::size_t>>
         preparedGroups;
+    std::unordered_map<std::size_t, std::size_t> primitiveGroups;
     if (frame.updateContent) {
       for (auto visibleIt = passBegin; visibleIt != passEnd; ++visibleIt) {
         const VisibleMesh3D &visible = *visibleIt;
-        const auto *fade = visible.entity->component<FragmentOpacity3D>();
+        const Entity &entity = *visible.entity;
+        const auto *source = visible.preparedSource;
+        const auto *fade =
+            source ? source->fade : entity.component<FragmentOpacity3D>();
         if (fade && shadowPass) {
           continue;
         }
-        const Entity &entity = *visible.entity;
-        const auto *mesh = entity.component<MeshRendererComponent>();
-        const auto dents = entityMeshDents3D(entity);
+        const auto *mesh =
+            source ? source->mesh : entity.component<MeshRendererComponent>();
+        const auto dents = source ? source->dents : entityMeshDents3D(entity);
         const WorldTransform3D &transform = visible.transform;
-        const auto *player = entity.component<AnimationPlayer3DComponent>();
+        const auto *player =
+            source ? source->animation
+                   : entity.component<AnimationPlayer3DComponent>();
         const ModelLodSelection lod = selectModelLod(
             *mesh, player, transform.position,
             frame.lodPosition.value_or(frame.position), !dents.empty());
@@ -107,6 +133,37 @@ bool BgfxRenderer3D::submitVisibleMeshes(
           uncachedModelMatrix = composeMeshTransform3D(transform, mesh->size);
           modelMatrix = &uncachedModelMatrix;
         }
+        if (source && !visible.materialSection && !visible.terrainSurface) {
+          const auto primitive = primitiveSurfaces_.surfaceFor(*source);
+          if (primitive) {
+            const auto existing = primitiveGroups.find(*primitive);
+            if (existing != primitiveGroups.end()) {
+              instanceGroups.appendTransform(existing->second, *modelMatrix);
+              continue;
+            }
+            const auto &surface = primitiveSurfaces_.surface(*primitive);
+            const auto *gpu = primitiveMesh(surface.shape, error);
+            if (!gpu) {
+              error = entity.id + ": " + error;
+              return false;
+            }
+            const auto texture =
+                surface.texture.empty()
+                    ? TextureView2D{}
+                    : materialTexture(surface.texture, ImageMipSemantic::Color);
+            if (!surface.texture.empty() && !texture.handle) {
+              error = "Missing material colour texture: " + surface.texture;
+              return false;
+            }
+            auto parameters = surface.metalRough;
+            parameters[3] = texture.handle && !texture.srgbDecoded ? 1.F : 0.F;
+            const auto group = instanceGroups.add(
+                *gpu, texture.handle ? texture.handle : whiteTexture_,
+                surface.tint, parameters, false, *modelMatrix);
+            primitiveGroups.emplace(*primitive, group);
+            continue;
+          }
+        }
         const auto preparedSource = preparedGroups.find(&entity);
         if (preparedSource != preparedGroups.end()) {
           const auto preparedLod = preparedSource->second.find(lod.model);
@@ -115,7 +172,9 @@ bool BgfxRenderer3D::submitVisibleMeshes(
             continue;
           }
         }
-        const auto *sections = visibleMeshSections3D(visible);
+        const auto *sections = visible.terrainSections ? visible.terrainSections
+                               : source ? source->sections
+                                        : visibleMeshSections3D(visible);
         const MeshMaterialSection3D *section = nullptr;
         if (visible.materialSection) {
           section = &sections->sections.at(*visible.materialSection);
@@ -146,7 +205,9 @@ bool BgfxRenderer3D::submitVisibleMeshes(
           return false;
         }
         float terrainTextureScale = 1;
-        if (const auto *marker = entity.component<TerrainRenderLod>()) {
+        if (const auto *marker = source
+                                     ? source->terrain
+                                     : entity.component<TerrainRenderLod>()) {
           const auto field = marker->chunk ? marker->chunk->field : nullptr;
           if (field) {
             const auto biome =
@@ -188,8 +249,9 @@ bool BgfxRenderer3D::submitVisibleMeshes(
         const auto queueSurfaceInstances = [&](const GpuMesh3D &gpu,
                                                TextureHandle texture) {
           const bool sharedStaticInstances =
-              entity.hasComponent<MeshInstances3DComponent>() && !player &&
-              dents.empty() && !fade && !surface.transparent() &&
+              (source ? source->instances != nullptr
+                      : entity.hasComponent<MeshInstances3DComponent>()) &&
+              !player && dents.empty() && !fade && !surface.transparent() &&
               !(material && material->program) && !visible.materialSection;
           if (!sharedStaticInstances) {
             return false;
@@ -203,7 +265,9 @@ bool BgfxRenderer3D::submitVisibleMeshes(
           return true;
         };
         bool queued = false;
-        if (const auto *relief = entity.component<SurfaceRelief3DComponent>();
+        if (const auto *relief =
+                source ? source->relief
+                       : entity.component<SurfaceRelief3DComponent>();
             relief && (!relief->heightMap.empty() || relief->tiles.x > 1 ||
                        relief->tiles.y > 1)) {
           if (player || !dents.empty() || !mesh->model.empty() ||
@@ -448,23 +512,10 @@ bool BgfxRenderer3D::submitVisibleMeshes(
             }
           }
         } else {
-          auto &cached = primitiveMeshes_[mesh->shape];
-          if (!cached) {
-            cached = std::make_unique<CachedMesh>(resources_);
-          }
-          if (!cached->gpu.valid()) {
-            PrimitiveMeshData3D primitive;
-            if (!createPrimitiveMesh3D(mesh->shape, primitive)) {
-              error = entity.id + ": unsupported primitive shape '" +
-                      mesh->shape + "'.";
-              return false;
-            }
-            if (!cached->gpu.upload(primitive.positions,
-                                    primitive.textureCoordinates,
-                                    primitive.indices, 0xffffffffU, error)) {
-              error = entity.id + ": " + error;
-              return false;
-            }
+          const auto *gpu = primitiveMesh(mesh->shape, error);
+          if (!gpu) {
+            error = entity.id + ": " + error;
+            return false;
           }
           std::string textureId = mesh->texture;
           if (textureId.empty() && material != nullptr) {
@@ -477,20 +528,20 @@ bool BgfxRenderer3D::submitVisibleMeshes(
           }
           const TextureHandle resolvedTexture =
               texture.handle ? texture.handle : whiteTexture_;
-          if (queueSurfaceInstances(cached->gpu, resolvedTexture)) {
+          if (queueSurfaceInstances(*gpu, resolvedTexture)) {
             queued = true;
           } else if (material == nullptr && !surface.transparent() && !fade) {
-            instanceGroups.add(cached->gpu, resolvedTexture, builtinSurfaceTint,
+            instanceGroups.add(*gpu, resolvedTexture, builtinSurfaceTint,
                                metalRough, false, *modelMatrix);
             queued = true;
           } else {
             prepared.fillUniforms(lightingUniforms, material, drawUniforms);
-            queued = cached->gpu.draw(meshPbr_, frame.viewId, program,
-                                      resolvedTexture, meshSampler_,
-                                      *modelMatrix, state, error, drawUniforms);
+            queued = gpu->draw(meshPbr_, frame.viewId, program, resolvedTexture,
+                               meshSampler_, *modelMatrix, state, error,
+                               drawUniforms);
             if (queued) {
               ++bufferedDraws;
-              bufferedTriangles += cached->gpu.indexCount() / 3U;
+              bufferedTriangles += gpu->indexCount() / 3U;
             }
           }
         }

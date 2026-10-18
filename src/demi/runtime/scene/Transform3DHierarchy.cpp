@@ -172,6 +172,16 @@ resolve(const World &world, const Entity &entity,
 
 WorldTransform3D composeWorldTransform3D(const WorldTransform3D &parent,
                                          const WorldTransform3D &local) {
+  if (parent.rotation.x == 0.0F && parent.rotation.y == 0.0F &&
+      parent.rotation.z == 0.0F) {
+    // Scaling a child does not change its orientation in the engine's TRS
+    // composition, including nonuniform or negative parent scales.
+    return {.position = {parent.position.x + local.position.x * parent.scale.x,
+                         parent.position.y + local.position.y * parent.scale.y,
+                         parent.position.z + local.position.z * parent.scale.z},
+            .rotation = local.rotation,
+            .scale = multiply(parent.scale, local.scale)};
+  }
   const auto parentRotation = quaternionFromEuler(parent.rotation);
   const auto localRotation = quaternionFromEuler(local.rotation);
   const auto worldRotation = multiply(parentRotation, localRotation);
@@ -179,6 +189,19 @@ WorldTransform3D composeWorldTransform3D(const WorldTransform3D &parent,
   return {.position = transformPoint3D(parent, local.position),
           .rotation = eulerFromQuaternion(worldRotation),
           .scale = multiply(parent.scale, local.scale)};
+}
+
+TransformBasis3D transformBasis3D(const WorldTransform3D &transform) {
+  const Vec3 right{transform.scale.x, 0.0F, 0.0F};
+  const Vec3 up{0.0F, transform.scale.y, 0.0F};
+  const Vec3 forward{0.0F, 0.0F, transform.scale.z};
+  if (transform.rotation.x == 0.0F && transform.rotation.y == 0.0F &&
+      transform.rotation.z == 0.0F) {
+    return {right, up, forward};
+  }
+  const auto rotation = quaternionFromEuler(transform.rotation);
+  return {rotate(rotation, right), rotate(rotation, up),
+          rotate(rotation, forward)};
 }
 
 std::optional<WorldTransform3D> resolveWorldTransform3D(const World &world,

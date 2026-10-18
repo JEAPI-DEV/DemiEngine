@@ -60,8 +60,8 @@ authoredIds(const nlohmann::json &document) {
 } // namespace
 
 EditorHierarchyIndex::EditorHierarchyIndex(const runtime::World &world,
-                                             const nlohmann::json &document,
-                                             std::string_view search) {
+                                           const nlohmann::json &document,
+                                           std::string_view search) {
   const auto authored = authoredIds(document);
   nodes_.resize(world.entities.size());
   byId_.reserve(nodes_.size());
@@ -136,6 +136,13 @@ EditorHierarchyIndex::EditorHierarchyIndex(const runtime::World &world,
       node.hiddenPreview = true;
     }
   }
+  for (auto &node : nodes_) {
+    node.hasChildren =
+        !node.paintedCells.empty() ||
+        std::ranges::any_of(node.children, [&](std::size_t child) {
+          return !nodes_[child].hiddenPreview;
+        });
+  }
   filter(search);
 }
 
@@ -168,4 +175,94 @@ EditorHierarchyIndex::find(std::string_view id) const {
   const auto found = byId_.find(id);
   return found == byId_.end() ? nullptr : &nodes_[found->second];
 }
+void EditorHierarchyProjection::refresh(const runtime::World &world,
+                                        const nlohmann::json &document,
+                                        std::uint64_t contentRevision,
+                                        std::uint64_t previewRevision,
+                                        std::string_view filter) {
+  const bool rebuild = !index_ || world_ != &world ||
+                       contentRevision_ != contentRevision ||
+                       previewRevision_ != previewRevision;
+  if (rebuild) {
+    index_.emplace(world, document, filter);
+    world_ = &world;
+    contentRevision_ = contentRevision;
+    previewRevision_ = previewRevision;
+    ++indexBuildCount_;
+    rowsDirty_ = true;
+  } else if (filter_ != filter) {
+    index_->filter(filter);
+    rowsDirty_ = true;
+  }
+  filter_ = filter;
+}
+
+bool EditorHierarchyProjection::entityOpen(const std::string &id) const {
+  return !closedEntities_.contains(id);
+}
+bool EditorHierarchyProjection::paintedCellsOpen(const std::string &id) const {
+  return openPaintedGroups_.contains(id);
+}
+void EditorHierarchyProjection::setEntityOpen(const std::string &id,
+                                              bool open) {
+  const bool changed =
+      open ? closedEntities_.erase(id) != 0 : closedEntities_.insert(id).second;
+  rowsDirty_ = rowsDirty_ || changed;
+}
+void EditorHierarchyProjection::setPaintedCellsOpen(const std::string &id,
+                                                    bool open) {
+  const bool changed = open ? openPaintedGroups_.insert(id).second
+                            : openPaintedGroups_.erase(id) != 0;
+  rowsDirty_ = rowsDirty_ || changed;
+}
+
+const std::vector<EditorHierarchyProjection::Row> &
+EditorHierarchyProjection::rows() {
+  if (!rowsDirty_) {
+    return rows_;
+  }
+  rows_.clear();
+  std::vector<Row> pending;
+  const auto &roots = index_->roots();
+  for (auto cursor = roots.rbegin(); cursor != roots.rend(); ++cursor) {
+    pending.push_back({.node = *cursor});
+  }
+  const auto needle = lower(filter_);
+  while (!pending.empty()) {
+    const Row row = pending.back();
+    pending.pop_back();
+    const auto &node = index_->node(row.node);
+    if (!node.visible) {
+      continue;
+    }
+    rows_.push_back(row);
+    if (row.kind == RowKind::Entity && entityOpen(node.entity->id)) {
+      if (!node.paintedCells.empty()) {
+        pending.push_back({.kind = RowKind::PaintedGroup,
+                           .node = row.node,
+                           .depth = row.depth + 1});
+      }
+      for (auto child = node.children.rbegin(); child != node.children.rend();
+           ++child) {
+        pending.push_back({.node = *child, .depth = row.depth + 1});
+      }
+    } else if (row.kind == RowKind::PaintedGroup &&
+               paintedCellsOpen(node.entity->id)) {
+      for (std::size_t cell = node.paintedCells.size(); cell > 0; --cell) {
+        const auto &value = node.paintedCells[cell - 1];
+        const auto label = lower("Cell " + isoGridCellKey(value.x, value.y));
+        if (needle.empty() || label.find(needle) != std::string::npos) {
+          pending.push_back({.kind = RowKind::PaintedCell,
+                             .node = row.node,
+                             .cell = cell - 1,
+                             .depth = row.depth + 1});
+        }
+      }
+    }
+  }
+  rowsDirty_ = false;
+  ++rowBuildCount_;
+  return rows_;
+}
+
 } // namespace demi::editor

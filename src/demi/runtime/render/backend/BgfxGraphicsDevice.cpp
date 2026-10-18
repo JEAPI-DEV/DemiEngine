@@ -1,4 +1,5 @@
 #include "demi/runtime/render/backend/BgfxGraphicsDevice.h"
+#include "demi/runtime/render/backend/BgfxFrameSerial.h"
 
 #include "demi/runtime/diagnostics/DeviceLog.h"
 #include "demi/runtime/render/PerformanceDebug.h"
@@ -153,6 +154,7 @@ bool BgfxGraphicsDevice::initialize(const GraphicsDeviceConfig &config,
     return false;
   }
 
+  beginBgfxSubmissionContext();
   initialized_ = true;
   profile_ = config.profile;
   timings_ = {};
@@ -219,6 +221,7 @@ void BgfxGraphicsDevice::shutdown() {
   if (!initialized_)
     return;
   bgfx::shutdown();
+  endBgfxSubmissionContext();
   initialized_ = false;
   noop_ = false;
   rendererName_.clear();
@@ -277,10 +280,14 @@ std::uint32_t BgfxGraphicsDevice::endFrame() {
   }
   surfaceSkipLogged = false;
 #endif
-  if (!profile_)
-    return bgfx::frame();
+  if (!profile_) {
+    const auto frame = bgfx::frame();
+    advanceBgfxSubmissionSerial();
+    return frame;
+  }
   const auto start = std::chrono::steady_clock::now();
   const auto frame = bgfx::frame();
+  advanceBgfxSubmissionSerial();
   timings_.advanceMilliseconds = std::chrono::duration<double, std::milli>(
                                      std::chrono::steady_clock::now() - start)
                                      .count();

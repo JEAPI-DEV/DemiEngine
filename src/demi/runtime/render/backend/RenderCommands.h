@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/render/backend/GpuResources.h"
+#include "demi/runtime/render/backend/BgfxRenderCommandsOptions.h"
 #include "demi/runtime/render/backend/QuadBatch.h"
 
 #include <array>
@@ -156,8 +157,9 @@ public:
   RenderCommands(const RenderCommands &) = delete;
   RenderCommands &operator=(const RenderCommands &) = delete;
 
-  // Current-frame capacity only; query immediately before submission. Other
-  // draws can consume the shared transient buffer between queries.
+  // Largest immediately available instance chunk. Native implementations may
+  // use dedicated frame upload arenas so UI transient vertices remain intact.
+  // Query immediately before submission; other draws consume frame capacity.
   [[nodiscard]] virtual std::uint32_t availableInstances(std::uint16_t,
                                                          std::uint32_t) const {
     return 0;
@@ -192,6 +194,8 @@ protected:
 };
 
 [[nodiscard]] std::unique_ptr<RenderCommands>
-createBgfxRenderCommands(GpuResources &resources);
+createBgfxRenderCommands(GpuResources &resources,
+                         const BgfxRenderCommandsOptions &options = {},
+                         std::string *error = nullptr);
 
 } // namespace demi::runtime::render

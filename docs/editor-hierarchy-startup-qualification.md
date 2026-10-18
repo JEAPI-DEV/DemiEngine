@@ -12,8 +12,8 @@ the next blocked draw showed `entityParent → drawEntityNode → drawEntityNode
 → EditorHierarchyPanel::draw`. Each hierarchy row scanned the full world for
 children, causing quadratic work before the first presentation.
 
-The hierarchy now builds one UI-free index of IDs, parents, children, authored
-ownership and preview visibility per draw. Search propagates descendant matches
+The initial hierarchy fix built one UI-free index of IDs, parents, children,
+authored ownership and preview visibility per draw. Search propagates descendant matches
 through indexed ancestors. Cycles are broken for presentation and missing
 parents appear as roots. Selection and painted-cell data are indexed too.
 Offscreen rows retain normal tree traversal and interaction behavior but do not
@@ -61,3 +61,27 @@ model, reference control and ImGui input. Regressions include 30,000 siblings,
 12,000 levels of ancestry, cycles/orphans, preview suppression, painted cells,
 large reference lists, unknown references, and zero option-provider calls for
 closed pickers. The existing input tests cover reference drag/drop.
+
+## Retained hierarchy during navigation
+
+The follow-up navigation change retains the index across redraws. Its cache key
+uses the scene document's explicit content revision and the workspace's explicit
+preview publication revision. Continuous/coalesced edits, history replay and
+source replacement receive new content tokens. World replacement and terrain
+preview publication/restoration invalidate the preview token, including changes
+that preserve entity count or storage addresses. Direct external preview mutators
+must call `EditorWorkspace::invalidateHierarchyPreview()` after mutation; native
+workspace publication paths call it explicitly.
+
+Open entity and painted-cell rows form a second retained projection. Changing
+content, filtering, expansion or selection reveal rebuilds that projection;
+ordinary camera navigation reuses it. ImGui clipping submits only viewport rows
+while reconstructing their original ancestor ID scopes. Revealing a selection
+updates expansion storage for clipped ancestors and includes the target row for
+scrolling. No object or default density is removed to reduce presentation work.
+
+The `Editor.hierarchy.rows` scope and `Editor.hierarchy.index.builds`,
+`Editor.hierarchy.rows.builds`, `Editor.hierarchy.rows.total` and
+`Editor.hierarchy.rows.drawn` gauges distinguish occasional rebuild work from
+idle navigation. Follow-up measurements and native qualification must use the
+rebuilt and relaunched editor.

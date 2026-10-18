@@ -6,6 +6,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <cstdint>
 #include <filesystem>
 #include <optional>
 #include <span>
@@ -164,6 +165,11 @@ public:
   issueFor(const SceneValueTarget &target) const;
   [[nodiscard]] const std::filesystem::path &path() const { return path_; }
   [[nodiscard]] const nlohmann::json &json() const { return document_; }
+  // Changes on every accepted content mutation, including continuous edits and
+  // history replay. Copies retain the token until their next mutation.
+  [[nodiscard]] std::uint64_t contentRevision() const {
+    return contentRevision_;
+  }
   [[nodiscard]] const nlohmann::json *entity(std::string_view id) const;
   [[nodiscard]] const nlohmann::json *component(std::string_view entityId,
                                                 std::string_view name) const;
@@ -188,6 +194,7 @@ private:
   std::filesystem::path path_;
   FileRevision revision_;
   nlohmann::json document_;
+  std::uint64_t contentRevision_ = 0;
   nlohmann::json savedDocument_;
   std::string originalText_;
   std::string savedCanonical_;

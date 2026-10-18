@@ -7,7 +7,10 @@
 #include "demi/runtime/render/backend/BgfxGraphicsDevice.h"
 #include "demi/runtime/render/bgfx2d/ColorPacking2D.h"
 #include "demi/runtime/render/bgfx3d/MeshInstanceBatch3D.h"
+#include "demi/runtime/render/bgfx3d/MeshInstancePreparation3D.h"
+#include "demi/runtime/render/bgfx3d/MeshDrawOrder3D.h"
 #include "demi/runtime/render/bgfx3d/PreparedMeshDraw3D.h"
+#include "demi/runtime/render/bgfx3d/PrimitiveSurfacePreparation3D.h"
 #include "demi/runtime/render/bgfx3d/SceneVisibility3D.h"
 #include "demi/runtime/scene/SceneLoader.h"
 #include "demi/runtime/scene/WorldQueries.h"
@@ -445,7 +448,115 @@ int main() {
                                                   .vsync = false},
                              error));
   auto resources = createBgfxGpuResources();
+  {
+    const auto materialPath = std::filesystem::temp_directory_path() /
+        ("demi-surface-order-" + std::to_string(
+            std::chrono::steady_clock::now().time_since_epoch().count()) + ".json");
+    struct RemoveSurfaceFixture {
+      std::filesystem::path path;
+      ~RemoveSurfaceFixture() { std::filesystem::remove(path); }
+    } cleanup{materialPath};
+    {
+      std::ofstream output(materialPath);
+      output << R"({"format_version":1,"render_state":{"blend":"alpha"}})";
+    }
+    demi::AssetRegistry registry;
+    registry.assets.push_back({.id = "asset://order/glass", .type = "Material",
+                                .sourcePath = materialPath});
+    MaterialLibrary materials(*resources);
+    std::vector<std::string> diagnostics;
+    assert(materials.load(registry, diagnostics));
+    auto source = shape("surface-source", "cube", {});
+    MeshMaterialSections3D sections;
+    sections.sections = {{.id = "opaque"},
+                          {.id = "glass", .material = "asset://order/glass"}};
+    source.setComponent(sections);
+    const auto copies = [&] {
+      std::vector<VisibleMesh3D> meshes;
+      for (int index = 0; index < 32; ++index) {
+        const WorldTransform3D transform{.position = {0, 0, float(index)}};
+        meshes.push_back({.entity = &source, .transform = transform,
+                           .materialSection = 0});
+        meshes.push_back({.entity = &source, .transform = transform,
+                           .materialSection = 1});
+      }
+      return meshes;
+    };
+    auto meshes = copies();
+    assert(orderMeshSurfaces3D(meshes, materials, {}, {0, 0, 1}) == 32);
+    for (std::size_t index = 0; index < 32; ++index) {
+      assert(meshes[index].materialSection == 0);
+      assert(meshes[index].transform.position.z == float(index));
+      assert(meshes[index + 32].materialSection == 1);
+      assert(meshes[index + 32].transform.position.z == float(31 - index));
+    }
+    // Classification is call-local. Live overrides and destruction fades must
+    // invalidate the previous source decision without a world revision signal.
+    source.component<MeshRendererComponent>()->surfaceMode = "opaque";
+    meshes = copies();
+    assert(orderMeshSurfaces3D(meshes, materials, {}, {0, 0, 1}) == meshes.size());
+    source.setComponent(FragmentOpacity3D{.value = .5F});
+    meshes = copies();
+    assert(orderMeshSurfaces3D(meshes, materials, {}, {0, 0, 1}) == 0);
+    for (std::size_t index = 0; index < meshes.size(); index += 2) {
+      assert(meshes[index].materialSection == 0);
+      assert(meshes[index + 1].materialSection == 1);
+    }
+  }
   auto commands = createBgfxRenderCommands(*resources);
+  {
+    World cachedWorld;
+    auto parent = shape("cached-parent", "cube", {1, 0, 5});
+    auto child = shape("cached-child", "cube", {2, 0, 0});
+    child.component<Transform3DComponent>()->parent = "cached-parent";
+    child.component<MeshRendererComponent>()->model = "asset://cache/model";
+    cachedWorld.entities.push_back(std::move(parent));
+    cachedWorld.entities.push_back(std::move(child));
+    BgfxCameraFrame3D cachedFrame;
+    cachedFrame.forward = {0, 0, 1};
+    cachedFrame.up = {0, 1, 0};
+    cachedFrame.viewportWidth = 320;
+    cachedFrame.viewportHeight = 180;
+    cachedFrame.camera.perspective = false;
+    cachedFrame.camera.orthographicSize = 20;
+    cachedFrame.camera.farClip = 100;
+    MeshInstancePreparation3D preparation;
+    int boundsQueries = 0;
+    const auto bounds = [&](std::string_view) -> std::optional<MeshBounds3D> {
+      ++boundsQueries;
+      return MeshBounds3D{{-.5F, -.5F, -.5F}, {.5F, .5F, .5F}};
+    };
+    const auto extract = [&](const BgfxCameraFrame3D &view) {
+      return extractVisibleMeshes3D(
+          cachedWorld, view, nullptr, nullptr, nullptr, nullptr, nullptr,
+          nullptr, nullptr, bounds, &preparation);
+    };
+    const auto first = extract(cachedFrame);
+    assert(first.meshes.size() == 2 && boundsQueries == 1);
+    assert(first.meshes[1].transform.position.x == 3);
+    const auto *matrix = first.meshes[1].preparedModelMatrix;
+    assert(matrix != nullptr && (*matrix)[12] == 3);
+    const auto second = extract(cachedFrame);
+    assert(second.meshes.size() == 2 && boundsQueries == 1);
+    assert(second.meshes[1].preparedModelMatrix == matrix);
+    auto otherView = cachedFrame;
+    otherView.position.x = 100;
+    assert(extract(otherView).meshes.empty());
+    assert(boundsQueries == 1);
+    cachedWorld.entities[0].component<Transform3DComponent>()->position.x = 4;
+    preparation.reset();
+    const auto edited = extract(cachedFrame);
+    assert(edited.meshes.size() == 2 && boundsQueries == 2);
+    assert(edited.meshes[1].transform.position.x == 6);
+    assert((*edited.meshes[1].preparedModelMatrix)[12] == 6);
+    cachedWorld.entities[0].component<Transform3DComponent>()->parent = "cached-child";
+    preparation.reset();
+    assert(extract(cachedFrame).meshes.empty());
+    cachedWorld.entities[0].component<Transform3DComponent>()->parent.clear();
+    cachedWorld.entities[1].component<Transform3DComponent>()->parent = "missing";
+    preparation.reset();
+    assert(extract(cachedFrame).meshes.size() == 1);
+  }
   {
     MeshUploadCapture uploads(*resources);
     TextureLibrary2D variants(uploads);
@@ -703,6 +814,35 @@ int main() {
                        triangles, error, &surfaceBindings));
     assert(surfaceCapture.lastInstanceUniforms.back() ==
            (std::array<float, 4>{}));
+  }
+  {
+    World primitives;
+    primitives.entities.push_back(shape("first", "cube", {}));
+    primitives.entities.push_back(shape("sized", "cube", {}));
+    primitives.entities.back().component<MeshRendererComponent>()->size = {2, 3, 4};
+    primitives.entities.push_back(shape("tinted", "cube", {}));
+    primitives.entities.back().component<MeshRendererComponent>()->color.r = .25F;
+    primitives.entities.push_back(shape("material", "cube", {}));
+    primitives.entities.back().component<MeshRendererComponent>()->material = "asset://material";
+    primitives.entities.push_back(shape("transparent", "cube", {}));
+    primitives.entities.back().component<MeshRendererComponent>()->surfaceMode = "transparent";
+    MeshInstancePreparation3D preparation;
+    PrimitiveSurfacePreparation3D surfaces;
+    const auto &sources = preparation.worldSources(primitives);
+    assert(!preparation.hasAnimations(primitives));
+    const auto first = surfaces.surfaceFor(sources[0]);
+    assert(first && surfaces.surfaceFor(sources[1]) == first);
+    assert(surfaces.surfaceFor(sources[0]) == first);
+    assert(surfaces.surfaceFor(sources[2]) != first);
+    assert(!surfaces.surfaceFor(sources[3]));
+    assert(!surfaces.surfaceFor(sources[4]));
+    assert(surfaces.size() == 2);
+    primitives.entities[1].setComponent(AnimationPlayer3DComponent{});
+    preparation.reset();
+    surfaces.reset();
+    const auto &updated = preparation.worldSources(primitives);
+    assert(preparation.hasAnimations(primitives));
+    assert(!surfaces.surfaceFor(updated[1]));
   }
   TextureCapture capture(*commands);
   BgfxRenderer3D renderer(*resources, capture,
@@ -1855,6 +1995,12 @@ int main() {
     capture.instanceDrawCalls = 0;
     assert(renderer.renderFrame(instanceWorld, frame, 0.016F, error));
     assert(capture.instanceDrawCalls == 1);
+    (void)graphics.endFrame();
+
+    instanceWorld.entities.front().setComponent(AnimationPlayer3DComponent{});
+    assert(!renderer.renderFrame(instanceWorld, frame, 0.016F, error));
+    assert(error.find("shared static mesh") != std::string::npos);
+    instanceWorld.entities.front().removeComponent<AnimationPlayer3DComponent>();
     (void)graphics.endFrame();
 
     instanceWorld.entities.front()

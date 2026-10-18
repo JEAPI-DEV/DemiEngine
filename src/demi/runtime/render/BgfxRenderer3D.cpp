@@ -607,7 +607,7 @@ bool BgfxRenderer3D::renderView(const World &world,
     ProfileScope scope("Renderer3D.compact_shadow_sections");
     compactOpaqueShadowSections3D(visibility.meshes, materials_);
   }
-  if (frame.updateContent &&
+  if (frame.updateContent && instancePreparation_.hasAnimations(world) &&
       !prepareAnimatedMeshes(visibility.meshes, frame, error)) {
     return false;
   }

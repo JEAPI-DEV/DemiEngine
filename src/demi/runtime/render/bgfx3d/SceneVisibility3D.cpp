@@ -1,5 +1,6 @@
 #include "demi/runtime/render/bgfx3d/SceneVisibility3D.h"
 #include "demi/runtime/geometry/MeshDeformation3D.h"
+#include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/render/MaterialLibrary.h"
 #include "demi/runtime/render/bgfx3d/MeshInstancePreparation3D.h"
 #include "demi/runtime/render/bgfx3d/MeshTransform3D.h"
@@ -211,6 +212,7 @@ void appendVisibleInstances(
     const MaterialLibrary *materials, const ModelBoundsResolver3D &models,
     const ViewFrustum &frustum, Vec3 lodPosition,
     MeshInstancePreparation3D *presentationPreparation) {
+  ProfileScope instanceScope("Renderer3D.extract_instance_copies");
   const auto &mesh = *source.entity->component<MeshRendererComponent>();
   MeshInstancePreparation3D uncached;
   auto &preparation =
@@ -218,6 +220,15 @@ void appendVisibleInstances(
   auto &prepared =
       preparation.source(world, *source.entity, source.transform, instances);
   if (!prepared.geometryPrepared) {
+    const auto oldSize = prepared.meshSize;
+    const bool sizeChanged = !oldSize || oldSize->x != mesh.size.x ||
+                             oldSize->y != mesh.size.y || oldSize->z != mesh.size.z;
+    if (sizeChanged) {
+      for (auto &copy : prepared.copies) {
+        copy.modelMatrix.reset();
+      }
+    }
+    prepared.meshSize = mesh.size;
     prepared.localBounds = localMeshBounds(*source.entity, models);
     prepared.windExpansion = windBoundsExpansion(*source.entity, materials);
     if (prepared.localBounds) {
@@ -286,7 +297,8 @@ void appendVisibleInstances(
     }
     result.meshes.push_back({.entity = source.entity,
                              .transform = *copy.world,
-                             .preparedModelMatrix = modelMatrix});
+                             .preparedModelMatrix = modelMatrix,
+                             .preparedSource = source.preparedSource});
   }
 }
 
@@ -303,6 +315,10 @@ SceneVisibility3D extractVisibleMeshes3D(
   const ViewFrustum frustum(frame);
   const Vec3 instanceLodPosition = frame.lodPosition.value_or(
       lodCamera ? lodCamera->position : frame.position);
+  MeshInstancePreparation3D uncachedPreparation;
+  auto &preparation =
+      instancePreparation ? *instancePreparation : uncachedPreparation;
+  auto &sources = preparation.worldSources(world);
   std::vector<std::optional<VisibleMesh3D>> extracted(world.entities.size());
   // byte-per-entry storage lets workers write independent indices without the
   // packed-bit races of std::vector<bool>.
@@ -313,11 +329,12 @@ SceneVisibility3D extractVisibleMeshes3D(
     if (!entity.enabled) {
       return;
     }
-    const auto *mesh = entity.component<MeshRendererComponent>();
+    auto &source = sources[index];
+    const auto *mesh = source.mesh;
     if (mesh == nullptr) {
       return;
     }
-    const auto *terrainMarker = entity.component<TerrainRenderLod>();
+    const auto *terrainMarker = source.terrain;
     if (terrainPatches && terrainMarker &&
         terrainPatches->suppressesOwner(terrainMarker->owner)) {
       return;
@@ -327,57 +344,78 @@ SceneVisibility3D extractVisibleMeshes3D(
       return;
     }
     considered[index] = 1;
-    const auto transform = resolveWorldTransform3D(world, entity);
-    if (!transform) {
+    if (!source.transform) {
       return;
     }
-    const auto *terrain = entity.component<TerrainRenderLod>();
+    const auto &transform = *source.transform;
+    const auto *terrain = source.terrain;
     const auto *chunk =
         terrain && terrain->chunk ? terrain->chunk.get() : nullptr;
-    const bool instanced = entity.hasComponent<MeshInstances3DComponent>();
-    const auto localBounds =
-        instanced ? std::nullopt : localMeshBounds(entity, modelBounds);
-    auto bounds = worldBounds(*mesh, *transform, entityMeshDents3D(entity),
-                              chunk, std::nullopt, localBounds);
-    bounds.radius += windBoundsExpansion(entity, materials);
-    if (!instanced && (localBounds || chunk) && !frustum.visible(bounds)) {
+    const bool instanced = source.instances != nullptr;
+    if (!source.geometryPrepared) {
+      const auto localBounds =
+          instanced ? std::nullopt : localMeshBounds(entity, modelBounds);
+      const auto bounds = worldBounds(*mesh, transform, entityMeshDents3D(entity),
+                                     chunk, std::nullopt, localBounds);
+      source.bounds = {bounds.center,
+                       bounds.radius + windBoundsExpansion(entity, materials)};
+      source.bounded = localBounds.has_value() || chunk != nullptr;
+      source.geometryPrepared = true;
+    }
+    if (!instanced && source.bounded &&
+        !frustum.visible({source.bounds.center, source.bounds.radius})) {
       culled[index] = 1;
       return;
     }
-    extracted[index] =
-        VisibleMesh3D{.entity = &entity, .transform = *transform};
+    if (instancePreparation && !instanced && !terrain && !source.modelMatrix) {
+      source.modelMatrix = composeMeshTransform3D(transform, mesh->size);
+    }
+    extracted[index] = VisibleMesh3D{
+        .entity = &entity,
+        .transform = transform,
+        .preparedModelMatrix = instancePreparation && source.modelMatrix
+                                   ? &*source.modelMatrix
+                                   : nullptr,
+        .preparedSource = instancePreparation ? &source : nullptr};
   };
-  // Transform hierarchy lookup is cheap for ordinary scenes. Dispatch only
-  // when extraction is large enough to amortize wake-up and synchronization.
-  constexpr std::size_t ParallelExtractionThreshold = 1024;
-  if (jobs != nullptr && world.entities.size() >= ParallelExtractionThreshold) {
-    jobs->parallelFor(world.entities.size(), 64, extract);
-  } else {
-    for (std::size_t index = 0; index < world.entities.size(); ++index) {
-      extract(index);
+  {
+    ProfileScope cullScope("Renderer3D.cull_sources");
+    // Transform hierarchy lookup is cheap for ordinary scenes. Dispatch only
+    // when extraction is large enough to amortize wake-up and synchronization.
+    constexpr std::size_t ParallelExtractionThreshold = 1024;
+    if (jobs != nullptr && world.entities.size() >= ParallelExtractionThreshold) {
+      jobs->parallelFor(world.entities.size(), 64, extract);
+    } else {
+      for (std::size_t index = 0; index < world.entities.size(); ++index) {
+        extract(index);
+      }
     }
   }
 
   SceneVisibility3D result;
   result.meshes.reserve(world.entities.size());
-  for (std::size_t index = 0; index < extracted.size(); ++index) {
-    if (extracted[index]) {
-      const auto &source = *extracted[index];
-      const auto *instances =
-          source.entity->component<MeshInstances3DComponent>();
-      if (instances) {
-        appendVisibleInstances(world, source, *instances, result, materials,
-                               modelBounds, frustum, instanceLodPosition,
-                               instancePreparation);
-        continue;
+  {
+    ProfileScope gatherScope("Renderer3D.gather_instances");
+    for (std::size_t index = 0; index < extracted.size(); ++index) {
+      if (extracted[index]) {
+        const auto &source = *extracted[index];
+        const auto sourceIndex = source.entity - world.entities.data();
+        const auto *instances = sources[sourceIndex].instances;
+        if (instances) {
+          appendVisibleInstances(world, source, *instances, result, materials,
+                                 modelBounds, frustum, instanceLodPosition,
+                                 instancePreparation);
+          continue;
+        }
+      }
+      result.considered += considered[index] ? 1U : 0U;
+      result.culled += culled[index] ? 1U : 0U;
+      if (extracted[index]) {
+        result.meshes.push_back(std::move(*extracted[index]));
       }
     }
-    result.considered += considered[index] ? 1U : 0U;
-    result.culled += culled[index] ? 1U : 0U;
-    if (extracted[index]) {
-      result.meshes.push_back(std::move(*extracted[index]));
-    }
   }
+  ProfileScope sectionScope("Renderer3D.select_sections");
   std::vector<VisibleMesh3D> draws;
   draws.reserve(result.meshes.size());
   std::unordered_map<std::string, float> ownerQuality;
@@ -391,7 +429,9 @@ SceneVisibility3D extractVisibleMeshes3D(
       chunkLevels;
   const auto &selectionCamera = lodCamera ? *lodCamera : frame;
   for (auto visible : result.meshes) {
-    const auto *terrain = visible.entity->component<TerrainRenderLod>();
+    const auto sourceIndex = visible.entity - world.entities.data();
+    const auto &source = sources[sourceIndex];
+    const auto *terrain = source.terrain;
     if (terrain && terrain->chunk) {
       auto [quality, inserted] = ownerQuality.try_emplace(terrain->owner, 0.0F);
       if (inserted) {
@@ -402,8 +442,7 @@ SceneVisibility3D extractVisibleMeshes3D(
           quality->second = component->lodErrorPixels;
         }
       }
-      const auto *appearance =
-          visible.entity->component<MeshRendererComponent>();
+      const auto *appearance = source.mesh;
       visible.terrainSurface = true;
       auto [decision, firstSurface] =
           chunkLevels[terrain->owner].try_emplace(terrain->chunk.get());
@@ -445,8 +484,10 @@ SceneVisibility3D extractVisibleMeshes3D(
         visible.terrainSections = &surface->second.sections;
       }
     }
-    const auto *sections = visibleMeshSections3D(visible);
-    const auto &mesh = visibleMeshGeometry3D(visible);
+    const auto *sections =
+        visible.terrainSections ? visible.terrainSections : source.sections;
+    const auto &mesh =
+        visible.terrainGeometry ? *visible.terrainGeometry : *source.mesh;
     if (visible.terrainSurface && mesh.hasBounds) {
       const auto *appearance =
           visible.entity->component<MeshRendererComponent>();

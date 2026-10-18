@@ -1,4 +1,5 @@
 #include "editor/EditorSceneDocument.h"
+#include <atomic>
 
 #include "demi/filesystem/ProjectPaths.h"
 #include "demi/filesystem/AuthoredJsonPatch.h"
@@ -30,6 +31,10 @@ using demi::filesystem::normalizeAuthoredValue;
 using demi::filesystem::patchAuthoredJsonSource;
 
 namespace {
+std::uint64_t nextContentRevision() {
+  static std::atomic<std::uint64_t> revision{0};
+  return revision.fetch_add(1, std::memory_order_relaxed) + 1;
+}
 
 nlohmann::json normalizeFieldValue(const SceneValueTarget &target,
                                   nlohmann::json value,
@@ -154,6 +159,7 @@ bool EditorSceneDocument::open(const std::filesystem::path &path,
     path_ = resolvedPath;
     revision_ = revision;
     document_ = std::move(parsed);
+    contentRevision_ = nextContentRevision();
     savedDocument_ = document_;
     originalText_ = std::move(text);
     savedCanonical_ = document_.dump();
@@ -215,6 +221,7 @@ bool EditorSceneDocument::restore(nlohmann::json document, std::string &error) {
   if (stagedHasErrors(path_, document, error))
     return false;
   document_ = std::move(document);
+  contentRevision_ = nextContentRevision();
   undo_.clear();
   redo_.clear();
   continuousTarget_.reset();
@@ -286,6 +293,7 @@ bool EditorSceneDocument::stageAndCommit(SceneCommand command,
     return false;
   }
   applySceneCommand(document_, command, true);
+  contentRevision_ = nextContentRevision();
   lastChangedEntityId_ = sceneCommandEntityId(command);
   undo_.push_back(std::move(command));
   redo_.clear();
@@ -354,6 +362,7 @@ bool EditorSceneDocument::setValue(SceneValueTarget target,
     (void)assignValueInDocument(document_, target, next.after);
     undo_.push_back(std::move(next));
   }
+  contentRevision_ = nextContentRevision();
   redo_.clear();
   const SetValueCommand &top = std::get<SetValueCommand>(undo_.back());
   lastChangedEntityId_ = top.target.entityId;
@@ -444,6 +453,7 @@ bool EditorSceneDocument::setTerrainRecipe(
     undo_.push_back(std::move(next));
   }
   document_ = std::move(staged);
+  contentRevision_ = nextContentRevision();
   redo_.clear();
   lastChangedEntityId_ = target.entityId;
   continuousTarget_ = continuous ? std::optional(target) : std::nullopt;
@@ -577,6 +587,7 @@ bool EditorSceneDocument::cancelContinuousEdit(std::string &error) {
   SceneCommand command = std::move(undo_.back());
   undo_.pop_back();
   applySceneCommand(document_, command, false);
+  contentRevision_ = nextContentRevision();
   lastChangedEntityId_ = sceneCommandEntityId(command);
   redo_ = std::move(continuousRedoBackup_);
   continuousTarget_.reset();
@@ -1150,6 +1161,7 @@ bool EditorSceneDocument::undo(std::string &error) {
   SceneCommand command = std::move(undo_.back());
   undo_.pop_back();
   applySceneCommand(document_, command, false);
+  contentRevision_ = nextContentRevision();
   lastChangedEntityId_ = sceneCommandEntityId(command);
   redo_.push_back(std::move(command));
   endContinuousEdit();
@@ -1165,6 +1177,7 @@ bool EditorSceneDocument::redo(std::string &error) {
   SceneCommand command = std::move(redo_.back());
   redo_.pop_back();
   applySceneCommand(document_, command, true);
+  contentRevision_ = nextContentRevision();
   lastChangedEntityId_ = sceneCommandEntityId(command);
   undo_.push_back(std::move(command));
   endContinuousEdit();

@@ -1,5 +1,6 @@
 #include "demi/runtime/render/backend/BgfxDrawBindings.h"
 #include "demi/runtime/render/backend/BgfxGraphicsDevice.h"
+#include "demi/runtime/render/backend/BgfxInstanceBufferPool.h"
 #include "demi/runtime/render/backend/GpuResources.h"
 #include "demi/runtime/render/backend/QuadBatch.h"
 #include "demi/runtime/render/backend/RenderCommands.h"
@@ -333,8 +334,52 @@ int main() {
   assert(commands->availableInstances(0, 1) == 0);
   assert(commands->availableInstances(20, 1) == 0);
   assert(commands->availableInstances(80, 0) == 0);
-  // Availability is capped by actual transient bytes, not a 16-bit count.
+  // Availability reports bounded dedicated upload chunks, not a 16-bit count.
   assert(commands->availableInstances(80, UINT32_MAX) < UINT32_MAX);
+
+  // A source larger than the shared transient arena still draws in bounded
+  // instanced chunks across several passes. UI keeps its transient capacity,
+  // and the same dedicated ranges become reusable only after native frame end.
+  const std::vector<std::array<float, 16>> largeCopies(150000, transforms[0]);
+  auto large = instanced;
+  large.instances = instanceData(std::span(largeCopies));
+  for (int frameIndex = 0; frameIndex < 2; ++frameIndex) {
+    const auto uiCapacity = bgfx::getAvailInstanceDataBuffer(1000000, 64);
+    assert(commands->submit(large, error));
+    assert(commands->submit(large, error));
+    assert(bgfx::getAvailInstanceDataBuffer(1000000, 64) == uiCapacity);
+    assert(commands->submit(draw, error));
+    static_cast<void>(graphics.endFrame());
+  }
+
+
+  {
+    const BgfxRenderCommandsOptions budget{.instanceBufferBudgetBytes = 1024,
+                                            .instanceBufferChunkBytes = 256};
+    auto bounded = createBgfxRenderCommands(*resources, budget, &error);
+    assert(bounded);
+    const auto uiCapacity = bgfx::getAvailInstanceDataBuffer(1000000, 64);
+    const std::vector<std::array<float, 16>> tooMany(17, transforms[0]);
+    auto rejected = instanced;
+    rejected.instances = instanceData(std::span(tooMany));
+    assert(!bounded->submit(rejected, error));
+    assert(error.find("instanceBufferBudgetBytes") != std::string::npos);
+    assert(bgfx::getAvailInstanceDataBuffer(1000000, 64) == uiCapacity);
+    // The complete configured capacity must remain available after rejection:
+    // a partially uploaded failed prefix would make this next draw fail.
+    const std::vector<std::array<float, 16>> exactlyBudget(16, transforms[0]);
+    auto accepted = instanced;
+    accepted.instances = instanceData(std::span(exactlyBudget));
+    assert(bounded->submit(accepted, error));
+    assert(bounded->availableInstances(64, 1) == 0);
+    assert(bgfx::getAvailInstanceDataBuffer(1000000, 64) == uiCapacity);
+    assert(commands->submit(draw, error));
+    static_cast<void>(graphics.endFrame());
+    assert(bounded->submit(accepted, error));
+    static_cast<void>(graphics.endFrame());
+    assert(!createBgfxRenderCommands(*resources,
+        {.instanceBufferBudgetBytes = 1024, .instanceBufferChunkBytes = 0}, &error));
+  }
 
   const auto extraSampler = resources->createSampler("s_extra", error);
   std::array<DrawTextureBinding, 1> extra{
@@ -380,9 +425,27 @@ int main() {
   assert(resources->destroy(sampler));
   assert(resources->destroy(tint));
   assert(resources->destroy(indexBuffer));
+  auto retainedPool = std::make_unique<BgfxInstanceBufferPool>(
+      BgfxRenderCommandsOptions{.instanceBufferBudgetBytes = 1024,
+                                 .instanceBufferChunkBytes = 256});
+  BgfxInstanceBufferPool::Allocation allocation;
+  const auto retainedData = instanceData(std::span(transforms));
+  assert(retainedPool->upload(retainedData.stride, retainedData.data, allocation, error));
+  static_cast<void>(graphics.endFrame());
   resources->clear();
+  // Commands and their dedicated pools can outlive a native context. They must
+  // never reuse/destroy old numeric handles after a new context allocates them.
+  graphics.shutdown();
+  assert(commands->availableInstances(64, 1) == 0);
+  assert(graphics.initialize({.api = GraphicsApi::Noop, .width = 64, .height = 64}, error));
+  assert(retainedPool->upload(retainedData.stride, retainedData.data, allocation, error));
+  assert(retainedPool->residentBytes() == 256 && retainedPool->frameChunks() == 1);
   commands.reset();
+  assert(retainedPool->upload(retainedData.stride, retainedData.data, allocation, error));
+  assert(retainedPool->frameChunks() == 2);
   resources.reset();
+  retainedPool.reset();
+  static_cast<void>(graphics.endFrame());
   graphics.shutdown();
   return 0;
 }

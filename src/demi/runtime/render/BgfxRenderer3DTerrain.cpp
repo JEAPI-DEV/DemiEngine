@@ -15,6 +15,7 @@ void BgfxRenderer3D::beginPresentation() {
   presentationActive_ = true;
   waterTimeAdvanced_ = false;
   instancePreparation_.reset();
+  primitiveSurfaces_.reset();
   opaqueCapture_.beginPresentation();
   waterRenderer_.beginPresentation();
   texturePresentationSerial_ = successfulTexturePresentation_ + 1;

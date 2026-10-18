@@ -201,41 +201,30 @@ bool applyHierarchyAction(EditorWorkspace &workspace,
   return succeeded;
 }
 
-void drawPaintedCells(EditorWorkspace &workspace, const runtime::Entity &entity,
-                      const std::vector<EditorIsoGridCell> &cells,
-                      const std::string_view filter,
-                      std::optional<HierarchyAction> &pending) {
-  if (cells.empty())
-    return;
-  const std::string groupLabel =
-      "Painted Cells (" + std::to_string(cells.size()) + ")";
-  if (!ImGui::TreeNodeEx(("##painted-" + entity.id).c_str(),
-                         ImGuiTreeNodeFlags_SpanAvailWidth, "%s",
-                         groupLabel.c_str()))
-    return;
-  for (const EditorIsoGridCell &cell : cells) {
-    const std::string cellLabel = "Cell " + isoGridCellKey(cell.x, cell.y);
-    if (!containsCaseInsensitive(cellLabel, filter))
-      continue;
-    const bool selected = workspace.selectedIsoGridCell() == cell;
-    ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_Leaf |
-                               ImGuiTreeNodeFlags_NoTreePushOnOpen |
-                               ImGuiTreeNodeFlags_SpanAvailWidth;
-    if (selected)
-      flags |= ImGuiTreeNodeFlags_Selected;
-    const std::string id =
-        "##cell-" + entity.id + "-" + isoGridCellKey(cell.x, cell.y);
-    ImGui::TreeNodeEx(id.c_str(), flags, "%s", cellLabel.c_str());
-    if (ImGui::IsItemClicked())
-      workspace.selectIsoGridCell(cell);
-    if (ImGui::BeginPopupContextItem(id.c_str())) {
-      if (ImGui::MenuItem("Clear painted cell"))
-        pending = HierarchyAction{.kind = HierarchyAction::Kind::DeleteGridCell,
-                                  .gridCell = cell};
-      ImGui::EndPopup();
-    }
+void drawPaintedCell(EditorWorkspace &workspace, const runtime::Entity &entity,
+                     const EditorIsoGridCell &cell,
+                     std::optional<HierarchyAction> &pending) {
+  const std::string cellLabel = "Cell " + isoGridCellKey(cell.x, cell.y);
+  const bool selected = workspace.selectedIsoGridCell() == cell;
+  ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_Leaf |
+                             ImGuiTreeNodeFlags_NoTreePushOnOpen |
+                             ImGuiTreeNodeFlags_SpanAvailWidth;
+  if (selected) {
+    flags |= ImGuiTreeNodeFlags_Selected;
   }
-  ImGui::TreePop();
+  const std::string id =
+      "##cell-" + entity.id + "-" + isoGridCellKey(cell.x, cell.y);
+  ImGui::TreeNodeEx(id.c_str(), flags, "%s", cellLabel.c_str());
+  if (ImGui::IsItemClicked()) {
+    workspace.selectIsoGridCell(cell);
+  }
+  if (ImGui::BeginPopupContextItem(id.c_str())) {
+    if (ImGui::MenuItem("Clear painted cell")) {
+      pending = HierarchyAction{.kind = HierarchyAction::Kind::DeleteGridCell,
+                                .gridCell = cell};
+    }
+    ImGui::EndPopup();
+  }
 }
 
 bool hudNodeMatches(const std::vector<EditorHudHierarchyNode> &nodes,
@@ -397,7 +386,7 @@ void drawHudHierarchy(EditorWorkspace &workspace, const std::string_view filter,
   }
 }
 
-void drawEntityNode(EditorWorkspace &workspace,
+bool drawEntityNode(EditorWorkspace &workspace,
                     const EditorHierarchyIndex &hierarchy,
                     const EditorHierarchyIndex::Node &node,
                     const std::unordered_set<std::string> &selectedIds,
@@ -405,16 +394,13 @@ void drawEntityNode(EditorWorkspace &workspace,
                     std::optional<HierarchyAction> &pending,
                     std::string &notice, const SelectionReveal &reveal) {
   if (!node.visible) {
-    return;
+    return false;
   }
   const auto &entity = *node.entity;
-  const bool entityHasChildren = !node.paintedCells.empty() ||
-      std::ranges::any_of(node.children, [&](std::size_t index) {
-        return !hierarchy.node(index).hiddenPreview;
-      });
-  ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow |
-                             ImGuiTreeNodeFlags_SpanAvailWidth |
-                             ImGuiTreeNodeFlags_DefaultOpen;
+  const bool entityHasChildren = node.hasChildren;
+  ImGuiTreeNodeFlags flags =
+      ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth |
+      ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_NoTreePushOnOpen;
   if (!entityHasChildren)
     flags |= ImGuiTreeNodeFlags_Leaf;
   const bool selected = selectedIds.contains(entity.id);
@@ -529,14 +515,126 @@ void drawEntityNode(EditorWorkspace &workspace,
     ImGui::EndPopup();
   }
 
-  if (open) {
-    for (const auto child : node.children) {
-      drawEntityNode(workspace, hierarchy, hierarchy.node(child), selectedIds,
-                      filter, pending, notice, reveal);
+  return open;
+}
+
+void drawEntityRows(EditorWorkspace &workspace,
+                    EditorHierarchyProjection &projection,
+                    const std::unordered_set<std::string> &selectedIds,
+                    std::string_view filter,
+                    std::optional<HierarchyAction> &pending,
+                    std::string &notice, const SelectionReveal &reveal) {
+  const auto &hierarchy = projection.index();
+  for (const auto &ancestor : reveal.ancestors) {
+    projection.setEntityOpen(ancestor, true);
+    const auto *node = hierarchy.find(ancestor);
+    if (!node) {
+      continue;
     }
-    drawPaintedCells(workspace, entity, node.paintedCells, filter, pending);
-    ImGui::TreePop();
+    std::vector<std::size_t> parents;
+    for (auto parent = node->parent; parent;
+         parent = hierarchy.node(*parent).parent) {
+      parents.push_back(*parent);
+    }
+    for (auto parent = parents.rbegin(); parent != parents.rend(); ++parent) {
+      ImGui::PushID(hierarchy.node(*parent).entity->id.c_str());
+    }
+    // Clipped ancestors must still receive the reveal expansion, even when
+    // only the selected row is submitted this frame.
+    ImGui::GetStateStorage()->SetInt(ImGui::GetID(ancestor.c_str()), 1);
+    for (std::size_t count = 0; count < parents.size(); ++count) {
+      ImGui::PopID();
+    }
   }
+  const auto &rows = projection.rows();
+  runtime::ProfileScope rowsScope("Editor.hierarchy.rows");
+  runtime::RuntimeProfiler::setGauge("Editor.hierarchy.rows.total",
+                                     rows.size());
+  runtime::RuntimeProfiler::setGauge("Editor.hierarchy.index.builds",
+                                     projection.indexBuildCount());
+  runtime::RuntimeProfiler::setGauge("Editor.hierarchy.rows.builds",
+                                     projection.rowBuildCount());
+  std::size_t submittedRows = 0;
+  std::optional<int> collapsedDepth;
+  ImGuiListClipper clipper;
+  clipper.Begin(static_cast<int>(rows.size()),
+                ImGui::GetTextLineHeightWithSpacing());
+  if (!reveal.target.empty() && !reveal.hud) {
+    for (std::size_t index = 0; index < rows.size(); ++index) {
+      if (rows[index].kind == EditorHierarchyProjection::RowKind::Entity &&
+          hierarchy.node(rows[index].node).entity->id == reveal.target) {
+        clipper.IncludeItemByIndex(static_cast<int>(index));
+        break;
+      }
+    }
+  }
+  while (clipper.Step()) {
+    for (int index = clipper.DisplayStart; index < clipper.DisplayEnd;
+         ++index) {
+      const auto &row = rows[std::size_t(index)];
+      if (collapsedDepth && row.depth > *collapsedDepth) {
+        ImGui::Dummy({0.F, ImGui::GetTextLineHeight()});
+        continue;
+      }
+      collapsedDepth.reset();
+      ++submittedRows;
+      const auto &node = hierarchy.node(row.node);
+      std::vector<std::size_t> ancestors;
+      for (auto parent = node.parent; parent;
+           parent = hierarchy.node(*parent).parent) {
+        ancestors.push_back(*parent);
+      }
+      // Keep the historical TreeNode ID stack despite rendering only clipped
+      // rows. Existing expansion state and selection reveal retain their IDs.
+      for (auto parent = ancestors.rbegin(); parent != ancestors.rend();
+           ++parent) {
+        ImGui::PushID(hierarchy.node(*parent).entity->id.c_str());
+      }
+      const float indentation =
+          float(row.depth) * ImGui::GetStyle().IndentSpacing;
+      if (indentation > 0.F) {
+        ImGui::Indent(indentation);
+      }
+      if (row.kind == EditorHierarchyProjection::RowKind::Entity) {
+        const bool open =
+            drawEntityNode(workspace, hierarchy, node, selectedIds, filter,
+                           pending, notice, reveal);
+        if (node.hasChildren) {
+          projection.setEntityOpen(node.entity->id, open);
+          if (!open) {
+            collapsedDepth = row.depth;
+          }
+        }
+      } else {
+        ImGui::PushID(node.entity->id.c_str());
+        const std::string groupId = "##painted-" + node.entity->id;
+        if (row.kind == EditorHierarchyProjection::RowKind::PaintedGroup) {
+          const auto label = "Painted Cells (" +
+                             std::to_string(node.paintedCells.size()) + ")";
+          const bool open =
+              ImGui::TreeNodeEx(groupId.c_str(),
+                                ImGuiTreeNodeFlags_SpanAvailWidth |
+                                    ImGuiTreeNodeFlags_NoTreePushOnOpen,
+                                "%s", label.c_str());
+          projection.setPaintedCellsOpen(node.entity->id, open);
+        } else {
+          ImGui::PushID(groupId.c_str());
+          drawPaintedCell(workspace, *node.entity, node.paintedCells[row.cell],
+                          pending);
+          ImGui::PopID();
+        }
+        ImGui::PopID();
+      }
+      if (indentation > 0.F) {
+        ImGui::Unindent(indentation);
+      }
+      for (std::size_t count = 0; count < ancestors.size(); ++count) {
+        ImGui::PopID();
+      }
+    }
+  }
+  runtime::RuntimeProfiler::setGauge("Editor.hierarchy.rows.drawn",
+                                     submittedRows);
 }
 
 } // namespace
@@ -681,11 +779,14 @@ void EditorHierarchyPanel::draw(EditorWorkspace &workspace,
   SelectionReveal reveal;
   const bool hudSelection =
       workspace.activeDocument() == EditorWorkspaceDocument::Hud;
-  std::optional<EditorHierarchyIndex> hierarchy;
+  const EditorHierarchyIndex *hierarchy = nullptr;
   if (!hudOnly || !hudSelection) {
     runtime::ProfileScope indexScope("Editor.hierarchy.index");
-    hierarchy.emplace(workspace.project().world,
-                       workspace.sceneDocument().json(), filter_.data());
+    hierarchy_.refresh(workspace.project().world,
+                       workspace.sceneDocument().json(),
+                       workspace.sceneDocument().contentRevision(),
+                       workspace.hierarchyPreviewRevision(), filter_.data());
+    hierarchy = &hierarchy_.index();
     runtime::RuntimeProfiler::setGauge("Editor.hierarchy.entities", hierarchy->size());
   }
   const auto &selection = hudSelection ? workspace.selectedHudNodeIds()
@@ -742,7 +843,10 @@ void EditorHierarchyPanel::draw(EditorWorkspace &workspace,
         filter_[0] = '\0';
       }
       if (hierarchy) {
-        hierarchy->filter(filter_.data());
+        hierarchy_.refresh(
+            workspace.project().world, workspace.sceneDocument().json(),
+            workspace.sceneDocument().contentRevision(),
+            workspace.hierarchyPreviewRevision(), filter_.data());
       }
     }
   }
@@ -759,10 +863,8 @@ void EditorHierarchyPanel::draw(EditorWorkspace &workspace,
                                        ImGuiTreeNodeFlags_SpanAvailWidth);
     acceptEntityDrop(pending, std::nullopt);
     if (sceneOpen) {
-      for (const auto root : hierarchy->roots()) {
-        drawEntityNode(workspace, *hierarchy, hierarchy->node(root),
-                        selectedEntities, filter_.data(), pending, notice, reveal);
-      }
+      drawEntityRows(workspace, hierarchy_, selectedEntities, filter_.data(),
+                     pending, notice, reveal);
       drawHudHierarchy(workspace, filter_.data(), pending, notice, reveal);
       ImGui::TreePop();
     }

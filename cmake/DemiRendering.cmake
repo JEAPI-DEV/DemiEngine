@@ -351,6 +351,8 @@ add_library(demi-graphics-bgfx STATIC
   src/demi/runtime/render/backend/BgfxProfileCallback.cpp
   src/demi/runtime/render/backend/BgfxGpuResources.cpp
   src/demi/runtime/render/backend/BgfxRenderCommands.cpp
+  src/demi/runtime/render/backend/BgfxFrameSerial.cpp
+  src/demi/runtime/render/backend/BgfxInstanceBufferPool.cpp
   src/demi/runtime/render/backend/RenderCommands.cpp
   src/demi/runtime/render/backend/BgfxDrawBindings.cpp
   src/demi/runtime/render/backend/BgfxVertexLayout.cpp
@@ -439,6 +441,7 @@ add_library(demi-render3d-bgfx STATIC
   src/demi/runtime/render/bgfx3d/PreparedMeshDraw3D.cpp
   src/demi/runtime/render/bgfx3d/MeshPbrBindings3D.cpp
   src/demi/runtime/render/bgfx3d/MeshInstanceBatch3D.cpp
+  src/demi/runtime/render/bgfx3d/PrimitiveSurfacePreparation3D.cpp
   src/demi/runtime/render/bgfx3d/MeshShadowSections3D.cpp
   src/demi/runtime/render/BgfxRenderer3DAssets.cpp
   src/demi/runtime/render/BgfxRenderer3DAnimation.cpp

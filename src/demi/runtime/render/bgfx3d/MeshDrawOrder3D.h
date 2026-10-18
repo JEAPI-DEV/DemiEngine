@@ -9,7 +9,9 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <optional>
 #include <ranges>
+#include <utility>
 #include <vector>
 
 namespace demi::runtime::render {
@@ -20,19 +22,45 @@ namespace demi::runtime::render {
 orderMeshSurfaces3D(std::vector<VisibleMesh3D> &meshes,
                     const MaterialLibrary &materials, Vec3 cameraPosition,
                     Vec3 cameraForward) {
+  const Entity *source = nullptr;
+  const MeshRendererComponent *sourceMesh = nullptr;
+  const FragmentOpacity3D *sourceFade = nullptr;
+  const MeshMaterialSections3D *sourceSections = nullptr;
+  const MeshMaterialSections3D *terrainSections = nullptr;
+  std::vector<std::pair<std::optional<std::size_t>, bool>> sectionTransparency;
   const auto isTransparent = [&](const VisibleMesh3D &visible) {
-    const auto *mesh = visible.entity->component<MeshRendererComponent>();
-    const auto *fade = visible.entity->component<FragmentOpacity3D>();
-    const auto *material = materials.find(mesh->material);
+    // Instance copies share immutable source state throughout this call.
+    // Reuse its section decisions while copies stay adjacent, without a
+    // persistent cache that could hide live material/fade edits next frame.
+    if (source != visible.entity || terrainSections != visible.terrainSections) {
+      source = visible.entity;
+      terrainSections = visible.terrainSections;
+      sourceMesh = source->component<MeshRendererComponent>();
+      sourceFade = source->component<FragmentOpacity3D>();
+      sourceSections = nullptr;
+      sectionTransparency.clear();
+    }
+    const auto cached = std::ranges::find(
+        sectionTransparency, visible.materialSection,
+        &std::pair<std::optional<std::size_t>, bool>::first);
+    if (cached != sectionTransparency.end()) {
+      return cached->second;
+    }
+    const auto *material = materials.find(sourceMesh->material);
     if (visible.materialSection) {
-      const auto *sections = visibleMeshSections3D(visible);
-      const auto &section = sections->sections.at(*visible.materialSection);
+      if (sourceSections == nullptr) {
+        sourceSections = visibleMeshSections3D(visible);
+      }
+      const auto &section = sourceSections->sections.at(*visible.materialSection);
       material = materials.find(section.material);
     }
-    return resolveMeshSurface3D(*mesh, material,
-                                fade ? std::optional<float>(fade->value)
-                                     : std::nullopt)
-        .transparent();
+    const bool transparent =
+        resolveMeshSurface3D(*sourceMesh, material,
+                             sourceFade ? std::optional<float>(sourceFade->value)
+                                        : std::nullopt)
+            .transparent();
+    sectionTransparency.emplace_back(visible.materialSection, transparent);
+    return transparent;
   };
   if (std::ranges::find_if(meshes, isTransparent) == meshes.end()) {
     return meshes.size();

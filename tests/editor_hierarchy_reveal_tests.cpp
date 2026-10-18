@@ -61,6 +61,11 @@ void check(const fs::path &root) {
       {"id":"middle","components":{"Transform3D":{}},"children":[{"id":"leaf","components":{"Transform3D":{}}}]},
       {"id":"branch","prefab":"prefab://branch"}]},
     {"id":"unrelated","components":{"Transform3D":{}},"children":[{"id":"other","components":{"Transform3D":{}}}]}]})");
+  for (int index = 0; index < 300; ++index) {
+    scene["entities"].push_back(
+        {{"id", "far_" + std::to_string(index)},
+         {"components", {{"Transform3D", Json::object()}}}});
+  }
   write(root / "scenes/main.scene.json", scene);
   Json hud = Json::parse(
       R"({"format_version":1,"canvas_size":[640,360],"root":{"id":"root","type":"container","children":[
@@ -119,6 +124,15 @@ void check(const fs::path &root) {
   require(workspace.sceneDocument().json() == scene &&
               !workspace.sceneDocument().canUndo(),
           "Hierarchy reveal mutated the scene");
+
+  workspace.selectEntity("far_299");
+  frame(panel, workspace, false);
+  frame(panel, workspace, false);
+  require(window().Scroll.y > 100,
+          "Clipped scene selection was not scrolled into view");
+  workspace.selectEntity("leaf");
+  frame(panel, workspace, false);
+  frame(panel, workspace, false);
 
   require(workspace.openHudDocument(root / "hud/main.hud.json", error), error);
   frame(panel, workspace, true);

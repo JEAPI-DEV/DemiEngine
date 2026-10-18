@@ -180,15 +180,31 @@ int main() {
             nextPresentation.meshes.front().transform,
             copies.entities.front().component<MeshRendererComponent>()->size));
 
-    // Changing an owner transform invalidates that source defensively, even
-    // when separate editor views share one presentation.
+    // Editor renderFrame calls own separate presentations. Owner edits, like
+    // copy edits above, become visible after resetting the immutable snapshot.
     copies.entities.front().component<Transform3DComponent>()->position.x =
         11.F;
+    preparation.reset();
     const auto movedOwner = extractVisibleMeshes3D(
         copies, shadowFrame, nullptr, nullptr, nullptr, nullptr, nullptr,
         nullptr, nullptr, {}, &preparation);
     assert(movedOwner.meshes.size() == 1);
     assert(movedOwner.meshes.front().transform.position.x == 1.F);
+    // Retained instance matrices must observe mesh size and local edits even
+    // when the instance labels, source address and copy count are unchanged.
+    auto *resizedMesh = copies.entities.front().component<MeshRendererComponent>();
+    resizedMesh->size = {4.F, 2.F, 3.F};
+    preparation.reset();
+    const auto resized = extractVisibleMeshes3D(
+        copies, shadowFrame, nullptr, nullptr, nullptr, nullptr, nullptr,
+        nullptr, nullptr, {}, &preparation);
+    assert(!resized.meshes.empty());
+    for (const auto &item : resized.meshes) {
+      assert(*item.preparedModelMatrix ==
+             composeMeshTransform3D(item.transform, resizedMesh->size));
+    }
+    resizedMesh->size = {2.F, 3.F, 4.F};
+    preparation.reset();
     World otherWorld;
     otherWorld.entities = copies.entities;
     otherWorld.entities.front().component<Transform3DComponent>()->position.x =
@@ -198,6 +214,35 @@ int main() {
         nullptr, nullptr, {}, &preparation);
     assert(otherScene.meshes.size() == 1);
     assert(otherScene.meshes.front().transform.position.x == 2.F);
+  }
+
+  {
+    World copies;
+    auto owner = mesh("changing-model-bounds", {}, {}, {});
+    auto *appearance = owner.component<MeshRendererComponent>();
+    appearance->hasBounds = false;
+    appearance->model = "asset://changing/model";
+    MeshInstances3DComponent instances;
+    instances.transforms["edge"].position = {30, 0, 8};
+    owner.setComponent(instances);
+    copies.entities.push_back(std::move(owner));
+    MeshInstancePreparation3D preparation;
+    float extent = 1.F;
+    const auto bounds = [&](std::string_view) -> std::optional<MeshBounds3D> {
+      return MeshBounds3D{{-extent, -extent, -extent}, {extent, extent, extent}};
+    };
+    const auto extract = [&] {
+      return extractVisibleMeshes3D(copies, frame, nullptr, nullptr, nullptr,
+                                    nullptr, nullptr, nullptr, nullptr, bounds,
+                                    &preparation);
+    };
+    assert(extract().meshes.empty());
+    extent = 40.F;
+    preparation.reset();
+    assert(extract().meshes.size() == 1);
+    extent = 1.F;
+    preparation.reset();
+    assert(extract().meshes.empty());
   }
 
   frame.camera.perspective = false;

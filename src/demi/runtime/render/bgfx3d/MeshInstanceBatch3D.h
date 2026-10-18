@@ -13,10 +13,10 @@ namespace demi::runtime::render {
 
 class MeshInstanceBatch3D {
 public:
-  void add(const GpuMesh3D &mesh, TextureHandle texture,
-           const std::array<float, 4> &tint,
-           const std::array<float, 4> &metalRough, bool unlit,
-           const std::array<float, 16> &transform);
+  std::size_t add(const GpuMesh3D &mesh, TextureHandle texture,
+                  const std::array<float, 4> &tint,
+                  const std::array<float, 4> &metalRough, bool unlit,
+                  const std::array<float, 16> &transform);
   // Surface batches retain the source identity because its material overrides
   // and local texture scale belong to this owner, rather than to the GPU mesh.
   std::size_t addSurface(const GpuMesh3D &mesh, TextureHandle texture,

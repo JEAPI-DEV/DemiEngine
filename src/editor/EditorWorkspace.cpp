@@ -124,6 +124,7 @@ bool EditorWorkspace::open(std::filesystem::path projectPath,
     return false;
 
   projectPath_ = std::move(projectPath);
+  invalidateHierarchyPreview();
   project_ = std::move(loaded);
   terrainPreviewPrefabs_.configure(project_->project.projectDirectory);
   openedHudDocument_.reset();
@@ -241,6 +242,7 @@ bool EditorWorkspace::openEntityDocument(const std::filesystem::path &path,
   else
     lastScenePath_ = sceneDocument_.path();
   hudDocument_ = std::move(hud);
+  invalidateHierarchyPreview();
   project_->world = std::move(*world);
   terrainPreviewPrefabs_ = std::move(previewPrefabs);
   activeDocument_ = EditorWorkspaceDocument::Scene;
@@ -360,6 +362,7 @@ bool EditorWorkspace::refresh(std::string &error) {
     return false;
   if (!projectDocument_.reload(error))
     return false;
+  invalidateHierarchyPreview();
   project_ = std::move(loaded);
   if (!rebuildWorld(error))
     return false;
@@ -570,6 +573,7 @@ bool EditorWorkspace::resolveExternalChange(
       syncEditorDiagnostic();
       return false;
     }
+    invalidateHierarchyPreview();
     project_ = std::move(loaded);
     if (!rebuildWorld(error))
       return false;
@@ -1517,6 +1521,7 @@ bool EditorWorkspace::pollTerrainAuthoring(std::string &error) {
     }
     return error.empty();
   }
+  invalidateHierarchyPreview();
   const runtime::Entity *entity =
       runtime::findEntity(project_->world, commit->entityId);
   const auto *terrain =
@@ -1622,6 +1627,7 @@ bool EditorWorkspace::restoreTerrainPreview(std::string &error) {
   (void)terrainAuthoring_->takeRollback();
   if (!terrainPreview_)
     return true;
+  invalidateHierarchyPreview();
   if (terrainAssetDocument_ &&
       terrainPreview_->document == terrainAssetDocument_->path().string()) {
     if (!restoreTerrainAssetPreview(error))
@@ -1993,6 +1999,7 @@ bool EditorWorkspace::mutateAndRebuild(
 }
 
 void EditorWorkspace::syncChangedEntity() {
+  invalidateHierarchyPreview();
   const std::string_view changed = sceneDocument_.lastChangedEntityId();
   const auto flat = runtime::composition::flattenEntityHierarchy(
       sceneDocument_.json()["entities"]);
@@ -2037,6 +2044,7 @@ void EditorWorkspace::reconcileIsoGridCellSelection() {
 }
 
 bool EditorWorkspace::rebuildWorld(std::string &error) {
+  invalidateHierarchyPreview();
   error.clear();
   runtime::RuntimePrefabService previewPrefabs;
   previewPrefabs.configure(project_->project.projectDirectory);

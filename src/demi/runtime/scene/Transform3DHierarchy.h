@@ -17,6 +17,17 @@ struct WorldTransform3D {
   Vec3 rotation;
   Vec3 scale = {1.0F, 1.0F, 1.0F};
 };
+
+struct TransformBasis3D {
+  Vec3 right;
+  Vec3 up;
+  Vec3 forward;
+};
+
+// Scaled local axes in world space, sharing one rotation calculation.
+[[nodiscard]] TransformBasis3D
+transformBasis3D(const WorldTransform3D &transform);
+
 [[nodiscard]] WorldTransform3D
 composeWorldTransform3D(const WorldTransform3D &parent,
                         const WorldTransform3D &local);

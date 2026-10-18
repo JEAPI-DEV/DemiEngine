@@ -7,6 +7,9 @@ are registered in `tools/package-store/src/Docs.php`.
 
 This directory keeps material that has a different job:
 
+- [Dense-terrain viewport navigation](editor-viewport-navigation-qualification.md)
+  records presentation-local render preparation, dedicated instance buffers,
+  retained hierarchy rows and navigation performance checks.
 - [Editor hierarchy startup qualification](editor-hierarchy-startup-qualification.md)
   records the dense-terrain first-window stall, hierarchy indexing, deferred
   reference pickers and measured startup/UI costs.
