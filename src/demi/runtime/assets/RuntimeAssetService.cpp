@@ -235,7 +235,7 @@ RuntimeAssetService::prepareScene(const std::string_view sceneId,
 
   // An asset-free scene needs no request, but is still a valid transition.
   Diagnostics resolutionDiagnostics;
-  const auto referencedAssets = resolveRoot(sceneId, &resolutionDiagnostics);
+  auto referencedAssets = resolveRoot(sceneId, &resolutionDiagnostics);
   if (hasErrors(resolutionDiagnostics)) {
     if (diagnostics != nullptr)
       diagnostics->insert(diagnostics->end(), resolutionDiagnostics.begin(),
@@ -245,8 +245,10 @@ RuntimeAssetService::prepareScene(const std::string_view sceneId,
   if (referencedAssets.empty())
     return 0;
 
+  // Discovery already loaded and expanded the scene, including terrain and
+  // prefab scenery. Reuse its roots rather than materializing that world again.
   assets::AssetGroupDescriptor group{.id = sceneGroupId(sceneId),
-                                     .roots = {std::string(sceneId)},
+                                     .roots = std::move(referencedAssets),
                                      .budget = {},
                                      .sourcePath = {}};
   return service_->prepare(group, diagnostics);

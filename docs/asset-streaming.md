@@ -183,7 +183,10 @@ bytes, backend, and active owners per stable asset ID.
 `RegistryAssetResourceLoader` adapts the group lifetime contract to native
 backends. The loader tracks stable IDs, while bgfx and miniaudio remain the
 sole owners of GPU and audio objects. Source access and verification happen on
-the worker stage; backend replacement happens during the bounded upload stage.
+the worker stage; backend replacement happens during the upload stage. Ready
+resources for one registry backend are combined into one atomic replacement.
+The upload budget is a scheduling target: ordinary loaders yield between
+resources, while an indivisible registry transaction can exceed that target.
 The resident-source loader remains only for headless runs and asset types that
 have no native backend.
 

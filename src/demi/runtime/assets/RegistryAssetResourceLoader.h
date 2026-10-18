@@ -33,7 +33,12 @@ public:
   [[nodiscard]] bool upload(const AssetManifest &asset,
                             const assets::DecodedAsset &decoded,
                             std::string &error) override;
+  [[nodiscard]] std::size_t
+  uploadBatch(std::span<const assets::AssetResourceUpload> uploads,
+              double budgetMilliseconds, std::string &error) override;
   void unload(std::string_view assetId) override;
+  [[nodiscard]] bool unloadBatch(std::span<const std::string> assetIds,
+                                 std::string &error) override;
   [[nodiscard]] std::string_view backendName() const override;
   [[nodiscard]] bool restore(std::string &error) override;
 

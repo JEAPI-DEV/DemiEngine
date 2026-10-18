@@ -1,5 +1,6 @@
 #include "demi/runtime/assets/RegistryAssetResourceLoader.h"
 
+#include <array>
 #include <fstream>
 #include <map>
 
@@ -60,27 +61,69 @@ RegistryAssetResourceLoader::readAndDecode(const AssetManifest &asset,
 bool RegistryAssetResourceLoader::upload(const AssetManifest &asset,
                                          const assets::DecodedAsset &decoded,
                                          std::string &error) {
-  if (!decoded.payload) {
-    error = "Backend upload received an empty verified-source payload.";
-    return false;
+  const std::array uploads{assets::AssetResourceUpload{asset, decoded}};
+  return uploadBatch(uploads, -1.0, error) == uploads.size();
+}
+
+std::size_t RegistryAssetResourceLoader::uploadBatch(
+    const std::span<const assets::AssetResourceUpload> uploads,
+    const double /*budgetMilliseconds*/, std::string &error) {
+  error.clear();
+  if (uploads.empty()) {
+    return 0;
   }
   std::set<std::string> candidateIds = residentIds_;
-  candidateIds.insert(asset.id);
+  for (const auto &upload : uploads) {
+    if (!upload.decoded.payload) {
+      error = "Backend upload received an empty verified-source payload.";
+      return 0;
+    }
+    candidateIds.insert(upload.asset.id);
+  }
+  // Registry replacement is indivisible. Publish one union of ready resources
+  // rather than rebuilding every native object for each individual asset.
   const AssetRegistry candidate = snapshot(candidateIds, error);
-  if (!error.empty() || !backend_.apply || !backend_.apply(candidate, error))
-    return false;
+  if (!error.empty()) {
+    return 0;
+  }
+  if (!backend_.apply || !backend_.apply(candidate, error)) {
+    if (error.empty()) {
+      error = "Backend asset-registry replacement failed.";
+    }
+    return 0;
+  }
   residentIds_ = std::move(candidateIds);
-  return true;
+  return uploads.size();
 }
 
 void RegistryAssetResourceLoader::unload(const std::string_view assetId) {
-  std::set<std::string> candidateIds = residentIds_;
-  if (candidateIds.erase(std::string(assetId)) == 0)
-    return;
+  const std::array assetIds{std::string(assetId)};
   std::string error;
+  (void)unloadBatch(assetIds, error);
+}
+
+bool RegistryAssetResourceLoader::unloadBatch(
+    const std::span<const std::string> assetIds, std::string &error) {
+  error.clear();
+  std::set<std::string> candidateIds = residentIds_;
+  for (const auto &assetId : assetIds) {
+    candidateIds.erase(assetId);
+  }
+  if (candidateIds == residentIds_) {
+    return true;
+  }
   const AssetRegistry candidate = snapshot(candidateIds, error);
-  if (error.empty() && backend_.apply && backend_.apply(candidate, error))
-    residentIds_ = std::move(candidateIds);
+  if (!error.empty()) {
+    return false;
+  }
+  if (!backend_.apply || !backend_.apply(candidate, error)) {
+    if (error.empty()) {
+      error = "Backend asset-registry release failed.";
+    }
+    return false;
+  }
+  residentIds_ = std::move(candidateIds);
+  return true;
 }
 
 std::string_view RegistryAssetResourceLoader::backendName() const {

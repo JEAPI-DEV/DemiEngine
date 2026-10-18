@@ -6,6 +6,7 @@
 #include "demi/runtime/scene/SceneAssetReferences.h"
 #include "demi/runtime/scripting/LuaScriptHost.h"
 
+#include <array>
 #include <cassert>
 #include <chrono>
 #include <filesystem>
@@ -21,9 +22,139 @@ void write(const std::filesystem::path &path, const std::string &text) {
   output << text;
 }
 
+void registryBatchPublishesOneSnapshot() {
+  demi::AssetRegistry registry;
+  registry.assets.push_back({.id = "asset://a", .type = "Texture2D"});
+  registry.assets.push_back({.id = "asset://b", .type = "Texture2D"});
+  registry.assets.push_back({.id = "asset://c", .type = "Texture2D"});
+  int applications = 0;
+  bool reject = false;
+  std::vector<std::string> resident;
+  demi::runtime::RegistryAssetResourceLoader loader(
+      registry,
+      {.name = "batch-probe",
+       .assetTypes = {"Texture2D"},
+       .apply = [&](const demi::AssetRegistry &candidate, std::string &error) {
+         ++applications;
+         if (reject) {
+           error = "Injected batch replacement failure.";
+           return false;
+         }
+         resident.clear();
+         for (const auto &asset : candidate.assets) {
+           resident.push_back(asset.id);
+         }
+         return true;
+       }});
+  const demi::assets::DecodedAsset decoded{.payload = std::make_shared<int>(1)};
+  const std::array uploads{
+      demi::assets::AssetResourceUpload{registry.assets[0], decoded},
+      demi::assets::AssetResourceUpload{registry.assets[1], decoded}};
+  std::string error;
+  assert(loader.uploadBatch(uploads, 0.0, error) == 2);
+  assert(applications == 1);
+  assert(resident == std::vector<std::string>({"asset://a", "asset://b"}));
+  reject = true;
+  const std::array rejected{
+      demi::assets::AssetResourceUpload{registry.assets[2], decoded}};
+  assert(loader.uploadBatch(rejected, -1.0, error) == 0);
+  assert(error == "Injected batch replacement failure.");
+  assert(resident == std::vector<std::string>({"asset://a", "asset://b"}));
+  reject = false;
+  assert(loader.restore(error));
+  assert(resident == std::vector<std::string>({"asset://a", "asset://b"}));
+  const std::array released{std::string("asset://a"), std::string("asset://b")};
+  reject = true;
+  assert(!loader.unloadBatch(released, error));
+  assert(resident == std::vector<std::string>({"asset://a", "asset://b"}));
+  reject = false;
+  assert(loader.restore(error));
+  assert(resident == std::vector<std::string>({"asset://a", "asset://b"}));
+  const int applicationsBeforeRelease = applications;
+  assert(loader.unloadBatch(released, error));
+  assert(applications == applicationsBeforeRelease + 1);
+  assert(resident.empty());
+}
+
+void registryGroupReleaseBatchesAndRetainsSharedResources() {
+  demi::AssetRegistry registry;
+  for (const std::string id : {"asset://a", "asset://b", "asset://c"}) {
+    registry.assets.push_back({.id = id, .type = "Texture2D"});
+  }
+  int applications = 0;
+  bool reject = false;
+  std::vector<std::string> resident;
+  auto loader = std::make_shared<demi::runtime::RegistryAssetResourceLoader>(
+      registry, demi::runtime::RegistryAssetBackend{
+                    .name = "release-probe",
+                    .assetTypes = {"Texture2D"},
+                    .apply = [&](const demi::AssetRegistry &candidate,
+                                 std::string &error) {
+                      ++applications;
+                      if (reject) {
+                        error = "Injected release failure.";
+                        return false;
+                      }
+                      resident.clear();
+                      for (const auto &asset : candidate.assets) {
+                        resident.push_back(asset.id);
+                      }
+                      return true;
+                    }});
+  const auto prepare = [](demi::assets::AssetGroupService &service,
+                          const demi::assets::AssetGroupDescriptor &group) {
+    const auto request = service.prepare(group);
+    const auto deadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    while (service.progress(request).stage !=
+               demi::assets::AssetGroupStage::Ready &&
+           std::chrono::steady_clock::now() < deadline) {
+      service.update();
+      std::this_thread::yield();
+    }
+    assert(service.activate(request));
+  };
+  {
+    demi::assets::AssetGroupService service(registry);
+    service.registerLoader(loader);
+    prepare(service,
+            {.id = "asset-group://first", .roots = {"asset://a", "asset://b"}});
+    prepare(service, {.id = "asset-group://second",
+                      .roots = {"asset://b", "asset://c"}});
+    reject = true;
+    demi::Diagnostics diagnostics;
+    assert(!service.releaseGroup("asset-group://first", &diagnostics));
+    assert(service.isGroupActive("asset-group://first"));
+    assert(demi::hasErrors(diagnostics));
+    assert(service.memoryReport().assets.size() == 3);
+    assert(resident ==
+           std::vector<std::string>({"asset://a", "asset://b", "asset://c"}));
+    reject = false;
+    assert(service.releaseGroup("asset-group://first"));
+    assert(resident == std::vector<std::string>({"asset://b", "asset://c"}));
+    const int applicationsBeforeFinalRelease = applications;
+    assert(service.releaseGroup("asset-group://second"));
+    assert(applications == applicationsBeforeFinalRelease + 1);
+    assert(resident.empty());
+    assert(service.memoryReport().assets.empty());
+  }
+  int applicationsBeforeDestruction = 0;
+  {
+    demi::assets::AssetGroupService service(registry);
+    service.registerLoader(loader);
+    prepare(service, {.id = "asset-group://shutdown",
+                      .roots = {"asset://a", "asset://b", "asset://c"}});
+    applicationsBeforeDestruction = applications;
+  }
+  assert(applications == applicationsBeforeDestruction + 1);
+  assert(resident.empty());
+}
+
 } // namespace
 
 int main() {
+  registryBatchPublishesOneSnapshot();
+  registryGroupReleaseBatchesAndRetainsSharedResources();
   {
     demi::runtime::World probe;
     demi::runtime::Entity entity;
@@ -209,8 +340,10 @@ int main() {
   assert(assets.memoryReport().residentBytes == 0);
 
   diagnostics.clear();
+  const int applicationsBeforeScene = backendApplications;
   const auto sceneRequest = assets.prepareScene("scene://main", &diagnostics);
   assert(sceneRequest != 0 && !demi::hasErrors(diagnostics));
+  assert(assets.progress(sceneRequest).totalAssets == 1);
   for (int attempt = 0;
        attempt < 1000 && assets.progress(sceneRequest).stage !=
                              demi::assets::AssetGroupStage::Ready;
@@ -218,8 +351,14 @@ int main() {
     assets.update();
     std::this_thread::yield();
   }
+  assert(assets.progress(sceneRequest).stage ==
+         demi::assets::AssetGroupStage::Ready);
   assert(assets.activate(sceneRequest, &diagnostics));
-  assert(assets.memoryReport().assets.front().owners.contains(
+  const auto sceneResidency = assets.memoryReport();
+  assert(sceneResidency.assets.size() == 1);
+  assert(sceneResidency.assets.front().assetId == "asset://fixture");
+  assert(backendApplications == applicationsBeforeScene + 1);
+  assert(sceneResidency.assets.front().owners.contains(
       demi::runtime::RuntimeAssetService::sceneGroupId("scene://main")));
   assert(assets.releaseScene("scene://main", &diagnostics));
   assert(assets.memoryReport().residentBytes == 0);

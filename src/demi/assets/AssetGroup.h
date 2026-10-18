@@ -12,6 +12,7 @@
 #include <memory>
 #include <optional>
 #include <set>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -64,6 +65,11 @@ struct DecodedAsset {
   std::size_t residentBytes = 0;
 };
 
+struct AssetResourceUpload {
+  const AssetManifest &asset;
+  const DecodedAsset &decoded;
+};
+
 class AssetResourceLoader {
 public:
   virtual ~AssetResourceLoader() = default;
@@ -74,7 +80,17 @@ public:
   [[nodiscard]] virtual bool upload(const AssetManifest &asset,
                                     const DecodedAsset &decoded,
                                     std::string &error) = 0;
+  // Returns the successfully uploaded prefix. A nonempty error means the next
+  // item failed. Callers must commit that prefix before rolling back a group.
+  // A single indivisible upload may exceed the budget; negative is unbounded.
+  [[nodiscard]] virtual std::size_t
+  uploadBatch(std::span<const AssetResourceUpload> uploads,
+              double budgetMilliseconds, std::string &error);
   virtual void unload(std::string_view assetId) = 0;
+  // On failure, the backend must retain the batch's existing resources.
+  // Ordinary loaders have infallible per-resource unload implementations.
+  [[nodiscard]] virtual bool unloadBatch(std::span<const std::string> assetIds,
+                                         std::string &error);
   [[nodiscard]] virtual std::string_view backendName() const = 0;
   // Recreates native objects from the loader's resident stable-ID set after a
   // graphics/audio device lifecycle event. Existing resources remain valid if
@@ -146,6 +162,10 @@ private:
   struct Resource;
 
   void rollback(AssetGroupRequestHandle handle, Request &request);
+  [[nodiscard]] bool unloadResources(std::span<const std::string> assetIds,
+                                     Diagnostics *diagnostics = nullptr);
+  void uploadReady(AssetGroupRequestHandle handle, Request &request,
+                   double budgetMilliseconds);
   [[nodiscard]] std::shared_ptr<AssetResourceLoader>
   loaderFor(const AssetManifest &asset, Diagnostics *diagnostics) const;
 

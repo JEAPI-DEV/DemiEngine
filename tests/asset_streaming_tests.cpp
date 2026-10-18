@@ -9,6 +9,7 @@
 #include "demi/schema/Validation.h"
 
 #include <array>
+#include <atomic>
 #include <cassert>
 #include <chrono>
 #include <filesystem>
@@ -44,20 +45,63 @@ public:
                                       .residentBytes = 32};
   }
 
-  bool upload(const demi::AssetManifest &, const demi::assets::DecodedAsset &,
-              std::string &) override {
+  bool upload(const demi::AssetManifest &asset,
+              const demi::assets::DecodedAsset &, std::string &error) override {
     ++uploadCount;
+    if (asset.id == rejectedAsset) {
+      error = "Injected upload failure.";
+      return false;
+    }
     return true;
   }
 
   void unload(std::string_view assetId) override { unloaded.emplace(assetId); }
 
+  bool unloadBatch(const std::span<const std::string> assetIds,
+                   std::string &error) override {
+    unloadBatchSizes.push_back(assetIds.size());
+    return AssetResourceLoader::unloadBatch(assetIds, error);
+  }
+
+  std::size_t
+  uploadBatch(const std::span<const demi::assets::AssetResourceUpload> uploads,
+              const double budgetMilliseconds, std::string &error) override {
+    if (uploads.size() < minimumBatchSize) {
+      error.clear();
+      return 0;
+    }
+    batchSizes.push_back(uploads.size());
+    return AssetResourceLoader::uploadBatch(uploads, budgetMilliseconds, error);
+  }
+
   std::string_view backendName() const override { return "test"; }
 
-  int decodeCount = 0;
+  std::atomic_int decodeCount = 0;
   int uploadCount = 0;
+  std::string rejectedAsset;
+  std::size_t minimumBatchSize = 0;
+  std::vector<std::size_t> batchSizes;
+  std::vector<std::size_t> unloadBatchSizes;
   std::set<std::string> unloaded;
 };
+
+void uploadBatchPrefixAndBudgetTest() {
+  TestLoader loader;
+  const demi::AssetManifest first{.id = "asset://a"};
+  const demi::AssetManifest second{.id = "asset://b"};
+  const demi::assets::DecodedAsset decoded{.payload = std::make_shared<int>(1)};
+  const std::array uploads{demi::assets::AssetResourceUpload{first, decoded},
+                           demi::assets::AssetResourceUpload{second, decoded}};
+  std::string error;
+  // A zero budget still permits one indivisible upload, then yields.
+  assert(loader.uploadBatch(uploads, 0.0, error) == 1);
+  assert(error.empty());
+  assert(loader.uploadCount == 1);
+  loader.rejectedAsset = second.id;
+  assert(loader.uploadBatch(uploads, -1.0, error) == 1);
+  assert(error == "Injected upload failure.");
+  assert(loader.uploadCount == 3);
+}
 
 bool waitUntilReady(demi::assets::AssetGroupService &service,
                     demi::assets::AssetGroupRequestHandle request) {
@@ -75,6 +119,77 @@ bool waitUntilReady(demi::assets::AssetGroupService &service,
   } while (std::chrono::steady_clock::now() < deadline);
   return service.progress(request).stage ==
          demi::assets::AssetGroupStage::Ready;
+}
+
+void failedBatchReleasesSuccessfulPrefixTest() {
+  demi::AssetRegistry registry;
+  registry.assets.push_back({.id = "asset://a", .type = "Texture2D"});
+  registry.assets.push_back({.id = "asset://b", .type = "Texture2D"});
+  auto loader = std::make_shared<TestLoader>();
+  loader->rejectedAsset = "asset://b";
+  // Wait for both asynchronous reads so this specifically tests failure after
+  // a successful item within one batch, rather than two separate updates.
+  loader->minimumBatchSize = 2;
+  demi::assets::AssetGroupService service(registry);
+  service.registerLoader(loader);
+  const auto request = service.prepare({.id = "asset-group://failed-batch",
+                                        .roots = {"asset://a", "asset://b"}});
+  assert(!waitUntilReady(service, request));
+  assert(service.progress(request).stage ==
+         demi::assets::AssetGroupStage::Failed);
+  assert(loader->unloaded == std::set<std::string>{"asset://a"});
+  assert(loader->batchSizes == std::vector<std::size_t>{2});
+  assert(service.memoryReport().residentBytes == 0);
+}
+
+void batchGroupLifetimeTest() {
+  demi::AssetRegistry registry;
+  registry.assets.push_back({.id = "asset://a", .type = "Texture2D"});
+  registry.assets.push_back({.id = "asset://b", .type = "Texture2D"});
+  auto loader = std::make_shared<TestLoader>();
+  loader->minimumBatchSize = 2;
+  demi::assets::AssetGroupService service(registry);
+  service.registerLoader(loader);
+  const demi::assets::AssetGroupDescriptor first{
+      .id = "asset-group://batch-first", .roots = {"asset://a", "asset://b"}};
+  const auto firstRequest = service.prepare(first);
+  assert(waitUntilReady(service, firstRequest));
+  assert(service.activate(firstRequest));
+  assert(loader->batchSizes == std::vector<std::size_t>{2});
+  const auto cancelledRequest = service.prepare(
+      {.id = "asset-group://batch-cancelled", .roots = first.roots});
+  assert(service.cancel(cancelledRequest));
+  assert(loader->unloaded.empty());
+
+  const demi::assets::AssetGroupDescriptor second{
+      .id = "asset-group://batch-second", .roots = first.roots};
+  const auto secondRequest = service.prepare(second);
+  assert(waitUntilReady(service, secondRequest));
+  assert(service.activate(secondRequest));
+  assert(loader->batchSizes == std::vector<std::size_t>{2});
+  assert(service.releaseGroup(first.id));
+  assert(loader->unloaded.empty());
+  assert(service.releaseGroup(second.id));
+  assert(loader->unloaded == std::set<std::string>({"asset://a", "asset://b"}));
+  assert(loader->unloadBatchSizes == std::vector<std::size_t>{2});
+  assert(service.memoryReport().residentBytes == 0);
+}
+
+void cancelledReadyBatchReleasesTogetherTest() {
+  demi::AssetRegistry registry;
+  registry.assets.push_back({.id = "asset://a", .type = "Texture2D"});
+  registry.assets.push_back({.id = "asset://b", .type = "Texture2D"});
+  auto loader = std::make_shared<TestLoader>();
+  loader->minimumBatchSize = 2;
+  demi::assets::AssetGroupService service(registry);
+  service.registerLoader(loader);
+  const auto request = service.prepare({.id = "asset-group://cancel-ready",
+                                        .roots = {"asset://a", "asset://b"}});
+  assert(waitUntilReady(service, request));
+  assert(service.cancel(request));
+  assert(loader->unloadBatchSizes == std::vector<std::size_t>{2});
+  assert(loader->unloaded == std::set<std::string>({"asset://a", "asset://b"}));
+  assert(service.memoryReport().assets.empty());
 }
 
 void importerRegistryTest() {
@@ -593,6 +708,10 @@ void generatedAtlasTest() {
 } // namespace
 
 int main() {
+  uploadBatchPrefixAndBudgetTest();
+  failedBatchReleasesSuccessfulPrefixTest();
+  batchGroupLifetimeTest();
+  cancelledReadyBatchReleasesTogetherTest();
   importerRegistryTest();
   cookGraphTest();
   cookGraphFailureClearsPublishedState();
