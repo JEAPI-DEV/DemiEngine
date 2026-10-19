@@ -1,0 +1,29 @@
+{
+  "format_version": 1,
+  "id": "prefab://demi/vegetation/reed",
+  "name": "Reed",
+  "entities": [
+    {
+      "id": "body",
+      "name": "Reed",
+      "components": {
+        "Transform3D": {},
+        "MeshRenderer": {
+          "model": "asset://demi/vegetation/models/reed",
+          "medium_lod_model": "asset://demi/vegetation/models/reed_medium",
+          "medium_lod_distance": 28,
+          "low_lod_model": "asset://demi/vegetation/models/reed_low",
+          "low_lod_distance": 65,
+          "cull_distance": 90,
+          "material": "asset://demi/vegetation/materials/reed",
+          "color": [
+            1,
+            1,
+            1,
+            1
+          ]
+        }
+      }
+    }
+  ]
+}

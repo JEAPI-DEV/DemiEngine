@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "id": "asset://polyhaven/terrain/textures/sand_02/ambient_occlusion",
+  "type": "Texture2D",
+  "source": "ambient_occlusion.jpg",
+  "importer": "image",
+  "importer_version": 1,
+  "source_hash": "fnv1a64:2ea7b3c1b8c18fd4",
+  "dependencies": [],
+  "settings": {
+    "filter": "trilinear",
+    "mipmaps": true,
+    "wrap": "repeat"
+  }
+}

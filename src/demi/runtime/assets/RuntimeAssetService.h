@@ -10,6 +10,8 @@
 
 namespace demi::runtime {
 
+struct World;
+
 // Runtime facade for authored asset groups. It owns group discovery and the
 // scene-root adapter while AssetGroupService remains the lifetime authority.
 class RuntimeAssetService {
@@ -35,6 +37,11 @@ public:
   // while still giving transitions an explicit prepare/activate lifetime.
   [[nodiscard]] assets::AssetGroupRequestHandle
   prepareScene(std::string_view sceneId, Diagnostics *diagnostics = nullptr);
+  // Collect references from an already expanded/prepared world without loading
+  // the scene again. Call after CPU scene preparation has completed.
+  [[nodiscard]] assets::AssetGroupRequestHandle
+  prepareScene(std::string_view sceneId, const World &preparedWorld,
+               Diagnostics *diagnostics = nullptr);
   [[nodiscard]] static std::string sceneGroupId(std::string_view sceneId);
   void update(double uploadBudgetMilliseconds = -1.0);
   [[nodiscard]] assets::AssetGroupProgress

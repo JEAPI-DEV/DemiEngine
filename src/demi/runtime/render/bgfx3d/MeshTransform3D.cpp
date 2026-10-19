@@ -5,24 +5,22 @@ namespace demi::runtime::render {
 std::array<float, 16>
 composeMeshTransform3D(const WorldTransform3D &transform,
                        const Vec3 meshSize) {
-  const Vec3 scale{transform.scale.x * meshSize.x,
-                   transform.scale.y * meshSize.y,
-                   transform.scale.z * meshSize.z};
-  const Vec3 right = transformDirection3D(transform, {scale.x, 0.0F, 0.0F});
-  const Vec3 up = transformDirection3D(transform, {0.0F, scale.y, 0.0F});
-  const Vec3 forward =
-      transformDirection3D(transform, {0.0F, 0.0F, scale.z});
-  return {right.x,
-          right.y,
-          right.z,
+  auto meshTransform = transform;
+  meshTransform.scale = {transform.scale.x * meshSize.x,
+                         transform.scale.y * meshSize.y,
+                         transform.scale.z * meshSize.z};
+  const auto basis = transformBasis3D(meshTransform);
+  return {basis.right.x,
+          basis.right.y,
+          basis.right.z,
           0.0F,
-          up.x,
-          up.y,
-          up.z,
+          basis.up.x,
+          basis.up.y,
+          basis.up.z,
           0.0F,
-          forward.x,
-          forward.y,
-          forward.z,
+          basis.forward.x,
+          basis.forward.y,
+          basis.forward.z,
           0.0F,
           transform.position.x,
           transform.position.y,

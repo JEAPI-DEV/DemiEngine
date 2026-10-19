@@ -13,6 +13,9 @@ function Scene.reload() end
 function Scene.prepare(scene_id, additive) end
 ---@return boolean
 function Scene.cancel() end
+---Completed stages: 0 for CPU preparation; visible 3D hosts use 1/3..2/3
+---for resources and hold at 2/3 until camera-visible terrain GPU data is ready.
+---Headless/2D hosts use 0.5..1 for resources. A value of 1 means ready.
 ---@return number
 function Scene.progress() end
 ---@return boolean

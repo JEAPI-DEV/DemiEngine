@@ -4,6 +4,7 @@
 #include "editor/EditorWorkspace.h"
 
 #include "demi/assets/AssetHash.h"
+#include "demi/assets/AssetImporter.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
 #include "demi/runtime/terrain/TerrainRenderLod.h"
@@ -1224,6 +1225,213 @@ void testQualityEditRetainsGeneratedResources() {
   }
 }
 
+void testSurfaceBlendingEditRetainsAssetAndPreparedResources() {
+  TemporaryProject project;
+  createProject(project.root);
+  const auto scenePath = project.root / "scenes/main.scene.json";
+  auto scene = readJson(scenePath);
+  const auto recipe = scene["entities"][0]["components"]["Terrain3D"]["recipe"];
+  const std::string assetId = "asset://terrain/blending_fixture";
+  const auto sourcePath = project.root / "blending.terrain.json";
+  const Json assetSource{
+      {"format_version", 1}, {"id", assetId}, {"recipe", recipe}};
+  writeJson(sourcePath, assetSource);
+  const auto imported = assets::importAsset({
+      .projectDirectory = project.root,
+      .source = sourcePath,
+      .id = assetId,
+      .type = "Terrain",
+  });
+  check(!hasErrors(imported.diagnostics),
+        "Could not import blending terrain fixture");
+  const auto manifest = loadAssetManifest(imported.manifestPath);
+  check(manifest.has_value(), "Imported blending terrain manifest is missing");
+  scene["entities"][0]["components"]["Terrain3D"] = {{"asset", assetId}};
+  writeJson(scenePath, scene);
+
+  editor::EditorWorkspace workspace;
+  std::string error;
+  check(workspace.open(project.root, error),
+        "Blending workspace open failed: " + error);
+  const auto generated = terrain(workspace).generated;
+  const auto resolvedRecipe = terrain(workspace).recipe;
+  const auto entityCount = workspace.project().world.entities.size();
+  struct Resources {
+    std::uint64_t revision;
+    std::shared_ptr<const runtime::PreparedTerrainChunkLod> lod;
+    std::shared_ptr<const runtime::ColliderAsset3D> collision;
+  };
+  std::map<std::string, Resources> resources;
+  for (const auto &entity : workspace.project().world.entities) {
+    const auto *lod = entity.component<runtime::TerrainRenderLod>();
+    const auto *mesh = entity.component<runtime::MeshRendererComponent>();
+    const auto *collider =
+        entity.component<runtime::ModelCollider3DComponent>();
+    if (lod && mesh && collider) {
+      resources.emplace(entity.id, Resources{mesh->revision, lod->chunk,
+                                             collider->inlineGeometry});
+    }
+  }
+  check(!resources.empty(),
+        "Blending fixture has no prepared terrain resources");
+  const auto checkResources = [&](bool blending, const std::string &stage) {
+    check(terrain(workspace).surfaceBlending == blending &&
+              terrain(workspace).asset == assetId &&
+              terrain(workspace).generated == generated &&
+              terrain(workspace).recipe == resolvedRecipe &&
+              workspace.project().world.entities.size() == entityCount,
+          stage + ": Surface blending replaced generation or changed the "
+                  "asset-backed "
+                  "recipe");
+    for (const auto &[id, before] : resources) {
+      const auto *entity = runtime::findEntity(workspace.project().world, id);
+      const auto *mesh =
+          entity ? entity->component<runtime::MeshRendererComponent>()
+                 : nullptr;
+      const auto *lod =
+          entity ? entity->component<runtime::TerrainRenderLod>() : nullptr;
+      const auto *collider =
+          entity ? entity->component<runtime::ModelCollider3DComponent>()
+                 : nullptr;
+      check(mesh && lod && collider && mesh->revision == before.revision &&
+                lod->chunk == before.lod &&
+                collider->inlineGeometry == before.collision,
+            stage + ": Surface blending changed mesh, LOD or collision "
+                    "resource identity");
+    }
+    check(readJson(manifest->sourcePath) == assetSource,
+          "Surface blending rewrote the shared terrain asset source");
+  };
+  const editor::SceneValueTarget target{.entityId = "terrain",
+                                        .component = "Terrain3D",
+                                        .field = "surface_blending"};
+  check(workspace.editValue(target, false, false, error),
+        "Blending edit failed: " + error);
+  checkResources(false, "after edit");
+  check(workspace.undo(error), "Blending Undo failed: " + error);
+  checkResources(true, "after Undo");
+  check(workspace.redo(error), "Blending Redo failed: " + error);
+  checkResources(false, "after Redo");
+  check(workspace.save(error), "Blending Save failed: " + error);
+  const auto saved = readJson(scenePath);
+  const auto &component = saved["entities"][0]["components"]["Terrain3D"];
+  check(component == Json{{"asset", assetId}, {"surface_blending", false}},
+        "Surface blending Save changed more than the per-instance override");
+  checkResources(false, "after Save");
+}
+
+void testInheritedTerrainPresentationHistory() {
+  TemporaryProject project;
+  createProject(project.root);
+  const auto scenePath = project.root / "scenes/main.scene.json";
+  auto source = readJson(scenePath);
+  auto inheritedOwner = source["entities"][0];
+  inheritedOwner["components"]["Terrain3D"]["surface_blending"] = false;
+  inheritedOwner["components"]["Terrain3D"]["lod_error_pixels"] = 0.75;
+  std::filesystem::create_directory(project.root / "prefabs");
+  const auto prefabPath = project.root / "prefabs/ground.prefab.json";
+  const Json prefab = {{"format_version", 1},
+                       {"id", "prefab://ground"},
+                       {"entities", Json::array({inheritedOwner})}};
+  writeJson(prefabPath, prefab);
+  source["entities"].erase(source["entities"].begin());
+  source["instances"] =
+      Json::array({{{"id", "ground"}, {"prefab", "prefab://ground"}}});
+  writeJson(scenePath, source);
+  editor::EditorWorkspace workspace;
+  std::string error;
+  check(workspace.open(project.root, error),
+        "Presentation prefab open failed: " + error);
+  workspace.selectEntity("ground/terrain");
+  const auto owner = [&]() -> const runtime::Terrain3DComponent & {
+    const auto *entity =
+        runtime::findEntity(workspace.project().world, "ground/terrain");
+    check(entity && entity->hasComponent<runtime::Terrain3DComponent>(),
+          "Presentation prefab owner disappeared");
+    return *entity->component<runtime::Terrain3DComponent>();
+  };
+  const auto generated = owner().generated;
+  struct PreparedResources {
+    std::uint64_t revision;
+    std::shared_ptr<const runtime::PreparedTerrainChunkLod> lod;
+    std::shared_ptr<const runtime::ColliderAsset3D> collision;
+  };
+  std::map<std::string, PreparedResources> resources;
+  for (const auto &entity : workspace.project().world.entities) {
+    const auto *lod = entity.component<runtime::TerrainRenderLod>();
+    const auto *mesh = entity.component<runtime::MeshRendererComponent>();
+    const auto *collider =
+        entity.component<runtime::ModelCollider3DComponent>();
+    if (lod && mesh && collider) {
+      resources.emplace(entity.id, PreparedResources{mesh->revision, lod->chunk,
+                                                     collider->inlineGeometry});
+    }
+  }
+  check(!resources.empty(),
+        "Inherited presentation fixture has no prepared resources");
+  const auto checkResources = [&](const std::string &stage) {
+    for (const auto &[id, before] : resources) {
+      const auto *entity = runtime::findEntity(workspace.project().world, id);
+      check(entity != nullptr, stage + ": generated prefab child disappeared");
+      const auto *mesh = entity->component<runtime::MeshRendererComponent>();
+      const auto *lod = entity->component<runtime::TerrainRenderLod>();
+      const auto *collider =
+          entity->component<runtime::ModelCollider3DComponent>();
+      check(mesh && lod && collider && mesh->revision == before.revision &&
+                lod->chunk == before.lod &&
+                collider->inlineGeometry == before.collision,
+            stage + ": inherited presentation changed prepared resources");
+    }
+  };
+  const auto target = [](const std::string &field) {
+    return editor::SceneValueTarget{
+        .entityId = "ground/terrain", .component = "Terrain3D", .field = field};
+  };
+  check(workspace.editValue(target("surface_blending"), true, false, error),
+        "Inherited blending edit failed: " + error);
+  checkResources("after prefab edit");
+  const auto editedSource = workspace.sceneDocument().json();
+  const auto serializedBefore =
+      runtime::findEntity(workspace.project().world, "ground/terrain")
+          ->serializedComponents.at("Terrain3D");
+  // A failed inheritance resolution must leave the command available to retry.
+  std::filesystem::remove(prefabPath);
+  check(!workspace.undo(error), "Missing prefab unexpectedly allowed Undo");
+  check(
+      workspace.sceneDocument().json() == editedSource &&
+          owner().surfaceBlending && owner().generated == generated &&
+          workspace.sceneDocument().canUndo(),
+      "Failed presentation Undo changed document, history or native resources");
+  check(runtime::findEntity(workspace.project().world, "ground/terrain")
+                ->serializedComponents.at("Terrain3D") == serializedBefore,
+        "Failed presentation Undo changed serialized native state");
+  checkResources("after failed prefab Undo");
+  writeJson(prefabPath, prefab);
+  check(workspace.undo(error), "Inherited blending Undo failed: " + error);
+  check(!owner().surfaceBlending && owner().generated == generated &&
+            workspace.sceneDocument().json() == source,
+        "Blending Undo did not restore omitted inherited false value");
+  checkResources("after prefab Undo");
+  check(workspace.redo(error), "Inherited blending Redo failed: " + error);
+  check(owner().surfaceBlending && owner().generated == generated,
+        "Blending Redo replaced generation or lost the override");
+  checkResources("after prefab Redo");
+  check(workspace.undo(error),
+        "Inherited blending second Undo failed: " + error);
+  check(workspace.editValue(target("lod_error_pixels"), 0.0, false, error),
+        "Inherited quality edit failed: " + error);
+  check(workspace.undo(error), "Inherited quality Undo failed: " + error);
+  check(owner().lodErrorPixels == 0.75F && owner().generated == generated &&
+            workspace.sceneDocument().json() == source,
+        "Quality Undo restored a default instead of the inherited value");
+  check(workspace.redo(error), "Inherited quality Redo failed: " + error);
+  check(owner().lodErrorPixels == 0.0F && owner().generated == generated,
+        "Quality Redo replaced generation or lost the override");
+  checkResources("after quality Undo/Redo");
+  check(readJson(prefabPath) == prefab,
+        "Presentation history rewrote prefab source");
+}
+
 void testInheritedPrefabRecipeHistory() {
   TemporaryProject project;
   createProject(project.root);
@@ -1300,6 +1508,8 @@ int main() {
     testTerrainPresetApplyHistoryAndGridDecision();
     testInheritedPrefabRecipeHistory();
     testQualityEditRetainsGeneratedResources();
+    testSurfaceBlendingEditRetainsAssetAndPreparedResources();
+    testInheritedTerrainPresentationHistory();
     testLiveSelectionAndSourceConflict();
     testPinnedTerrainTarget();
     testSceneSwitchPreservesTerrainDraft();

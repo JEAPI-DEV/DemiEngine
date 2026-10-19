@@ -4,6 +4,7 @@
 #include "demi/runtime/scene/components/2dcomponents/SpriteAnimator2DComponent.h"
 #include "demi/runtime/scene/components/2dcomponents/SpriteComponent.h"
 #include "demi/runtime/scene/components/2dcomponents/Transform2DComponent.h"
+#include "fixtures/RedPixelPng.h"
 
 #include <algorithm>
 #include <cassert>
@@ -55,12 +56,17 @@ int main() {
   Canvas2D canvas(*resources, *commands);
   TextureLibrary2D textures(*resources);
   assert(canvas.initialize(error));
-  assert(textures.upload(
-      "asset://sprite",
-      ImageData2D{.width = 2,
-                  .height = 2,
-                  .rgba = std::vector<std::byte>(16, std::byte{0xff})},
-      error));
+  unsigned spriteReads = 0;
+  assert(
+      textures.registerSource("asset://sprite",
+                              {.read =
+                                   [&](std::string &) {
+                                     ++spriteReads;
+                                     return demi::tests::redPixelPng();
+                                   },
+                               .sampling = {.filter = TextureFilter::Nearest}},
+                              error));
+  assert(spriteReads == 0 && !textures.find("asset://sprite").handle);
   assert(textures.upload(
       "asset://animated#2",
       ImageData2D{.width = 2,
@@ -111,6 +117,7 @@ int main() {
   assert(renderer.draw(world, Camera2DComponent{.orthographicSize = 5.0F}, {},
                        320, 180));
   assert(canvas.flush(error));
+  assert(spriteReads == 1 && textures.find("asset://sprite").handle);
   assert(canvas.statistics().quads == 3);
   assert(canvas.statistics().triangles >= 38);
   static_cast<void>(graphics.endFrame());

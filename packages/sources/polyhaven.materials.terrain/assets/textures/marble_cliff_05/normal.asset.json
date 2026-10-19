@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "id": "asset://polyhaven/terrain/textures/marble_cliff_05/normal",
+  "type": "Texture2D",
+  "source": "normal.png",
+  "importer": "image",
+  "importer_version": 1,
+  "source_hash": "fnv1a64:4c9c289b11fd0651",
+  "dependencies": [],
+  "settings": {
+    "filter": "trilinear",
+    "mipmaps": true,
+    "wrap": "repeat"
+  }
+}

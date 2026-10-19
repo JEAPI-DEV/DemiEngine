@@ -1,0 +1,304 @@
+{
+  "format_version": 1,
+  "id": "asset://water_interaction/lake",
+  "name": "Contained gameplay lake",
+  "recipe": {
+    "format_version": 1,
+    "size": [
+      32,
+      32
+    ],
+    "resolution": [
+      32,
+      32
+    ],
+    "chunk_cells": 8,
+    "biomes": {
+      "default": {
+        "color": [
+          0.3,
+          0.44,
+          0.2,
+          1
+        ],
+        "allow_snow": false
+      },
+      "shore": {
+        "color": [
+          0.48,
+          0.4,
+          0.26,
+          1
+        ],
+        "allow_snow": false
+      }
+    },
+    "graph": {
+      "format_version": 1,
+      "output": "output",
+      "nodes": [
+        {
+          "id": "banks",
+          "type": "constant",
+          "parameters": {
+            "height": 4
+          },
+          "position": [
+            -997.0254516601563,
+            421.6004638671875
+          ]
+        },
+        {
+          "id": "bed",
+          "type": "constant",
+          "parameters": {
+            "height": 0
+          },
+          "position": [
+            -997.8460693359375,
+            665.6759643554688
+          ]
+        },
+        {
+          "id": "basin",
+          "type": "polygon_mask",
+          "parameters": {
+            "points": [
+              [
+                5,
+                5
+              ],
+              [
+                27,
+                5
+              ],
+              [
+                27,
+                23
+              ],
+              [
+                5,
+                23
+              ]
+            ],
+            "falloff": 4
+          },
+          "position": [
+            -1292.965087890625,
+            192.06985473632813
+          ]
+        },
+        {
+          "id": "blend",
+          "type": "height_blend",
+          "parameters": {
+            "amount": 1
+          },
+          "position": [
+            -652.3553466796875,
+            710.40478515625
+          ]
+        },
+        {
+          "id": "lake",
+          "type": "water",
+          "parameters": {
+            "kind": "lake",
+            "level": 2,
+            "center_x": 16,
+            "center_z": 16,
+            "radius": 0,
+            "foam_width": 0.25,
+            "foam_strength": 0.25
+          },
+          "position": [
+            -260.9367980957031,
+            559.822021484375
+          ]
+        },
+        {
+          "id": "inlet_river",
+          "type": "water",
+          "parameters": {
+            "kind": "river",
+            "river_surface_mode": "follow_bed",
+            "river_depth": 1,
+            "river_width": 4,
+            "flow_speed": 0.8,
+            "river_path": [
+              [
+                16,
+                3,
+                32
+              ],
+              [
+                16,
+                1,
+                25
+              ],
+              [
+                16,
+                1,
+                22
+              ]
+            ]
+          },
+          "position": [
+            118.33114624023438,
+            568.8167114257813
+          ]
+        },
+        {
+          "id": "appearance",
+          "type": "biomes",
+          "position": [
+            461.599365234375,
+            1711.0877685546875
+          ]
+        },
+        {
+          "id": "output",
+          "type": "output",
+          "position": [
+            719.6513671875,
+            1904.7362060546875
+          ]
+        }
+      ],
+      "links": [
+        {
+          "id": "banks_mask",
+          "from": {
+            "node": "banks",
+            "port": "field"
+          },
+          "to": {
+            "node": "basin",
+            "port": "field"
+          }
+        },
+        {
+          "id": "banks_blend",
+          "from": {
+            "node": "banks",
+            "port": "field"
+          },
+          "to": {
+            "node": "blend",
+            "port": "a"
+          }
+        },
+        {
+          "id": "bed_blend",
+          "from": {
+            "node": "bed",
+            "port": "field"
+          },
+          "to": {
+            "node": "blend",
+            "port": "b"
+          }
+        },
+        {
+          "id": "mask_blend",
+          "from": {
+            "node": "basin",
+            "port": "mask"
+          },
+          "to": {
+            "node": "blend",
+            "port": "mask"
+          }
+        },
+        {
+          "id": "blend_lake",
+          "from": {
+            "node": "blend",
+            "port": "field"
+          },
+          "to": {
+            "node": "lake",
+            "port": "field"
+          }
+        },
+        {
+          "id": "lake_appearance",
+          "from": {
+            "node": "inlet_river",
+            "port": "field"
+          },
+          "to": {
+            "node": "appearance",
+            "port": "field"
+          }
+        },
+        {
+          "id": "appearance_output",
+          "from": {
+            "node": "appearance",
+            "port": "field"
+          },
+          "to": {
+            "node": "output",
+            "port": "field"
+          }
+        },
+        {
+          "id": "lake_output",
+          "from": {
+            "node": "inlet_river",
+            "port": "water"
+          },
+          "to": {
+            "node": "output",
+            "port": "water"
+          }
+        },
+        {
+          "id": "lake_river_ground",
+          "from": {
+            "node": "lake",
+            "port": "field"
+          },
+          "to": {
+            "node": "inlet_river",
+            "port": "field"
+          }
+        },
+        {
+          "id": "lake_river_water",
+          "from": {
+            "node": "lake",
+            "port": "water"
+          },
+          "to": {
+            "node": "inlet_river",
+            "port": "water"
+          }
+        },
+        {
+          "id": "water_rules",
+          "from": {
+            "node": "inlet_river",
+            "port": "water"
+          },
+          "to": {
+            "node": "appearance",
+            "port": "water"
+          }
+        }
+      ]
+    },
+    "rules": [
+      {
+        "id": "wet_bank",
+        "biome": "shore",
+        "priority": 10,
+        "water_distance": [
+          0,
+          1.5
+        ]
+      }
+    ]
+  }
+}

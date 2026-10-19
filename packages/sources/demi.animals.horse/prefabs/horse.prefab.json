@@ -1,0 +1,41 @@
+{
+  "format_version": 1,
+  "id": "prefab://demi/animals/horse",
+  "name": "Horse",
+  "entities": [
+    {
+      "id": "horse",
+      "name": "Horse",
+      "components": {
+        "Transform3D": {},
+        "MeshRenderer": {
+          "model": "asset://demi/animals/horse"
+        },
+        "AnimationPlayer3D": {
+          "clip_name": "Idle",
+          "loop": true
+        },
+        "AnimationStateMachine": {
+          "initial_state": "idle",
+          "states": {
+            "idle": {
+              "model_clip_name": "Idle",
+              "duration": 3,
+              "loop": true
+            },
+            "walk": {
+              "model_clip_name": "Walk",
+              "duration": 1.2,
+              "loop": true
+            },
+            "run": {
+              "model_clip_name": "Run",
+              "duration": 0.6666666666666666,
+              "loop": true
+            }
+          }
+        }
+      }
+    }
+  ]
+}

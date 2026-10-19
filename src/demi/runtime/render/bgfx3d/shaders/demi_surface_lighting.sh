@@ -1,4 +1,5 @@
 #include "bgfx_shader.sh"
+#include "demi_performance_debug.sh"
 
 #if BGFX_SHADER_LANGUAGE_ESSL == 100
 // GLES 2 fragment floats need explicit highp for narrow GGX peaks.
@@ -15,7 +16,7 @@ SAMPLER2D(s_shadowMap, 1);
 uniform vec4 u_shadowX[4];
 uniform vec4 u_shadowY[4];
 uniform vec4 u_shadowZ[4];
-// Per cascade: normalized bias, nominal near depth, far depth, reserved.
+// Per cascade: normalized bias, nominal near depth, far depth, world texel size.
 uniform vec4 u_shadowParams[4];
 // Phase (off/receive/cast), active cast index, cascade count, blend fraction.
 uniform vec4 u_shadowConfig;
@@ -64,6 +65,9 @@ vec3 encodeColor(vec3 color)
 // Palette colours use the same transfer functions as ordinary mesh materials.
 #include "demi_terrain_material.sh"
 #endif
+#ifdef DEMI_MESH_PBR
+#include "demi_pbr_material.sh"
+#endif
 
 // Direct Cook-Torrance lighting: GGX distribution, height-correlated Smith
 // visibility and Schlick Fresnel, following Filament's standard model:
@@ -110,18 +114,29 @@ float compareShadowTap(int cascade, vec2 tap, float receiverDepth)
     if (u_shadowAtlas.w < 0.5)
         tile.y = u_shadowAtlas.y - 1.0 - tile.y;
     vec2 atlasUv = (tile + tap) / u_shadowAtlas.xy;
-    vec4 encoded = texture2D(s_shadowMap, atlasUv);
+    // Shadow targets have one mip level. Explicit LOD avoids requesting quad
+    // derivatives after cutout rejection, without changing their filtering.
+    vec4 encoded = texture2DLod(s_shadowMap, atlasUv, 0.0);
     float stored = dot(encoded, vec4(1.0, 1.0/255.0, 1.0/65025.0, 1.0/16581375.0));
     return step(receiverDepth, stored);
 }
 
 #include "demi_shadow_receiver.sh"
 
-float cascadeVisibility(int cascade, vec4 worldPosition, vec3 worldDx, vec3 worldDy, float diffuse)
+float cascadeVisibility(int cascade, vec4 worldPosition, vec3 worldDx,
+                        vec3 worldDy, vec3 normal, float diffuse)
 {
-    vec2 uv = vec2(dot(u_shadowX[cascade], worldPosition), dot(u_shadowY[cascade], worldPosition));
+    // Sampling can cross onto a neighboring facet. Bound normal offset by
+    // the nominal filter half-width: 0.5 texels for hard, 1.5 for 3x3 PCF.
+    // Freeze this offset across the receiver's taps: it translates the local
+    // plane without changing the geometric depth gradient below.
+    float filterRadius = u_shadowAtlas.z < 0.0 ? 0.5 : 1.5;
+    float normalDistance = receiverNormalOffsetDistance(
+        u_shadowParams[cascade].w, diffuse, filterRadius);
+    vec4 receiver = vec4(worldPosition.xyz + normal * normalDistance, 1.0);
+    vec2 uv = vec2(dot(u_shadowX[cascade], receiver), dot(u_shadowY[cascade], receiver));
     if (u_shadowAtlas.w > 0.5) uv.y = 1.0 - uv.y;
-    float depth = dot(u_shadowZ[cascade], worldPosition);
+    float depth = dot(u_shadowZ[cascade], receiver);
     // Receiver-plane correction prevents broad PCF footprints self-shadowing
     // sloped surfaces. Compute derivatives before coverage branches.
     vec2 uvDx = vec2(dot(u_shadowX[cascade].xyz, worldDx), dot(u_shadowY[cascade].xyz, worldDx));
@@ -163,42 +178,135 @@ float cascadeVisibility(int cascade, vec4 worldPosition, vec3 worldDx, vec3 worl
     return visibility;
 }
 
+vec4 encodedShadowDepth(vec4 worldPosition)
+{
+    float depth = dot(u_shadowZ[int(u_shadowConfig.y)], worldPosition);
+    vec4 packedDepth = fract(clamp(depth, 0.0, 0.999999) *
+                        vec4(1.0, 255.0, 65025.0, 16581375.0));
+    return packedDepth - packedDepth.yzww * vec4(1.0/255.0, 1.0/255.0, 1.0/255.0, 0.0);
+}
+
+vec4 capturedLinearDepth(vec3 worldPosition)
+{
+    // Internal opaque capture phase: YZW is the camera forward direction,
+    // viewPosition.W is inverse far clip. Public debug modes remain 0..7.
+    // Authored target offsets encode a direction and may have any length.
+    // Optical consumers reconstruct eye-space metres with a unit forward.
+    vec3 forward = u_debugMode.yzw / max(length(u_debugMode.yzw), 0.0001);
+    float depth = dot(worldPosition - u_viewPosition.xyz, forward);
+    return vec4(clamp(depth * u_viewPosition.w, 0.0, 1.0), 0.0, 0.0, 1.0);
+}
+
 void main()
 {
     // Receiver-plane derivatives require the complete fragment quad. Capture
     // them before per-pixel material culling or alpha cutout discards lanes.
     vec4 worldPosition = vec4(v_worldPos, 1.0);
-    vec3 worldDx = dFdx(v_worldPos);
-    vec3 worldDy = dFdy(v_worldPos);
+#ifdef DEMI_TERRAIN_OPAQUE
+    // Uniform opaque coverage is enforced by raster culling. A shadow caster
+    // needs no material lookups or normal-frame derivatives. This branch is
+    // draw-uniform, so receiving fragments still have complete derivative quads.
+    if (u_debugMode.x > 7.5)
+    {
+        gl_FragColor = capturedLinearDepth(v_worldPos);
+        return;
+    }
+    if (u_shadowConfig.x < -0.5)
+    {
+        gl_FragColor = encodedShadowDepth(worldPosition);
+        return;
+    }
+#endif
+    // Subtract the view origin before interpolation, not here: absolute-world
+    // interpolation loses the small pixel differences on translated scenes.
+    vec3 worldDx = dFdx(v_relativePos);
+    vec3 worldDy = dFdy(v_relativePos);
 #ifdef DEMI_TERRAIN
     vec4 surfaceParameters;
-    vec4 albedo = terrainSurface(v_texcoord0, gl_FrontFacing, surfaceParameters);
-#else
+    vec3 receiverNormal = normalize(v_normal);
+    vec3 lightingNormal;
+    float occlusion;
+    vec3 emissive;
+    vec3 localDx = dFdx(v_localPos);
+    vec3 localDy = dFdy(v_localPos);
+    vec4 albedo = terrainSurface(v_texcoord0, gl_FrontFacing, v_terrainBlend,
+        localDx, localDy, worldDx, worldDy, receiverNormal, v_localPos, v_localNormal,
+        length(v_relativePos), surfaceParameters, lightingNormal, occlusion, emissive);
+#elif defined(DEMI_MESH_PBR)
     vec4 surfaceParameters = u_metalRough;
-    vec4 albedo = texture2D(s_texColor, v_texcoord0) * v_color0 * u_tint;
-#endif
+    vec3 receiverNormal = pbrNormalize(v_normal, vec3(0.0, 1.0, 0.0));
+    vec3 lightingNormal = receiverNormal;
+    float occlusion = 1.0;
+    vec3 emissive = vec3(0.0);
+    PbrSamplingCoordinates materialCoordinates = pbrSamplingCoordinates(
+        v_texcoord0, v_localPos, v_localNormal);
+    vec4 mappedAlbedo = pbrSampleMap(s_texColor, u_metalRough.w > 0.5, materialCoordinates);
+    vec4 albedo = vec4(mappedAlbedo.rgb * decodeColor(u_tint.rgb) * decodeColor(v_color0.rgb),
+                      mappedAlbedo.a * u_tint.a * v_color0.a);
+    // Derivatives were captured with the complete quad. Reject coverage before
+    // normal/scalar maps and lighting; later reads use explicit gradients.
     if (albedo.a < u_alphaCutoff.x)
     {
         discard;
     }
+    // Casting and depth capture need only the same albedo coverage.
 
+    if (u_shadowConfig.x >= -0.5 && u_debugMode.x < 7.5)
+    {
+        lightingNormal = pbrSurfaceNormal(receiverNormal, worldDx, worldDy, materialCoordinates);
+        if (u_pbrMapFlags.y > 0.5)
+            surfaceParameters.y = pbrSampleMap(s_pbrRoughness, false, materialCoordinates).r;
+        if (u_pbrMapFlags.z > 0.5)
+            surfaceParameters.x = pbrSampleMap(s_pbrMetallic, false, materialCoordinates).r;
+        if (u_pbrMapFlags.w > 0.5)
+            occlusion = clamp(pbrSampleMap(s_pbrOcclusion, false, materialCoordinates).r, 0.0, 1.0);
+        if (u_pbrMapFlags2.y > 0.5)
+            emissive = pbrSampleMap(s_pbrEmissive, u_pbrMapFlags2.w > 0.5, materialCoordinates).rgb;
+    }
+#else
+    vec4 surfaceParameters = u_metalRough;
+    vec4 sampledAlbedo = texture2D(s_texColor, v_texcoord0);
+    // Color image variants decode before hardware filtering. Presentation
+    // RenderTargets retain display-sRGB contents and need one shader decode.
+    vec3 imageColor = u_metalRough.w > 0.5
+                   ? decodeColor(sampledAlbedo.rgb) : sampledAlbedo.rgb;
+    vec4 albedo = vec4(imageColor * decodeColor(v_color0.rgb) * decodeColor(u_tint.rgb),
+                      sampledAlbedo.a * v_color0.a * u_tint.a);
+#endif
+#if !defined(DEMI_TERRAIN_OPAQUE) && !defined(DEMI_MESH_PBR)
+    if (albedo.a < u_alphaCutoff.x)
+    {
+        discard;
+    }
+#endif
+
+    if (u_debugMode.x > 7.5)
+    {
+        // Ordinary cutouts and mixed terrain culling already established
+        // coverage; no lighting, normal maps or shadow filtering is required.
+        gl_FragColor = capturedLinearDepth(v_worldPos);
+        return;
+    }
     if (u_shadowConfig.x < -0.5)
     {
-        float shadowDepth = dot(u_shadowZ[int(u_shadowConfig.y)], worldPosition);
-        vec4 packedDepth = fract(clamp(shadowDepth, 0.0, 0.999999) *
-                                 vec4(1.0, 255.0, 65025.0, 16581375.0));
-        gl_FragColor = packedDepth - packedDepth.yzww *
-                      vec4(1.0/255.0, 1.0/255.0, 1.0/255.0, 0.0);
+        gl_FragColor = encodedShadowDepth(worldPosition);
         return;
     }
 
+#if defined(DEMI_MESH_PBR) || defined(DEMI_TERRAIN)
+    vec3 normal = lightingNormal;
+#else
     float normalLength = length(v_normal);
     vec3 normal = v_normal / max(normalLength, 0.0001);
+    vec3 receiverNormal = normal;
+#endif
     vec3 directionalVector = -u_lightDirection.xyz;
     vec3 directionalDirection = directionalVector /
                                 max(length(directionalVector), 0.0001);
     float diffuse = max(dot(normal, directionalDirection), 0.0);
+    float receiverDiffuse = max(dot(receiverNormal, directionalDirection), 0.0);
     float visibility = 1.0;
+#if !(DEMI_PERFORMANCE_DEBUG && DEMI_PERFORMANCE_DEBUG_DISABLE_SHADOW_RECEIVE)
     if (u_shadowConfig.x > 0.5)
     {
         float viewDepth = dot(u_shadowCamera, worldPosition);
@@ -206,24 +314,21 @@ void main()
         if (viewDepth > u_shadowSplits.x && u_shadowConfig.z > 1.5) cascade = 1;
         if (viewDepth > u_shadowSplits.y && u_shadowConfig.z > 2.5) cascade = 2;
         if (viewDepth > u_shadowSplits.z && u_shadowConfig.z > 3.5) cascade = 3;
-        visibility = cascadeVisibility(cascade, worldPosition, worldDx, worldDy, diffuse);
+        visibility = cascadeVisibility(cascade, worldPosition, worldDx, worldDy, receiverNormal, receiverDiffuse);
         float farDepth = u_shadowParams[cascade].z;
         float blendWidth = max((farDepth - u_shadowParams[cascade].y) * u_shadowConfig.w, 0.00001);
         float blend = smoothstep(farDepth - blendWidth, farDepth, viewDepth);
         if (cascade + 1 < int(u_shadowConfig.z))
         {
             if (blend > 0.0)
-                visibility = mix(visibility, cascadeVisibility(cascade + 1, worldPosition, worldDx, worldDy, diffuse), blend);
+                visibility = mix(visibility, cascadeVisibility(cascade + 1, worldPosition, worldDx, worldDy, receiverNormal, receiverDiffuse), blend);
         }
         else
             visibility = mix(visibility, 1.0, blend);
         if (viewDepth < 0.0 || viewDepth > farDepth) visibility = 1.0;
     }
-#ifdef DEMI_TERRAIN
-    DEMI_GGX_PRECISION vec3 baseColor = albedo.rgb;
-#else
-    DEMI_GGX_PRECISION vec3 baseColor = decodeColor(albedo.rgb);
 #endif
+    DEMI_GGX_PRECISION vec3 baseColor = albedo.rgb;
     DEMI_GGX_PRECISION float metallic = clamp(surfaceParameters.x, 0.0, 1.0);
     DEMI_GGX_PRECISION float roughness = clamp(surfaceParameters.y, 0.04, 1.0);
     DEMI_GGX_PRECISION vec3 toView = u_viewPosition.xyz - v_worldPos;
@@ -231,6 +336,9 @@ void main()
     vec3 lighting = u_ambientColor.rgb +
                     u_lightColor.rgb * u_lightDirection.w * diffuse * visibility;
     vec3 shadedColor = baseColor * u_ambientColor.rgb * (1.0 - metallic);
+#if defined(DEMI_MESH_PBR) || defined(DEMI_TERRAIN)
+    shadedColor *= occlusion;
+#endif
     shadedColor += u_lightColor.rgb * u_lightDirection.w * visibility *
                    directSurfaceLight(baseColor, normal, viewDirection,
                                       directionalDirection, metallic, roughness);
@@ -281,6 +389,9 @@ void main()
 #else
     if (surfaceParameters.z > 0.5)
         shadedColor = baseColor;
+#endif
+#if defined(DEMI_MESH_PBR) || defined(DEMI_TERRAIN)
+    shadedColor += emissive;
 #endif
     if (u_debugMode.x > 0.5 && u_debugMode.x < 1.5)
     {

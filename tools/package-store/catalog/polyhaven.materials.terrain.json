@@ -1,0 +1,22 @@
+{
+  "format_version": 1,
+  "title": "Poly Haven Terrain Materials",
+  "description": "Six CC0 photo-based 1K PBR surfaces: gray fractured cliff, brown rock, grass ground, gravel, sand and snow. Ordinary Material assets, physical triplanar scale, an alpine role set and a format-3 surface palette. Wet variant reuses gravel source maps. Ready-to-use terrain role bindings and a surface palette; no Lua required.",
+  "publisher": "DemiEngine (artwork by Poly Haven artists)",
+  "license": "CC0-1.0",
+  "kind": "asset",
+  "category": "3D",
+  "price": 0,
+  "images": [
+    "https://cdn.polyhaven.com/asset_img/thumbs/marble_cliff_05.png?width=384&height=384&format=png",
+    "https://cdn.polyhaven.com/asset_img/thumbs/grass_ground.png?width=384&height=384&format=png"
+  ],
+  "tags": [
+    "terrain",
+    "pbr",
+    "materials",
+    "polyhaven",
+    "cc0",
+    "3d"
+  ]
+}

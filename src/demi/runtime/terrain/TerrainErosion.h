@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/terrain/TerrainDrainage.h"
+#include "demi/runtime/terrain/TerrainErosionTransport.h"
 #include <optional>
 #include <stop_token>
 
@@ -8,10 +9,8 @@ namespace demi::runtime {
 
 // Hydraulic and thermal transport over an already drained surface.
 //
-// Erosion reads the drainage stage's downstream tree instead of deriving a
-// direction of its own. Re-flooding here would be both slower and wrong: two
-// priority floods over the same surface can only agree by accident, and the
-// moment the surface moved between the stages they would disagree quietly.
+// Droplets follow currently descending terrain mesh edges. Input drainage
+// guides equal-slope and flat choices; it never forces a now-uphill step.
 struct TerrainErosionSettings {
   // Hydraulic iterations only. Zero skips droplets; Standard thermal
   // relaxation remains controlled independently by thermalStrength.
@@ -42,12 +41,14 @@ struct TerrainErosionSettings {
 // sedimentOut, when given, receives the signed transport balance per sample:
 // positive where material was deposited, negative where it was cut. That is the
 // same quantity TerrainMasks::sediment exposes, so a consumer does not have to
-// diff two surfaces to recover it.
+// diff two surfaces to recover it. Optional outputs are published together
+// only on success; cancellation leaves them unchanged.
 std::optional<TerrainSamples<float>>
 applyTerrainErosion(const HeightField &field, const TerrainDrainage &drainage,
                     const TerrainErosionSettings &settings,
                     TerrainSamples<float> *sedimentOut = nullptr,
                     std::stop_token stop = {},
-                    const TerrainGenerator::Progress &progress = {});
+                    const TerrainGenerator::Progress &progress = {},
+                    TerrainErosionTransport *transportOut = nullptr);
 
 } // namespace demi::runtime

@@ -1,0 +1,15 @@
+{
+  "dependencies": [
+    "asset://polyhaven/terrain/textures/marble_cliff_05/albedo",
+    "asset://polyhaven/terrain/textures/marble_cliff_05/normal",
+    "asset://polyhaven/terrain/textures/marble_cliff_05/roughness"
+  ],
+  "format_version": 1,
+  "id": "asset://amber_pass/materials/mountain_rock",
+  "importer": "material",
+  "importer_version": 1,
+  "settings": {},
+  "source": "mountain_rock.material.json",
+  "source_hash": "fnv1a64:e0843df9065d252a",
+  "type": "Material"
+}

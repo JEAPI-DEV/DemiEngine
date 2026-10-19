@@ -16,15 +16,16 @@ struct HeightField;
 
 // The stable identity of one scattered instance.
 //
-// Reconciliation keys on the cell that owns the placement, not on its
-// position, so a sculpt stroke that moves the ground under an instance updates
+// Reconciliation keys on the world-space candidate lattice, not on sample
+// indices or final position, so moving the ground under an instance updates
 // that instance instead of destroying and rebuilding it. The rule and palette
-// are part of the key so two roles landing in the same cell, or a palette swap,
+// are part of the key so two roles sharing a candidate, or a palette swap,
 // never collide.
 [[nodiscard]] std::string terrainScatterInstanceId(std::string_view ownerId,
                                                    std::string_view paletteId,
                                                    std::string_view ruleId,
-                                                   std::size_t cell);
+                                                   int candidateX,
+                                                   int candidateZ);
 
 struct TerrainScatterSyncStats {
   std::size_t created = 0;
@@ -51,26 +52,29 @@ struct TerrainScatterSyncStats {
 // outside the allocation-free terrain publish, because instantiating a prefab
 // allocates.
 //
-// A placement with a prefab is instantiated through RuntimePrefabService, so
-// templating and release behave like authored PrefabPlacement3D. Scatter keeps
-// one stable instance id per cell rather than reusing another cell's pool id.
-// A placement with only an asset gets a plain Transform3D +
-// MeshRenderer entity. Palette validation requires that direct asset to be a
-// Model3D; a material-only asset needs a prefab that supplies geometry.
+// Collision-free Model3D placements and pure visual prefabs publish shared
+// MeshInstances3D owners, with stable placement keys inside their transforms.
+// Prefab material/LOD settings and authored hierarchy offsets survive batching.
+// No gameplay entity or physics body is allocated per visual copy.
+//
+// Prefabs with gameplay behavior retain ordinary RuntimePrefabService
+// ownership. Collision policies preserve authored collider shapes:
+// static/trigger freeze bodies and select contact behavior, while none removes
+// physics participation. Direct models require collision:none in authored
+// palettes; explicit collider geometry belongs in a prefab.
 //
 // The service is optional. Passing null skips prefab placements and counts them
 // as unresolved rather than guessing, so a caller that only has mesh assets
-// needs no prefab owner. The runtime currently has exactly one RuntimePrefabService
-// and it belongs to the scripting host, so a composition root must supply one
-// before prefab-backed roles can place.
+// needs no prefab owner. The runtime currently has exactly one
+// RuntimePrefabService and it belongs to the scripting host, so a composition
+// root must supply one before prefab-backed roles can place.
 [[nodiscard]] TerrainScatterSyncStats
 syncTerrainScatter(World &world, WorldCommandBuffer &commands,
                    std::string_view ownerId, const HeightField &field,
                    RuntimePrefabService *prefabs, std::string &error);
 
-// Resolve mutable prefab bookkeeping only when creating/releasing an instance.
-// Transactions can lazily fork that state; moving/retaining existing instances
-// and direct-mesh placements do not need a copy of the prefab service.
+// Transactions resolve prefab state lazily for template preparation or live
+// instance creation/release. Direct model batches require no prefab service.
 using TerrainPrefabServiceProvider = std::function<RuntimePrefabService *()>;
 [[nodiscard]] TerrainScatterSyncStats
 syncTerrainScatter(World &world, WorldCommandBuffer &commands,
@@ -81,7 +85,7 @@ syncTerrainScatter(World &world, WorldCommandBuffer &commands,
 // Removes every scattered instance belonging to an owner, used when a terrain
 // is disabled, unloaded, or loses its palette.
 [[nodiscard]] std::size_t releaseTerrainScatter(World &world,
-                                                 WorldCommandBuffer &commands,
-                                                 std::string_view ownerId);
+                                                WorldCommandBuffer &commands,
+                                                std::string_view ownerId);
 
 } // namespace demi::runtime

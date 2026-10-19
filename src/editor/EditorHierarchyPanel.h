@@ -1,5 +1,6 @@
 #pragma once
 
+#include "editor/EditorHierarchyIndex.h"
 #include <array>
 #include <cstdint>
 #include <filesystem>
@@ -24,6 +25,7 @@ public:
   void requestRename(std::string id) { pendingRename_ = std::move(id); }
 
 private:
+  EditorHierarchyProjection hierarchy_;
   const EditorWorkspace *selectionWorkspace_ = nullptr;
   std::string selectionDocument_;
   std::vector<std::string> selectionIds_;

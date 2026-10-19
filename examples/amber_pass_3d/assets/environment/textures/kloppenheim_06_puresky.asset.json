@@ -1,0 +1,15 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://amber_pass/textures/sky",
+  "importer": "image",
+  "importer_version": 1,
+  "settings": {
+    "filter": "trilinear",
+    "mipmaps": true,
+    "wrap": "repeat"
+  },
+  "source": "kloppenheim_06_puresky.png",
+  "source_hash": "fnv1a64:8879229067d1bd5c",
+  "type": "Texture2D"
+}

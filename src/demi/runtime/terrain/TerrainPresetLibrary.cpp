@@ -15,6 +15,7 @@ TerrainPreset starter(std::string id, std::string name, std::string description,
   // later.
   preset.cellsX = preset.cellsZ = 64;
   preset.biomes["default"].color = color;
+  preset.biomes["default"].allowSnow = id == "mountain-range";
   TerrainGraph graph;
   graph.output = "terrain_output";
   graph.nodes = {
@@ -166,6 +167,7 @@ TerrainPreset coastalIslandStarter() {
       "stays at elevation zero; moving the polygon changes land, not sea "
       "level.");
   preset.biomes["shore"].color = {.7F, .62F, .4F, 1};
+  preset.biomes["shore"].allowSnow = false;
   TerrainBiomeRule shore;
   shore.id = "shore";
   shore.biome = "shore";
@@ -196,6 +198,89 @@ TerrainPreset coastalIslandStarter() {
   preset.graph = graph.toJson();
   return preset;
 }
+TerrainPreset drainageRiverStarter() {
+  auto preset = starter(
+      "drainage-river", "Drainage River",
+      "A drainage-connected river descending across a gently sloping landscape "
+      "toward the sea. Move the source and inspect its endpoint diagnostic.",
+      3, 32, .25F, {.3F, .46F, .24F, 1});
+  TerrainGraph graph;
+  graph.output = "terrain_output";
+  graph.nodes = {
+      {"shape",
+       "noise",
+       {{"base_height", -4},
+        {"height_variation", 3},
+        {"feature_size", 32},
+        {"roughness", .25}},
+       {40, 320}},
+      {"slope_mask",
+       "path_distance_mask",
+       {{"points", {{0, 0}, {128, 0}}}, {"width", 0}, {"falloff", 128}},
+       {380, 320}},
+      {"sloping_valley", "offset", {{"amount", 30}}, {720, 320}},
+      {"ocean",
+       "water",
+       {{"kind", "ocean"}, {"level", 0}, {"radius", 0}},
+       {1060, 320}},
+      {"drainage", "drainage", {{"sea_level", 0}}, {1400, 320}},
+      {"river",
+       "river_route",
+       {{"source_x", 64},
+        {"source_z", 32},
+        {"channel_width", 8},
+        {"channel_depth", 2},
+        {"water_depth", 1}},
+       {1740, 320}},
+      {"appearance", "biomes", nlohmann::json::object(), {2080, 320}},
+      {"terrain_output", "output", nlohmann::json::object(), {2420, 320}},
+      {"shape_help",
+       "comment",
+       {{"text",
+         "Seeded noise supplies modest local relief above a -4-unit sea "
+         "bed. Height variation and feature size shape those details; "
+         "the separate masked offset establishes the main drainage slope."}},
+       {40, 20}},
+      {"slope_help",
+       "comment",
+       {{"text", "The terrain is 128-by-128 world units. The path mask fades "
+                 "away from Z=0; Offset raises that side by 30 units, creating "
+                 "a broad downhill slope toward the negative-height sea bed."}},
+       {380, 20}},
+      {"river_help",
+       "comment",
+       {{"text",
+         "Source X/Z selects a terrain-local drainage sample. River Route "
+         "follows nonascending terrain triangle edges and carves its bed. "
+         "Its diagnostic reports sea level, field edge, closed basin or "
+         "blocked surface. A closed basin never invents a spill route."}},
+       {1740, 20}},
+      {"water_help",
+       "comment",
+       {{"text",
+         "Ocean supplies the existing zero-level sea before river routing. "
+         "River water follows the carved bed and joins that sea. These are "
+         "generated surfaces and gameplay "
+         "queries, not a fluid simulation. Keep the water links connected "
+         "so Terrain Output publishes both bodies."}},
+       {2080, 20}}};
+  graph.links = {
+      {"shape_to_mask", {"shape", "field"}, {"slope_mask", "field"}},
+      {"shape_to_offset", {"shape", "field"}, {"sloping_valley", "field"}},
+      {"mask_to_offset", {"slope_mask", "mask"}, {"sloping_valley", "mask"}},
+      {"slope_to_ocean", {"sloping_valley", "field"}, {"ocean", "field"}},
+      {"ocean_to_drainage", {"ocean", "field"}, {"drainage", "field"}},
+      {"drainage_to_river", {"drainage", "drainage"}, {"river", "drainage"}},
+      {"ocean_to_river_water", {"ocean", "water"}, {"river", "water"}},
+      {"river_to_appearance", {"river", "field"}, {"appearance", "field"}},
+      {"appearance_to_output",
+       {"appearance", "field"},
+       {"terrain_output", "field"}},
+      {"river_to_output", {"river", "water"}, {"terrain_output", "water"}}};
+  preset.graph = graph.toJson();
+  return preset;
+}
+
 } // namespace
 
 const std::vector<TerrainPreset> &builtinTerrainPresets() {
@@ -216,7 +301,8 @@ const std::vector<TerrainPreset> &builtinTerrainPresets() {
               30, 56, .7F, {.4F, .38F, .36F, 1}),
       basinStarter(),
       plateauStarter(),
-      coastalIslandStarter()};
+      coastalIslandStarter(),
+      drainageRiverStarter()};
   return presets;
 }
 } // namespace demi::runtime

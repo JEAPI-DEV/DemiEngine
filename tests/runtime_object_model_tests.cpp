@@ -868,8 +868,28 @@ int main() {
   liveBody.setComponent(demi::runtime::MeshInstances3DComponent{});
   if (RuntimeObjectModel::setComponentField(liveBody, "MeshInstances3D", "transforms",
           {{"bad", {{"scale", {0, 1, 1}}}}}) ||
-      !liveBody.component<demi::runtime::MeshInstances3DComponent>()->transforms.empty()) {
+      !liveBody.component<demi::runtime::MeshInstances3DComponent>()->transforms().empty()) {
     std::cerr << "Rejected structured field mutation changed the component.\n";
+    return 1;
+  }
+  const auto emptyInstanceRevision =
+      liveBody.component<demi::runtime::MeshInstances3DComponent>()
+          ->contentRevision();
+  if (!RuntimeObjectModel::setComponentField(
+          liveBody, "MeshInstances3D", "transforms",
+          {{"stable-tree", {{"position", {1, 2, 3}}}}})) {
+    std::cerr << "Revisioned mesh instance field mutation failed.\n";
+    return 1;
+  }
+  const auto *liveInstances =
+      liveBody.component<demi::runtime::MeshInstances3DComponent>();
+  nlohmann::json instanceValues;
+  if (liveInstances->contentRevision() == emptyInstanceRevision ||
+      !liveInstances->transforms().contains("stable-tree") ||
+      !demi::runtime::MeshInstances3DComponent::readTransforms(
+          *liveInstances, instanceValues) ||
+      instanceValues["stable-tree"]["position"] != nlohmann::json({1, 2, 3})) {
+    std::cerr << "Mesh instance native binding lost its revision or labels.\n";
     return 1;
   }
   demi::runtime::MeshRendererComponent mesh;

@@ -1,10 +1,35 @@
 # DemiEngine Roadmap
 
-Milestone 3 now has production Preview/Final generation, intermediate erosion
-progress and safe preview rollback/history. Drainage accumulation and thermal
-transport distances are corrected; flow, deposition and cut masks are exposed.
-Downhill river routing and erosion/reference qualification remain open. See
-[generation quality qualification](docs/terrain-generation-quality-qualification.md).
+Terrain Milestone 6 is complete for Linux lightweight 3D: stable physical-density
+scatter, shared environmental rules, conversion into editable scene objects,
+batched groundcover, selective collision, real model LOD and shared Material
+wind. The original CC0 vegetation package is available from the package store.
+The qualified 9,937-placement scene uses 99 renderable entities; measured
+overview render submission fell from 47.38 ms to 6.44 ms without reducing
+density. See [Milestone 6 qualification](docs/terrain-milestone6-qualification.md).
+Large-world streaming and coordinated residency remain Milestone 7 work.
+
+Terrain Milestone 4 is complete for the Linux Vulkan surface-material scope:
+shared PBR Materials, GPU texture layers, height-biased/sharp blending,
+triplanar/detail/macro shading, automatic roles and bounded distance-based
+residency. The Poly Haven starter package supplies real CC0 maps with physical
+scale and provenance. Source/cooked captures match exactly; the valley retains
+1K maps in about 112 MiB of material arrays under the default 128 MiB budget.
+See [Milestone 4 qualification](docs/terrain-milestone4-qualification.md).
+
+The prominent rocky-valley shadow grid is corrected through precise view
+directions, stable receiver derivatives and texel-scaled facet filtering.
+Native GPU/mesh and translated-plane checks preserve real cast shadows. See
+[shadow qualification](docs/terrain-shadow-receiver-qualification.md) for
+evidence and remaining finite-resolution/contact limitations.
+
+Terrain Milestone 3's bounded generation scope is complete: macro-shape
+controls, safe Preview/Final, measured erosion evaluation, drainage endpoints
+and connected sloped rivers. Native close-up checks also caught and corrected
+artificial sediment walls. Unfinished sediment transport is explicitly reported;
+this is not a full fluid solver or completion of the visual terrain roadmap.
+Surface-material integration is qualified above. See
+[Milestone 3 qualification](docs/terrain-milestone3-qualification.md).
 
 Terrain Graph now supports filled polygon masks for shaped basins, plateaus and
 island coastlines. Three built-in presets demonstrate editable outlines,
@@ -153,28 +178,16 @@ tools on the Terrain component. Terrain surface materials, material sets and
 scatter palettes now have native creation dialogs and typed asset controls,
 shared reference picking, Undo/Redo and validated dependency-aware reimport.
 See [asset authoring qualification](docs/editor-asset-authoring-qualification.md).
-Ordinary biome Material references now reach terrain meshes with per-biome
-texture scale and source/cooked appearance metadata. Material edits retain
-geometry/collision and texture-scale edits update UVs only. Typed terrain PBR
-definitions, blended layers and advanced water shading remain rendering work.
-Fifteen scoped checks and source/cooked native Vulkan probes qualify this binding
-step; [evidence](docs/terrain-material-binding-qualification.md) records the
-new derived-data versions and the remaining renderer scope.
-Connected graph water outputs now publish transparent native surfaces in the
-scene preview and prepared runtime. Water follows its terrain owner, has no
-solid collider and updates transactionally across shared placements. The
-water stage now includes configurable appearance, depth-derived vertex colours
-and terrain-triangle shoreline clipping. Uncontained lakes warn rather than
-silently changing their level. Reflection/refraction, waves, foam and
-underwater/gameplay integration remain. See
-[water publication evidence](docs/terrain-water-publication-qualification.md).
-Nineteen focused checks pass, and source/cooked native Vulkan captures verify
-visible water. Both terrain examples validate without diagnostics.
-The subsequent shore/depth stage passes fourteen focused renderer, component,
-editor and terrain checks. Source/cooked native captures now use a contained
-basin and replace the earlier levitating probe; derived terrain requires recook
-for generator/envelope v3. No full water-quality or full-suite gate is claimed.
-The expanded visual-quality and performance milestones remain planned.
+Shared mesh/terrain PBR materials and bounded texture arrays are implemented;
+[Milestone 4 qualification](docs/terrain-milestone4-qualification.md) records the
+material contract, native checks and matched-scene optimization evidence.
+Native terrain water now includes smooth authored paths, polygon boundaries,
+basin proposals, stable body edits, prescribed flow, optical shading and
+underwater transitions. Its main render target retains MSAA, with independent
+scene-depth capture. Opt-in buoyancy and swimming live in a reusable package,
+not automatic physics behavior. See [Milestone 5 qualification](docs/terrain-milestone5-qualification.md)
+for scope, native/cooked evidence and reflection/platform limits. Full fluid
+simulation and geometric waves are not claimed.
 
 Brush source now groups shared settings with ordered points, and full sculpt
 replay is bounded to each brush footprint. Existing source can be compacted

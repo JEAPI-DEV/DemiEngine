@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "id": "asset://polyhaven/terrain/textures/marble_cliff_05/ambient_occlusion",
+  "type": "Texture2D",
+  "source": "ambient_occlusion.jpg",
+  "importer": "image",
+  "importer_version": 1,
+  "source_hash": "fnv1a64:b9cd6f6e7dfa26f2",
+  "dependencies": [],
+  "settings": {
+    "filter": "trilinear",
+    "mipmaps": true,
+    "wrap": "repeat"
+  }
+}

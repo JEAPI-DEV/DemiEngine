@@ -1,0 +1,15 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://amber_pass/textures/coastal_cliff_02/albedo",
+  "importer": "image",
+  "importer_version": 1,
+  "settings": {
+    "filter": "trilinear",
+    "mipmaps": true,
+    "wrap": "repeat"
+  },
+  "source": "coastal_cliff_02_diff_2k.jpg",
+  "source_hash": "fnv1a64:b94ec01eca0c2f13",
+  "type": "Texture2D"
+}

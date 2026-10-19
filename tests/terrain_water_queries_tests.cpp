@@ -1,8 +1,10 @@
+#include "demi/runtime/terrain/TerrainWaterFlow.h"
 #include "demi/runtime/terrain/TerrainWaterQueries.h"
 
 #include "demi/runtime/terrain/TerrainHeightField.h"
 #include "demi/runtime/terrain/TerrainMasks.h"
 
+#include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <functional>
@@ -108,7 +110,6 @@ void dryPointIsNotSubmerged() {
   assert(!high.submerged);
   assert(high.depth == 0.F);
   assert(high.bodyId.empty());
-  assert(!high.swimmable);
   assert(high.flowSpeed == 0.F);
 
   // A caller that queries above the ground and one that queries deep below it
@@ -131,15 +132,13 @@ void submergedPointReportsDepthAndBody() {
   assert(deep.submerged);
   assert(std::fabs(deep.depth - 3.F) < 1e-4F);
   assert(deep.bodyId == "sea");
-  assert(deep.swimmable);
   // The sea is still water by definition, whatever the drainage field says.
   assert(deep.flowSpeed == 0.F);
 
-  // Shallower than the swim depth is a wade, not a swim.
+  // Shallow water still reports its physical column depth.
   const auto wading = *ask(authoring, result, nullptr, Vec3{16, 0, 18}, field);
   assert(wading.submerged);
   assert(std::fabs(wading.depth - 0.5F) < 1e-4F);
-  assert(!wading.swimmable);
 
   // Triangulated on the authored grid, so a point between samples is answered
   // from the surface it is really over rather than from a snapped sample.
@@ -169,7 +168,6 @@ void shorelineIsNeitherWetNorDry() {
   assert(inside.submerged);
   assert(inside.depth > 0.F && inside.depth < 0.05F);
   assert(inside.bodyId == "sea");
-  assert(!inside.swimmable);
 
   // A tenth of a unit outside there is still dry, so the waterline is a place
   // rather than a step at a sample boundary.
@@ -209,10 +207,9 @@ void outsideTheFieldIsReportedNotClamped() {
                                field.size));
 }
 
-// Flow comes from the drainage field and only a river has any. A lake fed by a
-// river is still where it stands, and a project with no drainage stage has
-// rivers that are not reported as moving.
-void flowIsReportedForRiversOnly() {
+// Prescribed currents survive missing or changed drainage and follow the
+// authored river path. Still water remains an explicit zero-speed choice.
+void authoredFlowIsIndependentOfDrainage() {
   const auto field = trenchField();
   TerrainWaterAuthoring riverAuthoring;
   riverAuthoring.authored = true;
@@ -221,57 +218,52 @@ void flowIsReportedForRiversOnly() {
   river.kind = TerrainWaterBody::River;
   river.level = 0;
   river.riverWidth = 5;
+  river.flowSpeed = 6.F;
   river.riverPath = {Vec3{2.F, -3.5F, 16.F}, Vec3{30.F, -3.5F, 16.F}};
   riverAuthoring.bodies.push_back(river);
   const auto riverResult = *carveTerrainWater(field, riverAuthoring, nullptr);
   const auto flowing = flowingField(field, 1.F);
-
-  const auto inRiver =
-      *ask(riverAuthoring, riverResult, &flowing, Vec3{16, 0, 16}, field);
-  assert(inRiver.submerged);
-  assert(inRiver.bodyId == "brook");
-  assert(inRiver.flowSpeed > 0.F);
-  assert(std::fabs(inRiver.flowSpeed - terrainWaterReferenceFlowSpeed) < 1e-3F);
-  // A channel this fast is a rapid: deep enough, and not somewhere to swim.
-  assert(inRiver.depth >= terrainWaterMinSwimDepth);
-  assert(!inRiver.swimmable);
-
-  // A quarter of the accumulation is a quarter of the reported speed, so the
-  // answer tracks the field rather than saturating at the first bit of
-  // drainage.
   const auto quarter = flowingField(field, 0.25F);
+  for (const TerrainMasks *masks :
+       {&flowing, &quarter, static_cast<const TerrainMasks *>(nullptr)}) {
+    const auto sample =
+        *ask(riverAuthoring, riverResult, masks, Vec3{16, 0, 16}, field);
+    assert(sample.submerged && sample.bodyId == "brook");
+    assert(sample.flowSpeed == 6.F);
+    assert(sample.flowVelocity.x == 6.F && sample.flowVelocity.y == 0.F &&
+           sample.flowVelocity.z == 0.F);
+  }
+  riverAuthoring.bodies[0].flowSpeed = 1.5F;
   const auto slower =
-      *ask(riverAuthoring, riverResult, &quarter, Vec3{16, 0, 16}, field);
-  assert(slower.flowSpeed > 0.F);
-  assert(std::fabs(slower.flowSpeed - inRiver.flowSpeed * 0.25F) < 1e-3F);
-  // Slow enough now to swim, at the same depth: only the flow changed.
-  assert(slower.swimmable);
-
-  // No drainage data: the river is still water as far as gameplay can tell,
-  // which is a documented consequence of authoring without a drainage stage.
-  const auto unmeasured =
       *ask(riverAuthoring, riverResult, nullptr, Vec3{16, 0, 16}, field);
-  assert(unmeasured.submerged && unmeasured.bodyId == "brook");
-  assert(unmeasured.flowSpeed == 0.F);
+  assert(slower.flowSpeed == 1.5F);
+  assert(slower.flowVelocity.x == 1.5F && slower.flowVelocity.y == 0.F &&
+         slower.flowVelocity.z == 0.F);
 
-  // The same point under the same drainage, as a lake: still, and swimmable.
-  const auto lakeAuthoring = authoringWith(lake("pool", 0, {16, 16}, 3));
-  const auto lakeResult = *carveTerrainWater(field, lakeAuthoring, &flowing);
+  auto lakeAuthoring = authoringWith(lake("pool", 0, {16, 16}, 3));
+  lakeAuthoring.bodies[0].flowSpeed = 3.F;
+  lakeAuthoring.bodies[0].flowDirection = {0, 2};
+  const auto lakeResult = *carveTerrainWater(field, lakeAuthoring, nullptr);
   const auto inLake =
-      *ask(lakeAuthoring, lakeResult, &flowing, Vec3{16, 0, 16}, field);
-  assert(inLake.submerged);
-  assert(inLake.bodyId == "pool");
-  assert(inLake.flowSpeed == 0.F);
-  assert(inLake.swimmable);
-  // The lake still deepens its own basin, and the depth reflects the cut.
-  assert(inLake.depth > 2.F);
-
-  // And an ocean over the same ground, under the same drainage.
+      *ask(lakeAuthoring, lakeResult, nullptr, Vec3{16, 0, 16}, field);
+  assert(inLake.flowSpeed == 3.F);
+  assert(inLake.flowVelocity.x == 0.F && inLake.flowVelocity.z == 3.F);
   const auto seaAuthoring = authoringWith(ocean("sea", 0));
-  const auto seaResult = *carveTerrainWater(field, seaAuthoring, &flowing);
+  const auto seaResult = *carveTerrainWater(field, seaAuthoring, nullptr);
   const auto inSea =
       *ask(seaAuthoring, seaResult, &flowing, Vec3{16, 0, 16}, field);
   assert(inSea.flowSpeed == 0.F);
+
+  river.riverPath = {{0, 0, 0}, {0, 0, 0}, {10, -1, 0}, {10, -3, 10}};
+  river.flowSpeed = 2.F;
+  const auto east = terrainWaterFlowVelocity(river, {4, 0, 1});
+  const auto north = terrainWaterFlowVelocity(river, {9, 0, 8});
+  assert(east.x == 2.F && east.z == 0.F);
+  assert(north.x == 0.F && north.z == 2.F);
+  auto reversed = river;
+  std::reverse(reversed.riverPath.begin(), reversed.riverPath.end());
+  assert(!sameTerrainWaterFlow(river, reversed));
+  assert(terrainWaterFlowVelocity(reversed, {9, 0, 8}).z == -2.F);
 }
 
 // The whole reason the query is not answered from the mesh. A water surface
@@ -315,8 +307,6 @@ void gameplayAnswersIgnoreTheRenderSurface() {
     assert(reference.depth == withWrongMesh.depth);
     assert(reference.bodyId == withoutMesh.bodyId);
     assert(reference.bodyId == withWrongMesh.bodyId);
-    assert(reference.swimmable == withoutMesh.swimmable);
-    assert(reference.swimmable == withWrongMesh.swimmable);
     assert(reference.flowSpeed == withoutMesh.flowSpeed);
     assert(reference.flowSpeed == withWrongMesh.flowSpeed);
   }
@@ -350,7 +340,6 @@ void contextMatchesTheOneShotCall() {
       assert(once.submerged == held.submerged);
       assert(once.depth == held.depth);
       assert(once.bodyId == held.bodyId);
-      assert(once.swimmable == held.swimmable);
     }
   // The same bounds rule as the one-shot call, and a context that was never
   // built answers nothing rather than something invented.
@@ -481,24 +470,6 @@ void ownershipSelectsOneAuthoredPlaneWithoutBlending() {
   assert(retained.depth == 3.F && retained.bodyId == "sea");
 }
 
-void drainageUsesTheSameTriangleWeights() {
-  const auto field =
-      fieldWith({1, 1}, 1, 1, [](double, double) { return -2.F; });
-  auto river = ocean("river", 0);
-  river.kind = TerrainWaterBody::River;
-  river.riverWidth = 100;
-  river.riverPath = {{-10, -2, 0.5F}, {10, -2, 0.5F}};
-  const auto authoring = authoringWith(river);
-  const auto result =
-      *refreshTerrainWaterResult(field, authoring, field.heights);
-  auto flow = flowingField(field, 0);
-  flow.flow.set(field.index(1, 1), 1.F);
-  const auto first = *ask(authoring, result, &flow, {0.25F, 0, 0.25F}, field);
-  assert(first.flowSpeed == 0.F);
-  const auto second = *ask(authoring, result, &flow, {0.6F, 0, 0.6F}, field);
-  assert(second.submerged && second.bodyId == "river");
-  assert(std::fabs(second.flowSpeed - 1.2F) < 1e-6F);
-}
 } // namespace
 
 void contextSharesPreparedDataAndReportsPointContainment() {
@@ -521,7 +492,7 @@ void contextSharesPreparedDataAndReportsPointContainment() {
   assert(result.resolvedCoverage.use_count() == references);
 }
 
-void contextRetainsFlowSnapshotAfterCallerEdits() {
+void contextRetainsAuthoredCurrentAfterCallerEdits() {
   const auto field = rampField();
   TerrainMasks masks;
   masks.flow.resize(field.heights.size());
@@ -531,17 +502,23 @@ void contextRetainsFlowSnapshotAfterCallerEdits() {
   river.kind = TerrainWaterBody::River;
   river.riverPath = {{16, -4, 18}, {16, -4, 30}};
   river.riverWidth = 16;
-  const auto authoring = authoringWith(river);
+  river.flowSpeed = 2.F;
+  auto authoring = authoringWith(river);
   const auto result = *carveTerrainWater(field, authoring, &masks);
   const auto context = TerrainWaterQueryContext::build(
       authoring, result, &masks, field.cellsX, field.cellsZ, field.size);
   assert(context);
   const auto before = context->sample({16, 0, 24});
   assert(before && before->submerged && before->bodyId == "river");
+  assert(before->flowSpeed == 2.F && before->flowVelocity.z == 2.F);
+  authoring.bodies.front().flowSpeed = 5.F;
+  std::reverse(authoring.bodies.front().riverPath.begin(),
+               authoring.bodies.front().riverPath.end());
   for (std::size_t sample = 0; sample < masks.flow.size(); ++sample)
     masks.flow.set(sample, 1.F);
   const auto after = context->sample({16, 0, 24});
   assert(after && after->flowSpeed == before->flowSpeed);
+  assert(after->flowVelocity.z == before->flowVelocity.z);
 }
 
 int main() {
@@ -549,15 +526,14 @@ int main() {
   submergedPointReportsDepthAndBody();
   shorelineIsNeitherWetNorDry();
   outsideTheFieldIsReportedNotClamped();
-  flowIsReportedForRiversOnly();
+  authoredFlowIsIndependentOfDrainage();
   gameplayAnswersIgnoreTheRenderSurface();
   contextMatchesTheOneShotCall();
   droppedBodiesAreInvisibleToQueries();
   nonplanarGroundUsesTheRenderedDiagonal();
   partialCellQueriesFollowGroundAndFootprintClips();
   ownershipSelectsOneAuthoredPlaneWithoutBlending();
-  drainageUsesTheSameTriangleWeights();
   contextSharesPreparedDataAndReportsPointContainment();
-  contextRetainsFlowSnapshotAfterCallerEdits();
+  contextRetainsAuthoredCurrentAfterCallerEdits();
   std::cout << "Terrain water query checks passed\n";
 }

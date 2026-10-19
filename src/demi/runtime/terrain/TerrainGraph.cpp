@@ -1,10 +1,14 @@
 #include "demi/runtime/terrain/TerrainGraph.h"
 #include "demi/runtime/terrain/TerrainGraphSpatialMasks.h"
+#include "demi/runtime/terrain/TerrainWater.h"
+#include "demi/runtime/terrain/TerrainWaterAuthoring.h"
+#include "demi/runtime/terrain/TerrainWaterFlow.h"
 
 #include "demi/graph/DependencyGraph.h"
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <set>
 #include <stdexcept>
 
@@ -82,6 +86,16 @@ void validateParameters(const TerrainGraphNode &node) {
     }
     if (value.is_number()) {
       const double number = value.get<double>();
+      const bool waterNumber = node.type == "water" ||
+                               node.type == "river_route" ||
+                               node.type == "basin_water";
+      if (waterNumber) {
+        const float native = static_cast<float>(number);
+        require(std::isfinite(native), error + ": outside finite native range");
+        if (found->exclusiveMinimum && found->minimum == 0) {
+          require(native > 0, error + ": must remain positive in native units");
+        }
+      }
       if (found->minimum) {
         require(found->exclusiveMinimum ? number > *found->minimum
                                         : number >= *found->minimum,
@@ -100,6 +114,48 @@ void validateParameters(const TerrainGraphNode &node) {
           node.parameters.at("points"), isPolygon);
     } catch (const std::exception &error) {
       throw std::invalid_argument("Node " + node.id + ": " + error.what());
+    }
+  }
+  if (node.type == "river_route") {
+    const auto parameters =
+        terrain_graph_detail::terrainGraphNodeParameters(node);
+    require(parameters.at("water_depth").get<double>() <=
+                parameters.at("channel_depth").get<double>(),
+            "Node " + node.id + ": water depth exceeds channel depth");
+  }
+  if (node.type == "water") {
+    try {
+      (void)parseTerrainWaterBodyParameters(
+          terrain_graph_detail::terrainGraphNodeParameters(node), node.id);
+    } catch (const std::exception &error) {
+      throw std::invalid_argument("Node " + node.id + ": " + error.what());
+    }
+  }
+  if (node.type == "water_edit") {
+    const auto parameters =
+        terrain_graph_detail::terrainGraphNodeParameters(node);
+    try {
+      validateTerrainWaterEdits(parameters.at("excluded_ids"),
+                                parameters.at("overrides"));
+    } catch (const std::exception &error) {
+      throw std::invalid_argument("Node " + node.id + ": " + error.what());
+    }
+  }
+  if (node.type == "water" && node.parameters.contains("river_path")) {
+    const auto &points = node.parameters.at("river_path");
+    require(points.is_array(),
+            "Node " + node.id + ": river path must be an array");
+    for (const auto &point : points) {
+      require(point.is_array() && point.size() == 3,
+              "Node " + node.id + ": river path requires XYZ points");
+      for (const auto &coordinate : point) {
+        require(coordinate.is_number() &&
+                    std::isfinite(coordinate.get<double>()) &&
+                    std::abs(coordinate.get<double>()) <=
+                        std::numeric_limits<float>::max(),
+                "Node " + node.id +
+                    ": river path coordinates must fit finite floats");
+      }
     }
   }
   if (node.type == "elevation_mask" || node.type == "slope_mask") {

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/debug/RuntimeDebugSnapshot.h"
+#include "demi/runtime/app/EmbeddedRuntimeHostServices.h"
 #include "demi/runtime/diagnostics/RuntimeLog.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 #include "demi/runtime/scripting/LuaScriptHost.h"
@@ -27,7 +28,12 @@ public:
   [[nodiscard]] bool start(const std::filesystem::path &projectPath,
                            std::string &error, const std::string &sceneId = {});
   void stop();
+  // Services apply to subsequent starts; a running session retains its hooks.
+  void setHostServices(EmbeddedRuntimeHostServices services);
   void setPaused(bool paused);
+  // Hosts may begin profiling before drawing their UI. The next update/step
+  // consumes this frame instead of discarding those earlier measurements.
+  void beginProfilerFrame();
   [[nodiscard]] bool update(InputState input, float deltaSeconds,
                             std::uint16_t viewportWidth,
                             std::uint16_t viewportHeight, std::string &error);
@@ -61,6 +67,7 @@ private:
                                     std::uint16_t viewportHeight,
                                     bool oneFixedTick, std::string &error);
   std::unique_ptr<State> state_;
+  EmbeddedRuntimeHostServices hostServices_;
 };
 
 } // namespace demi::runtime

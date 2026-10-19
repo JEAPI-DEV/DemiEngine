@@ -35,7 +35,23 @@ struct WaterGeometryVertex {
   double z = 0;
   double depth = 0;
   double coverage = 0;
+  double level = 0;
 };
+
+inline Vec3
+waterTriangleNormal(const std::array<WaterGeometryVertex, 3> &points) {
+  const double ax = points[1].x - points[0].x;
+  const double ay = points[1].level - points[0].level;
+  const double az = points[1].z - points[0].z;
+  const double bx = points[2].x - points[0].x;
+  const double by = points[2].level - points[0].level;
+  const double bz = points[2].z - points[0].z;
+  const double nx = ay * bz - az * by;
+  const double ny = az * bx - ax * bz;
+  const double nz = ax * by - ay * bx;
+  const double length = std::hypot(nx, ny, nz);
+  return {float(nx / length), float(ny / length), float(nz / length)};
+}
 
 // Two half-plane clips of a triangle have at most five distinct vertices.
 struct WaterGeometryPolygon {
@@ -62,7 +78,8 @@ waterBoundaryIntersection(WaterGeometryVertex a, WaterGeometryVertex b,
   const double t = (a.*field) / ((a.*field) - (b.*field));
   WaterGeometryVertex result{a.x + (b.x - a.x) * t, a.z + (b.z - a.z) * t,
                              a.depth + (b.depth - a.depth) * t,
-                             a.coverage + (b.coverage - a.coverage) * t};
+                             a.coverage + (b.coverage - a.coverage) * t,
+                             a.level + (b.level - a.level) * t};
   result.*field = 0.0;
   return result;
 }

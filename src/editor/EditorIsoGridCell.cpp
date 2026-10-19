@@ -48,20 +48,22 @@ std::string isoGridCellKey(const int x, const int y) {
 std::vector<EditorIsoGridCell>
 paintedIsoGridCells(const runtime::World &world,
                     const std::string_view gridEntityId) {
+  const auto *entity = runtime::findEntity(world, std::string(gridEntityId));
+  return entity ? paintedIsoGridCells(*entity) : std::vector<EditorIsoGridCell>{};
+}
+
+std::vector<EditorIsoGridCell> paintedIsoGridCells(const runtime::Entity &entity) {
   std::vector<EditorIsoGridCell> result;
-  const runtime::Entity *entity =
-      runtime::findEntity(world, std::string(gridEntityId));
-  const auto *grid = entity == nullptr
-                         ? nullptr
-                         : entity->component<runtime::IsoGridComponent>();
-  if (grid == nullptr)
+  const auto *grid = entity.component<runtime::IsoGridComponent>();
+  if (!grid) {
     return result;
+  }
   result.reserve(grid->cellTextures.size());
   for (const auto &[key, texture] : grid->cellTextures) {
     (void)texture;
     if (const auto cell = parseCell(key))
       result.push_back(
-          {.gridEntityId = entity->id, .x = cell->x, .y = cell->y});
+          {.gridEntityId = entity.id, .x = cell->x, .y = cell->y});
   }
   std::ranges::sort(result, [](const auto &left, const auto &right) {
     return std::tie(left.y, left.x) < std::tie(right.y, right.x);

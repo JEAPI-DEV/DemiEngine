@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "id": "asset://polyhaven/terrain/textures/rock_face_03/albedo",
+  "type": "Texture2D",
+  "source": "albedo.jpg",
+  "importer": "image",
+  "importer_version": 1,
+  "source_hash": "fnv1a64:43e007c44360f7f7",
+  "dependencies": [],
+  "settings": {
+    "filter": "trilinear",
+    "mipmaps": true,
+    "wrap": "repeat"
+  }
+}

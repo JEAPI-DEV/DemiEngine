@@ -2,44 +2,235 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://demiengine.local/schemas/terrain-palette.schema.json",
   "title": "DemiEngine Terrain Palette",
-  "description": "Reusable map from semantic terrain roles to existing material, mesh and prefab assets. Authored as a DataAsset document with settings.content_type terrain_palette. Role vocabulary, scale ordering, collision policies and cross-asset resolution are additionally enforced by the C++ loader, because the engine's DataSchema validator ignores additionalProperties, minItems, maxItems, maxLength, pattern and uniqueItems.",
+  "description": "Versioned surface-set binding and independent named placement rules. Native parsing also validates finite ranges, effective density capacity and cross-asset references.",
   "type": "object",
-  "required": ["format_version", "name", "roles"],
+  "required": [
+    "format_version",
+    "name"
+  ],
   "additionalProperties": false,
-  "properties": {
-    "format_version": {"const": 1},
-    "name": {"type": "string", "minLength": 1},
-    "roles": {
-      "type": "object",
-      "minProperties": 1,
-      "description": "Keyed by role name rather than a list, so a duplicate role is structurally impossible and iteration order is deterministic.",
-      "propertyNames": {"$ref": "#/$defs/role"},
-      "additionalProperties": {"$ref": "#/$defs/entry"}
+  "anyOf": [
+    {
+      "required": [
+        "material_set"
+      ]
     },
-    "required_roles": {
-      "type": "array",
-      "uniqueItems": true,
-      "description": "Roles a consumer must find. Every listed role must also exist in roles.",
-      "items": {"$ref": "#/$defs/role"}
+    {
+      "required": [
+        "placements"
+      ]
+    }
+  ],
+  "properties": {
+    "format_version": {
+      "const": 3
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "material_set": {
+      "type": "string",
+      "pattern": "^asset://.+"
+    },
+    "art_density": {
+      "type": "number",
+      "minimum": 0,
+      "default": 1
+    },
+    "grass_density": {
+      "type": "number",
+      "minimum": 0,
+      "default": 1
+    },
+    "tree_density": {
+      "type": "number",
+      "minimum": 0,
+      "default": 1
+    },
+    "rock_density": {
+      "type": "number",
+      "minimum": 0,
+      "default": 1
+    },
+    "placements": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-zA-Z0-9_-]+$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/entry"
+      }
     }
   },
   "$defs": {
-    "role": {
-      "type": "string",
-      "enum": ["exposed_rock", "soil", "sand", "snow", "wet_ground", "tree", "bush", "grass", "reed", "cliff_piece", "debris"]
-    },
     "entry": {
       "type": "object",
-      "required": ["asset"],
       "additionalProperties": false,
+      "oneOf": [
+        {
+          "required": [
+            "model",
+            "collision"
+          ],
+          "not": {
+            "required": [
+              "prefab"
+            ]
+          },
+          "properties": {
+            "collision": {
+              "const": "none"
+            }
+          }
+        },
+        {
+          "required": [
+            "prefab"
+          ],
+          "not": {
+            "required": [
+              "model"
+            ]
+          }
+        }
+      ],
       "properties": {
-        "asset": {"type": "string", "pattern": "^asset://.+", "description": "Material, mesh or texture asset used for this role. Must resolve and be declared in the manifest dependencies."},
-        "prefab": {"type": "string", "pattern": "^prefab://.+", "description": "Optional prefab spawned instead of the bare asset."},
-        "weight": {"type": "number", "minimum": 0, "default": 1, "description": "Relative selection weight. At least one role must have a weight above 0."},
-        "scale": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number", "exclusiveMinimum": 0}, "default": [1, 1], "description": "Physical scale range as [scale_min, scale_max] with scale_min <= scale_max."},
-        "spacing": {"type": "number", "minimum": 0, "default": 1, "description": "World units between instances; 0 leaves placement unconstrained."},
-        "collision": {"enum": ["none", "static", "trigger"], "default": "static"},
-        "lod": {"type": "integer", "minimum": 0, "default": 0}
+        "model": {
+          "type": "string",
+          "pattern": "^asset://.+"
+        },
+        "prefab": {
+          "type": "string",
+          "pattern": "^prefab://.+"
+        },
+        "density": {
+          "type": "number",
+          "minimum": 0,
+          "default": 1
+        },
+        "candidate_spacing": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Advanced fixed candidate lattice step. Omitted derives spacing/2 for positive spacing, or 0.25 otherwise."
+        },
+        "category": {
+          "enum": [
+            "prop",
+            "grass",
+            "tree",
+            "rock"
+          ],
+          "default": "prop"
+        },
+        "spacing": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0
+        },
+        "scale": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "number",
+            "maximum": 3.402823466e+38,
+            "exclusiveMinimum": 0
+          },
+          "default": [
+            1,
+            1
+          ]
+        },
+        "yaw": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "number",
+            "minimum": -360,
+            "maximum": 360
+          },
+          "default": [
+            0,
+            360
+          ]
+        },
+        "slope": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 90
+          },
+          "default": [
+            0,
+            90
+          ]
+        },
+        "moisture": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "default": [
+            0,
+            1
+          ]
+        },
+        "water_distance": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 3.402823466e+38
+          },
+          "default": [
+            0,
+            3.402823466e+38
+          ]
+        },
+        "biomes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "collision": {
+          "enum": [
+            "none",
+            "static",
+            "trigger"
+          ],
+          "default": "static"
+        },
+        "cluster": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "size": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "default": 16
+            },
+            "strength": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0
+            }
+          }
+        }
       }
     }
   }

@@ -202,6 +202,29 @@ std::string describeDockingWindow(const char *name) {
   return output.str();
 }
 
+void checkHiddenStartupViewportCanIdle() {
+  TestDirectory fixture;
+  ScopedEnvironment data("XDG_DATA_HOME", fixture.root / "data");
+  ScopedEnvironment cache("XDG_CACHE_HOME", fixture.root / "cache");
+  const auto project = fixture.root / "project";
+  createProject(project);
+  std::string error;
+  EditorPanelVisibility visibility;
+  visibility.viewport = false;
+  EditorDockingStateStore store(defaultEditorDataDirectory());
+  require(store.saveVisibility(visibility, error), error);
+  EditorWorkspace workspace;
+  require(workspace.open(project, error), error);
+  ImGuiFixture imgui;
+  EditorShell shell(workspace);
+  require(!shell.needsContinuousFrames(),
+          "A saved hidden Viewport scheduled an impossible startup focus");
+  imgui.frame(shell);
+  require(!active("Viewport") && !shell.needsContinuousFrames(),
+          "Hidden startup Viewport was reopened or prevented idle");
+  shell.releaseUiResources();
+}
+
 void checkFreshTerrainGraphStartupFocus() {
   TestDirectory fixture;
   ScopedEnvironment data("XDG_DATA_HOME", fixture.root / "data");
@@ -239,7 +262,9 @@ void checkFreshTerrainGraphStartupFocus() {
   // frame. Do not provide a focus argument, simulate a click or amend layout.
   require(shell.openTerrainGraph(error), error);
   std::ostringstream trace;
-  for (int frame = 0; frame < 5; ++frame) {
+  require(shell.needsContinuousFrames(),
+          "Startup document focus did not request a presentation frame");
+  for (int frame = 0; frame < 8 && shell.needsContinuousFrames(); ++frame) {
     imgui.frame(shell);
     const auto *context = ImGui::GetCurrentContext();
     trace << "\nFrame " << frame
@@ -272,6 +297,64 @@ void checkFreshTerrainGraphStartupFocus() {
   require(workspace.sceneDocument().json() == source &&
               !workspace.hasUnsavedChanges(),
           "Opening and focusing the startup graph mutated authored terrain");
+  require(!shell.needsContinuousFrames(),
+          "Settled document focus kept the editor continuously redrawing");
+
+  const auto prefabSource = project / "prefabs/prop.prefab.json";
+  writeJson(
+      prefabSource,
+      {{"format_version", 1},
+       {"id", "prefab://prop"},
+       {"entities",
+        Json::array({{{"id", "prop"},
+                      {"components", {{"Transform3D", Json::object()}}}}})}});
+  bool createModal = true;
+  bool dismissModal = false;
+  const auto drawModal = [&] {
+    ImGui::Begin("Document focus test host", nullptr,
+                 ImGuiWindowFlags_NoSavedSettings);
+    if (createModal) {
+      ImGui::OpenPopup("Document focus blocker");
+      createModal = false;
+    }
+    if (ImGui::BeginPopupModal("Document focus blocker")) {
+      if (dismissModal) {
+        ImGui::CloseCurrentPopup();
+      }
+      ImGui::EndPopup();
+    }
+    ImGui::End();
+  };
+  imgui.frame(shell, nullptr, drawModal);
+  require(shell.openDocument(prefabSource, error), error);
+  require(!shell.needsContinuousFrames(),
+          "A modal-blocked document focus continuously scheduled redraws");
+  imgui.frame(shell, nullptr, drawModal);
+  require(!shell.needsContinuousFrames(),
+          "Presenting a blocked document focus stole or retried modal focus");
+  require(ImGui::GetTopMostPopupModal() != nullptr,
+          "Document opening dismissed the blocking modal");
+  dismissModal = true;
+  imgui.frame(shell, nullptr, drawModal);
+  // Match an idle native host: no injected mouse event, forced tab focus, or
+  // unconditional extra frames are available to finish ImGui's deferred focus.
+  for (int frame = 0; frame < 8 && shell.needsContinuousFrames(); ++frame) {
+    imgui.frame(shell);
+  }
+  const auto &prefab = window("Prefab");
+  require(prefab.Active && !prefab.Hidden && !prefab.SkipItems &&
+              prefab.DockTabIsVisible,
+          "Idle document opening left the previous Terrain Graph tab selected");
+  require(prefab.DockNode && prefab.DockNode->TabBar &&
+              prefab.DockNode->TabBar->SelectedTabId == prefab.TabId,
+          "Prefab focus did not settle on its dock tab");
+  require(shell.authoringViews()[static_cast<std::size_t>(
+                                     EditorAuthoringView::Prefab)]
+                  .workspace != nullptr,
+          "Visible prefab did not publish its authoring render request");
+  require(!shell.needsContinuousFrames(),
+          "Settled prefab focus prevented the editor from returning to idle");
+
   shell.releaseUiResources();
 }
 
@@ -629,6 +712,7 @@ int main() {
   try {
     checkMultiSelectionInspectorScopes();
     checkFreshTerrainGraphStartupFocus();
+    checkHiddenStartupViewportCanIdle();
     TestDirectory fixture;
     ScopedEnvironment data("XDG_DATA_HOME", fixture.root / "data");
     ScopedEnvironment cache("XDG_CACHE_HOME", fixture.root / "cache");

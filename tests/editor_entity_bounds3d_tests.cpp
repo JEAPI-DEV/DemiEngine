@@ -143,8 +143,8 @@ int main() {
   instances.setComponent(runtime::MeshRendererComponent{
       .size = {2.0F, 2.0F, 2.0F}});
   runtime::MeshInstances3DComponent instanceTransforms;
-  instanceTransforms.transforms["left"].position = {-5.0F, 0.0F, 0.0F};
-  instanceTransforms.transforms["right"].position = {5.0F, 0.0F, 0.0F};
+  instanceTransforms.setTransform("left", {.position = {-5.0F, 0.0F, 0.0F}});
+  instanceTransforms.setTransform("right", {.position = {5.0F, 0.0F, 0.0F}});
   instances.setComponent(std::move(instanceTransforms));
   instanceWorld.entities.push_back(std::move(instances));
   const auto instanceBounds = editor::editorEntityBounds3D(

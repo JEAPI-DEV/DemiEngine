@@ -8,17 +8,6 @@
 
 namespace demi::runtime {
 
-// Gameplay policy, named so a project can see the assumption its queries are
-// made under. Shallower than this is a shoreline, not somewhere to swim, and
-// faster than this is a rapid: both answers are about the player, not about the
-// renderer, which is why they are gameplay-side constants and not shading.
-inline constexpr float terrainWaterMinSwimDepth = 1.5F;
-inline constexpr float terrainWaterMaxSwimFlow = 2.5F;
-// The speed a fully accumulated drainage cell is reported as flowing. The
-// drainage mask is a normalised accumulation, not a measurement, so the scale
-// is a declared convention and never a silent per-mask guess.
-inline constexpr float terrainWaterReferenceFlowSpeed = 6.F;
-
 // A gameplay answer about a point. Every field is derived from the authored
 // level and the carved ground; nothing here is read from a surface mesh, so a
 // distant, culled or coarsely tessellated water body still answers exactly.
@@ -28,6 +17,7 @@ struct TerrainWaterQuery {
   float depth = 0;
   // Terrain-local surface and bed elevations for the sampled water column.
   float surfaceHeight = 0;
+  Vec3 normal{0, 1, 0};
   float groundHeight = 0;
   // True only when the supplied local Y lies inside the water, not in air or
   // below its bed. `submerged` above describes the existence of a wet column.
@@ -35,10 +25,9 @@ struct TerrainWaterQuery {
   // The owning body, empty when dry. Ownership is the authored priority order,
   // the same order that resolved the surfaces.
   std::string bodyId;
-  bool swimmable = false;
-  // From the drainage field. Zero in a lake or an ocean, which are still by
-  // definition, and zero wherever no drainage data exists.
+  // Prescribed terrain-local current; independent of drainage accumulation.
   float flowSpeed = 0;
+  Vec3 flowVelocity{};
 };
 
 // Positions and elevations use terrain-local coordinates. World-space callers
@@ -79,11 +68,9 @@ private:
   // guarantee, not a snapshot of mutable state.
   TerrainSamples<float> ground_;
   std::shared_ptr<const terrain_water_detail::WaterLevelField> coverage_;
-  TerrainSamples<float> flow_;
-  // Indexed by the body's position in the authoring document, so an owned
-  // sample names its body without a second lookup.
-  std::vector<std::string> ids_;
-  std::vector<TerrainWaterBody> kinds_;
+  // Indexed by authored body position. Copies own the path/current data for
+  // context lifetime, independently of the authoring document's lifetime.
+  std::vector<TerrainWaterBodySpec> bodies_;
 };
 
 // One point, without holding a context. Convenient for a query per event;

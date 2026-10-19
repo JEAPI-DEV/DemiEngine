@@ -1,15 +1,15 @@
 {
   "format_version": 1,
-  "name": "Rocky valley solid surfaces",
+  "name": "Rocky valley Poly Haven surfaces",
   "roles": {
-    "ground": "asset://rocky_valley/materials/gravel",
-    "grass": "asset://rocky_valley/materials/grass",
-    "rock": "asset://rocky_valley/materials/rock",
-    "cliff": "asset://rocky_valley/materials/rock",
-    "sediment": "asset://rocky_valley/materials/gravel",
-    "sand": "asset://rocky_valley/materials/gravel",
-    "snow": "asset://rocky_valley/materials/snow",
-    "wet_ground": "asset://rocky_valley/materials/wet",
-    "underwater": "asset://rocky_valley/materials/wet"
+    "ground": "asset://polyhaven/terrain/materials/grass_ground",
+    "grass": "asset://polyhaven/terrain/materials/grass_ground",
+    "rock": "asset://polyhaven/terrain/materials/marble_cliff_05",
+    "cliff": "asset://polyhaven/terrain/materials/marble_cliff_05",
+    "sediment": "asset://polyhaven/terrain/materials/rocky_gravel",
+    "sand": "asset://polyhaven/terrain/materials/sand_02",
+    "snow": "asset://polyhaven/terrain/materials/snow_02",
+    "wet_ground": "asset://polyhaven/terrain/materials/wet_gravel",
+    "underwater": "asset://polyhaven/terrain/materials/wet_gravel"
   }
 }

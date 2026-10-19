@@ -1,0 +1,15 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://amber_pass/loading/background",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {
+    "filter": "bilinear",
+    "mipmaps": false,
+    "wrap": "clamp"
+  },
+  "source": "background.svg",
+  "source_hash": "fnv1a64:500086bc08e2beda",
+  "type": "SvgTexture2D"
+}

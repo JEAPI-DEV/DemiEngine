@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <string_view>
 
 namespace demi::runtime {
@@ -30,5 +31,12 @@ int deriveTerrainSubSeed(int worldSeed, TerrainSeedChannel channel) noexcept;
 // The name is part of the seed derivation. Adding a channel must not change an
 // existing channel's sub-seed, so the name is hashed instead of the ordinal.
 std::string_view terrainSeedChannelName(TerrainSeedChannel channel) noexcept;
+
+// Shared physical-site stream for selection, spacing, variation and rendering.
+[[nodiscard]] std::uint64_t terrainScatterCandidateKey(int x, int z) noexcept;
+[[nodiscard]] std::uint64_t
+deriveTerrainScatterSeed(int worldSeed, std::uint64_t ruleHash,
+                         std::uint64_t candidateKey,
+                         std::uint32_t sample) noexcept;
 
 } // namespace demi::runtime

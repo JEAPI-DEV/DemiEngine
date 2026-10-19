@@ -1,0 +1,11 @@
+{
+  "format_version": 1,
+  "id": "asset://demi/vegetation/materials/stone",
+  "type": "Material",
+  "source": "stone.material.json",
+  "importer": "material",
+  "importer_version": 1,
+  "dependencies": [],
+  "settings": {},
+  "source_hash": "fnv1a64:fda03f48c6e6f785"
+}

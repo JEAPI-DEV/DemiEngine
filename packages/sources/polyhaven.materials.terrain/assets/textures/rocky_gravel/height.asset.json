@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "id": "asset://polyhaven/terrain/textures/rocky_gravel/height",
+  "type": "Texture2D",
+  "source": "height.png",
+  "importer": "image",
+  "importer_version": 1,
+  "source_hash": "fnv1a64:a803455d8bed8b4f",
+  "dependencies": [],
+  "settings": {
+    "filter": "trilinear",
+    "mipmaps": true,
+    "wrap": "repeat"
+  }
+}

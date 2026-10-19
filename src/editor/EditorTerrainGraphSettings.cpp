@@ -550,8 +550,7 @@ void drawBiomeColor(nlohmann::json &biome) {
       ImGuiColorEditFlags_Float | ImGuiColorEditFlags_AlphaPreviewHalf |
       ImGuiColorEditFlags_AlphaBar;
   const bool changed = drawEditorColorControl(
-      terrainField("Color (Hex RGBA)").c_str(), rgba,
-      {.flags = flags});
+      terrainField("Color (Hex RGBA)").c_str(), rgba, {.flags = flags});
   if (changed)
     biome["color"] = {rgba[0], rgba[1], rgba[2], rgba[3]};
 }
@@ -590,9 +589,10 @@ void drawAppearance(EditorWorkspace &workspace, std::string &notice) {
   std::string defaultBiome =
       draft.value("default_biome", std::string("default"));
   ImGui::TextWrapped("Biome tint: Hex RGBA or precise normalized channels.");
-  ImGui::TextWrapped("Ordinary Material values and tiled albedo reach terrain. "
-                     "Smooth blending and typed terrain Material PBR maps are "
-                     "pending. Water appearance is configured on Water Body nodes.");
+  ImGui::TextWrapped(
+      "Ordinary Material values and tiled albedo reach terrain. "
+      "Smooth blending and typed terrain Material PBR maps are "
+      "pending. Water appearance is configured on Water Body nodes.");
   if (biomeCombo("Default biome", biomes, defaultBiome))
     draft["default_biome"] = defaultBiome;
   std::optional<std::string> removeBiome;
@@ -614,6 +614,17 @@ void drawAppearance(EditorWorkspace &workspace, std::string &notice) {
         else if (replacement != id)
           renameBiome = std::pair{id, replacement};
       }
+      bool allowSnow = biome.value("allow_snow", true);
+      if (ImGui::Checkbox(terrainField("Allow automatic snow").c_str(),
+                          &allowSnow)) {
+        if (allowSnow) {
+          biome.erase("allow_snow");
+        } else {
+          biome["allow_snow"] = false;
+        }
+      }
+      ImGui::TextDisabled(
+          "Warm biomes can prohibit automatic snow regardless of elevation.");
       const auto landforms = draft.value("landforms", defaults.at("landforms"));
       std::string shape = biome.value("landform", std::string{});
       const std::string shapePreview =
@@ -643,8 +654,7 @@ void drawAppearance(EditorWorkspace &workspace, std::string &notice) {
           biome["material"] = material;
       }
       drawBiomeTextureScale(biome, notice);
-      ImGui::TextDisabled("Terrain Material/Set definitions remain editable "
-                          "in Assets; terrain PBR shading is pending.");
+      ImGui::TextDisabled("Edit shared Materials and Material Sets in Assets.");
       bool referenced = defaultBiome == id || biomes.size() <= 1;
       const auto &paintedRegions =
           draft.contains("regions") ? draft.at("regions") : emptyArray;

@@ -241,6 +241,17 @@ void generationQualitySeparatesErosionCachesAndPreservesAuthoredStrokes() {
   assert(final && final->quality == "standard");
   const auto balance = final->graphArtifacts->sedimentBalance.at("erosion");
   assert(balance && balance->size() == final->heights.size());
+  const auto transport =
+      final->graphArtifacts->hydraulicTransport.at("erosion");
+  assert(transport.erodedSediment > 0);
+  assert(transport.exportedSediment >= 0 && transport.suspendedSediment >= 0);
+  double netHeight = 0;
+  for (const float heightChange : *balance) {
+    netHeight += heightChange;
+  }
+  const double residual =
+      netHeight + transport.exportedSediment + transport.suspendedSediment;
+  assert(std::abs(residual) < 1e-4 * std::max(1.0, transport.erodedSediment));
   assert(final->cellsX == preview->cellsX && final->size.x == preview->size.x);
   assert(final->heights != preview->heights);
   const auto cached = [&](std::string_view id) {
@@ -263,6 +274,8 @@ void generationQualitySeparatesErosionCachesAndPreservesAuthoredStrokes() {
   assert(sculpted);
   assert(sculpted->baseHeights == final->heights);
   assert(sculpted->graphArtifacts->sedimentBalance.at("erosion") == balance);
+  assert(sculpted->graphArtifacts->hydraulicTransport.at("erosion") ==
+         transport);
   assert(sculpted->height(8, 8) > final->height(8, 8));
   for (const auto &run : sculpted->graphArtifacts->nodes) {
     assert(run.cached);

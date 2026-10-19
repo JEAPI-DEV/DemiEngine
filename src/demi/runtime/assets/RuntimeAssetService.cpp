@@ -1,5 +1,6 @@
 #include "demi/runtime/assets/RuntimeAssetService.h"
 #include "demi/runtime/assets/TerrainAssetResourceLoader.h"
+#include "demi/runtime/scene/RuntimePrefabService.h"
 
 #include "demi/filesystem/ProjectPaths.h"
 #include "demi/runtime/scene/SceneAssetReferences.h"
@@ -234,7 +235,7 @@ RuntimeAssetService::prepareScene(const std::string_view sceneId,
 
   // An asset-free scene needs no request, but is still a valid transition.
   Diagnostics resolutionDiagnostics;
-  const auto referencedAssets = resolveRoot(sceneId, &resolutionDiagnostics);
+  auto referencedAssets = resolveRoot(sceneId, &resolutionDiagnostics);
   if (hasErrors(resolutionDiagnostics)) {
     if (diagnostics != nullptr)
       diagnostics->insert(diagnostics->end(), resolutionDiagnostics.begin(),
@@ -244,8 +245,10 @@ RuntimeAssetService::prepareScene(const std::string_view sceneId,
   if (referencedAssets.empty())
     return 0;
 
+  // Discovery already loaded and expanded the scene, including terrain and
+  // prefab scenery. Reuse its roots rather than materializing that world again.
   assets::AssetGroupDescriptor group{.id = sceneGroupId(sceneId),
-                                     .roots = {std::string(sceneId)},
+                                     .roots = std::move(referencedAssets),
                                      .budget = {},
                                      .sourcePath = {}};
   return service_->prepare(group, diagnostics);
@@ -257,6 +260,27 @@ std::string RuntimeAssetService::sceneGroupId(const std::string_view sceneId) {
     return {};
   return "asset-group://implicit-scene/" +
          std::string(sceneId.substr(prefix.size()));
+}
+
+assets::AssetGroupRequestHandle
+RuntimeAssetService::prepareScene(const std::string_view sceneId,
+                                  const World &preparedWorld,
+                                  Diagnostics *diagnostics) {
+  if (!service_ || !sceneId.starts_with("scene://")) {
+    report(diagnostics, "ASSET_GROUP_SCENE_INVALID",
+           "Implicit asset preparation requires a scene:// ID.",
+           std::string(sceneId));
+    return 0;
+  }
+  auto referencedAssets = collectSceneAssetReferences(preparedWorld, sceneId);
+  if (referencedAssets.empty()) {
+    return 0;
+  }
+  assets::AssetGroupDescriptor group{.id = sceneGroupId(sceneId),
+                                     .roots = std::move(referencedAssets),
+                                     .budget = {},
+                                     .sourcePath = {}};
+  return service_->prepare(group, diagnostics);
 }
 
 void RuntimeAssetService::update(const double uploadBudgetMilliseconds) {
@@ -394,7 +418,12 @@ RuntimeAssetService::resolveRoot(const std::string_view root,
     return {};
   }
   std::string error;
-  auto world = loadScene(project_, std::string(root), error);
+  // Resolve the same generated prefab scenery as actual scene startup before
+  // collecting resource references. Loading only the terrain owner misses the
+  // prefab's materials and reduced model tiers, which are not palette assets.
+  RuntimePrefabService prefabs;
+  prefabs.configure(project_.projectDirectory);
+  auto world = loadScene(project_, std::string(root), error, &prefabs);
   if (!world) {
     report(diagnostics, "ASSET_GROUP_SCENE_LOAD_FAILED", std::move(error),
            std::string(root));

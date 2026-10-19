@@ -14,7 +14,7 @@ namespace demi::runtime::render {
 class TilemapCanvasRenderer {
 public:
   TilemapCanvasRenderer(
-      Canvas2D &canvas, const TextureLibrary2D &textures,
+      Canvas2D &canvas, TextureLibrary2D &textures,
       const std::unordered_map<std::string, TilemapAsset2D> &tilemaps);
 
   [[nodiscard]] bool draw(const World &world,
@@ -25,7 +25,7 @@ public:
 
 private:
   Canvas2D &canvas_;
-  const TextureLibrary2D &textures_;
+  TextureLibrary2D &textures_;
   const std::unordered_map<std::string, TilemapAsset2D> &tilemaps_;
 };
 

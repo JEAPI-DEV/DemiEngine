@@ -1,11 +1,9 @@
 #pragma once
 
+#include "demi/runtime/render/bgfx3d/MeshInstancePreparation3D.h"
+#include <span>
 #include <string>
 #include <unordered_map>
-
-namespace demi::runtime {
-struct World;
-}
 
 namespace demi::runtime::render {
 
@@ -13,7 +11,7 @@ namespace demi::runtime::render {
 // Collect once per updating frame; apply retention after successful submission.
 class MeshResourceRetention3D {
 public:
-  void collect(const World &world);
+  void collect(std::span<const MeshInstancePreparation3D::EntitySource> sources);
   void clear();
 
   [[nodiscard]] bool containsDynamic(const std::string &id) const;

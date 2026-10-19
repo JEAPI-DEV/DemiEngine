@@ -35,14 +35,16 @@
 #include <Jolt/Physics/PhysicsSystem.h>
 
 #include <algorithm>
-#include <tuple>
 #include <atomic>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <map>
 #include <mutex>
 #include <stdexcept>
 #include <string_view>
 #include <thread>
+#include <tuple>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -238,6 +240,61 @@ private:
 
 } // namespace
 
+class PreparedPhysicsShapes3D {
+public:
+  struct Entry {
+    std::uint64_t signature = 0;
+    JPH::ShapeRefC shape;
+  };
+  // Declared first so native references are released before factory teardown.
+  JoltLifetime lifetime;
+  JoltModelShapeCache3D models;
+  std::map<std::string, Entry> entities;
+  double preparationMilliseconds = 0.0;
+};
+
+bool preparePhysicsShapes3D(World &world, std::string &error) {
+  error.clear();
+  const auto started = std::chrono::steady_clock::now();
+  std::shared_ptr<PreparedPhysicsShapes3D> prepared;
+  for (const auto &entity : world.entities) {
+    if (!entity.enabled) {
+      continue;
+    }
+    const auto inputs = physicsBodyInputs3D(entity);
+    if (!inputs.hasCollider() || !inputs.transform) {
+      continue;
+    }
+    const auto transform =
+        resolveWorldTransform3D(world, entity, *inputs.transform);
+    if (!transform) {
+      error = "Could not resolve physics transform for " + entity.id;
+      return false;
+    }
+    if (!prepared) {
+      prepared = std::make_shared<PreparedPhysicsShapes3D>();
+    }
+    auto shape =
+        createJoltBodyShape3D(world, inputs, *transform, &prepared->models);
+    if (!shape) {
+      error = "Could not prepare collider shape for " + entity.id;
+      return false;
+    }
+    prepared->entities.emplace(
+        entity.id, PreparedPhysicsShapes3D::Entry{
+                       physicsBodySignature3D(world, inputs, *transform),
+                       std::move(shape)});
+  }
+  if (prepared) {
+    prepared->preparationMilliseconds =
+        std::chrono::duration<double, std::milli>(
+            std::chrono::steady_clock::now() - started)
+            .count();
+  }
+  world.preparedPhysicsShapes3D = std::move(prepared);
+  return true;
+}
+
 struct PhysicsWorld3D::Impl final : JPH::ContactListener {
   struct BodyRecord {
     JPH::BodyID body;
@@ -285,6 +342,8 @@ struct PhysicsWorld3D::Impl final : JPH::ContactListener {
   };
 
   JoltLifetime lifetime;
+  JoltModelShapeCache3D modelShapes;
+  std::map<std::string, PreparedPhysicsShapes3D::Entry> preparedShapes;
   BroadPhaseLayers broadPhaseLayers;
   ObjectVsBroadPhaseFilter objectVsBroadPhase;
   ObjectLayerPairFilter layerPairs;
@@ -303,6 +362,42 @@ struct PhysicsWorld3D::Impl final : JPH::ContactListener {
   std::unordered_map<std::uint64_t, RawContact> contacts;
   std::mutex contactsMutex;
   std::vector<std::pair<JPH::BodyID, JPH::BodyID>> removedContacts;
+
+  void adoptPreparedShapes(PreparedPhysicsShapes3D &prepared) {
+    // Worker measurements are owned values. Publish them here on the main
+    // thread; RuntimeProfiler's aggregation is not a worker synchronization
+    // API.
+    RuntimeProfiler::setGauge("Physics3D.prepared_shape_worker_ms",
+                              prepared.preparationMilliseconds);
+    RuntimeProfiler::setGauge("Physics3D.prepared_shapes",
+                              prepared.entities.size());
+    RuntimeProfiler::setGauge("Physics3D.prepared_model_geometries",
+                              prepared.models.geometryBuilds());
+    RuntimeProfiler::setGauge("Physics3D.prepared_model_worker_ms",
+                              prepared.models.geometryBuildMilliseconds());
+    modelShapes.adopt(prepared.models);
+    for (auto &[id, entry] : prepared.entities) {
+      preparedShapes.insert_or_assign(id, std::move(entry));
+    }
+    prepared.entities.clear();
+    prepared.preparationMilliseconds = 0.0;
+  }
+
+  JPH::ShapeRefC acquireShape(const World &world,
+                              const PhysicsBodyInputs3D &inputs,
+                              const WorldTransform3D &transform,
+                              const std::uint64_t signature) {
+    const auto found = preparedShapes.find(inputs.entity.id);
+    if (found != preparedShapes.end()) {
+      auto entry = std::move(found->second);
+      preparedShapes.erase(found);
+      if (entry.signature == signature) {
+        return std::move(entry.shape);
+      }
+    }
+    ProfileScope scope("Physics3D.create_shape");
+    return createJoltBodyShape3D(world, inputs, transform, &modelShapes);
+  }
 
   void wakeNearBody(JPH::BodyID body) {
     auto &interface = physics.GetBodyInterface();
@@ -461,6 +556,27 @@ struct PhysicsWorld3D::Impl final : JPH::ContactListener {
     removedContacts.emplace_back(pair.GetBody1ID(), pair.GetBody2ID());
   }
 };
+
+void adoptPreparedPhysicsShapes3D(World &destination, World &incoming) {
+  auto &prepared = incoming.preparedPhysicsShapes3D;
+  if (!prepared) {
+    return;
+  }
+  if (destination.physicsWorld3D) {
+    destination.physicsWorld3D->impl_->adoptPreparedShapes(*prepared);
+  } else if (destination.preparedPhysicsShapes3D) {
+    auto &target = *destination.preparedPhysicsShapes3D;
+    target.models.adopt(prepared->models);
+    for (auto &[id, entry] : prepared->entities) {
+      target.entities.insert_or_assign(id, std::move(entry));
+    }
+    prepared->entities.clear();
+    target.preparationMilliseconds += prepared->preparationMilliseconds;
+  } else {
+    destination.preparedPhysicsShapes3D = std::move(prepared);
+  }
+  prepared.reset();
+}
 
 PhysicsWorld3D::PhysicsWorld3D() : impl_(std::make_unique<Impl>()) {}
 PhysicsWorld3D::~PhysicsWorld3D() = default;
@@ -657,6 +773,10 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
                           const Vec3 gravity) {
   if (fixedDt <= 0.0F)
     return;
+  if (world.preparedPhysicsShapes3D) {
+    impl_->adoptPreparedShapes(*world.preparedPhysicsShapes3D);
+    world.preparedPhysicsShapes3D.reset();
+  }
   impl_->world = &world;
   impl_->physics.SetGravity(jolt(gravity));
   auto &interface = impl_->physics.GetBodyInterface();
@@ -671,7 +791,11 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
 
   {
     ProfileScope scope("Physics3D.sync_bodies");
-    for (Entity &entity : world.entities) {
+    for (const auto entityIndex : world.componentQueries.queryAny<
+             BoxCollider3DComponent, SphereCollider3DComponent,
+             CapsuleCollider3DComponent, ConvexCollider3DComponent,
+             ModelCollider3DComponent, Destructible3DComponent>(world.entities)) {
+      Entity &entity = world.entities[entityIndex];
       const bool needsDestructionWorld =
           !world.destruction3D && entity.enabled &&
           entity.hasComponent<Destructible3DComponent>();
@@ -718,11 +842,8 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
 
       const Transform3DComponent &local = *inputs.transform;
       if (found == impl_->bodies.end()) {
-        JPH::ShapeRefC shape;
-        {
-          ProfileScope scope("Physics3D.create_shape");
-          shape = createJoltBodyShape3D(world, inputs, *resolved);
-        }
+        const auto shape =
+            impl_->acquireShape(world, inputs, *resolved, signature);
         if (shape == nullptr)
           continue;
         JPH::BodyCreationSettings settings(
@@ -942,6 +1063,7 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
       interface.RemoveBody(iterator->second.body);
       interface.DestroyBody(iterator->second.body);
       impl_->ids.erase(iterator->second.body.GetIndexAndSequenceNumber());
+      impl_->modelShapes.eraseInline(iterator->first);
       iterator = impl_->bodies.erase(iterator);
     }
   }
@@ -975,7 +1097,10 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
   std::vector<PhysicsContact3D> characterContacts;
   {
     ProfileScope scope("Physics3D.update_characters");
-    for (Entity &entity : world.entities) {
+    for (const auto entityIndex :
+         world.componentQueries.queryAny<CharacterController3DComponent>(
+             world.entities)) {
+      Entity &entity = world.entities[entityIndex];
       auto *transform = entity.component<Transform3DComponent>();
       auto *controller = entity.component<CharacterController3DComponent>();
       if (!entity.enabled || transform == nullptr || controller == nullptr)
@@ -1001,7 +1126,12 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
         found = impl_->characters.end();
       }
       if (found == impl_->characters.end()) {
-        const JPH::ShapeRefC shape = shapeFor(world, entity);
+        const auto resolved =
+            resolveWorldTransform3D(world, entity, *transform);
+        const auto shape =
+            resolved ? impl_->acquireShape(world, physicsBodyInputs3D(entity),
+                                           *resolved, signature)
+                     : JPH::ShapeRefC{};
         if (shape == nullptr)
           continue;
         JPH::Ref<JPH::CharacterVirtualSettings> settings =
@@ -1010,9 +1140,14 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
         settings->mMaxSlopeAngle =
             JPH::DegreesToRadians(controller->slopeLimit);
         settings->mCharacterPadding = controller->skinWidth;
-        // Controller transforms use their visual origin as the collider center.
-        // Contacts on the lower half of any supported shape may support it.
-        settings->mSupportingVolume = JPH::Plane(JPH::Vec3::sAxisY(), 0.0F);
+        // The visual origin can be at the feet while an authored offset moves
+        // the collider above it. Split support at the actual shape center;
+        // a plane at the visual origin rejects valid foot contacts near zero.
+        // Jolt bounds are center-of-mass relative, unlike this support plane.
+        const auto shapeCenter =
+            shape->GetCenterOfMass() + shape->GetLocalBounds().GetCenter();
+        settings->mSupportingVolume =
+            JPH::Plane(JPH::Vec3::sAxisY(), -shapeCenter.GetY());
         JPH::Ref<JPH::CharacterVirtual> character = new JPH::CharacterVirtual(
             settings,
             JPH::RVec3(transform->position.x, transform->position.y,
@@ -1103,6 +1238,11 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
         iterator = impl_->characters.erase(iterator);
     }
   }
+
+  // Entries not consumed by synchronization were removed or changed before
+  // activation. Do not retain unused per-entity prepared references.
+  impl_->preparedShapes.clear();
+  impl_->modelShapes.retireUnused();
 
   {
     ProfileScope scope("Physics3D.sync_components");

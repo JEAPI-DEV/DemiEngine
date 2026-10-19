@@ -2,8 +2,8 @@
 
 #include "demi/assets/MaterialSet.h"
 #include "demi/runtime/terrain/TerrainDrainage.h"
-#include "demi/runtime/terrain/TerrainHeightField.h"
 #include "demi/runtime/terrain/TerrainGraphExecutor.h"
+#include "demi/runtime/terrain/TerrainHeightField.h"
 #include "demi/runtime/terrain/TerrainMaskBuilder.h"
 #include "demi/runtime/terrain/TerrainMaterialLayers.h"
 #include "demi/runtime/terrain/TerrainPalette.h"
@@ -16,39 +16,38 @@
 namespace demi::runtime {
 namespace {
 
-void validateSurfaceBindings(const TerrainPalette &palette) {
-  if (palette.unsupportedSurfaceRoles.empty()) {
-    return;
-  }
-
-  const auto &unsupportedRole = palette.unsupportedSurfaceRoles.front();
-  throw std::invalid_argument(
-      "Terrain surface role '" + unsupportedRole +
-      "' requires an ordinary Material asset; "
-      "typed terrain PBR definitions are not renderable yet.");
-}
-
 std::shared_ptr<const TerrainSurfaceClassification>
 classifySurface(const HeightField &field, const TerrainRecipe &recipe,
                 const TerrainPalette &palette, std::stop_token stop) {
-  const auto settings =
-      TerrainMaterialLayerSettings::withWaterLevel({}, recipe, {});
+  auto settings = TerrainMaterialLayerSettings::withWaterLevel({}, recipe, {});
+  for (const auto &id : field.biomeIds) {
+    const auto biome = recipe.biomes.find(id);
+    if (biome == recipe.biomes.end()) {
+      throw std::invalid_argument(
+          "Terrain surface biome is absent from its recipe: " + id);
+    }
+    settings.biomeAllowsSnow.push_back(biome->second.allowSnow);
+  }
   TerrainDrainageSettings drainageSettings;
   drainageSettings.seaLevel = settings.waterLevel;
-  const auto drainage = computeTerrainDrainage(field, recipe, drainageSettings, stop);
+  const auto drainage =
+      computeTerrainDrainage(field, recipe, drainageSettings, stop);
   if (!drainage || stop.stop_requested()) {
     return {};
   }
 
   TerrainMasks masks;
-  if (!buildTerrainMasks(field, recipe, &*drainage, nullptr, masks, true, stop)) {
+  if (!buildTerrainMasks(field, recipe, &*drainage,
+                         field.surfaceSedimentBalance.get(), masks, true,
+                         stop)) {
     return {};
   }
 
   if (field.graphArtifacts && field.graphArtifacts->waterResult) {
     const auto &coverage = field.graphArtifacts->waterResult->resolvedCoverage;
     if (!coverage) {
-      throw std::invalid_argument("Terrain water result has no resolved coverage");
+      throw std::invalid_argument(
+          "Terrain water result has no resolved coverage");
     }
     if (!applyTerrainWaterMasks(field, *coverage, masks, stop)) {
       return {};
@@ -57,7 +56,8 @@ classifySurface(const HeightField &field, const TerrainRecipe &recipe,
 
   assets::TerrainMaterialSet materialSet;
   materialSet.roles = palette.surfaceMaterials;
-  const auto decisions = decideTerrainMaterials(materialSet, field, masks, settings);
+  const auto decisions =
+      decideTerrainMaterials(materialSet, field, masks, settings);
 
   // Keep the role table deterministic, independent of sample traversal order.
   std::set<std::string> roleNames;
@@ -67,7 +67,8 @@ classifySurface(const HeightField &field, const TerrainRecipe &recipe,
   constexpr std::size_t roleCapacity =
       std::size_t{std::numeric_limits<std::uint8_t>::max()} + 1;
   if (roleNames.size() > roleCapacity) {
-    throw std::invalid_argument("Terrain surface role table exceeds index capacity");
+    throw std::invalid_argument(
+        "Terrain surface role table exceeds index capacity");
   }
 
   auto classification = std::make_shared<TerrainSurfaceClassification>();
@@ -107,8 +108,10 @@ bool terrainSurfaceMaterialsEqual(const HeightField &left,
   if (!leftSurface.classification || !rightSurface.classification) {
     return false;
   }
-  return leftSurface.classification->roles == rightSurface.classification->roles &&
-         leftSurface.classification->samples == rightSurface.classification->samples;
+  return leftSurface.classification->roles ==
+             rightSurface.classification->roles &&
+         leftSurface.classification->samples ==
+             rightSurface.classification->samples;
 }
 
 bool terrainSurfaceBindingsMatch(const HeightField &field,
@@ -116,7 +119,7 @@ bool terrainSurfaceBindingsMatch(const HeightField &field,
   if (!palette || palette->materialSet.empty()) {
     return !field.surfaceMaterials;
   }
-  if (!field.surfaceMaterials || !palette->unsupportedSurfaceRoles.empty()) {
+  if (!field.surfaceMaterials) {
     return false;
   }
 
@@ -125,9 +128,10 @@ bool terrainSurfaceBindingsMatch(const HeightField &field,
          surface.bindings == palette->surfaceMaterials;
 }
 
-bool updateTerrainSurfaceMaterials(HeightField &field, const TerrainRecipe &recipe,
-                                   const TerrainPalette *palette, bool reclassify,
-                                   std::stop_token stop) {
+bool updateTerrainSurfaceMaterials(HeightField &field,
+                                   const TerrainRecipe &recipe,
+                                   const TerrainPalette *palette,
+                                   bool reclassify, std::stop_token stop) {
   if (stop.stop_requested()) {
     return false;
   }
@@ -135,7 +139,6 @@ bool updateTerrainSurfaceMaterials(HeightField &field, const TerrainRecipe &reci
     field.surfaceMaterials.reset();
     return true;
   }
-  validateSurfaceBindings(*palette);
 
   auto surface = std::make_shared<TerrainSurfaceMaterials>();
   surface->materialSet = palette->materialSet;
@@ -156,7 +159,8 @@ bool updateTerrainSurfaceMaterials(HeightField &field, const TerrainRecipe &reci
     }
   }
 
-  // Publish only the complete result. Cancellation leaves the prior state intact.
+  // Publish only the complete result. Cancellation leaves the prior state
+  // intact.
   if (stop.stop_requested()) {
     return false;
   }

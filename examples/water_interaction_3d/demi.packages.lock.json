@@ -1,0 +1,32 @@
+{
+  "format_version": 1,
+  "packages": [
+    {
+      "archive_hash": "sha256:70b0d87002ee464c0570f6921c6ee29f800bdfff5be49ac57eaabca21fb2e013",
+      "archive_uri": "package://demi.gameplay.water/1.0.0",
+      "manifest": {
+        "dependencies": {},
+        "engine": "^0.1.0",
+        "exported_events": [],
+        "files": [
+          "LICENSE",
+          "README.md",
+          "scripts/demi/gameplay/water/buoyancy.lua",
+          "scripts/demi/gameplay/water/motion.lua",
+          "scripts/demi/gameplay/water/swimming.lua",
+          "tests/water_test.lua"
+        ],
+        "format_version": 1,
+        "name": "demi.gameplay.water",
+        "public_modules": [
+          "demi.gameplay.water.buoyancy",
+          "demi.gameplay.water.swimming"
+        ],
+        "version": "1.0.0"
+      },
+      "manifest_hash": "sha256:f7e34537f0c814ffdf02dcf5b511bfbdcbae6d11be27a971148c65f4f6f3cc99",
+      "yanked": false
+    }
+  ],
+  "registry": "../../packages"
+}

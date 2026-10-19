@@ -1,11 +1,18 @@
+#include "demi/runtime/terrain/TerrainGraphExecutor.h"
+#include "demi/runtime/terrain/TerrainGraphNodeEvaluation.h"
+#include "demi/runtime/terrain/TerrainMaskBuilder.h"
 #include "demi/runtime/terrain/TerrainMaterialLayers.h"
 #include "demi/runtime/terrain/TerrainPalette.h"
-#include "demi/runtime/terrain/TerrainGraphExecutor.h"
 #include "demi/runtime/terrain/TerrainSurfaceMaterials.h"
+#include "demi/runtime/terrain/TerrainSurfaceSediment.h"
 
 #include <algorithm>
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <cassert>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -38,9 +45,8 @@ demi::assets::TerrainMaterialSet fullSet() {
   demi::assets::TerrainMaterialSet set;
   set.id = "asset://materials/terrain/full";
   set.name = "full";
-  for (const char *role :
-       {"rock", "cliff", "sediment", "ground", "grass", "sand", "snow",
-        "wet_ground", "underwater"})
+  for (const char *role : {"rock", "cliff", "sediment", "ground", "grass",
+                           "sand", "snow", "wet_ground", "underwater"})
     set.roles.emplace(role, std::string("asset://materials/terrain/") + role);
   set.requiredRoles = {"ground", "rock"};
   return set;
@@ -117,9 +123,9 @@ std::string roleAt(const Scene &scene,
                    const demi::assets::TerrainMaterialSet &set,
                    std::size_t cell,
                    const TerrainMaterialLayerSettings *settings = nullptr) {
-  const auto decision = decideTerrainMaterial(
-      set, scene.field, scene.masks, cell,
-      settings != nullptr ? *settings : scene.settings);
+  const auto decision =
+      decideTerrainMaterial(set, scene.field, scene.masks, cell,
+                            settings != nullptr ? *settings : scene.settings);
   return decision.roleName;
 }
 
@@ -148,12 +154,12 @@ void steepGroundIsRock() {
   auto scene = plainScene();
   const auto set = fullSet();
   const auto cell = cellAt(scene, 4, 4);
-  scene.masks.slope.set(cell, 45.F);
+  scene.masks.slope.set(cell, 41.5F);
   const auto decision = decideTerrainMaterial(set, scene.field, scene.masks,
                                               cell, scene.settings);
   assert(decision.roleName == "rock");
   assert(decision.materialAssetId == "asset://materials/terrain/rock");
-  // Halfway up the 32..58 degree ramp.
+  // Halfway up the overlapping 25..58 degree rock ramp.
   assert(decision.score > 0.44F && decision.score < 0.46F);
 
   // The face material takes the sample over once it is genuinely near-vertical,
@@ -204,12 +210,10 @@ void submergedDiffersFromDamp() {
   scene.masks.moisture.set(lake, 0.9F);
   scene.masks.substrate.set(lake, std::size_t{3});
 
-  const auto bed =
-      decideTerrainMaterial(set, scene.field, scene.masks, lake,
-                            scene.settings);
-  const auto shore =
-      decideTerrainMaterial(set, scene.field, scene.masks, damp,
-                            scene.settings);
+  const auto bed = decideTerrainMaterial(set, scene.field, scene.masks, lake,
+                                         scene.settings);
+  const auto shore = decideTerrainMaterial(set, scene.field, scene.masks, damp,
+                                           scene.settings);
   assert(bed.roleName == "underwater");
   assert(shore.roleName == "wet_ground");
   assert(bed.roleName != shore.roleName);
@@ -340,12 +344,10 @@ void decisionsDoNotDependOnWorldScale() {
   // terrain.
   const auto wetCellSmall = cellAt(wetSmall, 4, 4);
   const auto wetCellLarge = cellAt(wetLarge, 4, 4);
-  const auto dampSmall =
-      decideTerrainMaterial(set, wetSmall.field, wetSmall.masks, wetCellSmall,
-                            wetSmall.settings);
-  const auto dampLarge =
-      decideTerrainMaterial(set, wetLarge.field, wetLarge.masks, wetCellLarge,
-                            wetLarge.settings);
+  const auto dampSmall = decideTerrainMaterial(
+      set, wetSmall.field, wetSmall.masks, wetCellSmall, wetSmall.settings);
+  const auto dampLarge = decideTerrainMaterial(
+      set, wetLarge.field, wetLarge.masks, wetCellLarge, wetLarge.settings);
   assert(dampSmall.roleName == "wet_ground");
   assert(dampLarge.roleName == "wet_ground");
   assert(dampSmall.score == dampLarge.score);
@@ -393,9 +395,9 @@ void queryOrderDoesNotChangeDecisions() {
 
   // The steep, wet and snowy cells first, then a coarse backward walk, so the
   // order is not the field's own and not the reverse of it either.
-  const std::size_t leading[] = {
-      cellAt(scene, 5, 1), cellAt(scene, 4, 4), cellAt(scene, 4, 7),
-      cellAt(scene, 1, 1), cellAt(scene, 1, 7), cellAt(scene, 3, 5)};
+  const std::size_t leading[] = {cellAt(scene, 5, 1), cellAt(scene, 4, 4),
+                                 cellAt(scene, 4, 7), cellAt(scene, 1, 1),
+                                 cellAt(scene, 1, 7), cellAt(scene, 3, 5)};
   for (const std::size_t cell : leading) {
     const auto single = decideTerrainMaterial(set, scene.field, scene.masks,
                                               cell, scene.settings);
@@ -427,8 +429,8 @@ void queryOrderDoesNotChangeDecisions() {
 void unboundRoleIsReported() {
   const auto scene = mountainScene();
   const auto withoutSnow = setWithout("snow");
-  const auto decisions = decideTerrainMaterials(
-      withoutSnow, scene.field, scene.masks, scene.settings);
+  const auto decisions = decideTerrainMaterials(withoutSnow, scene.field,
+                                                scene.masks, scene.settings);
   std::size_t snowy = 0;
   for (const auto &decision : decisions) {
     if (decision.roleName != "snow")
@@ -450,8 +452,8 @@ void unboundRoleIsReported() {
 
   // With the role bound, the same field has no gaps at all.
   const auto set = fullSet();
-  const auto complete = decideTerrainMaterials(set, scene.field, scene.masks,
-                                               scene.settings);
+  const auto complete =
+      decideTerrainMaterials(set, scene.field, scene.masks, scene.settings);
   const auto full = terrainMaterialCoverage(set, scene.field, complete);
   assert(full.unbound.empty());
   assert(full.unassigned == 0);
@@ -562,15 +564,15 @@ void waterLevelIsResolvedNotInvented() {
   recipe.landforms.at("default").baseHeight = 20;
   recipe.landforms.at("default").heightVariation = 4;
   TerrainWaterLevel unauthored;
-  const auto derived = TerrainMaterialLayerSettings::withWaterLevel({}, recipe,
-                                                                   unauthored);
+  const auto derived =
+      TerrainMaterialLayerSettings::withWaterLevel({}, recipe, unauthored);
   assert(derived.waterLevel == 6.F);
 
   TerrainWaterLevel authored;
   authored.seaLevel = -2.F;
   authored.authored = true;
-  const auto resolved = TerrainMaterialLayerSettings::withWaterLevel({}, recipe,
-                                                                    authored);
+  const auto resolved =
+      TerrainMaterialLayerSettings::withWaterLevel({}, recipe, authored);
   assert(resolved.waterLevel == -2.F);
 
   auto scene = plainScene();
@@ -674,7 +676,7 @@ void coverageNeedsTheWholeField() {
   const auto decisions =
       decideTerrainMaterials(set, scene.field, scene.masks, scene.settings);
   std::vector<TerrainMaterialDecision> partial(decisions.begin(),
-                                              decisions.begin() + 10);
+                                               decisions.begin() + 10);
   bool threw = false;
   try {
     (void)terrainMaterialCoverage(set, scene.field, partial);
@@ -696,9 +698,9 @@ void candidateRolesCoverTheVocabulary() {
   // moves when the palette loses a role, which is what lets a consumer hold an
   // index across a reload.
   const TerrainMaterialRole expected[] = {
-      TerrainMaterialRole::Cliff,   TerrainMaterialRole::Grass,
-      TerrainMaterialRole::Ground,  TerrainMaterialRole::Rock,
-      TerrainMaterialRole::Sand,    TerrainMaterialRole::Sediment,
+      TerrainMaterialRole::Cliff,      TerrainMaterialRole::Grass,
+      TerrainMaterialRole::Ground,     TerrainMaterialRole::Rock,
+      TerrainMaterialRole::Sand,       TerrainMaterialRole::Sediment,
       TerrainMaterialRole::Underwater, TerrainMaterialRole::WetGround,
       TerrainMaterialRole::Snow};
   for (std::size_t index = 0; index < 8; ++index)
@@ -711,9 +713,8 @@ void candidateRolesCoverTheVocabulary() {
     names.push_back(std::string(demi::assets::terrainMaterialRoleName(role)));
   std::sort(names.begin(), names.end());
   assert(std::unique(names.begin(), names.end()) == names.end());
-  for (const char *role :
-       {"rock", "cliff", "sediment", "ground", "grass", "sand", "snow",
-        "wet_ground", "underwater"})
+  for (const char *role : {"rock", "cliff", "sediment", "ground", "grass",
+                           "sand", "snow", "wet_ground", "underwater"})
     assert(listed(names, role));
 
   const auto scene = plainScene();
@@ -782,6 +783,154 @@ void decisionsNameBothTheRoleAndTheMaterial() {
   assert(scene.field.biomeIds == std::vector<std::string>{"default"});
 }
 
+void warmBiomePermissionPreventsSnowAndRoundTrips() {
+  auto scene = mountainScene();
+  scene.field.biomeIds = {"warm", "cold"};
+  scene.settings.biomeAllowsSnow = {false, true};
+  const auto ridge = cellAt(scene, 4, 7);
+  assert(roleAt(scene, fullSet(), ridge) != "snow");
+  scene.field.biomeIndices.set(ridge, 1);
+  assert(roleAt(scene, fullSet(), ridge) == "snow");
+  TerrainRecipe recipe;
+  recipe.biomes.at("default").allowSnow = false;
+  const auto authored = recipe.toJson();
+  assert(authored["biomes"]["default"]["allow_snow"] == false);
+  assert(!TerrainRecipe::parse(authored).biomes.at("default").allowSnow);
+  recipe.biomes.at("default").allowSnow = true;
+  assert(!recipe.toJson()["biomes"]["default"].contains("allow_snow"));
+  auto malformed = authored;
+  malformed["biomes"]["default"]["allow_snow"] = "false";
+  bool rejected = false;
+  try {
+    (void)TerrainRecipe::parse(malformed);
+  } catch (const std::exception &) {
+    rejected = true;
+  }
+  assert(rejected);
+}
+
+void productionWarmSnowPermissionChangesOnlySurfaceClassification() {
+  auto scene = mountainScene();
+  TerrainRecipe recipe;
+  recipe.size = scene.field.size;
+  recipe.cellsX = scene.field.cellsX;
+  recipe.cellsZ = scene.field.cellsZ;
+  TerrainPalette palette;
+  palette.materialSet = fullSet().id;
+  palette.surfaceMaterials = fullSet().roles;
+  const auto heights = scene.field.heights;
+  const auto sample = scene.field.index(4, 8);
+  assert(updateTerrainSurfaceMaterials(scene.field, recipe, &palette, true));
+  const auto role = [&] {
+    const auto &classification = *scene.field.surfaceMaterials->classification;
+    return classification.roles[classification.samples[sample]];
+  };
+  assert(role() == "snow");
+  recipe.biomes.at("default").allowSnow = false;
+  assert(updateTerrainSurfaceMaterials(scene.field, recipe, &palette, true));
+  assert(role() != "snow");
+  assert(scene.field.heights == heights);
+}
+
+void finiteDrySlopesHaveContinuousGroundRockCoverage() {
+  auto scene = plainScene();
+  scene.settings.allowSnowLine = false;
+  const auto set = fullSet();
+  const auto sample = cellAt(scene, 4, 4);
+  for (int moistureStep = 0; moistureStep <= 10; ++moistureStep) {
+    scene.masks.moisture.set(sample, float(moistureStep) / 10);
+    for (int slopeStep = 0; slopeStep <= 360; ++slopeStep) {
+      const float slope = float(slopeStep) / 4;
+      scene.masks.slope.set(sample, slope);
+      const auto decision = decideTerrainMaterial(set, scene.field, scene.masks,
+                                                  sample, scene.settings);
+      if (decision.materialAssetId.empty()) {
+        std::cerr << "Unassigned dry slope " << slope << " with moisture "
+                  << scene.masks.moisture[sample] << '\n';
+      }
+      assert(!decision.materialAssetId.empty());
+      assert(decision.score > 0);
+    }
+  }
+  // Coverage comes from overlapping eligibility, not a fallback that could
+  // hide invalid generated masks behind a plausible ground material.
+  scene.masks.slope.set(sample, std::numeric_limits<float>::quiet_NaN());
+  const auto invalid = decideTerrainMaterial(set, scene.field, scene.masks,
+                                             sample, scene.settings);
+  assert(invalid.materialAssetId.empty());
+}
+
+void erosionCutExposesRockWithoutInventingDeposition() {
+  auto scene = plainScene();
+  const auto sample = cellAt(scene, 4, 4);
+  scene.masks.sediment.set(sample, -1);
+  assert(roleAt(scene, fullSet(), sample) == "rock");
+  scene.masks.sediment.set(sample, 1);
+  assert(roleAt(scene, fullSet(), sample) == "sediment");
+}
+
+void selectedSurfaceTransportUsesActualBlendWeights() {
+  using namespace terrain_graph_detail;
+  auto scene = plainScene();
+  auto a = std::make_shared<HeightField>(scene.field);
+  auto b = std::make_shared<HeightField>(scene.field);
+  auto aBalance = std::make_shared<TerrainSamples<float>>();
+  auto bBalance = std::make_shared<TerrainSamples<float>>();
+  aBalance->assign(sampleCount(), 4);
+  bBalance->assign(sampleCount(), -4);
+  a->surfaceSedimentBalance = aBalance;
+  b->surfaceSedimentBalance = bBalance;
+  auto mask = std::make_shared<GraphMask>();
+  mask->source = a;
+  mask->samples.assign(sampleCount(), 1);
+  mask->samples.set(0, 0);
+  mask->samples.set(1, .5F);
+  TerrainRecipe recipe;
+  recipe.size = a->size;
+  recipe.cellsX = a->cellsX;
+  recipe.cellsZ = a->cellsZ;
+  TerrainGraphNode blend{"blend", "height_blend", {{"amount", .5}}};
+  GraphValues inputs{{"a", GraphField(a)},
+                     {"b", GraphField(b)},
+                     {"mask", std::shared_ptr<const GraphMask>(mask)}};
+  const auto blended = evaluateTerrainGraphNode(
+      blend, terrainGraphNodeParameters(blend), recipe, recipe, {}, inputs, {});
+  assert(blended);
+  const auto selected = std::get<GraphField>(blended->outputs.at("field"));
+  assert(selected->surfaceSedimentBalance);
+  assert((*selected->surfaceSedimentBalance)[0] == 4);
+  assert((*selected->surfaceSedimentBalance)[1] == 2);
+  assert((*selected->surfaceSedimentBalance)[2] == 0);
+  TerrainSamples<float> delta;
+  delta.assign(sampleCount(), 1);
+  const auto accumulated =
+      accumulateTerrainSurfaceSediment(*selected, delta, {});
+  assert(accumulated && (*accumulated)->at(1) == 3);
+  std::stop_source cancelled;
+  cancelled.request_stop();
+  assert(!blendTerrainSurfaceSediment(*a, *b, &mask->samples, .5,
+                                      cancelled.get_token()));
+}
+
+void productionClassificationConsumesSelectedDeposition() {
+  auto scene = plainScene();
+  auto selected = std::make_shared<TerrainSamples<float>>();
+  selected->assign(sampleCount(), 1);
+  scene.field.surfaceSedimentBalance = selected;
+  TerrainRecipe recipe;
+  recipe.size = scene.field.size;
+  recipe.cellsX = scene.field.cellsX;
+  recipe.cellsZ = scene.field.cellsZ;
+  TerrainPalette palette;
+  palette.materialSet = fullSet().id;
+  palette.surfaceMaterials = fullSet().roles;
+  assert(updateTerrainSurfaceMaterials(scene.field, recipe, &palette, true));
+  const auto &classification = *scene.field.surfaceMaterials->classification;
+  const auto sample = scene.field.index(4, 4);
+  assert(classification.roles[classification.samples[sample]] == "sediment");
+  assert(scene.field.height(4, 4) == 10);
+}
+
 void surfaceRebindingPreservesClassificationAndHeights() {
   auto scene = plainScene();
   TerrainRecipe recipe;
@@ -796,14 +945,16 @@ void surfaceRebindingPreservesClassificationAndHeights() {
   const auto originalHeights = scene.field.heights;
 
   assert(updateTerrainSurfaceMaterials(scene.field, recipe, &palette, true));
-  const auto originalClassification = scene.field.surfaceMaterials->classification;
+  const auto originalClassification =
+      scene.field.surfaceMaterials->classification;
   assert(originalClassification->samples.size() == scene.field.heights.size());
   assert(scene.field.surfaceMaterials->unboundRoles.empty());
 
   const auto &usedRole = originalClassification->roles.front();
   palette.surfaceMaterials[usedRole] = "asset://materials/replacement";
   assert(updateTerrainSurfaceMaterials(scene.field, recipe, &palette, false));
-  assert(scene.field.surfaceMaterials->classification == originalClassification);
+  assert(scene.field.surfaceMaterials->classification ==
+         originalClassification);
   assert(scene.field.surfaceMaterials->bindings.at(usedRole) ==
          "asset://materials/replacement");
   assert(scene.field.heights == originalHeights);
@@ -814,6 +965,53 @@ void surfaceRebindingPreservesClassificationAndHeights() {
   assert(!updateTerrainSurfaceMaterials(scene.field, recipe, &palette, true,
                                         cancellation.get_token()));
   assert(scene.field.surfaceMaterials == previousSurface);
+}
+
+void dryWaterFootprintDoesNotCreateMaterialShorelines() {
+  for (const bool hasSubmergedGround : {false, true}) {
+    auto scene = plainScene();
+    const auto center = scene.field.index(4, 4);
+    const auto farDry = scene.field.index(0, 0);
+    if (hasSubmergedGround) {
+      scene.field.heights.set(center, 8.F);
+    }
+    TerrainWaterAuthoring water;
+    water.authored = true;
+    TerrainWaterBodySpec sea;
+    sea.id = "sea";
+    sea.kind = TerrainWaterBody::Ocean;
+    sea.level = 9.F;
+    sea.shorelineSoftening = false;
+    water.bodies.push_back(sea);
+    const auto result =
+        refreshTerrainWaterResult(scene.field, water, scene.field.heights);
+    assert(result && result->resolvedCoverage);
+    const auto &coverage = *result->resolvedCoverage;
+    assert(coverage.wet[farDry] == 1);
+    assert(scene.field.heights[farDry] > coverage.level[farDry]);
+    assert(applyTerrainWaterMasks(scene.field, coverage, scene.masks));
+    assert(scene.masks.waterDepth[farDry] < 0.F);
+    assert(scene.masks.substrate[farDry] ==
+           static_cast<std::size_t>(TerrainSubstrate::Soil));
+    assert(scene.masks.waterDistance[farDry] > 16.F);
+    assert(roleAt(scene, fullSet(), farDry) == "ground");
+    if (hasSubmergedGround) {
+      assert(scene.masks.waterDepth[center] == 1.F);
+      assert(scene.masks.waterDistance[center] == 0.F);
+      assert(scene.masks.substrate[center] ==
+             static_cast<std::size_t>(TerrainSubstrate::Wet));
+      assert(roleAt(scene, fullSet(), center) == "underwater");
+    }
+    // The footprint used by surface tessellation remains immutable.
+    assert(coverage.wet[farDry] == 1);
+    std::stop_source cancellation;
+    cancellation.request_stop();
+    assert(terrain_water_detail::submergedWaterSamples(scene.field, coverage,
+                                                       cancellation.get_token())
+               .empty());
+    assert(!applyTerrainWaterMasks(scene.field, coverage, scene.masks,
+                                   cancellation.get_token()));
+  }
 }
 
 void finiteWaterCoverageControlsSurfaceRoles() {
@@ -850,8 +1048,10 @@ void finiteWaterCoverageControlsSurfaceRoles() {
     const auto &classification = *scene.field.surfaceMaterials->classification;
     const auto lakeSample = scene.field.index(4, 4);
     const auto drySample = scene.field.index(0, 0);
-    const auto lakeRole = classification.roles.at(classification.samples[lakeSample]);
-    const auto dryRole = classification.roles.at(classification.samples[drySample]);
+    const auto lakeRole =
+        classification.roles.at(classification.samples[lakeSample]);
+    const auto dryRole =
+        classification.roles.at(classification.samples[drySample]);
     assert(lakeRole == "underwater");
     assert(dryRole != "underwater");
   }
@@ -860,8 +1060,15 @@ void finiteWaterCoverageControlsSurfaceRoles() {
 } // namespace
 
 int main() {
+  warmBiomePermissionPreventsSnowAndRoundTrips();
+  productionWarmSnowPermissionChangesOnlySurfaceClassification();
+  finiteDrySlopesHaveContinuousGroundRockCoverage();
+  erosionCutExposesRockWithoutInventingDeposition();
+  selectedSurfaceTransportUsesActualBlendWeights();
+  productionClassificationConsumesSelectedDeposition();
   surfaceRebindingPreservesClassificationAndHeights();
   finiteWaterCoverageControlsSurfaceRoles();
+  dryWaterFootprintDoesNotCreateMaterialShorelines();
   dryOpenGroundIsGround();
   steepGroundIsRock();
   flatWetCellIsWetGround();

@@ -1,5 +1,6 @@
 #include "demi/runtime/terrain/TerrainScatterConstraints.h"
 #include "demi/runtime/terrain/TerrainBiomeRules.h"
+#include "demi/runtime/terrain/TerrainEvaluation.h"
 #include <algorithm>
 #include <cmath>
 #include <iterator>
@@ -11,10 +12,8 @@ namespace {
 // Reason text, indexed by the Block bit it belongs to. Static storage, so
 // reason() can hand out a view without allocating or owning anything.
 constexpr std::string_view blockNames[] = {
-    "footprint",        "road",
-    "protected area",   "painted exclusion",
-    "terrain exclusion", "water surface",
-    "water",            "slope",
+    "footprint",         "road",          "protected area", "painted exclusion",
+    "terrain exclusion", "water surface", "water",          "slope",
 };
 static_assert(std::size(blockNames) == 8,
               "One reason name per blocking kind, in precedence order");
@@ -30,8 +29,8 @@ constexpr float boundaryEpsilon = 1e-4F;
 // limit. A finer grid only helps shapes that are small relative to the field,
 // which is what roads and building footprints are.
 int bucketCountFor(std::size_t samples) {
-  const auto wanted = std::size_t(
-      std::lround(std::sqrt(static_cast<double>(samples) / 16.F)));
+  const auto wanted =
+      std::size_t(std::lround(std::sqrt(static_cast<double>(samples) / 16.F)));
   return static_cast<int>(std::clamp<std::size_t>(wanted, 1, 128));
 }
 
@@ -41,11 +40,11 @@ float distanceToSegment(Vec2 point, Vec2 a, Vec2 b) {
   // A degenerate segment is a point, not a division by zero.
   if (lengthSquared <= 0.F)
     return std::hypot(point.x - a.x, point.y - a.y);
-  const float t = std::clamp(((point.x - a.x) * delta.x +
-                              (point.y - a.y) * delta.y) /
-                                 lengthSquared,
-                             0.F, 1.F);
-  return std::hypot(point.x - (a.x + delta.x * t), point.y - (a.y + delta.y * t));
+  const float t = std::clamp(
+      ((point.x - a.x) * delta.x + (point.y - a.y) * delta.y) / lengthSquared,
+      0.F, 1.F);
+  return std::hypot(point.x - (a.x + delta.x * t),
+                    point.y - (a.y + delta.y * t));
 }
 
 // Winding-agnostic crossing test, with the boundary answered first because ray
@@ -98,17 +97,22 @@ TerrainScatterConstraints TerrainScatterConstraints::build(
   constraints.size_ = field.size;
   constraints.cellsX_ = field.cellsX;
   constraints.cellsZ_ = field.cellsZ;
-  constraints.seaLevel_ =
-      water.authored ? water.seaLevel : TerrainRuleContextBuilder::seaLevel(recipe);
+  constraints.seaLevel_ = water.authored
+                              ? water.seaLevel
+                              : TerrainRuleContextBuilder::seaLevel(recipe);
   constraints.maximumSlope_ = options.maximumSlopeDegrees;
   constraints.paintedExclusionThreshold_ = options.paintedExclusionThreshold;
   constraints.buckets_ = bucketCountFor(samples);
   constraints.bucketSizeX_ = field.size.x / float(constraints.buckets_);
   constraints.bucketSizeZ_ = field.size.y / float(constraints.buckets_);
+  if (masks != nullptr) {
+    constraints.measurements_ = *masks;
+  }
   constraints.mask_.assign(samples, 0);
   constraints.painted_.assign(samples, 0.F);
-  constraints.shapeBuckets_.assign(
-      std::size_t(constraints.buckets_) * std::size_t(constraints.buckets_), {});
+  constraints.shapeBuckets_.assign(std::size_t(constraints.buckets_) *
+                                       std::size_t(constraints.buckets_),
+                                   {});
 
   const float stepX = field.size.x / float(field.cellsX);
   const float stepZ = field.size.y / float(field.cellsZ);
@@ -131,6 +135,12 @@ TerrainScatterConstraints TerrainScatterConstraints::build(
         blockers |= blockTerrainExclusion;
       constraints.mask_[cell] = blockers;
     }
+  TerrainEvaluation evaluation(recipe);
+  for (const auto *edit : evaluation.edits()) {
+    if (edit->kind == TerrainEditKind::Protect && !edit->samples.empty()) {
+      constraints.addProtectedArea(edit->center, edit->radius);
+    }
+  }
   return constraints;
 }
 
@@ -142,34 +152,38 @@ Vec2 TerrainScatterConstraints::cellPosition(std::size_t cell) const noexcept {
 }
 
 void TerrainScatterConstraints::insertShape(std::uint32_t shape, float minX,
-                                            float maxX, float minZ, float maxZ) {
+                                            float maxX, float minZ,
+                                            float maxZ) {
   // Clamped to the field, so a shape larger than the terrain still answers for
   // every cell it can reach and never allocates buckets nobody can query.
-  const auto firstX = std::clamp(int(std::floor(minX / bucketSizeX_)), 0, buckets_ - 1);
-  const auto lastX = std::clamp(int(std::floor(maxX / bucketSizeX_)), 0, buckets_ - 1);
-  const auto firstZ = std::clamp(int(std::floor(minZ / bucketSizeZ_)), 0, buckets_ - 1);
-  const auto lastZ = std::clamp(int(std::floor(maxZ / bucketSizeZ_)), 0, buckets_ - 1);
+  const auto firstX =
+      std::clamp(int(std::floor(minX / bucketSizeX_)), 0, buckets_ - 1);
+  const auto lastX =
+      std::clamp(int(std::floor(maxX / bucketSizeX_)), 0, buckets_ - 1);
+  const auto firstZ =
+      std::clamp(int(std::floor(minZ / bucketSizeZ_)), 0, buckets_ - 1);
+  const auto lastZ =
+      std::clamp(int(std::floor(maxZ / bucketSizeZ_)), 0, buckets_ - 1);
   for (int z = firstZ; z <= lastZ; ++z)
     for (int x = firstX; x <= lastX; ++x)
-      shapeBuckets_[std::size_t(z) * std::size_t(buckets_) +
-                    std::size_t(x)]
+      shapeBuckets_[std::size_t(z) * std::size_t(buckets_) + std::size_t(x)]
           .push_back(shape);
 }
 
 std::uint8_t TerrainScatterConstraints::spatialBlockers(Vec2 point) const {
   if (shapes_.empty())
     return 0;
-  const auto bucketX = std::clamp(int(std::floor(point.x / bucketSizeX_)), 0,
-                                  buckets_ - 1);
-  const auto bucketZ = std::clamp(int(std::floor(point.y / bucketSizeZ_)), 0,
-                                  buckets_ - 1);
-  const auto &candidates = shapeBuckets_[std::size_t(bucketZ) *
-                                             std::size_t(buckets_) +
-                                         std::size_t(bucketX)];
+  const auto bucketX =
+      std::clamp(int(std::floor(point.x / bucketSizeX_)), 0, buckets_ - 1);
+  const auto bucketZ =
+      std::clamp(int(std::floor(point.y / bucketSizeZ_)), 0, buckets_ - 1);
+  const auto &candidates =
+      shapeBuckets_[std::size_t(bucketZ) * std::size_t(buckets_) +
+                    std::size_t(bucketX)];
   std::uint8_t blockers = 0;
-  // Every candidate is tested rather than returning on the first hit: the reason
-  // is the highest-precedence blocker, so a road inside a protected area has to
-  // report the road.
+  // Every candidate is tested rather than returning on the first hit: the
+  // reason is the highest-precedence blocker, so a road inside a protected area
+  // has to report the road.
   for (const auto index : candidates) {
     const Shape &shape = shapes_[index];
     switch (shape.kind) {
@@ -186,7 +200,8 @@ std::uint8_t TerrainScatterConstraints::spatialBlockers(Vec2 point) const {
         // Distance to the polyline, not to its bounding box: a road that bends
         // back on itself must not reject the ground in the box it happens to
         // enclose, which is exactly the failure a bounding-box test has.
-        if (distanceToSegment(point, {a.x, a.z}, {b.x, b.z}) <= shape.halfWidth) {
+        if (distanceToSegment(point, {a.x, a.z}, {b.x, b.z}) <=
+            shape.halfWidth) {
           blockers |= blockRoad;
           break;
         }
@@ -210,6 +225,52 @@ std::uint8_t TerrainScatterConstraints::cellBlockers(std::size_t cell) const {
     blockers |= blockPaintedExclusion;
   blockers |= spatialBlockers(cellPosition(cell));
   return blockers;
+}
+
+bool TerrainScatterConstraints::allows(std::size_t cell,
+                                       const TerrainPaletteEntry &entry,
+                                       std::optional<Vec2> position) const {
+  return rejectionReason(cell, entry, position).empty();
+}
+
+std::string_view
+TerrainScatterConstraints::rejectionReason(std::size_t cell,
+                                           const TerrainPaletteEntry &entry,
+                                           std::optional<Vec2> position) const {
+  if (cell >= mask_.size()) {
+    return "outside terrain";
+  }
+  // Rules own slope suitability. The generic preview cap is not an extra
+  // hidden limit on a rock rule that deliberately accepts steeper terrain.
+  auto blockers = mask_[cell] & ~blockSlope;
+  if (painted_[cell] >= paintedExclusionThreshold_) {
+    blockers |= blockPaintedExclusion;
+  }
+  blockers |= spatialBlockers(position.value_or(cellPosition(cell)));
+  for (std::size_t bit = 0; bit < std::size(blockNames); ++bit) {
+    if (blockers & (1U << bit)) {
+      return blockNames[bit];
+    }
+  }
+  const auto matches = [cell](const TerrainSamples<float> &samples,
+                              const TerrainScatterRange &range,
+                              const TerrainScatterRange &defaults) {
+    if (samples.empty()) {
+      return range.minimum == defaults.minimum &&
+             range.maximum == defaults.maximum;
+    }
+    return cell < samples.size() && range.contains(samples[cell]);
+  };
+  if (!matches(measurements_.slope, entry.slope, {0, 90})) {
+    return "slope";
+  }
+  if (!matches(measurements_.moisture, entry.moisture, {0, 1})) {
+    return "moisture";
+  }
+  if (!matches(measurements_.waterDistance, entry.waterDistance, {})) {
+    return "water distance";
+  }
+  return {};
 }
 
 bool TerrainScatterConstraints::blocked(std::size_t cell) const {
@@ -243,7 +304,8 @@ std::size_t TerrainScatterConstraints::blockedCount() const {
 }
 
 void TerrainScatterConstraints::addProtectedArea(Vec2 center, float radius) {
-  if (!finite(center.x) || !finite(center.y) || !finite(radius) || radius <= 0.F)
+  if (!finite(center.x) || !finite(center.y) || !finite(radius) ||
+      radius <= 0.F)
     return;
   const auto index = static_cast<std::uint32_t>(shapes_.size());
   Shape shape;
@@ -308,7 +370,7 @@ void TerrainScatterConstraints::addFootprint(std::vector<Vec2> polygon) {
 }
 
 void TerrainScatterConstraints::addExclusionWeight(std::size_t cell,
-                                                    float weight) {
+                                                   float weight) {
   if (cell >= painted_.size() || !finite(weight))
     return;
   painted_[cell] = weight;

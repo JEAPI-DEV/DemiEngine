@@ -8,6 +8,7 @@
 #include "demi/runtime/animation/SpriteAnimationSystem.h"
 #include "demi/runtime/assets/RuntimeAssetBootstrap.h"
 #include "demi/runtime/assets/RuntimeAssetService.h"
+#include "demi/runtime/assets/HeadlessVisualAssetLoader.h"
 #include "demi/runtime/audio/AudioSceneSystem.h"
 #include "demi/runtime/audio/AudioSystem.h"
 #include "demi/runtime/camera/Camera2DSystem.h"
@@ -47,6 +48,8 @@ std::string firstError(const Diagnostics &diagnostics,
 class EmbeddedRuntimeSession::State {
 public:
   LoadedProject loaded;
+  std::uint16_t viewportWidth = 960;
+  std::uint16_t viewportHeight = 540;
   AssetRegistry assetRegistry;
   RuntimeAssetService assets;
   AudioSystem audio;
@@ -61,6 +64,7 @@ public:
   LuaScriptHost lua;
   double fixedAccumulator = 0.0;
   std::uint64_t fixedTicks = 0;
+  bool profilerFramePrepared = false;
   bool running = false;
   bool paused = false;
   bool audioInitialized = false;
@@ -78,6 +82,10 @@ bool EmbeddedRuntimeSession::mouseVisible() const {
 }
 void EmbeddedRuntimeSession::releaseMouseCapture() {
   if (state_) state_->lua.setMouseCaptured(false);
+}
+
+void EmbeddedRuntimeSession::setHostServices(EmbeddedRuntimeHostServices services) {
+  hostServices_ = std::move(services);
 }
 
 bool EmbeddedRuntimeSession::start(const std::filesystem::path &projectPath,
@@ -128,6 +136,19 @@ bool EmbeddedRuntimeSession::start(const std::filesystem::path &projectPath,
                        "The embedded runtime assets could not initialize.");
     return false;
   }
+  if (hostServices_.createAssetLoader) {
+    auto loader = hostServices_.createAssetLoader(state->assetRegistry, error);
+    if (!loader) {
+      if (error.empty()) {
+        error = "The embedded visible asset backend could not initialize.";
+      }
+      return false;
+    }
+    state->assets.registerLoader(std::move(loader));
+  } else {
+    state->assets.registerLoader(
+        createHeadlessVisualAssetLoader(state->assetRegistry));
+  }
   state->assets.registerLoader(
       createColliderAssetLoader3D(state->loaded.world));
   if (state->audioInitialized)
@@ -155,6 +176,14 @@ bool EmbeddedRuntimeSession::start(const std::filesystem::path &projectPath,
                              error))
     return false;
   state->lua.setAssetRegistry(&state->assetRegistry);
+  if (hostServices_.prepareScenePresentation) {
+    state->lua.setScenePresentationPreparation(
+        [context = state.get(), prepare = hostServices_.prepareScenePresentation](
+            const World &world, bool &complete, std::string &error) {
+          return prepare(world, context->viewportWidth, context->viewportHeight,
+                         complete, error);
+        }, hostServices_.cancelScenePresentation);
+  }
   state->lua.seedRandom(state->loaded.project.simulation.randomSeed);
   if (!state->lua.loadWorldScripts(state->loaded.project, state->loaded.world,
                                    error))
@@ -204,13 +233,26 @@ void EmbeddedRuntimeSession::setPaused(const bool paused) {
   state_->audio.setGamePaused(paused);
 }
 
+void EmbeddedRuntimeSession::beginProfilerFrame() {
+  if (state_ == nullptr) {
+    return;
+  }
+  RuntimeProfiler::beginFrame();
+  state_->profilerFramePrepared = true;
+}
+
 bool EmbeddedRuntimeSession::advance(State &state, InputState input,
                                      const float deltaSeconds,
                                      const std::uint16_t viewportWidth,
                                      const std::uint16_t viewportHeight,
                                      const bool oneFixedTick,
                                      std::string &error) {
-  RuntimeProfiler::beginFrame();
+  state.viewportWidth = std::max(viewportWidth, std::uint16_t{1});
+  state.viewportHeight = std::max(viewportHeight, std::uint16_t{1});
+  if (!state.profilerFramePrepared) {
+    RuntimeProfiler::beginFrame();
+  }
+  state.profilerFramePrepared = false;
   ProfileScope frameScope("Frame.update");
   error.clear();
   state.input = std::move(input);

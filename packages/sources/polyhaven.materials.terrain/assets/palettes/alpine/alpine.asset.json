@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "id": "asset://polyhaven/terrain/palettes/alpine",
+  "type": "DataAsset",
+  "source": "alpine.json",
+  "importer": "json_data",
+  "importer_version": 1,
+  "source_hash": "fnv1a64:fa02971c619c2270",
+  "dependencies": [
+    "asset://polyhaven/terrain/surfaces/alpine"
+  ],
+  "settings": {
+    "content_type": "terrain_palette"
+  }
+}

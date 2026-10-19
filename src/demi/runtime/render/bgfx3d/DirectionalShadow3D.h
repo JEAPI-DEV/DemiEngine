@@ -24,6 +24,12 @@ public:
                                    std::uint32_t requested) const override {
     return commands_.availableInstances(stride, requested);
   }
+  bool copyTexture(std::uint16_t view, TextureHandle source,
+                   TextureHandle destination, std::uint16_t width,
+                   std::uint16_t height, std::string &error) override {
+    return commands_.copyTexture(view, source, destination, width, height,
+                                 error);
+  }
   bool configureView2D(const View2DConfig &v, std::string &e) override {
     return commands_.configureView2D(v, e);
   }

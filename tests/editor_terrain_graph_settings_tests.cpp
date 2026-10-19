@@ -85,19 +85,6 @@ struct TestProject {
                {"source_hash", *demi::assets::hashFiles({renderSource})},
                {"dependencies", Json::array()},
                {"settings", Json::object()}});
-
-    const auto typedSource = root / "assets/terrain_materials/stone.json";
-    writeJson(typedSource, {{"format_version", 1}, {"name", "Terrain stone"}});
-    writeJson(root / "assets/terrain_materials/stone.asset.json",
-              {{"format_version", 1},
-               {"id", "asset://terrain_materials/stone"},
-               {"type", "DataAsset"},
-               {"source", "stone.json"},
-               {"importer", "json_data"},
-               {"importer_version", 1},
-               {"source_hash", *demi::assets::hashFiles({typedSource})},
-               {"dependencies", Json::array()},
-               {"settings", {{"content_type", "terrain_material"}}}});
   }
 
   ~TestProject() {
@@ -285,8 +272,9 @@ void checkAppearanceControls(EditorWorkspace &workspace) {
   };
   draw();
   draw();
-  // Editing the shared standard picker is covered by editor_color_control_tests.
-  // This consumer check ensures opening settings preserves authored precision.
+  // Editing the shared standard picker is covered by
+  // editor_color_control_tests. This consumer check ensures opening settings
+  // preserves authored precision.
   require(draft == precise, "Opening biome color settings changed the source");
   const auto shared = draft;
   drawSettings(workspace, "Output controls", "output");
@@ -300,11 +288,8 @@ void checkRenderMaterialAndTextureScale(EditorWorkspace &workspace) {
   const auto &registry = workspace.assetIndex().registry();
   const auto *renderAsset =
       demi::findAsset(registry, "asset://materials/stone");
-  const auto *typedAsset =
-      demi::findAsset(registry, "asset://terrain_materials/stone");
-  require(renderAsset && renderAsset->type == "Material" && typedAsset &&
-              typedAsset->type == "DataAsset",
-          "Fixture must register ordinary and typed material assets");
+  require(renderAsset && renderAsset->type == "Material",
+          "Fixture must register an ordinary Material asset");
   auto &draft = workspace.terrainAuthoring().draft();
   const auto source = workspace.sceneDocument().json();
   const auto before = draft;

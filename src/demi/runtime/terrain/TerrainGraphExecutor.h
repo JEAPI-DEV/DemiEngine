@@ -1,5 +1,6 @@
 #pragma once
 
+#include "demi/runtime/terrain/TerrainErosionTransport.h"
 #include "demi/runtime/terrain/TerrainGenerator.h"
 #include "demi/runtime/terrain/TerrainWater.h"
 #include <map>
@@ -13,6 +14,7 @@ struct TerrainGraphNodeRun {
   std::string id;
   bool cached = false;
   double milliseconds = 0;
+  std::string status;
 };
 struct TerrainGraphArtifacts {
   // Graph output before manual regions, sculpt and exclusions. Cache fields do
@@ -28,6 +30,7 @@ struct TerrainGraphArtifacts {
   // Signed transport is retained per erosion node, including cache hits.
   std::map<std::string, std::shared_ptr<const TerrainSamples<float>>>
       sedimentBalance;
+  std::map<std::string, TerrainErosionTransport> hydraulicTransport;
   std::shared_ptr<const TerrainGraphEvaluationCache> cache;
 };
 

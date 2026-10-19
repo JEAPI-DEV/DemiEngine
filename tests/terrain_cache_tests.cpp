@@ -324,6 +324,9 @@ void paletteInputsAreResolvedBeforeGeneration() {
   std::ifstream source(manifest->sourcePath);
   auto edited = nlohmann::json::parse(source);
   edited["placements"]["grass"]["spacing"] = 7;
+  // Keep the candidate pool fixed while changing the independent minimum
+  // spacing. Auto-derived spacing would lower its capacity below this density.
+  edited["placements"]["grass"]["candidate_spacing"] = 0.25;
   const auto temporary = std::filesystem::temp_directory_path() /
                          "demi-terrain-cache-palette.json";
   {

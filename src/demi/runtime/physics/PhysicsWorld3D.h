@@ -11,6 +11,11 @@ namespace demi::runtime {
 
 struct World;
 struct Entity;
+class PreparedPhysicsShapes3D;
+// Worker-only preparation of an unpublished world's immutable native shapes.
+// Owns no simulation bodies or PhysicsSystem; Jolt types stay behind this API.
+[[nodiscard]] bool preparePhysicsShapes3D(World &world, std::string &error);
+void adoptPreparedPhysicsShapes3D(World &destination, World &incoming);
 struct ReplacementBody3D {
   std::string entityId;
   std::string sourceId;
@@ -76,6 +81,7 @@ public:
               const std::string &ignoredEntityId = {}) const;
 
 private:
+  friend void adoptPreparedPhysicsShapes3D(World &, World &);
   [[nodiscard]] std::vector<PhysicsQueryHit3D>
   overlapCollider(const World &world, const Entity &entity, Vec3 position,
                   Vec3 rotation, const std::string &ignoredEntityId = {}) const;

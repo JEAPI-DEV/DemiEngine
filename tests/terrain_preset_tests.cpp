@@ -6,6 +6,7 @@
 #include "demi/runtime/terrain/TerrainGraph.h"
 #include "demi/runtime/terrain/TerrainGraphExecutor.h"
 #include "demi/runtime/terrain/TerrainPreset.h"
+#include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <iostream>
@@ -43,13 +44,11 @@ TerrainPreset mountainPreset() {
   preset.landforms.emplace("scree", TerrainLandform{.baseHeight = 6,
                                                     .heightVariation = 8,
                                                     .featureSize = 18});
-  preset.biomes.emplace("rock",
-                        TerrainBiome{.landform = "rock",
-                                     .color = {.5F, .47F, .42F, 1},
-                                     .textureScale = 2});
-  preset.biomes.emplace("scree",
-                        TerrainBiome{.landform = "scree",
-                                     .color = {.6F, .58F, .54F, 1}});
+  preset.biomes.emplace("rock", TerrainBiome{.landform = "rock",
+                                             .color = {.5F, .47F, .42F, 1},
+                                             .textureScale = 2});
+  preset.biomes.emplace("scree", TerrainBiome{.landform = "scree",
+                                              .color = {.6F, .58F, .54F, 1}});
   TerrainBiomeRule peak;
   peak.id = "peak";
   peak.biome = "rock";
@@ -120,7 +119,8 @@ void applyingPreservesStrokes() {
 // A recipe with no strokes must gain only generation keys, never empty arrays
 // that would then be written into the author's source.
 void applyingToBareRecipeOmitsEmptyStrokes() {
-  const auto merged = applyTerrainPreset(nlohmann::json::object(), mountainPreset());
+  const auto merged =
+      applyTerrainPreset(nlohmann::json::object(), mountainPreset());
   for (const auto key : {"regions", "edits", "exclusions"})
     assert(!merged.contains(key));
   (void)TerrainRecipe::parse(merged);
@@ -160,8 +160,8 @@ void provenanceIsConsistent() {
 // Provenance is part of the recipe's generation identity: applying a different
 // preset is a real recipe change and must not replay as if nothing moved.
 void provenanceIsAGenerationInput() {
-  const auto before = TerrainRecipe::parse(applyTerrainPreset(
-      nlohmann::json::object(), mountainPreset()));
+  const auto before = TerrainRecipe::parse(
+      applyTerrainPreset(nlohmann::json::object(), mountainPreset()));
   assert(before.sameGenerationInputs(before));
   auto after = before;
   after.presetId = "asset://terrain/presets/coastal";
@@ -174,7 +174,8 @@ void provenanceIsAGenerationInput() {
 // A preset must produce terrain the shared generator can actually run. This is
 // the "presets configure the shared generator, not a second algorithm" check.
 void appliedPresetGeneratesTerrain() {
-  const auto merged = applyTerrainPreset(nlohmann::json::object(), mountainPreset());
+  const auto merged =
+      applyTerrainPreset(nlohmann::json::object(), mountainPreset());
   const auto recipe = TerrainRecipe::parse(merged);
   const auto field = TerrainGenerator::generate(recipe);
   assert(field);
@@ -285,12 +286,14 @@ void malformedStrokeIsRejected() {
 } // namespace
 
 void startersNeedNoProjectAssets() {
-  assert(builtinTerrainPresets().size() == 7);
+  assert(builtinTerrainPresets().size() == 8);
   for (const auto &preset : builtinTerrainPresets()) {
     assert(loadTerrainPreset({}, preset.id)->id == preset.id);
     const auto applied = applyTerrainPreset(TerrainRecipe{}.toJson(), preset);
     const auto graph = TerrainGraph::parse(applied.at("graph"));
-    assert(graph.node("shape_help")->type == "comment");
+    const auto *shapeHelp = graph.node("shape_help");
+    assert(shapeHelp);
+    assert(shapeHelp->type == "comment");
     auto recipe = TerrainRecipe::parse(applied);
     recipe.validate();
     const auto generated = TerrainGenerator::generate(recipe);
@@ -366,6 +369,41 @@ void polygonStartersPublishTheirAuthoredRegions() {
   }
 }
 
+void drainageRiverStarterPublishesDescendingWater() {
+  const auto preset = loadTerrainPreset({}, "builtin://terrain/drainage-river");
+  assert(preset);
+  const auto recipe = TerrainRecipe::parse(
+      applyTerrainPreset(TerrainRecipe{}.toJson(), *preset));
+  const auto graph = TerrainGraph::parse(recipe.graph);
+  assert(graph.node("river")->type == "river_route");
+  const auto generated = TerrainGenerator::generate(recipe);
+  assert(generated && generated->graphArtifacts);
+  const auto &artifacts = *generated->graphArtifacts;
+  const auto river = std::ranges::find(
+      artifacts.water.bodies, std::string("river"), &TerrainWaterBodySpec::id);
+  assert(river != artifacts.water.bodies.end());
+  assert(river->kind == TerrainWaterBody::River);
+  assert(river->riverSurfaceMode == TerrainRiverSurfaceMode::FollowBed);
+  assert(river->riverPath.size() > 1);
+  for (std::size_t point = 1; point < river->riverPath.size(); ++point) {
+    assert(river->riverPath[point].y <= river->riverPath[point - 1].y);
+  }
+  assert(artifacts.waterResult && !artifacts.waterResult->surfaces.empty());
+  const auto riverSurface =
+      std::ranges::find(artifacts.waterResult->surfaces, std::string("river"),
+                        &TerrainWaterSurface::id);
+  assert(riverSurface != artifacts.waterResult->surfaces.end());
+  assert(!riverSurface->vertices.empty());
+  const auto riverRun = std::ranges::find(artifacts.nodes, std::string("river"),
+                                          &TerrainGraphNodeRun::id);
+  assert(riverRun != artifacts.nodes.end());
+  const bool reachesOutlet =
+      riverRun->status.starts_with("River route endpoint: sea level") ||
+      riverRun->status.starts_with("River route endpoint: field edge") ||
+      riverRun->status.starts_with("River route joined water body: ocean");
+  assert(reachesOutlet);
+}
+
 void presetLandformsUseSharedProfileAndWarpContract() {
   auto preset = mountainPreset();
   auto &shape = preset.landforms.at("rock");
@@ -387,6 +425,7 @@ void presetLandformsUseSharedProfileAndWarpContract() {
 int main() {
   polygonStartersPublishTheirAuthoredRegions();
   presetLandformsUseSharedProfileAndWarpContract();
+  drainageRiverStarterPublishesDescendingWater();
   startersNeedNoProjectAssets();
   fragmentSuppliesOnlyGenerationKeys();
   applyingPreservesStrokes();

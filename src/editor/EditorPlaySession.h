@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/debug/RuntimeDebugSnapshot.h"
+#include "demi/runtime/app/EmbeddedRuntimeHostServices.h"
 #include "demi/runtime/diagnostics/RuntimeLog.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 #include "demi/runtime/scripting/LuaScriptHost.h"
@@ -43,8 +44,10 @@ public:
   [[nodiscard]] bool update(runtime::InputState input, float deltaSeconds,
                             std::uint16_t width, std::uint16_t height,
                             std::string &error);
+  void beginProfilerFrame();
   void reportFailure(std::string message);
   void stop();
+  void setHostServices(runtime::EmbeddedRuntimeHostServices services);
 
   [[nodiscard]] EditorPlayState state() const { return state_; }
   [[nodiscard]] bool isRunning() const {
@@ -73,6 +76,7 @@ public:
 
 private:
   std::unique_ptr<runtime::EmbeddedRuntimeSession> embedded_;
+  runtime::EmbeddedRuntimeHostServices hostServices_;
   EditorPlayState state_ = EditorPlayState::Stopped;
   std::string failure_;
   std::vector<runtime::RuntimeLogEntry> retainedLogs_;

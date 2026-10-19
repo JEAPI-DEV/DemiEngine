@@ -1,12 +1,15 @@
 #include "demi/runtime/terrain/TerrainGenerationCache.h"
 #include "demi/runtime/terrain/TerrainGraph.h"
 #include "demi/runtime/terrain/TerrainGraphExecutor.h"
+#include "demi/runtime/terrain/TerrainGraphNodeEvaluation.h"
 #include "demi/runtime/terrain/TerrainGraphSpatialMasks.h"
 #include "demi/runtime/terrain/TerrainPipeline.h"
 #include "demi/runtime/terrain/TerrainUpdate.h"
+#include "demi/runtime/terrain/TerrainWaterGeometry.h"
 
 #include <algorithm>
 #include <cassert>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -336,6 +339,210 @@ void graphStageReportingFollowsNodes() {
   assert(staged->field->heights == direct->heights);
 }
 
+void emptyConnectedWaterRemainsAuthoritativeForRulesAndScatter() {
+  using namespace terrain_graph_detail;
+  auto authored = recipe();
+  TerrainBiomeRule wetRule;
+  wetRule.id = "wet_bed";
+  wetRule.biome = "high";
+  wetRule.substrate = {TerrainSubstrate::Wet};
+  authored.rules.push_back(wetRule);
+  const auto generated = executeTerrainGraph(authored);
+  assert(generated);
+  const auto field = retained(*generated);
+  auto water = std::make_shared<GraphWater>();
+  water->authoring.authored = true;
+  water->data.carvedHeights = field->heights;
+  const GraphValues connected{
+      {"field", GraphField(field)},
+      {"water", std::shared_ptr<const GraphWater>(water)}};
+  const TerrainGraphNode rules{"rules", "biomes"};
+  const auto ruled = evaluateTerrainGraphNode(rules, {}, authored, authored, {},
+                                              connected, {});
+  assert(ruled);
+  const auto output = std::get<GraphField>(ruled->outputs.at("field"));
+  for (std::size_t sample = 0; sample < output->heights.size(); ++sample) {
+    assert(output->biomeIndices[sample] == 0);
+  }
+  TerrainPalette palette;
+  palette.placements.emplace(
+      "cover", TerrainPaletteEntry{
+                   .model = "asset://cover", .density = 1.F, .spacing = 0.F});
+  const TerrainGraphNode scatter{"scatter", "scatter"};
+  const auto scattered = evaluateTerrainGraphNode(
+      scatter, {}, authored, authored, {.palette = &palette}, connected, {});
+  assert(scattered);
+  const auto instances = std::get<std::shared_ptr<const GraphInstances>>(
+      scattered->outputs.at("instances"));
+  assert(!instances->placements.empty());
+  // The retained input water remains immutable; no mesh or cached coverage was
+  // installed into an upstream result merely to answer a downstream rule.
+  assert(!water->data.resolvedCoverage && water->data.surfaces.empty());
+
+  TerrainWaterBodySpec sea;
+  sea.id = "dry_sea";
+  sea.kind = TerrainWaterBody::Ocean;
+  sea.level = 2.F;
+  sea.shorelineSoftening = false;
+  water->authoring.bodies.push_back(sea);
+  const auto retainedWater =
+      refreshTerrainWaterResult(*field, water->authoring, field->heights);
+  assert(retainedWater);
+  water->data = *retainedWater;
+  // Geometry coverage retains dry corners to interpolate shore triangles.
+  assert(water->data.resolvedCoverage->wet.front() == 1);
+  assert(field->heights[0] > water->data.resolvedCoverage->level[0]);
+  const auto dryRuled = evaluateTerrainGraphNode(rules, {}, authored, authored,
+                                                 {}, connected, {});
+  assert(dryRuled);
+  const auto dryField = std::get<GraphField>(dryRuled->outputs.at("field"));
+  for (std::size_t sample = 0; sample < dryField->heights.size(); ++sample) {
+    assert(dryField->biomeIndices[sample] == 0);
+  }
+  const auto dryScattered = evaluateTerrainGraphNode(
+      scatter, {}, authored, authored, {.palette = &palette}, connected, {});
+  assert(dryScattered);
+  assert(!std::get<std::shared_ptr<const GraphInstances>>(
+              dryScattered->outputs.at("instances"))
+              ->placements.empty());
+
+  std::stop_source cancelled;
+  cancelled.request_stop();
+  const auto cancelledCoverage = terrain_water_detail::buildWaterLevelField(
+      field->size, field->cellsX, field->cellsZ, field->heights,
+      water->authoring, cancelled.get_token());
+  assert(cancelledCoverage.wet.empty());
+
+  auto wrongGrid = std::make_shared<terrain_water_detail::WaterLevelField>(
+      *water->data.resolvedCoverage);
+  ++wrongGrid->cellsX;
+  water->data.resolvedCoverage = std::move(wrongGrid);
+  bool rejected = false;
+  try {
+    (void)evaluateTerrainGraphNode(rules, {}, authored, authored, {}, connected,
+                                   {});
+  } catch (const std::invalid_argument &error) {
+    rejected =
+        std::string(error.what()).find("input field grid") != std::string::npos;
+  }
+  assert(rejected);
+}
+
+void biomeRulesUseConnectedWaterInsteadOfInferredSea() {
+  for (const auto *type : {"biomes", "scatter"}) {
+    const auto *definition = terrainGraphNodeDefinition(type);
+    assert(definition && definition->inputs.size() == 2);
+    assert(definition->inputs.front().required);
+    assert(definition->inputs[1].name == "water");
+    assert(definition->inputs[1].kind == TerrainGraphValueKind::Water);
+    assert(!definition->inputs[1].required);
+  }
+  for (const float inferredPeak : {0.F, 100.F}) {
+    auto authored = recipe();
+    authored.landforms.at("high").baseHeight = inferredPeak;
+    authored.landforms.at("high").heightVariation = 0;
+    TerrainBiomeRule wetRule;
+    wetRule.id = "wet_bed";
+    wetRule.biome = "high";
+    wetRule.substrate = {TerrainSubstrate::Wet};
+    authored.rules.push_back(wetRule);
+    authored.graph["nodes"].push_back({{"id", "lake"},
+                                       {"type", "water"},
+                                       {"parameters",
+                                        {{"kind", "lake"},
+                                         {"level", 5},
+                                         {"center_x", 8},
+                                         {"center_z", 8},
+                                         {"radius", 4}}}});
+    authored.graph["nodes"].push_back({{"id", "rules"}, {"type", "biomes"}});
+    authored.graph["links"] = nlohmann::json::array(
+        {{{"id", "land_lake"},
+          {"from", {{"node", "landform"}, {"port", "field"}}},
+          {"to", {{"node", "lake"}, {"port", "field"}}}},
+         {{"id", "lake_rules"},
+          {"from", {{"node", "lake"}, {"port", "field"}}},
+          {"to", {{"node", "rules"}, {"port", "field"}}}},
+         {{"id", "rules_output"},
+          {"from", {{"node", "rules"}, {"port", "field"}}},
+          {"to", {{"node", "terrain_output"}, {"port", "field"}}}},
+         {{"id", "lake_output"},
+          {"from", {{"node", "lake"}, {"port", "water"}}},
+          {"to", {{"node", "terrain_output"}, {"port", "water"}}}}});
+    const auto inferred = executeTerrainGraph(authored);
+    assert(inferred);
+    const auto expectedInferred = inferredPeak > 0.F ? 1U : 0U;
+    assert(inferred->biomeIndices[inferred->index(8, 8)] == expectedInferred);
+    assert(inferred->biomeIndices[inferred->index(0, 0)] == expectedInferred);
+    authored.graph["links"].push_back(
+        {{"id", "water_rules"},
+         {"from", {{"node", "lake"}, {"port", "water"}}},
+         {"to", {{"node", "rules"}, {"port", "water"}}}});
+    const auto resolved = executeTerrainGraph(
+        authored, {.previousCache = inferred->graphArtifacts->cache});
+    assert(resolved);
+    assert(!wasCached(*resolved, "rules"));
+    assert(resolved->biomeIndices[resolved->index(8, 8)] == 1);
+    assert(resolved->biomeIndices[resolved->index(0, 0)] == 0);
+    assert(resolved->heights == inferred->heights);
+
+    authored.graph["nodes"].push_back({{"id", "scatter"}, {"type", "scatter"}});
+    authored.graph["links"].push_back(
+        {{"id", "rules_scatter"},
+         {"from", {{"node", "rules"}, {"port", "field"}}},
+         {"to", {{"node", "scatter"}, {"port", "field"}}}});
+    authored.graph["links"].push_back(
+        {{"id", "water_scatter"},
+         {"from", {{"node", "lake"}, {"port", "water"}}},
+         {"to", {{"node", "scatter"}, {"port", "water"}}}});
+    authored.graph["links"].push_back(
+        {{"id", "scatter_output"},
+         {"from", {{"node", "scatter"}, {"port", "instances"}}},
+         {"to", {{"node", "terrain_output"}, {"port", "instances"}}}});
+    TerrainPalette palette;
+    palette.placements.emplace(
+        "cover", TerrainPaletteEntry{
+                     .model = "asset://cover", .density = 1.F, .spacing = 0.F});
+    const auto scattered = executeTerrainGraph(authored, {.palette = &palette});
+    assert(scattered && scattered->graphArtifacts->basePlacements);
+    assert(!scattered->graphArtifacts->basePlacements->empty());
+    const auto &wet =
+        scattered->graphArtifacts->waterResult->resolvedCoverage->wet;
+    for (const auto &placement : *scattered->graphArtifacts->basePlacements) {
+      // Physical candidate sites need not coincide with heightfield samples.
+      // Environment masks use the nearest sample, recorded separately from
+      // the candidate's stable lattice identity.
+      const int sampleX = std::clamp(
+          int(std::lround(placement.position.x * float(scattered->cellsX) /
+                          scattered->size.x)),
+          0, scattered->cellsX);
+      const int sampleZ = std::clamp(
+          int(std::lround(placement.position.z * float(scattered->cellsZ) /
+                          scattered->size.y)),
+          0, scattered->cellsZ);
+      assert(placement.cell == scattered->index(sampleX, sampleZ));
+      assert(wet[placement.cell] == 0);
+    }
+
+    authored.graph["nodes"].push_back({{"id", "unrelated"},
+                                       {"type", "constant"},
+                                       {"parameters", {{"height", 30}}}});
+    authored.graph["links"][1]["from"]["node"] = "unrelated";
+    const auto dried = executeTerrainGraph(authored, {.palette = &palette});
+    assert(dried && dried->height(8, 8) == 30.F);
+    assert(dried->biomeIndices[dried->index(8, 8)] == 0);
+    assert(dried->biomeIndices[dried->index(0, 0)] == 0);
+    assert(dried->graphArtifacts->waterResult->resolvedCoverage
+               ->wet[dried->index(8, 8)] == 0);
+    authored.graph["nodes"].back()["parameters"]["height"] = 1;
+    const auto flooded = executeTerrainGraph(authored, {.palette = &palette});
+    assert(flooded && flooded->height(8, 8) == 1.F);
+    assert(flooded->biomeIndices[flooded->index(8, 8)] == 1);
+    assert(flooded->biomeIndices[flooded->index(0, 0)] == 0);
+    assert(flooded->graphArtifacts->waterResult->resolvedCoverage
+               ->wet[flooded->index(8, 8)] == 1);
+  }
+}
+
 void graphWaterResultSurvivesPipeline() {
   auto authored = recipe();
   authored.graph["nodes"].push_back({{"id", "lake"},
@@ -510,6 +717,30 @@ void graphWaterAppearanceValidation() {
   graph["nodes"].back()["parameters"]["shallow_color"] = {0, 0, 0, 1};
   graph["nodes"].back()["parameters"]["absorption_distance"] = 0;
   assert(rejects(graph));
+  graph["nodes"].back()["parameters"] = {{"flow_speed", 2},
+                                         {"flow_direction", {0, 1}},
+                                         {"wave_amplitude", 0.1},
+                                         {"wave_length", 3},
+                                         {"wave_speed", 0.7},
+                                         {"normal_strength", 0.8},
+                                         {"foam_width", 0.25},
+                                         {"foam_strength", 0.6},
+                                         {"foam_color", {1, 1, 1, 0.8}}};
+  assert(!rejects(graph));
+  for (const auto &invalid : std::vector<nlohmann::json>{
+           {{"flow_speed", -1}},
+           {{"flow_speed", 1}, {"flow_direction", {0, 0}}},
+           {{"flow_direction", {1, 2, 3}}},
+           {{"wave_amplitude", -0.1}},
+           {{"wave_length", 0}},
+           {{"wave_speed", -1}},
+           {{"normal_strength", -1}},
+           {{"foam_width", -1}},
+           {{"foam_strength", 1.1}},
+           {{"foam_color", {2, 1, 1, 1}}}}) {
+    graph["nodes"].back()["parameters"] = invalid;
+    assert(rejects(graph));
+  }
 }
 
 void commentNodesAreAuthoringOnly() {
@@ -644,7 +875,150 @@ void pathDistanceMaskBlendsValleyAndCachesIndependently() {
   assert(rejected);
 }
 
+void basinWaterEditsUseStableIdsAndPreserveTerrain() {
+  auto settings = recipe();
+  settings.graph = {
+      {"format_version", 1},
+      {"output", "output"},
+      {"nodes",
+       {{{"id", "banks"},
+         {"type", "constant"},
+         {"parameters", {{"height", 3}}}},
+        {{"id", "bed"}, {"type", "constant"}, {"parameters", {{"height", -2}}}},
+        {{"id", "footprint"},
+         {"type", "polygon_mask"},
+         {"parameters",
+          {{"points", {{4, 4}, {12, 4}, {12, 12}, {4, 12}}}, {"falloff", 0}}}},
+        {{"id", "bowl"},
+         {"type", "height_blend"},
+         {"parameters", {{"amount", 1}}}},
+        {{"id", "drainage"}, {"type", "drainage"}},
+        {{"id", "lakes"}, {"type", "basin_water"}},
+        {{"id", "edits"}, {"type", "water_edit"}},
+        {{"id", "output"}, {"type", "output"}}}},
+      {"links", nlohmann::json::array()}};
+  const auto connect = [&](std::string_view source, std::string_view sourcePort,
+                           std::string_view destination,
+                           std::string_view destinationPort) {
+    settings.graph["links"].push_back(
+        {{"id", std::string(source) + "_" + std::string(destination) + "_" +
+                    std::string(destinationPort)},
+         {"from", {{"node", source}, {"port", sourcePort}}},
+         {"to", {{"node", destination}, {"port", destinationPort}}}});
+  };
+  connect("banks", "field", "footprint", "field");
+  connect("banks", "field", "bowl", "a");
+  connect("bed", "field", "bowl", "b");
+  connect("footprint", "mask", "bowl", "mask");
+  connect("bowl", "field", "drainage", "field");
+  connect("drainage", "drainage", "lakes", "drainage");
+  connect("lakes", "field", "edits", "field");
+  connect("lakes", "water", "edits", "water");
+  connect("edits", "field", "output", "field");
+  connect("edits", "water", "output", "water");
+
+  const auto proposed = executeTerrainGraph(settings);
+  assert(proposed && proposed->graphArtifacts);
+  const auto &water = proposed->graphArtifacts->water;
+  assert(water.bodies.size() == 1);
+  const auto bodyId = water.bodies.front().id;
+  assert(bodyId == "lakes/basin/4_4");
+  assert(water.bodies.front().level == 3.F);
+  assert(proposed->height(8, 8) == -2.F);
+  assert(proposed->height(0, 0) == 3.F);
+  const auto &initialResult = *proposed->graphArtifacts->waterResult;
+  assert(initialResult.resolvedCoverage->wet[proposed->index(8, 8)]);
+
+  settings.graph["nodes"][6]["parameters"]["overrides"] =
+      nlohmann::json::array({{{"id", bodyId}, {"level", 1}}});
+  const auto lowered = executeTerrainGraph(
+      settings, {nullptr, {}, proposed->graphArtifacts->cache});
+  assert(lowered && lowered->heights == proposed->heights);
+  assert(lowered->graphArtifacts->water.bodies.front().id == bodyId);
+  assert(lowered->graphArtifacts->water.bodies.front().level == 1.F);
+  assert(wasCached(*lowered, "bowl"));
+  assert(wasCached(*lowered, "drainage"));
+  assert(wasCached(*lowered, "lakes"));
+  assert(!wasCached(*lowered, "edits"));
+
+  settings.graph["nodes"][6]["parameters"] = {
+      {"excluded_ids", nlohmann::json::array({bodyId})}};
+  const auto excluded = executeTerrainGraph(
+      settings, {nullptr, {}, lowered->graphArtifacts->cache});
+  assert(excluded && excluded->heights == proposed->heights);
+  assert(excluded->graphArtifacts->water.authored);
+  assert(excluded->graphArtifacts->water.bodies.empty());
+  assert(excluded->graphArtifacts->waterResult->surfaces.empty());
+  assert(wasCached(*excluded, "lakes") && !wasCached(*excluded, "edits"));
+
+  std::stop_source cancellation;
+  cancellation.request_stop();
+  assert(!executeTerrainGraph(settings, {}, cancellation.get_token()));
+}
+
+void graphSurfaceEditsRefilterRetainedCandidatesWithoutRegeneration() {
+  auto authored = recipe();
+  authored.landforms.at("high").baseHeight = 3;
+  authored.paletteId = "asset://palette/refilter";
+  authored.graph["nodes"].push_back({{"id", "placement"}, {"type", "scatter"}});
+  authored.graph["links"].push_back(
+      {{"id", "landform_placement"},
+       {"from", {{"node", "landform"}, {"port", "field"}}},
+       {"to", {{"node", "placement"}, {"port", "field"}}}});
+  authored.graph["links"].push_back(
+      {{"id", "placement_output"},
+       {"from", {{"node", "placement"}, {"port", "instances"}}},
+       {"to", {{"node", "terrain_output"}, {"port", "instances"}}}});
+  TerrainPalette palette;
+  palette.id = authored.paletteId;
+  TerrainPaletteEntry cover;
+  cover.model = "asset://cover";
+  cover.candidateSpacing = 1;
+  cover.biomes = {"default"};
+  cover.slope = {0, 20};
+  palette.placements.emplace("cover", cover);
+  const auto generated = executeTerrainGraph(authored, {&palette, "refilter", {}});
+  assert(generated && !generated->scatterPlacements.empty());
+  const auto previous = retained(*generated);
+  const auto candidates = previous->graphArtifacts->basePlacements;
+
+  auto painted = authored;
+  TerrainRegion region;
+  region.biome = "high";
+  region.center = {8, 8};
+  region.radius = 3;
+  region.falloff = 0;
+  painted.regions.push_back(region);
+  const auto update = updateTerrain(authored, painted, previous);
+  assert(update && !update->invalidation.fullGeneration);
+  assert(update->field->graphArtifacts->basePlacements == candidates);
+  assert(update->field->scatterPlacements.size() < previous->scatterPlacements.size());
+  for (const auto &placement : update->field->scatterPlacements) {
+    assert(placement.biomeName == "default");
+  }
+  const auto restored = updateTerrain(painted, authored, update->field);
+  assert(restored && !restored->invalidation.fullGeneration);
+  assert(restored->field->scatterPlacements.size() == previous->scatterPlacements.size());
+  assert(restored->field->graphArtifacts->basePlacements == candidates);
+
+  auto sculpted = authored;
+  TerrainEdit raise;
+  raise.kind = TerrainEditKind::Raise;
+  raise.center = {8, 8};
+  raise.radius = 3;
+  raise.amount = 30;
+  sculpted.edits.push_back(raise);
+  const auto slopeUpdate = updateTerrain(authored, sculpted, previous);
+  assert(slopeUpdate && !slopeUpdate->invalidation.fullGeneration);
+  assert(slopeUpdate->field->scatterPlacements.size() < previous->scatterPlacements.size());
+  assert(slopeUpdate->field->graphArtifacts->basePlacements == candidates);
+  const auto undone = applyTerrainPatch(slopeUpdate->field, *slopeUpdate->patch, false);
+  assert(undone.field->scatterPlacements.size() == previous->scatterPlacements.size());
+}
+
 int main() {
+  graphSurfaceEditsRefilterRetainedCandidatesWithoutRegeneration();
+  basinWaterEditsUseStableIdsAndPreserveTerrain();
   pathDistanceMaskPreservesCorridorAndEndpoints();
   pathDistanceMaskBlendsValleyAndCachesIndependently();
   commentNodesAreAuthoringOnly();
@@ -656,6 +1030,8 @@ int main() {
   branchesAndPipelineUseGraphOutput();
   graphStageReportingFollowsNodes();
   graphWaterResultSurvivesPipeline();
+  biomeRulesUseConnectedWaterInsteadOfInferredSea();
+  emptyConnectedWaterRemainsAuthoritativeForRulesAndScatter();
   exampleLandscapeRetainsBiomesAndWater();
   invalidParameterDomainsAreRejectedAtParse();
   graphWaterAppearanceValidation();

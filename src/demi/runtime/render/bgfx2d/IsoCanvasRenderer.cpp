@@ -33,7 +33,7 @@ struct IsoProjection {
 } // namespace
 
 IsoCanvasRenderer::IsoCanvasRenderer(Canvas2D &canvas,
-                                     const TextureLibrary2D &textures)
+                                     TextureLibrary2D &textures)
     : canvas_(canvas), textures_(textures) {}
 
 bool IsoCanvasRenderer::draw(const World &world,
@@ -68,7 +68,7 @@ bool IsoCanvasRenderer::draw(const World &world,
         const std::string &textureId = authored != isoGrid->cellTextures.end()
                                            ? authored->second
                                            : isoGrid->defaultTexture;
-        const TextureView2D texture = textures_.find(textureId);
+        const TextureView2D texture = textures_.resolve(textureId);
         if (texture.handle) {
           const Vec2 center = projection.point(worldPosition);
           const float halfWidth = projection.ppu * grid.cellWidth;
@@ -135,7 +135,7 @@ bool IsoCanvasRenderer::draw(const World &world,
     const std::string textureId = sprite != nullptr      ? sprite->texture
                                   : buildable != nullptr ? buildable->asset
                                                          : "";
-    const TextureView2D texture = textures_.find(textureId);
+    const TextureView2D texture = textures_.resolve(textureId);
     const float footprintScale =
         std::max(transform.footprint.x + transform.footprint.y, 1.0F);
     const float width = sprite != nullptr && sprite->size.x > 0.0F

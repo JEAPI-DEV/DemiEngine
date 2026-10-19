@@ -12,6 +12,8 @@ struct Environment3DComponent {
   static constexpr std::string_view typeName = "Environment3D";
   static constexpr bool exposedToLua = false;
   static constexpr ComponentDomain domain = ComponentDomain::ThreeDimensional;
+  static constexpr std::array terrainTextureSizeOptions{64,   128,  256,  512,
+                                                        1024, 2048, 4096, 8192};
   static constexpr std::array msaaOptions{0, 2, 4, 8, 16};
   static constexpr std::array shadowCascadeOptions{1, 2, 3, 4};
   static constexpr std::array<std::string_view, 2> shadowFilterOptions{"hard",
@@ -78,6 +80,50 @@ struct Environment3DComponent {
               "GPU budget for terrain field textures and shared patch buffers. "
               "Zero disables GPU terrain; the ordinary mesh renderer remains "
               "available."),
+      ComponentFieldDescriptor{"terrain_texture_max_size",
+                               ComponentFieldType::Integer}
+          .withIntegerChoices(terrainTextureSizeOptions)
+          .withLabel("Terrain Texture Maximum Size")
+          .withHelp("GPU terrain material quality cap per texture dimension. "
+                    "Source images "
+                    "remain unchanged; smaller device limits constrain this "
+                    "setting."),
+      ComponentFieldDescriptor{
+          "terrain_texture_cache_mb",
+          ComponentFieldType::Integer,
+          false,
+          true,
+          {},
+          0,
+          true,
+          false,
+          true,
+          true,
+          false,
+          double(std::numeric_limits<std::size_t>::max() / (1024U * 1024U)),
+          true}
+          .withLabel("Terrain Texture Cache (MiB)")
+          .withHelp(
+              "GPU terrain material array budget, separate from field "
+              "textures. "
+              "Zero disables GPU arrays and uses ordinary mesh materials."),
+      ComponentFieldDescriptor{"terrain_detail_distance",
+                               ComponentFieldType::Number,
+                               false,
+                               true,
+                               {},
+                               std::numeric_limits<float>::denorm_min(),
+                               true,
+                               false,
+                               true,
+                               true,
+                               false,
+                               std::numeric_limits<float>::max(),
+                               true}
+          .withLabel("Terrain Detail Distance")
+          .withHelp(
+              "Positive world distance for detail-normal fade and distant "
+              "terrain material texture quality."),
       ComponentFieldDescriptor{"terrain_lod_prepare_jobs",
                                ComponentFieldType::Integer,
                                false,
@@ -218,6 +264,9 @@ struct Environment3DComponent {
   std::size_t terrainLodCacheBytes = 64U * 1024U * 1024U;
   std::size_t terrainGpuCacheBytes = 128U * 1024U * 1024U;
   std::size_t terrainLodPrepareJobs = 2;
+  std::uint32_t terrainTextureMaxSize = 1024;
+  std::size_t terrainTextureCacheBytes = 128U * 1024U * 1024U;
+  float terrainDetailDistance = 200;
   float ambientIntensity = 0.5F;
   Color fogColor{0.56F, 0.74F, 0.95F, 1.0F};
   float fogStart = 80.0F;
@@ -231,6 +280,15 @@ struct Environment3DComponent {
   float shadowBias = .005F;
   int maxShadowLights = 1;
   static constexpr std::array runtimeFields{
+      RuntimeFieldBinding<Environment3DComponent>::member<
+          &Environment3DComponent::terrainTextureMaxSize>(
+          "terrain_texture_max_size"),
+      RuntimeFieldBinding<Environment3DComponent>::member<
+          &Environment3DComponent::terrainTextureCacheBytes>(
+          "terrain_texture_cache_mb"),
+      RuntimeFieldBinding<Environment3DComponent>::member<
+          &Environment3DComponent::terrainDetailDistance>(
+          "terrain_detail_distance"),
       RuntimeFieldBinding<Environment3DComponent>::member<
           &Environment3DComponent::terrainLodCacheBytes>(
           "terrain_lod_cache_mb"),

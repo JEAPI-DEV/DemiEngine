@@ -1,0 +1,1062 @@
+{
+  "format_version": 1,
+  "id": "asset://amber_pass/valley",
+  "name": "Amber Pass continuous rocky mountains and meadow corridor",
+  "recipe": {
+    "format_version": 1,
+    "size": [720.0, 720.0],
+    "resolution": [360, 360],
+    "seed": 731,
+    "default_biome": "grass",
+    "default_landform": "meadow",
+    "landforms": {
+      "meadow": {
+        "base_height": 0,
+        "height_variation": 0,
+        "feature_size": 50
+      }
+    },
+    "biomes": {
+      "grass": {
+        "color": [1, 1, 1, 1],
+        "material": "asset://amber_pass/materials/grass",
+        "allow_snow": false
+      },
+      "trail": {
+        "color": [1, 1, 1, 1],
+        "material": "asset://amber_pass/materials/trail",
+        "allow_snow": false
+      },
+      "rock": {
+        "color": [1, 1, 1, 1],
+        "material": "asset://amber_pass/materials/mountain_rock",
+        "allow_snow": false
+      }
+    },
+    "rules": [
+      {
+        "id": "rocky_highland",
+        "biome": "rock",
+        "priority": 60,
+        "elevation": [18, 500],
+        "blend": 5
+      },
+      {
+        "id": "rocky_slopes",
+        "biome": "rock",
+        "priority": 80,
+        "slope": [28, 90],
+        "blend": 5
+      }
+    ],
+    "regions": [
+      {
+        "biome": "trail",
+        "center": [354.54793174594244, 175.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [354.8751622046287, 177.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [355.22852867983664, 179.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [355.60622904779143, 181.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [356.00633708498077, 183.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [356.4268122916489, 185.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [356.86551029808356, 187.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [357.32019380062707, 189.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [357.78854397163866, 191.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [358.2681722852183, 193.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [358.75663269838316, 195.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [359.25143412557327, 197.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [359.75005314286915, 199.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [360.24994685713085, 201.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [360.74856587442673, 203.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [361.24336730161684, 205.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [361.7318277147817, 207.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [362.21145602836134, 209.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [362.67980619937293, 211.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [363.13448970191644, 213.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [363.5731877083511, 215.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [363.99366291501923, 217.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [364.39377095220857, 219.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [364.77147132016336, 221.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [365.1248377953713, 223.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [365.45206825405756, 225.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [365.7514938627845, 227.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [366.0215875892891, 229.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [366.2609719901515, 231.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [366.4684262355806, 233.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [366.6428923354891, 235.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [366.78348053510786, 237.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [366.8894738526211, 239.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [366.9603317356819, 241.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [366.99569281816, 243.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [366.99537676306284, 245.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [366.95938518223085, 247.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [366.88790162811756, 249.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [366.7812906576955, 251.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [366.6400959732623, 253.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [366.4650376496287, 255.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [366.2570084618289, 257.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [366.01706933208266, 259.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [365.7464439192275, 261.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [365.44651237821546, 263.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [365.1188043214995, 265.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [364.76499101820593, 267.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [364.38687687087577, 269.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [363.986390213243, 271.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [363.5655734759793, 273.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [363.12657277055916, 275.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [362.6716269443663, 277.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [362.20305616285856, 279.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [361.7232500770212, 281.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [361.2346556364529, 283.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [360.73976461023614, 285.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [360.2411008792339, 287.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [359.74120756462054, 289.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [359.24263405828924, 291.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [358.7479230212801, 293.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [358.2595974165342, 295.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [357.7801476421057, 297.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [357.3120188304507, 299.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [356.85759837856494, 301.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [356.41920377256446, 303.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [355.9990707688036, 305.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [355.5993419918035, 307.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [355.2220560071417, 309.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [354.86913692502856, 311.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [354.5423845875916, 313.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [354.2434653899112, 315.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [353.973903781619, 317.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [353.7350744923999, 319.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [353.52819552104694, 321.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [353.3543219238232, 323.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [353.21434043381, 325.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [353.10896493868177, 327.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [353.0387328399704, 329.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [353.00400231238615, 331.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [353.0049504771724, 333.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [353.0415724988101, 335.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [353.11368160967845, 337.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [353.22091006254556, 339.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [353.3627110060323, 341.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [353.5383612734846, 343.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [353.7469650710304, 345.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [353.98745854601384, 347.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [354.2586152125077, 349.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [354.55905220623447, 351.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [354.887237336997, 353.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [355.2414969026524, 355.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [355.6200242247788, 357.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [356.0208888625036, 359.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [356.44204645750517, 361.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [356.88134915997813, 363.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [357.3365565823925, 365.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [357.80534722518314, 367.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [358.2853303161005, 369.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [358.77405800284254, 371.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [359.2690378367884, 373.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [359.7677454841671, 375.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [360.2676375998364, 377.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [360.7661647980174, 379.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [361.2607846538359, 381.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [361.748974669363, 383.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [362.2282451380323, 385.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [362.6961518418241, 387.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [363.15030851646435, 389.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [363.58839902106706, 391.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      },
+      {
+        "biome": "trail",
+        "center": [364.0081891501562, 393.0],
+        "radius": 3.7,
+        "strength": 1,
+        "falloff": 0.6
+      }
+    ],
+    "edits": [
+      {
+        "type": "raise",
+        "center": [318.0, 245.0],
+        "radius": 43,
+        "amount": 6,
+        "strength": 1,
+        "falloff": 2
+      },
+      {
+        "type": "raise",
+        "center": [396.0, 293.0],
+        "radius": 48,
+        "amount": 8,
+        "strength": 1,
+        "falloff": 2
+      },
+      {
+        "type": "raise",
+        "center": [312.0, 348.0],
+        "radius": 48,
+        "amount": 12,
+        "strength": 1,
+        "falloff": 2
+      },
+      {
+        "type": "raise",
+        "center": [404.0, 384.0],
+        "radius": 52,
+        "amount": 16,
+        "strength": 1,
+        "falloff": 2
+      }
+    ],
+    "graph": {
+      "format_version": 1,
+      "output": "output",
+      "nodes": [
+        {
+          "id": "mountains",
+          "type": "noise",
+          "position": [0, 0],
+          "parameters": {
+            "profile": "ridged",
+            "base_height": 60,
+            "height_variation": 60,
+            "feature_size": 130,
+            "roughness": 0.34,
+            "octaves": 4,
+            "stretch": 1.35,
+            "heading": 65,
+            "warp_amplitude": 22,
+            "warp_feature_size": 220
+          }
+        },
+        {
+          "id": "valley_floor",
+          "type": "constant",
+          "position": [0, 280],
+          "parameters": {
+            "height": 0
+          }
+        },
+        {
+          "id": "road_corridor",
+          "type": "path_distance_mask",
+          "position": [280, 0],
+          "parameters": {
+            "points": [
+              [353.4340001625768, -10.0],
+              [354.69660109225094, 0.0],
+              [356.62849626606624, 10.0],
+              [358.98587858170765, 20.0],
+              [361.4712440341883, 30.0],
+              [363.7709370187031, 40.0],
+              [365.59473398152716, 50.0],
+              [366.71246992264196, 60.0],
+              [366.9830854488413, 70.0],
+              [366.37242861017546, 80.0],
+              [364.957564910178, 90.0],
+              [362.9170515622745, 100.0],
+              [360.5084033909391, 110.0],
+              [358.0355942033995, 120.0],
+              [355.8106949912723, 130.0],
+              [354.11449025943324, 140.0],
+              [353.16104274079237, 150.0],
+              [353.07067846539513, 160.0],
+              [353.8548014951368, 170.0],
+              [355.4144547197504, 180.0],
+              [357.5528083430526, 190.0],
+              [360.0, 200.0],
+              [362.4471916569474, 210.0],
+              [364.5855452802496, 220.0],
+              [366.1451985048632, 230.0],
+              [366.92932153460487, 240.0],
+              [366.83895725920763, 250.0],
+              [365.88550974056676, 260.0],
+              [364.1893050087277, 270.0],
+              [361.9644057966005, 280.0],
+              [359.4915966090609, 290.0],
+              [357.0829484377255, 300.0],
+              [355.042435089822, 310.0],
+              [353.62757138982454, 320.0],
+              [353.0169145511587, 330.0],
+              [353.28753007735804, 340.0],
+              [354.40526601847284, 350.0],
+              [356.2290629812969, 360.0],
+              [358.5287559658117, 370.0],
+              [361.01412141829235, 380.0],
+              [363.37150373393376, 390.0],
+              [365.30339890774906, 400.0],
+              [366.5659998374232, 410.0],
+              [366.9999650233674, 420.0],
+              [366.5505276252662, 430.0],
+              [365.27440709207747, 440.0],
+              [363.3326511108694, 450.0],
+              [360.97031122770807, 460.0],
+              [358.4855170975579, 470.0],
+              [356.1918522237744, 480.0],
+              [354.37877940648184, 490.0],
+              [353.27511024781137, 500.0],
+              [353.0201288989617, 510.0],
+              [353.6460142610709, 520.0],
+              [355.0737789757225, 530.0],
+              [357.123237708544, 540.0],
+              [359.5357467185416, 550.0],
+              [362.0068449567886, 560.0],
+              [364.2246773551796, 570.0],
+              [365.90935124779736, 580.0],
+              [366.8482591051693, 590.0],
+              [366.92290981703786, 600.0],
+              [366.1238823889344, 610.0],
+              [364.5520148810998, 620.0],
+              [362.4056785444707, 630.0],
+              [359.95574317049295, 640.0],
+              [357.511393052644, 650.0],
+              [355.38110761949406, 660.0],
+              [353.83373102242336, 670.0],
+              [353.06454373494574, 680.0],
+              [353.1706179617229, 690.0],
+              [354.1385670292896, 700.0],
+              [355.84623479762826, 710.0],
+              [358.07811188716266, 720.0],
+              [360.55253317791215, 730.0]
+            ],
+            "width": 45.0,
+            "falloff": 180.0
+          }
+        },
+        {
+          "id": "valley_blend",
+          "type": "height_blend",
+          "position": [560, 160],
+          "parameters": {
+            "amount": 1
+          }
+        },
+        {
+          "id": "rock_and_meadow",
+          "type": "biomes",
+          "position": [820, 160]
+        },
+        {
+          "id": "output",
+          "type": "output",
+          "position": [1080, 160]
+        }
+      ],
+      "links": [
+        {
+          "id": "mountain_mask",
+          "from": {
+            "node": "mountains",
+            "port": "field"
+          },
+          "to": {
+            "node": "road_corridor",
+            "port": "field"
+          }
+        },
+        {
+          "id": "mountain_base",
+          "from": {
+            "node": "mountains",
+            "port": "field"
+          },
+          "to": {
+            "node": "valley_blend",
+            "port": "a"
+          }
+        },
+        {
+          "id": "flat_floor",
+          "from": {
+            "node": "valley_floor",
+            "port": "field"
+          },
+          "to": {
+            "node": "valley_blend",
+            "port": "b"
+          }
+        },
+        {
+          "id": "protected_corridor",
+          "from": {
+            "node": "road_corridor",
+            "port": "mask"
+          },
+          "to": {
+            "node": "valley_blend",
+            "port": "mask"
+          }
+        },
+        {
+          "id": "surface_input",
+          "from": {
+            "node": "valley_blend",
+            "port": "field"
+          },
+          "to": {
+            "node": "rock_and_meadow",
+            "port": "field"
+          }
+        },
+        {
+          "id": "surface_output",
+          "from": {
+            "node": "rock_and_meadow",
+            "port": "field"
+          },
+          "to": {
+            "node": "output",
+            "port": "field"
+          }
+        }
+      ]
+    }
+  }
+}

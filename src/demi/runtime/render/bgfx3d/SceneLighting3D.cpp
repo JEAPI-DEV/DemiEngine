@@ -1,6 +1,7 @@
 #include "demi/runtime/render/bgfx3d/SceneLighting3D.h"
 
 #include "demi/runtime/profiling/RuntimeProfiler.h"
+#include "demi/runtime/scene/EntityComponentQuery.h"
 #include "demi/runtime/scene/Transform3DHierarchy.h"
 #include "demi/runtime/scene/components/3dcomponents/DirectionalLightComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/Environment3DComponent.h"
@@ -21,15 +22,23 @@ bool matchesMask(const std::string_view cameraMask,
 } // namespace
 
 SceneLighting3D collectSceneLighting3D(const World &world,
-                                       const std::string_view renderMask) {
+                                       const std::string_view renderMask,
+                                       EntityComponentQuery *query) {
   ProfileScope profile("Renderer3D.collect_lighting");
   SceneLighting3D lighting;
   bool hasAuthoredLighting = false;
   bool hasEnvironment = false;
   bool hasDirectional = false;
-  for (const Entity &entity : world.entities) {
-    if (!entity.enabled)
+  EntityComponentQuery uncached;
+  auto &membership = query ? *query : uncached;
+  const auto &indices = membership.queryAny<
+      Environment3DComponent, DirectionalLightComponent, PointLightComponent,
+      SpotLightComponent>(world.entities);
+  for (const auto index : indices) {
+    const Entity &entity = world.entities[index];
+    if (!entity.enabled) {
       continue;
+    }
     if (const auto *environment = entity.component<Environment3DComponent>()) {
       lighting.msaaSamples = environment->msaaSamples;
       lighting.skyTexture = environment->skyTexture;
@@ -38,6 +47,9 @@ SceneLighting3D collectSceneLighting3D(const World &world,
       lighting.terrainLodCacheBytes = environment->terrainLodCacheBytes;
       lighting.terrainGpuCacheBytes = environment->terrainGpuCacheBytes;
       lighting.terrainLodPrepareJobs = environment->terrainLodPrepareJobs;
+      lighting.terrainTextureMaxSize = environment->terrainTextureMaxSize;
+      lighting.terrainTextureCacheBytes = environment->terrainTextureCacheBytes;
+      lighting.terrainDetailDistance = environment->terrainDetailDistance;
       lighting.shadowDistance = environment->shadowDistance;
       lighting.shadowResolution = environment->shadowResolution;
       lighting.shadowCascades = environment->shadowCascades;

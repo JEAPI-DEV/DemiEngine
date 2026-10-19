@@ -1,6 +1,8 @@
 #include "demi/runtime/profiling/RuntimeProfiler.h"
+#include "demi/runtime/render/PerformanceDebug.h"
 #include "demi/runtime/render/backend/DefaultFont.h"
 #include "editor/EditorActivity.h"
+#include "editor/EditorViewportTargetDemand.h"
 #include "editor/EditorDockingState.h"
 #include "editor/EditorDockingWorkspace.h"
 #include "editor/EditorFontLoader.h"
@@ -211,8 +213,14 @@ public:
         gameRenderer_ && gameRenderer_->terrainNeedsFrame();
     const bool hasVisibleTerrainWork =
         viewportTerrainPending || gameTerrainPending;
-    if (activity_.needsFrame(activityTime(), continuous || heldInput ||
-                                                 hasVisibleTerrainWork)) {
+    const bool viewportTargetsPending =
+        !platform_->frameState().minimized &&
+        std::ranges::any_of(viewports_, [](const auto &viewport) {
+          return viewport.targetDemand.needsPreparation();
+        });
+    const bool continuousWork = continuous || heldInput ||
+                                hasVisibleTerrainWork || viewportTargetsPending;
+    if (activity_.needsFrame(activityTime(), continuousWork)) {
       return true;
     }
     // Timeouts permit cheap source-watch maintenance without drawing. Text
@@ -305,6 +313,7 @@ public:
     }
     auto &viewport = viewports_.at(static_cast<std::size_t>(view));
     viewport.renderer.reset();
+    viewport.targetDemand.clear();
     viewport.projectDirectory = projectDirectory;
     return true;
   }
@@ -312,6 +321,8 @@ public:
   bool prepareViewportTarget(const EditorAuthoringView view,
                              const EditorViewportArea area,
                              std::string &error) override {
+    auto &viewport = viewports_.at(static_cast<std::size_t>(view));
+    viewport.targetDemand.recordAttempt(area.width, area.height);
     if (!initialized_) {
       error = "The editor graphics host is not initialized.";
       return false;
@@ -319,7 +330,6 @@ public:
     if (area.width == 0 || area.height == 0 ||
         platform_->frameState().minimized)
       return true;
-    auto &viewport = viewports_.at(static_cast<std::size_t>(view));
     if (!viewport.renderer) {
       if (!viewport.projectDirectory) {
         error = "The authored view has no configured project.";
@@ -334,6 +344,12 @@ public:
     return viewport.renderer->prepareTarget(framebufferArea(area), error);
   }
 
+  void observeViewportTarget(const EditorAuthoringView view,
+                             const EditorViewportArea area) override {
+    viewports_.at(static_cast<std::size_t>(view)).targetDemand.observe(
+        area.width, area.height);
+  }
+
   std::uint16_t
   viewportTextureIndex(const EditorAuthoringView view) const override {
     const auto &viewport = viewports_.at(static_cast<std::size_t>(view));
@@ -341,7 +357,9 @@ public:
   }
 
   void releaseViewport(const EditorAuthoringView view) override {
-    viewports_.at(static_cast<std::size_t>(view)).renderer.reset();
+    auto &viewport = viewports_.at(static_cast<std::size_t>(view));
+    viewport.renderer.reset();
+    viewport.targetDemand.clear();
   }
 
   bool renderViewport(const EditorAuthoringView view,
@@ -388,6 +406,10 @@ public:
       return false;
     return renderer->renderHud(document, framebufferArea(area),
                                frame.deltaSeconds, error);
+  }
+
+  runtime::EmbeddedRuntimeHostServices embeddedHostServices() override {
+    return gameRenderer_->hostServices();
   }
 
   bool configureGameRenderer(const std::filesystem::path &projectDirectory,
@@ -473,6 +495,8 @@ public:
       }
     }
     if (gameRenderer_) {
+      // Warmup can run while a 2D loading HUD is drawn or Game is hidden.
+      gameRenderer_->finishPresentation();
       gameRenderer_->maintainTerrainResidency();
       if (auto diagnostic = gameRenderer_->takeTerrainDiagnostic();
           !diagnostic.empty()) {
@@ -492,6 +516,11 @@ public:
     (void)graphics_.endFrame();
     if (runtime::RuntimeProfiler::enabled()) {
       const auto timings = graphics_.frameTimings();
+      runtime::RuntimeProfiler::setGauge("Graphics.performance_debug",
+                                         DEMI_PERFORMANCE_DEBUG);
+      runtime::RuntimeProfiler::setGauge(
+          "Graphics.performance_debug_disabled_mask",
+          DEMI_PERFORMANCE_DEBUG_DISABLED_MASK);
       runtime::RuntimeProfiler::record("Graphics.frame_advance",
                                        timings.advanceMilliseconds);
       if (timings.renderThreadMilliseconds) {
@@ -501,6 +530,14 @@ public:
       if (timings.gpuMilliseconds) {
         runtime::RuntimeProfiler::record("Graphics.gpu",
                                          *timings.gpuMilliseconds);
+        runtime::RuntimeProfiler::setGauge("Graphics.gpu_frame",
+                                           timings.gpuFrame);
+        for (const auto &view : timings.gpuViews) {
+          runtime::RuntimeProfiler::record("Graphics.gpu_view." +
+                                               std::to_string(view.viewId) +
+                                               "." + view.name,
+                                           view.milliseconds);
+        }
       }
       runtime::RuntimeProfiler::setGauge(
           "Editor.refresh_hz", platform_->frameState().displayRefreshHz);
@@ -553,6 +590,7 @@ private:
   }
 
   struct AuthoredViewport {
+    EditorViewportTargetDemand targetDemand;
     std::optional<std::filesystem::path> projectDirectory;
     std::unique_ptr<EditorViewportRenderer> renderer;
   };

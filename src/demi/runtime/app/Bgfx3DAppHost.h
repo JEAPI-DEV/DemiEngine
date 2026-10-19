@@ -5,6 +5,7 @@
 #include "demi/runtime/camera/CameraRenderScheduler3D.h"
 #include "demi/runtime/render/BgfxRenderer3D.h"
 #include "demi/runtime/render/RenderStatistics.h"
+#include "demi/runtime/scene/EntityComponentQuery.h"
 
 #include <memory>
 #include <span>
@@ -38,6 +39,10 @@ public:
                                   std::string &error);
   [[nodiscard]] std::shared_ptr<assets::AssetResourceLoader>
   createAssetLoader(const AssetRegistry &source);
+  [[nodiscard]] bool prepareScenePresentation(const World &world,
+                                              bool &complete,
+                                              std::string &error);
+  void cancelScenePresentationPreparation();
   void shutdown();
   void poll(InputState &input);
   [[nodiscard]] const platform::PlatformFrameState &frameState() const;
@@ -63,10 +68,20 @@ public:
   [[nodiscard]] double lastExtractionMilliseconds() const;
 
 private:
+  render::BgfxRenderer3D *rendererForPreparation();
+  [[nodiscard]] bool stepAssetPublication(const AssetRegistry &assets,
+                                          double budgetMilliseconds,
+                                          bool &complete, std::string &error);
+  void cancelAssetPublication();
   class RendererOwner;
   BgfxAppContext context_;
+  JobSystem assetPreparationJobs_{1};
   std::unique_ptr<RendererOwner> renderer_;
+  std::unique_ptr<RendererOwner> preparingRenderer_;
+  const World *preparingPresentationWorld_ = nullptr;
+  bool presentationPreparedThisFrame_ = false;
   CameraRenderScheduler3D cameraScheduler_;
+  EntityComponentQuery lightingQuery_;
   RenderStatistics frameStatistics_;
   double frameExtractionMilliseconds_ = 0.0;
 };

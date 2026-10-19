@@ -27,6 +27,9 @@ struct HeightField {
   int cellsZ = 0;
   TerrainSamples<float> baseHeights;
   TerrainSamples<float> heights;
+  // Signed erosion transport of the selected graph surface, after weighted
+  // blends. Independent per-node ledgers remain diagnostic provenance.
+  std::shared_ptr<const TerrainSamples<float>> surfaceSedimentBalance;
   TerrainSamples<Vec3> normals;
   TerrainSamples<std::size_t> biomeIndices;
   TerrainSamples<float> exclusions;

@@ -56,6 +56,41 @@ bool decodePng(const std::span<const std::byte> encoded, ImageData2D &image,
 
 } // namespace
 
+bool inspectImage2D(std::span<const std::byte> encoded,
+                    ImageDimensions2D &dimensions, std::string &error) {
+  if (encoded.empty() || encoded.size() > UINT32_MAX) {
+    error = "Image header input is empty or exceeds the decoder limit.";
+    return false;
+  }
+  bx::DefaultAllocator allocator;
+  bx::Error inspectionError;
+  bimg::ImageContainer header{};
+  if (!bimg::imageParseInfo(&allocator, header, encoded.data(),
+                            static_cast<std::uint32_t>(encoded.size()),
+                            &inspectionError)) {
+    error = inspectionError.isOk() ? "Invalid or unsupported image header."
+                                   : inspectionError.getMessage().getCPtr();
+    return false;
+  }
+  if (header.m_width == 0 || header.m_height == 0 ||
+      header.m_width > UINT16_MAX || header.m_height > UINT16_MAX ||
+      header.m_depth != 1 || header.m_numLayers != 1 || header.m_cubeMap) {
+    error = "2D images must contain one nonempty layer up to 65535 pixels.";
+    return false;
+  }
+  const auto nativePixelBytes =
+      std::max(4U, unsigned(bimg::getBitsPerPixel(header.m_format)) / 8);
+  const auto samples = std::size_t(header.m_width) * header.m_height;
+  const auto workingPixelBytes = nativePixelBytes + 8U;
+  const auto workingBytes = samples > SIZE_MAX / workingPixelBytes
+                                ? SIZE_MAX
+                                : samples * workingPixelBytes;
+  dimensions = {static_cast<std::uint16_t>(header.m_width),
+                static_cast<std::uint16_t>(header.m_height), workingBytes};
+  error.clear();
+  return true;
+}
+
 bool decodeImage2D(const std::span<const std::byte> encoded, ImageData2D &image,
                    std::string &error) {
   image = {};

@@ -1,0 +1,19 @@
+{
+  "format_version": 1,
+  "shader": "builtin://lit",
+  "mapping": "uv",
+  "parameters": {
+    "roughness": 0.88,
+    "normal_strength": 0.7
+  },
+  "textures": {
+    "albedo": "asset://amber_pass/textures/trunk/albedo",
+    "normal": "asset://amber_pass/textures/trunk/normal",
+    "roughness": "asset://amber_pass/textures/trunk/roughness",
+    "ambient_occlusion": "asset://amber_pass/textures/trunk/ambient_occlusion"
+  },
+  "render_state": {
+    "cull": "none",
+    "blend": "opaque"
+  }
+}

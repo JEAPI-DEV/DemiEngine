@@ -39,9 +39,9 @@ constexpr int NeighbourZ[8] = {-1, -1, -1, 0, 0, 1, 1, 1};
 // One stream per droplet, derived from the Erosion seed channel and folded with
 // the iteration and droplet index. Indexing by position rather than drawing
 // from one running generator is what makes the result independent of traversal
-// order: droplet 4000 walks the same path whether it is the fourth or the four
-// thousandth of its iteration, and the whole stage can be replayed or
-// parallelised without reshuffling the surface.
+// order of random draws: each droplet gets a reproducible stream. Surface
+// updates still run in a fixed serial order; parallel execution would change
+// the surface seen by later droplets.
 [[nodiscard]] DeterministicRandom dropletRandom(int worldSeed, int iteration,
                                                 std::size_t droplet) {
   const auto channel =
@@ -71,13 +71,98 @@ Grid gridOf(const HeightField &field) {
   return grid;
 }
 
+bool isBorder(const Grid &grid, std::size_t cell) {
+  const auto x = cell % std::size_t(grid.width);
+  const auto z = cell / std::size_t(grid.width);
+  return x == 0 || z == 0 || x + 1 == std::size_t(grid.width) ||
+         z + 1 == std::size_t(grid.depth);
+}
+
+bool isMeshEdge(int neighbor) {
+  return NeighbourX[neighbor] * NeighbourZ[neighbor] <= 0;
+}
+
+std::size_t chooseHydraulicNeighbor(const Grid &grid,
+                                    const std::vector<float> &heights,
+                                    const std::array<float, 8> &distances,
+                                    std::size_t cell, std::size_t guidance) {
+  const int x = int(cell % std::size_t(grid.width));
+  const int z = int(cell / std::size_t(grid.width));
+  auto chosen = terrainNoDownstream;
+  double steepest = 0;
+  for (int neighbor = 0; neighbor < 8; ++neighbor) {
+    if (!isMeshEdge(neighbor)) {
+      continue;
+    }
+    const auto target =
+        grid.at(x + NeighbourX[neighbor], z + NeighbourZ[neighbor]);
+    const double slope =
+        (double(heights[cell]) - heights[target]) / distances[neighbor];
+    const bool preferredTie =
+        slope == steepest &&
+        (target == guidance || (chosen != guidance && target < chosen));
+    if (slope > steepest || (slope > 0 && preferredTie)) {
+      steepest = slope;
+      chosen = target;
+    }
+  }
+  if (chosen != terrainNoDownstream) {
+    return chosen;
+  }
+  // Flats may use a validated adjacent drainage edge. Uphill filled-tree
+  // guidance cannot drain the current surface and is deliberately ignored.
+  if (guidance < heights.size() && heights[guidance] == heights[cell]) {
+    const int gx = int(guidance % std::size_t(grid.width));
+    const int gz = int(guidance / std::size_t(grid.width));
+    const int dx = gx - x;
+    const int dz = gz - z;
+    if ((dx != 0 || dz != 0) && std::abs(dx) <= 1 && std::abs(dz) <= 1 &&
+        dx * dz <= 0) {
+      return guidance;
+    }
+  }
+  return terrainNoDownstream;
+}
+
+double depositWithinTalus(const Grid &grid, std::vector<float> &heights,
+                          const std::array<float, 8> &distances,
+                          std::size_t cell, double sediment, float talusSlope) {
+  if (isBorder(grid, cell) || sediment <= 0) {
+    return 0;
+  }
+  const int x = int(cell % std::size_t(grid.width));
+  const int z = int(cell / std::size_t(grid.width));
+  double ceiling = std::numeric_limits<double>::infinity();
+  for (int neighbor = 0; neighbor < 8; ++neighbor) {
+    if (!isMeshEdge(neighbor)) {
+      continue;
+    }
+    const auto target =
+        grid.at(x + NeighbourX[neighbor], z + NeighbourZ[neighbor]);
+    ceiling = std::min(ceiling, double(heights[target]) +
+                                    talusSlope * distances[neighbor]);
+  }
+  const double amount =
+      std::min(sediment, std::max(0.0, ceiling - heights[cell]));
+  const float raised = float(double(heights[cell]) + amount);
+  const double actual = double(raised) - heights[cell];
+  // Rounding must never withdraw more material than the droplet carries or
+  // put the sample above its geometric capacity.
+  if (actual <= 0 || actual > sediment || double(raised) > ceiling) {
+    return 0;
+  }
+  heights[cell] = raised;
+  return actual;
+}
+
 } // namespace
 
 std::optional<TerrainSamples<float>>
 applyTerrainErosion(const HeightField &field, const TerrainDrainage &drainage,
                     const TerrainErosionSettings &settings,
                     TerrainSamples<float> *sedimentOut, std::stop_token stop,
-                    const TerrainGenerator::Progress &progress) {
+                    const TerrainGenerator::Progress &progress,
+                    TerrainErosionTransport *transportOut) {
   if (stop.stop_requested())
     return std::nullopt;
   if (field.cellsX < 0 || field.cellsZ < 0)
@@ -95,6 +180,22 @@ applyTerrainErosion(const HeightField &field, const TerrainDrainage &drainage,
   if (field.heights.empty())
     return std::nullopt;
 
+  const bool validRates =
+      std::isfinite(settings.rainRate) && settings.rainRate >= 0 &&
+      std::isfinite(settings.sedimentCapacity) &&
+      settings.sedimentCapacity >= 0 &&
+      std::isfinite(settings.depositionRate) && settings.depositionRate >= 0 &&
+      settings.depositionRate <= 1 && std::isfinite(settings.evaporation) &&
+      settings.evaporation >= 0 && settings.evaporation <= 1 &&
+      std::isfinite(settings.thermalStrength) &&
+      settings.thermalStrength >= 0 && std::isfinite(settings.talusSlope) &&
+      settings.talusSlope >= 0;
+  if (!validRates || !std::isfinite(field.size.x) ||
+      !std::isfinite(field.size.y) || field.size.x <= 0 || field.size.y <= 0) {
+    throw std::invalid_argument("Terrain erosion requires finite dimensions "
+                                "and physical transport rates");
+  }
+
   const auto count = grid.count;
   if (count > std::size_t(std::numeric_limits<int>::max())) {
     throw std::invalid_argument(
@@ -109,14 +210,23 @@ applyTerrainErosion(const HeightField &field, const TerrainDrainage &drainage,
     // Talus is rise over physical run, including both axes on diagonal edges.
     neighborDistances[neighbor] = std::hypot(NeighbourX[neighbor] * spacingX,
                                              NeighbourZ[neighbor] * spacingZ);
+    if (!std::isfinite(neighborDistances[neighbor]) ||
+        neighborDistances[neighbor] <= 0) {
+      throw std::invalid_argument(
+          "Terrain erosion neighbor distances must be finite and positive");
+    }
   }
 
-  TerrainSamples<float> heights;
-  heights.resize(count);
+  std::vector<float> heights(count);
+  TerrainErosionTransport transport;
   for (std::size_t i = 0; i < count; ++i) {
     if ((i & 255) == 0 && stop.stop_requested())
       return std::nullopt;
-    heights.set(i, field.heights[i]);
+    if (!std::isfinite(field.heights[i])) {
+      throw std::invalid_argument(
+          "Terrain erosion requires finite surface heights");
+    }
+    heights[i] = field.heights[i];
   }
 
   // Preview buys its iteration speed with a smaller droplet population, a
@@ -153,44 +263,74 @@ applyTerrainErosion(const HeightField &field, const TerrainDrainage &drainage,
       auto random =
           dropletRandom(settings.seed, iteration, std::size_t(droplet));
       auto cell = std::size_t(random.integer(0, int(count) - 1));
-      float water = 1.F + settings.rainRate;
-      float sediment = 0.F;
-      float speed = 1.F;
+      double water = 1.0 + settings.rainRate;
+      double sediment = 0;
+      double speed = 1;
       for (int step = 0; step < maxSteps; ++step) {
-        const auto next = drainage.downstream[cell];
-        // An outlet or a sink: there is nothing lower to walk to.
-        if (next == terrainNoDownstream || next >= count)
+        if (isBorder(grid, cell)) {
+          transport.exportedSediment += sediment;
+          sediment = 0;
           break;
-        const float from = heights[cell];
-        const float drop = heights[next] - from;
-        const float capacity =
-            std::max(0.F, -drop * speed * water * settings.sedimentCapacity);
-        if (sediment > capacity || drop > 0.F) {
-          // Carrying more than this stretch can hold, or climbing into a filled
-          // sink, so the excess settles here.
-          const float amount =
-              drop > 0.F ? std::min(drop, sediment)
-                         : (sediment - capacity) * settings.depositionRate;
-          sediment -= amount;
-          heights.set(cell, from + amount);
-        } else {
-          const float amount =
-              std::min((capacity - sediment) * ErosionRate, -drop * MaxCutRate);
-          sediment += amount;
-          heights.set(cell, from - amount);
         }
-        speed = std::sqrt(std::max(0.F, speed * speed - drop * Gravity));
-        water *= 1.F - settings.evaporation;
-        cell = next;
-        if (water < MinimumWater)
+        const auto next = chooseHydraulicNeighbor(
+            grid, heights, neighborDistances, cell, drainage.downstream[cell]);
+        if (next == terrainNoDownstream) {
           break;
+        }
+        const double drop = double(heights[cell]) - heights[next];
+        const double capacity =
+            drop * speed * water * settings.sedimentCapacity;
+        if (sediment > capacity) {
+          const double deposited = depositWithinTalus(
+              grid, heights, neighborDistances, cell,
+              (sediment - capacity) * settings.depositionRate,
+              settings.talusSlope);
+          sediment -= deposited;
+          transport.depositedSediment += deposited;
+        } else {
+          const double requested =
+              std::min((capacity - sediment) * ErosionRate, drop * MaxCutRate);
+          const float lowered = float(double(heights[cell]) - requested);
+          const double actual = double(heights[cell]) - lowered;
+          if (actual > 0 && lowered >= heights[next]) {
+            heights[cell] = lowered;
+            sediment += actual;
+            transport.erodedSediment += actual;
+          }
+        }
+        speed = std::sqrt(std::max(0.0, speed * speed + drop * Gravity));
+        water *= 1.0 - settings.evaporation;
+        cell = next;
+        if (water < MinimumWater) {
+          break;
+        }
       }
-      // Whatever the droplet still carries settles where it came to rest.
-      // Discarding it instead would make the stage destroy material, and the
-      // net loss would grow with the droplet count rather than with the
-      // erosion.
-      if (sediment > 0.F)
-        heights.set(cell, heights[cell] + sediment);
+      if (isBorder(grid, cell)) {
+        transport.exportedSediment += sediment;
+      } else if (sediment > 0) {
+        // Terminal settling has bounded geometric capacity. Spread remaining
+        // load over one mesh-edge ring; any excess stays explicitly suspended.
+        const int x = int(cell % std::size_t(grid.width));
+        const int z = int(cell / std::size_t(grid.width));
+        const double deposited =
+            depositWithinTalus(grid, heights, neighborDistances, cell, sediment,
+                               settings.talusSlope);
+        sediment -= deposited;
+        transport.depositedSediment += deposited;
+        for (int neighbor = 0; neighbor < 8 && sediment > 0; ++neighbor) {
+          if (!isMeshEdge(neighbor)) {
+            continue;
+          }
+          const auto target =
+              grid.at(x + NeighbourX[neighbor], z + NeighbourZ[neighbor]);
+          const double spread =
+              depositWithinTalus(grid, heights, neighborDistances, target,
+                                 sediment, settings.talusSlope);
+          sediment -= spread;
+          transport.depositedSediment += spread;
+        }
+        transport.suspendedSediment += sediment;
+      }
     }
   }
   if (progress) {
@@ -208,13 +348,12 @@ applyTerrainErosion(const HeightField &field, const TerrainDrainage &drainage,
     for (int pass = 0; pass < ThermalPasses; ++pass) {
       if (stop.stop_requested())
         return std::nullopt;
-      const TerrainSamples<float> input = heights;
-      TerrainSamples<float> output;
-      output.resize(count);
+      const std::vector<float> input = heights;
+      std::vector<float> output(count);
       for (std::size_t i = 0; i < count; ++i) {
         if ((i & 255) == 0 && stop.stop_requested())
           return std::nullopt;
-        output.set(i, input[i]);
+        output[i] = input[i];
       }
       // What a cell would shed to one neighbour, and what it may shed in total.
       // Both are read-only views of the pass input, so neither depends on the
@@ -273,8 +412,8 @@ applyTerrainErosion(const HeightField &field, const TerrainDrainage &drainage,
             const float move = excessOver(cell, target, neighbour) * share;
             if (move <= 0.F)
               continue;
-            output.set(cell, output[cell] - move);
-            output.set(target, output[target] + move);
+            output[cell] -= move;
+            output[target] += move;
           }
         }
       heights = std::move(output);
@@ -285,29 +424,40 @@ applyTerrainErosion(const HeightField &field, const TerrainDrainage &drainage,
     }
   }
 
+  TerrainSamples<float> result;
+  TerrainSamples<float> signedSediment;
+  result.resize(count);
   if (sedimentOut) {
-    if (stop.stop_requested())
-      return std::nullopt;
-    TerrainSamples<float> signedSediment;
     signedSediment.resize(count);
-    for (std::size_t i = 0; i < count; ++i) {
-      if ((i & 255) == 0 && stop.stop_requested())
-        return std::nullopt;
-      signedSediment.set(i, heights[i] - field.heights[i]);
-    }
-    if (stop.stop_requested())
-      return std::nullopt;
-    *sedimentOut = std::move(signedSediment);
   }
-  if (stop.stop_requested())
-    return std::nullopt;
+  for (std::size_t sample = 0; sample < count; ++sample) {
+    if ((sample & 255) == 0 && stop.stop_requested()) {
+      return std::nullopt;
+    }
+    const double delta = double(heights[sample]) - field.heights[sample];
+    if (!std::isfinite(heights[sample]) || !std::isfinite(delta) ||
+        std::abs(delta) > std::numeric_limits<float>::max()) {
+      throw std::invalid_argument("Terrain erosion output and transport deltas "
+                                  "must fit finite samples");
+    }
+    result.set(sample, heights[sample]);
+    if (sedimentOut) {
+      signedSediment.set(sample, heights[sample] - field.heights[sample]);
+    }
+  }
   if (progress) {
     progress(1.0F);
   }
   if (stop.stop_requested()) {
     return std::nullopt;
   }
-  return heights;
+  if (sedimentOut) {
+    *sedimentOut = std::move(signedSediment);
+  }
+  if (transportOut) {
+    *transportOut = transport;
+  }
+  return result;
 }
 
 } // namespace demi::runtime

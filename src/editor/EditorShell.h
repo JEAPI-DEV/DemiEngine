@@ -87,6 +87,7 @@ private:
   EditorWorkspace &workspace() { return documents_.focused(); }
   const EditorWorkspace &workspace() const { return documents_.focused(); }
   void drawDocumentViews(ImVec2 position, ImVec2 size);
+  [[nodiscard]] bool documentFocusAvailable() const;
   void focusAuthoring(EditorDocumentSession session, bool hud);
   void applyViewportPreferences(EditorWorkspace &document);
   EditorCommandContext commandContext() const;

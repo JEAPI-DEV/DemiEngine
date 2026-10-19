@@ -41,9 +41,13 @@ bool prepareAndActivate(RuntimeAssetService &service,
     }
     std::this_thread::yield();
   }
+  const auto progress = service.progress(request);
   (void)service.cancel(request);
   report(diagnostics, "ASSET_STARTUP_PREPARE_TIMEOUT",
-         "Startup assets did not become ready within 30 seconds.",
+         "Startup assets did not become ready within 30 seconds (stage: " +
+             std::string(assets::assetGroupStageName(progress.stage)) + ", " +
+             std::to_string(progress.completedAssets) + "/" +
+             std::to_string(progress.totalAssets) + " assets complete).",
          std::string(owner));
   return false;
 }

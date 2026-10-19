@@ -14,26 +14,36 @@
 #include "demi/runtime/render/bgfx3d/DirectionalShadow3D.h"
 #include "demi/runtime/render/bgfx3d/GpuMesh3D.h"
 #include "demi/runtime/render/bgfx3d/GpuSkinnedMesh3D.h"
+#include "demi/runtime/render/bgfx3d/MeshPbrBindings3D.h"
 #include "demi/runtime/render/bgfx3d/MeshResourceRetention3D.h"
+#include "demi/runtime/render/bgfx3d/OpaqueSceneCapture3D.h"
 #include "demi/runtime/render/bgfx3d/ParticleBillboardRenderer3D.h"
 #include "demi/runtime/render/bgfx3d/PostProcessRenderer3D.h"
 #include "demi/runtime/render/bgfx3d/PrimitiveCanvas3D.h"
 #include "demi/runtime/render/bgfx3d/ReliefMeshCache3D.h"
 #include "demi/runtime/render/bgfx3d/SceneLightBuffer3D.h"
 #include "demi/runtime/render/bgfx3d/SceneVisibility3D.h"
+#include "demi/runtime/render/bgfx3d/MeshInstancePreparation3D.h"
+#include "demi/runtime/render/bgfx3d/PrimitiveSurfacePreparation3D.h"
 #include "demi/runtime/render/bgfx3d/SkyRenderer3D.h"
 #include "demi/runtime/render/bgfx3d/TerrainCameraDemand3D.h"
 #include "demi/runtime/render/bgfx3d/TerrainDrawSelection3D.h"
 #include "demi/runtime/render/bgfx3d/TerrainGpuFieldCache3D.h"
 #include "demi/runtime/render/bgfx3d/TerrainGpuMeshCache3D.h"
+#include "demi/runtime/render/bgfx3d/TerrainMaterialResidency3D.h"
 #include "demi/runtime/render/bgfx3d/TerrainPatchBatch3D.h"
+#include "demi/runtime/render/bgfx3d/UnderwaterCamera3D.h"
 #include "demi/runtime/render/bgfx3d/VisualAnimationBudget3D.h"
 #include "demi/runtime/scene/model/World.h"
+#include "demi/runtime/scene/EntityComponentQuery.h"
 #include "demi/runtime/terrain/TerrainLodResidency.h"
 
 #include <chrono>
 #include <cstdint>
+#include <filesystem>
+#include <functional>
 #include <memory>
+#include <set>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -81,9 +91,27 @@ public:
   void shutdown();
   [[nodiscard]] bool loadAssets(const AssetRegistry &registry,
                                 std::vector<std::string> &diagnostics);
+  [[nodiscard]] bool
+  beginAssetPreparation(const AssetRegistry &registry, JobSystem &jobs,
+                        std::vector<std::string> &diagnostics,
+                        bool prepareMaterialImages = true);
+  [[nodiscard]] bool
+  stepAssetPreparation(double budgetMilliseconds, bool &complete,
+                       std::vector<std::string> &diagnostics);
+  void cancelAssetPreparation();
+  [[nodiscard]] double assetPreparationProgress() const;
   [[nodiscard]] bool renderFrame(const World &world,
                                  const BgfxCameraFrame3D &frame,
                                  float deltaSeconds, std::string &error);
+
+  // Resource-only preparation before the live world's next presentation. Opens
+  // a shared presentation scope which the host must close after rendering its
+  // current world; this keeps incoming terrain demand alive during loading UI.
+  [[nodiscard]] bool prepareScenePresentation(const World &world,
+                                              const BgfxCameraFrame3D &frame,
+                                              bool &complete,
+                                              std::string &error);
+  void cancelScenePresentationPreparation();
 
   // Hosts with multiple cameras bracket them once; direct/editor rendering
   // automatically creates a single-camera presentation scope.
@@ -95,7 +123,8 @@ public:
   }
   [[nodiscard]] bool terrainPreparationPending() const {
     return terrainLodResidency_.hasPendingWork() ||
-           terrainGpuFields_.hasPendingWork();
+           terrainGpuFields_.hasPendingWork() ||
+           terrainMaterials_.hasPendingWork();
   }
   [[nodiscard]] const TerrainRenderStatistics3D &terrainStatistics() const {
     return terrainStatistics_;
@@ -109,13 +138,29 @@ public:
   }
 
 private:
+  void configureTerrainPresentation(const World &world,
+                                    const BgfxCameraFrame3D &frame,
+                                    const SceneLighting3D &lighting);
+  struct AssetPreparation;
+  std::shared_ptr<AssetPreparation> assetPreparation_;
+  struct TextureVariantPreparation;
+  std::shared_ptr<TextureVariantPreparation> textureVariantPreparation_;
+  [[nodiscard]] bool prepareTextureVariant(std::string_view id,
+                                           ImageMipSemantic semantic,
+                                           bool &complete, std::string &error);
+  void cancelTextureVariantPreparation();
+  std::set<std::pair<std::string, ImageMipSemantic>> preparedTextureVariants_;
   bool drawCosmeticDebris(std::vector<CosmeticFragment3D> &,
                           const BgfxCameraFrame3D &,
                           std::span<const DrawUniformValue>, ProgramHandle,
                           std::uint32_t &, std::uint32_t &, std::string &);
   bool renderView(const World &, const BgfxCameraFrame3D &, float,
                   std::string &, bool shadowPass, const SceneLighting3D &,
-                  const BgfxCameraFrame3D &lodCamera);
+                  const BgfxCameraFrame3D &lodCamera,
+                  OpaqueSceneCapture3D::Target *waterCapture = nullptr);
+  OpaqueSceneCapture3D::Target *prepareWaterCapture(const World &,
+                                                    const BgfxCameraFrame3D &,
+                                                    std::string &error);
   bool prepareTerrainMeshes(SceneVisibility3D &, std::string &error);
   struct MeshSubmissionStatistics {
     std::uint32_t draws = 0;
@@ -124,13 +169,23 @@ private:
     std::uint32_t mediumLodMeshes = 0;
     std::uint32_t lowLodMeshes = 0;
   };
+  bool renderWaterAndTransparent(const SceneVisibility3D &, BgfxCameraFrame3D &,
+                                 const RenderTargetHandles &,
+                                 OpaqueSceneCapture3D::Target &,
+                                 const SceneLighting3D &,
+                                 const std::array<DrawUniformValue, 8> &,
+                                 std::size_t firstTransparent,
+                                 MeshSubmissionStatistics &,
+                                 std::string &error);
+  const GpuMesh3D *primitiveMesh(const std::string &shape, std::string &error);
   bool submitVisibleMeshes(const SceneVisibility3D &, const BgfxCameraFrame3D &,
                            bool shadowPass, std::size_t firstTransparent,
                            const std::array<DrawUniformValue, 8> &,
                            ProgramHandle defaultMeshProgram,
                            ProgramHandle defaultInstancedProgram,
                            ProgramHandle defaultSkinnedProgram,
-                           MeshSubmissionStatistics &, std::string &error);
+                           MeshSubmissionStatistics &, std::string &error,
+                           int selectedSurfacePass = -1);
   struct ModelLodSelection {
     const std::string *model = nullptr;
     bool isCulled = false;
@@ -157,6 +212,7 @@ private:
     std::uint64_t inlineColorSignature = 0;
     std::vector<std::uint32_t> inlineColors;
     MeshGeometry3D restGeometry;
+    std::optional<MeshBounds3D> bounds;
     std::string animationModel;
     std::unique_ptr<GpuSkinnedMesh3D> gpuSkin;
     std::vector<float> skinPalette;
@@ -173,11 +229,36 @@ private:
   RenderCommands &commands_;
   PrimitiveCanvas3D primitives_;
   PostProcessRenderer3D postProcess_;
+  OpaqueSceneCapture3D opaqueCapture_;
+  WaterSurfaceRenderer3D waterRenderer_;
+  UnderwaterCamera3D underwaterCamera_;
+  float waterTime_ = 0.F;
+  bool waterTimeAdvanced_ = false;
   ParticleBillboardRenderer3D particleRenderer_;
   BgfxRenderer2D overlay_;
   TextureLibrary2D textures_;
+  struct TextureSource {
+    std::filesystem::path path;
+    // Embedded model images are re-read from their authored model only when
+    // another sampling role is first used; no image bytes stay in this record.
+    std::function<std::vector<std::byte>(std::string &)> readEmbedded;
+    TextureSampling2D sampling;
+    std::array<bool, 3> failedVariants{};
+    std::array<std::string, 3> variantErrors{};
+  };
+  std::unordered_map<std::string, TextureSource> textureSources_;
   SkyRenderer3D sky_;
   MaterialLibrary materials_;
+  MeshPbrBindings3D meshPbr_;
+  std::array<ProgramHandle, 6> pbrPrograms_{};
+  std::string pbrProgramError_;
+  TextureView2D materialTexture(std::string_view id, ImageMipSemantic semantic);
+  void finishMaterialTexturePresentation(bool succeeded);
+  std::unordered_map<std::string, std::array<std::uint64_t, 3>, StringHash,
+                     std::equal_to<>>
+      materialTextureUse_;
+  std::uint64_t texturePresentationSerial_ = 0;
+  std::uint64_t successfulTexturePresentation_ = 0;
   ProgramHandle meshProgram_;
   ProgramHandle directionalMeshProgram_, directionalInstancedProgram_,
       directionalSkinnedProgram_;
@@ -190,6 +271,9 @@ private:
   UniformHandle tintUniform_;
   UniformHandle alphaCutoffUniform_;
   UniformHandle debugModeUniform_;
+  MeshInstancePreparation3D instancePreparation_;
+  EntityComponentQuery entityQueries_;
+  PrimitiveSurfacePreparation3D primitiveSurfaces_;
   UniformHandle viewPositionUniform_;
   UniformHandle metalRoughUniform_;
   UniformHandle lightDirectionUniform_;
@@ -207,11 +291,16 @@ private:
   TerrainLodResidency terrainLodResidency_;
   TerrainCameraDemand3D terrainCameraDemand_;
   TerrainGpuFieldCache3D terrainGpuFields_;
+  TerrainMaterialResidency3D terrainMaterials_;
   TerrainPatchBatch3D terrainPatches_;
   std::string terrainGpuCapabilityReason_;
   std::string reportedTerrainGpuFallback_;
   ProgramHandle terrainProgram_;
   ProgramHandle directionalTerrainProgram_;
+  ProgramHandle mappedTerrainProgram_;
+  ProgramHandle directionalMappedTerrainProgram_;
+  ProgramHandle opaqueMappedTerrainProgram_;
+  ProgramHandle directionalOpaqueMappedTerrainProgram_;
   TerrainRenderStatistics3D terrainStatistics_;
   std::size_t reportedTerrainFailures_ = 0;
   std::string terrainDiagnostic_;

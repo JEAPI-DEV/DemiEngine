@@ -1,3 +1,4 @@
+#include "demi/runtime/physics/PhysicsWorld3D.h"
 #include "demi/runtime/scene/RuntimePrefabService.h"
 #include "demi/runtime/scene/SceneFlow.h"
 #include "demi/runtime/scene/SceneLoader.h"
@@ -33,10 +34,12 @@ int main() {
     pruneService.configure(root / "examples/minimal_3d");
     World pruneWorld;
     WorldCommandBuffer pruneCommands;
-    const auto kept = pruneService.instantiate(
-        pruneWorld, pruneCommands, "prefab://player", {.id = "kept", .pooled = true});
-    const auto removed = pruneService.instantiate(
-        pruneWorld, pruneCommands, "prefab://player", {.id = "removed", .pooled = true});
+    const auto kept =
+        pruneService.instantiate(pruneWorld, pruneCommands, "prefab://player",
+                                 {.id = "kept", .pooled = true});
+    const auto removed =
+        pruneService.instantiate(pruneWorld, pruneCommands, "prefab://player",
+                                 {.id = "removed", .pooled = true});
     if (!kept || !removed)
       return 1;
     (void)pruneCommands.flush(pruneWorld);
@@ -49,8 +52,9 @@ int main() {
     // instances must no longer reserve their stable instance ID.
     if (pruneService.pooledCount("prefab://player") != 1 ||
         !pruneService.instantiate(pruneWorld, pruneCommands, "prefab://player",
-                                 {.id = "removed"})) {
-      std::cerr << "Prefab pruning lost a live pool entry or retained a removed ID.\n";
+                                  {.id = "removed"})) {
+      std::cerr << "Prefab pruning lost a live pool entry or retained a "
+                   "removed ID.\n";
       return 1;
     }
   }
@@ -133,6 +137,111 @@ int main() {
   }
   (void)commands.flush(minimal3D->world);
 
+  // Scene readiness includes immutable native shapes, but no live physics
+  // system, bodies or simulation have started in the prepared world.
+  SceneFlow prepared3D;
+  prepared3D.configure(minimal3D->project);
+  if (!prepared3D.prepare(minimal3D->project.mainScene, false) ||
+      !waitUntilPrepared(prepared3D)) {
+    std::cerr << "3D scene shape preparation failed: " << prepared3D.error()
+              << '\n';
+    return 1;
+  }
+  const World *incoming3D = prepared3D.preparedWorld();
+  if (incoming3D == nullptr || !incoming3D->preparedPhysicsShapes3D ||
+      incoming3D->physicsWorld3D != nullptr) {
+    std::cerr
+        << "Prepared scene did not retain its shape-only physics cache.\n";
+    return 1;
+  }
+  const auto preparedShapes = incoming3D->preparedPhysicsShapes3D;
+  World activated3D;
+  ResourceLifetimeRegistry preparedResources;
+  if (!prepared3D.activate(activated3D, preparedResources) ||
+      activated3D.preparedPhysicsShapes3D != preparedShapes ||
+      activated3D.physicsWorld3D != nullptr) {
+    std::cerr << "Scene activation did not transfer prepared native shapes.\n";
+    return 1;
+  }
+
+  // A ready but unpublished cache is released immediately on cancellation.
+  if (!prepared3D.prepare(minimal3D->project.mainScene, false) ||
+      !waitUntilPrepared(prepared3D)) {
+    std::cerr << "Could not prepare the cancellation shape fixture.\n";
+    return 1;
+  }
+  const std::weak_ptr<PreparedPhysicsShapes3D> cancelledCache =
+      prepared3D.preparedWorld()->preparedPhysicsShapes3D;
+  if (!prepared3D.cancel() || prepared3D.preparedWorld() != nullptr ||
+      !cancelledCache.expired() ||
+      activated3D.preparedPhysicsShapes3D != preparedShapes) {
+    std::cerr
+        << "Cancellation retained or published an incoming shape cache.\n";
+    return 1;
+  }
+
+  // Retaining a test-only reference keeps the cancelled allocation alive, so
+  // pointer comparison proves a later prepare owns a different cache.
+  if (!prepared3D.prepare(minimal3D->project.mainScene, false) ||
+      !waitUntilPrepared(prepared3D)) {
+    std::cerr << "Could not prepare the repeated shape fixture.\n";
+    return 1;
+  }
+  const auto rejectedCache =
+      prepared3D.preparedWorld()->preparedPhysicsShapes3D;
+  if (!prepared3D.cancel() || rejectedCache.use_count() != 1 ||
+      !prepared3D.prepare("scene://missing_shape_fixture", false) ||
+      waitUntilPrepared(prepared3D) ||
+      prepared3D.state() != ScenePreparationState::Failed ||
+      prepared3D.error().empty() || prepared3D.preparedWorld() != nullptr ||
+      activated3D.preparedPhysicsShapes3D != preparedShapes) {
+    std::cerr << "Failed preparation changed the active native shape owner.\n";
+    return 1;
+  }
+  if (!prepared3D.prepare(minimal3D->project.mainScene, false) ||
+      !waitUntilPrepared(prepared3D)) {
+    std::cerr << "Could not retry shape preparation after failure.\n";
+    return 1;
+  }
+  const auto retryCache = prepared3D.preparedWorld()->preparedPhysicsShapes3D;
+  if (!retryCache || retryCache == rejectedCache ||
+      !prepared3D.activate(activated3D, preparedResources) ||
+      activated3D.preparedPhysicsShapes3D != retryCache) {
+    std::cerr << "Retry adopted a cancelled preparation's shape cache.\n";
+    return 1;
+  }
+
+  World additive3D;
+  additive3D.activeSceneId = "scene://prior_physics";
+  additive3D.loadedSceneIds.insert(additive3D.activeSceneId);
+  Entity retainedEntity;
+  retainedEntity.id = "retained_before_additive";
+  retainedEntity.sceneOwner = additive3D.activeSceneId;
+  additive3D.entities.push_back(std::move(retainedEntity));
+  additive3D.physicsWorld3D = std::make_shared<PhysicsWorld3D>();
+  const auto activePhysicsOwner = additive3D.physicsWorld3D;
+  SceneFlow additiveShapes;
+  additiveShapes.configure(minimal3D->project);
+  ResourceLifetimeRegistry additiveResources;
+  if (!additiveShapes.prepare(minimal3D->project.mainScene, true) ||
+      !waitUntilPrepared(additiveShapes) ||
+      !additiveShapes.preparedWorld()->preparedPhysicsShapes3D ||
+      !additiveShapes.activate(additive3D, additiveResources) ||
+      additive3D.physicsWorld3D != activePhysicsOwner ||
+      additive3D.preparedPhysicsShapes3D != nullptr ||
+      findEntity(additive3D, "retained_before_additive") == nullptr ||
+      findEntity(additive3D, "ent_ground") == nullptr) {
+    std::cerr << "Additive preparation replaced the existing physics owner.\n";
+    return 1;
+  }
+  activePhysicsOwner->step(additive3D, 1.0F / 60.0F);
+  if (additive3D.physicsWorld3D != activePhysicsOwner ||
+      !activePhysicsOwner->raycast({0, 8, 0}, {0, -1, 0}, 20)) {
+    std::cerr
+        << "Additive activation did not adopt incoming collision shapes.\n";
+    return 1;
+  }
+
   auto networking = loadProject(
       root / "examples/minimal_2d_android/demi.project.json", error);
   if (!networking) {
@@ -144,6 +253,18 @@ int main() {
   ResourceLifetimeRegistry resources;
   resources.capture(networking->world.activeSceneId,
                     networking->world.entities);
+
+  // A cancelled worker may still be finishing. A replacement owns its own
+  // future, and the cancelled result cannot overwrite the next preparation.
+  if (!scenes.prepare("scene://minimal_2d_android/platformer", true) ||
+      !scenes.cancel() || scenes.preparedWorld() != nullptr ||
+      !scenes.prepare("scene://minimal_2d_android/spiral", false) ||
+      !waitUntilPrepared(scenes) ||
+      scenes.preparedSceneId() != "scene://minimal_2d_android/spiral" ||
+      !scenes.cancel() || scenes.preparedWorld() != nullptr) {
+    std::cerr << "Cancelled preparation leaked into its replacement.\n";
+    return 1;
+  }
 
   if (networking->world.entities.empty()) {
     std::cerr << "Scene-flow fixture has no persistent candidate.\n";
@@ -159,6 +280,16 @@ int main() {
       !waitUntilPrepared(scenes) || scenes.progress() != 1.0F) {
     std::cerr << "Asynchronous additive scene preparation failed: "
               << scenes.error() << '\n';
+    return 1;
+  }
+  const World *preparedWorld = scenes.preparedWorld();
+  if (preparedWorld == nullptr ||
+      preparedWorld->activeSceneId != "scene://minimal_2d_android/platformer" ||
+      scenes.preparedSceneId() != "scene://minimal_2d_android/platformer" ||
+      networking->world.loadedSceneIds.contains(
+          "scene://minimal_2d_android/platformer")) {
+    std::cerr
+        << "Prepared scene snapshot changed the live world prematurely.\n";
     return 1;
   }
   const auto additive = scenes.activate(networking->world, resources);

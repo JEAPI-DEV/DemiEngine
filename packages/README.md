@@ -39,6 +39,9 @@ exports. See [core concepts](https://demiengine.de/docs/core-concepts) for the d
 | Package | Responsibility |
 |---|---|
 | [`demi.ui.orbit`](sources/demi.ui.orbit/README.md) | Native UI controls and compositions with configurable palettes and Lua bindings |
+| [`polyhaven.materials.terrain`](sources/polyhaven.materials.terrain/README.md) | Five CC0 photo-based 1K PBR surfaces, ordinary Materials, an alpine role set and surface palette |
+| [`demi.animals.horse`](sources/demi.animals.horse/README.md) | CC0 textured bay horse, 19-joint rig, Idle/Walk/Run loops and a visual-only prefab |
+| [`demi.terrain.vegetation`](sources/demi.terrain.vegetation/README.md) | Original CC0 low-poly grass, reeds, trees and boulders with real LOD meshes, wind Materials, selective collision and a woodland scatter palette |
 | `kenney.textures.prototype` | 78 CC0 prototype textures with ready-to-use asset IDs (no Lua required) |
 | [`demi.gameplay.events`](sources/demi.gameplay.events/README.md) | Queued Lua events with ordered listeners and unsubscribe support; formerly `demi.gameplay.core` |
 | `demi.gameplay.health` | health, damage, invulnerability, defeat events |
@@ -48,6 +51,7 @@ exports. See [core concepts](https://demiengine.de/docs/core-concepts) for the d
 | `demi.gameplay.checkpoints` | checkpoints, entrances, respawn data |
 | `demi.gameplay.camera` | follow, bounds, zones, shake, look-ahead |
 | `demi.gameplay.inventory` | stacks, capacity-aware transfers and equipment state |
+| [`demi.gameplay.water`](sources/demi.gameplay.water/README.md) | Opt-in fixed-step buoyancy, flow-relative drag and dynamic-body swimming over native water queries |
 | `demi.gameplay.needs` | bounded needs, drain/recovery rates and thresholds |
 | `demi.navigation.ground` | terrain surveys, obstacle-aware routes and continuous-direction movement |
 | `demi.gameplay.encounters` | waves, spawn failures, objectives |

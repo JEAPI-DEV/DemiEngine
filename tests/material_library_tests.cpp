@@ -4,6 +4,9 @@
 #include "demi/runtime/render/bgfx3d/MeshDrawOrder3D.h"
 #include "demi/runtime/render/bgfx3d/MeshShadowSections3D.h"
 
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <cassert>
 #include <algorithm>
 #include <cmath>
@@ -165,6 +168,11 @@ int main() {
   registry.assets.push_back({.id = "asset://material/test",
                              .type = "Material",
                              .sourcePath = root / "test.material.json"});
+  AssetManifest colorTexture;
+  colorTexture.id = "asset://texture/test";
+  colorTexture.type = "Texture2D";
+  colorTexture.textureSettings.wrap = "mirror";
+  registry.assets.push_back(std::move(colorTexture));
   MaterialLibrary materials(resources);
   diagnostics.clear();
   assert(materials.load(registry, diagnostics));
@@ -180,6 +188,7 @@ int main() {
 
   assert(material && material->program && material->uniformSet != 0);
   assert(material->albedoTexture == "asset://texture/test");
+  assert(material->terrainWrap == TextureWrap::Mirror);
   assert(material->state.blend == BlendMode::Alpha);
   assert(material->state.depthTest == DepthTest::Disabled);
   assert(!material->state.writeDepth);

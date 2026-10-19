@@ -134,6 +134,13 @@ by www-data but not public. DEMI_PUBLISH_KEY_FILE overrides this location;
 DEMI_PUBLISH_TOKEN_HASH can instead supply the digest through the environment.
 Replace the digest to revoke the old key. Keep the actual key outside the repo.
 
+The Nginx internal `/_publishing_auth` location must keep the same body limit
+as the upload location, even with `fastcgi_pass_request_body off`: auth
+subrequests retain the original Content-Length. A lower inherited limit rejects
+large valid uploads with 413 inside the auth check, surfaced as HTTP 500.
+The shipped configuration keeps both at 600m; application archive limits still
+apply and the auth location remains internal.
+
 POST /api/publishing/check verifies a Bearer key. POST /api/publishing/releases
 accepts authenticated multipart fields archive, metadata (JSON), and optional
 images[] whose filenames match metadata image entries. Responses are 201 for

@@ -1,0 +1,15 @@
+{
+  "dependencies": [
+    "asset://amber_pass/materials/grass",
+    "asset://amber_pass/materials/mountain_rock",
+    "asset://amber_pass/materials/trail"
+  ],
+  "format_version": 1,
+  "id": "asset://amber_pass/valley",
+  "importer": "terrain_heightfield",
+  "importer_version": 1,
+  "settings": {},
+  "source": "valley.terrain.json",
+  "source_hash": "fnv1a64:67c9655fa47eb01b",
+  "type": "Terrain"
+}

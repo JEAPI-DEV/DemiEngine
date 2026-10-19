@@ -10,6 +10,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <iterator>
 #include <nlohmann/json.hpp>
 
 namespace {
@@ -168,15 +169,21 @@ count: 3
   const auto typedSources = root / "typed_sources";
   if (!write(typedSources / "reference.json",
              R"({"format_version":1,"note":"asset://not-a-dependency"})") ||
-      !write(
-          typedSources / "material.json",
-          R"({"format_version":1,"name":"Stone","maps":[{"base_color":"asset://refs/texture"}]})") ||
+      !write(typedSources / "material.json",
+             R"({
+  "format_version": 1,
+  "shader": "builtin://lit",
+  "name": "Stone",
+  "textures": {
+    "albedo": "asset://refs/texture"
+  }
+})") ||
       !write(
           typedSources / "set.json",
           R"({"format_version":1,"name":"Ground","roles":{"rock":"asset://terrain/stone"}})") ||
       !write(typedSources / "palette.json",
              R"({
-  "format_version": 2,
+  "format_version": 3,
   "name": "Props",
   "placements": {
     "soil": {
@@ -187,11 +194,12 @@ count: 3
     return 1;
   const auto reference = importAsset({.projectDirectory = typedProject,
                                       .source = typedSources / "reference.json",
-                                      .id = "asset://refs/texture"});
+                                      .id = "asset://refs/texture",
+                                      .type = "RenderTarget"});
   const auto material = importAsset({.projectDirectory = typedProject,
                                      .source = typedSources / "material.json",
                                      .id = "asset://terrain/stone",
-                                     .dataContentType = "terrain_material"});
+                                     .type = "Material"});
   const auto set = importAsset({.projectDirectory = typedProject,
                                 .source = typedSources / "set.json",
                                 .id = "asset://terrain/set",
@@ -213,7 +221,8 @@ count: 3
       setManifest->dependencies !=
           std::vector<std::string>{"asset://terrain/stone"} ||
       !paletteManifest->dependencies.empty()) {
-    std::cerr << "Typed DataAsset import lost its content type or dependencies.\n";
+    std::cerr
+        << "Typed DataAsset import lost its content type or dependencies.\n";
     return 1;
   }
   const auto paletteDocument = loadDataDocument(paletteManifest->sourcePath);
@@ -245,18 +254,61 @@ count: 3
       hasErrors(reimportAsset(material.manifestPath)))
     return 1;
   const auto reimported = loadAssetManifest(material.manifestPath);
-  if (!reimported ||
-      reimported->dependencies !=
-          (std::vector<std::string>{"asset://manual/keep",
-                                    "asset://refs/texture"})) {
+  if (!reimported || reimported->dependencies !=
+                         (std::vector<std::string>{"asset://manual/keep",
+                                                   "asset://refs/texture"})) {
     std::cerr << "Reimport removed a declared dependency.\n";
     return 1;
   }
   const std::string oldHash = reimported->sourceHash;
+  const auto generatedBytes = [&] {
+    if (!reimported->generatedOutputPath) {
+      return std::string{};
+    }
+    std::ifstream input(*reimported->generatedOutputPath, std::ios::binary);
+    return std::string(std::istreambuf_iterator<char>(input), {});
+  };
+  const auto previousGenerated = generatedBytes();
+  if (!write(reimported->sourcePath, R"({
+    "format_version": 1,
+    "textures": {"albedo": "asset://textures/missing"}
+  })")) {
+    return 1;
+  }
+  const auto brokenReference = reimportAsset(material.manifestPath);
+  const auto unchangedManifest = loadAssetManifest(material.manifestPath);
+  if (!containsCode(brokenReference, "MATERIAL_TEXTURE_NOT_FOUND") ||
+      !unchangedManifest || unchangedManifest->sourceHash != oldHash ||
+      unchangedManifest->dependencies != reimported->dependencies ||
+      generatedBytes() != previousGenerated) {
+    std::cerr << "Broken Material references changed the previous imported "
+                 "artifact.\n";
+    return 1;
+  }
+  const auto missingReferenceImport = importAsset({
+      .projectDirectory = typedProject,
+      .source = reimported->sourcePath,
+      .id = "asset://materials/missing_reference",
+      .type = "Material",
+  });
+  if (!containsCode(missingReferenceImport.diagnostics,
+                    "MATERIAL_TEXTURE_NOT_FOUND") ||
+      std::filesystem::exists(missingReferenceImport.manifestPath)) {
+    std::cerr
+        << "A Material with unresolved texture references was published.\n";
+    return 1;
+  }
   if (!write(reimported->sourcePath,
-             R"({"format_version":1,"name":"Stone","roughness":2})") ||
+             R"({
+  "format_version": 1,
+  "shader": "builtin://lit",
+  "name": "Stone",
+  "parameters": {
+    "roughness": 2
+  }
+})") ||
       !containsCode(reimportAsset(material.manifestPath),
-                    "DATA_CONTENT_INVALID"))
+                    "MATERIAL_SURFACE_PARAMETER_INVALID"))
     return 1;
   const auto rejected = loadAssetManifest(material.manifestPath);
   if (!rejected || rejected->sourceHash != oldHash ||
@@ -264,20 +316,22 @@ count: 3
     std::cerr << "Invalid reimport published new manifest metadata.\n";
     return 1;
   }
-  const auto invalidImport = importAsset({.projectDirectory = typedProject,
-      .source = reimported->sourcePath, .id = "asset://terrain/invalid",
-      .dataContentType = "terrain_material"});
+  const auto invalidImport =
+      importAsset({.projectDirectory = typedProject,
+                   .source = reimported->sourcePath,
+                   .id = "asset://terrain/invalid",
+                   .dataContentType = "terrain_material"});
   if (!containsCode(invalidImport.diagnostics, "DATA_CONTENT_INVALID") ||
       std::filesystem::exists(invalidImport.manifestPath)) {
     std::cerr << "Invalid typed source was published by import.\n";
     return 1;
   }
-  const auto emptyContentType = importAsset({
-      .projectDirectory = typedProject,
-      .source = reimported->sourcePath,
-      .id = "asset://terrain/empty_type",
-      .dataContentType = ""});
-  if (!containsCode(emptyContentType.diagnostics, "DATA_CONTENT_TYPE_MISSING") ||
+  const auto emptyContentType = importAsset({.projectDirectory = typedProject,
+                                             .source = reimported->sourcePath,
+                                             .id = "asset://terrain/empty_type",
+                                             .dataContentType = ""});
+  if (!containsCode(emptyContentType.diagnostics,
+                    "DATA_CONTENT_TYPE_MISSING") ||
       std::filesystem::exists(emptyContentType.manifestPath)) {
     std::cerr << "An explicit empty content type was silently defaulted.\n";
     return 1;

@@ -1,7 +1,9 @@
 $input a_position, a_normal, a_color0, a_texcoord0, a_indices, a_weight
-$output v_color0, v_normal, v_texcoord0, v_worldPos
+$output v_color0, v_normal, v_texcoord0, v_worldPos, v_relativePos, v_localPos, v_localNormal
 
 #include "bgfx_shader.sh"
+
+uniform vec4 u_viewPosition;
 
 uniform mat4 u_skinMatrices[128];
 uniform mat4 u_skinImport;
@@ -23,6 +25,7 @@ void main()
     vec4 position = mul(u_skinImport, vec4(posed, 1.0));
     gl_Position = mul(u_modelViewProj, position);
     v_worldPos = mul(u_model[0], position).xyz;
+    v_relativePos = v_worldPos - u_viewPosition.xyz;
     mat4 normalTransform = mul(u_model[0], mul(u_skinImport, skin));
     vec3 x = normalTransform[0].xyz;
     vec3 y = normalTransform[1].xyz;
@@ -34,6 +37,14 @@ void main()
     // Collapsed/singular joint blends have no unique normal direction.
     if (dot(v_normal, v_normal) < 1e-12)
         v_normal = vec3(0.0, 1.0, 0.0);
+    v_localPos = position.xyz;
+    mat4 localTransform = mul(u_skinImport, skin);
+    vec3 lx = localTransform[0].xyz;
+    vec3 ly = localTransform[1].xyz;
+    vec3 lz = localTransform[2].xyz;
+    float localHandedness = dot(lx, cross(ly, lz)) < 0.0 ? -1.0 : 1.0;
+    v_localNormal = localHandedness * (cross(ly, lz) * a_normal.x +
+        cross(lz, lx) * a_normal.y + cross(lx, ly) * a_normal.z);
     v_color0 = a_color0;
     v_texcoord0 = a_texcoord0;
 }

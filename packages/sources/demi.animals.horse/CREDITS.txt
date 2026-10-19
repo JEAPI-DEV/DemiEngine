@@ -1,0 +1,34 @@
+Amber Pass horse
+
+Original mesh and textures: Lyndon Daniels.
+Original armature: ChadM.
+License: CC0 1.0 Universal (public domain dedication).
+https://creativecommons.org/publicdomain/zero/1.0/
+
+Original mesh and texture source:
+https://opengameart.org/content/realtime-ranchers-3d-model-pack
+https://opengameart.org/sites/default/files/horse.zip
+
+Rigged source:
+https://opengameart.org/content/rigged-horse
+https://opengameart.org/sites/default/files/riggedHorse.blend
+
+Downloaded 2026-10-18 without authentication. Original source preserved in the DemiEngine checkout at
+examples/amber_pass_3d/assets/horse/source/riggedHorse.blend. DemiEngine demo changes: modern materials, accessory
+skinning repairs, four-influence export, metre scale, authored Idle/Walk/Run
+animation loops. These additions are also dedicated under CC0 1.0.
+
+Rebuild from repository root:
+blender -b --python tools/demo-art/amber_pass/horse.py
+
+horse.glb: +Z forward, +Y up, feet at Y=0. Hip height approximately 1.6m.
+Approximate rider seat: [0, 1.67, 0.42] in model space.
+Idle: 3 seconds. Walk: 1.2 seconds. Run: 0.666667 seconds (running trot).
+14,986 triangles, 19 joints, 5 mesh primitives, one skeleton.
+
+Native renderer compatibility: all five primitives share one opaque material and
+one embedded 3072x2048 albedo atlas, also saved as textures/horse_albedo.png.
+Coat retains 2048x2048 source resolution; hair occupies a 1024x1024 region and
+eyes a 512x512 region. The atlas combines color data without baking lights.
+Original alpha hair cards use dark opaque backing for the current built-in
+skinned material. No normal texture is needed by the final GLB.

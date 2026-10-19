@@ -1,0 +1,11 @@
+{
+  "format_version": 1,
+  "id": "asset://demi/vegetation/materials/leaves",
+  "type": "Material",
+  "source": "leaves.material.json",
+  "importer": "material",
+  "importer_version": 1,
+  "dependencies": [],
+  "settings": {},
+  "source_hash": "fnv1a64:fedac46f358acaa0"
+}

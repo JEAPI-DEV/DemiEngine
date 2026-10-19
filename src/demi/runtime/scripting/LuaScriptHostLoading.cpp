@@ -99,11 +99,12 @@ bool LuaScriptHost::loadWorldScripts(const ProjectData &project, World &world,
   if (project_ != &project) {
     // The composition root configures the shared prefab service before loading
     // the world. Reconfiguring here would discard initial scatter instances.
+    resetScenePresentation();
     sceneFlow_.configure(project);
     resourceLifetimes_.capture(world.activeSceneId, world.entities);
   }
   gameplayInput_.configure(project.inputActions,
-                            applicationServices_.userDataPath());
+                           applicationServices_.userDataPath());
   project_ = &project;
   luaConfigurePackagePath(state, project);
   moduleActionHandlers_.clear();
@@ -347,22 +348,8 @@ void LuaScriptHost::unloadScripts() {
 }
 
 bool LuaScriptHost::requestSceneLoad(const std::string &sceneId) {
-  const bool accepted = sceneFlow_.prepare(sceneId, false);
-  if (!accepted)
+  if (!prepareScene(sceneId, false)) {
     return false;
-  preparedSceneAssetRequest_ = 0;
-  preparedSceneAssetId_.clear();
-  sceneAssetError_.clear();
-  if (runtimeAssets_ != nullptr && !activeSceneAssetGroups_.contains(sceneId)) {
-    Diagnostics diagnostics;
-    preparedSceneAssetRequest_ =
-        runtimeAssets_->prepareScene(sceneId, &diagnostics);
-    if (hasErrors(diagnostics)) {
-      sceneAssetError_ = diagnostics.front().message;
-      (void)sceneFlow_.cancel();
-      return false;
-    }
-    preparedSceneAssetId_ = sceneId;
   }
   autoActivatePrepared_ = true;
   return true;
@@ -370,27 +357,45 @@ bool LuaScriptHost::requestSceneLoad(const std::string &sceneId) {
 
 bool LuaScriptHost::prepareScene(const std::string &sceneId,
                                  const bool additive) {
-  autoActivatePrepared_ = false;
-  if (!sceneFlow_.prepare(sceneId, additive))
+  if (!sceneFlow_.prepare(sceneId, additive)) {
     return false;
+  }
+  resetScenePresentation();
+  autoActivatePrepared_ = false;
+  pendingPreparedActivation_ = false;
+  if (runtimeAssets_ != nullptr && preparedSceneAssetRequest_ != 0) {
+    (void)runtimeAssets_->cancel(preparedSceneAssetRequest_);
+  }
   preparedSceneAssetRequest_ = 0;
+  // An empty ID means resource discovery has not started for this CPU job.
   preparedSceneAssetId_.clear();
   sceneAssetError_.clear();
-  if (runtimeAssets_ != nullptr && !activeSceneAssetGroups_.contains(sceneId)) {
-    Diagnostics diagnostics;
-    preparedSceneAssetRequest_ =
-        runtimeAssets_->prepareScene(sceneId, &diagnostics);
-    if (hasErrors(diagnostics)) {
-      sceneAssetError_ = diagnostics.front().message;
-      (void)sceneFlow_.cancel();
-      return false;
-    }
-    preparedSceneAssetId_ = sceneId;
-  }
   return true;
 }
 
+void LuaScriptHost::pollScenePreparation() {
+  sceneFlow_.poll();
+  const World *preparedWorld = sceneFlow_.preparedWorld();
+  if (preparedWorld == nullptr || !preparedSceneAssetId_.empty() ||
+      !sceneAssetError_.empty()) {
+    return;
+  }
+  preparedSceneAssetId_ = std::string(sceneFlow_.preparedSceneId());
+  if (runtimeAssets_ == nullptr ||
+      activeSceneAssetGroups_.contains(preparedSceneAssetId_)) {
+    return;
+  }
+  Diagnostics diagnostics;
+  preparedSceneAssetRequest_ = runtimeAssets_->prepareScene(
+      preparedSceneAssetId_, *preparedWorld, &diagnostics);
+  if (hasErrors(diagnostics)) {
+    sceneAssetError_ = diagnostics.front().message;
+    (void)sceneFlow_.cancel();
+  }
+}
+
 bool LuaScriptHost::cancelScenePreparation() {
+  resetScenePresentation();
   autoActivatePrepared_ = false;
   pendingPreparedActivation_ = false;
   if (runtimeAssets_ != nullptr && preparedSceneAssetRequest_ != 0)
@@ -401,29 +406,82 @@ bool LuaScriptHost::cancelScenePreparation() {
   return sceneFlow_.cancel();
 }
 
+void LuaScriptHost::setScenePresentationPreparation(
+    ScenePresentationPreparation prepare, std::function<void()> reset) {
+  resetScenePresentation();
+  prepareScenePresentation_ = std::move(prepare);
+  resetScenePresentation_ = std::move(reset);
+}
+
+void LuaScriptHost::resetScenePresentation() {
+  if (resetScenePresentation_ && scenePresentationFrame_) {
+    resetScenePresentation_();
+  }
+  scenePresentationFrame_.reset();
+  scenePresentationReady_ = false;
+}
+
+bool LuaScriptHost::pollScenePresentation() {
+  if (!prepareScenePresentation_) {
+    return true;
+  }
+  const World *prepared = sceneFlow_.preparedWorld();
+  if (prepared == nullptr) {
+    return false;
+  }
+  if (scenePresentationFrame_ && *scenePresentationFrame_ == frameCount_) {
+    return scenePresentationReady_;
+  }
+  scenePresentationFrame_ = frameCount_;
+  std::string error;
+  bool complete = false;
+  if (!prepareScenePresentation_(*prepared, complete, error)) {
+    sceneAssetError_ = error.empty() ? "Scene presentation preparation failed."
+                                     : std::move(error);
+    resetScenePresentation();
+    return false;
+  }
+  scenePresentationReady_ = complete;
+  return complete;
+}
+
 float LuaScriptHost::scenePreparationProgress() {
-  sceneFlow_.poll();
-  if (runtimeAssets_ == nullptr || preparedSceneAssetRequest_ == 0)
-    return sceneFlow_.progress();
-  const auto assetProgress =
-      runtimeAssets_->progress(preparedSceneAssetRequest_);
-  return std::min(sceneFlow_.progress(),
-                  static_cast<float>(assetProgress.fraction));
+  pollScenePreparation();
+  if (sceneFlow_.state() != ScenePreparationState::Ready ||
+      !sceneAssetError_.empty()) {
+    return 0;
+  }
+  const float assets =
+      runtimeAssets_ != nullptr && preparedSceneAssetRequest_ != 0
+          ? static_cast<float>(
+                runtimeAssets_->progress(preparedSceneAssetRequest_).fraction)
+          : 1.F;
+  if (!prepareScenePresentation_) {
+    return .5F + .5F * assets;
+  }
+  if (assets < 1.F) {
+    return (1.F + assets) / 3.F;
+  }
+  return scenePrepared() ? 1.F : 2.F / 3.F;
 }
 
 bool LuaScriptHost::scenePrepared() {
-  sceneFlow_.poll();
-  if (sceneFlow_.state() != ScenePreparationState::Ready)
-    return false;
-  if (runtimeAssets_ == nullptr || preparedSceneAssetRequest_ == 0)
-    return true;
-  const auto assetProgress =
-      runtimeAssets_->progress(preparedSceneAssetRequest_);
-  if (assetProgress.stage == assets::AssetGroupStage::Failed) {
-    sceneAssetError_ = assetProgress.error;
+  pollScenePreparation();
+  if (!sceneAssetError_.empty() ||
+      sceneFlow_.state() != ScenePreparationState::Ready) {
     return false;
   }
-  return assetProgress.stage == assets::AssetGroupStage::Ready;
+  if (runtimeAssets_ != nullptr && preparedSceneAssetRequest_ != 0) {
+    const auto progress = runtimeAssets_->progress(preparedSceneAssetRequest_);
+    if (progress.stage == assets::AssetGroupStage::Failed) {
+      sceneAssetError_ = progress.error;
+      return false;
+    }
+    if (progress.stage != assets::AssetGroupStage::Ready) {
+      return false;
+    }
+  }
+  return pollScenePresentation();
 }
 
 bool LuaScriptHost::requestPreparedSceneActivation() {
@@ -444,13 +502,7 @@ bool LuaScriptHost::requestSceneUnload(const std::string &sceneId) {
 bool LuaScriptHost::requestSceneReload() {
   if (world_ == nullptr || world_->activeSceneId.empty())
     return false;
-  if (!sceneFlow_.prepare(world_->activeSceneId, false))
-    return false;
-  preparedSceneAssetRequest_ = 0;
-  preparedSceneAssetId_.clear();
-  sceneAssetError_.clear();
-  autoActivatePrepared_ = true;
-  return true;
+  return requestSceneLoad(world_->activeSceneId);
 }
 
 bool LuaScriptHost::setEntityPersistent(const std::string &entityId,
@@ -468,7 +520,7 @@ std::string LuaScriptHost::sceneFlowError() const {
 }
 
 bool LuaScriptHost::hasPendingSceneLoad() {
-  sceneFlow_.poll();
+  pollScenePreparation();
   bool assetsFailed = false;
   bool assetsReady = preparedSceneAssetRequest_ == 0;
   if (runtimeAssets_ != nullptr && preparedSceneAssetRequest_ != 0) {
@@ -478,10 +530,10 @@ bool LuaScriptHost::hasPendingSceneLoad() {
     if (assetsFailed)
       sceneAssetError_ = progress.error;
   }
-  if (autoActivatePrepared_ && assetsReady &&
-      sceneFlow_.state() == ScenePreparationState::Ready)
+  if (autoActivatePrepared_ && assetsReady && scenePrepared())
     pendingPreparedActivation_ = true;
   return pendingPreparedActivation_ || pendingSceneUnload_.has_value() ||
+         (autoActivatePrepared_ && !sceneAssetError_.empty()) ||
          (autoActivatePrepared_ && assetsFailed) ||
          (autoActivatePrepared_ &&
           sceneFlow_.state() == ScenePreparationState::Failed);
@@ -573,6 +625,7 @@ bool LuaScriptHost::applyPendingSceneLoad(std::string &error) {
     unloadScripts();
     worldCommands_.clear();
   }
+  resetScenePresentation();
   const auto transition = sceneFlow_.activate(*world_, resourceLifetimes_);
   if (prefabs_ != nullptr)
     prefabs_->prune(*world_);

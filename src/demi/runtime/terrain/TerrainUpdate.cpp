@@ -40,11 +40,18 @@ void invalidateChangedSurfaceRoles(const HeightField &previous,
 
 bool refreshSurfaceMaterials(
     const HeightField &previous, HeightField &current,
-    const TerrainRecipe &recipe,
+    const TerrainRecipe &beforeRecipe, const TerrainRecipe &recipe,
     const std::shared_ptr<const TerrainPalette> &palette, TerrainPatch &patch,
     std::stop_token stop) {
   const bool heightsChanged = !patch.invalidation.heightSamples.empty();
-  const bool needsClassification = heightsChanged && current.surfaceMaterials;
+  bool snowPermissionChanged = false;
+  for (const auto &[id, biome] : recipe.biomes) {
+    const auto previousBiome = beforeRecipe.biomes.find(id);
+    snowPermissionChanged |= previousBiome == beforeRecipe.biomes.end() ||
+                             previousBiome->second.allowSnow != biome.allowSnow;
+  }
+  const bool needsClassification =
+      (heightsChanged || snowPermissionChanged) && current.surfaceMaterials;
   const bool bindingsChanged =
       !terrainSurfaceBindingsMatch(current, palette.get());
   if (!needsClassification && !bindingsChanged) {
@@ -55,7 +62,8 @@ bool refreshSurfaceMaterials(
     patch.beforeDerived = terrainDerivedState(previous);
   }
   if (!updateTerrainSurfaceMaterials(current, recipe, palette.get(),
-                                     heightsChanged, stop)) {
+                                     heightsChanged || snowPermissionChanged,
+                                     stop)) {
     return false;
   }
 
@@ -596,22 +604,22 @@ updateTerrainWithInputs(const TerrainRecipe &before, const TerrainRecipe &after,
                                         *artifacts.basePlacements)
                                   : std::span<const TerrainScatterPlacement>{};
       if (!refreshTerrainScatterPlacements(
-              *field, candidates,
-              artifacts.water.bodies.empty() ? nullptr : &artifacts.water,
+              *field, candidates, after, inputs.palette.get(),
+              artifacts.water.authored ? &artifacts.water : nullptr,
               stop))
         return std::nullopt;
     } else {
       auto candidates = scatterTerrain(*field, after, *inputs.palette);
       if (stop.stop_requested() ||
-          !refreshTerrainScatterPlacements(*field, candidates.placements,
-                                           nullptr, stop))
+          !refreshTerrainScatterPlacements(*field, candidates.placements, after,
+                                           inputs.palette.get(), nullptr, stop))
         return std::nullopt;
       field->scatterTruncated = candidates.truncated;
     }
     patch->afterDerived = terrainDerivedState(*field);
   }
-  if (!refreshSurfaceMaterials(*previous, *field, after, inputs.palette, *patch,
-                               stop)) {
+  if (!refreshSurfaceMaterials(*previous, *field, before, after, inputs.palette,
+                               *patch, stop)) {
     return std::nullopt;
   }
   invalidateChangedBiomeOverrides(*previous, *field, *patch);

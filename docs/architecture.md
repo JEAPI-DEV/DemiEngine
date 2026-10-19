@@ -75,7 +75,7 @@ The current source layout reflects those boundaries:
   default on desktop builds.
 - **mbedTLS 3.6.2:** TLS and DTLS security support.
 - **ENet 1.3.18:** optional reliable UDP transport.
-- **librsvg:** optional SVG rasterization when available.
+- **librsvg 2.52 or newer:** optional SVG rasterization when available. Texture assets retain intrinsic dimensions; icon canvases retain their fixed size.
 - **Dear ImGui docking:** editor-presentation UI only. The official docking
   branch is pinned separately at `c51f1a6e47b8b5b11ca13490c461842c96bc4ca2`
   because it matches bgfx's 1.92.8 dynamic-texture adapter. It remains isolated

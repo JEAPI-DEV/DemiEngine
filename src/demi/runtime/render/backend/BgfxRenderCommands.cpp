@@ -1,8 +1,12 @@
 #include "demi/runtime/render/backend/RenderCommands.h"
 
 #include "demi/runtime/render/backend/BgfxDrawBindings.h"
+#include "demi/runtime/render/backend/BgfxInstanceBufferPool.h"
+#include "demi/runtime/render/backend/BgfxFrameSerial.h"
+#include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/render/backend/BgfxResourceLookup.h"
 #include "demi/runtime/render/backend/BgfxVertexLayout.h"
+#include "demi/runtime/render/backend/BgfxView3D.h"
 
 #include <bgfx/bgfx.h>
 #include <bx/math.h>
@@ -94,14 +98,20 @@ bool setFrameBuffer(const std::uint16_t viewId,
   return true;
 }
 
-bool bindProgramAndTexture(const ProgramHandle programHandle,
-                           const TextureHandle textureHandle,
-                           const SamplerHandle samplerHandle,
-                           BgfxResourceLookup &resources,
-                           bgfx::ProgramHandle &program, std::string &error,
-                           const char *drawName) {
-  program = resources.bgfxProgram(programHandle);
-  if (!bgfx::isValid(program)) {
+struct ProgramTextureBinding {
+  bgfx::ProgramHandle program = BGFX_INVALID_HANDLE;
+  bgfx::TextureHandle texture = BGFX_INVALID_HANDLE;
+  bgfx::UniformHandle sampler = BGFX_INVALID_HANDLE;
+};
+
+bool resolveProgramAndTexture(const ProgramHandle programHandle,
+                              const TextureHandle textureHandle,
+                              const SamplerHandle samplerHandle,
+                              BgfxResourceLookup &resources,
+                              ProgramTextureBinding &binding,
+                              std::string &error, const char *drawName) {
+  binding.program = resources.bgfxProgram(programHandle);
+  if (!bgfx::isValid(binding.program)) {
     error = std::string(drawName) + " references a stale program handle.";
     return false;
   }
@@ -110,16 +120,38 @@ bool bindProgramAndTexture(const ProgramHandle programHandle,
             " must provide both texture and sampler or neither.";
     return false;
   }
-  if (!textureHandle)
+  if (!textureHandle) {
     return true;
-  const bgfx::TextureHandle texture = resources.bgfxTexture(textureHandle);
-  const bgfx::UniformHandle sampler = resources.bgfxSampler(samplerHandle);
-  if (!bgfx::isValid(texture) || !bgfx::isValid(sampler)) {
+  }
+  binding.texture = resources.bgfxTexture(textureHandle);
+  binding.sampler = resources.bgfxSampler(samplerHandle);
+  if (!bgfx::isValid(binding.texture) || !bgfx::isValid(binding.sampler)) {
     error = std::string(drawName) +
             " references a stale texture or sampler handle.";
     return false;
   }
-  bgfx::setTexture(0, sampler, texture);
+  return true;
+}
+
+void bindPrimaryTexture(const ProgramTextureBinding &binding) {
+  if (bgfx::isValid(binding.texture)) {
+    bgfx::setTexture(0, binding.sampler, binding.texture);
+  }
+}
+
+bool bindProgramAndTexture(const ProgramHandle programHandle,
+                           const TextureHandle textureHandle,
+                           const SamplerHandle samplerHandle,
+                           BgfxResourceLookup &resources,
+                           bgfx::ProgramHandle &program, std::string &error,
+                           const char *drawName) {
+  ProgramTextureBinding binding;
+  if (!resolveProgramAndTexture(programHandle, textureHandle, samplerHandle,
+                                 resources, binding, error, drawName)) {
+    return false;
+  }
+  program = binding.program;
+  bindPrimaryTexture(binding);
   return true;
 }
 
@@ -169,17 +201,41 @@ void bindExtraTextures(std::span<const BgfxResolvedTexture> textures) {
 
 class BgfxRenderCommands final : public RenderCommands {
 public:
-  explicit BgfxRenderCommands(BgfxResourceLookup &resources)
-      : resources_(resources) {}
+  BgfxRenderCommands(BgfxResourceLookup &resources,
+                      const BgfxRenderCommandsOptions &options)
+      : resources_(resources), instanceBuffers_(options) {}
 
   std::uint32_t availableInstances(std::uint16_t stride,
                                    std::uint32_t requested) const override {
+    if (!bgfxSubmissionContextActive()) {
+      return 0;
+    }
     const auto *caps = bgfx::getCaps();
     if (caps == nullptr || (caps->supported & BGFX_CAPS_INSTANCING) == 0 ||
         stride == 0 || stride % 16 != 0 || requested == 0) {
       return 0;
     }
-    return bgfx::getAvailInstanceDataBuffer(requested, stride);
+    return instanceBuffers_.chunkCapacity(stride, requested);
+  }
+
+  bool copyTexture(std::uint16_t view, TextureHandle source,
+                   TextureHandle destination, std::uint16_t width,
+                   std::uint16_t height, std::string &error) override {
+    const auto sourceTexture = resources_.bgfxTexture(source);
+    const auto destinationTexture = resources_.bgfxTexture(destination);
+    const auto *caps = bgfx::getCaps();
+    if (!caps || view >= caps->limits.maxViews ||
+        !(caps->supported & BGFX_CAPS_TEXTURE_BLIT) ||
+        !bgfx::isValid(sourceTexture) || !bgfx::isValid(destinationTexture) ||
+        source == destination || width == 0 || height == 0) {
+      error = "Scene capture requires distinct valid textures and texture blit "
+              "support.";
+      return false;
+    }
+    bgfx::setViewName(view, "OpaqueColorCapture");
+    bgfx::blit(view, destinationTexture, 0, 0, sourceTexture, 0, 0, width,
+               height);
+    return true;
   }
 
   bool configureView2D(const View2DConfig &view, std::string &error) override {
@@ -187,6 +243,10 @@ public:
       return false;
     if (!setFrameBuffer(view.id, view.frameBuffer, resources_, error, "2D"))
       return false;
+    const auto name =
+        view.debugName.empty() ? std::string_view{"2D"} : view.debugName;
+    bgfx::setViewName(view.id, name.data(),
+                      static_cast<std::int32_t>(name.size()));
     bgfx::setViewRect(view.id, view.x, view.y, view.width, view.height);
     // Canvas draw order is presentation order: tilemap layers, sprites, debug
     // geometry, and UI may deliberately overlap while sharing no depth buffer.
@@ -224,6 +284,10 @@ public:
     if (!setFrameBuffer(view.id, view.frameBuffer, resources_, error, "3D"))
       return false;
 
+    const auto name =
+        view.debugName.empty() ? std::string_view{"3D"} : view.debugName;
+    bgfx::setViewName(view.id, name.data(),
+                      static_cast<std::int32_t>(name.size()));
     bgfx::setViewRect(view.id, view.x, view.y, view.width, view.height);
     std::uint16_t clearFlags = BGFX_CLEAR_NONE;
     bgfx::setViewMode(view.id, view.sequential ? bgfx::ViewMode::Sequential
@@ -234,12 +298,8 @@ public:
       clearFlags |= BGFX_CLEAR_DEPTH;
     bgfx::setViewClear(view.id, clearFlags, view.clearRgba, 1.0F, 0);
 
-    const bx::Vec3 eye{view.eye.x, view.eye.y, view.eye.z};
-    const bx::Vec3 target{view.target.x, view.target.y, view.target.z};
-    const bx::Vec3 up{view.up.x, view.up.y, view.up.z};
-    float viewMatrix[16];
+    const auto viewMatrix = bgfxViewMatrix3D(view);
     float projection[16];
-    bx::mtxLookAt(viewMatrix, eye, target, up, bx::Handedness::Right);
     const bgfx::Caps *caps = bgfx::getCaps();
     const bool homogeneousDepth = caps != nullptr && caps->homogeneousDepth;
     const float aspect =
@@ -254,7 +314,7 @@ public:
                    view.nearClip, view.farClip, 0.0F, homogeneousDepth,
                    bx::Handedness::Right);
     }
-    bgfx::setViewTransform(view.id, viewMatrix, projection);
+    bgfx::setViewTransform(view.id, viewMatrix.data(), projection);
     bgfx::touch(view.id);
     return true;
   }
@@ -285,11 +345,19 @@ public:
                                    "Transient draw")) {
       return false;
     }
+    const auto *caps = bgfx::getCaps();
+    const std::uint16_t maximumSamplers =
+        caps ? caps->limits.maxTextureSamplers : 256;
+    if (!bindings_.resolveTextures(draw.textures, resources_, maximumSamplers,
+                                   error)) {
+      return false;
+    }
     bgfx::ProgramHandle program = BGFX_INVALID_HANDLE;
     if (!bindProgramAndTexture(draw.program, draw.texture, draw.sampler,
                                resources_, program, error, "Transient draw")) {
       return false;
     }
+    bindExtraTextures(bindings_.textures());
 
     bgfx::TransientVertexBuffer vertices;
     bgfx::TransientIndexBuffer indices;
@@ -350,6 +418,10 @@ public:
   }
 
   bool submit(const InstancedBufferedDraw &draw, std::string &error) override {
+    if (!bgfxSubmissionContextActive()) {
+      error = "Instanced submission requires an active native graphics context.";
+      return false;
+    }
     BgfxBufferReference vertices;
     BgfxBufferReference indices;
     if (!validateBufferedSlices(draw.vertices, draw.indices, resources_,
@@ -372,9 +444,13 @@ public:
       return false;
     }
     const auto instanceCount = static_cast<std::uint32_t>(count);
-    if (availableInstances(stride, instanceCount) < instanceCount) {
-      error = "Instancing is unsupported or the frame instance-buffer budget "
-              "is exhausted.";
+    const auto *instanceCaps = bgfx::getCaps();
+    if (!instanceCaps || (instanceCaps->supported & BGFX_CAPS_INSTANCING) == 0) {
+      error = "Instancing is unsupported on this graphics device.";
+      return false;
+    }
+    if (instanceBuffers_.remainingRecords(stride) < instanceCount) {
+      error = instanceBuffers_.budgetError(stride, instanceCount);
       return false;
     }
     if (!bindings_.resolveUniforms(draw.uniforms, resources_, error,
@@ -388,45 +464,95 @@ public:
                                    error)) {
       return false;
     }
-    bgfx::ProgramHandle program = BGFX_INVALID_HANDLE;
-    if (!bindProgramAndTexture(draw.program, draw.texture, draw.sampler,
-                               resources_, program, error, "Instanced draw")) {
+    ProgramTextureBinding primary;
+    if (!resolveProgramAndTexture(draw.program, draw.texture, draw.sampler,
+                                   resources_, primary, error, "Instanced draw")) {
       return false;
     }
-    bindExtraTextures(bindings_.textures());
-
-    bgfx::InstanceDataBuffer instances;
-    bgfx::allocInstanceDataBuffer(&instances, instanceCount, stride);
-    std::memcpy(instances.data, draw.instances.data.data(),
-                draw.instances.data.size());
-    if (vertices.kind == BufferKind::DynamicVertex)
-      bgfx::setVertexBuffer(0, bgfx::DynamicVertexBufferHandle{vertices.index},
-                            draw.vertices.first, draw.vertices.count);
-    else
-      bgfx::setVertexBuffer(0, bgfx::VertexBufferHandle{vertices.index},
-                            draw.vertices.first, draw.vertices.count);
-    bgfx::setIndexBuffer(bgfx::IndexBufferHandle{indices.index},
-                         draw.indices.first, draw.indices.count);
-    bgfx::setInstanceDataBuffer(&instances);
-    applyUniforms(bindings_.uniforms());
-    bgfx::setState(renderState(draw.state));
-    applyScissor(draw.scissor);
-    bgfx::submit(draw.viewId, program);
+    std::uint32_t first = 0;
+    while (first < instanceCount) {
+      const auto count = instanceBuffers_.chunkCapacity(stride, instanceCount - first);
+      if (count == 0) {
+        error = "Dedicated instance-buffer capacity changed during submission.";
+        return false;
+      }
+      BgfxInstanceBufferPool::Allocation instances;
+      const auto bytes = draw.instances.data.subspan(std::size_t(first) * stride,
+                                                     std::size_t(count) * stride);
+      if (!instanceBuffers_.upload(stride, bytes, instances, error)) {
+        return false;
+      }
+      // submit discards state. Every bounded chunk rebinds the complete surface
+      // and uses its own arena range; later passes cannot overwrite it.
+      bindPrimaryTexture(primary);
+      bindExtraTextures(bindings_.textures());
+      if (vertices.kind == BufferKind::DynamicVertex) {
+        bgfx::setVertexBuffer(0, bgfx::DynamicVertexBufferHandle{vertices.index},
+                              draw.vertices.first, draw.vertices.count);
+      } else {
+        bgfx::setVertexBuffer(0, bgfx::VertexBufferHandle{vertices.index},
+                              draw.vertices.first, draw.vertices.count);
+      }
+      bgfx::setIndexBuffer(bgfx::IndexBufferHandle{indices.index},
+                           draw.indices.first, draw.indices.count);
+      bgfx::setInstanceDataBuffer(instances.buffer, instances.first, instances.count);
+      applyUniforms(bindings_.uniforms());
+      bgfx::setState(renderState(draw.state));
+      applyScissor(draw.scissor);
+      bgfx::submit(draw.viewId, primary.program);
+      first += count;
+    }
+    if (RuntimeProfiler::enabled()) {
+      RuntimeProfiler::setGauge("Graphics.instance_buffer_bytes", instanceBuffers_.residentBytes());
+      RuntimeProfiler::setGauge("Graphics.instance_upload_bytes", instanceBuffers_.frameUploadBytes());
+      RuntimeProfiler::setGauge("Graphics.instance_chunks", instanceBuffers_.frameChunks());
+    }
     return true;
   }
 
 private:
   BgfxResourceLookup &resources_;
   BgfxDrawBindings bindings_;
+  BgfxInstanceBufferPool instanceBuffers_;
 };
 
 } // namespace
 
+std::array<float, 16> bgfxViewMatrix3D(const View3DConfig &view) {
+  std::array<float, 16> matrix;
+  const bx::Vec3 origin{0, 0, 0};
+  const bx::Vec3 forward{view.forward.x, view.forward.y, view.forward.z};
+  const bx::Vec3 up{view.up.x, view.up.y, view.up.z};
+  bx::mtxLookAt(matrix.data(), origin, forward, up, bx::Handedness::Right);
+  for (std::size_t row = 0; row < 3; ++row) {
+    const double translation = double(matrix[row]) * view.eye.x +
+                               double(matrix[4 + row]) * view.eye.y +
+                               double(matrix[8 + row]) * view.eye.z;
+    matrix[12 + row] = float(-translation);
+  }
+  return matrix;
+}
+
 std::unique_ptr<RenderCommands>
-createBgfxRenderCommands(GpuResources &resources) {
+createBgfxRenderCommands(GpuResources &resources,
+                         const BgfxRenderCommandsOptions &options,
+                         std::string *error) {
+  if (!options.valid()) {
+    if (error) {
+      *error = "Invalid BgfxRenderCommandsOptions: instance chunks must be aligned "
+               "to 16 bytes, fit the native 32-bit upload limit, and divide the "
+               "nonzero reservation budget.";
+    }
+    return nullptr;
+  }
   auto *lookup = dynamic_cast<BgfxResourceLookup *>(&resources);
-  return lookup != nullptr ? std::make_unique<BgfxRenderCommands>(*lookup)
-                           : nullptr;
+  if (!lookup) {
+    if (error) {
+      *error = "Native render commands require a bgfx resource owner.";
+    }
+    return nullptr;
+  }
+  return std::make_unique<BgfxRenderCommands>(*lookup, options);
 }
 
 } // namespace demi::runtime::render

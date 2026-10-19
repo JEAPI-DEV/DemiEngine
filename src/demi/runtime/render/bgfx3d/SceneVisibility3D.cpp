@@ -1,10 +1,15 @@
 #include "demi/runtime/render/bgfx3d/SceneVisibility3D.h"
 #include "demi/runtime/geometry/MeshDeformation3D.h"
+#include "demi/runtime/profiling/RuntimeProfiler.h"
+#include "demi/runtime/render/MaterialLibrary.h"
+#include "demi/runtime/render/bgfx3d/MeshInstancePreparation3D.h"
+#include "demi/runtime/render/bgfx3d/MeshTransform3D.h"
 #include "demi/runtime/render/bgfx3d/TerrainCameraDemand3D.h"
 #include "demi/runtime/render/bgfx3d/TerrainDrawSelection3D.h"
 #include "demi/runtime/render/bgfx3d/TerrainPatchBatch3D.h"
 #include "demi/runtime/render/bgfx3d/VisibleMeshGeometry3D.h"
 #include "demi/runtime/scene/WorldQueries.h"
+#include "demi/runtime/scene/components/3dcomponents/AnimationPlayer3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshInstances3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
 #include "demi/runtime/scene/model/MeshMaterialSections3D.h"
@@ -55,93 +60,319 @@ Sphere worldBounds(const MeshRendererComponent &mesh,
                    WorldTransform3D transform,
                    std::span<const MeshDent3D> dents,
                    const PreparedTerrainChunkLod *terrain = nullptr,
-                   std::optional<Vec3> sizeOverride = std::nullopt) {
+                   std::optional<Vec3> sizeOverride = std::nullopt,
+                   const std::optional<MeshBounds3D> &bounds = std::nullopt) {
   const auto size = sizeOverride.value_or(mesh.size);
+  const auto boundsMin = terrain  ? terrain->boundsMin
+                         : bounds ? bounds->minimum
+                                  : mesh.boundsMin;
+  const auto boundsMax = terrain  ? terrain->boundsMax
+                         : bounds ? bounds->maximum
+                                  : mesh.boundsMax;
+  const Vec3 expansion = meshDentBoundsExpansion3D(dents);
+  const Vec3 center{(boundsMin.x + boundsMax.x) * .5F,
+                    (boundsMin.y + boundsMax.y) * .5F,
+                    (boundsMin.z + boundsMax.z) * .5F};
+  const Vec3 extent{(boundsMax.x - boundsMin.x) * .5F + expansion.x,
+                    (boundsMax.y - boundsMin.y) * .5F + expansion.y,
+                    (boundsMax.z - boundsMin.z) * .5F + expansion.z};
   transform.scale = {transform.scale.x * size.x, transform.scale.y * size.y,
                      transform.scale.z * size.z};
-  Vec3 minimum;
-  Vec3 maximum;
-  bool first = true;
-  const Vec3 expansion = meshDentBoundsExpansion3D(dents);
-  const auto boundsMin = terrain ? terrain->boundsMin : mesh.boundsMin;
-  const auto boundsMax = terrain ? terrain->boundsMax : mesh.boundsMax;
-  for (const float x : {boundsMin.x - expansion.x, boundsMax.x + expansion.x}) {
-    for (const float y :
-         {boundsMin.y - expansion.y, boundsMax.y + expansion.y}) {
-      for (const float z :
-           {boundsMin.z - expansion.z, boundsMax.z + expansion.z}) {
-        const Vec3 point = transformPoint3D(transform, {x, y, z});
-        if (first) {
-          minimum = maximum = point;
-          first = false;
-        } else {
-          minimum = {std::min(minimum.x, point.x), std::min(minimum.y, point.y),
-                     std::min(minimum.z, point.z)};
-          maximum = {std::max(maximum.x, point.x), std::max(maximum.y, point.y),
-                     std::max(maximum.z, point.z)};
-        }
-      }
+  const Vec3 scaledExtent{extent.x * transform.scale.x,
+                          extent.y * transform.scale.y,
+                          extent.z * transform.scale.z};
+  // Rotation preserves this circumsphere's radius. Transforming eight corners
+  // only to enclose the resulting AABB repeats trigonometry and enlarges it.
+  return {transformPoint3D(transform, center),
+          std::sqrt(dot(scaledExtent, scaledExtent))};
+}
+
+void recordInstanceCullingStatistics(const SceneVisibility3D &result,
+                                     std::uint16_t viewId) {
+  if (RuntimeProfiler::enabled()) {
+    const auto prefix =
+        "Renderer3D.view." + std::to_string(viewId) + ".instances.";
+    RuntimeProfiler::setGauge(prefix + "nodes_tested",
+                              result.instanceNodesTested);
+    RuntimeProfiler::setGauge(prefix + "copies_examined",
+                              result.instanceCopiesExamined);
+    RuntimeProfiler::setGauge(prefix + "copies_rejected_by_index",
+                              result.instanceCopiesRejectedByIndex);
+  }
+}
+
+struct ViewFrustum {
+  Vec3 position;
+  Vec3 forward;
+  Vec3 right;
+  Vec3 up;
+  float nearClip;
+  float farClip;
+  float halfWidth;
+  float halfHeight;
+  float horizontalRadiusScale = 1;
+  float verticalRadiusScale = 1;
+  bool perspective;
+
+  explicit ViewFrustum(const BgfxCameraFrame3D &frame)
+      : position(frame.position),
+        forward(normalized(frame.forward, {0.F, 0.F, 1.F})),
+        right(normalized(cross(frame.up, forward), {1.F, 0.F, 0.F})),
+        up(normalized(cross(forward, right), {0.F, 1.F, 0.F})),
+        nearClip(frame.camera.nearClip), farClip(frame.camera.farClip),
+        perspective(frame.camera.perspective) {
+    const float aspect =
+        float(std::max(frame.viewportWidth, std::uint16_t{1})) /
+        float(std::max(frame.viewportHeight, std::uint16_t{1}));
+    halfHeight = frame.camera.orthographicSize * .5F;
+    if (perspective) {
+      constexpr float DegreesToRadians = .01745329251994329577F;
+      halfHeight = std::tan(std::clamp(frame.camera.fov, 1.F, 179.F) *
+                            DegreesToRadians * .5F);
+    }
+    halfWidth = halfHeight * aspect;
+    if (perspective) {
+      verticalRadiusScale = std::sqrt(1.F + halfHeight * halfHeight);
+      horizontalRadiusScale = std::sqrt(1.F + halfWidth * halfWidth);
     }
   }
-  const Vec3 center{(minimum.x + maximum.x) * 0.5F,
-                    (minimum.y + maximum.y) * 0.5F,
-                    (minimum.z + maximum.z) * 0.5F};
-  const Vec3 extent{maximum.x - center.x, maximum.y - center.y,
-                    maximum.z - center.z};
-  return {.center = center, .radius = std::sqrt(dot(extent, extent))};
+
+  bool visible(Sphere sphere) const {
+    const Vec3 relative{sphere.center.x - position.x,
+                        sphere.center.y - position.y,
+                        sphere.center.z - position.z};
+    const float depth = dot(relative, forward);
+    if (depth + sphere.radius < nearClip || depth - sphere.radius > farClip) {
+      return false;
+    }
+    const float depthScale = perspective ? std::max(depth, 0.F) : 1.F;
+    return std::abs(dot(relative, right)) <=
+               halfWidth * depthScale + sphere.radius * horizontalRadiusScale &&
+           std::abs(dot(relative, up)) <=
+               halfHeight * depthScale + sphere.radius * verticalRadiusScale;
+  }
+};
+
+bool sphereVisible(Sphere sphere, const BgfxCameraFrame3D &frame) {
+  return ViewFrustum(frame).visible(sphere);
 }
 
-bool sphereVisible(const Sphere sphere, const BgfxCameraFrame3D &frame) {
-  const Vec3 forward = normalized(frame.forward, {0.0F, 0.0F, 1.0F});
-  const Vec3 right = normalized(cross(frame.up, forward), {1.0F, 0.0F, 0.0F});
-  const Vec3 up = normalized(cross(forward, right), {0.0F, 1.0F, 0.0F});
-  const Vec3 relative{sphere.center.x - frame.position.x,
-                      sphere.center.y - frame.position.y,
-                      sphere.center.z - frame.position.z};
-  const float depth = dot(relative, forward);
-  if (depth + sphere.radius < frame.camera.nearClip ||
-      depth - sphere.radius > frame.camera.farClip) {
-    return false;
+std::optional<MeshBounds3D>
+localMeshBounds(const Entity &entity, const ModelBoundsResolver3D &models) {
+  const auto &mesh = *entity.component<MeshRendererComponent>();
+  if (mesh.hasBounds) {
+    return MeshBounds3D{mesh.boundsMin, mesh.boundsMax};
   }
-
-  const float aspect =
-      static_cast<float>(std::max(frame.viewportWidth, std::uint16_t{1})) /
-      static_cast<float>(std::max(frame.viewportHeight, std::uint16_t{1}));
-  float halfWidth = std::max(frame.camera.orthographicSize, 0.001F) * aspect;
-  float halfHeight = std::max(frame.camera.orthographicSize, 0.001F);
-  float horizontalRadius = sphere.radius;
-  float verticalRadius = sphere.radius;
-  if (frame.camera.perspective) {
-    constexpr float DegreesToRadians = 0.01745329251994329577F;
-    const float tangent = std::tan(std::clamp(frame.camera.fov, 1.0F, 179.0F) *
-                                   DegreesToRadians * 0.5F);
-    halfHeight = std::max(depth, 0.0F) * tangent;
-    halfWidth = halfHeight * aspect;
-    verticalRadius *= std::sqrt(1.0F + tangent * tangent);
-    const float horizontalTangent = tangent * aspect;
-    horizontalRadius *= std::sqrt(1.0F + horizontalTangent * horizontalTangent);
+  if (!mesh.model.empty()) {
+    // Bind-pose bounds do not conservatively describe animated characters.
+    if (!models || entity.hasComponent<AnimationPlayer3DComponent>()) {
+      return std::nullopt;
+    }
+    auto bounds = models(mesh.model);
+    if (!bounds) {
+      return std::nullopt;
+    }
+    // Any authored LOD may be selected later; use their union to avoid clipping
+    // larger reduced meshes at a switching threshold.
+    for (const auto &model : {mesh.mediumLodModel, mesh.lowLodModel}) {
+      if (model.empty()) {
+        continue;
+      }
+      const auto level = models(model);
+      if (!level) {
+        return std::nullopt;
+      }
+      bounds->minimum = {std::min(bounds->minimum.x, level->minimum.x),
+                         std::min(bounds->minimum.y, level->minimum.y),
+                         std::min(bounds->minimum.z, level->minimum.z)};
+      bounds->maximum = {std::max(bounds->maximum.x, level->maximum.x),
+                         std::max(bounds->maximum.y, level->maximum.y),
+                         std::max(bounds->maximum.z, level->maximum.z)};
+    }
+    return bounds;
   }
-  return std::abs(dot(relative, right)) <= halfWidth + horizontalRadius &&
-         std::abs(dot(relative, up)) <= halfHeight + verticalRadius;
+  if (mesh.shape == "cube" || mesh.shape == "sphere" ||
+      mesh.shape == "cylinder" || mesh.shape == "plane") {
+    // Canonical primitives fit the unit cube. A conservative cube also keeps
+    // this path independent of sphere/cylinder tessellation details.
+    return MeshBounds3D{{-.5F, -.5F, -.5F}, {.5F, .5F, .5F}};
+  }
+  return std::nullopt;
 }
 
-void appendVisibleInstances(const VisibleMesh3D &source,
-                            const MeshInstances3DComponent &instances,
-                            const BgfxCameraFrame3D &frame,
-                            SceneVisibility3D &result) {
+float windBoundsExpansion(const Entity &entity,
+                          const MaterialLibrary *materials) {
+  if (!materials) {
+    return 0;
+  }
+  const auto strength = [&](std::string_view id) {
+    const auto *material = materials->find(id);
+    return material && !material->program ? material->surface.windStrength
+                                          : 0.F;
+  };
+  const auto *mesh = entity.component<MeshRendererComponent>();
+  float expansion = strength(mesh->material);
+  if (const auto *sections = entity.component<MeshMaterialSections3D>()) {
+    for (const auto &section : sections->sections) {
+      expansion = std::max(expansion, strength(section.material));
+    }
+  }
+  return expansion;
+}
+
+void appendVisibleInstances(
+    const World &world, const VisibleMesh3D &source,
+    const MeshInstances3DComponent &instances, SceneVisibility3D &result,
+    const MaterialLibrary *materials, const ModelBoundsResolver3D &models,
+    const ViewFrustum &frustum, Vec3 lodPosition,
+    MeshInstancePreparation3D *presentationPreparation) {
+  ProfileScope instanceScope("Renderer3D.extract_instance_copies");
   const auto &mesh = *source.entity->component<MeshRendererComponent>();
-  const auto &dents = entityMeshDents3D(*source.entity);
-
-  for (const auto &[instanceId, localTransform] : instances.transforms) {
-    ++result.considered;
-    const auto worldTransform =
-        composeWorldTransform3D(source.transform, localTransform);
-    if (mesh.hasBounds &&
-        !sphereVisible(worldBounds(mesh, worldTransform, dents), frame)) {
+  MeshInstancePreparation3D uncached;
+  auto &preparation =
+      presentationPreparation ? *presentationPreparation : uncached;
+  auto &prepared =
+      preparation.source(world, *source.entity, source.transform, instances);
+  if (!prepared.geometryPrepared) {
+    const auto oldBounds = prepared.localBounds;
+    const auto oldCenter = prepared.localCenter;
+    const auto oldExtent = prepared.localExtent;
+    const auto oldWindExpansion = prepared.windExpansion;
+    const auto oldSize = prepared.meshSize;
+    const bool sizeChanged = !oldSize || oldSize->x != mesh.size.x ||
+                             oldSize->y != mesh.size.y ||
+                             oldSize->z != mesh.size.z;
+    if (sizeChanged) {
+      for (auto &copy : prepared.copies) {
+        copy.modelMatrix.reset();
+      }
+    }
+    prepared.meshSize = mesh.size;
+    prepared.localBounds = localMeshBounds(*source.entity, models);
+    prepared.windExpansion = windBoundsExpansion(*source.entity, materials);
+    if (prepared.localBounds) {
+      const auto minimum = prepared.localBounds->minimum;
+      const auto maximum = prepared.localBounds->maximum;
+      const auto expansion =
+          meshDentBoundsExpansion3D(entityMeshDents3D(*source.entity));
+      prepared.localCenter = {(minimum.x + maximum.x) * .5F,
+                              (minimum.y + maximum.y) * .5F,
+                              (minimum.z + maximum.z) * .5F};
+      prepared.localExtent = {(maximum.x - minimum.x) * .5F + expansion.x,
+                              (maximum.y - minimum.y) * .5F + expansion.y,
+                              (maximum.z - minimum.z) * .5F + expansion.z};
+    }
+    const auto sameVector = [](Vec3 left, Vec3 right) {
+      return left.x == right.x && left.y == right.y && left.z == right.z;
+    };
+    const bool boundsChanged =
+        sizeChanged ||
+        oldBounds.has_value() != prepared.localBounds.has_value() ||
+        !sameVector(oldCenter, prepared.localCenter) ||
+        !sameVector(oldExtent, prepared.localExtent) ||
+        oldWindExpansion != prepared.windExpansion;
+    if (boundsChanged) {
+      for (auto &copy : prepared.copies) {
+        copy.bounds.reset();
+      }
+    }
+    prepared.geometryPrepared = true;
+  }
+  const float cullDistanceSquared = mesh.cullDistance * mesh.cullDistance;
+  const bool unrotatedOwner = source.transform.rotation.x == 0 &&
+                              source.transform.rotation.y == 0 &&
+                              source.transform.rotation.z == 0;
+  const Vec3 scaledCenter{prepared.localCenter.x * mesh.size.x,
+                          prepared.localCenter.y * mesh.size.y,
+                          prepared.localCenter.z * mesh.size.z};
+  const Vec3 scaledExtent{prepared.localExtent.x * mesh.size.x,
+                          prepared.localExtent.y * mesh.size.y,
+                          prepared.localExtent.z * mesh.size.z};
+  const float geometryExpansion = std::sqrt(dot(scaledCenter, scaledCenter)) +
+                                  std::sqrt(dot(scaledExtent, scaledExtent));
+  result.instanceNodesTested += prepared.spatialIndex.query(
+      [&](const InstanceSpatialIndex3D::Node &node) {
+        const Vec3 distance{std::max({node.minimum.x - lodPosition.x, 0.F,
+                                      lodPosition.x - node.maximum.x}),
+                            std::max({node.minimum.y - lodPosition.y, 0.F,
+                                      lodPosition.y - node.maximum.y}),
+                            std::max({node.minimum.z - lodPosition.z, 0.F,
+                                      lodPosition.z - node.maximum.z})};
+        if (mesh.cullDistance > 0 &&
+            dot(distance, distance) >= cullDistanceSquared) {
+          return false;
+        }
+        if (!prepared.localBounds) {
+          return true;
+        }
+        const Vec3 center{node.minimum.x * .5F + node.maximum.x * .5F,
+                          node.minimum.y * .5F + node.maximum.y * .5F,
+                          node.minimum.z * .5F + node.maximum.z * .5F};
+        const Vec3 extent{(node.maximum.x - node.minimum.x) * .5F,
+                          (node.maximum.y - node.minimum.y) * .5F,
+                          (node.maximum.z - node.minimum.z) * .5F};
+        const float radius = std::sqrt(dot(extent, extent)) +
+                             node.maximumScale * geometryExpansion +
+                             prepared.windExpansion;
+        return frustum.visible({center, radius});
+      },
+      prepared.visibleCandidates, prepared.visibilityWords);
+  const auto rejected =
+      prepared.copies.size() - prepared.visibleCandidates.size();
+  result.considered += prepared.copies.size();
+  result.culled += rejected;
+  result.instanceCopiesRejectedByIndex += rejected;
+  result.instanceCopiesExamined += prepared.visibleCandidates.size();
+  for (const auto index : prepared.visibleCandidates) {
+    auto &copy = prepared.copies[index];
+    const Vec3 distance{copy.position.x - lodPosition.x,
+                        copy.position.y - lodPosition.y,
+                        copy.position.z - lodPosition.z};
+    if (mesh.cullDistance > 0 &&
+        dot(distance, distance) >= cullDistanceSquared) {
       ++result.culled;
       continue;
     }
-    result.meshes.push_back({source.entity, worldTransform});
+    if (!copy.world) {
+      if (unrotatedOwner) {
+        copy.world = copy.local;
+        copy.world->position = copy.position;
+        copy.world->scale = {source.transform.scale.x * copy.local.scale.x,
+                             source.transform.scale.y * copy.local.scale.y,
+                             source.transform.scale.z * copy.local.scale.z};
+      } else {
+        copy.world = composeWorldTransform3D(source.transform, copy.local);
+      }
+    }
+    if (prepared.localBounds) {
+      if (!copy.bounds) {
+        auto transform = *copy.world;
+        transform.scale = {transform.scale.x * mesh.size.x,
+                           transform.scale.y * mesh.size.y,
+                           transform.scale.z * mesh.size.z};
+        const Vec3 extent{prepared.localExtent.x * transform.scale.x,
+                          prepared.localExtent.y * transform.scale.y,
+                          prepared.localExtent.z * transform.scale.z};
+        copy.bounds = MeshInstancePreparation3D::Sphere{
+            transformPoint3D(transform, prepared.localCenter),
+            std::sqrt(dot(extent, extent)) + prepared.windExpansion};
+      }
+      if (!frustum.visible({copy.bounds->center, copy.bounds->radius})) {
+        ++result.culled;
+        continue;
+      }
+    }
+    const std::array<float, 16> *modelMatrix = nullptr;
+    if (presentationPreparation) {
+      if (!copy.modelMatrix) {
+        copy.modelMatrix = composeMeshTransform3D(*copy.world, mesh.size);
+      }
+      modelMatrix = &*copy.modelMatrix;
+    }
+    result.meshes.push_back({.entity = source.entity,
+                             .transform = *copy.world,
+                             .preparedModelMatrix = modelMatrix,
+                             .preparedSource = source.preparedSource});
   }
 }
 
@@ -152,7 +383,16 @@ SceneVisibility3D extractVisibleMeshes3D(
     TerrainDrawSelection3D *terrainSelection,
     const BgfxCameraFrame3D *lodCamera, TerrainLodResidency *terrainResidency,
     TerrainCameraDemand3D *terrainDemand,
-    const TerrainPatchBatch3D *terrainPatches) {
+    const TerrainPatchBatch3D *terrainPatches, const MaterialLibrary *materials,
+    const ModelBoundsResolver3D &modelBounds,
+    MeshInstancePreparation3D *instancePreparation) {
+  const ViewFrustum frustum(frame);
+  const Vec3 instanceLodPosition = frame.lodPosition.value_or(
+      lodCamera ? lodCamera->position : frame.position);
+  MeshInstancePreparation3D uncachedPreparation;
+  auto &preparation =
+      instancePreparation ? *instancePreparation : uncachedPreparation;
+  auto &sources = preparation.worldSources(world);
   std::vector<std::optional<VisibleMesh3D>> extracted(world.entities.size());
   // byte-per-entry storage lets workers write independent indices without the
   // packed-bit races of std::vector<bool>.
@@ -163,11 +403,12 @@ SceneVisibility3D extractVisibleMeshes3D(
     if (!entity.enabled) {
       return;
     }
-    const auto *mesh = entity.component<MeshRendererComponent>();
+    auto &source = sources[index];
+    const auto *mesh = source.mesh;
     if (mesh == nullptr) {
       return;
     }
-    const auto *terrainMarker = entity.component<TerrainRenderLod>();
+    const auto *terrainMarker = source.terrain;
     if (terrainPatches && terrainMarker &&
         terrainPatches->suppressesOwner(terrainMarker->owner)) {
       return;
@@ -177,53 +418,93 @@ SceneVisibility3D extractVisibleMeshes3D(
       return;
     }
     considered[index] = 1;
-    const auto transform = resolveWorldTransform3D(world, entity);
-    if (!transform) {
+    if (!source.transform) {
       return;
     }
-    const auto *terrain = entity.component<TerrainRenderLod>();
+    const auto &transform = *source.transform;
+    const auto *terrain = source.terrain;
     const auto *chunk =
         terrain && terrain->chunk ? terrain->chunk.get() : nullptr;
-    if (!entity.hasComponent<MeshInstances3DComponent>() &&
-        (mesh->hasBounds || chunk) &&
-        !sphereVisible(
-            worldBounds(*mesh, *transform, entityMeshDents3D(entity), chunk),
-            frame)) {
+    const bool instanced = source.instances != nullptr;
+    if (!source.geometryPrepared) {
+      const auto localBounds =
+          instanced ? std::nullopt : localMeshBounds(entity, modelBounds);
+      const auto bounds =
+          worldBounds(*mesh, transform, entityMeshDents3D(entity), chunk,
+                      std::nullopt, localBounds);
+      source.bounds = {bounds.center,
+                       bounds.radius + windBoundsExpansion(entity, materials)};
+      source.bounded = localBounds.has_value() || chunk != nullptr;
+      source.geometryPrepared = true;
+    }
+    if (!instanced && source.bounded &&
+        !frustum.visible({source.bounds.center, source.bounds.radius})) {
       culled[index] = 1;
       return;
     }
-    extracted[index] =
-        VisibleMesh3D{.entity = &entity, .transform = *transform};
+    if (instancePreparation && !instanced && !terrain && !source.modelMatrix) {
+      source.modelMatrix = composeMeshTransform3D(transform, mesh->size);
+    }
+    extracted[index] = VisibleMesh3D{
+        .entity = &entity,
+        .transform = transform,
+        .preparedModelMatrix = instancePreparation && source.modelMatrix
+                                   ? &*source.modelMatrix
+                                   : nullptr,
+        .preparedSource = instancePreparation ? &source : nullptr};
   };
-  // Transform hierarchy lookup is cheap for ordinary scenes. Dispatch only
-  // when extraction is large enough to amortize wake-up and synchronization.
-  constexpr std::size_t ParallelExtractionThreshold = 1024;
-  if (jobs != nullptr && world.entities.size() >= ParallelExtractionThreshold) {
-    jobs->parallelFor(world.entities.size(), 64, extract);
-  } else {
-    for (std::size_t index = 0; index < world.entities.size(); ++index) {
-      extract(index);
+  {
+    ProfileScope cullScope("Renderer3D.cull_sources");
+    // Transform hierarchy lookup is cheap for ordinary scenes. Dispatch only
+    // when extraction is large enough to amortize wake-up and synchronization.
+    constexpr std::size_t ParallelExtractionThreshold = 1024;
+    if (jobs != nullptr &&
+        world.entities.size() >= ParallelExtractionThreshold) {
+      jobs->parallelFor(world.entities.size(), 64, extract);
+    } else {
+      for (std::size_t index = 0; index < world.entities.size(); ++index) {
+        extract(index);
+      }
     }
   }
 
   SceneVisibility3D result;
+  bool needsSectionSelection = false;
   result.meshes.reserve(world.entities.size());
-  for (std::size_t index = 0; index < extracted.size(); ++index) {
-    if (extracted[index]) {
-      const auto &source = *extracted[index];
-      const auto *instances =
-          source.entity->component<MeshInstances3DComponent>();
-      if (instances) {
-        appendVisibleInstances(source, *instances, frame, result);
-        continue;
+  {
+    ProfileScope gatherScope("Renderer3D.gather_instances");
+    for (std::size_t index = 0; index < extracted.size(); ++index) {
+      if (extracted[index]) {
+        const auto &source = *extracted[index];
+        const auto sourceIndex = source.entity - world.entities.data();
+        const auto &metadata = sources[sourceIndex];
+        const bool hasInlineSections = metadata.sections &&
+                                       !metadata.sections->sections.empty() &&
+                                       !metadata.mesh->vertices.empty();
+        needsSectionSelection =
+            needsSectionSelection || metadata.terrain || hasInlineSections;
+        const auto *instances = metadata.instances;
+        if (instances) {
+          appendVisibleInstances(world, source, *instances, result, materials,
+                                 modelBounds, frustum, instanceLodPosition,
+                                 instancePreparation);
+          continue;
+        }
+      }
+      result.considered += considered[index] ? 1U : 0U;
+      result.culled += culled[index] ? 1U : 0U;
+      if (extracted[index]) {
+        result.meshes.push_back(std::move(*extracted[index]));
       }
     }
-    result.considered += considered[index] ? 1U : 0U;
-    result.culled += culled[index] ? 1U : 0U;
-    if (extracted[index]) {
-      result.meshes.push_back(std::move(*extracted[index]));
-    }
   }
+  // Ordinary meshes and instance copies already are final draw records. Do not
+  // allocate and copy the entire visible list when no source needs expansion.
+  if (!needsSectionSelection) {
+    recordInstanceCullingStatistics(result, frame.viewId);
+    return result;
+  }
+  ProfileScope sectionScope("Renderer3D.select_sections");
   std::vector<VisibleMesh3D> draws;
   draws.reserve(result.meshes.size());
   std::unordered_map<std::string, float> ownerQuality;
@@ -237,7 +518,9 @@ SceneVisibility3D extractVisibleMeshes3D(
       chunkLevels;
   const auto &selectionCamera = lodCamera ? *lodCamera : frame;
   for (auto visible : result.meshes) {
-    const auto *terrain = visible.entity->component<TerrainRenderLod>();
+    const auto sourceIndex = visible.entity - world.entities.data();
+    const auto &source = sources[sourceIndex];
+    const auto *terrain = source.terrain;
     if (terrain && terrain->chunk) {
       auto [quality, inserted] = ownerQuality.try_emplace(terrain->owner, 0.0F);
       if (inserted) {
@@ -248,8 +531,7 @@ SceneVisibility3D extractVisibleMeshes3D(
           quality->second = component->lodErrorPixels;
         }
       }
-      const auto *appearance =
-          visible.entity->component<MeshRendererComponent>();
+      const auto *appearance = source.mesh;
       visible.terrainSurface = true;
       auto [decision, firstSurface] =
           chunkLevels[terrain->owner].try_emplace(terrain->chunk.get());
@@ -291,8 +573,10 @@ SceneVisibility3D extractVisibleMeshes3D(
         visible.terrainSections = &surface->second.sections;
       }
     }
-    const auto *sections = visibleMeshSections3D(visible);
-    const auto &mesh = visibleMeshGeometry3D(visible);
+    const auto *sections =
+        visible.terrainSections ? visible.terrainSections : source.sections;
+    const auto &mesh =
+        visible.terrainGeometry ? *visible.terrainGeometry : *source.mesh;
     if (visible.terrainSurface && mesh.hasBounds) {
       const auto *appearance =
           visible.entity->component<MeshRendererComponent>();
@@ -315,7 +599,15 @@ SceneVisibility3D extractVisibleMeshes3D(
     }
   }
   result.meshes = std::move(draws);
+  recordInstanceCullingStatistics(result, frame.viewId);
   return result;
+}
+
+bool meshBoundsVisible3D(const MeshRendererComponent &mesh,
+                         const WorldTransform3D &transform,
+                         const BgfxCameraFrame3D &frame) {
+  return !mesh.hasBounds ||
+         sphereVisible(worldBounds(mesh, transform, {}), frame);
 }
 
 bool terrainChunkVisible3D(const PreparedTerrainChunkLod &chunk,

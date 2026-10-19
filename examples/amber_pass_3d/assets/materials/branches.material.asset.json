@@ -1,0 +1,16 @@
+{
+  "dependencies": [
+    "asset://amber_pass/textures/branches/albedo",
+    "asset://amber_pass/textures/branches/ambient_occlusion",
+    "asset://amber_pass/textures/branches/normal",
+    "asset://amber_pass/textures/branches/roughness"
+  ],
+  "format_version": 1,
+  "id": "asset://amber_pass/materials/branches",
+  "importer": "material",
+  "importer_version": 1,
+  "settings": {},
+  "source": "branches.material.json",
+  "source_hash": "fnv1a64:745aab194ef77e61",
+  "type": "Material"
+}

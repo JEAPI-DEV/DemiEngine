@@ -1,6 +1,7 @@
 #include "editor/EditorViewportRenderer.h"
 
 #include "demi/assets/AssetRegistry.h"
+#include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/render/BgfxRenderer2D.h"
 #include "demi/runtime/render/BgfxRenderer3D.h"
 #include "demi/runtime/render/backend/BgfxResourceLookup.h"
@@ -70,6 +71,7 @@ bool EditorViewportRenderer::render3D(const runtime::World &world,
                                       const EditorSceneViewCamera &camera,
                                       const float deltaSeconds,
                                       std::string &error) {
+  runtime::ProfileScope scope("Editor.viewport3d");
   if (!targetReady(area, error))
     return error.empty();
   runtime::render::BgfxCameraFrame3D frame;
@@ -94,7 +96,28 @@ bool EditorViewportRenderer::render3D(const runtime::World &world,
     frame.lightingOverride = lighting;
   }
   terrainPresentedThisFrame_ = true;
-  return renderer3D_->renderFrame(world, frame, deltaSeconds, error);
+  if (runtime::RuntimeProfiler::enabled()) {
+    runtime::RuntimeProfiler::setGauge("Editor.camera.x", frame.position.x);
+    runtime::RuntimeProfiler::setGauge("Editor.camera.y", frame.position.y);
+    runtime::RuntimeProfiler::setGauge("Editor.camera.z", frame.position.z);
+    runtime::RuntimeProfiler::setGauge("Editor.camera.forward_x", frame.forward.x);
+    runtime::RuntimeProfiler::setGauge("Editor.camera.forward_y", frame.forward.y);
+    runtime::RuntimeProfiler::setGauge("Editor.camera.forward_z", frame.forward.z);
+  }
+  const bool rendered = renderer3D_->renderFrame(world, frame, deltaSeconds, error);
+  runtime::RuntimeProfiler::setGauge("Editor.viewport3d.failed", rendered ? 0 : 1);
+  if (rendered) {
+    const auto &statistics = renderer3D_->statistics();
+    runtime::RuntimeProfiler::setGauge("Editor.viewport3d.meshes_considered",
+                                      statistics.consideredMeshes);
+    runtime::RuntimeProfiler::setGauge("Editor.viewport3d.meshes_visible",
+                                      statistics.visibleMeshes);
+    runtime::RuntimeProfiler::setGauge("Editor.viewport3d.batches",
+                                      statistics.batches);
+    runtime::RuntimeProfiler::setGauge("Editor.viewport3d.triangles",
+                                      statistics.triangles);
+  }
+  return rendered;
 }
 
 bool EditorViewportRenderer::render2D(const runtime::World &world,

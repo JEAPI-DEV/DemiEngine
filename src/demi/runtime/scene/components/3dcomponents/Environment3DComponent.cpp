@@ -39,6 +39,10 @@ bool Environment3DComponent::serializeField(
     out = component.reliefImageCacheBytes / (1024U * 1024U);
     return true;
   }
+  if (field == "terrain_texture_cache_mb") {
+    out = component.terrainTextureCacheBytes / (1024U * 1024U);
+    return true;
+  }
   if (field == "terrain_gpu_cache_mb") {
     out = component.terrainGpuCacheBytes / (1024U * 1024U);
     return true;
@@ -54,6 +58,10 @@ nlohmann::json Environment3DComponent::defaults() {
   const Environment3DComponent c;
   return {
       {"msaa_samples", c.msaaSamples},
+      {"terrain_texture_max_size", c.terrainTextureMaxSize},
+      {"terrain_texture_cache_mb",
+       c.terrainTextureCacheBytes / (1024U * 1024U)},
+      {"terrain_detail_distance", c.terrainDetailDistance},
       {"terrain_lod_cache_mb", c.terrainLodCacheBytes / (1024U * 1024U)},
       {"terrain_lod_prepare_jobs", c.terrainLodPrepareJobs},
       {"terrain_gpu_cache_mb", c.terrainGpuCacheBytes / (1024U * 1024U)},
@@ -79,6 +87,36 @@ nlohmann::json Environment3DComponent::defaults() {
 void Environment3DComponent::parse(const nlohmann::json &json, Entity &entity) {
   Environment3DComponent component;
   constexpr std::size_t MiB = 1024U * 1024U;
+  const auto textureSize = readTerrainBudget(
+      json, "terrain_texture_max_size", component.terrainTextureMaxSize, 8192);
+  if (std::ranges::find(terrainTextureSizeOptions, textureSize) ==
+      terrainTextureSizeOptions.end()) {
+    throw std::invalid_argument(
+        "Environment3D.terrain_texture_max_size must be "
+        "a power of two from 64 to 8192");
+  }
+  component.terrainTextureMaxSize = static_cast<std::uint32_t>(textureSize);
+  const auto textureMegabytes =
+      readTerrainBudget(json, "terrain_texture_cache_mb",
+                        component.terrainTextureCacheBytes / MiB,
+                        std::numeric_limits<std::size_t>::max() / MiB);
+  component.terrainTextureCacheBytes = textureMegabytes * MiB;
+  const auto detail = json.find("terrain_detail_distance");
+  if (detail != json.end()) {
+    if (!detail->is_number()) {
+      throw std::invalid_argument(
+          "Environment3D.terrain_detail_distance must be a number");
+    }
+    const double distance = detail->get<double>();
+    if (!std::isfinite(distance) ||
+        distance < std::numeric_limits<float>::denorm_min() ||
+        distance > std::numeric_limits<float>::max()) {
+      throw std::invalid_argument(
+          "Environment3D.terrain_detail_distance must be a "
+          "positive finite distance representable as a float");
+    }
+    component.terrainDetailDistance = static_cast<float>(distance);
+  }
   const auto memoryMegabytes = readTerrainBudget(
       json, "terrain_lod_cache_mb", component.terrainLodCacheBytes / MiB,
       std::numeric_limits<std::size_t>::max() / MiB);

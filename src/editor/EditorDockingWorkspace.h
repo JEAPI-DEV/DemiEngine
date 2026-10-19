@@ -23,10 +23,14 @@ public:
   // Submit after all panels: first-appearing siblings must not steal an
   // explicit document-open request. Returns true when its tab is visible.
   [[nodiscard]] bool focusPanel(std::string_view windowName);
+  [[nodiscard]] bool focusBlockedByModal(std::string_view windowName) const;
   void requestReset();
   void persistVisibilityIfChanged();
 
   [[nodiscard]] EditorPanelVisibility &visibility() noexcept;
+  [[nodiscard]] const EditorPanelVisibility &visibility() const noexcept {
+    return visibility_;
+  }
   [[nodiscard]] std::string takeDiagnostic();
 
 private:

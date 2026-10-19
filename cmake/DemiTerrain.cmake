@@ -2,12 +2,17 @@
 # application, asset registry, physics integrations or renderer to compile.
 add_library(demi-terrain-sampling STATIC
   src/demi/runtime/terrain/TerrainHeightField.cpp
-  src/demi/runtime/terrain/TerrainSurface.cpp)
+  src/demi/runtime/terrain/TerrainSurface.cpp
+  src/demi/runtime/terrain/TerrainPolygon.cpp)
 target_include_directories(demi-terrain-sampling PUBLIC src)
 target_compile_features(demi-terrain-sampling PUBLIC cxx_std_20)
 
 add_library(demi-terrain-water STATIC
   src/demi/runtime/terrain/TerrainWater.cpp
+  src/demi/runtime/terrain/TerrainWaterPath.cpp
+  src/demi/runtime/terrain/TerrainWaterFlow.cpp
+  src/demi/runtime/terrain/TerrainWaterAuthoring.cpp
+  src/demi/runtime/terrain/TerrainWaterProposals.cpp
   src/demi/runtime/terrain/TerrainWaterTracker.cpp
   src/demi/runtime/terrain/TerrainWaterSurfaceBuilder.cpp
   src/demi/runtime/terrain/TerrainWaterConnectivity.cpp

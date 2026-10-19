@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "id": "asset://polyhaven/terrain/textures/rock_face_03/normal",
+  "type": "Texture2D",
+  "source": "normal.png",
+  "importer": "image",
+  "importer_version": 1,
+  "source_hash": "fnv1a64:f508903756bbd776",
+  "dependencies": [],
+  "settings": {
+    "filter": "trilinear",
+    "mipmaps": true,
+    "wrap": "repeat"
+  }
+}

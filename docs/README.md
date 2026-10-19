@@ -7,18 +7,55 @@ are registered in `tools/package-store/src/Docs.php`.
 
 This directory keeps material that has a different job:
 
+- [Amber Pass loading and performance](amber-pass-loading-performance.md) records
+  asynchronous preparation, riding regressions, visibility costs and separate
+  main/shadow geometry measurements.
+- [Amber Pass mounted demo](amber-pass-qualification.md) records native mountain
+  terrain, reusable horse art, riding checks, foliage coverage and AC-power GPU
+  measurements, plus shared asset lifetime and shader fixes.
+- [Dense-terrain Game View performance](terrain-game-view-performance.md) records
+  simulation membership queries, revisioned instance inputs, clipped runtime
+  hierarchy rows and embedded Play profiling.
+- [Dense-terrain viewport navigation](editor-viewport-navigation-qualification.md)
+  records presentation-local render preparation, dedicated instance buffers,
+  retained hierarchy rows and navigation performance checks.
+- [Editor hierarchy startup qualification](editor-hierarchy-startup-qualification.md)
+  records the dense-terrain first-window stall, hierarchy indexing, deferred
+  reference pickers and measured startup/UI costs.
+- [Terrain Milestone 6 qualification](terrain-milestone6-qualification.md) records
+  procedural vegetation, stable placement rules, scene-object conversion,
+  package prefabs, rendering costs and native editor/source/cooked checks.
+- [Terrain Milestone 5 qualification](terrain-milestone5-qualification.md) records
+  water authoring, scene capture/optics, underwater views, opt-in gameplay,
+  cooked loading and measured native rendering costs.
+- [Water-driven terrain rules](terrain-water-rule-integration.md) records
+  connected water inputs, shoreline-mask ownership, early scatter rejection
+  and derived-cache invalidation.
+- [Water rendering architecture](terrain-water-rendering-design.md) records
+  the opaque-scene capture, sampleable depth, MSAA and pass-order boundaries
+  used by Milestone 5 reflection/refraction and underwater rendering.
+- [Terrain Milestone 4 qualification](terrain-milestone4-qualification.md)
+  records GPU material layers, real starter art, color semantics, native/cooked
+  checks, measured texture residency, matched-scene performance comparisons and
+  retained performance-debug switches.
+- [Shared terrain and mesh material qualification](terrain-shared-material-qualification.md)
+  records canonical Materials, mapped PBR/triplanar shading, semantic mipmaps,
+  native/cooked comparisons and the remaining Milestone 4 boundaries.
+- [Terrain Milestone 3 qualification](terrain-milestone3-qualification.md)
+  records drainage-connected rivers, physical water profiles, bounded sediment
+  transport, native shape checks and generation acceptance.
 - [Terrain generation quality qualification](terrain-generation-quality-qualification.md)
   records production Preview/Final safety, drainage/thermal fixes, simulation
   masks and representative original-grid generation timings.
 - [Terrain erosion library evaluation](terrain-erosion-library-evaluation.md)
-  compares upstream dependencies, licensing evidence and integration gaps;
-  it does not claim an upstream performance qualification.
+  compares pinned upstream dependencies and integration gaps, with actual
+  native/libtcod runs and explicit limits on performance and quality conclusions.
 - [Terrain polygon mask qualification](terrain-polygon-mask-qualification.md)
   records shared spatial-mask validation, basin/plateau/island presets, graph
   editing and native generation checks.
 - [Terrain shadow receiver qualification](terrain-shadow-receiver-qualification.md)
-  records scale-independent plane correction, direct shader-math tests and the
-  remaining cliff artifact in both terrain rendering paths.
+  records view-direction precision, stable receiver derivatives and filtered
+  facet correction, with native before/after evidence and contact limitations.
 - [Terrain landform qualification](terrain-landform-qualification.md) records
   shared ridge/warp controls, editable valley masks, deterministic generation
   coverage and the new probe's remaining material and shadow limitations.

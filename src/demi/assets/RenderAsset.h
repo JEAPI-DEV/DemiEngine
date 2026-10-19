@@ -9,6 +9,11 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <vector>
+
+namespace demi {
+struct AssetRegistry;
+}
 
 namespace demi::assets {
 
@@ -24,11 +29,20 @@ struct MaterialAsset {
   int formatVersion = 1;
   std::string shader = "builtin://lit";
   std::string fallback = "builtin://unlit";
+  std::string mapping = "uv";
+  std::string normalMapConvention = "opengl";
   std::unordered_map<std::string, std::string> textures;
   std::unordered_map<std::string, float> numbers;
   std::unordered_map<std::string, runtime::Color> colors;
   MaterialRenderState renderState;
 };
+
+[[nodiscard]] std::vector<std::string>
+materialAssetDependencies(const MaterialAsset &material);
+[[nodiscard]] Diagnostics
+validateMaterialAssetReferences(const MaterialAsset &material,
+                                const AssetRegistry &registry,
+                                const std::filesystem::path &source);
 
 struct ShaderAsset {
   struct Stages {

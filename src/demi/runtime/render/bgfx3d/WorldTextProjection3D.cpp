@@ -1,6 +1,8 @@
 #include "demi/runtime/render/bgfx3d/WorldTextProjection3D.h"
 
 #include "demi/runtime/scene/Transform3DHierarchy.h"
+#include "demi/runtime/scene/EntityComponentQuery.h"
+#include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/scene/components/3dcomponents/WorldText3DComponent.h"
 
 #include <algorithm>
@@ -30,7 +32,9 @@ Vec3 cross(const Vec3 left, const Vec3 right) {
 } // namespace
 
 ui::UiDocument projectWorldText3D(const World &world,
-                                  const BgfxCameraFrame3D &frame) {
+                                  const BgfxCameraFrame3D &frame,
+                                  EntityComponentQuery *query) {
+  ProfileScope scope("Renderer3D.world_text");
   ui::UiDocument document;
   document.canvasSize = {static_cast<float>(frame.viewportWidth),
                          static_cast<float>(frame.viewportHeight)};
@@ -42,16 +46,26 @@ ui::UiDocument projectWorldText3D(const World &world,
       std::max<std::uint16_t>(frame.viewportHeight, 1);
   const float tangent =
       std::tan(frame.camera.fov * std::numbers::pi_v<float> / 360.0F);
-  for (const Entity &entity : world.entities) {
-    if (!entity.enabled)
+  EntityComponentQuery uncached;
+  auto &membership = query ? *query : uncached;
+  for (const auto index :
+       membership.queryAny<WorldText3DComponent>(world.entities)) {
+    const Entity &entity = world.entities[index];
+    if (!entity.enabled) {
       continue;
+    }
     const auto *text = entity.component<WorldText3DComponent>();
-    const auto transform = resolveWorldTransform3D(world, entity);
-    if (text == nullptr || !transform || text->text.empty())
+    if (text == nullptr || text->text.empty()) {
       continue;
+    }
     if (!frame.camera.renderMask.empty() && !text->renderMask.empty() &&
-        frame.camera.renderMask != text->renderMask)
+        frame.camera.renderMask != text->renderMask) {
       continue;
+    }
+    const auto transform = resolveWorldTransform3D(world, entity);
+    if (!transform) {
+      continue;
+    }
     const Vec3 delta{transform->position.x - frame.position.x,
                      transform->position.y - frame.position.y,
                      transform->position.z - frame.position.z};

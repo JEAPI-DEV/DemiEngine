@@ -16,10 +16,13 @@
 namespace demi::assets::terrain_payload {
 namespace {
 
-constexpr std::array<char, 8> Magic{'D', 'M', 'T', 'R', 'A', 'S', 'T', '6'};
-static_assert(terrainAssetPayloadVersion == 6,
+constexpr std::array<char, 9> Magic{'D', 'M', 'T', 'R', 'A',
+                                    'S', 'T', '1', '1'};
+static_assert(terrainAssetPayloadVersion == 11,
               "Update terrain payload magic when changing its format");
-static_assert(Magic.back() == static_cast<char>('0' + Version));
+static_assert(Version >= 10 && Version < 100);
+static_assert(Magic[7] == static_cast<char>('0' + Version / 10) &&
+              Magic[8] == static_cast<char>('0' + Version % 10));
 constexpr std::size_t HeaderSize = Magic.size() + 3 * sizeof(std::uint64_t);
 constexpr std::size_t DigestSize = sizeof("fnv1a64:0000000000000000") - 1;
 

@@ -33,10 +33,33 @@ std::string readFile(const std::filesystem::path &path) {
   return buffer.str();
 }
 
+void collectJsonReferences(const nlohmann::json &value, std::string_view prefix,
+                           std::vector<std::string> &references) {
+  if (value.is_string()) {
+    const auto &text = value.get_ref<const std::string &>();
+    if (text.starts_with(prefix) &&
+        std::ranges::find(references, text) == references.end()) {
+      references.push_back(text);
+    }
+  } else if (value.is_object() || value.is_array()) {
+    for (const auto &child : value) {
+      collectJsonReferences(child, prefix, references);
+    }
+  }
+}
+
 std::vector<std::string>
 extractReferencesWithPrefix(const std::string &text,
                             const std::string &prefix) {
   std::vector<std::string> references;
+  const auto document = nlohmann::json::parse(text, nullptr, false);
+  if (!document.is_discarded()) {
+    collectJsonReferences(document, prefix, references);
+    return references;
+  }
+  // Lua and other text sources retain lexical discovery. JSON documents never
+  // use substring matching: stable IDs can embed resource URIs as identity
+  // data.
   std::size_t cursor = 0;
   while (true) {
     const std::size_t found = text.find(prefix, cursor);
@@ -497,21 +520,17 @@ Diagnostics validateAssetRegistry(const AssetRegistry &registry) {
     if (asset.type == "Material") {
       if (const auto material =
               assets::loadMaterialAsset(asset.sourcePath, &diagnostics)) {
-        for (const std::string *reference :
-             {&material->shader, &material->fallback}) {
-          if (!reference->starts_with("asset://"))
-            continue;
-          const AssetManifest *shader = findAsset(registry, *reference);
-          if (shader == nullptr || shader->type != "Shader")
-            diagnostics.push_back(
-                {.severity = Severity::Error,
-                 .code = "MATERIAL_SHADER_NOT_FOUND",
-                 .message = "Material shader reference does not resolve to a "
-                            "Shader asset: " +
-                            *reference,
-                 .path = asset.manifestPath.string(),
-                 .suggestion =
-                     "Import the shader and add it to dependencies."});
+        const auto references = assets::validateMaterialAssetReferences(
+            *material, registry, asset.manifestPath);
+        diagnostics.insert(diagnostics.end(), references.begin(), references.end());
+        for (const auto &reference : assets::materialAssetDependencies(*material)) {
+          if (std::ranges::find(asset.dependencies, reference) == asset.dependencies.end()) {
+            diagnostics.push_back({.severity = Severity::Error,
+                                   .code = "MATERIAL_DEPENDENCY_MISSING",
+                                   .message = "Material manifest must declare dependency " + reference,
+                                   .path = asset.manifestPath.string(),
+                                   .suggestion = "Reimport the Material asset."});
+          }
         }
       }
     } else if (asset.type == "Shader") {
@@ -620,6 +639,13 @@ Diagnostics validateAudioClipSettings(const nlohmann::json &settings,
          .path = path.string(),
          .suggestion = {}});
   return diagnostics;
+}
+
+std::vector<std::string>
+extractAssetReferencesFromJson(const nlohmann::json &document) {
+  std::vector<std::string> references;
+  collectJsonReferences(document, "asset://", references);
+  return references;
 }
 
 std::vector<std::string> extractAssetReferences(const std::string &text) {

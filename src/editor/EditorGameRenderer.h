@@ -1,5 +1,6 @@
 #pragma once
 
+#include "demi/runtime/concurrency/JobSystem.h"
 #include "editor/EditorUiHost.h"
 
 #include <cstdint>
@@ -33,6 +34,8 @@ public:
   [[nodiscard]] bool configure(const std::filesystem::path &projectDirectory,
                                std::string &error);
   void release();
+  [[nodiscard]] runtime::EmbeddedRuntimeHostServices hostServices();
+  void finishPresentation();
   void maintainTerrainResidency();
   void maintainIdleTerrain();
   [[nodiscard]] bool terrainNeedsFrame() const;
@@ -47,10 +50,24 @@ private:
   [[nodiscard]] bool ensureTarget(std::uint16_t width, std::uint16_t height,
                                   std::string &error);
   void destroyTarget();
+  [[nodiscard]] bool publishAssets(const AssetRegistry &registry, double budget,
+                                   bool &complete, std::string &error);
+  [[nodiscard]] bool replaceAssets(const AssetRegistry &registry,
+                                   std::string &error);
+  void cancelAssetPublication();
+  [[nodiscard]] bool prepareScenePresentation(const runtime::World &world,
+                                              std::uint16_t width,
+                                              std::uint16_t height,
+                                              bool &complete,
+                                              std::string &error);
+  void cancelScenePreparation();
 
   runtime::render::GpuResources &resources_;
   runtime::render::RenderCommands &commands_;
   std::unique_ptr<runtime::render::BgfxRenderer3D> renderer3D_;
+  std::unique_ptr<runtime::render::BgfxRenderer3D> preparingRenderer3D_;
+  runtime::JobSystem assetPreparationJobs_{1};
+  std::filesystem::path projectDirectory_;
   bool terrainPresentedThisFrame_ = false;
   bool terrainWasVisible_ = false;
   std::unique_ptr<runtime::render::BgfxRenderer2D> renderer2D_;

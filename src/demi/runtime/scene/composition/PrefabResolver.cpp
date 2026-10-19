@@ -1,6 +1,11 @@
 #include "demi/runtime/scene/composition/PrefabResolver.h"
 #include "demi/assets/FractureAuthoring.h"
 #include "demi/assets/MasonryGeneration.h"
+#include "demi/assets/PackageContent.h"
+#include "demi/assets/AssetSourceFiles.h"
+#include "demi/filesystem/ProjectPaths.h"
+#include "demi/packages/PackageLock.h"
+#include "demi/packages/PackageManifest.h"
 #include "demi/runtime/scene/ComponentRegistry.h"
 #include "demi/runtime/scene/EntityPresets.h"
 #include "demi/runtime/scene/composition/EntityHierarchy.h"
@@ -9,6 +14,7 @@
 #include <algorithm>
 #include <fstream>
 #include <functional>
+#include <map>
 #include <ranges>
 #include <set>
 #include <sstream>
@@ -85,10 +91,13 @@ void removeDottedField(Json &root, const std::string &path) {
 }
 
 std::optional<std::filesystem::path>
-findProjectRoot(const std::filesystem::path &sourcePath) {
+findProjectRoot(const std::filesystem::path &sourcePath,
+                bool includePackage = false) {
   std::filesystem::path cursor = sourcePath.parent_path();
   while (!cursor.empty()) {
-    if (std::filesystem::exists(cursor / "demi.project.json")) {
+    if (std::filesystem::exists(cursor / "demi.project.json") ||
+        (includePackage &&
+         std::filesystem::exists(cursor / "demi.package.json"))) {
       return cursor;
     }
     const std::filesystem::path parent = cursor.parent_path();
@@ -666,6 +675,96 @@ prefabEntityOrigin(const Json &ownerDocument, const std::string_view expandedEnt
   return PrefabOriginIndex(ownerDocument).find(expandedEntityId);
 }
 
+namespace {
+
+struct PrefabSourceScope {
+  std::filesystem::path root;
+  std::optional<std::filesystem::path> hostRoot;
+  std::optional<packages::PackageManifest> ownerManifest;
+  std::map<std::string, std::filesystem::path> installedRoots;
+};
+
+std::optional<PrefabSourceScope>
+prefabSourceScope(const std::filesystem::path &sourcePath) {
+  const auto root = findProjectRoot(sourcePath, true);
+  if (!root) {
+    return std::nullopt;
+  }
+  PrefabSourceScope scope{.root = *root,
+                          .hostRoot = findProjectRoot(sourcePath)};
+  if (scope.hostRoot && std::filesystem::is_regular_file(
+                            *scope.hostRoot / packages::PackageLockFilename)) {
+    const auto lock = packages::loadPackageLock(*scope.hostRoot /
+                                                packages::PackageLockFilename);
+    if (hasErrors(lock.diagnostics)) {
+      return std::nullopt;
+    }
+    const bool cooked = std::filesystem::is_regular_file(*scope.hostRoot /
+                                                         "cook.manifest.json");
+    for (const auto &[name, release] : lock.releases) {
+      const auto packageRoot =
+          *scope.hostRoot / (cooked ? "packages" : ".demi/packages") / name;
+      scope.installedRoots.emplace(name, packageRoot);
+      if (assets::pathIsInside(packageRoot, sourcePath)) {
+        scope.root = packageRoot;
+        scope.ownerManifest = release.manifest;
+      }
+    }
+  }
+  // Source packages can also be inspected before installing them. Cooked
+  // packages omit this installer manifest; their ownership comes from the lock.
+  const auto manifestPath = scope.root / "demi.package.json";
+  if (!scope.ownerManifest && std::filesystem::is_regular_file(manifestPath)) {
+    auto loaded = packages::loadPackageManifest(manifestPath);
+    if (!loaded.manifest) {
+      return std::nullopt;
+    }
+    scope.ownerManifest = std::move(loaded.manifest);
+  }
+  return scope;
+}
+
+bool visiblePackagePrefab(const PrefabSourceScope &scope,
+                          const std::filesystem::path &file) {
+  if (!scope.ownerManifest) {
+    return true;
+  }
+  return std::ranges::any_of(
+      scope.ownerManifest->dependencies, [&](const auto &dependency) {
+        const auto installed = scope.installedRoots.find(dependency.name);
+        return installed != scope.installedRoots.end() &&
+               assets::pathIsInside(installed->second, file);
+      });
+}
+
+std::optional<std::vector<std::filesystem::path>>
+visiblePrefabSources(const PrefabSourceScope &scope) {
+  std::vector<std::filesystem::path> candidates;
+  if (scope.ownerManifest) {
+    for (const auto &file : scope.ownerManifest->files) {
+      if (isPrefabFile(file)) {
+        candidates.push_back(scope.root / file);
+      }
+    }
+  }
+  if (scope.hostRoot) {
+    // This shared loader verifies installed source and relocated cooked
+    // content. Arbitrary sibling package directories are never searched.
+    const auto content = assets::loadLockedPackageContent(*scope.hostRoot, "");
+    if (hasErrors(content.diagnostics)) {
+      return std::nullopt;
+    }
+    for (const auto &file : content.files) {
+      if (isPrefabFile(file) && visiblePackagePrefab(scope, file)) {
+        candidates.push_back(file);
+      }
+    }
+  }
+  return candidates;
+}
+
+} // namespace
+
 std::optional<std::filesystem::path>
 resolvePrefabReference(const std::filesystem::path &sourcePath,
                        const std::string_view reference) {
@@ -673,17 +772,43 @@ resolvePrefabReference(const std::filesystem::path &sourcePath,
   if (!reference.starts_with(Prefix) || reference.size() == Prefix.size()) {
     return std::nullopt;
   }
-  const auto root = findProjectRoot(sourcePath);
-  if (!root.has_value()) {
-    return std::nullopt;
-  }
   std::filesystem::path relative(reference.substr(Prefix.size()));
   if (relative.is_absolute() ||
-      relative.string().find("..") != std::string::npos) {
+      std::ranges::any_of(relative,
+                          [](const auto &part) { return part == ".."; })) {
+    return std::nullopt;
+  }
+  const auto scope = prefabSourceScope(sourcePath);
+  if (!scope) {
     return std::nullopt;
   }
   relative += ".prefab.json";
-  return *root / "prefabs" / relative;
+  const auto local = scope->root / "prefabs" / relative;
+  if (!scope->ownerManifest && std::filesystem::is_regular_file(local)) {
+    return local;
+  }
+  const auto candidates = visiblePrefabSources(*scope);
+  if (!candidates) {
+    return std::nullopt;
+  }
+  std::optional<std::filesystem::path> match;
+  for (const auto &file : *candidates) {
+    std::ifstream input(file);
+    const auto document = Json::parse(input, nullptr, false);
+    if (!document.is_object() || !document.contains("id") ||
+        !document["id"].is_string() ||
+        document["id"].get<std::string>() != reference) {
+      continue;
+    }
+    if (match && *match != file) {
+      return std::nullopt;
+    }
+    match = file;
+  }
+  if (match || scope->ownerManifest) {
+    return match;
+  }
+  return local;
 }
 
 Json mergeOverride(Json inherited, const Json &overrideValue) {

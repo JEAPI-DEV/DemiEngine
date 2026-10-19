@@ -15,11 +15,10 @@ namespace demi::runtime::render {
 
 class SpriteCanvasRenderer {
 public:
-  SpriteCanvasRenderer(
-      Canvas2D &canvas, const TextureLibrary2D &textures,
-      const std::unordered_map<std::string, TextureAnimation2D> *animations =
-          nullptr,
-      const MaterialLibrary *materials = nullptr);
+  SpriteCanvasRenderer(Canvas2D &canvas, TextureLibrary2D &textures,
+                       const std::unordered_map<std::string, TextureAnimation2D>
+                           *animations = nullptr,
+                       const MaterialLibrary *materials = nullptr);
 
   [[nodiscard]] bool draw(const World &world,
                           const Camera2DComponent &camera,
@@ -30,7 +29,7 @@ public:
 
 private:
   Canvas2D &canvas_;
-  const TextureLibrary2D &textures_;
+  TextureLibrary2D &textures_;
   const std::unordered_map<std::string, TextureAnimation2D> *animations_;
   const MaterialLibrary *materials_;
 };

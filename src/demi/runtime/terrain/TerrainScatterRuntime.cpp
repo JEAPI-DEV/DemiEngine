@@ -1,8 +1,12 @@
 #include "demi/runtime/terrain/TerrainScatterRuntime.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/Transform3DComponent.h"
 #include "demi/runtime/terrain/TerrainGenerator.h"
+#include "demi/runtime/terrain/TerrainScatterBatches.h"
+#include "demi/runtime/terrain/TerrainScatterCollision.h"
+#include "demi/runtime/terrain/TerrainScatterLayout.h"
 #include <algorithm>
 #include <unordered_map>
 #include <unordered_set>
@@ -33,31 +37,50 @@ void applyTransform(Entity &entity, const TerrainScatterPlacement &placement,
   transform->rotation = {0, placement.yaw, 0};
   transform->scale = {placement.scale, placement.scale, placement.scale};
   entity.serializedComponents[std::string(Transform3DComponent::typeName)] =
-      nlohmann::json({{"parent", transform->parent},
-                      {"position", {transform->position.x,
-                                    transform->position.y,
-                                    transform->position.z}},
-                      {"rotation", {transform->rotation.x,
-                                    transform->rotation.y,
-                                    transform->rotation.z}},
-                      {"scale", {transform->scale.x, transform->scale.y,
-                                 transform->scale.z}}})
+      nlohmann::json(
+          {{"parent", transform->parent},
+           {"position",
+            {transform->position.x, transform->position.y,
+             transform->position.z}},
+           {"rotation",
+            {transform->rotation.x, transform->rotation.y,
+             transform->rotation.z}},
+           {"scale",
+            {transform->scale.x, transform->scale.y, transform->scale.z}}})
           .dump();
 }
 
 void applyRenderer(Entity &entity, const TerrainScatterPlacement &placement) {
-  // MeshRenderer expresses LOD as model tiers rather than a level, so the
-  // palette's lod level is not fabricated into a field that means something
-  // else. It travels in the prefab override payload instead, where it stays
-  // data for the consumer that understands it.
   auto *renderer = entity.component<MeshRendererComponent>();
   if (renderer == nullptr)
     return;
   renderer->model = placement.model;
 }
 
-bool sameInstance(const Entity &entity, const TerrainScatterPlacement &placement,
+void preparePrefabPlacement(WorldCommandBuffer &commands,
+                            const PrefabInstanceResult &instance,
+                            const TerrainScatterPlacement &placement,
+                            std::string_view ownerId) {
+  for (const auto &entityId : instance.entityIds) {
+    Entity *staged = commands.pendingEntity(entityId);
+    if (!staged) {
+      continue;
+    }
+    applyTerrainScatterCollision(*staged, placement.collision);
+    const auto *transform = staged->component<Transform3DComponent>();
+    if (transform && transform->parent.empty()) {
+      applyTransform(*staged, placement, ownerId);
+    }
+  }
+}
+
+bool sameInstance(const Entity &entity,
+                  const TerrainScatterPlacement &placement,
                   std::string_view ownerId) {
+  const auto *policy = entity.component<TerrainScatterCollisionState>();
+  if (!policy || policy->policy != placement.collision) {
+    return false;
+  }
   const auto *transform = entity.component<Transform3DComponent>();
   if (transform == nullptr)
     return false;
@@ -83,10 +106,10 @@ bool sameInstance(const Entity &entity, const TerrainScatterPlacement &placement
 
 std::string terrainScatterInstanceId(std::string_view ownerId,
                                      std::string_view paletteId,
-                                     std::string_view ruleId,
-                                     std::size_t cell) {
-  return instancePrefix(ownerId, paletteId) + std::string(ruleId) + "_" +
-         std::to_string(cell);
+                                     std::string_view ruleId, int candidateX,
+                                     int candidateZ) {
+  return instancePrefix(ownerId, paletteId) +
+         terrainScatterInstanceKey({}, ruleId, candidateX, candidateZ);
 }
 
 TerrainScatterSyncStats
@@ -102,29 +125,48 @@ syncTerrainScatter(World &world, WorldCommandBuffer &commands,
     return stats;
   }
 
+  auto batches = syncTerrainScatterBatches(world, commands, ownerId, field,
+                                           prefabProvider, error);
+  if (!error.empty()) {
+    return batches.statistics;
+  }
+  stats = batches.statistics;
+
   const auto prefix = instancePrefix(ownerId, field.paletteId);
 
   // Existing instances, indexed by the stable key, so a placement that did not
   // change can be left alone and one that moved can be updated in place.
   std::unordered_map<std::string, std::string> existing;
   for (const auto &entity : world.entities) {
-    if (entity.id.rfind(prefix, 0) != 0)
+    if (entity.id.rfind(prefix, 0) != 0 ||
+        entity.hasComponent<TerrainScatterBatch>()) {
       continue;
+    }
     const auto *transform = entity.component<Transform3DComponent>();
-    if (entity.enabled && (entity.prefabInstance.empty() ||
-                           (transform != nullptr &&
-                            (transform->parent.empty() || transform->parent == ownerId))))
+    if (entity.enabled &&
+        (entity.prefabInstance.empty() ||
+         (transform != nullptr &&
+          (transform->parent.empty() || transform->parent == ownerId))))
       existing.emplace(entity.prefabInstance.empty() ? entity.id
-                                                      : entity.prefabInstance,
+                                                     : entity.prefabInstance,
                        entity.id);
   }
 
   std::unordered_set<std::string> wanted;
   wanted.reserve(field.scatterPlacements.size());
   for (const auto &placement : field.scatterPlacements) {
-    const auto id = terrainScatterInstanceId(ownerId, field.paletteId,
-                                             placement.ruleId, placement.cell);
+    const auto id =
+        terrainScatterInstanceId(ownerId, field.paletteId, placement.ruleId,
+                                 placement.candidateX, placement.candidateZ);
+    const auto *terrain = owner->component<Terrain3DComponent>();
+    if (terrain && std::ranges::find(terrain->scatterExclusions, id) !=
+                       terrain->scatterExclusions.end()) {
+      continue;
+    }
     wanted.insert(id);
+    if (batches.placements.contains(id)) {
+      continue;
+    }
 
     const auto found = existing.find(id);
     if (found != existing.end()) {
@@ -138,6 +180,32 @@ syncTerrainScatter(World &world, WorldCommandBuffer &commands,
                 "; rebuild the palette placement.";
         return stats;
       }
+      if (!placement.prefab.empty()) {
+        auto *prefabs = prefabProvider ? prefabProvider() : nullptr;
+        if (!prefabs) {
+          error =
+              "Terrain scatter requires its prefab service to reconcile " + id;
+          return stats;
+        }
+        const auto source = prefabs->sourcePrefab(id);
+        if (!source || *source != placement.prefab) {
+          const auto replaced =
+              prefabs->replace(world, commands, placement.prefab,
+                               PrefabInstantiateOptions{
+                                   .id = id, .position = placement.position});
+          if (!replaced) {
+            error = "Terrain scatter could not replace " + id + ": " +
+                    (replaced.diagnostics.empty()
+                         ? "unknown prefab error"
+                         : replaced.diagnostics.front().message);
+            ++stats.unresolved;
+            return stats;
+          }
+          preparePrefabPlacement(commands, replaced, placement, ownerId);
+          ++stats.updated;
+          continue;
+        }
+      }
       if (sameInstance(*current, placement, ownerId)) {
         ++stats.retained;
         continue;
@@ -146,6 +214,22 @@ syncTerrainScatter(World &world, WorldCommandBuffer &commands,
       // state survives a sculpt.
       Entity updated = *current;
       applyTransform(updated, placement, ownerId);
+      applyTerrainScatterCollision(updated, placement.collision);
+      if (!placement.prefab.empty()) {
+        for (const auto &child : world.entities) {
+          if (child.prefabInstance != current->prefabInstance ||
+              child.id == current->id) {
+            continue;
+          }
+          Entity updatedChild = child;
+          applyTerrainScatterCollision(updatedChild, placement.collision);
+          if (!commands.create(world, std::move(updatedChild), true)) {
+            error = "Terrain scatter could not update collision policy for " +
+                    child.id;
+            return stats;
+          }
+        }
+      }
       if (placement.prefab.empty())
         applyRenderer(updated, placement);
       if (!commands.create(world, std::move(updated), true)) {
@@ -169,6 +253,7 @@ syncTerrainScatter(World &world, WorldCommandBuffer &commands,
       staged.setComponent(MeshRendererComponent{});
       applyTransform(staged, placement, ownerId);
       applyRenderer(staged, placement);
+      applyTerrainScatterCollision(staged, placement.collision);
       if (!commands.create(world, std::move(staged))) {
         error = "Terrain scatter could not create " + id;
         return stats;
@@ -188,25 +273,19 @@ syncTerrainScatter(World &world, WorldCommandBuffer &commands,
     // A placement's cell ID must remain its instance ID. Generic pool reuse
     // may select an available instance with another cell's ID.
     options.pooled = false;
-    auto instance = prefabs->instantiate(world, commands, placement.prefab, options);
+    auto instance =
+        prefabs->instantiate(world, commands, placement.prefab, options);
     if (!instance) {
       if (error.empty())
         error = "Terrain scatter could not instantiate " + placement.prefab +
                 " for " + id + ": " +
-                (instance.diagnostics.empty() ? "unknown prefab error"
-                                              : instance.diagnostics.front().message);
+                (instance.diagnostics.empty()
+                     ? "unknown prefab error"
+                     : instance.diagnostics.front().message);
       ++stats.unresolved;
       continue;
     }
-    for (const auto &entityId : instance.entityIds) {
-      Entity *staged = commands.pendingEntity(entityId);
-      auto *transform = staged == nullptr
-                            ? nullptr
-                            : staged->component<Transform3DComponent>();
-      if (transform != nullptr && transform->parent.empty()) {
-        applyTransform(*staged, placement, ownerId);
-      }
-    }
+    preparePrefabPlacement(commands, instance, placement, ownerId);
     ++stats.created;
     ++stats.prefabInstances;
   }
@@ -215,13 +294,18 @@ syncTerrainScatter(World &world, WorldCommandBuffer &commands,
   // terrain would accumulate instances every stroke.
   std::unordered_set<std::string> released;
   for (const auto &entity : world.entities) {
-    if (entity.id.rfind(prefix, 0) != 0)
+    if (entity.id.rfind(prefix, 0) != 0 ||
+        entity.hasComponent<TerrainScatterBatch>()) {
       continue;
-    const std::string &key = entity.prefabInstance.empty()
-                                 ? entity.id
-                                 : entity.prefabInstance;
-    if (wanted.contains(key) || !entity.enabled)
+    }
+    const std::string &key =
+        entity.prefabInstance.empty() ? entity.id : entity.prefabInstance;
+    // A wanted key can transfer to a render batch. Its previous individual
+    // entity/prefab must still retire, including service-owned collider children.
+    if ((wanted.contains(key) && !batches.placements.contains(key)) ||
+        !entity.enabled) {
       continue;
+    }
     // Prefab instances are released through their service; direct mesh
     // entities have no service state.
     if (!entity.prefabInstance.empty()) {
@@ -229,7 +313,8 @@ syncTerrainScatter(World &world, WorldCommandBuffer &commands,
         continue;
       auto *prefabs = prefabProvider ? prefabProvider() : nullptr;
       if (!prefabs) {
-        error = "Terrain scatter requires a prefab service to release " + entity.prefabInstance;
+        error = "Terrain scatter requires a prefab service to release " +
+                entity.prefabInstance;
         return stats;
       }
       if (!prefabs->release(world, commands, entity.prefabInstance)) {
@@ -252,8 +337,9 @@ TerrainScatterSyncStats
 syncTerrainScatter(World &world, WorldCommandBuffer &commands,
                    std::string_view ownerId, const HeightField &field,
                    RuntimePrefabService *prefabs, std::string &error) {
-  return syncTerrainScatter(world, commands, ownerId, field,
-                            TerrainPrefabServiceProvider{[prefabs] { return prefabs; }}, error);
+  return syncTerrainScatter(
+      world, commands, ownerId, field,
+      TerrainPrefabServiceProvider{[prefabs] { return prefabs; }}, error);
 }
 
 std::size_t releaseTerrainScatter(World &world, WorldCommandBuffer &commands,

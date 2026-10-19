@@ -1,0 +1,117 @@
+{
+  "format_version": 1,
+  "id": "prefab://amber_pass/mounted_traveller",
+  "entities": [
+    {
+      "id": "mount",
+      "name": "Mounted traveller",
+      "components": {
+        "Transform3D": {
+          "position": [0, 0.8, 0]
+        },
+        "CapsuleCollider3D": {
+          "radius": 0.6,
+          "height": 2,
+          "offset": [0, 1, 0],
+          "layer": "player"
+        },
+        "CharacterController3D": {
+          "gravity": -22,
+          "step_height": 0.45,
+          "slope_limit": 48
+        },
+        "LuaScript": {
+          "module": "script://scripts/riding_controller.lua"
+        }
+      },
+      "children": [
+        {
+          "id": "horse",
+          "name": "Horse",
+          "components": {
+            "Transform3D": {},
+            "MeshRenderer": {
+              "model": "asset://demi/animals/horse"
+            },
+            "AnimationPlayer3D": {
+              "clip_name": "Idle",
+              "loop": true
+            },
+            "AnimationStateMachine": {
+              "initial_state": "idle",
+              "states": {
+                "idle": {
+                  "model_clip_name": "Idle",
+                  "duration": 3,
+                  "loop": true
+                },
+                "walk": {
+                  "model_clip_name": "Walk",
+                  "duration": 1.2,
+                  "loop": true
+                },
+                "run": {
+                  "model_clip_name": "Run",
+                  "duration": 0.6666666666666666,
+                  "loop": true
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": "rider_armor",
+          "name": "Rider Armor",
+          "components": {
+            "Transform3D": {
+              "position": [0, 1.67, 0.42]
+            },
+            "MeshRenderer": {
+              "model": "asset://amber_pass/models/rider_armor",
+              "material": "asset://amber_pass/materials/armor"
+            }
+          }
+        },
+        {
+          "id": "rider_cloth",
+          "name": "Rider Cloth",
+          "components": {
+            "Transform3D": {
+              "position": [0, 1.67, 0.42]
+            },
+            "MeshRenderer": {
+              "model": "asset://amber_pass/models/rider_cloth",
+              "material": "asset://amber_pass/materials/cloth"
+            }
+          }
+        },
+        {
+          "id": "rider_leather",
+          "name": "Rider Leather",
+          "components": {
+            "Transform3D": {
+              "position": [0, 1.67, 0.42]
+            },
+            "MeshRenderer": {
+              "model": "asset://amber_pass/models/rider_leather",
+              "material": "asset://amber_pass/materials/leather"
+            }
+          }
+        },
+        {
+          "id": "rider_shield",
+          "name": "Rider Shield",
+          "components": {
+            "Transform3D": {
+              "position": [0, 1.67, 0.42]
+            },
+            "MeshRenderer": {
+              "model": "asset://amber_pass/models/rider_shield",
+              "material": "asset://amber_pass/materials/shield"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

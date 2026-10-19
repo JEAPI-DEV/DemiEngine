@@ -12,10 +12,14 @@
 
 namespace demi::runtime::render {
 class TerrainCameraDemand3D;
+class TerrainMaterialResidency3D;
+struct TerrainMaterialArrays3D;
 
 struct TerrainPatchInstance3D {
   std::array<float, 16> transform{};
-  std::array<float, 4> gridOrigin{};
+  // XY: lattice origin, Z: surface blending, W: reserved. This stays per
+  // instance so shared fields can use different appearance without new uploads.
+  std::array<float, 4> gridOrigin{0, 0, 1, 0};
 };
 static_assert(sizeof(TerrainPatchInstance3D) == 80);
 
@@ -44,13 +48,14 @@ public:
   void beginPresentation();
   void beginView();
   void clear();
-  void prepareExtraction(const World &world, const BgfxCameraFrame3D &view,
-                         const BgfxCameraFrame3D &lodCamera,
-                         TerrainDrawSelection3D &selection,
-                         TerrainGpuFieldCache3D &fields,
-                         const MaterialLibrary &materials,
-                         TerrainCameraDemand3D &demand,
-                         std::size_t gpuBudgetBytes, bool programsReady);
+  void prepareExtraction(
+      const World &world, const BgfxCameraFrame3D &view,
+      const BgfxCameraFrame3D &lodCamera, TerrainDrawSelection3D &selection,
+      TerrainGpuFieldCache3D &fields, const MaterialLibrary &materials,
+      TerrainCameraDemand3D &demand, std::size_t gpuBudgetBytes,
+      bool programsReady,
+      TerrainMaterialResidency3D *materialResidency = nullptr,
+      float detailDistance = 200, bool mappedProgramsReady = false);
   [[nodiscard]] bool suppressesOwner(const std::string &owner) const;
   [[nodiscard]] bool forcesFullOwner(const std::string &owner) const;
 
@@ -60,11 +65,14 @@ public:
                 TerrainPatchTopologyKey3D topology,
                 const TerrainPatchInstance3D &instance,
                 std::vector<VisibleMesh3D> fallbackMeshes,
-                std::size_t gpuBudgetBytes, std::string &error);
+                std::size_t gpuBudgetBytes, std::string &error,
+                std::shared_ptr<const TerrainMaterialArrays3D> arrays = {},
+                float detailDistance = 200);
   [[nodiscard]] std::vector<VisibleMesh3D>
   flush(RenderCommands &commands, std::uint16_t viewId, ProgramHandle program,
         const std::array<DrawUniformValue, 8> &lighting, bool overdraw,
-        std::string &error);
+        std::string &error, ProgramHandle mappedProgram = {},
+        ProgramHandle opaqueMappedProgram = {});
   [[nodiscard]] const TerrainPatchStatistics3D &statistics() const;
   [[nodiscard]] std::size_t topologyBytes() const;
 

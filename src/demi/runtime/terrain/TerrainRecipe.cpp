@@ -509,13 +509,17 @@ TerrainRecipe TerrainRecipe::parse(const nlohmann::json &json) {
                              "'. Move it to a landform: declare a landform "
                              "with those values and point the biome at it with "
                              "\"landform\".");
-        checkKeys(entry, {"landform", "color", "material", "texture_scale"});
+        checkKeys(entry, {"landform", "color", "material", "texture_scale",
+                          "allow_snow"});
         TerrainBiome biome;
         biome.landform = entry.value("landform", std::string{});
         if (entry.contains("material"))
           biome.material = entry.at("material").get<std::string>();
         if (entry.contains("texture_scale"))
           biome.textureScale = entry.at("texture_scale").get<float>();
+        if (entry.contains("allow_snow")) {
+          biome.allowSnow = entry.at("allow_snow").get<bool>();
+        }
         if (entry.contains("color")) {
           const auto &channels = entry.at("color");
           require(channels.is_array() && channels.size() == 4,
@@ -682,6 +686,9 @@ nlohmann::json TerrainRecipe::toJson() const {
       entry["material"] = biome.material;
     if (biome.textureScale != 1)
       entry["texture_scale"] = biome.textureScale;
+    if (!biome.allowSnow) {
+      entry["allow_snow"] = false;
+    }
     json["biomes"][id] = std::move(entry);
   }
   for (const auto &[id, shape] : landforms) {
@@ -751,6 +758,7 @@ nlohmann::json TerrainRecipe::generationJson() const {
   for (auto &biome : json["biomes"]) {
     biome.erase("material");
     biome.erase("texture_scale");
+    biome.erase("allow_snow");
   }
   return json;
 }

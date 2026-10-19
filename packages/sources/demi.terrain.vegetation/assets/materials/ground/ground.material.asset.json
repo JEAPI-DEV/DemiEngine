@@ -1,0 +1,11 @@
+{
+  "format_version": 1,
+  "id": "asset://demi/vegetation/materials/ground",
+  "type": "Material",
+  "source": "ground.material.json",
+  "importer": "material",
+  "importer_version": 1,
+  "dependencies": [],
+  "settings": {},
+  "source_hash": "fnv1a64:e6566e929e13c4cf"
+}

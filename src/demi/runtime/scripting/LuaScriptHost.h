@@ -98,6 +98,15 @@ public:
   [[nodiscard]] bool prepareScene(const std::string &sceneId, bool additive);
   [[nodiscard]] bool cancelScenePreparation();
   [[nodiscard]] float scenePreparationProgress();
+  // Borrowed snapshot for render preparation; invalidated by activate/cancel.
+  [[nodiscard]] const World *preparedSceneWorld() const {
+    return sceneFlow_.preparedWorld();
+  }
+  using ScenePresentationPreparation =
+      std::function<bool(const World &, bool &complete, std::string &error)>;
+  // Optional visible-host readiness stage. Headless/2D hosts need no hook.
+  void setScenePresentationPreparation(ScenePresentationPreparation prepare,
+                                       std::function<void()> reset = {});
   [[nodiscard]] bool scenePrepared();
   [[nodiscard]] bool requestPreparedSceneActivation();
   [[nodiscard]] bool requestSceneUnload(const std::string &sceneId);
@@ -584,7 +593,7 @@ public:
   [[nodiscard]] bool hotReloadEnabled() const;
   void startE2ETests(const std::string &moduleName);
   void updateE2ETests(double deltaTime);
-  void drainSyntheticTouches(InputState &input);
+  void drainSyntheticTouches(InputState &input, double deltaSeconds);
   [[nodiscard]] int e2eTestsPassed() const;
   [[nodiscard]] int e2eTestsFailed() const;
   [[nodiscard]] bool e2eTestsActive() const;
@@ -630,6 +639,9 @@ public:
   }
 
 private:
+  void pollScenePreparation();
+  [[nodiscard]] bool pollScenePresentation();
+  void resetScenePresentation();
   void initializeE2ETestRunner();
   [[nodiscard]] Entity *lookupServiceEntity(const std::string &id);
   [[nodiscard]] const Entity *lookupServiceEntity(const std::string &id) const;
@@ -748,6 +760,10 @@ private:
   bool cutscenePaused_ = false;
   bool previousUiMouseDown_ = false;
   std::optional<std::string> pendingSceneUnload_;
+  ScenePresentationPreparation prepareScenePresentation_;
+  std::function<void()> resetScenePresentation_;
+  bool scenePresentationReady_ = false;
+  std::optional<std::uint64_t> scenePresentationFrame_;
   std::uint64_t preparedSceneAssetRequest_ = 0;
   std::string preparedSceneAssetId_;
   std::string sceneAssetError_;

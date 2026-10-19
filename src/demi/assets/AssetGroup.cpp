@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <fstream>
 #include <nlohmann/json.hpp>
 
@@ -18,6 +19,39 @@ void report(Diagnostics *diagnostics, std::string code, std::string message,
 }
 
 } // namespace
+
+std::size_t AssetResourceLoader::uploadBatch(
+    const std::span<const AssetResourceUpload> uploads,
+    const double budgetMilliseconds, std::string &error) {
+  error.clear();
+  const auto started = std::chrono::steady_clock::now();
+  std::size_t completed = 0;
+  for (const auto &item : uploads) {
+    if (!upload(item.asset, item.decoded, error)) {
+      if (error.empty()) {
+        error = "Resource upload failed.";
+      }
+      return completed;
+    }
+    ++completed;
+    const double elapsed = std::chrono::duration<double, std::milli>(
+                               std::chrono::steady_clock::now() - started)
+                               .count();
+    if (budgetMilliseconds >= 0.0 && elapsed >= budgetMilliseconds) {
+      break;
+    }
+  }
+  return completed;
+}
+
+bool AssetResourceLoader::unloadBatch(
+    const std::span<const std::string> assetIds, std::string &error) {
+  error.clear();
+  for (const auto &assetId : assetIds) {
+    unload(assetId);
+  }
+  return true;
+}
 
 std::optional<AssetGroupDescriptor>
 loadAssetGroup(const std::filesystem::path &path, Diagnostics *diagnostics) {
@@ -136,6 +170,11 @@ struct AssetGroupService::Work {
 };
 
 struct AssetGroupService::Request {
+  struct UploadBatch {
+    std::shared_ptr<AssetResourceLoader> loader;
+    std::vector<std::string> assetIds;
+  };
+  std::vector<UploadBatch> uploadBatches;
   AssetGroupDescriptor group;
   AssetGroupProgress progress;
   std::vector<Work> work;
@@ -156,20 +195,109 @@ struct AssetGroupService::Resource {
   bool failed = false;
 };
 
+void AssetGroupService::uploadReady(const AssetGroupRequestHandle handle,
+                                    Request &request,
+                                    const double budgetMilliseconds) {
+  // Keep an unfinished batch stable across updates. New worker completions
+  // must not change the prefix a staged backend is preparing to publish.
+  std::erase_if(request.uploadBatches, [](const auto &batch) {
+    return !batch.loader->hasPendingUploadBatch();
+  });
+  if (request.uploadBatches.empty()) {
+    std::map<AssetResourceLoader *, std::size_t> loaderIndices;
+    for (Work &work : request.work) {
+      if (!work.decoded || work.uploaded) {
+        continue;
+      }
+      const auto [entry, inserted] = loaderIndices.emplace(
+          work.loader.get(), request.uploadBatches.size());
+      if (inserted) {
+        request.uploadBatches.push_back({.loader = work.loader});
+      }
+      request.uploadBatches[entry->second].assetIds.push_back(work.asset->id);
+    }
+  }
+  std::map<std::string, Work *> readyWork;
+  for (Work &work : request.work) {
+    if (work.decoded && !work.uploaded) {
+      readyWork.emplace(work.asset->id, &work);
+    }
+  }
+
+  const auto started = std::chrono::steady_clock::now();
+  for (auto &batch : request.uploadBatches) {
+    if (batch.assetIds.empty()) {
+      continue;
+    }
+    std::vector<Work *> workItems;
+    std::vector<AssetResourceUpload> uploads;
+    for (const auto &assetId : batch.assetIds) {
+      Work &work = *readyWork.at(assetId);
+      workItems.push_back(&work);
+      uploads.push_back({*work.asset, *work.decoded});
+    }
+    const double elapsedBefore = std::chrono::duration<double, std::milli>(
+                                     std::chrono::steady_clock::now() - started)
+                                     .count();
+    std::string error;
+    const std::size_t completed = batch.loader->uploadBatch(
+        uploads, std::max(0.0, budgetMilliseconds - elapsedBefore), error);
+    // Default loaders can finish a prefix before failing. Publish its lifetime
+    // entries first so rollback releases every native resource they created.
+    for (std::size_t index = 0; index < completed; ++index) {
+      Work &work = *workItems[index];
+      request.progress.decodedBytes -= work.decoded->decodedBytes;
+      Resource &resource = resources_.at(work.asset->id);
+      resource.residentBytes = work.decoded->residentBytes;
+      resource.resident = true;
+      work.decoded.reset();
+      work.uploaded = true;
+    }
+    if (!error.empty()) {
+      if (completed < workItems.size()) {
+        Resource &failed = resources_.at(workItems[completed]->asset->id);
+        failed.failed = true;
+        failed.error = error;
+      }
+      request.progress.stage = AssetGroupStage::Failed;
+      request.progress.error = std::move(error);
+      rollback(handle, request);
+      return;
+    }
+    batch.assetIds.erase(batch.assetIds.begin(),
+                         batch.assetIds.begin() + completed);
+    const double elapsedAfter = std::chrono::duration<double, std::milli>(
+                                    std::chrono::steady_clock::now() - started)
+                                    .count();
+    if (elapsedAfter >= budgetMilliseconds) {
+      break;
+    }
+  }
+  std::erase_if(request.uploadBatches,
+                [](const auto &batch) { return batch.assetIds.empty(); });
+}
+
 AssetGroupService::AssetGroupService(const AssetRegistry &registry,
                                      AssetGroupRootResolver rootResolver)
     : registry_(registry), rootResolver_(std::move(rootResolver)) {}
 
 AssetGroupService::~AssetGroupService() {
   for (auto &[handle, request] : requests_) {
+    for (const auto &batch : request.uploadBatches) {
+      batch.loader->cancelUploadBatch(batch.assetIds);
+    }
     for (Work &work : request.work)
       if (work.future.valid())
         work.future.wait();
-    rollback(handle, request);
   }
-  for (auto &[assetId, resource] : resources_)
-    if (resource.resident)
-      resource.loader->unload(assetId);
+  std::vector<std::string> assetIds;
+  assetIds.reserve(resources_.size());
+  for (const auto &[assetId, resource] : resources_) {
+    assetIds.push_back(assetId);
+  }
+  // All owners are going away together. Replacing the registry once per
+  // resource or group would repeatedly rebuild resources during shutdown.
+  (void)unloadResources(assetIds);
   resources_.clear();
 }
 
@@ -322,36 +450,7 @@ void AssetGroupService::update(double uploadBudgetMilliseconds) {
     const double budget = uploadBudgetMilliseconds < 0.0
                               ? request.group.budget.uploadMillisecondsPerFrame
                               : uploadBudgetMilliseconds;
-    const auto started = std::chrono::steady_clock::now();
-    for (Work &work : request.work) {
-      if (!work.decoded || work.uploaded)
-        continue;
-      std::string error;
-      if (!work.loader->upload(*work.asset, *work.decoded, error)) {
-        if (const auto resource = resources_.find(work.asset->id);
-            resource != resources_.end()) {
-          resource->second.failed = true;
-          resource->second.error =
-              error.empty() ? "Resource upload failed." : error;
-        }
-        request.progress.stage = AssetGroupStage::Failed;
-        request.progress.error =
-            error.empty() ? "Resource upload failed." : error;
-        rollback(handle, request);
-        break;
-      }
-      request.progress.decodedBytes -= work.decoded->decodedBytes;
-      Resource &resource = resources_.at(work.asset->id);
-      resource.residentBytes = work.decoded->residentBytes;
-      resource.resident = true;
-      work.decoded.reset();
-      work.uploaded = true;
-      const auto elapsed = std::chrono::duration<double, std::milli>(
-                               std::chrono::steady_clock::now() - started)
-                               .count();
-      if (elapsed >= budget)
-        break;
-    }
+    uploadReady(handle, request, budget);
     if (request.progress.stage == AssetGroupStage::Failed)
       continue;
     for (const std::string &assetId : request.heldAssets) {
@@ -384,10 +483,20 @@ void AssetGroupService::update(double uploadBudgetMilliseconds) {
       request.progress.stage = AssetGroupStage::Ready;
       request.progress.fraction = 1.0;
     } else if (request.progress.totalAssets > 0) {
+      double pendingAssets = 0.0;
+      for (const auto &batch : request.uploadBatches) {
+        pendingAssets += batch.assetIds.size() *
+                         batch.loader->pendingUploadProgress(batch.assetIds);
+      }
       const double measured =
-          static_cast<double>(request.progress.completedAssets) /
+          (static_cast<double>(request.progress.completedAssets) +
+           pendingAssets) /
           static_cast<double>(request.progress.totalAssets);
-      request.progress.fraction = std::max(request.progress.fraction, measured);
+      // A rounded worker fraction must never announce publication early.
+      const double pendingFraction =
+          std::min(measured, std::nextafter(1.0, 0.0));
+      request.progress.fraction =
+          std::max(request.progress.fraction, pendingFraction);
     }
   }
 }
@@ -427,21 +536,67 @@ bool AssetGroupService::activate(const AssetGroupRequestHandle handle,
   return true;
 }
 
+bool AssetGroupService::unloadResources(
+    const std::span<const std::string> assetIds, Diagnostics *diagnostics) {
+  struct Batch {
+    std::shared_ptr<AssetResourceLoader> loader;
+    std::vector<std::string> assetIds;
+  };
+  std::vector<Batch> batches;
+  std::map<AssetResourceLoader *, std::size_t> loaderIndices;
+  for (const auto &assetId : assetIds) {
+    const auto resource = resources_.find(assetId);
+    if (resource == resources_.end()) {
+      continue;
+    }
+    if (!resource->second.resident) {
+      resource->second.cancellation->store(true);
+      resources_.erase(resource);
+      continue;
+    }
+    const auto [entry, inserted] =
+        loaderIndices.emplace(resource->second.loader.get(), batches.size());
+    if (inserted) {
+      batches.push_back({.loader = resource->second.loader});
+    }
+    batches[entry->second].assetIds.push_back(assetId);
+  }
+  for (const auto &batch : batches) {
+    std::string error;
+    if (!batch.loader->unloadBatch(batch.assetIds, error)) {
+      report(diagnostics, "ASSET_GROUP_RELEASE_FAILED",
+             error.empty() ? "Resource backend rejected release." : error,
+             batch.assetIds.front());
+      return false;
+    }
+    for (const auto &assetId : batch.assetIds) {
+      resources_.erase(assetId);
+    }
+  }
+  return true;
+}
+
 void AssetGroupService::rollback(const AssetGroupRequestHandle handle,
                                  Request &request) {
+  for (const auto &batch : request.uploadBatches) {
+    batch.loader->cancelUploadBatch(batch.assetIds);
+  }
+  request.uploadBatches.clear();
+  std::vector<std::string> unowned;
   for (const std::string &assetId : request.heldAssets) {
     const auto found = resources_.find(assetId);
-    if (found == resources_.end())
+    if (found == resources_.end()) {
       continue;
+    }
     found->second.preparingRequests.erase(handle);
     if (found->second.preparingRequests.empty() &&
         found->second.owners.empty()) {
-      found->second.cancellation->store(true);
-      if (found->second.resident)
-        found->second.loader->unload(assetId);
-      resources_.erase(found);
+      unowned.push_back(assetId);
     }
   }
+  // Failed native replacements stay tracked as unowned resident resources,
+  // rather than claiming that the unchanged backend released them.
+  (void)unloadResources(unowned);
   request.heldAssets.clear();
 }
 
@@ -449,6 +604,10 @@ bool AssetGroupService::cancel(const AssetGroupRequestHandle handle) {
   const auto found = requests_.find(handle);
   if (found == requests_.end() || found->second.isActive)
     return false;
+  for (const auto &batch : found->second.uploadBatches) {
+    batch.loader->cancelUploadBatch(batch.assetIds);
+  }
+  found->second.uploadBatches.clear();
   for (Work &work : found->second.work) {
     if (work.uploaded)
       continue;
@@ -480,15 +639,34 @@ bool AssetGroupService::releaseGroup(const std::string_view groupId,
     return false;
   }
   Request &request = requests_.at(active->second);
+  std::vector<std::string> exclusive;
   for (const std::string &assetId : request.heldAssets) {
-    auto resource = resources_.find(assetId);
-    if (resource == resources_.end())
+    const auto resource = resources_.find(assetId);
+    if (resource == resources_.end()) {
       continue;
-    resource->second.owners.erase(std::string(groupId));
-    if (resource->second.owners.empty() &&
+    }
+    if (resource->second.owners.size() == 1 &&
+        resource->second.owners.contains(std::string(groupId)) &&
         resource->second.preparingRequests.empty()) {
-      resource->second.loader->unload(assetId);
-      resources_.erase(resource);
+      exclusive.push_back(assetId);
+    }
+  }
+  if (!unloadResources(exclusive, diagnostics)) {
+    // Other backend batches may already have released their resources. Keep
+    // only still-resident ownership so a later retry can finish this release.
+    std::erase_if(request.heldAssets, [&](const auto &assetId) {
+      return !resources_.contains(assetId);
+    });
+    request.progress.residentBytes = 0;
+    for (const auto &assetId : request.heldAssets) {
+      request.progress.residentBytes += resources_.at(assetId).residentBytes;
+    }
+    return false;
+  }
+  for (const auto &assetId : request.heldAssets) {
+    const auto resource = resources_.find(assetId);
+    if (resource != resources_.end()) {
+      resource->second.owners.erase(std::string(groupId));
     }
   }
   request.heldAssets.clear();

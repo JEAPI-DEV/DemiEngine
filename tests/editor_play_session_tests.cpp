@@ -1,7 +1,9 @@
 #include "editor/EditorPlaySession.h"
 
 #include "demi/runtime/app/EmbeddedRuntimeSession.h"
+#include "demi/runtime/assets/RegistryAssetResourceLoader.h"
 #include "demi/runtime/input/replay/InputReplay.h"
+#include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/scene/model/World.h"
 
 // Exercise lifecycle calls in optimized/offline builds too: assertions here
@@ -10,11 +12,14 @@
 #undef NDEBUG
 #endif
 #include <cassert>
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <nlohmann/json.hpp>
 #include <ranges>
 #include <string>
+#include <thread>
 #include <utility>
 
 namespace {
@@ -25,9 +30,153 @@ std::string readFile(const std::filesystem::path &path) {
           std::istreambuf_iterator<char>()};
 }
 
+void hostedPreparationKeepsLoadingWorldUntilGpuReady() {
+  const auto directory =
+      std::filesystem::temp_directory_path() /
+      ("demi-embedded-preparation-" +
+       std::to_string(
+           std::chrono::steady_clock::now().time_since_epoch().count()));
+  struct Cleanup {
+    std::filesystem::path directory;
+    ~Cleanup() {
+      std::error_code ignored;
+      std::filesystem::remove_all(directory, ignored);
+    }
+  } cleanup{directory};
+  const auto write = [&](const std::filesystem::path &path,
+                         const nlohmann::json &document) {
+    std::filesystem::create_directories(path.parent_path());
+    std::ofstream(path) << document.dump(2);
+  };
+  write(directory / "demi.project.json",
+        {{"format_version", 1},
+         {"name", "Embedded visible-host gate"},
+         {"main_scene", "scene://hosted/loading"},
+         {"scenes",
+          nlohmann::json::array({{{"id", "scene://hosted/loading"}},
+                                 {{"id", "scene://hosted/incoming"}}})}});
+  for (const auto name : {"loading", "incoming"}) {
+    write(
+        directory / "scenes" / (std::string(name) + ".scene.json"),
+        {{"format_version", 1},
+         {"id", "scene://hosted/" + std::string(name)},
+         {"entities", nlohmann::json::array(
+                          {{{"id", name},
+                            {"components",
+                             {{"Transform3D", nlohmann::json::object()}}}}})}});
+  }
+  unsigned loaderFactories = 0;
+  unsigned presentationPolls = 0;
+  unsigned cancellations = 0;
+  bool gpuReady = false;
+  bool gpuFailure = false;
+  demi::editor::EditorPlaySession session;
+  session.setHostServices(
+      {.createAssetLoader =
+           [&](const demi::AssetRegistry &registry, std::string &) {
+             ++loaderFactories;
+             return std::make_shared<
+                 demi::runtime::RegistryAssetResourceLoader>(
+                 registry, demi::runtime::RegistryAssetBackend{
+                               .name = "visible-test-host",
+                               .assetTypes = {"Texture2D"},
+                               .apply = [](const demi::AssetRegistry &,
+                                           std::string &) { return true; }});
+           },
+       .prepareScenePresentation =
+           [&](const demi::runtime::World &world, std::uint16_t width,
+               std::uint16_t height, bool &complete,
+               std::string &preparationError) {
+             assert(world.activeSceneId == "scene://hosted/incoming");
+             assert(width == 640 && height == 360);
+             ++presentationPolls;
+             if (gpuFailure) {
+               preparationError = "Injected GPU preparation failure";
+               return false;
+             }
+             complete = gpuReady;
+             return true;
+           },
+       .cancelScenePresentation = [&] { ++cancellations; }});
+  std::string error;
+  const auto baseline =
+      demi::runtime::EmbeddedRuntimeSession::liveSessionCount();
+  assert(session.startEmbedded(directory / "demi.project.json", error));
+  assert(loaderFactories == 1);
+  assert(demi::runtime::EmbeddedRuntimeSession::liveSessionCount() ==
+         baseline + 1);
+  const auto console = [&](const std::string &code) {
+    const auto result = session.executeLuaConsole(code);
+    assert(result.succeeded && !result.values.empty());
+    return result.values.front();
+  };
+  const auto awaitPresentation = [&] {
+    const auto deadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds(3);
+    const auto previous = presentationPolls;
+    while (presentationPolls == previous &&
+           std::chrono::steady_clock::now() < deadline) {
+      assert(session.update({}, 1.F / 60, 640, 360, error));
+      assert(console("return require('demi.scene').is_prepared()") == "false");
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    assert(presentationPolls > previous);
+  };
+  assert(
+      console(
+          "return require('demi.scene').prepare('scene://hosted/incoming')") ==
+      "true");
+  awaitPresentation();
+  assert(session.runtimeWorld()->activeSceneId == "scene://hosted/loading");
+  const auto ticks = session.fixedTickCount();
+  for (unsigned frame = 0; frame < 5; ++frame) {
+    assert(session.update({}, 1.F / 60, 640, 360, error));
+    assert(console("return require('demi.scene').is_prepared()") == "false");
+  }
+  assert(session.fixedTickCount() > ticks);
+  assert(console("return require('demi.scene').cancel()") == "true");
+  assert(cancellations == 1);
+  assert(session.runtimeWorld()->activeSceneId == "scene://hosted/loading");
+  gpuFailure = true;
+  assert(
+      console(
+          "return require('demi.scene').prepare('scene://hosted/incoming')") ==
+      "true");
+  awaitPresentation();
+  assert(console("return require('demi.scene').error()") ==
+         "Injected GPU preparation failure");
+  assert(console("return require('demi.scene').activate()") == "false");
+  assert(session.runtimeWorld()->activeSceneId == "scene://hosted/loading");
+  assert(console("return require('demi.scene').cancel()") == "true");
+  gpuFailure = false;
+  assert(
+      console(
+          "return require('demi.scene').prepare('scene://hosted/incoming')") ==
+      "true");
+  awaitPresentation();
+  gpuReady = true;
+  assert(session.update({}, 1.F / 60, 640, 360, error));
+  assert(console("return require('demi.scene').is_prepared()") == "true");
+  assert(console("return require('demi.scene').activate()") == "true");
+  assert(session.update({}, 1.F / 60, 640, 360, error));
+  assert(session.runtimeWorld()->activeSceneId == "scene://hosted/incoming");
+  session.stop();
+  assert(demi::runtime::EmbeddedRuntimeSession::liveSessionCount() == baseline);
+  session.setHostServices(
+      {.createAssetLoader = [](const demi::AssetRegistry &, std::string &error)
+           -> std::shared_ptr<demi::assets::AssetResourceLoader> {
+        error = "Visible asset backend unavailable";
+        return {};
+      }});
+  assert(!session.startEmbedded(directory / "demi.project.json", error));
+  assert(error == "Visible asset backend unavailable");
+  assert(demi::runtime::EmbeddedRuntimeSession::liveSessionCount() == baseline);
+}
+
 } // namespace
 
 int main() {
+  hostedPreparationKeepsLoadingWorldUntilGpuReady();
   const std::filesystem::path source = DEMI_SOURCE_DIR;
   const std::filesystem::path project =
       source / "examples/minimal_3d/demi.project.json";
@@ -91,7 +240,16 @@ int main() {
     stepInput.keysDown.insert("W");
     stepInput.mouseButtonsDown.insert("left");
     assert(session.executeLuaConsole("collectgarbage('collect')").succeeded);
+    session.beginProfilerFrame();
+    const auto preparedFrame = demi::runtime::RuntimeProfiler::frameCount();
+    demi::runtime::RuntimeProfiler::record("Editor.ui-test", 3.0);
     assert(session.step(std::move(stepInput), 960, 540, error));
+    assert(demi::runtime::RuntimeProfiler::frameCount() == preparedFrame);
+    const auto entries = demi::runtime::RuntimeProfiler::frameEntries();
+    assert(std::ranges::any_of(entries, [](const auto &entry) {
+      return entry.name == "Editor.ui-test" && entry.calls == 1 &&
+             entry.totalMilliseconds == 3.0;
+    }));
     assert(session.fixedTickCount() == beforeStep + 1);
     const auto profile = session.profilerSnapshot();
     assert(profile.attached && profile.frameCount >= 1 &&
@@ -126,6 +284,12 @@ int main() {
     assert(session.debugSnapshot().overlays.colliders &&
            session.debugSnapshot().overlays.uiBounds &&
            session.debugSnapshot().focusedEntityId == focus);
+    assert(session.step({}, 960, 540, error));
+    assert(demi::runtime::RuntimeProfiler::frameCount() == preparedFrame + 1);
+    const auto nextEntries = demi::runtime::RuntimeProfiler::frameEntries();
+    assert(std::ranges::none_of(nextEntries, [](const auto &entry) {
+      return entry.name == "Editor.ui-test";
+    }));
     session.stop();
     assert(!session.runtimeLogs().empty());
     assert(session.state() == demi::editor::EditorPlayState::Stopped);

@@ -4,8 +4,8 @@
 #include "demi/assets/AssetHash.h"
 #include "demi/assets/AssetRegistry.h"
 #include "demi/assets/DataAsset.h"
-#include "demi/assets/MaterialAsset.h"
 #include "demi/assets/MaterialSet.h"
+#include "demi/assets/RenderAsset.h"
 #include "demi/runtime/terrain/TerrainPalette.h"
 
 #include <algorithm>
@@ -147,26 +147,23 @@ int main() {
                            {.initialAsset = "asset://materials/general_paint"}),
         error);
 
-    require(createEditorSource(workspace, EditorSourceKind::TerrainMaterial,
+    require(createEditorSource(workspace, EditorSourceKind::Material,
                                "earth/clay", created, error),
             error);
     const auto materialManifest = created;
     const auto materialSource =
-        project.root / "assets/terrain_materials/earth/clay/clay.json";
+        project.root / "assets/materials/earth/clay/clay.material.json";
     const auto material = readJson(materialSource);
     require(material == Json({{"format_version", 1},
-                              {"name", "clay"},
-                              {"base_color", {0.8, 0.8, 0.8, 1.0}}}),
-            "Terrain material did not use the native starter format");
-    require(readJson(materialManifest).at("settings").at("content_type") ==
-                "terrain_material",
-            "Terrain material importer lost content_type");
+                              {"shader", "builtin://lit"},
+                              {"parameters", {{"base_color", {1, 1, 1, 1}}}}}),
+            "Material did not use the ordinary native starter format");
+    require(readJson(materialManifest).at("type") == "Material",
+            "Material creation used a separate data asset format");
     auto registry = loadAssetRegistry(project.root);
-    require(assets::loadTerrainMaterialAsset(
-                registry, "asset://terrain_materials/earth/clay")
-                .has_value(),
-            "Created terrain material did not load");
-    require(!createEditorSource(workspace, EditorSourceKind::TerrainMaterial,
+    require(assets::loadMaterialAsset(materialSource).has_value(),
+            "Created ordinary Material did not load");
+    require(!createEditorSource(workspace, EditorSourceKind::Material,
                                 "earth/clay", created, error) &&
                 readJson(materialSource) == material,
             "Duplicate creation overwrote authored material");
@@ -177,14 +174,13 @@ int main() {
     require(!fs::exists(project.root /
                         "assets/terrain_material_sets/starter/starter.json"),
             "Invalid material set wrote source");
-    require(!createEditorSource(
-                workspace, EditorSourceKind::TerrainMaterialSet, "starter",
-                created, error, {}, {},
-                {.initialAsset = "asset://terrain_materials/missing"}),
+    require(!createEditorSource(workspace, EditorSourceKind::TerrainMaterialSet,
+                                "starter", created, error, {}, {},
+                                {.initialAsset = "asset://materials/missing"}),
             "Material set accepted an unresolved reference");
 
     const EditorSourceAssetOptions setOptions{
-        .initialAsset = "asset://terrain_materials/earth/clay"};
+        .initialAsset = "asset://materials/earth/clay"};
     require(createEditorSource(workspace, EditorSourceKind::TerrainMaterialSet,
                                "starter", created, error, {}, {}, setOptions),
             error);
@@ -216,13 +212,13 @@ int main() {
                                 {.initialAsset = "asset://models/rock"}),
             "Material set accepted a Model3D as a material");
     const auto choices = editorSourceAssetChoices(workspace);
-    require(choices.materials ==
-                    std::vector<std::string>{"asset://materials/general_paint",
-                                             "asset://materials/lighting/lamp",
-                                             setOptions.initialAsset} &&
-                choices.models ==
-                    std::vector<std::string>{"asset://models/rock"},
-            "Dialog choices did not filter the native asset registry");
+    require(
+        choices.materials ==
+                std::vector<std::string>{setOptions.initialAsset,
+                                         "asset://materials/general_paint",
+                                         "asset://materials/lighting/lamp"} &&
+            choices.models == std::vector<std::string>{"asset://models/rock"},
+        "Dialog choices did not filter the native asset registry");
     const EditorSourceAssetOptions paletteOptions{.initialAsset =
                                                       "asset://models/rock"};
     require(createEditorSource(workspace, EditorSourceKind::TerrainPalette,
@@ -237,10 +233,12 @@ int main() {
             "Palette import did not register its content and dependency");
     require(
         readJson(project.root / "assets/terrain_palettes/forest/forest.json") ==
-            Json({{"format_version", 2},
+            Json({{"format_version", 3},
                   {"name", "forest"},
                   {"placements",
-                   {{"placement", {{"model", paletteOptions.initialAsset}}}}}}),
+                   {{"placement",
+                     {{"model", paletteOptions.initialAsset},
+                      {"collision", "none"}}}}}}),
         "Palette did not author one valid soil role");
     registry = loadAssetRegistry(project.root);
     require(
@@ -261,8 +259,8 @@ int main() {
     require(editorSourceAssetChoices(workspace).prefabs ==
                 std::vector<std::string>{"prefab://rock"},
             "Palette choices did not discover the valid entity prefab");
-    const EditorSourceAssetOptions prefabPaletteOptions{
-        .initialPrefab = "prefab://rock"};
+    const EditorSourceAssetOptions prefabPaletteOptions{.initialPrefab =
+                                                            "prefab://rock"};
     require(createEditorSource(workspace, EditorSourceKind::TerrainPalette,
                                "prefab_surface", created, error, {}, {},
                                prefabPaletteOptions),
@@ -282,7 +280,7 @@ int main() {
             error);
     const auto surfaceManifest = loadAssetManifest(created);
     const auto surfaces = readJson(surfaceManifest->sourcePath);
-    require(surfaces.at("format_version") == 2 &&
+    require(surfaces.at("format_version") == 3 &&
                 surfaces.at("material_set") ==
                     "asset://terrain_material_sets/starter" &&
                 !surfaces.contains("placements"),

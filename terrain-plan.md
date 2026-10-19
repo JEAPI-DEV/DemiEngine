@@ -517,148 +517,145 @@ remain separate gates.
 
 ## Milestone 3: landforms, erosion and drainage
 
-In progress. Production graph generation runs explicit stage dependencies,
-then replays authored sculpt strokes over the retained generated base. Local
-brush work reuses that checkpoint instead of restarting global erosion.
-Preview/Final quality now reaches the production generator and editor; Preview
-is temporary and cannot enter final saves, caches or cooked output. Hydraulic
-and thermal transport, corrected downstream accumulation and graph flow/cut/
-deposition masks are implemented. Downhill river routing and outlet policy,
-upstream solver comparison and reference-quality acceptance remain open.
-See [generation quality qualification](docs/terrain-generation-quality-qualification.md).
+Completed for the bounded generation scope, 2026-10-14. This covers authored
+macro shapes, erosion stages, explicit drainage endpoints, connected sloped
+rivers and safe Preview/Final generation. It does not complete the surface,
+water appearance, vegetation or reference-scene milestones below. See the
+[Milestone 3 qualification](docs/terrain-milestone3-qualification.md) for the
+acceptance evidence and the solver's unfinished-transport limitation.
 
-- [ ] Build coherent macro features: connected ridges, mountain masses, valleys,
+- [x] Build coherent macro features: connected ridges, mountain masses, valleys,
   basins, coastlines and plateaus. Layer smaller variation over that structure;
   expose feature size, relief and ridge/valley controls rather than only octaves.
 
-  The 2026-10-13 generation step adds FastNoiseLite ridged profiles, independently
-  seeded domain warp, directional stretch and heading to shared landforms and
-  graph noise nodes. A `path_distance_mask` supplies editable curved valley
-  corridors for height blending. `examples/rocky_valley_3d` exercises these at
-  the existing 500-by-500 resolution without modifying the sculpted example.
-  Filled polygon masks now compose with height blending to shape basin floors,
-  plateau tops and island outlines. Basin, Plateau and Coastal Island starter
-  presets expose those controls with explanatory graph comments; the island
-  includes sea-level water. These are authored macro-shape controls, not
-  drainage-derived basins or procedural watershed routing. Geological erosion,
-  drainage-driven rivers and the visual acceptance gate remain open.
-  See [polygon mask qualification](docs/terrain-polygon-mask-qualification.md).
-  See [landform qualification](docs/terrain-landform-qualification.md).
+  Shared ridged noise, independently seeded domain warp, directional stretch
+  and heading organize mountains. Editable path and filled polygon masks shape
+  valleys, basin floors, plateaus and coastlines. Eight documented starters
+  include Basin, Plateau, Coastal Island and Drainage River. The rocky-valley
+  probe retains its original 500-by-500 grid. Wide and close native views were
+  checked, including a correction for artificial hydraulic sediment walls.
+  See [landforms](docs/terrain-landform-qualification.md) and
+  [polygon masks](docs/terrain-polygon-mask-qualification.md).
 
-- [ ] Evaluate maintained libraries/tools for erosion and terrain processing
-  before writing custom implementations. Compare licensing, portability,
-  cancellation, determinism and integration costs with representative probes.
-  A pinned source-level [library survey](docs/terrain-erosion-library-evaluation.md)
-  now records HighMap and soillib tradeoffs. Native representative runs exist;
-  a qualified upstream solver comparison remains outstanding.
+- [x] Evaluate maintained libraries/tools for erosion and terrain processing
+  before selecting the continuing implementation. Compare licensing,
+  portability, cancellation, determinism and integration costs with
+  representative probes.
+
+  The [evaluation](docs/terrain-erosion-library-evaluation.md) records pinned
+  HighMap/soillib source surveys and actual libtcod/native runs on identical
+  flat, spike, anisotropic and representative inputs. It retains native stage
+  ownership and cancellability; no upstream engine dependency was introduced.
+  This is a Linux comparison, not cross-platform solver qualification or a
+  claim that native output is superior.
 
 - [x] Add hydraulic and thermal erosion stages with sediment transport/deposition
   where supported by the selected approach. Retain useful outputs such as flow,
   sediment, exposed-rock and wetness masks for later stages.
-  The native bounded solver now publishes signed balance and normalized cut/
-  deposition pins; Drainage also exposes flow. Reverse-tree accumulation and
-  anisotropic/diagonal thermal distances are corrected, with conservation,
-  cancellation, cache and original-grid Preview/Final probes. This establishes
-  the stage contract, not a full fluid solver or the visual acceptance gate.
 
-- [ ] Compute drainage/basin information for water generation. Define sea level,
+  Flow and independently normalized cut/deposition masks are graph outputs.
+  Hydraulic droplets follow currently descending mesh edges, export sediment
+  at open borders and cap local settling. Per-node eroded/deposited/exported/
+  suspended totals survive cache, sculpt replay and prepared loading. Suspended
+  means unfinished bounded transport, not a retained fluid simulation. Thermal
+  transport uses physical distances; zero hydraulic iterations is supported.
+
+- [x] Compute drainage/basin information for water generation. Define sea level,
   outlets, closed basins and river connectivity; do not generate rivers by
   placing arbitrary splines that flow uphill or end without an outlet policy.
-- [ ] Resolve the terrain/water dependency order: initial landform, drainage,
+
+  Priority flood follows actual terrain mesh edges without artificial elevation
+  epsilon. River Route accepts a source, follows nonascending edges and reports
+  sea, field edge, existing water, closed basin or blocked surface. It can join
+  an ocean, lake or earlier river; closed basins are explicit, not invented
+  uphill outlets. Follow-bed surfaces share carving, rendering and queries.
+
+- [x] Resolve the terrain/water dependency order: initial landform, drainage,
   optional channel/basin carving, final surface/rule masks. Bound any iterative
   refinement explicitly and make results independent of chunk processing order.
+
+  Typed graph dependencies establish ordering; existing receiving water feeds
+  Drainage before River Route, and carved output feeds later rules/output.
+  No implicit convergence loop runs. Whole-field generation precedes chunk
+  partition. Tests compare odd/partial and regular partitions, including wet
+  queries at seam and half-sample positions. Local sculpt reuses the base.
+
 - [x] Support preview and final-quality generation settings with visible status.
   Expensive erosion is a generation/bake operation unless explicitly requested;
   local sculpting must not automatically restart a global erosion simulation.
 
-  Editor Preview reduces hydraulic work and skips thermal passes on the same
-  authored grid. Final uses authored work settings. Progress updates within
-  erosion; cancellation/discard restores Final, and Final history never stores
-  Preview geometry. Source, shared placements, caches and cooking are guarded.
+  Preview reduces hydraulic work and skips thermal passes on the same grid.
+  Final uses authored work settings. In-stage progress/cancellation, temporary
+  publication, Final-only saves/caches/cooking and history rollback are tested.
+  See [Preview/Final qualification](docs/terrain-generation-quality-qualification.md).
 
 Acceptance: preset-generated mountains and river valleys have coherent shapes
 at wide and close views; watershed/chunk boundaries have no processing seams.
+The recorded native views and deterministic partition tests satisfy this
+base-generation gate. Detailed materials, realistic water, vegetation and final
+reference comparisons remain in Milestones 4–8. The subsequent
+[shadow correction](docs/terrain-shadow-receiver-qualification.md) removes the
+prominent cliff grid; finite-resolution and contact limitations remain.
 
 ## Milestone 4: automatic high-quality surface materials
 
-- [x] Render ordinary Material asset references assigned to biomes through the
-  shared Mesh Renderer path. Store positive finite texture scale in terrain-local
-  units, with continuous UVs across chunks. Preserve geometry/collision on
-  material changes and only update UV resources for scale changes. Retain both
-  values in cooked fields so shipped loading does not need authored recipes.
-  Typed terrain material definitions and smooth layers remain unfinished.
-  See [binding qualification](docs/terrain-material-binding-qualification.md).
+Complete for the Linux Vulkan capability scope, qualified on 2026-10-15.
+See [Milestone 4 qualification](docs/terrain-milestone4-qualification.md) for
+native pixels, source/cooked parity, memory measurements and explicit limits.
+The performance follow-up records matched gray-cliff captures (11.49 to 7.04 ms
+GPU median) and retained build-time stage diagnostics; no quality settings were
+reduced for that comparison.
 
-Partly implemented. The PBR document model, its import and its validation are
-done and tested as `TerrainMaterialAsset` / `TerrainMaterialSet`, and
-`TerrainMaterialLayers` assigns a role to every cell by SCORING the generated
-masks rather than by matching names: steep becomes rock, flat and wet becomes
-wet ground, submerged becomes underwater, high and flat becomes snow while high
-and steep does not, and deposition or flow becomes sediment. Thresholds are
-slope degrees, world-unit distances and normalised moisture, so a terrain scaled
-ten times produces identical roles and identical scores. Unbound and unused
-roles are reported rather than left as a silently flat surface. The layered
-blending that replaces discrete triangle groups, and the quality-driven
-residency, are not implemented. Note the naming: `MaterialAsset`
-already meant the render material in `RenderAsset.h`, so the terrain types are
-prefixed to avoid an ODR collision.
+- [x] Unify mesh and terrain Material authoring, validation, import, dependency
+  closure and editor controls. Ordinary Materials support albedo, normal,
+  roughness, metalness, AO, height, detail-normal and emissive maps, with explicit
+  normal convention, UV/triplanar projection and physical texture scale.
+- [x] Assign editable palette roles from generated surface masks, including
+  selected-output erosion deposition/cut, vegetation ground, permitted snow and
+  finite shorelines. `allow_snow` controls biome permission; overlapping ground
+  and rock eligibility prevents unassigned finite slope bands. Explicit biome
+  Material assignments retain precedence.
+- [x] Use correct image color semantics: hardware sRGB filtering for color maps,
+  linear scalar channels and renormalized normal mips. Preserve source maps and
+  coherent physical scale through import, package installation and cooking.
+- [x] Render GPU material arrays with smooth height-biased layer weights,
+  triplanar cliff mapping, macro variation and detail normals. Source material
+  count is not capped at four; four corners define a local blend footprint.
+  Surface Blending can select sharp original-cell triangles instead, without
+  rebuilding terrain or collision, including Undo/Redo and prefab inheritance.
+- [x] Expose distance/platform texture quality and bounded array residency.
+  Camera demand is shared across views, neutral-only slots use 1x1 arrays, and
+  temporary ordinary-map variants retire after use. Unsupported material or
+  device features retain an explicit ordinary-renderer fallback.
+- [x] Supply the installable `polyhaven.materials.terrain` starter package: five
+  CC0 1K surfaces, a wet variant, physical scale/provenance and reusable alpine
+  role bindings. Rocky Valley consumes the package without changing its shape.
+- [x] Validate native broad/close views, alternate lighting, height/neutral/sharp
+  pixel fixtures, source/cooked parity, editor controls, regression suites and
+  repository examples. Remove the unused older global-four-role blending and
+  nominal-size texture-budget implementations.
 
-- [x] Create and edit surface materials, material sets and scatter palettes
-  through the editor without hand-writing JSON. Reuse shared reference/color
-  controls and native validation, retain source formatting and Undo/Redo, and
-  reimport dependencies when saving. Ordinary renderer materials remain valid
-  material-set choices. Failed reimport keeps a retryable, recoverable pending
-  state rather than pretending the asset was imported successfully.
-  See [asset authoring qualification](docs/editor-asset-authoring-qualification.md).
-  This delivers authoring, not terrain PBR shading or visible water.
-
-- [ ] Assign materials automatically from palette roles and generated masks:
-  rock on exposed/steep surfaces, sediment in deposition areas, appropriate
-  vegetation ground layers, snow where the biome permits, and wet shoreline
-  materials near water. All assignments remain editable.
-- [ ] Import and validate PBR material sets, including base colour, normal,
-  roughness, optional metalness, occlusion and height maps. Preserve correct
-  colour spaces, normal-map conventions, units and texture scale.
-- [ ] Replace discrete triangle tints with smooth, height-aware material-layer
-  blending. Support suitable steep-slope mapping, macro variation to reduce
-  visible repetition, and detail normals. Preserve authored overrides.
-  GPU-compatible solid palettes now interpolate neighboring sample colors in
-  linear space and blend metallic, roughness and lit/unlit contributions, while
-  keeping face eligibility categorical. This removes hard GPU sample boundaries
-  without changing terrain resolution. It is a first surface transition step:
-  height-aware weights, texture maps, triplanar mapping and the ordinary mesh
-  fallback's discrete boundaries remain unfinished.
-
-- [ ] Choose distance/platform quality settings for texture residency and
-  surface detail. Parallax/height shading is not actual geometric displacement;
-  distinguish them and use geometry where silhouettes or collision require it.
-- [ ] Provide licensed starter palettes with coherent material scale and
-  optional high-detail rock/cliff meshes. A preset must not pretend to synthesize
-  high-quality source art from a colour or noise setting alone.
-
-Acceptance: generated terrain assigns the selected high-quality materials
-without painting every texture, avoids stretched cliffs and obvious layer seams,
-and remains readable under multiple lighting conditions.
+Height maps affect shading weights, not geometry or collision. Large cliff
+shapes, vegetation, atmospheric lighting and water belong to later milestones;
+these materials do not imply Unreal-level landscape fidelity. Broad tiled
+surfaces can still reveal source repetition. The shaded Material asset preview
+remains separate editor work; the current swatch is explicitly base color.
 
 ## Milestone 5: native water integrated with terrain
 
-Partly implemented. River, lake and ocean authoring, non-destructive carving and
-render-ready water surfaces with per-vertex depth are done and tested, as are
-gameplay queries kept deliberately independent of render tessellation. Graph
-water outputs now publish native transparent meshes in editor previews and
-runtime, including prepared assets. They inherit terrain transforms/visibility,
-never acquire solid collision, and reconcile atomically on Generate and history
-updates. Basic direct lighting uses the shared transparent mesh renderer.
-Graph-authored shallow/deep RGBA, absorption distance and roughness now produce
-depth-derived vertex colours through the shared mesh renderer. Shore geometry
-clips against terrain triangles; queries use the same interpolation without
-depending on rendered meshes. Uncontained bounded lakes warn rather than
-silently clamping an authored level or inventing banks.
-Reflection/refraction, waves, foam and underwater
-appearance remain pending; this is not completion of the water quality gate.
+Complete for the Linux/Vulkan water-integration scope on 2026-10-17.
+See [Milestone 5 qualification](docs/terrain-milestone5-qualification.md) for
+native above/underwater captures, gameplay probes, cooking and measured costs.
+Authoring includes editable river curves and polygon boundaries, basin proposals,
+stable-ID overrides, non-destructive graph carving and prescribed currents.
+Water optics use opaque-scene refraction, environment reflection, absorption,
+animated shading normals and foam while retaining the main scene's MSAA.
+Underwater appearance and opt-in package buoyancy/swimming share native queries.
 
-Design water-body data and hydrology interfaces alongside milestones 2–3;
-complete rendering and gameplay integration against the material pipeline.
+Waves animate normals without moving the queried surface. Reflections do not
+include reflected scene geometry; refraction excludes later transparent draws.
+Full fluid simulation, boat hull simulation and Android/Windows native
+qualification are outside this completed scope, not implied by the checkbox.
 
 - [x] Separate sampled field/mask data from generation and water tessellation.
   Pure water tests link sampling/hydrology targets without the engine core.
@@ -671,14 +668,19 @@ complete rendering and gameplay integration against the material pipeline.
   Game scripts choose cadence and mechanics; an optional Lua sensor emits
   regular events without engine-wide automatic polling or collider scans.
 
-- [ ] Add distinct river, lake and ocean authoring with stable IDs, editable
+- [x] Add distinct river, lake and ocean authoring with stable IDs, editable
   spline/boundary shapes, water level, depth/bathymetry and flow parameters.
   Automatically propose water bodies from drainage/basin data, with manual
   additions, exclusions and overrides.
-- [ ] Make river-channel, lake-basin and shoreline carving non-destructive
+- [x] Make river-channel, lake-basin and shoreline carving non-destructive
   terrain layers. Changing water level or a river path invalidates the required
   terrain, wetness, material and scatter data while preserving unrelated edits.
-- [ ] Render water with depth-dependent colour/absorption, Fresnel response,
+  - [x] Connect resolved water to biome and scatter graph inputs; refresh
+    coverage after downstream height changes without recarving. Shared wet
+    masks exclude dry interpolation corners, and wet scatter candidates are
+    rejected before spacing and placement budgets. See
+    [water-rule integration](docs/terrain-water-rule-integration.md).
+- [x] Render water with depth-dependent colour/absorption, Fresnel response,
   reflections, refraction where supported, animated surface normals/waves and
   shoreline/flow foam. Correctly handle river-to-lake/ocean transitions and
   transparent ordering. Identify renderer prerequisites rather than faking
@@ -692,13 +694,13 @@ complete rendering and gameplay integration against the material pipeline.
   - [x] Restrict lake coverage to its centre-selected connected basin, preserving
     authored river paths and ocean coverage. Retain connectivity in prepared
     results for mesh/query parity and avoid frame-time flood-fill work.
-- [ ] Add underwater appearance and camera transitions, plus shared queries for
+- [x] Add underwater appearance and camera transitions, plus shared queries for
   surface height, depth, containment and flow. Expose gameplay APIs/components
   for water interaction; provide opt-in buoyancy/drag and swimming integration.
-- [ ] Keep render detail separate from gameplay water queries. A distant or
+- [x] Keep render detail separate from gameplay water queries. A distant or
   culled water surface must not disappear from gameplay. Synchronize query and
   visible-wave conventions where objects interact with the surface.
-- [ ] Keep full fluid dynamics/flood simulation outside the initial water scope.
+- [x] Keep full fluid dynamics/flood simulation outside the initial water scope.
   Lakes, rivers and oceans must work without requiring that simulation. Design
   later extensions without coupling the core contract to one wave technique.
 
@@ -708,21 +710,23 @@ probes agree with water queries. Verify above-water and underwater views.
 
 ## Milestone 6: procedural vegetation and scene detail
 
-Partly implemented. Scatter constraints (water, slope, terrain and painted
-exclusions, protected areas, roads, building footprints) and stable scatter
-identities with render grouping, LOD selection and collision policy are done and
-tested. They are not yet consulted by the scatter solver, which still tests water
-and exclusions inline, so the two can disagree until they are wired.
+Complete for the qualified Linux lightweight-3D scope. Physical-density palettes,
+shared placement constraints, stable candidates, scene-object conversion,
+batched groundcover, real model LOD and shared Material wind are integrated.
+Source/cooked native rendering, editor conversion/Undo/Save and focused
+regressions are qualified in
+[Milestone 6 evidence](docs/terrain-milestone6-qualification.md).
+Large-world spatial residency remains in Milestone 7.
 
-- [ ] Scatter palette assets using biome, slope, moisture, water-distance and
+- [x] Scatter palette assets using biome, slope, moisture, water-distance and
   exclusion rules. Provide separate grass/tree/rock density controls, clusters,
   spacing, scale/rotation variation and an overall art-density setting.
-- [ ] Give generated placements stable identities from seed, region and layer.
+- [x] Give generated placements stable identities from seed, region and layer.
   Editing one region must not reposition unrelated forests or rock formations.
-- [ ] Respect roads, water, buildings, protected areas and explicit painted
+- [x] Respect roads, water, buildings, protected areas and explicit painted
   exclusions. Allow chosen generated instances to become authored objects that
   are no longer replaced by procedural regeneration.
-- [ ] Use instancing, culling, appropriate LOD and selective collision. Include
+- [x] Use instancing, culling, appropriate LOD and selective collision. Include
   vegetation shading/wind requirements in rendering work; do not create one
   authored entity or full physics body per grass blade.
 

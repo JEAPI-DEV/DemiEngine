@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "id": "asset://polyhaven/terrain/textures/sand_02/albedo",
+  "type": "Texture2D",
+  "source": "albedo.jpg",
+  "importer": "image",
+  "importer_version": 1,
+  "source_hash": "fnv1a64:a613dfb37daa09e9",
+  "dependencies": [],
+  "settings": {
+    "filter": "trilinear",
+    "mipmaps": true,
+    "wrap": "repeat"
+  }
+}

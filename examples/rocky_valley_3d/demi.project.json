@@ -6,5 +6,9 @@
     {
       "id": "scene://rocky_valley_3d/main"
     }
-  ]
+  ],
+  "package_registry": "../../packages",
+  "packages": {
+    "polyhaven.materials.terrain": "^1.2.0"
+  }
 }

@@ -12,8 +12,7 @@ namespace demi::runtime::render {
 
 class ParticleCanvasRenderer {
 public:
-  ParticleCanvasRenderer(Canvas2D &canvas,
-                         const TextureLibrary2D &textures);
+  ParticleCanvasRenderer(Canvas2D &canvas, TextureLibrary2D &textures);
 
   [[nodiscard]] bool draw(std::span<const ParticleRenderData2D> particles,
                           const Camera2DComponent &camera,
@@ -22,7 +21,7 @@ public:
 
 private:
   Canvas2D &canvas_;
-  const TextureLibrary2D &textures_;
+  TextureLibrary2D &textures_;
 };
 
 } // namespace demi::runtime::render

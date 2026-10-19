@@ -86,6 +86,7 @@ else()
     src/editor/EditorInspectorModel.cpp
     src/editor/EditorModuleCatalog.cpp
     src/editor/EditorHudHierarchy.cpp
+    src/editor/EditorHierarchyIndex.cpp
     src/editor/EditorHudDocument.cpp
     src/editor/EditorHudHierarchyCommands.cpp
     src/editor/EditorHudPrefabOverrides.cpp
@@ -122,6 +123,7 @@ else()
     src/editor/EditorPrefabAuthoring.cpp
     src/editor/EditorPrefabConversion.cpp
     src/editor/EditorPrefabUnpack.cpp
+    src/editor/EditorTerrainScatterPromotion.cpp
     src/editor/EditorEntityBounds3D.cpp
     src/editor/EditorCodeEditor.cpp
     src/editor/EditorSceneView2DState.cpp
@@ -185,6 +187,7 @@ else()
     src/editor/EditorDebugPanel.cpp
     src/editor/EditorDockingWorkspace.cpp
     src/editor/EditorGameRenderer.cpp
+    src/editor/EditorGameRendererPreparation.cpp
     src/editor/EditorGameViewPanel.cpp
     src/editor/EditorHierarchyPanel.cpp
     src/editor/EditorHudNodeInspector.cpp
@@ -203,6 +206,7 @@ else()
     src/editor/EditorAssetReferenceControl.cpp
     src/editor/EditorReferenceControl.cpp
     src/editor/EditorDataAssetControls.cpp
+    src/editor/EditorMaterialControls.cpp
     src/editor/EditorStbRectPack.cpp
     src/editor/EditorTheme.cpp
     src/editor/EditorSettingsPanel.cpp

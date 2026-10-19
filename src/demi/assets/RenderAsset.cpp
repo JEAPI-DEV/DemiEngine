@@ -1,9 +1,13 @@
 #include "demi/assets/RenderAsset.h"
+#include "demi/assets/AssetRegistry.h"
+#include "demi/assets/MaterialSurface.h"
 
 #include <nlohmann/json.hpp>
 
 #include <array>
+#include <cmath>
 #include <fstream>
+#include <set>
 
 namespace demi::assets {
 namespace {
@@ -89,8 +93,11 @@ parseMaterialAsset(const nlohmann::json &value,
                    const std::filesystem::path &path,
                    Diagnostics *diagnostics) {
   const nlohmann::json *document = &value;
-  if (!document->is_object())
+  if (!document->is_object()) {
+    invalid(diagnostics, path, "MATERIAL_DOCUMENT_INVALID",
+            "Material source must be an object.");
     return std::nullopt;
+  }
 
   try {
     MaterialAsset material;
@@ -106,8 +113,39 @@ parseMaterialAsset(const nlohmann::json &value,
               "Only material format_version 1 is supported.");
       return std::nullopt;
     }
+    for (const auto *field :
+         {"alpha_cutoff", "blend", "cull", "depth_test", "depth_write"}) {
+      if (document->contains(field)) {
+        invalid(diagnostics, path, "MATERIAL_RENDER_STATE_MISPLACED",
+                std::string("Material ") + field +
+                    " belongs inside render_state, not at the document root.");
+        return std::nullopt;
+      }
+    }
     material.shader = document->value("shader", "builtin://lit");
     material.fallback = document->value("fallback", "builtin://unlit");
+    for (const auto *name : {"mapping", "normal_map_convention"}) {
+      if (const auto value = document->find(name);
+          value != document->end() && !value->is_string()) {
+        invalid(diagnostics, std::filesystem::path(path.string() + "#/" + name),
+                "MATERIAL_SURFACE_POLICY_INVALID",
+                std::string("Material ") + name + " must be a string.");
+        return std::nullopt;
+      }
+    }
+    material.mapping = document->value("mapping", "uv");
+    material.normalMapConvention =
+        document->value("normal_map_convention", "opengl");
+    for (const auto *legacy :
+         {"maps", "triplanar", "base_color", "roughness", "metallic",
+          "normal_strength", "tiling", "detail_strength"}) {
+      if (document->contains(legacy)) {
+        invalid(diagnostics, path, "MATERIAL_LEGACY_SURFACE_FIELDS",
+                "Migrate terrain material definitions to ordinary Material: "
+                "use textures, parameters and mapping.");
+        return std::nullopt;
+      }
+    }
     if (material.shader.empty()) {
       invalid(diagnostics, path, "MATERIAL_SHADER_MISSING",
               "Material shader must not be empty.");
@@ -188,11 +226,72 @@ parseMaterialAsset(const nlohmann::json &value,
               "Material alpha_cutoff must be between 0 and 1.");
       return std::nullopt;
     }
+    const auto surfaceDiagnostics = validateMaterialSurface(material, path);
+    if (hasErrors(surfaceDiagnostics)) {
+      if (diagnostics) {
+        diagnostics->insert(diagnostics->end(), surfaceDiagnostics.begin(),
+                            surfaceDiagnostics.end());
+      }
+      return std::nullopt;
+    }
+    if (!std::isfinite(material.renderState.alphaCutoff)) {
+      invalid(diagnostics, path, "MATERIAL_ALPHA_CUTOFF_INVALID",
+              "Material alpha_cutoff must be finite.");
+      return std::nullopt;
+    }
     return material;
   } catch (const nlohmann::json::exception &error) {
     invalid(diagnostics, path, "MATERIAL_FIELD_TYPE_INVALID", error.what());
     return std::nullopt;
   }
+}
+
+std::vector<std::string>
+materialAssetDependencies(const MaterialAsset &material) {
+  std::set<std::string> references;
+  for (const auto *shader : {&material.shader, &material.fallback}) {
+    if (shader->starts_with("asset://")) {
+      references.insert(*shader);
+    }
+  }
+  for (const auto &[slot, reference] : material.textures) {
+    references.insert(reference);
+  }
+  return {references.begin(), references.end()};
+}
+
+Diagnostics
+validateMaterialAssetReferences(const MaterialAsset &material,
+                                const AssetRegistry &registry,
+                                const std::filesystem::path &source) {
+  Diagnostics diagnostics;
+  for (const auto *reference : {&material.shader, &material.fallback}) {
+    if (!reference->starts_with("asset://")) {
+      continue;
+    }
+    const auto *shader = findAsset(registry, *reference);
+    if (!shader || shader->type != "Shader") {
+      diagnostics.push_back(
+          {.severity = Severity::Error,
+           .code = "MATERIAL_SHADER_NOT_FOUND",
+           .message = "Material shader reference requires a Shader asset: " +
+                      *reference,
+           .path = source.string()});
+    }
+  }
+  for (const auto &[slot, reference] : material.textures) {
+    const auto *texture = findAsset(registry, reference);
+    if (!texture ||
+        (texture->type != "Texture2D" && texture->type != "RenderTarget")) {
+      diagnostics.push_back(
+          {.severity = Severity::Error,
+           .code = "MATERIAL_TEXTURE_NOT_FOUND",
+           .message = "Material texture " + slot +
+                      " requires Texture2D or RenderTarget: " + reference,
+           .path = source.string()});
+    }
+  }
+  return diagnostics;
 }
 
 std::optional<ShaderAsset> loadShaderAsset(const std::filesystem::path &path,

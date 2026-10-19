@@ -10,6 +10,6 @@
     "content_type": "terrain_palette"
   },
   "source": "surface_palette.json",
-  "source_hash": "fnv1a64:05601bf955d6a23f",
+  "source_hash": "fnv1a64:5a329555f866ad38",
   "type": "DataAsset"
 }

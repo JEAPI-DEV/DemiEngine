@@ -26,6 +26,7 @@ int main() {
   assert(nativeCaps != nullptr);
   assert(limits.maxTextureSize == nativeCaps->limits.maxTextureSize);
   assert(limits.maxTextureSamplers == nativeCaps->limits.maxTextureSamplers);
+  assert(limits.maxTextureLayers == nativeCaps->limits.maxTextureLayers);
   assert(limits.supportsInstancing ==
          ((nativeCaps->supported & BGFX_CAPS_INSTANCING) != 0));
   for (const auto &[format, nativeFormat] : std::array{
@@ -42,6 +43,54 @@ int main() {
   }
   assert(!resources->textureCapabilities(static_cast<TextureFormat>(-1))
               .sampled2D);
+
+  assert(!resources->createTexture({.layers = 0}, error));
+  const bool arraysSupported =
+      resources->textureCapabilities(TextureFormat::RGBA8).sampledArray;
+  assert(arraysSupported ==
+         ((nativeCaps->supported & BGFX_CAPS_TEXTURE_2D_ARRAY) != 0 &&
+          resources->textureCapabilities(TextureFormat::RGBA8).sampled2D));
+  if (arraysSupported && limits.maxTextureLayers >= 2) {
+    const auto array = resources->createTexture(
+        {.width = 2, .height = 2, .generateMipmaps = true, .layers = 2}, error);
+    assert(array);
+    const std::array<std::byte, 4> pixel{};
+    assert(resources->updateTexture(
+        array, {.width = 1, .height = 1, .data = pixel, .layer = 1, .mip = 1},
+        error));
+    assert(!resources->updateTexture(
+        array, {.width = 1, .height = 1, .data = pixel, .layer = 2, .mip = 1},
+        error));
+    assert(!resources->updateTexture(
+        array, {.width = 1, .height = 1, .data = pixel, .layer = 1, .mip = 2},
+        error));
+    assert(!resources->updateTexture(
+        array,
+        {.x = 1, .width = 1, .height = 1, .data = pixel, .layer = 1, .mip = 1},
+        error));
+    assert(resources->destroy(array));
+    std::vector<std::byte> layersAndMips(40);
+    const auto immutable = resources->createTexture({.width = 2,
+                                                     .height = 2,
+                                                     .data = layersAndMips,
+                                                     .generateMipmaps = true,
+                                                     .layers = 2},
+                                                    error);
+    assert(immutable);
+    assert(!resources->updateTexture(
+        immutable, {.width = 1, .height = 1, .data = pixel, .layer = 1},
+        error));
+    assert(resources->destroy(immutable));
+    layersAndMips.pop_back();
+    assert(!resources->createTexture({.width = 2,
+                                      .height = 2,
+                                      .data = layersAndMips,
+                                      .generateMipmaps = true,
+                                      .layers = 2},
+                                     error));
+    assert(
+        !resources->createTexture({.renderTarget = true, .layers = 2}, error));
+  }
 
   const std::array<float, 4> heights{1.0F, 2.0F, 3.0F, 4.0F};
   const auto heightBytes = std::as_bytes(std::span(heights));
@@ -115,6 +164,19 @@ int main() {
                                                  .debugName = "test texture"},
                                error);
   assert(texture);
+  const auto srgbTexture =
+      resources->createTexture({.width = 2,
+                                .height = 2,
+                                .format = TextureFormat::RGBA8,
+                                .data = pixels,
+                                .srgb = true},
+                               error);
+  assert(srgbTexture);
+  assert(resources->destroy(srgbTexture));
+  assert(!resources->createTexture(
+      {.width = 2, .height = 2, .format = TextureFormat::R32F, .srgb = true},
+      error));
+  assert(error.find("sRGB") != std::string::npos);
   const std::array<float, 16> lightData{1, 2, 3, 8, 1, .5F, 0, 2};
   const auto lightBytes = std::as_bytes(std::span(lightData));
   const auto lights = resources->createTexture(

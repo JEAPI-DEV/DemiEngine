@@ -1,5 +1,11 @@
 # Terrain material binding qualification
 
+Historical binding qualification. Its pending material-rendering work is
+superseded by the [shared Material qualification](terrain-shared-material-qualification.md)
+and current [terrain documentation](https://demiengine.de/docs/terrain).
+The unused CPU four-role blend helper and nominal texture-residency planner
+were removed; production uses mapped GPU blending and measured array residency.
+
 ## Delivered boundary
 
 Terrain biomes bind ordinary Material assets through the same MeshRenderer and

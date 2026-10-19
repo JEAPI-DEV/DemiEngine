@@ -198,6 +198,7 @@ bool EditorWorkspace::openTerrainAssetDocument(
     parkedSceneSelection_ = selectedEntityIds_;
   }
   terrainPreviewPrefabs_ = std::move(previewPrefabs);
+  invalidateHierarchyPreview();
   project_->world = std::move(*world);
   terrainAssetDocument_ = std::move(candidate);
   terrainAssetSurface_ = currentEditorTerrain(project_->world, PreviewOwner);
@@ -226,6 +227,7 @@ void EditorWorkspace::leaveTerrainAssetDocument() {
   terrainAssetBinding_ = false;
   configureTerrainInputResolver();
   if (parkedSceneWorld_) {
+    invalidateHierarchyPreview();
     project_->world = std::move(*parkedSceneWorld_);
     parkedSceneWorld_.reset();
     terrainPreviewPrefabs_ = std::move(*parkedTerrainPrefabs_);
@@ -370,6 +372,7 @@ bool EditorWorkspace::pollTerrainAssetAuthoring(EditorTerrainCommit commit,
 }
 
 bool EditorWorkspace::restoreTerrainAssetPreview(std::string &error) {
+  invalidateHierarchyPreview();
   const auto &source = *terrainAssetDocument_;
   const auto displayed = terrainPreview_->surface->heightField();
   const auto owner =
@@ -421,6 +424,7 @@ bool EditorWorkspace::restoreTerrainAssetPreview(std::string &error) {
 
 bool EditorWorkspace::refreshTerrainAssetPreview(const nlohmann::json &recipe,
                                                  std::string &error) {
+  invalidateHierarchyPreview();
   const auto owner =
       std::ranges::find_if(project_->world.entities, [&](const auto &entity) {
         const auto *terrain =

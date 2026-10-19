@@ -36,6 +36,10 @@ std::string_view editorPlayStateLabel(const EditorPlayState state) {
 
 EditorPlaySession::EditorPlaySession() = default;
 
+void EditorPlaySession::setHostServices(runtime::EmbeddedRuntimeHostServices services) {
+  hostServices_ = std::move(services);
+}
+
 EditorPlaySession::~EditorPlaySession() { stop(); }
 
 bool EditorPlaySession::startEmbedded(const std::filesystem::path &project,
@@ -47,6 +51,7 @@ bool EditorPlaySession::startEmbedded(const std::filesystem::path &project,
   retainedLogs_.clear();
   gpuTimingAvailable_ = false;
   auto session = std::make_unique<runtime::EmbeddedRuntimeSession>();
+  session->setHostServices(hostServices_);
   runtime::RuntimeProfiler::setEnabled(true);
   runtime::RuntimeProfiler::resetSession();
   if (!session->start(project, error, sceneId)) {
@@ -98,6 +103,12 @@ bool EditorPlaySession::update(runtime::InputState input,
   if (embedded_->quitRequested())
     stop();
   return true;
+}
+
+void EditorPlaySession::beginProfilerFrame() {
+  if (embedded_ != nullptr) {
+    embedded_->beginProfilerFrame();
+  }
 }
 
 void EditorPlaySession::stop() {

@@ -1,0 +1,20 @@
+{
+  "format_version": 1,
+  "title": "Demi Woodland Vegetation",
+  "description": "Original CC0 low-poly grass, reeds, broadleaf and conifer trees, and faceted boulders. Indexed meshes with real medium/low alternatives, ordinary wind Materials, selective trunk/rock colliders and a physical-density woodland scatter palette. Includes reproducible Python source.",
+  "publisher": "DemiEngine",
+  "license": "CC0-1.0",
+  "kind": "asset",
+  "category": "3D",
+  "price": 0,
+  "images": [],
+  "tags": [
+    "terrain",
+    "vegetation",
+    "low-poly",
+    "grass",
+    "trees",
+    "cc0",
+    "3d"
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "format_version": 1,
+  "shader": "builtin://lit",
+  "parameters": {
+    "base_color": [
+      0.25,
+      0.13,
+      0.065,
+      1
+    ],
+    "roughness": 0.92
+  },
+  "render_state": {
+    "blend": "opaque",
+    "cull": "back"
+  }
+}

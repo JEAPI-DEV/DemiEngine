@@ -1,0 +1,15 @@
+{
+  "dependencies": [
+    "asset://polyhaven/terrain/textures/rocky_gravel/albedo",
+    "asset://polyhaven/terrain/textures/rocky_gravel/normal",
+    "asset://polyhaven/terrain/textures/rocky_gravel/roughness"
+  ],
+  "format_version": 1,
+  "id": "asset://amber_pass/materials/trail",
+  "importer": "material",
+  "importer_version": 1,
+  "settings": {},
+  "source": "trail.material.json",
+  "source_hash": "fnv1a64:7fa877887c9dc322",
+  "type": "Material"
+}

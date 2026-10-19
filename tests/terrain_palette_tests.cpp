@@ -22,8 +22,8 @@ int main() {
   const auto write = [&](const char *name, const Json &value) {
     std::ofstream(root / name) << value.dump(2);
   };
-  write("surface.json",
-        {{"format_version", 1}, {"base_color", {0.2, 0.4, 0.1, 1}}});
+  write("surface.json", {{"format_version", 1},
+                         {"parameters", {{"base_color", {0.2, 0.4, 0.1, 1}}}}});
   write("set.json", {{"format_version", 1},
                      {"name", "Ground"},
                      {"roles", {{"ground", "asset://surface"}}}});
@@ -53,7 +53,7 @@ int main() {
       assert(std::string(failure.what()).find(message) != std::string::npos);
     }
   };
-  const Json surfaces{{"format_version", 2},
+  const Json surfaces{{"format_version", 3},
                       {"name", "Surface only"},
                       {"material_set", "asset://set"}};
   const auto surfacePalette = parse(surfaces);
@@ -73,14 +73,35 @@ int main() {
       {"pine_sparse",
        {{"model", "asset://mesh"},
         {"spacing", 12},
-        {"weight", 0.15},
+        {"density", 0.15},
+        {"candidate_spacing", 1},
+        {"collision", "none"},
         {"scale", {0.8, 1.4}},
-        {"biomes", {"meadow", "meadow"}},
-        {"lod", 2}}},
+        {"biomes", {"meadow", "meadow"}}}},
       {"pine_dense",
        {{"model", "asset://mesh"}, {"spacing", 2}, {"collision", "none"}}},
       {"decorated_tree", {{"prefab", "prefab://tree"}}}};
+  mixed["art_density"] = 0.8;
+  mixed["grass_density"] = 0.5;
+  mixed["tree_density"] = 1.2;
+  mixed["rock_density"] = 0.7;
+  auto &pine = mixed["placements"]["pine_sparse"];
+  pine["category"] = "tree";
+  pine["slope"] = {5, 30};
+  pine["moisture"] = {0.2, 0.8};
+  pine["water_distance"] = {3, 20};
+  pine["yaw"] = {-90, 90};
+  pine["cluster"] = {{"size", 24}, {"strength", 0.6}};
   const auto palette = parse(mixed);
+  const auto &parsedPine = palette.placements.at("pine_sparse");
+  assert(parsedPine.category == TerrainScatterCategory::Tree);
+  assert(parsedPine.slope.minimum == 5 && parsedPine.slope.maximum == 30);
+  assert(parsedPine.waterDistance.minimum == 3 &&
+         parsedPine.waterDistance.maximum == 20);
+  assert(parsedPine.yawDegrees.minimum == -90 &&
+         parsedPine.yawDegrees.maximum == 90);
+  assert(parsedPine.clusterSize == 24 && parsedPine.clusterStrength == 0.6F);
+  assert(palette.grassDensity == 0.5F && palette.rockDensity == 0.7F);
   assert(palette.placements.size() == 3);
   assert(palette.placements.at("pine_sparse").spacing == 12);
   assert(palette.placements.at("pine_dense").spacing == 2);
@@ -117,7 +138,15 @@ int main() {
   invalid = mixed;
   invalid["material_set"] = "asset://mesh";
   rejects(invalid, "material set");
-  const Json invalidFields{{"weight", -1},
+  const Json invalidFields{{"weight", 1},
+                           {"density", -1},
+                           {"candidate_spacing", 0},
+                           {"category", "forest"},
+                           {"slope", {-1, 20}},
+                           {"moisture", {0.8, 0.2}},
+                           {"water_distance", {-1, 30}},
+                           {"yaw", {-400, 90}},
+                           {"cluster", {{"strength", 2}}},
                            {"spacing", -1},
                            {"scale", {2, 1}},
                            {"lod", -1},
@@ -127,8 +156,17 @@ int main() {
     invalid["placements"]["pine_sparse"][key] = value;
     rejects(invalid, key);
   }
+  invalid = mixed;
+  invalid["placements"]["pine_sparse"]["candidate_spacing"] = 100;
+  rejects(invalid, "candidate capacity");
+  invalid = mixed;
+  invalid["placements"]["pine_sparse"]["collision"] = "static";
+  rejects(invalid, "prefab with authored collider");
+  invalid = mixed;
+  invalid["art_density"] = -1;
+  rejects(invalid, "art_density");
   invalid = {
-      {"format_version", 2}, {"name", "Empty"}, {"placements", Json::object()}};
+      {"format_version", 3}, {"name", "Empty"}, {"placements", Json::object()}};
   rejects(invalid, "must supply");
   assert(terrainPlacementRuleHash("pine_sparse") == 13048787414137992044ULL);
   assert(terrainPlacementRuleHash("pine_sparse") !=

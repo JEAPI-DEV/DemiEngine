@@ -1,5 +1,6 @@
 #include "demi/runtime/render/BgfxRenderer2D.h"
 #include "demi/assets/FontAssetSettings.h"
+#include "demi/runtime/diagnostics/DeviceLog.h"
 
 #include "demi/runtime/render/ParticleSystem2D.h"
 #include "demi/runtime/render/backend/RenderAssetLoading.h"
@@ -177,13 +178,24 @@ bool BgfxRenderer2D::loadAssets(const AssetRegistry &registry,
     }
     if (!isRasterTexture(asset))
       continue;
-    const auto bytes = readRenderAssetBytes(asset.sourcePath);
     std::string error;
-    if (bytes.empty() ||
-        !textures_.load(asset.id, bytes, error,
-                        textureSampling2D(asset, TextureFilter::Nearest))) {
-      diagnostics.push_back(asset.id + ": " +
-                            (error.empty() ? "could not read source" : error));
+    const TextureSource2D source{
+        .read =
+            [path = asset.sourcePath](std::string &readError) {
+              auto bytes = readRenderAssetBytes(path);
+              if (bytes.empty()) {
+                readError = "Could not read texture source: " + path.string();
+              }
+              return bytes;
+            },
+        .sampling = textureSampling2D(asset, TextureFilter::Nearest),
+        .reportFailure =
+            [id = asset.id](std::string_view reason) {
+              deviceLogError(deviceLogMessage("texture.2d",
+                                              id + ": " + std::string(reason)));
+            }};
+    if (!textures_.registerSource(asset.id, source, error)) {
+      diagnostics.push_back(asset.id + ": " + error);
       success = false;
     }
   }
@@ -315,8 +327,9 @@ bool BgfxRenderer2D::drawUi(const ui::UiDocument &document) {
              canvas_, font_,
              [this](const std::string_view id) {
                const auto external = externalTextures_.find(std::string(id));
-               return external != externalTextures_.end() ? external->second
-                                                          : textures_.find(id);
+               return external != externalTextures_.end()
+                          ? external->second
+                          : textures_.resolve(id);
              },
              &textureAnimations_, animationTime_)
       .draw(document, viewportWidth_, viewportHeight_);

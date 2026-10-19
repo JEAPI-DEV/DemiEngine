@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/render/backend/GpuResources.h"
+#include "demi/runtime/render/backend/BgfxRenderCommandsOptions.h"
 #include "demi/runtime/render/backend/QuadBatch.h"
 
 #include <array>
@@ -9,6 +10,7 @@
 #include <memory>
 #include <span>
 #include <string>
+#include <string_view>
 #include <type_traits>
 
 namespace demi::runtime::render {
@@ -22,6 +24,8 @@ struct View2DConfig {
   std::uint32_t clearRgba = 0x000000ffU;
   bool clear = true;
   FrameBufferHandle frameBuffer;
+  // Synchronous diagnostic label; the backend copies it during configuration.
+  std::string_view debugName;
 };
 
 struct Point3D {
@@ -38,7 +42,8 @@ struct View3DConfig {
   std::uint16_t height = 1;
   std::uint32_t clearRgba = 0x000000ffU;
   Point3D eye;
-  Point3D target{0.0F, 0.0F, 1.0F};
+  // Nonzero forward direction, independent of the eye position.
+  Point3D forward{0.0F, 0.0F, 1.0F};
   Point3D up{0.0F, 1.0F, 0.0F};
   float verticalFovDegrees = 60.0F;
   float nearClip = 0.05F;
@@ -49,6 +54,7 @@ struct View3DConfig {
   bool clearDepth = true;
   FrameBufferHandle frameBuffer;
   bool sequential = false;
+  std::string_view debugName;
 };
 
 enum class DepthTest { Disabled, Less, LessEqual, Always };
@@ -90,6 +96,7 @@ struct TransientDraw {
   DrawState state;
   ScissorRect scissor;
   std::span<const DrawUniformValue> uniforms;
+  std::span<const DrawTextureBinding> textures;
 };
 
 struct BufferedDraw {
@@ -150,8 +157,9 @@ public:
   RenderCommands(const RenderCommands &) = delete;
   RenderCommands &operator=(const RenderCommands &) = delete;
 
-  // Current-frame capacity only; query immediately before submission. Other
-  // draws can consume the shared transient buffer between queries.
+  // Largest immediately available instance chunk. Native implementations may
+  // use dedicated frame upload arenas so UI transient vertices remain intact.
+  // Query immediately before submission; other draws consume frame capacity.
   [[nodiscard]] virtual std::uint32_t availableInstances(std::uint16_t,
                                                          std::uint32_t) const {
     return 0;
@@ -167,6 +175,14 @@ public:
                                     std::string &error) = 0;
   [[nodiscard]] virtual bool submit(const InstancedBufferedDraw &draw,
                                     std::string &error) = 0;
+  // Copies resolved texture contents between distinct resources in an ordered
+  // view. The destination must have been created with blitDestination enabled.
+  [[nodiscard]] virtual bool copyTexture(std::uint16_t, TextureHandle,
+                                         TextureHandle, std::uint16_t,
+                                         std::uint16_t, std::string &error) {
+    error = "This renderer cannot capture scene textures.";
+    return false;
+  }
   // Submits legal prefixes using current transient availability. A failure
   // returns the already-submitted prefix so callers never redraw it by
   // accident.
@@ -178,6 +194,8 @@ protected:
 };
 
 [[nodiscard]] std::unique_ptr<RenderCommands>
-createBgfxRenderCommands(GpuResources &resources);
+createBgfxRenderCommands(GpuResources &resources,
+                         const BgfxRenderCommandsOptions &options = {},
+                         std::string *error = nullptr);
 
 } // namespace demi::runtime::render

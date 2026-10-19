@@ -9,6 +9,7 @@
 #include <optional>
 #include <stop_token>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace demi::runtime {
@@ -19,22 +20,32 @@ namespace terrain_water_detail {
 struct WaterLevelField;
 }
 
-// A water body is authored, not inferred, because the shape an author draws and
-// the shape a drainage pass proposes are different intentions and one of them
-// has to win visibly. Ocean, lake and river differ in how they meet the ground
-// rather than only in appearance, so they are distinct kinds rather than one
-// body with a flag.
+// Explicitly authored bodies and drainage-generated routes use the same stable
+// body model. Their kinds determine how coverage and carving meet the ground.
 enum class TerrainWaterBody { Ocean, Lake, River };
+
+enum class TerrainRiverSurfaceMode { Level, FollowBed };
+
+[[nodiscard]] std::string_view
+terrainRiverSurfaceModeName(TerrainRiverSurfaceMode mode);
+[[nodiscard]] TerrainRiverSurfaceMode
+parseTerrainRiverSurfaceMode(std::string_view name);
 
 // One authored body. `id` is the stable reference gameplay and rendering use;
 // a body is never identified by its position in a list.
 struct TerrainWaterBodySpec {
   std::string id;
   TerrainWaterBody kind = TerrainWaterBody::Ocean;
-  // World height of the surface. Authoritative for every kind: a perched river
-  // or a raised lake is legitimate, so nothing infers a body's level from the
-  // document's sea level.
+  // Terrain-local height for level surfaces, including perched rivers and
+  // raised lakes. FollowBed instead uses riverPath bed Y plus riverDepth.
   float level = 0;
+  TerrainRiverSurfaceMode riverSurfaceMode = TerrainRiverSurfaceMode::Level;
+  // FollowBed adds this positive vertical depth to the interpolated path bed.
+  float riverDepth = 1;
+  // Prescribed terrain-local current, independent of drainage accumulation.
+  float flowSpeed = 0.F;
+  // Lake/ocean XZ direction; normalized when sampled. Rivers follow their path.
+  Vec2 flowDirection{1.F, 0.F};
   // River only: the channel centreline in terrain-local (x, z) with the
   // authored bed height in y, and the authored channel width along it.
   std::vector<Vec3> riverPath;
@@ -45,6 +56,8 @@ struct TerrainWaterBodySpec {
   // Zero removes the radius bound. Lakes still select the basin connected to
   // their centre; oceans cover all submerged regions in their footprint.
   float radius = 0;
+  // Optional simple XZ polygon for lakes/oceans; replaces the circular bound.
+  std::vector<Vec2> boundary;
   // Eases the ground into the waterline over a band, so a shore is a slope
   // rather than a cliff. Never changes which samples are water.
   bool shorelineSoftening = true;
@@ -58,14 +71,14 @@ struct TerrainWaterBodySpec {
 struct TerrainWaterSurface {
   std::string id;
   TerrainWaterBody kind = TerrainWaterBody::Ocean;
+  // Scalar metadata for Level mode only; FollowBed vertices carry their heights.
   float level = 0;
+  TerrainRiverSurfaceMode riverSurfaceMode = TerrainRiverSurfaceMode::Level;
   // Terrain-local triangles clipped against ground depth and body ownership,
   // wound like the terrain mesh. Intersections add zero-depth shore vertices.
   std::vector<Vec3> vertices;
   std::vector<std::size_t> indices;
-  // Flat up. Wave animation is the renderer's business; a level surface is the
-  // authored truth and inventing a normal here would put render detail into the
-  // shared contract.
+  // Exact source-triangle normals, shared with gameplay surface queries.
   std::vector<Vec3> normals;
   // Metres from the water plane down to the carved ground, per vertex. Zero at
   // the shore. This is what makes depth-graded absorption and shoreline foam
@@ -141,6 +154,15 @@ acceptedBodies(const TerrainWaterAuthoring &authoring,
 // build surfaces and answer gameplay queries. Because coverage is a pure
 // function of (ground, authoring), the two passes cannot disagree.
 struct WaterLevelField {
+  struct BodyLevels {
+    float constant = 0;
+    // Only FollowBed rivers allocate a grid. Constant bodies remain scalar.
+    std::shared_ptr<const std::vector<float>> samples;
+
+    [[nodiscard]] float at(std::size_t sample) const {
+      return samples ? samples->at(sample) : constant;
+    }
+  };
   Vec2 size{};
   int cellsX = 0;
   int cellsZ = 0;
@@ -151,6 +173,9 @@ struct WaterLevelField {
   // Index into TerrainWaterAuthoring::bodies, not into the accepted list, so a
   // caller can read the body without a second lookup.
   std::vector<std::size_t> body;
+  // Authoring-indexed profiles include dry/other-owned corners. Clipping and
+  // queries interpolate one body's surface without borrowing overlap levels.
+  std::vector<BodyLevels> bodyLevels;
   static constexpr std::size_t noBody = ~std::size_t(0);
 
   [[nodiscard]] std::size_t samples() const { return level.size(); }
@@ -163,10 +188,16 @@ struct WaterLevelField {
   }
 };
 
-[[nodiscard]] WaterLevelField
-buildWaterLevelField(Vec2 size, int cellsX, int cellsZ,
-                     const TerrainSamples<float> &ground,
-                     const TerrainWaterAuthoring &authoring);
+// Geometry coverage may retain dry corners for shoreline interpolation. Rule,
+// material and scatter consumers share this actual submerged-ground mask.
+// Empty means cancellation; malformed coverage is diagnosed.
+[[nodiscard]] std::vector<std::uint8_t>
+submergedWaterSamples(const HeightField &field, const WaterLevelField &coverage,
+                      std::stop_token stop = {});
+
+[[nodiscard]] WaterLevelField buildWaterLevelField(
+    Vec2 size, int cellsX, int cellsZ, const TerrainSamples<float> &ground,
+    const TerrainWaterAuthoring &authoring, std::stop_token stop = {});
 
 } // namespace terrain_water_detail
 } // namespace demi::runtime

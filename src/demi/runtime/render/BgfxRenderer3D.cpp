@@ -3,6 +3,7 @@
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/render/bgfx3d/MeshShadowSections3D.h"
 #include "demi/runtime/render/bgfx3d/SceneVisibility3D.h"
+#include "demi/runtime/terrain/TerrainWaterMesh.h"
 
 #include "demi/runtime/render/bgfx3d/DebugGeometry3D.h"
 
@@ -50,11 +51,17 @@ BgfxRenderer3D::BgfxRenderer3D(GpuResources &resources,
     : resources_(resources), shadows_(resources, commands),
       lightBuffer_(resources, shadows_), commands_(lightBuffer_),
       primitives_(resources, commands_), postProcess_(resources, commands_),
+      opaqueCapture_(resources), waterRenderer_(resources, commands),
       particleRenderer_(resources, commands_), overlay_(resources, commands_),
       textures_(resources), sky_(resources), materials_(resources),
+      meshPbr_(resources, commands_,
+               [this](std::string_view id, ImageMipSemantic semantic) {
+                 return materialTexture(id, semantic);
+               }),
       gpuSkinningRequested_(enableGpuSkinning), deformedMeshes_(resources),
       terrainMeshes_(resources), terrainLodResidency_(extractionJobs_),
-      terrainGpuFields_(resources, extractionJobs_), terrainPatches_(resources),
+      terrainGpuFields_(resources, extractionJobs_),
+      terrainMaterials_(resources, extractionJobs_), terrainPatches_(resources),
       reliefMeshes_(resources) {}
 
 BgfxRenderer3D::~BgfxRenderer3D() { shutdown(); }
@@ -87,6 +94,22 @@ bool BgfxRenderer3D::initialize(std::string &error) {
       resources_.createBuiltinProgram(BuiltinProgram::Directional3D, error);
   directionalInstancedProgram_ = resources_.createBuiltinProgram(
       BuiltinProgram::Directional3DInstanced, error);
+  pbrProgramError_.clear();
+  if (resources_.limits().maxTextureSamplers >= 9) {
+    constexpr std::array programs{BuiltinProgram::Pbr3D,
+                                  BuiltinProgram::Pbr3DInstanced,
+                                  BuiltinProgram::Pbr3DSkinned,
+                                  BuiltinProgram::Pbr3DDirectional,
+                                  BuiltinProgram::Pbr3DDirectionalInstanced,
+                                  BuiltinProgram::Pbr3DDirectionalSkinned};
+    for (std::size_t index = 0; index < programs.size(); ++index) {
+      pbrPrograms_[index] =
+          resources_.createBuiltinProgram(programs[index], pbrProgramError_);
+    }
+  } else {
+    pbrProgramError_ =
+        "PBR materials require nine texture samplers on this device";
+  }
   meshSampler_ = resources_.createSampler("s_texColor", error);
   tintUniform_ =
       resources_.createUniform("u_tint", UniformType::Vec4, 1, error);
@@ -182,14 +205,36 @@ bool BgfxRenderer3D::initialize(std::string &error) {
       directionalTerrainProgram_ = {};
     }
   }
+  if (terrainCapable && limits.maxTextureSamplers >= 12 &&
+      idCaps.sampledArray) {
+    std::string mappedError;
+    mappedTerrainProgram_ = resources_.createBuiltinProgram(
+        BuiltinProgram::TerrainMapped3D, mappedError);
+    directionalMappedTerrainProgram_ = resources_.createBuiltinProgram(
+        BuiltinProgram::TerrainMapped3DDirectional, mappedError);
+    opaqueMappedTerrainProgram_ = resources_.createBuiltinProgram(
+        BuiltinProgram::TerrainMappedOpaque3D, mappedError);
+    directionalOpaqueMappedTerrainProgram_ = resources_.createBuiltinProgram(
+        BuiltinProgram::TerrainMappedOpaque3DDirectional, mappedError);
+  }
   initialized_ = true;
   return true;
 }
 
 void BgfxRenderer3D::shutdown() {
+  cancelAssetPreparation();
+  meshPbr_.shutdown();
+  for (auto &program : pbrPrograms_) {
+    if (program) {
+      resources_.destroy(program);
+    }
+    program = {};
+  }
   lightBuffer_.shutdown();
   shadows_.shutdown();
   sky_.clear();
+  opaqueCapture_.clear();
+  waterRenderer_.clear();
   for (const auto program :
        {directionalMeshProgram_, directionalInstancedProgram_,
         directionalSkinnedProgram_})
@@ -210,6 +255,16 @@ void BgfxRenderer3D::shutdown() {
   deformedMeshes_.clear();
   terrainPatches_.clear();
   terrainGpuFields_.clear();
+  terrainMaterials_.clear();
+  for (auto *program :
+       {&mappedTerrainProgram_, &directionalMappedTerrainProgram_,
+        &opaqueMappedTerrainProgram_,
+        &directionalOpaqueMappedTerrainProgram_}) {
+    if (*program) {
+      resources_.destroy(*program);
+      *program = {};
+    }
+  }
   if (terrainProgram_) {
     resources_.destroy(terrainProgram_);
   }
@@ -248,6 +303,10 @@ void BgfxRenderer3D::shutdown() {
   renderTargets_.clear();
   particles_.clear();
   textures_.clear();
+  textureSources_.clear();
+  materialTextureUse_.clear();
+  texturePresentationSerial_ = 0;
+  successfulTexturePresentation_ = 0;
   if (whiteTexture_)
     resources_.destroy(whiteTexture_);
   if (meshSampler_)
@@ -289,6 +348,11 @@ bool BgfxRenderer3D::renderFrame(const World &world,
     error = "BgfxRenderer3D must be initialized before rendering.";
     return false;
   }
+  const auto endView = std::uint32_t(frame.viewId) + CameraViewCount3D;
+  if (endView > resources_.limits().maxViews || endView > UINT16_MAX) {
+    error = "The camera pass range exceeds the renderer view limit.";
+    return false;
+  }
   const bool ownsPresentation = !presentationActive_;
   if (ownsPresentation) {
     beginPresentation();
@@ -305,32 +369,25 @@ bool BgfxRenderer3D::renderFrame(const World &world,
     }
   } presentationScope{*this, ownsPresentation, presentationSucceeded};
   if (frame.updateContent) {
-    meshRetention_.collect(world);
+    meshRetention_.collect(instancePreparation_.worldSources(world));
   }
   const auto sceneLighting =
-      collectSceneLighting3D(world, frame.camera.renderMask);
-  terrainLodResidency_.setSettings(
-      {.maximumResidentBytes = sceneLighting.terrainLodCacheBytes,
-       .maximumPendingJobs = sceneLighting.terrainLodPrepareJobs,
-       .maximumJobsPerPresentation = sceneLighting.terrainLodPrepareJobs});
-  const auto topologyBytes = terrainPatches_.topologyBytes();
-  const auto gpuFieldBudget =
-      sceneLighting.terrainGpuCacheBytes > topologyBytes
-          ? sceneLighting.terrainGpuCacheBytes - topologyBytes
-          : 0;
-  terrainGpuFields_.setBudgets(gpuFieldBudget,
-                               sceneLighting.terrainLodCacheBytes,
-                               sceneLighting.terrainLodPrepareJobs);
-  terrainCameraDemand_.beginCamera(
-      world, frame, terrainLodResidency_,
-      [this](const auto &field) { terrainGpuFields_.touch(field); });
+      collectSceneLighting3D(world, frame.camera.renderMask, &entityQueries_);
+  configureTerrainPresentation(world, frame, sceneLighting);
   const auto &lighting =
       frame.lightingOverride ? *frame.lightingOverride : sceneLighting;
   if (!shadows_.prepare(lighting, frame, error)) {
     return false;
   }
+  // Advance shared visual time before any shadow/depth/color view consumes
+  // it. The presentation guard keeps multiple cameras on the same wind phase.
+  if (!waterTimeAdvanced_) {
+    waterTime_ += std::max(deltaSeconds, 0.F);
+    waterTimeAdvanced_ = true;
+  }
   auto mainFrame = frame;
   std::size_t shadowBatches = 0;
+  std::size_t shadowTriangles = 0;
   const auto depthFrames = shadows_.depthFrames();
   for (std::size_t cascade = 0; cascade < depthFrames.size(); ++cascade) {
     ProfileScope scope("Renderer3D.directional_shadow");
@@ -340,13 +397,56 @@ bool BgfxRenderer3D::renderFrame(const World &world,
       return false;
     }
     shadowBatches += statistics_.batches;
+    shadowTriangles += statistics_.triangles;
+    const auto prefix = "Renderer3D.shadow." + std::to_string(cascade) + ".";
+    RuntimeProfiler::setGauge(prefix + "triangles", statistics_.triangles);
+    RuntimeProfiler::setGauge(prefix + "batches", statistics_.batches);
     ++mainFrame.viewId;
   }
   RuntimeProfiler::setGauge("Renderer3D.shadow_batches", shadowBatches);
+  RuntimeProfiler::setGauge("Renderer3D.shadow_triangles", shadowTriangles);
   RuntimeProfiler::setGauge("Renderer3D.shadow_cascades", depthFrames.size());
   shadows_.receive();
+  if (frame.updateContent && frame.camera.debugMode == "shaded" &&
+      resources_.shaderBackend() != "noop") {
+    mainFrame.underwater = underwaterCamera_.sample(world, frame.position);
+  } else {
+    mainFrame.underwater.reset();
+  }
+  std::string captureError;
+  auto *capture = prepareWaterCapture(world, mainFrame, captureError);
+  if (!captureError.empty()) {
+    error = std::move(captureError);
+    return false;
+  }
+  if (capture != nullptr) {
+    auto depthFrame = mainFrame;
+    depthFrame.captureLinearDepth = true;
+    depthFrame.underwater.reset();
+    depthFrame.frameBuffer = capture->depth.frameBuffer;
+    depthFrame.viewportX = 0;
+    depthFrame.viewportY = 0;
+    depthFrame.viewportWidth = capture->width;
+    depthFrame.viewportHeight = capture->height;
+    depthFrame.destinationSamples = 1;
+    depthFrame.camera.renderTarget.clear();
+    depthFrame.camera.debugMode = "shaded";
+    depthFrame.camera.renderScale = 1.F;
+    depthFrame.camera.renderHud = false;
+    depthFrame.camera.clearColor = {1.F, 1.F, 1.F, 1.F};
+    depthFrame.camera.clearMode = "color";
+    depthFrame.postProcess.reset();
+    if (!renderView(world, depthFrame, 0.F, error, false, sceneLighting,
+                    frame)) {
+      return false;
+    }
+    ++mainFrame.viewId;
+  }
+  if (mainFrame.underwater && capture) {
+    mainFrame.underwater->linearDepth = capture->depth.color;
+  }
   const bool rendered = renderView(world, mainFrame, deltaSeconds, error, false,
-                                   sceneLighting, frame);
+                                   sceneLighting, frame, capture);
   statistics_.shadowPasses = depthFrames.size();
   if (rendered && frame.updateContent) {
     deformedMeshes_.retain([this](const std::string &id) {
@@ -361,21 +461,21 @@ bool BgfxRenderer3D::renderFrame(const World &world,
 }
 
 bool BgfxRenderer3D::renderView(const World &world,
-                                const BgfxCameraFrame3D &frame,
+                                const BgfxCameraFrame3D &inputFrame,
                                 float deltaSeconds, std::string &error,
                                 bool shadowPass,
                                 const SceneLighting3D &sceneLighting,
-                                const BgfxCameraFrame3D &lodCamera) {
+                                const BgfxCameraFrame3D &lodCamera,
+                                OpaqueSceneCapture3D::Target *waterCapture) {
+  auto frame = inputFrame;
+  const bool depthCapture = frame.captureLinearDepth;
   if (!initialized_) {
     error = "BgfxRenderer3D must be initialized before rendering.";
     return false;
   }
-  const Vec3 target{frame.position.x + frame.forward.x,
-                    frame.position.y + frame.forward.y,
-                    frame.position.z + frame.forward.z};
   const int msaaSamples =
-      shadowPass ? 1 : std::max(sceneLighting.msaaSamples, 1);
-  if (!shadowPass) {
+      (shadowPass || depthCapture) ? 1 : std::max(sceneLighting.msaaSamples, 1);
+  if (!shadowPass && !depthCapture) {
     postProcess_.setMsaaSamples(msaaSamples);
   }
   const auto renderTarget = renderTargets_.find(frame.camera.renderTarget);
@@ -395,7 +495,10 @@ bool BgfxRenderer3D::renderView(const World &world,
     return false;
   }
   const bool hostOffscreen = static_cast<bool>(frame.frameBuffer);
-  const bool applyPostProcess = hasPostProcessEffects(frame.postProcess);
+  const bool applyPostProcess =
+      hasPostProcessEffects(frame.postProcess) || frame.underwater.has_value();
+  const bool targetPostProcess =
+      authoredOffscreen && frame.updateContent && applyPostProcess;
   const float renderScale =
       authoredOffscreen ? 1.0F
                         : std::clamp(frame.camera.renderScale, 0.25F, 2.0F);
@@ -403,8 +506,13 @@ bool BgfxRenderer3D::renderView(const World &world,
   // a smaller view directly into the destination leaves its edges untouched.
   const bool needsMsaaResolve =
       !authoredOffscreen && msaaSamples != frame.destinationSamples;
+  // An unchanged authored target already contains its last completed image.
+  // Reprocessing a shared scratch surface here could sample another camera.
   const bool resolveSurface =
-      applyPostProcess || renderScale != 1.0F || needsMsaaResolve;
+      !depthCapture &&
+      (authoredOffscreen ? targetPostProcess
+                         : (applyPostProcess || renderScale != 1.0F ||
+                            needsMsaaResolve || waterCapture != nullptr));
   const std::uint16_t renderWidth =
       authoredOffscreen
           ? renderTarget->second.width
@@ -421,7 +529,7 @@ bool BgfxRenderer3D::renderView(const World &world,
                 1L, static_cast<long>(UINT16_MAX)));
   RenderTargetHandles sourceTarget;
   sourceTarget.msaaSamples = frame.destinationSamples;
-  if (authoredOffscreen) {
+  if (authoredOffscreen && !targetPostProcess) {
     sourceTarget = renderTarget->second.handles;
   } else if (resolveSurface) {
     sourceTarget = postProcess_.scratchTarget(
@@ -448,18 +556,26 @@ bool BgfxRenderer3D::renderView(const World &world,
     terrainPatches_.prepareExtraction(
         world, frame, lodCamera, terrainSelection_, terrainGpuFields_,
         materials_, terrainCameraDemand_, sceneLighting.terrainGpuCacheBytes,
-        bool(terrainProgram_ && directionalTerrainProgram_));
+        bool(terrainProgram_ && directionalTerrainProgram_), &terrainMaterials_,
+        sceneLighting.terrainDetailDistance,
+        bool(mappedTerrainProgram_ && directionalMappedTerrainProgram_));
   }
   SceneVisibility3D visibility;
-  const bool isMainContentView = frame.updateContent && !shadowPass;
+  const bool isMainContentView =
+      frame.updateContent && !shadowPass && !depthCapture;
   auto cosmeticFragments = isMainContentView && world.destruction3D
                                ? world.destruction3D->cosmeticFragments()
                                : std::vector<CosmeticFragment3D>{};
   if (frame.updateContent) {
+    ProfileScope scope("Renderer3D.extract_view");
     const auto extractionStarted = std::chrono::steady_clock::now();
     visibility = extractVisibleMeshes3D(
         world, frame, &extractionJobs_, &terrainSelection_, &lodCamera,
-        &terrainLodResidency_, &terrainCameraDemand_, &terrainPatches_);
+        &terrainLodResidency_, &terrainCameraDemand_, &terrainPatches_, &materials_,
+        [this](std::string_view model) -> std::optional<MeshBounds3D> {
+          const auto cached = modelMeshes_.find(std::string(model));
+          return cached == modelMeshes_.end() ? std::nullopt : cached->second->bounds;
+        }, &instancePreparation_);
     lastExtractionMilliseconds_ =
         std::chrono::duration<double, std::milli>(
             std::chrono::steady_clock::now() - extractionStarted)
@@ -467,20 +583,29 @@ bool BgfxRenderer3D::renderView(const World &world,
   } else {
     lastExtractionMilliseconds_ = 0.0;
   }
-  if (frame.updateContent && !prepareTerrainMeshes(visibility, error)) {
-    return false;
+  if (frame.updateContent) {
+    ProfileScope scope("Renderer3D.prepare_terrain_meshes");
+    if (!prepareTerrainMeshes(visibility, error)) {
+      return false;
+    }
   }
   if (shadowPass) {
+    ProfileScope scope("Renderer3D.compact_shadow_sections");
     compactOpaqueShadowSections3D(visibility.meshes, materials_);
   }
-  if (frame.updateContent &&
+  if (frame.updateContent && instancePreparation_.hasAnimations(world) &&
       !prepareAnimatedMeshes(visibility.meshes, frame, error)) {
     return false;
   }
-  std::size_t firstTransparent =
-      shadowPass ? visibility.meshes.size()
-                 : orderMeshSurfaces3D(visibility.meshes, materials_,
-                                       frame.position, frame.forward);
+  std::size_t firstTransparent = visibility.meshes.size();
+  if (!shadowPass) {
+    ProfileScope scope("Renderer3D.order_surfaces");
+    firstTransparent = orderMeshSurfaces3D(visibility.meshes, materials_,
+                                          frame.position, frame.forward);
+  }
+  if (depthCapture) {
+    visibility.meshes.resize(firstTransparent);
+  }
   const bool hasTransparentMeshes = firstTransparent < visibility.meshes.size();
   if (frame.updateContent) {
     const bool usesTargetLocalCoordinates = offscreen && !shadowPass;
@@ -492,7 +617,7 @@ bool BgfxRenderer3D::renderView(const World &world,
         .height = std::max<std::uint16_t>(renderHeight, 1),
         .clearRgba = packClearColorRgba8(frame.camera.clearColor),
         .eye = point(frame.position),
-        .target = point(target),
+        .forward = point(frame.forward),
         .up = point(frame.up),
         .verticalFovDegrees = frame.camera.fov,
         .nearClip = frame.camera.nearClip,
@@ -504,6 +629,8 @@ bool BgfxRenderer3D::renderView(const World &world,
         .frameBuffer =
             offscreen ? sourceTarget.frameBuffer : FrameBufferHandle{},
         .sequential = !cosmeticFragments.empty() || hasTransparentMeshes,
+        .debugName =
+            shadowPass ? "Shadow" : (depthCapture ? "OpaqueDepth" : "Main"),
     };
     if (!primitives_.begin(viewConfig, error)) {
       return false;
@@ -519,11 +646,12 @@ bool BgfxRenderer3D::renderView(const World &world,
   reliefMeshes_.setRetentionBudget(sceneLighting.reliefCacheMeshes,
                                    sceneLighting.reliefImageCacheBytes);
   bool skyDrawn = false;
-  const bool shouldDrawSky = frame.updateContent && frame.camera.perspective &&
-                             frame.camera.clearMode == "color" &&
-                             !sceneLighting.skyTexture.empty();
+  const bool shouldDrawSky =
+      !depthCapture && frame.updateContent && frame.camera.perspective &&
+      frame.camera.clearMode == "color" && !sceneLighting.skyTexture.empty();
   if (shouldDrawSky) {
-    const auto texture = textures_.find(sceneLighting.skyTexture);
+    const auto texture =
+        materialTexture(sceneLighting.skyTexture, ImageMipSemantic::Linear);
     if (!texture.handle) {
       error =
           "Environment sky texture is not loaded: " + sceneLighting.skyTexture;
@@ -553,10 +681,14 @@ bool BgfxRenderer3D::renderView(const World &world,
       directionalOnly ? directionalSkinnedProgram_ : skinnedMeshProgram_;
   const std::array<float, 4> whiteTint{1.0F, 1.0F, 1.0F, 1.0F};
   const std::array<float, 4> noAlphaCutoff{};
-  const std::array<float, 4> debugMode{debugModeValue(frame.camera.debugMode),
-                                       0.0F, 0.0F, 0.0F};
-  const std::array<float, 4> viewPosition{frame.position.x, frame.position.y,
-                                          frame.position.z, 0.0F};
+  const std::array<float, 4> debugMode =
+      depthCapture ? std::array<float, 4>{8.F, frame.forward.x, frame.forward.y,
+                                          frame.forward.z}
+                   : std::array<float, 4>{
+                         debugModeValue(frame.camera.debugMode), 0.F, 0.F, 0.F};
+  const std::array<float, 4> viewPosition{
+      frame.position.x, frame.position.y, frame.position.z,
+      depthCapture ? 1.F / frame.camera.farClip : 0.F};
   const std::array<float, 4> defaultMetalRough{0.0F, 0.8F, 0.0F, 0.0F};
   const std::array<DrawUniformValue, 8> lightingUniforms{{
       {.handle = tintUniform_, .values = whiteTint},
@@ -573,24 +705,36 @@ bool BgfxRenderer3D::renderView(const World &world,
         directionalOnly ? directionalTerrainProgram_ : terrainProgram_;
     auto fallback = terrainPatches_.flush(
         commands_, frame.viewId, terrainProgram, lightingUniforms,
-        frame.camera.debugMode == "overdraw", error);
+        frame.camera.debugMode == "overdraw", error,
+        directionalOnly ? directionalMappedTerrainProgram_
+                        : mappedTerrainProgram_,
+        directionalOnly ? directionalOpaqueMappedTerrainProgram_
+                        : opaqueMappedTerrainProgram_);
     if (!fallback.empty()) {
       visibility.meshes.insert(visibility.meshes.end(), fallback.begin(),
                                fallback.end());
-      if (!prepareTerrainMeshes(visibility, error)) {
-        return false;
+      {
+        ProfileScope scope("Renderer3D.prepare_terrain_meshes");
+        if (!prepareTerrainMeshes(visibility, error)) {
+          return false;
+        }
       }
       if (shadowPass) {
+        ProfileScope scope("Renderer3D.compact_shadow_sections");
         compactOpaqueShadowSections3D(visibility.meshes, materials_);
+        firstTransparent = visibility.meshes.size();
+      } else {
+        ProfileScope scope("Renderer3D.order_surfaces");
+        firstTransparent = orderMeshSurfaces3D(visibility.meshes, materials_,
+                                              frame.position, frame.forward);
       }
-      firstTransparent =
-          shadowPass ? visibility.meshes.size()
-                     : orderMeshSurfaces3D(visibility.meshes, materials_,
-                                           frame.position, frame.forward);
     }
   }
   const auto &patches = terrainPatches_.statistics();
-  if (shadowPass) {
+  if (depthCapture) {
+    RuntimeProfiler::setGauge("Renderer3D.water_depth_triangles",
+                              patches.triangles);
+  } else if (shadowPass) {
     terrainStatistics_.gpuPatchShadowDraws += patches.draws;
     terrainStatistics_.gpuPatchShadowInstances += patches.instances;
   } else {
@@ -618,10 +762,19 @@ bool BgfxRenderer3D::renderView(const World &world,
   }
   reliefMeshes_.beginFrame();
   MeshSubmissionStatistics meshStatistics;
-  if (!submitVisibleMeshes(visibility, frame, shadowPass, firstTransparent,
-                           lightingUniforms, defaultMeshProgram,
-                           defaultInstancedProgram, defaultSkinnedProgram,
-                           meshStatistics, error)) {
+  {
+    ProfileScope scope("Renderer3D.submit_meshes");
+    if (!submitVisibleMeshes(visibility, frame, shadowPass, firstTransparent,
+                             lightingUniforms, defaultMeshProgram,
+                             defaultInstancedProgram, defaultSkinnedProgram,
+                             meshStatistics, error, waterCapture ? 0 : -1)) {
+      return false;
+    }
+  }
+  if (waterCapture != nullptr &&
+      !renderWaterAndTransparent(visibility, frame, sourceTarget, *waterCapture,
+                                 sceneLighting, lightingUniforms,
+                                 firstTransparent, meshStatistics, error)) {
     return false;
   }
   std::uint32_t bufferedDraws =
@@ -655,7 +808,8 @@ bool BgfxRenderer3D::renderView(const World &world,
     if (textureId.empty() && material != nullptr) {
       textureId = material->albedoTexture;
     }
-    const TextureView2D texture = textures_.find(textureId);
+    const TextureView2D texture =
+        materialTexture(textureId, ImageMipSemantic::Linear);
     const BlendMode blend =
         material == nullptr ? BlendMode::Alpha : material->state.blend;
     particleDraws.push_back(
@@ -684,8 +838,8 @@ bool BgfxRenderer3D::renderView(const World &world,
         debugRequest.forceColliders || frame.camera.debugMode == "colliders";
     debugRequest.bounds =
         debugRequest.bounds || frame.camera.debugMode == "bounds";
-    if (!shadowPass &&
-        !appendDebugGeometry3D(world, primitives_, debugRequest)) {
+    if (!shadowPass && !depthCapture &&
+        !appendDebugGeometry3D(world, primitives_, debugRequest, &entityQueries_)) {
       error = "3D debug geometry exceeded the transient line capacity.";
       return false;
     }
@@ -700,7 +854,8 @@ bool BgfxRenderer3D::renderView(const World &world,
   std::uint32_t overlayDrawCalls = 0;
   std::uint32_t overlayTriangles = 0;
   if (frame.updateContent && offscreen && frame.camera.renderHud &&
-      frame.camera.renderHudToTarget) {
+      frame.camera.renderHudToTarget && !frame.underwater &&
+      !targetPostProcess) {
     if (!overlay_.beginOverlayRegion(
             static_cast<std::uint16_t>(frame.viewId + 1U), 0, 0, renderWidth,
             renderHeight, deltaSeconds, error, sourceTarget.frameBuffer)) {
@@ -711,7 +866,7 @@ bool BgfxRenderer3D::renderView(const World &world,
     targetFrame.viewportHeight = renderHeight;
     const bool rendered =
         overlay_.drawHud(world) &&
-        overlay_.drawUi(projectWorldText3D(world, targetFrame));
+        overlay_.drawUi(projectWorldText3D(world, targetFrame, &entityQueries_));
     if (!rendered || !overlay_.endFrame(error)) {
       if (error.empty()) {
         error = "Could not queue the render-target HUD.";
@@ -722,19 +877,51 @@ bool BgfxRenderer3D::renderView(const World &world,
     overlayTriangles += overlay_.statistics().triangles;
   }
 
-  if (offscreen) {
+  if (offscreen && !depthCapture) {
     if (resolveSurface) {
-      if (!postProcess_.present(frame, sourceTarget.color, frame.frameBuffer,
-                                error)) {
+      auto postFrame = frame;
+      auto destination = frame.frameBuffer;
+      std::optional<std::uint16_t> postView;
+      if (targetPostProcess) {
+        // Finish the authored target before its HUD and camera presentation.
+        postView = static_cast<std::uint16_t>(frame.viewId + 1U);
+        postFrame.viewportX = 0;
+        postFrame.viewportY = 0;
+        postFrame.viewportWidth = renderWidth;
+        postFrame.viewportHeight = renderHeight;
+        destination = renderTarget->second.handles.frameBuffer;
+      }
+      if (!postProcess_.present(postFrame, sourceTarget.color, destination,
+                                error, postView)) {
         return false;
       }
       ++overlayDrawCalls;
       overlayTriangles += 2;
-    } else if (authoredOffscreen) {
+    }
+    if (authoredOffscreen && targetPostProcess && frame.camera.renderHud &&
+        frame.camera.renderHudToTarget) {
       if (!overlay_.beginOverlayRegion(
-              static_cast<std::uint16_t>(frame.viewId + 2U), frame.viewportX,
-              frame.viewportY, frame.viewportWidth, frame.viewportHeight,
-              deltaSeconds, error, frame.frameBuffer)) {
+              frame.viewId + 2, 0, 0, renderWidth, renderHeight, deltaSeconds,
+              error, renderTarget->second.handles.frameBuffer)) {
+        return false;
+      }
+      auto hudFrame = frame;
+      hudFrame.viewportWidth = renderWidth;
+      hudFrame.viewportHeight = renderHeight;
+      if (!overlay_.drawHud(world) ||
+          !overlay_.drawUi(projectWorldText3D(world, hudFrame, &entityQueries_)) ||
+          !overlay_.endFrame(error)) {
+        return false;
+      }
+      overlayDrawCalls += overlay_.statistics().drawCalls;
+      overlayTriangles += overlay_.statistics().triangles;
+    }
+    if (authoredOffscreen) {
+      if (!overlay_.beginOverlayRegion(
+              static_cast<std::uint16_t>(frame.viewId +
+                                         (targetPostProcess ? 3U : 2U)),
+              frame.viewportX, frame.viewportY, frame.viewportWidth,
+              frame.viewportHeight, deltaSeconds, error, frame.frameBuffer)) {
         return false;
       }
       ui::UiDocument presentation;
@@ -757,15 +944,18 @@ bool BgfxRenderer3D::renderView(const World &world,
       overlayDrawCalls += overlay_.statistics().drawCalls;
       overlayTriangles += overlay_.statistics().triangles;
     }
-    if (frame.camera.renderHud && !frame.camera.renderHudToTarget) {
+    const bool hudAfterPresentation = !frame.camera.renderHudToTarget ||
+                                      (frame.underwater && !authoredOffscreen);
+    if (frame.camera.renderHud && hudAfterPresentation) {
       if (!overlay_.beginOverlayRegion(
-              static_cast<std::uint16_t>(frame.viewId + 3U), frame.viewportX,
-              frame.viewportY, frame.viewportWidth, frame.viewportHeight,
-              deltaSeconds, error, frame.frameBuffer)) {
+              static_cast<std::uint16_t>(frame.viewId +
+                                         (targetPostProcess ? 4U : 3U)),
+              frame.viewportX, frame.viewportY, frame.viewportWidth,
+              frame.viewportHeight, deltaSeconds, error, frame.frameBuffer)) {
         return false;
       }
       const bool rendered = overlay_.drawHud(world) &&
-                            overlay_.drawUi(projectWorldText3D(world, frame));
+                            overlay_.drawUi(projectWorldText3D(world, frame, &entityQueries_));
       if (!rendered || !overlay_.endFrame(error)) {
         if (error.empty()) {
           error = "Could not render the camera HUD.";
@@ -785,7 +975,7 @@ bool BgfxRenderer3D::renderView(const World &world,
     const bool hudRendered = !frame.camera.renderHud || overlay_.drawHud(world);
     const bool worldTextRendered =
         !frame.camera.renderHud ||
-        overlay_.drawUi(projectWorldText3D(world, frame));
+        overlay_.drawUi(projectWorldText3D(world, frame, &entityQueries_));
     const bool hudFlushed = overlay_.endFrame(error);
     if (!hudRendered || !worldTextRendered) {
       error = "Could not queue the 3D scene overlay.";

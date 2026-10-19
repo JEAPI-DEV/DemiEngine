@@ -9,7 +9,6 @@
 namespace demi::runtime::cook_format {
 namespace {
 
-
 // A cooked heightfield is read back by a different process, a different
 // toolchain and a different engine build than the one that wrote it, and it is
 // read from a directory a build tool produced rather than from a
@@ -18,8 +17,8 @@ namespace {
 // the fields below mean anything, every count is checked against the bytes that
 // actually remain, and a probe float says whether this build can represent what
 // was stored.
-constexpr std::array<std::uint8_t, 8> kMagic{'D', 'M', 'T', 'R', 'C', 'O', 'K',
-                                            '1'};
+constexpr std::array<std::uint8_t, 8> kMagic{'D', 'M', 'T', 'R',
+                                             'C', 'O', 'K', '1'};
 // Written and read as a little-endian u32. A big-endian reader assembling the
 // same four bytes gets 0x04030201 and refuses the file rather than interpreting
 // every field after it backwards.
@@ -65,8 +64,8 @@ template <class T> void appendLittle(std::vector<std::byte> &out, T value) {
     out.push_back(static_cast<std::byte>(byte));
 }
 
-template <class T> bool readLittle(std::span<const std::byte> bytes,
-                                   std::size_t offset, T &out) {
+template <class T>
+bool readLittle(std::span<const std::byte> bytes, std::size_t offset, T &out) {
   if (offset + sizeof(T) > bytes.size())
     return false;
   std::array<unsigned char, sizeof(T)> raw{};
@@ -90,7 +89,9 @@ class Reader {
 public:
   explicit Reader(std::span<const std::byte> bytes) : bytes_(bytes) {}
 
-  [[nodiscard]] std::size_t remaining() const { return bytes_.size() - offset_; }
+  [[nodiscard]] std::size_t remaining() const {
+    return bytes_.size() - offset_;
+  }
   [[nodiscard]] std::size_t offset() const { return offset_; }
   [[nodiscard]] bool exhausted() const { return offset_ == bytes_.size(); }
 
@@ -106,8 +107,8 @@ public:
       return false;
     out.assign(size, '\0');
     for (std::size_t index = 0; index < size; ++index)
-      out[index] = static_cast<char>(std::to_integer<std::uint8_t>(
-          bytes_[offset_ + index]));
+      out[index] = static_cast<char>(
+          std::to_integer<std::uint8_t>(bytes_[offset_ + index]));
     offset_ += size;
     return true;
   }
@@ -145,13 +146,13 @@ bool readCount(Reader &reader, std::string_view name, std::size_t elementBytes,
   return true;
 }
 
-bool readFloatArray(Reader &reader, std::string_view name,
-                    std::size_t expected, std::vector<float> &out,
-                    std::string &error) {
+bool readFloatArray(Reader &reader, std::string_view name, std::size_t expected,
+                    std::vector<float> &out, std::string &error,
+                    bool allowEmpty = false) {
   std::size_t count = 0;
   if (!readCount(reader, name, sizeof(float), count, error))
     return false;
-  if (count != expected) {
+  if (count != expected && !(allowEmpty && count == 0)) {
     error = "Terrain cook '" + std::string(name) + "' count of " +
             std::to_string(count) + " does not match the grid's " +
             std::to_string(expected) + " samples.";
@@ -175,9 +176,8 @@ bool readFloatArray(Reader &reader, std::string_view name,
   return true;
 }
 
-bool readIndexArray(Reader &reader, std::string_view name,
-                    std::size_t expected, std::vector<std::uint32_t> &out,
-                    std::string &error) {
+bool readIndexArray(Reader &reader, std::string_view name, std::size_t expected,
+                    std::vector<std::uint32_t> &out, std::string &error) {
   std::size_t count = 0;
   if (!readCount(reader, name, sizeof(std::uint32_t), count, error))
     return false;
@@ -214,7 +214,7 @@ bool readText(Reader &reader, std::string_view name, std::string &out,
 // multiplication and the size are checked, because a grid read from a file can
 // claim any dimensions at all.
 bool gridSampleCountImpl(int cellsX, int cellsZ, std::size_t &out,
-                     std::string &error) {
+                         std::string &error) {
   if (cellsX < 0 || cellsZ < 0) {
     error = "Terrain grid dimensions must not be negative.";
     return false;
@@ -231,9 +231,10 @@ bool gridSampleCountImpl(int cellsX, int cellsZ, std::size_t &out,
   return true;
 }
 
-// A chunk list is a claim that the field is tiled, not merely a list. Overlapping
-// or missing cells would let a consumer resolve a sample to two chunks or none,
-// which is exactly the ambiguity a cached file must not reintroduce.
+// A chunk list is a claim that the field is tiled, not merely a list.
+// Overlapping or missing cells would let a consumer resolve a sample to two
+// chunks or none, which is exactly the ambiguity a cached file must not
+// reintroduce.
 bool validateChunks(const std::vector<TerrainChunk> &chunks, int cellsX,
                     int cellsZ, std::string &error) {
   if (chunks.empty()) {
@@ -247,7 +248,7 @@ bool validateChunks(const std::vector<TerrainChunk> &chunks, int cellsX,
     return false;
   }
   std::vector<unsigned char> covered(std::size_t(cellsX) * std::size_t(cellsZ),
-                                    0);
+                                     0);
   for (const auto &chunk : chunks) {
     if (chunk.cellsX <= 0 || chunk.cellsZ <= 0 || chunk.firstCellX < 0 ||
         chunk.firstCellZ < 0 || chunk.firstCellX > cellsX - chunk.cellsX ||
@@ -257,8 +258,8 @@ bool validateChunks(const std::vector<TerrainChunk> &chunks, int cellsX,
     }
     for (int z = chunk.firstCellZ; z < chunk.firstCellZ + chunk.cellsZ; ++z) {
       for (int x = chunk.firstCellX; x < chunk.firstCellX + chunk.cellsX; ++x) {
-        auto &cell = covered[std::size_t(z) * std::size_t(cellsX) +
-                             std::size_t(x)];
+        auto &cell =
+            covered[std::size_t(z) * std::size_t(cellsX) + std::size_t(x)];
         if (cell != 0) {
           error = "Terrain chunk rectangles overlap.";
           return false;
@@ -315,7 +316,8 @@ bool validateField(const TerrainCookedField &field, std::size_t &samples,
          (!material.starts_with("asset://") || material.size() <= 8)) ||
         !std::isfinite(field.biomeTextureScales[index]) ||
         field.biomeTextureScales[index] <= 0) {
-      error = "Terrain biome appearance requires an asset URI and positive finite texture scale.";
+      error = "Terrain biome appearance requires an asset URI and positive "
+              "finite texture scale.";
       return false;
     }
   }
@@ -335,6 +337,19 @@ bool validateField(const TerrainCookedField &field, std::size_t &samples,
     error = "Terrain mask arrays do not match the grid's sample count.";
     return false;
   }
+  if (!field.surfaceSedimentBalance.empty() &&
+      (field.surfaceSedimentBalance.size() != samples ||
+       field.surfaceSedimentBalance.size() >
+           std::size_t(std::numeric_limits<std::int32_t>::max()))) {
+    error = "Selected surface sediment does not match the sample grid";
+    return false;
+  }
+  for (const float value : field.surfaceSedimentBalance) {
+    if (!std::isfinite(value)) {
+      error = "Selected surface sediment must contain finite balances";
+      return false;
+    }
+  }
   if (!field.masksPresent &&
       (!field.slope.empty() || !field.moisture.empty() ||
        !field.waterDistance.empty() || !field.flow.empty() ||
@@ -345,8 +360,8 @@ bool validateField(const TerrainCookedField &field, std::size_t &samples,
   for (std::size_t sample = 0; sample < samples; ++sample) {
     if (!std::isfinite(field.baseHeights[sample]) ||
         !std::isfinite(field.heights[sample])) {
-      error = "Terrain height sample " + std::to_string(sample) +
-              " is not finite.";
+      error =
+          "Terrain height sample " + std::to_string(sample) + " is not finite.";
       return false;
     }
     if (!std::isfinite(field.exclusions[sample]) ||
@@ -359,8 +374,8 @@ bool validateField(const TerrainCookedField &field, std::size_t &samples,
     const auto ny = field.normalsY[sample];
     const auto nz = field.normalsZ[sample];
     if (!std::isfinite(nx) || !std::isfinite(ny) || !std::isfinite(nz)) {
-      error = "Terrain normal sample " + std::to_string(sample) +
-              " is not finite.";
+      error =
+          "Terrain normal sample " + std::to_string(sample) + " is not finite.";
       return false;
     }
     const auto length = std::hypot(double(nx), double(ny), double(nz));
@@ -372,9 +387,9 @@ bool validateField(const TerrainCookedField &field, std::size_t &samples,
     // A field with no biomes is a legitimate "nothing was assigned" state and
     // has exactly one representable index. Anything else would be a claim about
     // a biome list the file does not carry.
-    if (field.biomeIds.empty() ? field.biomeIndices[sample] != 0
-                               : field.biomeIndices[sample] >=
-                                     field.biomeIds.size()) {
+    if (field.biomeIds.empty()
+            ? field.biomeIndices[sample] != 0
+            : field.biomeIndices[sample] >= field.biomeIds.size()) {
       error = "Terrain biome index at sample " + std::to_string(sample) +
               " falls outside the biome list.";
       return false;
@@ -386,7 +401,8 @@ bool validateField(const TerrainCookedField &field, std::size_t &samples,
         !std::isfinite(field.waterDistance[sample]) ||
         !std::isfinite(field.flow[sample]) ||
         !std::isfinite(field.sediment[sample])) {
-      error = "Terrain mask sample " + std::to_string(sample) + " is not finite.";
+      error =
+          "Terrain mask sample " + std::to_string(sample) + " is not finite.";
       return false;
     }
   }
@@ -405,7 +421,8 @@ bool validateField(const TerrainCookedField &field, std::size_t &samples,
 // through resize()/set(). Reported rather than worked around by editing a file
 // another owner may be changing; a span() overload would make both of these
 // straight copies without changing what they mean.
-template <class Samples> std::vector<float> flattenImpl(const Samples &samples) {
+template <class Samples>
+std::vector<float> flattenImpl(const Samples &samples) {
   std::vector<float> values;
   values.reserve(samples.size());
   for (std::size_t index = 0; index < samples.size(); ++index)
@@ -422,7 +439,8 @@ std::vector<std::uint32_t> flattenIndicesImpl(const Samples &samples) {
   return values;
 }
 
-void appendFloats(std::vector<std::byte> &out, const std::vector<float> &values) {
+void appendFloats(std::vector<std::byte> &out,
+                  const std::vector<float> &values) {
   appendLittle<std::int32_t>(out, static_cast<std::int32_t>(values.size()));
   for (const auto value : values)
     appendLittle<float>(out, value);
@@ -460,12 +478,12 @@ void appendText(std::vector<std::byte> &out, std::string_view text) {
 //  52  u32    reserved, zero
 //  56  u64    sample count, redundant with the grid on purpose
 // Then per-block: i32 count, then count elements. Floats are IEEE-754 binary32
-// little-endian, indices and counts are signed 32-bit so a corrupted count reads
-// as negative rather than as a huge allocation request, and strings are an i32
-// byte length followed by UTF-8 bytes. The fixed height/normal/biome/exclusion
-// blocks come first in the order the struct declares them, then the mask blocks
-// (present only when the flag is set), then the biome, chunk and provenance
-// tables.
+// little-endian, indices and counts are signed 32-bit so a corrupted count
+// reads as negative rather than as a huge allocation request, and strings are
+// an i32 byte length followed by UTF-8 bytes. The fixed
+// height/normal/biome/exclusion blocks come first in the order the struct
+// declares them, then the mask blocks (present only when the flag is set), then
+// the biome, chunk and provenance tables.
 std::vector<std::byte> serializeBody(const TerrainCookedField &field) {
   std::vector<std::byte> out;
   out.reserve(kHeaderBytes);
@@ -495,6 +513,7 @@ std::vector<std::byte> serializeBody(const TerrainCookedField &field) {
   appendFloats(out, field.normalsZ);
   appendIndices(out, field.biomeIndices);
   appendFloats(out, field.exclusions);
+  appendFloats(out, field.surfaceSedimentBalance);
   if (field.masksPresent) {
     appendFloats(out, field.slope);
     appendFloats(out, field.moisture);
@@ -503,22 +522,25 @@ std::vector<std::byte> serializeBody(const TerrainCookedField &field) {
     appendFloats(out, field.sediment);
     appendIndices(out, field.substrates);
   }
-  appendLittle<std::int32_t>(out, static_cast<std::int32_t>(field.biomeIds.size()));
+  appendLittle<std::int32_t>(out,
+                             static_cast<std::int32_t>(field.biomeIds.size()));
   for (const auto &id : field.biomeIds)
     appendText(out, id);
-  appendLittle<std::int32_t>(out,
-                            static_cast<std::int32_t>(field.biomeColors.size()));
+  appendLittle<std::int32_t>(
+      out, static_cast<std::int32_t>(field.biomeColors.size()));
   for (const auto &colour : field.biomeColors) {
     appendLittle<float>(out, colour.r);
     appendLittle<float>(out, colour.g);
     appendLittle<float>(out, colour.b);
     appendLittle<float>(out, colour.a);
   }
-  appendLittle<std::int32_t>(out, static_cast<std::int32_t>(field.biomeMaterials.size()));
+  appendLittle<std::int32_t>(
+      out, static_cast<std::int32_t>(field.biomeMaterials.size()));
   for (const auto &material : field.biomeMaterials)
     appendText(out, material);
   appendFloats(out, field.biomeTextureScales);
-  appendLittle<std::int32_t>(out, static_cast<std::int32_t>(field.chunks.size()));
+  appendLittle<std::int32_t>(out,
+                             static_cast<std::int32_t>(field.chunks.size()));
   for (const auto &chunk : field.chunks) {
     appendLittle<std::int32_t>(out, chunk.firstCellX);
     appendLittle<std::int32_t>(out, chunk.firstCellZ);
@@ -542,7 +564,8 @@ std::uint64_t payloadDigest(const std::vector<std::byte> &body) {
 
 // Color is a plain aggregate with no equality operator, so the comparison a
 // staleness check needs is written once here rather than inlined per field.
-bool sameColors(const std::vector<Color> &left, const std::vector<Color> &right) {
+bool sameColors(const std::vector<Color> &left,
+                const std::vector<Color> &right) {
   if (left.size() != right.size())
     return false;
   for (std::size_t index = 0; index < left.size(); ++index) {
@@ -553,9 +576,9 @@ bool sameColors(const std::vector<Color> &left, const std::vector<Color> &right)
   return true;
 }
 
-// The field-only projection of a payload: provenance, grid and samples, with the
-// derived masks dropped. A HeightField cannot carry masks, so this is what a
-// reloaded field is compared against, and the comparison stays independent of
+// The field-only projection of a payload: provenance, grid and samples, with
+// the derived masks dropped. A HeightField cannot carry masks, so this is what
+// a reloaded field is compared against, and the comparison stays independent of
 // whether the original cook had a mask set.
 TerrainCookedField fieldProjection(const TerrainCookedField &field) {
   TerrainCookedField projection = field;
@@ -568,7 +591,6 @@ TerrainCookedField fieldProjection(const TerrainCookedField &field) {
   projection.masksPresent = false;
   return projection;
 }
-
 
 } // namespace
 
@@ -625,7 +647,8 @@ bool decode(std::span<const std::byte> bytes, TerrainCookedField &field,
   if (version != terrainCookVersion)
     return fail("Terrain cook payload version " + std::to_string(version) +
                 " does not match this build's version " +
-                std::to_string(terrainCookVersion) + "; it is stale, not "
+                std::to_string(terrainCookVersion) +
+                "; it is stale, not "
                 "readable.");
   std::uint32_t headerBytes = 0;
   (void)readLittle(bytes, 16, headerBytes);
@@ -674,7 +697,8 @@ bool decode(std::span<const std::byte> bytes, TerrainCookedField &field,
 
   Reader reader(body);
   std::uint32_t skipped = 0;
-  for (std::size_t word = 0; word < kHeaderBytes / sizeof(std::uint32_t); ++word) {
+  for (std::size_t word = 0; word < kHeaderBytes / sizeof(std::uint32_t);
+       ++word) {
     if (!reader.scalar(skipped))
       return fail("Terrain cook payload ended inside its header.");
   }
@@ -691,12 +715,18 @@ bool decode(std::span<const std::byte> bytes, TerrainCookedField &field,
                       reason) ||
       !readFloats("exclusions", field.exclusions))
     return fail(std::move(reason));
+  if (!readFloatArray(reader, "surface_sediment", samples,
+                      field.surfaceSedimentBalance, reason, true)) {
+    return fail(std::move(reason));
+  }
   if (field.masksPresent &&
       (!readFloats("slope", field.slope) ||
        !readFloats("moisture", field.moisture) ||
        !readFloats("water_distance", field.waterDistance) ||
-       !readFloats("flow", field.flow) || !readFloats("sediment", field.sediment) ||
-       !readIndexArray(reader, "substrates", samples, field.substrates, reason)))
+       !readFloats("flow", field.flow) ||
+       !readFloats("sediment", field.sediment) ||
+       !readIndexArray(reader, "substrates", samples, field.substrates,
+                       reason)))
     return fail(std::move(reason));
 
   std::size_t biomeCount = 0;
@@ -722,7 +752,8 @@ bool decode(std::span<const std::byte> bytes, TerrainCookedField &field,
   }
 
   std::size_t materialCount = 0;
-  if (!readCount(reader, "biome_materials", sizeof(std::int32_t), materialCount, reason))
+  if (!readCount(reader, "biome_materials", sizeof(std::int32_t), materialCount,
+                 reason))
     return fail(std::move(reason));
   if (materialCount != biomeCount)
     return fail("Terrain biome material count differs from its palette.");
@@ -731,7 +762,8 @@ bool decode(std::span<const std::byte> bytes, TerrainCookedField &field,
     if (!readText(reader, "biome_material", material, reason))
       return fail(std::move(reason));
   std::size_t scaleCount = 0;
-  if (!readCount(reader, "biome_texture_scales", sizeof(float), scaleCount, reason))
+  if (!readCount(reader, "biome_texture_scales", sizeof(float), scaleCount,
+                 reason))
     return fail(std::move(reason));
   if (scaleCount != biomeCount)
     return fail("Terrain texture scale count differs from its palette.");
@@ -753,7 +785,8 @@ bool decode(std::span<const std::byte> bytes, TerrainCookedField &field,
       return fail("Terrain cook payload ended inside 'chunks'.");
   }
 
-  if (!readText(reader, "generator_version", field.generatorVersionTag, reason) ||
+  if (!readText(reader, "generator_version", field.generatorVersionTag,
+                reason) ||
       !readText(reader, "recipe_digest", field.recipeDigest, reason) ||
       !readText(reader, "input_fingerprint", field.inputFingerprint, reason) ||
       !readText(reader, "stage_order", field.stageOrder, reason) ||
@@ -768,8 +801,8 @@ bool decode(std::span<const std::byte> bytes, TerrainCookedField &field,
     return fail("Terrain cook payload has " +
                 std::to_string(body.size() - reader.offset()) +
                 " unexpected trailing bytes.");
-  const auto computed = payloadDigest(std::vector<std::byte>(body.begin(),
-                                                            body.end()));
+  const auto computed =
+      payloadDigest(std::vector<std::byte>(body.begin(), body.end()));
   if (computed != storedDigest)
     return fail("Terrain cook payload digest does not match its contents; the "
                 "file is corrupt.");
@@ -792,13 +825,14 @@ bool sameColorsImpl(const std::vector<Color> &left,
   return true;
 }
 
-bool sameColors(const std::vector<Color> &left, const std::vector<Color> &right) {
+bool sameColors(const std::vector<Color> &left,
+                const std::vector<Color> &right) {
   return sameColorsImpl(left, right);
 }
 
 // Recomputed from the payload rather than trusted from the struct, so a payload
-// damaged after it was written is caught here instead of being served to a world
-// that would then disagree with its own collider.
+// damaged after it was written is caught here instead of being served to a
+// world that would then disagree with its own collider.
 std::uint64_t contentDigest(const TerrainCookedField &field) {
   return payloadDigest(serializeBody(field));
 }

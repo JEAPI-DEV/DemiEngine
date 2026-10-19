@@ -54,3 +54,26 @@ The terrain graph example validates without diagnostics. Source and fresh cooked
 three-frame headless runs are checked separately. No full-suite, Android device,
 interactive graphics, underwater post-processing or automatic buoyancy
 qualification is claimed. No terrain asset-format change is required.
+
+## Opt-in gameplay package qualification
+
+Milestone 5 adds `demi.gameplay.water` as reusable Lua policy over prepared
+native queries. Buoyancy measures a virtual upright volume's overlap with the
+surface-to-bed column, applies mass-scaled lift, and damps velocity relative to
+prepared flow. Swimming applies bounded acceleration and flow-relative drag
+only when its explicit depth and flow thresholds permit it. Neither controller
+changes gravity, transforms, collider shape or body type.
+
+The optimized Linux Release native `demi-water-gameplay-tests` passes actual
+Lua/physics integration checks for drag subdivision, flow-relative drift,
+swimming flow eligibility, force composition, dry bodies, invalid options,
+disabled rigidbodies and disabled terrain owners. Entity enable changes are
+checked after the host's queued-command lifecycle boundary.
+
+The package's four Lua tests pass, and its example's locked offline package
+install succeeds. `examples/water_interaction_3d` validates without diagnostics.
+A Release headless run with `--e2e-tests --max-frames 1000` emits
+`SUMMARY passed=1 failed=0`, checking buoyant equilibrium, swimming movement,
+authored zero-gravity vertical policy and a dry control through the real runtime.
+This qualifies deterministic gameplay integration; it does not qualify visual
+water quality, hull-volume buoyancy, angular righting or Android device behavior.

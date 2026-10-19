@@ -8,11 +8,12 @@ target_link_libraries(demi-destruction PRIVATE demi-blast-lowlevel)
 
 set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/terrain/TerrainWorld.cpp
-  src/demi/runtime/terrain/TerrainWaterRuntime.cpp
   src/demi/runtime/scripting/LuaScriptHostWaterServices.cpp
   src/demi/runtime/scripting/bindings/terrain/LuaTerrainWaterBindings.cpp
   src/demi/runtime/terrain/TerrainWorldBatch.cpp
   src/demi/runtime/terrain/TerrainScatterRuntime.cpp
+  src/demi/runtime/terrain/TerrainScatterBatches.cpp
+  src/demi/runtime/terrain/TerrainScatterCollision.cpp
   src/demi/runtime/terrain/TerrainMeshBuilder.cpp
   src/demi/runtime/terrain/TerrainWaterMesh.cpp
   src/demi/runtime/network/TcpClient.cpp
@@ -94,9 +95,9 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/scene/ProjectParser.cpp
   src/demi/runtime/scene/SceneEntityParser.cpp
   src/demi/runtime/scene/SceneFlow.cpp
-  src/demi/runtime/scene/SceneAssetReferences.cpp
   src/demi/runtime/scene/SceneLoader.cpp
   src/demi/runtime/assets/RegistryAssetResourceLoader.cpp
+  src/demi/runtime/assets/HeadlessVisualAssetLoader.cpp
   src/demi/runtime/assets/RuntimeAssetBootstrap.cpp
   src/demi/runtime/assets/RuntimeAssetReload.cpp
   src/demi/runtime/assets/RuntimeAssetService.cpp
@@ -241,6 +242,7 @@ configure_demi_runtime(demi-runtime-lib TRUE
   src/demi/runtime/app/BgfxAppContext.cpp
   src/demi/runtime/app/Bgfx2DAppHost.cpp
   src/demi/runtime/app/Bgfx3DAppHost.cpp
+  src/demi/runtime/app/Bgfx3DAppHostPreparation.cpp
   src/demi/runtime/platform/PlatformInput.cpp
   src/demi/runtime/platform/SdlNativeWindow.cpp
   src/demi/runtime/platform/SdlPlatformHost.cpp

@@ -39,7 +39,9 @@ void LuaE2ETestRunner::releaseReferences() {
   tests_.clear();
   activeTestName_.clear();
   wait_ = WaitKind::None;
-  pendingGestureFrames_ = 0;
+  pendingGestureEvents_ = 0;
+  gestureStart_ = {};
+  gestureElapsed_ = 0.0;
   syntheticTouches_.clear();
 }
 
@@ -174,23 +176,16 @@ void LuaE2ETestRunner::enqueueTap(const Vec2 viewportPosition) {
   syntheticTouches_.push_back({TouchPhase::Began, viewportPosition});
   syntheticTouches_.push_back({TouchPhase::Ended, viewportPosition});
   wait_ = WaitKind::Gesture;
-  pendingGestureFrames_ = 2;
+  pendingGestureEvents_ = 2;
 }
 
 void LuaE2ETestRunner::enqueueSwipe(const Vec2 from, const Vec2 to,
                                     const double seconds) {
-  const int frames = std::max(2, static_cast<int>(std::ceil(seconds * 60.0)));
-  const Vec2 delta{(to.x - from.x) / static_cast<float>(frames - 1),
-                   (to.y - from.y) / static_cast<float>(frames - 1)};
-  Vec2 position = from;
-  syntheticTouches_.push_back({TouchPhase::Began, position});
-  for (int frame = 1; frame < frames - 1; ++frame) {
-    position = Vec2{position.x + delta.x, position.y + delta.y};
-    syntheticTouches_.push_back({TouchPhase::Moved, position});
-  }
-  syntheticTouches_.push_back({TouchPhase::Ended, to});
+  const double duration = std::isfinite(seconds) ? std::max(0.0, seconds) : 0.0;
+  syntheticTouches_.push_back({TouchPhase::Began, from});
+  syntheticTouches_.push_back({TouchPhase::Ended, to, duration});
   wait_ = WaitKind::Gesture;
-  pendingGestureFrames_ = frames;
+  pendingGestureEvents_ = 2;
 }
 
 void LuaE2ETestRunner::waitFor(const double seconds) {
@@ -227,29 +222,54 @@ void LuaE2ETestRunner::finishTest() {
   }
   activeTestName_.clear();
   wait_ = WaitKind::None;
-  pendingGestureFrames_ = 0;
+  pendingGestureEvents_ = 0;
+  gestureStart_ = {};
+  gestureElapsed_ = 0.0;
   syntheticTouches_.clear();
   ++testIndex_;
 }
 
-void LuaE2ETestRunner::drainSyntheticTouches(InputState &input) {
+void LuaE2ETestRunner::drainSyntheticTouches(InputState &input,
+                                             const double deltaSeconds) {
   if (syntheticTouches_.empty())
     return;
-  const SyntheticFrame frame = syntheticTouches_.front();
-  syntheticTouches_.pop_front();
+  SyntheticTouchEvent event = syntheticTouches_.front();
+  bool completesEvent = true;
+  if (event.phase == TouchPhase::Began) {
+    gestureStart_ = event.position;
+    gestureElapsed_ = 0.0;
+  } else if (event.durationSeconds > 0.0) {
+    const double elapsed =
+        std::isfinite(deltaSeconds) ? std::max(0.0, deltaSeconds) : 0.0;
+    gestureElapsed_ += elapsed;
+    if (gestureElapsed_ < event.durationSeconds) {
+      const float progress =
+          static_cast<float>(gestureElapsed_ / event.durationSeconds);
+      event.phase = TouchPhase::Moved;
+      event.position = {
+          gestureStart_.x + (event.position.x - gestureStart_.x) * progress,
+          gestureStart_.y + (event.position.y - gestureStart_.y) * progress};
+      completesEvent = false;
+    }
+  }
+  // Even a zero-duration gesture delivers its down and up on separate updates.
+  if (completesEvent) {
+    syntheticTouches_.pop_front();
+  }
   const auto existing =
       std::ranges::find(input.touches, SyntheticFingerId, &TouchPoint::id);
   const TouchPoint value{.id = SyntheticFingerId,
-                         .phase = frame.phase,
-                         .position = frame.position,
+                         .phase = event.phase,
+                         .position = event.position,
                          .delta = {},
                          .pressure = 1.0F};
   if (existing == input.touches.end())
     input.touches.push_back(value);
   else
     *existing = value;
-  if (pendingGestureFrames_ > 0)
-    --pendingGestureFrames_;
+  if (completesEvent && pendingGestureEvents_ > 0) {
+    --pendingGestureEvents_;
+  }
 }
 
 void LuaE2ETestRunner::startNextTest() {
@@ -299,7 +319,7 @@ void LuaE2ETestRunner::update(const double deltaTime) {
       return;
     }
     case WaitKind::Gesture:
-      if (pendingGestureFrames_ > 0)
+      if (pendingGestureEvents_ > 0)
         return;
       break;
     case WaitKind::None:

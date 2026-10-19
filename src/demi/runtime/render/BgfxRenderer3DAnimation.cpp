@@ -178,9 +178,17 @@ bool BgfxRenderer3D::prepareAnimatedMeshes(
   };
 
   for (const auto &item : visible) {
-    const auto *mesh = item.entity->component<MeshRendererComponent>();
-    const auto *player = item.entity->component<AnimationPlayer3DComponent>();
-    if (player && item.entity->hasComponent<MeshInstances3DComponent>()) {
+    const auto *preparedSource = item.preparedSource;
+    const auto *mesh = preparedSource
+                           ? preparedSource->mesh
+                           : item.entity->component<MeshRendererComponent>();
+    const auto *player =
+        preparedSource ? preparedSource->animation
+                       : item.entity->component<AnimationPlayer3DComponent>();
+    const bool instances =
+        preparedSource ? preparedSource->instances != nullptr
+                       : item.entity->hasComponent<MeshInstances3DComponent>();
+    if (player && instances) {
       error = "MeshInstances3D currently requires a shared static mesh, "
               "without AnimationPlayer3D";
       return false;
@@ -195,8 +203,10 @@ bool BgfxRenderer3D::prepareAnimatedMeshes(
         delta.x * delta.x + delta.y * delta.y + delta.z * delta.z >=
             mesh->cullDistance * mesh->cullDistance)
       continue;
-    const auto lod=selectModelLod(*mesh, player, item.transform.position, lodPosition,
-                                  !entityMeshDents3D(*item.entity).empty());
+    const auto dents = preparedSource ? preparedSource->dents
+                                      : entityMeshDents3D(*item.entity);
+    const auto lod = selectModelLod(*mesh, player, item.transform.position,
+                                    lodPosition, !dents.empty());
     if (lod.isCulled) continue;
     const auto &selectedModel=*lod.model;
     const auto source = animatedModels_.find(selectedModel);

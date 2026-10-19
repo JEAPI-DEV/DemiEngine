@@ -94,6 +94,10 @@ bool matchesFieldType(const nlohmann::json &value,
                     std::ranges::all_of(item, finiteNumber);
            });
   }
+  case ComponentFieldType::StringArray:
+    return value.is_array() && std::ranges::all_of(value, [](const auto &item) {
+      return item.is_string();
+    });
   case ComponentFieldType::ColorArray:
     return value.is_array() &&
            std::ranges::all_of(value, [](const auto &item) {
@@ -216,7 +220,8 @@ bool componentFieldEditorReadOnly(const ComponentFieldDescriptor &field) {
   const bool collection = field.type == ComponentFieldType::Object ||
                           field.type == ComponentFieldType::Vec2Array ||
                           field.type == ComponentFieldType::Vec3Array ||
-                          field.type == ComponentFieldType::ColorArray;
+                          field.type == ComponentFieldType::ColorArray ||
+                          field.type == ComponentFieldType::StringArray;
   return field.editor.readOnly || field.runtimeReadOnly ||
          (collection && !field.editor.editableCollection);
 }
@@ -275,6 +280,9 @@ nlohmann::json componentSchema(const ComponentDescriptor &descriptor) {
                     {"maxItems", count}}}};
       break;
     }
+    case ComponentFieldType::StringArray:
+      property = {{"type", "array"}, {"items", {{"type", "string"}}}};
+      break;
     case ComponentFieldType::ColorArray:
       property = {{"type", "array"},
                   {"items",
@@ -350,6 +358,8 @@ std::string generatedLuaComponentTypes() {
       return "number";
     case ComponentFieldType::String:
       return "string";
+    case ComponentFieldType::StringArray:
+      return "string[]";
     case ComponentFieldType::Object:
       return "table";
     case ComponentFieldType::Vec2:

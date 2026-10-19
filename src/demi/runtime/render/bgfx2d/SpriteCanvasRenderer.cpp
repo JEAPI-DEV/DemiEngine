@@ -17,7 +17,7 @@
 namespace demi::runtime::render {
 
 SpriteCanvasRenderer::SpriteCanvasRenderer(
-    Canvas2D &canvas, const TextureLibrary2D &textures,
+    Canvas2D &canvas, TextureLibrary2D &textures,
     const std::unordered_map<std::string, TextureAnimation2D> *animations,
     const MaterialLibrary *materials)
     : canvas_(canvas), textures_(textures), animations_(animations),
@@ -103,19 +103,19 @@ bool SpriteCanvasRenderer::draw(const World &world,
     TextureView2D texture;
     const auto *animator = entity->component<SpriteAnimator2DComponent>();
     if (animator != nullptr) {
-      texture = textures_.find(textureAsset + "#" +
-                               std::to_string(animator->currentFrame));
+      texture = textures_.resolve(textureAsset + "#" +
+                                  std::to_string(animator->currentFrame));
     }
     if (!texture.handle && animations_ != nullptr) {
       if (const auto found = animations_->find(textureAsset);
           found != animations_->end() && found->second.frameCount > 0) {
         const std::size_t frame =
             textureAnimationFrameAt(found->second, animationTime);
-        texture = textures_.find(textureAsset + "#" + std::to_string(frame));
+        texture = textures_.resolve(textureAsset + "#" + std::to_string(frame));
       }
     }
     if (!texture.handle) {
-      texture = textures_.find(textureAsset);
+      texture = textures_.resolve(textureAsset);
     }
     if (!texture.handle) {
       if (sprite.shape == "circle") {

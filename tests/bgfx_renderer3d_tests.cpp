@@ -6,8 +6,11 @@
 #include "demi/runtime/render/BgfxRenderer3D.h"
 #include "demi/runtime/render/backend/BgfxGraphicsDevice.h"
 #include "demi/runtime/render/bgfx2d/ColorPacking2D.h"
+#include "demi/runtime/render/bgfx3d/MeshDrawOrder3D.h"
 #include "demi/runtime/render/bgfx3d/MeshInstanceBatch3D.h"
+#include "demi/runtime/render/bgfx3d/MeshInstancePreparation3D.h"
 #include "demi/runtime/render/bgfx3d/PreparedMeshDraw3D.h"
+#include "demi/runtime/render/bgfx3d/PrimitiveSurfacePreparation3D.h"
 #include "demi/runtime/render/bgfx3d/SceneVisibility3D.h"
 #include "demi/runtime/scene/SceneLoader.h"
 #include "demi/runtime/scene/WorldQueries.h"
@@ -19,14 +22,17 @@
 #include "demi/runtime/scene/components/3dcomponents/MeshInstances3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/ParticleEmitter3DComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/SurfaceRelief3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/Transform3DComponent.h"
 #include "demi/runtime/scene/model/MeshMaterialSections3D.h"
 #include "demi/runtime/terrain/TerrainMeshBuilder.h"
 #include "demi/runtime/terrain/TerrainRenderLod.h"
 #include "demi/runtime/terrain/TerrainWorld.h"
+#include <atomic>
 #include <chrono>
 #include <cmath>
+#include <limits>
 #include <numbers>
 #include <thread>
 
@@ -37,6 +43,7 @@
 #include <cassert>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
 #include <string>
 #include <vector>
 
@@ -50,13 +57,24 @@ public:
   explicit MeshUploadCapture(GpuResources &target) : target_(target) {}
   std::vector<std::vector<GpuMeshVertex3D>> meshUploads;
   bool failNextMeshUpload = false;
+  UniformHandle meshWindUniform;
+  std::vector<bool> textureSrgbSampling;
+  std::vector<std::string> textureNames;
+  std::vector<TextureHandle> textureHandles;
+  std::vector<TextureHandle> retiredTextures;
+  std::thread::id uploadThread = std::this_thread::get_id();
   RenderDeviceLimits limits() const override { return target_.limits(); }
   TextureCapabilities textureCapabilities(TextureFormat format) const override {
     return target_.textureCapabilities(format);
   }
   TextureHandle createTexture(const TextureCreateInfo &info,
                               std::string &error) override {
-    return target_.createTexture(info, error);
+    assert(std::this_thread::get_id() == uploadThread);
+    textureSrgbSampling.push_back(info.srgb);
+    textureNames.push_back(info.debugName);
+    const auto handle = target_.createTexture(info, error);
+    textureHandles.push_back(handle);
+    return handle;
   }
   bool updateTexture(TextureHandle handle, const TextureUpdateInfo &info,
                      std::string &error) override {
@@ -69,10 +87,15 @@ public:
   UniformHandle createUniform(std::string_view name, UniformType type,
                               std::uint16_t count,
                               std::string &error) override {
-    return target_.createUniform(name, type, count, error);
+    const auto handle = target_.createUniform(name, type, count, error);
+    if (name == "u_meshWind") {
+      meshWindUniform = handle;
+    }
+    return handle;
   }
   BufferHandle createBuffer(const BufferCreateInfo &info,
                             std::string &error) override {
+    assert(std::this_thread::get_id() == uploadThread);
     if (failNextMeshUpload && info.kind == BufferKind::Vertex &&
         info.debugName == "3D mesh vertices") {
       failNextMeshUpload = false;
@@ -109,6 +132,7 @@ public:
     return target_.createRenderTarget(info, error);
   }
   bool destroy(TextureHandle handle) override {
+    retiredTextures.push_back(handle);
     return target_.destroy(handle);
   }
   bool destroy(SamplerHandle handle) override {
@@ -138,18 +162,27 @@ public:
     return target_.availableInstances(stride, requested);
   }
   std::vector<TextureHandle> textures;
+  std::vector<DrawTextureBinding> lastTextureBindings;
+  std::vector<std::vector<float>> lastUniformValues;
   std::vector<DrawState> bufferedStates;
   std::vector<BufferSlice> bufferedIndices;
   std::size_t instanceDrawCalls = 0;
+  std::vector<DrawState> instanceStates;
+  std::vector<std::array<float, 4>> instanceCutoffs;
+  std::vector<std::array<float, 4>> lastInstanceUniforms;
   bool forwardDraws = true;
+  const UniformHandle *meshWindUniform = nullptr;
+  std::map<std::uint16_t, float> windTimeByView;
   std::vector<float> bufferedAlpha;
   std::vector<std::array<float, 4>> bufferedTint;
   std::vector<std::array<float, 4>> bufferedMetalRough;
+  std::vector<std::array<float, 4>> batchDebugValues;
   std::vector<std::array<float, 16>> bufferedTransforms;
   std::vector<View2DConfig> views2D;
   std::vector<View3DConfig> views3D;
   std::map<std::uint16_t, std::vector<std::array<float, 16>>> transformsByView;
   std::map<std::uint16_t, TextureHandle> shadowTextures;
+  std::map<std::uint16_t, std::array<float, 16>> shadowParameters;
   bool configureView2D(const View2DConfig &view, std::string &error) override {
     views2D.push_back(view);
     return target_.configureView2D(view, error);
@@ -162,6 +195,15 @@ public:
     return target_.submit(draw, error);
   }
   bool submit(const BufferedDraw &draw, std::string &error) override {
+    recordWindTime(draw.viewId, draw.uniforms);
+    recordBatchDebugValues(draw.uniforms);
+    lastTextureBindings.assign(draw.textures.begin(), draw.textures.end());
+    lastUniformValues.clear();
+    for (const auto &uniform : draw.uniforms) {
+      lastUniformValues.emplace_back(uniform.values.begin(),
+                                     uniform.values.end());
+    }
+    recordShadowParameters(draw.viewId, draw.uniforms);
     transformsByView[draw.viewId].push_back(draw.transform);
     for (const auto &texture : draw.textures)
       if (texture.stage == 1)
@@ -183,7 +225,19 @@ public:
     return forwardDraws ? target_.submit(draw, error) : true;
   }
   bool submit(const InstancedBufferedDraw &draw, std::string &error) override {
+    recordWindTime(draw.viewId, draw.uniforms);
+    recordBatchDebugValues(draw.uniforms);
+    recordShadowParameters(draw.viewId, draw.uniforms);
     ++instanceDrawCalls;
+    instanceStates.push_back(draw.state);
+    if (!draw.uniforms.empty() && draw.uniforms.back().values.size() == 4) {
+      const auto values = draw.uniforms.back().values;
+      lastInstanceUniforms.push_back({values[0], values[1], values[2], values[3]});
+    }
+    if (draw.uniforms.size() > 1) {
+      const auto values = draw.uniforms[1].values;
+      instanceCutoffs.push_back({values[0], values[1], values[2], values[3]});
+    }
     if (draw.instances.stride == sizeof(std::array<float, 16>) &&
         draw.instances.data.size() % draw.instances.stride == 0) {
       for (std::size_t offset = 0; offset < draw.instances.data.size();
@@ -202,6 +256,42 @@ public:
   }
 
 private:
+  void recordWindTime(std::uint16_t view,
+                      std::span<const DrawUniformValue> uniforms) {
+    if (!meshWindUniform) {
+      return;
+    }
+    for (const auto &uniform : uniforms) {
+      if (uniform.handle == *meshWindUniform && uniform.values.size() == 4) {
+        windTimeByView[view] = uniform.values[3];
+      }
+    }
+  }
+
+  void recordBatchDebugValues(std::span<const DrawUniformValue> uniforms) {
+    if (uniforms.size() < 3 || uniforms[2].values.size() != 4) {
+      return;
+    }
+    std::array<float, 4> values;
+    std::copy(uniforms[2].values.begin(), uniforms[2].values.end(),
+              values.begin());
+    batchDebugValues.push_back(values);
+  }
+
+  void recordShadowParameters(std::uint16_t view,
+                              std::span<const DrawUniformValue> uniforms) {
+    // DirectionalShadow3D interleaves each cascade array with a shared
+    // uniform. Params is the penultimate entry, followed by Camera.
+    if (uniforms.size() < 8) {
+      return;
+    }
+    const auto parameters = uniforms[uniforms.size() - 2].values;
+    if (parameters.size() != 16) {
+      return;
+    }
+    auto &captured = shadowParameters[view];
+    std::copy(parameters.begin(), parameters.end(), captured.begin());
+  }
   RenderCommands &target_;
 };
 
@@ -363,7 +453,371 @@ int main() {
                                                   .vsync = false},
                              error));
   auto resources = createBgfxGpuResources();
+  {
+    const auto materialPath = std::filesystem::temp_directory_path() /
+        ("demi-surface-order-" + std::to_string(
+            std::chrono::steady_clock::now().time_since_epoch().count()) + ".json");
+    struct RemoveSurfaceFixture {
+      std::filesystem::path path;
+      ~RemoveSurfaceFixture() { std::filesystem::remove(path); }
+    } cleanup{materialPath};
+    {
+      std::ofstream output(materialPath);
+      output << R"({"format_version":1,"render_state":{"blend":"alpha"}})";
+    }
+    demi::AssetRegistry registry;
+    registry.assets.push_back({.id = "asset://order/glass", .type = "Material",
+                                .sourcePath = materialPath});
+    MaterialLibrary materials(*resources);
+    std::vector<std::string> diagnostics;
+    assert(materials.load(registry, diagnostics));
+    auto source = shape("surface-source", "cube", {});
+    MeshMaterialSections3D sections;
+    sections.sections = {{.id = "opaque"},
+                          {.id = "glass", .material = "asset://order/glass"}};
+    source.setComponent(sections);
+    const auto copies = [&] {
+      std::vector<VisibleMesh3D> meshes;
+      for (int index = 0; index < 32; ++index) {
+        const WorldTransform3D transform{.position = {0, 0, float(index)}};
+        meshes.push_back({.entity = &source, .transform = transform,
+                           .materialSection = 0});
+        meshes.push_back({.entity = &source, .transform = transform,
+                           .materialSection = 1});
+      }
+      return meshes;
+    };
+    auto meshes = copies();
+    assert(orderMeshSurfaces3D(meshes, materials, {}, {0, 0, 1}) == 32);
+    for (std::size_t index = 0; index < 32; ++index) {
+      assert(meshes[index].materialSection == 0);
+      assert(meshes[index].transform.position.z == float(index));
+      assert(meshes[index + 32].materialSection == 1);
+      assert(meshes[index + 32].transform.position.z == float(31 - index));
+    }
+    // Classification is call-local. Live overrides and destruction fades must
+    // invalidate the previous source decision without a world revision signal.
+    source.component<MeshRendererComponent>()->surfaceMode = "opaque";
+    meshes = copies();
+    assert(orderMeshSurfaces3D(meshes, materials, {}, {0, 0, 1}) == meshes.size());
+    source.setComponent(FragmentOpacity3D{.value = .5F});
+    meshes = copies();
+    assert(orderMeshSurfaces3D(meshes, materials, {}, {0, 0, 1}) == 0);
+    for (std::size_t index = 0; index < meshes.size(); index += 2) {
+      assert(meshes[index].materialSection == 0);
+      assert(meshes[index + 1].materialSection == 1);
+    }
+
+    World orderedWorld;
+    orderedWorld.entities.push_back(shape("prepared-surface", "cube", {}));
+    auto &orderedEntity = orderedWorld.entities.front();
+    orderedEntity.setComponent(sections);
+    MeshInstancePreparation3D preparation;
+    const auto preparedCopies = [&](const MeshMaterialSections3D *terrain = nullptr) {
+      const auto &prepared = preparation.worldSources(orderedWorld).front();
+      std::vector<VisibleMesh3D> draws;
+      for (int index = 0; index < 3; ++index) {
+        for (std::size_t section = 0; section < 2; ++section) {
+          draws.push_back({.entity = &orderedEntity,
+                           .transform = {.position = {0, 0, float(index)}},
+                           .materialSection = section,
+                           .terrainSections = terrain,
+                           .preparedSource = &prepared});
+        }
+      }
+      return draws;
+    };
+    auto forwardDraws = preparedCopies();
+    assert(orderMeshSurfaces3D(forwardDraws, materials, {}, {0, 0, 1}) == 3);
+    assert(forwardDraws[0].transform.position.z == 0);
+    assert(forwardDraws[2].transform.position.z == 2);
+    assert(forwardDraws[3].transform.position.z == 2);
+    // A second camera shares classification, but computes its own depth order.
+    auto reverseDraws = preparedCopies();
+    assert(orderMeshSurfaces3D(reverseDraws, materials, {}, {0, 0, -1}) == 3);
+    assert(reverseDraws[0].transform.position.z == 2);
+    assert(reverseDraws[2].transform.position.z == 0);
+    assert(reverseDraws[3].transform.position.z == 0);
+
+    MeshMaterialSections3D terrainSections;
+    terrainSections.sections = {
+        {.id = "glass", .material = "asset://order/glass"}, {.id = "opaque"}};
+    auto terrainDraws = preparedCopies(&terrainSections);
+    assert(orderMeshSurfaces3D(terrainDraws, materials, {}, {0, 0, 1}) == 3);
+    assert(terrainDraws.front().materialSection == 1);
+    // A different selected terrain LOD must not inherit section-index decisions.
+    auto originalSections = preparedCopies();
+    assert(orderMeshSurfaces3D(originalSections, materials, {}, {0, 0, 1}) == 3);
+    assert(originalSections.front().materialSection == 0);
+
+    {
+      std::ofstream output(materialPath);
+      output << R"({"format_version":1,"render_state":{"blend":"opaque"}})";
+    }
+    diagnostics.clear();
+    assert(materials.load(registry, diagnostics));
+    preparation.reset();
+    auto editedMaterial = preparedCopies();
+    assert(orderMeshSurfaces3D(editedMaterial, materials, {}, {0, 0, 1}) == 6);
+
+    orderedEntity.setComponent(FragmentOpacity3D{.value = .5F});
+    preparation.reset();
+    auto fadedDraws = preparedCopies();
+    assert(orderMeshSurfaces3D(fadedDraws, materials, {}, {0, 0, 1}) == 0);
+    assert(fadedDraws.front().transform.position.z == 2);
+
+    orderedEntity.removeComponent<FragmentOpacity3D>();
+    preparation.reset();
+    const auto unsectionedDraw = [&] {
+      return std::vector<VisibleMesh3D>{
+          {.entity = &orderedEntity,
+           .preparedSource = &preparation.worldSources(orderedWorld).front()}};
+    };
+    auto opaqueDraw = unsectionedDraw();
+    assert(orderMeshSurfaces3D(opaqueDraw, materials, {}, {0, 0, 1}) == 1);
+    orderedEntity.component<MeshRendererComponent>()->surfaceMode = "transparent";
+    preparation.reset();
+    auto transparentDraw = unsectionedDraw();
+    assert(orderMeshSurfaces3D(transparentDraw, materials, {}, {0, 0, 1}) == 0);
+  }
   auto commands = createBgfxRenderCommands(*resources);
+  {
+    World sparseWorld;
+    sparseWorld.entities.push_back(shape("sparse-mesh", "cube", {}));
+    Entity nonMesh;
+    nonMesh.id = "animation-without-mesh";
+    nonMesh.setComponent(AnimationPlayer3DComponent{});
+    sparseWorld.entities.push_back(std::move(nonMesh));
+    MeshInstancePreparation3D preparation;
+    const auto &initial = preparation.worldSources(sparseWorld);
+    assert(initial[0].plainPrimitive);
+    assert(!initial[1].animation);
+    assert(!preparation.hasAnimations(sparseWorld));
+
+    auto &entity = sparseWorld.entities.front();
+    entity.setComponent(MeshInstances3DComponent{});
+    entity.setComponent(MeshMaterialSections3D{});
+    entity.setComponent(TerrainRenderLod{});
+    entity.setComponent(AnimationPlayer3DComponent{});
+    entity.setComponent(FragmentOpacity3D{.value = .4F});
+    entity.setComponent(SurfaceRelief3DComponent{});
+    Dentable3DComponent dentable;
+    dentable.dents.push_back({.radius = 2});
+    entity.setComponent(std::move(dentable));
+    preparation.reset();
+    const auto &populated = preparation.worldSources(sparseWorld);
+    assert(populated.size() == 2);
+    assert(populated[0].instances && populated[0].sections && populated[0].terrain);
+    assert(populated[0].animation && populated[0].fade && populated[0].relief);
+    assert(populated[0].dents.size() == 1);
+    assert(populated[0].dents.front().radius == 2);
+    assert(!populated[0].plainPrimitive);
+    assert(preparation.hasAnimations(sparseWorld));
+
+    entity.component<FragmentOpacity3D>()->value = .8F;
+    entity.component<Dentable3DComponent>()->dents.front().radius = 3;
+    preparation.reset();
+    const auto &edited = preparation.worldSources(sparseWorld);
+    assert(edited[0].fade->value == .8F);
+    assert(edited[0].dents.front().radius == 3);
+
+    entity.removeComponent<MeshInstances3DComponent>();
+    entity.removeComponent<MeshMaterialSections3D>();
+    entity.removeComponent<TerrainRenderLod>();
+    entity.removeComponent<AnimationPlayer3DComponent>();
+    entity.removeComponent<FragmentOpacity3D>();
+    entity.removeComponent<SurfaceRelief3DComponent>();
+    entity.removeComponent<Dentable3DComponent>();
+    preparation.reset();
+    const auto &removed = preparation.worldSources(sparseWorld);
+    assert(!removed[0].instances && !removed[0].sections && !removed[0].terrain);
+    assert(!removed[0].animation && !removed[0].fade && !removed[0].relief);
+    assert(removed[0].dents.empty());
+    assert(removed[0].plainPrimitive);
+    assert(!preparation.hasAnimations(sparseWorld));
+
+    entity.removeComponent<MeshRendererComponent>();
+    preparation.reset();
+    assert(!preparation.worldSources(sparseWorld)[0].mesh);
+    entity.setComponent(MeshRendererComponent{});
+    preparation.reset();
+    assert(preparation.worldSources(sparseWorld)[0].mesh);
+  }
+  {
+    World cachedWorld;
+    auto parent = shape("cached-parent", "cube", {1, 0, 5});
+    auto child = shape("cached-child", "cube", {2, 0, 0});
+    child.component<Transform3DComponent>()->parent = "cached-parent";
+    child.component<MeshRendererComponent>()->model = "asset://cache/model";
+    cachedWorld.entities.push_back(std::move(parent));
+    cachedWorld.entities.push_back(std::move(child));
+    BgfxCameraFrame3D cachedFrame;
+    cachedFrame.forward = {0, 0, 1};
+    cachedFrame.up = {0, 1, 0};
+    cachedFrame.viewportWidth = 320;
+    cachedFrame.viewportHeight = 180;
+    cachedFrame.camera.perspective = false;
+    cachedFrame.camera.orthographicSize = 20;
+    cachedFrame.camera.farClip = 100;
+    MeshInstancePreparation3D preparation;
+    int boundsQueries = 0;
+    const auto bounds = [&](std::string_view) -> std::optional<MeshBounds3D> {
+      ++boundsQueries;
+      return MeshBounds3D{{-.5F, -.5F, -.5F}, {.5F, .5F, .5F}};
+    };
+    const auto extract = [&](const BgfxCameraFrame3D &view) {
+      return extractVisibleMeshes3D(
+          cachedWorld, view, nullptr, nullptr, nullptr, nullptr, nullptr,
+          nullptr, nullptr, bounds, &preparation);
+    };
+    const auto first = extract(cachedFrame);
+    assert(first.meshes.size() == 2 && boundsQueries == 1);
+    assert(first.meshes[1].transform.position.x == 3);
+    const auto *matrix = first.meshes[1].preparedModelMatrix;
+    assert(matrix != nullptr && (*matrix)[12] == 3);
+    const auto second = extract(cachedFrame);
+    assert(second.meshes.size() == 2 && boundsQueries == 1);
+    assert(second.meshes[1].preparedModelMatrix == matrix);
+    auto otherView = cachedFrame;
+    otherView.position.x = 100;
+    assert(extract(otherView).meshes.empty());
+    assert(boundsQueries == 1);
+    cachedWorld.entities[0].component<Transform3DComponent>()->position.x = 4;
+    preparation.reset();
+    const auto edited = extract(cachedFrame);
+    assert(edited.meshes.size() == 2 && boundsQueries == 2);
+    assert(edited.meshes[1].transform.position.x == 6);
+    assert((*edited.meshes[1].preparedModelMatrix)[12] == 6);
+    cachedWorld.entities[0].component<Transform3DComponent>()->parent = "cached-child";
+    preparation.reset();
+    assert(extract(cachedFrame).meshes.empty());
+    cachedWorld.entities[0].component<Transform3DComponent>()->parent.clear();
+    cachedWorld.entities[1].component<Transform3DComponent>()->parent = "missing";
+    preparation.reset();
+    assert(extract(cachedFrame).meshes.size() == 1);
+  }
+  {
+    MeshUploadCapture uploads(*resources);
+    TextureLibrary2D variants(uploads);
+    ImageData2D image{.width = 2,
+                      .height = 1,
+                      .rgba = {std::byte{0}, std::byte{0}, std::byte{0},
+                               std::byte{0}, std::byte{255}, std::byte{255},
+                               std::byte{255}, std::byte{255}}};
+    TextureSampling2D sampling;
+    sampling.mipmaps = true;
+    for (const auto semantic :
+         {ImageMipSemantic::Color, ImageMipSemantic::Linear,
+          ImageMipSemantic::Normal}) {
+      sampling.mipSemantic = semantic;
+      assert(variants.upload("shared-image", image, error, sampling));
+    }
+    // Color decoding must happen before bilinear/trilinear filtering in the
+    // hardware, while data and UI views preserve their numerical channels.
+    assert(uploads.textureSrgbSampling ==
+           std::vector<bool>({true, false, false}));
+    assert(variants.find("shared-image", ImageMipSemantic::Color).srgbDecoded);
+    assert(
+        !variants.find("shared-image", ImageMipSemantic::Linear).srgbDecoded);
+    assert(
+        !variants.find("shared-image", ImageMipSemantic::Normal).srgbDecoded);
+  }
+
+  {
+    TextureCapture capture(*commands);
+    capture.forwardDraws = false;
+    std::vector<std::pair<std::string, ImageMipSemantic>> resolvedMaps;
+    const TextureHandle mapTexture{.index = 7, .generation = 1};
+    MeshPbrBindings3D bindings(
+        *resources, capture,
+        [&](std::string_view id, ImageMipSemantic semantic) {
+          resolvedMaps.emplace_back(id, semantic);
+          return TextureView2D{mapTexture, 4, 4,
+                               semantic == ImageMipSemantic::Color};
+        });
+    MaterialBinding material;
+    material.usesPbrSurface = true;
+    material.surface.mapping = demi::assets::MaterialMapping::Triplanar;
+    material.surface.tiling = 2;
+    material.surface.normalMapYDown = true;
+    material.surface.maps = {
+        {demi::assets::MaterialMapSlot::Normal, "normal"},
+        {demi::assets::MaterialMapSlot::Roughness, "roughness"},
+        {demi::assets::MaterialMapSlot::Metallic, "metallic"},
+        {demi::assets::MaterialMapSlot::Emissive, "emissive"}};
+    MeshRendererComponent mesh;
+    mesh.size = {12, 8, 4};
+    assert(bindings.prepare(&material, mesh, {}, 3, error));
+    assert(bindings.submit(BufferedDraw{}, error));
+    assert(capture.lastTextureBindings.size() == 6);
+    assert(capture.lastTextureBindings.front().stage == 3);
+    assert(capture.lastTextureBindings.back().stage == 8);
+    assert(capture.lastUniformValues[0] == std::vector<float>({1, 1, 1, 0}));
+    assert(capture.lastUniformValues[1] == std::vector<float>({0, 1, 1, 0}));
+    assert(capture.lastUniformValues[2][3] == -1);
+    assert(capture.lastUniformValues[3] == std::vector<float>({12, 8, 4, 3}));
+    assert(capture.lastUniformValues.size() == 5);
+    assert(capture.lastUniformValues.back() == std::vector<float>({0, 1, 1, 0}));
+    assert(resolvedMaps[0].second == ImageMipSemantic::Normal);
+    assert(resolvedMaps[1].second == ImageMipSemantic::Linear);
+    assert(resolvedMaps[3].second == ImageMipSemantic::Color);
+    MeshPbrBindings3D targetBindings(
+        *resources, capture, [&](std::string_view, ImageMipSemantic) {
+          return TextureView2D{mapTexture, 4, 4, false};
+        });
+    assert(targetBindings.prepare(&material, mesh, {}, 1, error));
+    assert(targetBindings.submit(BufferedDraw{}, error));
+    assert(capture.lastUniformValues[1][3] == 1);
+    // Presentation targets contain encoded RGB and request one shader decode;
+    // their alpha and scalar-map channels retain their existing raw values.
+    // Authored scalar overrides replace maps; they never multiply metallic
+    // map values by the default metallic scalar of zero.
+    mesh.roughness = 0.25F;
+    mesh.materialNumbers["metallic"] = 0.7F;
+    assert(bindings.prepare(&material, mesh, {}, 3, error));
+    assert(bindings.submit(BufferedDraw{}, error));
+    assert(capture.lastUniformValues[0][1] == 0);
+    assert(capture.lastUniformValues[0][2] == 0);
+    assert(!bindings.prepare(&material, mesh, {}, 0, error));
+    MeshPbrBindings3D missingMaps(
+        *resources, capture,
+        [](std::string_view, ImageMipSemantic) { return TextureView2D{}; });
+    assert(!missingMaps.prepare(&material, mesh, {}, 1, error));
+    assert(error.find("normal") != std::string::npos);
+    // An albedo-only material still needs the PBR projection path when an
+    // entity overrides tiling; the renderer and adapter share this decision.
+    MaterialBinding albedoOnly;
+    albedoOnly.albedoTexture = "albedo";
+    MeshRendererComponent tiledMesh;
+    assert(!usesMeshPbrSurface3D(&albedoOnly, tiledMesh));
+    tiledMesh.materialNumbers["tiling"] = 2;
+    assert(usesMeshPbrSurface3D(&albedoOnly, tiledMesh));
+    assert(bindings.prepare(&albedoOnly, tiledMesh, {}, 1, error));
+    assert(bindings.submit(BufferedDraw{}, error));
+    assert(capture.lastUniformValues[2][1] == 2);
+    tiledMesh.materialNumbers["tiling"] = 0;
+    assert(usesMeshPbrSurface3D(&albedoOnly, tiledMesh));
+    assert(!bindings.prepare(&albedoOnly, tiledMesh, {}, 1, error));
+    assert(error.find("positive") != std::string::npos);
+    tiledMesh.materialNumbers["tiling"] =
+        std::numeric_limits<float>::quiet_NaN();
+    assert(usesMeshPbrSurface3D(&albedoOnly, tiledMesh));
+    assert(!bindings.prepare(&albedoOnly, tiledMesh, {}, 1, error));
+    albedoOnly.program = {.index = 1, .generation = 1};
+    tiledMesh.materialNumbers["tiling"] = 2;
+    assert(!usesMeshPbrSurface3D(&albedoOnly, tiledMesh));
+    assert(bindings.prepare(&albedoOnly, tiledMesh, {}, 1, error));
+    assert(bindings.submit(BufferedDraw{}, error));
+    assert(capture.lastUniformValues ==
+           std::vector<std::vector<float>>({{0, 0, 0, 0}}));
+    // A following plain material must not inherit the preceding map slots.
+    assert(bindings.prepare(nullptr, mesh, {}, 1, error));
+    assert(bindings.submit(BufferedDraw{}, error));
+    assert(capture.lastTextureBindings.empty());
+    assert(capture.lastUniformValues ==
+           std::vector<std::vector<float>>({{0, 0, 0, 0}}));
+  }
+
   {
     // Capture command intent without backend validation so recycled texture
     // generations can be compared together, including the stale generation.
@@ -409,6 +863,145 @@ int main() {
     assert(batchCapture.textures[2] == recycled);
     assert(batchCapture.bufferedTint[2][0] == distinctTint[0]);
     assert(batchCapture.bufferedMetalRough.back()[1] == distinctMetalRough[1]);
+
+    // Both the instanced group and the individual draws must retain the
+    // camera direction used to encode eye-space depth. Grouping diagnostics
+    // share this uniform, but must not overwrite another pass's payload.
+    const std::array<float, 4> captureDirection{8.F, 0.25F, -23.F, -26.F};
+    lighting[2].values = captureDirection;
+    batchCapture.batchDebugValues.clear();
+    assert(batches.flush(batchCapture, 0, {}, {}, {}, {}, lighting, draws,
+                         triangles, error));
+    assert(batchCapture.batchDebugValues.size() == 6);
+    for (const auto &values : batchCapture.batchDebugValues) {
+      assert(values == captureDirection);
+    }
+
+    const std::array<float, 4> groupingDebug{6.F, 0.F, 0.F, 0.F};
+    lighting[2].values = groupingDebug;
+    batchCapture.batchDebugValues.clear();
+    assert(batches.flush(batchCapture, 0, {}, {}, {}, {}, lighting, draws,
+                         triangles, error));
+    assert(batchCapture.batchDebugValues.size() == 6);
+    assert(batchCapture.batchDebugValues.front()[1] == 1.F);
+    for (std::size_t index = 1; index < batchCapture.batchDebugValues.size();
+         ++index) {
+      assert(batchCapture.batchDebugValues[index] == groupingDebug);
+    }
+  }
+  {
+    // Inspect material batch intent with symbolic program/texture handles,
+    // matching the material-free grouping probe above.
+    TextureCapture surfaceCapture(*commands);
+    surfaceCapture.forwardDraws = false;
+    int resolvedSurfaceMaps = 0;
+    MeshPbrBindings3D surfaceBindings(
+        *resources, surfaceCapture,
+        [&](std::string_view, ImageMipSemantic) {
+          ++resolvedSurfaceMaps;
+          return TextureView2D{TextureHandle{.index = 7, .generation = 1}, 4, 4, false};
+        });
+    GpuMesh3D geometry(*resources);
+    const std::array<Vec3, 3> positions{{{-1, 0, 0}, {1, 0, 0}, {0, 1, 0}}};
+    assert(geometry.upload(positions, {}, {}, 0xffffffffU, error));
+    MeshRendererComponent source;
+    MaterialBinding material;
+    material.alphaCutoff = 0.4F;
+    material.usesPbrSurface = true;
+    material.surface.maps[demi::assets::MaterialMapSlot::Normal] = "normal";
+    material.surface.windStrength = 0.2F;
+    material.surface.windFrequency = 1.5F;
+    material.surface.windHeight = 2.F;
+    surfaceBindings.setFrameTime(3.F);
+    material.state.cull = CullMode::Clockwise;
+    material.state.writeDepth = true;
+    PreparedMeshDraw3D prepared(source, &material, std::nullopt, false,
+                                false, false, {});
+    const std::array<float, 16> transform{1, 0, 0, 0, 0, 1, 0, 0,
+                                         0, 0, 1, 0, 0, 0, 0, 1};
+    MeshInstanceBatch3D batches;
+    const auto surfaceGroup = batches.addSurface(
+        geometry, {}, source, &material, prepared, {}, transform);
+    MeshRendererComponent anotherOwner = source;
+    PreparedMeshDraw3D anotherPrepared(anotherOwner, &material, std::nullopt,
+                                       false, false, false, {});
+    assert(batches.addSurface(geometry, {}, anotherOwner, &material,
+                              anotherPrepared, {}, transform) == surfaceGroup);
+    batches.appendTransform(surfaceGroup, transform);
+    std::array<std::array<float, 4>, 8> values{};
+    std::array<DrawUniformValue, 8> lighting;
+    for (std::size_t index = 0; index < lighting.size(); ++index) {
+      lighting[index].values = values[index];
+    }
+    std::uint32_t draws = 0;
+    std::uint32_t triangles = 0;
+    assert(batches.flush(surfaceCapture, 0, {}, {}, {}, {}, lighting, draws,
+                         triangles, error, &surfaceBindings));
+    assert(draws == 1 && triangles == 3);
+    assert(resolvedSurfaceMaps == 1);
+    assert(surfaceCapture.instanceDrawCalls == 1);
+    assert(surfaceCapture.instanceStates.back().cull == CullMode::Clockwise);
+    assert(surfaceCapture.instanceStates.back().writeDepth);
+    assert(surfaceCapture.instanceCutoffs.back()[0] == 0.4F);
+
+    MeshInstanceBatch3D distinctSurfaces;
+    const auto baseGroup = distinctSurfaces.addSurface(
+        geometry, {}, source, &material, prepared, {}, transform);
+    MeshRendererComponent tintedOwner = source;
+    tintedOwner.color = {1, 0, 0, 1};
+    PreparedMeshDraw3D tinted(tintedOwner, &material, std::nullopt, false,
+                              false, false, {});
+    assert(distinctSurfaces.addSurface(geometry, {}, tintedOwner, &material,
+                                       tinted, {}, transform) != baseGroup);
+    MeshRendererComponent tiledOwner = source;
+    tiledOwner.materialNumbers["tiling"] = 2;
+    PreparedMeshDraw3D tiled(tiledOwner, &material, std::nullopt, false,
+                             false, false, {});
+    assert(distinctSurfaces.addSurface(geometry, {}, tiledOwner, &material,
+                                       tiled, {}, transform) != baseGroup);
+    assert(surfaceCapture.lastInstanceUniforms.back() ==
+           (std::array<float, 4>{0.2F, 1.5F, 2.F, 3.F}));
+
+    // A subsequent material-free batch must clear the bending uniform rather
+    // than inheriting the previous foliage surface's GPU state.
+    MeshInstanceBatch3D plain;
+    const std::array<float, 4> tint{1, 1, 1, 1};
+    const std::array<float, 4> parameters{0, 0.8F, 0, 0};
+    plain.add(geometry, {}, tint, parameters, false, transform);
+    plain.add(geometry, {}, tint, parameters, false, transform);
+    assert(plain.flush(surfaceCapture, 0, {}, {}, {}, {}, lighting, draws,
+                       triangles, error, &surfaceBindings));
+    assert(surfaceCapture.lastInstanceUniforms.back() ==
+           (std::array<float, 4>{}));
+  }
+  {
+    World primitives;
+    primitives.entities.push_back(shape("first", "cube", {}));
+    primitives.entities.push_back(shape("sized", "cube", {}));
+    primitives.entities.back().component<MeshRendererComponent>()->size = {2, 3, 4};
+    primitives.entities.push_back(shape("tinted", "cube", {}));
+    primitives.entities.back().component<MeshRendererComponent>()->color.r = .25F;
+    primitives.entities.push_back(shape("material", "cube", {}));
+    primitives.entities.back().component<MeshRendererComponent>()->material = "asset://material";
+    primitives.entities.push_back(shape("transparent", "cube", {}));
+    primitives.entities.back().component<MeshRendererComponent>()->surfaceMode = "transparent";
+    MeshInstancePreparation3D preparation;
+    PrimitiveSurfacePreparation3D surfaces;
+    const auto &sources = preparation.worldSources(primitives);
+    assert(!preparation.hasAnimations(primitives));
+    const auto first = surfaces.surfaceFor(sources[0]);
+    assert(first && surfaces.surfaceFor(sources[1]) == first);
+    assert(surfaces.surfaceFor(sources[0]) == first);
+    assert(surfaces.surfaceFor(sources[2]) != first);
+    assert(!surfaces.surfaceFor(sources[3]));
+    assert(!surfaces.surfaceFor(sources[4]));
+    assert(surfaces.size() == 2);
+    primitives.entities[1].setComponent(AnimationPlayer3DComponent{});
+    preparation.reset();
+    surfaces.reset();
+    const auto &updated = preparation.worldSources(primitives);
+    assert(preparation.hasAnimations(primitives));
+    assert(!surfaces.surfaceFor(updated[1]));
   }
   TextureCapture capture(*commands);
   BgfxRenderer3D renderer(*resources, capture,
@@ -493,6 +1086,232 @@ int main() {
   const std::uint32_t batchesWithoutDebugGeometry =
       renderer.statistics().batches;
   static_cast<void>(graphics.endFrame());
+
+  {
+    MeshUploadCapture uploads(*resources);
+    TextureCapture lazyDraws(*commands);
+    BgfxRenderer3D lazyRenderer(uploads, lazyDraws);
+    assert(lazyRenderer.initialize(error));
+    const std::string usedId = "asset://lazy/used";
+    const std::string unusedId = "asset://lazy/unused";
+    demi::AssetRegistry lazyRegistry;
+    const auto imagePath = std::filesystem::path(DEMI_SOURCE_DIR) /
+                           "examples/minimal_3d/assets/textures/checker.png";
+    for (const auto &id : {usedId, unusedId}) {
+      lazyRegistry.assets.push_back(
+          {.id = id, .type = "Texture2D", .sourcePath = imagePath});
+    }
+    const auto colorUploads = [&](const std::string &id) {
+      std::size_t count = 0;
+      for (std::size_t index = 0; index < uploads.textureNames.size();
+           ++index) {
+        if (uploads.textureNames[index] == id &&
+            uploads.textureSrgbSampling[index]) {
+          ++count;
+        }
+      }
+      return count;
+    };
+    assert(lazyRenderer.loadAssets(lazyRegistry, diagnostics));
+    assert(colorUploads(usedId) == 0 && colorUploads(unusedId) == 0);
+    World lazyWorld;
+    auto box = shape("lazy_mesh", "cube", {});
+    box.component<MeshRendererComponent>()->texture = usedId;
+    lazyWorld.entities.push_back(std::move(box));
+    assert(lazyRenderer.renderFrame(lazyWorld, frame, 0.016F, error));
+    static_cast<void>(graphics.endFrame());
+    assert(colorUploads(usedId) == 1 && colorUploads(unusedId) == 0);
+    assert(lazyRenderer.renderFrame(lazyWorld, frame, 0.016F, error));
+    static_cast<void>(graphics.endFrame());
+    assert(colorUploads(usedId) == 1);
+    assert(lazyRenderer.loadAssets(lazyRegistry, diagnostics));
+    assert(colorUploads(usedId) == 1);
+    assert(lazyRenderer.renderFrame(lazyWorld, frame, 0.016F, error));
+    static_cast<void>(graphics.endFrame());
+    assert(colorUploads(usedId) == 2 && colorUploads(unusedId) == 0);
+  }
+
+  {
+    MeshUploadCapture uploads(*resources);
+    TextureCapture stagedDraws(*commands);
+    BgfxRenderer3D stagedRenderer(uploads, stagedDraws);
+    assert(stagedRenderer.initialize(error));
+    JobSystem preparationJobs(1);
+    const auto imagePath = std::filesystem::path(DEMI_SOURCE_DIR) /
+                           "examples/minimal_3d/assets/textures/checker.png";
+    const auto materialPath = std::filesystem::temp_directory_path() /
+                              "demi_staged_material_test.material.json";
+    {
+      std::ofstream source(materialPath);
+      source
+          << R"({"format_version":1,"shader":"builtin://lit","textures":{"albedo":"asset://staged/albedo","normal":"asset://staged/normal"}})";
+    }
+    demi::AssetRegistry stagedRegistry;
+    stagedRegistry.assets = {
+        {.id = "asset://staged/albedo",
+         .type = "Texture2D",
+         .sourcePath = imagePath},
+        {.id = "asset://staged/normal",
+         .type = "Texture2D",
+         .sourcePath = imagePath},
+        {.id = "asset://staged/material",
+         .type = "Material",
+         .sourcePath = materialPath},
+    };
+    const auto stagedTextureCount = [&] {
+      return std::ranges::count_if(uploads.textureNames, [](const auto &id) {
+        return id.starts_with("asset://staged/");
+      });
+    };
+    std::atomic_bool releaseWorker = false;
+    auto blockedWorker = preparationJobs.submit([&] {
+      while (!releaseWorker.load()) {
+        std::this_thread::yield();
+      }
+    });
+    assert(stagedRenderer.beginAssetPreparation(stagedRegistry, preparationJobs,
+                                                diagnostics));
+    assert(stagedRenderer.assetPreparationProgress() == 0.0);
+    bool complete = false;
+    for (int step = 0; step < 5; ++step) {
+      assert(stagedRenderer.stepAssetPreparation(0.0, complete, diagnostics));
+      assert(!complete);
+    }
+    assert(stagedTextureCount() == 0);
+    assert(stagedRenderer.assetPreparationProgress() > 0.0);
+    assert(stagedRenderer.assetPreparationProgress() < 1.0);
+    std::atomic_bool cancelled = false;
+    std::atomic_bool cancellationWaitedForWorker = false;
+    std::thread releaseGuard([&] {
+      const auto deadline =
+          std::chrono::steady_clock::now() + std::chrono::seconds(2);
+      while (!cancelled.load() && std::chrono::steady_clock::now() < deadline) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      }
+      cancellationWaitedForWorker = !cancelled.load();
+      releaseWorker = true;
+    });
+    stagedRenderer.cancelAssetPreparation();
+    assert(stagedRenderer.assetPreparationProgress() == 0.0);
+    cancelled = true;
+    releaseGuard.join();
+    blockedWorker.wait();
+    assert(!cancellationWaitedForWorker.load());
+    assert(stagedTextureCount() == 0);
+
+    assert(stagedRenderer.beginAssetPreparation(stagedRegistry, preparationJobs,
+                                                diagnostics));
+    const auto deadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    double lastProgress = 0.0;
+    while (!complete && std::chrono::steady_clock::now() < deadline) {
+      assert(stagedRenderer.stepAssetPreparation(0.0, complete, diagnostics));
+      if (!complete) {
+        const double progress = stagedRenderer.assetPreparationProgress();
+        assert(progress >= lastProgress && progress < 1.0);
+        lastProgress = progress;
+      }
+      std::this_thread::yield();
+    }
+    assert(complete);
+    assert(stagedTextureCount() == 2);
+    for (std::size_t index = 0; index < uploads.textureNames.size(); ++index) {
+      if (uploads.textureNames[index] == "asset://staged/albedo") {
+        assert(uploads.textureSrgbSampling[index]);
+      } else if (uploads.textureNames[index] == "asset://staged/normal") {
+        assert(!uploads.textureSrgbSampling[index]);
+      }
+    }
+    World stagedWorld;
+    auto box = shape("staged_mesh", "cube", {});
+    box.component<MeshRendererComponent>()->material =
+        "asset://staged/material";
+    stagedWorld.entities.push_back(std::move(box));
+    for (int presentation = 0; presentation < 3; ++presentation) {
+      assert(stagedRenderer.renderFrame(stagedWorld, frame, 0.016F, error));
+      static_cast<void>(graphics.endFrame());
+    }
+    assert(stagedTextureCount() == 2);
+    std::filesystem::remove(materialPath);
+  }
+
+  {
+    MeshUploadCapture uploads(*resources);
+    TextureCapture skyDraws(*commands);
+    BgfxRenderer3D skyRenderer(uploads, skyDraws);
+    assert(skyRenderer.initialize(error));
+    JobSystem preparationJobs(1);
+    const std::string skyId = "asset://sky/prewarm";
+    demi::AssetManifest panorama;
+    panorama.id = skyId;
+    panorama.type = "Texture2D";
+    panorama.sourcePath = std::filesystem::path(DEMI_SOURCE_DIR) /
+                          "examples/minimal_3d/assets/textures/checker.png";
+    panorama.textureSettings.mipmaps = true;
+    demi::AssetRegistry skyRegistry;
+    skyRegistry.assets.push_back(std::move(panorama));
+    assert(skyRenderer.beginAssetPreparation(skyRegistry, preparationJobs,
+                                             diagnostics));
+    bool complete = false;
+    const auto assetsDeadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    while (!complete && std::chrono::steady_clock::now() < assetsDeadline) {
+      assert(skyRenderer.stepAssetPreparation(0.0, complete, diagnostics));
+      std::this_thread::yield();
+    }
+    assert(complete);
+    const auto variantCounts = [&] {
+      std::array<std::size_t, 2> counts{};
+      for (std::size_t index = 0; index < uploads.textureNames.size();
+           ++index) {
+        if (uploads.textureNames[index] == skyId) {
+          ++counts[uploads.textureSrgbSampling[index] ? 0 : 1];
+        }
+      }
+      return counts;
+    };
+    assert((variantCounts() == std::array<std::size_t, 2>{1, 0}));
+    const auto skyWorld = [&] {
+      World result;
+      Entity environment;
+      environment.id = "sky_environment";
+      Environment3DComponent lighting;
+      lighting.skyTexture = skyId;
+      environment.setComponent(lighting);
+      result.entities.push_back(std::move(environment));
+      return result;
+    };
+    {
+      World cancelled = skyWorld();
+      assert(skyRenderer.prepareScenePresentation(cancelled, frame, complete,
+                                                  error));
+      assert(!complete);
+      assert((variantCounts() == std::array<std::size_t, 2>{1, 0}));
+      skyRenderer.cancelScenePresentationPreparation();
+      skyRenderer.endPresentation(true);
+    }
+    World incoming = skyWorld();
+    const auto warmupDeadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    do {
+      assert(skyRenderer.prepareScenePresentation(incoming, frame, complete,
+                                                  error));
+      skyRenderer.endPresentation(true);
+      static_cast<void>(graphics.endFrame());
+      std::this_thread::yield();
+    } while (!complete && std::chrono::steady_clock::now() < warmupDeadline);
+    assert(complete);
+    assert((variantCounts() == std::array<std::size_t, 2>{1, 1}));
+    assert(
+        skyRenderer.prepareScenePresentation(incoming, frame, complete, error));
+    assert(complete);
+    skyRenderer.endPresentation(true);
+    for (int presentation = 0; presentation < 3; ++presentation) {
+      assert(skyRenderer.renderFrame(incoming, frame, 0.016F, error));
+      static_cast<void>(graphics.endFrame());
+    }
+    assert((variantCounts() == std::array<std::size_t, 2>{1, 1}));
+  }
 
   {
     MeshUploadCapture uploads(*resources);
@@ -741,6 +1560,19 @@ int main() {
     assert(capture.bufferedMetalRough.back()[1] == 0.6F);
     static_cast<void>(graphics.endFrame());
   }
+  {
+    World qualityWorld;
+    Entity environment;
+    Environment3DComponent::parse({{"terrain_texture_max_size", 512},
+                                   {"terrain_texture_cache_mb", 24},
+                                   {"terrain_detail_distance", 75}},
+                                  environment);
+    qualityWorld.entities.push_back(std::move(environment));
+    const auto lighting = collectSceneLighting3D(qualityWorld, {});
+    assert(lighting.terrainTextureMaxSize == 512);
+    assert(lighting.terrainTextureCacheBytes == 24U * 1024U * 1024U);
+    assert(lighting.terrainDetailDistance == 75);
+  }
   assert(collectSceneLighting3D(world, {}).msaaSamples == 4);
   assert(capture.views3D.back().frameBuffer);
   const auto defaultAaTarget = capture.views3D.back().frameBuffer;
@@ -894,6 +1726,8 @@ int main() {
           return view.id == embeddedFrame.viewId + 2;
         });
     assert(present != capture.views2D.end());
+    assert(present->debugName == "PostProcess");
+    assert(capture.views3D.front().debugName == "Main");
     assert(present->frameBuffer == embeddedTarget.frameBuffer);
     assert(present->width == 320 && present->height == 180);
     assert(present->x == 0 && present->y == 0);
@@ -966,6 +1800,7 @@ int main() {
   assert(capture.views3D.size() == 5 && capture.views3D[0].width == 512);
   const auto atlas = capture.views3D[0].frameBuffer;
   for (int cascade = 0; cascade < 4; ++cascade) {
+    assert(capture.views3D[cascade].debugName == "Shadow");
     assert(capture.views3D[cascade].frameBuffer == atlas);
     assert(capture.views3D[cascade].id == frame.viewId + cascade);
     assert(capture.views3D[cascade].x == (cascade % 2) * 512);
@@ -973,11 +1808,32 @@ int main() {
     assert(capture.views3D[cascade].width == 512 &&
            capture.views3D[cascade].height == 512);
   }
+  assert(capture.views3D[4].debugName == "Main");
   assert(capture.views3D[4].id == frame.viewId + 4);
   assert(capture.views3D[0].orthographicSize <
          capture.views3D[3].orthographicSize);
   static_cast<void>(graphics.endFrame());
-  world.entities.back().component<Environment3DComponent>()->shadowCascades = 3;
+  auto &shadowEnvironment =
+      *world.entities.back().component<Environment3DComponent>();
+  for (const int resolution : {512, 1024, 2048}) {
+    shadowEnvironment.shadowResolution = resolution;
+    capture.views3D.clear();
+    capture.shadowParameters.clear();
+    assert(renderer.renderFrame(world, frame, .016F, error));
+    assert(capture.views3D.size() == 5);
+    const auto receiverView = capture.views3D.back().id;
+    const auto parameters = capture.shadowParameters.at(receiverView);
+    for (std::size_t cascade = 0; cascade < 4; ++cascade) {
+      const auto &caster = capture.views3D[cascade];
+      assert(caster.width == resolution && !caster.perspective);
+      const float worldTexel = caster.orthographicSize / caster.width;
+      assert(worldTexel > 0);
+      assert(parameters[cascade * 4 + 3] == worldTexel);
+    }
+    static_cast<void>(graphics.endFrame());
+  }
+  shadowEnvironment.shadowResolution = 512;
+  shadowEnvironment.shadowCascades = 3;
   capture.views3D.clear();
   assert(renderer.renderFrame(world, frame, .016F, error));
   assert(capture.views3D.size() == 4);
@@ -1002,6 +1858,32 @@ int main() {
   targetFrame.updateContent = false;
   assert(renderer.renderFrame(world, targetFrame, 0.016F, error));
   static_cast<void>(graphics.endFrame());
+
+  // A cached target already contains its post-processing. A skipped update
+  // must present that target directly, rather than process whichever camera
+  // most recently wrote the shared scratch surface.
+  targetFrame.updateContent = true;
+  targetFrame.postProcess = PostProcessStackComponent{.exposure = 0.5F};
+  capture.views2D.clear();
+  assert(renderer.renderFrame(world, targetFrame, 0.016F, error));
+  assert(std::ranges::any_of(capture.views2D, [](const View2DConfig &view) {
+    return view.debugName == "PostProcess";
+  }));
+  static_cast<void>(graphics.endFrame());
+  assert(renderer.renderFrame(world, postProcessFrame, 0.016F, error));
+  static_cast<void>(graphics.endFrame());
+  targetFrame.updateContent = false;
+  capture.views2D.clear();
+  capture.views3D.clear();
+  assert(renderer.renderFrame(world, targetFrame, 0.016F, error));
+  assert(capture.views3D.empty());
+  assert(!capture.views2D.empty());
+  for (const auto &view : capture.views2D) {
+    assert(view.debugName != "PostProcess");
+    assert(view.frameBuffer == targetFrame.frameBuffer);
+  }
+  static_cast<void>(graphics.endFrame());
+  targetFrame.postProcess.reset();
   Entity targetQuality;
   targetQuality.id = "target-quality";
   targetQuality.setComponent(Environment3DComponent{.msaaSamples = 0});
@@ -1335,6 +2217,95 @@ int main() {
     (void)graphics.endFrame();
   }
   {
+    World boundsWorld;
+    auto owner = shape("model-bounds", "", {});
+    auto *mesh = owner.component<MeshRendererComponent>();
+    mesh->model = "asset://bounds/high";
+    mesh->mediumLodModel = "asset://bounds/medium";
+    MeshInstances3DComponent instances;
+    instances.setTransform("visible", {.position = {0, 0, 5}});
+    instances.setTransform("outside", {.position = {100, 0, 5}});
+    owner.setComponent(instances);
+    boundsWorld.entities.push_back(owner);
+    BgfxCameraFrame3D boundsFrame;
+    boundsFrame.camera.perspective = false;
+    boundsFrame.camera.orthographicSize = 1.F;
+    boundsFrame.viewportWidth = 100;
+    boundsFrame.viewportHeight = 100;
+    int modelLookups = 0;
+    const ModelBoundsResolver3D resolver = [&](std::string_view id) {
+      ++modelLookups;
+      const float extent = id == "asset://bounds/medium" ? 2.F : .5F;
+      return std::optional<MeshBounds3D>(MeshBounds3D{
+          {-extent, -extent, -extent}, {extent, extent, extent}});
+    };
+    const auto visible = extractVisibleMeshes3D(
+        boundsWorld, boundsFrame, nullptr, nullptr, nullptr, nullptr, nullptr,
+        nullptr, nullptr, resolver);
+    assert(visible.considered == 2 && visible.culled == 1);
+    assert(visible.meshes.size() == 1 && modelLookups == 2);
+
+    // A reduced model can have larger bounds than its source. Their union
+    // preserves visibility near a frustum edge regardless of selected tier.
+    boundsWorld.entities.front().component<MeshInstances3DComponent>()
+        ->setTransform("visible", {.position = {3.F, 0, 5}});
+    assert(extractVisibleMeshes3D(
+        boundsWorld, boundsFrame, nullptr, nullptr, nullptr, nullptr, nullptr,
+        nullptr, nullptr, resolver).meshes.size() == 1);
+
+    // Ordinary primitives use canonical unit bounds without authored vertices.
+    auto primitive = shape("primitive-bounds", "cube", {100, 0, 5});
+    World primitiveWorld;
+    primitiveWorld.entities.push_back(primitive);
+    assert(extractVisibleMeshes3D(primitiveWorld, boundsFrame).meshes.empty());
+
+    const auto windPath = std::filesystem::temp_directory_path() /
+        ("demi-wind-bounds-" + std::to_string(
+            std::chrono::steady_clock::now().time_since_epoch().count()) + ".json");
+    struct RemoveWindFixture {
+      std::filesystem::path path;
+      ~RemoveWindFixture() { std::filesystem::remove(path); }
+    } cleanup{windPath};
+    {
+      std::ofstream output(windPath);
+      output << R"({"format_version":1,"parameters":{"wind_strength":5}})";
+    }
+    demi::AssetRegistry windRegistry;
+    windRegistry.assets.push_back({.id = "asset://bounds/wind",
+                                   .type = "Material", .sourcePath = windPath});
+    MaterialLibrary windMaterials(*resources);
+    std::vector<std::string> windDiagnostics;
+    assert(windMaterials.load(windRegistry, windDiagnostics));
+    primitiveWorld.entities.front().component<Transform3DComponent>()->position.x = 3.F;
+    primitiveWorld.entities.front().component<MeshRendererComponent>()->material = "asset://bounds/wind";
+    assert(extractVisibleMeshes3D(primitiveWorld, boundsFrame).meshes.empty());
+    assert(extractVisibleMeshes3D(
+        primitiveWorld, boundsFrame, nullptr, nullptr, nullptr, nullptr, nullptr,
+        nullptr, &windMaterials).meshes.size() == 1);
+
+    MeshUploadCapture windResources(*resources);
+    TextureCapture windCapture(*commands);
+    windCapture.meshWindUniform = &windResources.meshWindUniform;
+    BgfxRenderer3D windRenderer(windResources, windCapture);
+    assert(windRenderer.initialize(error));
+    assert(windRenderer.loadAssets(windRegistry, windDiagnostics));
+    World windWorld;
+    auto foliage = shape("wind-phase", "cube", {});
+    foliage.component<MeshRendererComponent>()->material = "asset://bounds/wind";
+    windWorld.entities.push_back(foliage);
+    Entity sun;
+    sun.id = "wind-sun";
+    sun.setComponent(DirectionalLightComponent{.castsShadows = true});
+    sun.setComponent(Environment3DComponent{.shadowCascades = 1});
+    windWorld.entities.push_back(sun);
+    assert(windRenderer.renderFrame(windWorld, frame, .125F, error));
+    assert(windCapture.windTimeByView.contains(frame.viewId));
+    assert(windCapture.windTimeByView.contains(frame.viewId + 1));
+    assert(windCapture.windTimeByView.at(frame.viewId) == .125F);
+    assert(windCapture.windTimeByView.at(frame.viewId + 1) == .125F);
+    (void)graphics.endFrame();
+  }
+  {
     World instanceWorld;
     auto owner = shape("instance-owner", "cube", {100.0F, 0.0F, 0.0F});
     auto *mesh = owner.component<MeshRendererComponent>();
@@ -1343,9 +2314,9 @@ int main() {
     mesh->boundsMax = {0.5F, 0.5F, 0.5F};
 
     MeshInstances3DComponent instances;
-    instances.transforms["left"].position = {-101.0F, 0.0F, 0.0F};
-    instances.transforms["right"].position = {-99.0F, 0.0F, 0.0F};
-    instances.transforms["outside"].position = {100.0F, 0.0F, 0.0F};
+    instances.setTransform("left", {.position = {-101.0F, 0.0F, 0.0F}});
+    instances.setTransform("right", {.position = {-99.0F, 0.0F, 0.0F}});
+    instances.setTransform("outside", {.position = {100.0F, 0.0F, 0.0F}});
     owner.setComponent(instances);
     instanceWorld.entities.push_back(owner);
 
@@ -1359,9 +2330,23 @@ int main() {
     assert(capture.instanceDrawCalls == 1);
     (void)graphics.endFrame();
 
+    auto *inlineMesh = instanceWorld.entities.front()
+                           .component<MeshRendererComponent>();
+    inlineMesh->vertices = {{-0.5F, 0, 0}, {0.5F, 0, 0}, {0, 1, 0}};
+    capture.instanceDrawCalls = 0;
+    assert(renderer.renderFrame(instanceWorld, frame, 0.016F, error));
+    assert(capture.instanceDrawCalls == 1);
+    (void)graphics.endFrame();
+
+    instanceWorld.entities.front().setComponent(AnimationPlayer3DComponent{});
+    assert(!renderer.renderFrame(instanceWorld, frame, 0.016F, error));
+    assert(error.find("shared static mesh") != std::string::npos);
+    instanceWorld.entities.front().removeComponent<AnimationPlayer3DComponent>();
+    (void)graphics.endFrame();
+
     instanceWorld.entities.front()
         .component<MeshInstances3DComponent>()
-        ->transforms.clear();
+        ->clearTransforms();
     assert(extractVisibleMeshes3D(instanceWorld, frame).meshes.empty());
   }
   {
@@ -1407,6 +2392,10 @@ int main() {
     const auto reducedTriangles = chunk->triangleCounts[3];
     surface.setComponent(TerrainRenderLod{chunk, "grass", "terrain-owner"});
     terrainWorld.entities.push_back(std::move(surface));
+    // Native TerrainWorld publication registers owned surfaces. Keep this
+    // focused CPU-LOD fixture discoverable by presentation/demand replay too.
+    terrainWorld.terrainOwners.push_back(
+        {.id = "terrain-owner", .surfaces = {"terrain-surface"}});
     auto nearCamera = frame;
     nearCamera.cameraId = "near-camera";
     nearCamera.camera.renderHud = false;
@@ -1697,6 +2686,44 @@ int main() {
     TextureCapture terrainCommands(*commands);
     BgfxRenderer3D gpuTerrain(uploads, terrainCommands);
     assert(gpuTerrain.initialize(error));
+    const auto fixturePath =
+        std::filesystem::temp_directory_path() /
+        ("demi-mapped-residency-" +
+         std::to_string(
+             std::chrono::steady_clock::now().time_since_epoch().count()));
+    std::filesystem::create_directory(fixturePath);
+    struct FixtureCleanup {
+      std::filesystem::path path;
+      ~FixtureCleanup() { std::filesystem::remove_all(path); }
+    } cleanup{fixturePath};
+    const auto materialPath = fixturePath / "terrain.material.json";
+    {
+      std::ofstream output(materialPath);
+      output << R"({
+        "format_version": 1,
+        "shader": "builtin://lit",
+        "textures": {
+          "albedo": "asset://gpu/shared-color",
+          "normal": "asset://gpu/terrain-normal"
+        },
+        "parameters": {"roughness": 0.4}
+      })";
+    }
+    demi::AssetRegistry mappedRegistry;
+    mappedRegistry.assets.push_back({.id = "asset://gpu/terrain-material",
+                                     .type = "Material",
+                                     .sourcePath = materialPath});
+    for (const std::string id :
+         {"asset://gpu/shared-color", "asset://gpu/terrain-normal"}) {
+      demi::AssetManifest image{.id = id, .type = "Texture2D"};
+      image.sourcePath = std::filesystem::path(DEMI_SOURCE_DIR) /
+                         "examples/minimal_3d/assets/textures/checker.png";
+      image.textureSettings.wrap = "repeat";
+      image.textureSettings.mipmaps = true;
+      mappedRegistry.assets.push_back(std::move(image));
+    }
+    std::ranges::sort(mappedRegistry.assets, {}, &demi::AssetManifest::id);
+    assert(gpuTerrain.loadAssets(mappedRegistry, diagnostics));
     TerrainRecipe recipe;
     recipe.size = {16, 16};
     recipe.cellsX = 16;
@@ -1704,6 +2731,9 @@ int main() {
     recipe.chunkCells = 8;
     recipe.landforms.at("default").baseHeight = 0;
     recipe.landforms.at("default").heightVariation = 0;
+    for (auto &[id, biome] : recipe.biomes) {
+      biome.material = "asset://gpu/terrain-material";
+    }
     const auto generated = TerrainGenerator::generate(recipe);
     assert(generated);
     const auto source = std::make_shared<const HeightField>(*generated);
@@ -1730,6 +2760,31 @@ int main() {
     camera.forward = {0, -1, 0};
     camera.up = {0, 0, -1};
     camera.camera.renderHud = false;
+    auto ordinary = shape("shared-material-mesh", "cube", {8, 1, 8});
+    ordinary.component<MeshRendererComponent>()->texture =
+        "asset://gpu/shared-color";
+    terrain.entities.push_back(std::move(ordinary));
+    Entity compatibility;
+    compatibility.id = "warm-up-compatibility";
+    Environment3DComponent warmupSettings;
+    warmupSettings.terrainGpuCacheBytes = 0;
+    compatibility.setComponent(warmupSettings);
+    terrain.entities.push_back(std::move(compatibility));
+    assert(gpuTerrain.renderFrame(terrain, camera, 0.016F, error));
+    static_cast<void>(graphics.endFrame());
+    const auto uploadedHandle = [&](std::string_view name) {
+      for (std::size_t index = 0; index < uploads.textureNames.size();
+           ++index) {
+        if (uploads.textureNames[index] == name) {
+          return uploads.textureHandles[index];
+        }
+      }
+      return TextureHandle{};
+    };
+    const auto fallbackNormal = uploadedHandle("asset://gpu/terrain-normal");
+    const auto sharedColor = uploadedHandle("asset://gpu/shared-color");
+    assert(fallbackNormal && sharedColor);
+    terrain.entities.pop_back();
     const auto deadline =
         std::chrono::steady_clock::now() + std::chrono::seconds(2);
     do {
@@ -1745,10 +2800,20 @@ int main() {
     assert(gpuTerrain.terrainStatistics().gpuSelectedLevels[0] == 4);
     assert(gpuTerrain.terrainStatistics().selectedSurfaces[0] == 0);
     assert(gpuTerrain.terrainStatistics().triangles == 16 * 16 * 2);
+    for (unsigned graceFrame = 0; graceFrame < 2; ++graceFrame) {
+      assert(gpuTerrain.renderFrame(terrain, camera, 0.016F, error));
+      static_cast<void>(graphics.endFrame());
+    }
+    assert(std::find(uploads.retiredTextures.begin(),
+                     uploads.retiredTextures.end(),
+                     fallbackNormal) != uploads.retiredTextures.end());
+    assert(std::find(uploads.retiredTextures.begin(),
+                     uploads.retiredTextures.end(),
+                     sharedColor) == uploads.retiredTextures.end());
     const auto fullGpuUploads = uploads.meshUploads.size();
     assert(gpuTerrain.renderFrame(terrain, camera, 0.016F, error));
     assert(uploads.meshUploads.size() == fullGpuUploads);
-    assert(gpuTerrain.statistics().batches <= 2);
+    assert(gpuTerrain.statistics().batches <= 3);
     static_cast<void>(graphics.endFrame());
 
     // The deliberate compatibility switch returns to complete native Full

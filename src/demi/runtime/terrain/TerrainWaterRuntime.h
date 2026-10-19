@@ -19,7 +19,7 @@ public:
   ~TerrainWaterRuntime();
   TerrainWaterRuntime(const TerrainWaterRuntime &) = delete;
   TerrainWaterRuntime &operator=(const TerrainWaterRuntime &) = delete;
-  std::optional<TerrainWaterSample> sample(World &world, Vec3 position,
+  std::optional<TerrainWaterSample> sample(const World &world, Vec3 position,
                                            std::string_view terrainId = {});
   std::size_t cachedFieldCount() const;
 

@@ -220,7 +220,8 @@ void printHelp() {
       << "  demi build inspect [--project <project>]\n"
       << "  demi build linux [--project <project>] [--output path]\n"
       << "  demi build linux_server [--project <project>] [--output path]\n"
-      << "  demi editor [--project <project>] [--max-frames count]\n";
+      << "  demi editor [--project <project>] [--max-frames count]\n"
+         "              [--max-seconds count] [--profile-frames frames.csv]\n";
 }
 
 int runValidate(const std::vector<std::string> &args) {
@@ -303,10 +304,18 @@ int launchEditor(const std::vector<std::string> &args) {
   const std::filesystem::path editor = executable.parent_path() / "demi-editor";
   std::vector<std::string> arguments{editor.string(), "--project",
                                      project.string()};
-  if (const std::string maximumFrames = valueAfter(args, "--max-frames");
-      !maximumFrames.empty()) {
-    arguments.push_back("--max-frames");
-    arguments.push_back(maximumFrames);
+  for (const std::string option :
+       {"--max-frames", "--max-seconds", "--profile-frames"}) {
+    if (!hasArg(args, option)) {
+      continue;
+    }
+    const std::string value = valueAfter(args, option);
+    if (value.empty() || value.starts_with("--")) {
+      std::cerr << option << " requires a value.\n";
+      return ExitUsageError;
+    }
+    arguments.push_back(option);
+    arguments.push_back(value);
   }
   std::vector<char *> nativeArguments;
   nativeArguments.reserve(arguments.size() + 1);

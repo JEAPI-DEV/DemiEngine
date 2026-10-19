@@ -18,7 +18,6 @@ enum class EditorSourceKind {
   Terrain,
   TerrainFromSelection,
   Data,
-  TerrainMaterial,
   TerrainMaterialSet,
   TerrainPalette
 };

@@ -34,6 +34,7 @@ bool BgfxRenderer3D::drawCosmeticDebris(
                         .cull = CullMode::None,
                         .topology = PrimitiveTopology::Triangles,
                         .writeDepth = false};
+  meshPbr_.reset();
   for (const auto &fragment : fragments) {
     if (!frame.camera.renderMask.empty() && !fragment.renderLayer.empty() &&
         frame.camera.renderMask != fragment.renderLayer)
@@ -53,8 +54,13 @@ bool BgfxRenderer3D::drawCosmeticDebris(
     const std::array<float, 4> tint{fragment.color.r, fragment.color.g,
                                     fragment.color.b, fragment.opacity()};
     uniforms.front().values = tint;
-    const auto texture = textures_.find(fragment.texture);
-    if (!mesh->draw(commands_, frame.viewId, program,
+    const auto texture =
+        materialTexture(fragment.texture, ImageMipSemantic::Color);
+    auto parameters = std::array<float, 4>{};
+    std::copy_n(lighting[7].values.begin(), 4, parameters.begin());
+    parameters[3] = texture.handle && !texture.srgbDecoded ? 1.F : 0.F;
+    uniforms[7].values = parameters;
+    if (!mesh->draw(meshPbr_, frame.viewId, program,
                     texture.handle ? texture.handle : whiteTexture_,
                     meshSampler_,
                     composeMeshTransform3D(
@@ -63,7 +69,7 @@ bool BgfxRenderer3D::drawCosmeticDebris(
                     state, error, uniforms))
       return false;
     ++draws;
-    triangles += mesh->indexCount()/3U;
+    triangles += mesh->indexCount() / 3U;
   }
   return true;
 }

@@ -525,7 +525,9 @@ std::optional<Json> EditorTerrainGraphPanel::drawRiverPath(
                std::all_of(point.begin(), point.end(),
                            [](const Json &coordinate) {
                              return coordinate.is_number() &&
-                                    std::isfinite(coordinate.get<double>());
+                                    std::isfinite(coordinate.get<double>()) &&
+                                    std::abs(coordinate.get<double>()) <=
+                                        std::numeric_limits<float>::max();
                            });
       });
   if (!valid) {
@@ -572,13 +574,16 @@ std::optional<Json> EditorTerrainGraphPanel::drawRiverPath(
     if (finished) {
       if (std::all_of(
               coordinates.begin(), coordinates.end(),
-              [](double coordinate) { return std::isfinite(coordinate); })) {
+              [](double coordinate) {
+                return std::isfinite(coordinate) &&
+                       std::abs(coordinate) <= std::numeric_limits<float>::max();
+              })) {
         if (!edited)
           edited = path;
         (*edited)[index] = {coordinates[0], coordinates[1], coordinates[2]};
       } else {
         ImGui::TextColored({1.0F, 0.48F, 0.48F, 1.0F},
-                           "Waypoint coordinates must be finite.");
+                           "Waypoint coordinates must fit finite floats.");
       }
     } else if (!active && !ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
       coordinates = source;
@@ -903,6 +908,12 @@ void EditorTerrainGraphPanel::drawNode(
         ImGui::TextDisabled("Last generation: reused");
       else
         ImGui::TextDisabled("Last generation: %.2f ms", run->milliseconds);
+      if (selectedNode_ == id && !run->status.empty()) {
+        const float wrapWidth = 240.0F * canvasView_.zoom();
+        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + wrapWidth);
+        ImGui::TextWrapped("%s", run->status.c_str());
+        ImGui::PopTextWrapPos();
+      }
     }
   }
   ImNodes::EndNode();

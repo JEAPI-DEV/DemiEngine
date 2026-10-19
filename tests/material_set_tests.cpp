@@ -1,8 +1,8 @@
 #include "demi/assets/AssetRegistry.h"
 #include "demi/assets/DataAsset.h"
 #include "demi/assets/DataDocument.h"
-#include "demi/assets/MaterialAsset.h"
 #include "demi/assets/MaterialSet.h"
+#include "demi/assets/RenderAsset.h"
 
 #include <algorithm>
 #include <cassert>
@@ -39,8 +39,7 @@ bool write(const std::filesystem::path &path, const std::string_view text) {
 }
 
 AssetManifest manifest(const std::string &id, const std::string &type,
-                       const std::string &source,
-                       std::string settings = "{}",
+                       const std::string &source, std::string settings = "{}",
                        std::vector<std::string> dependencies = {}) {
   return {.id = id,
           .type = type,
@@ -65,15 +64,13 @@ AssetRegistry buildRegistry() {
       manifest(std::string(SchemaId), "DataSchema", "schema.json"),
       manifest(std::string(NotesId), "DataAsset", "notes.json",
                R"({"content_type":"item","tags":[]})"),
-      // Both material carriers are legal role targets: a render Material and a
-      // terrain_material DataAsset.
-      manifest(std::string(RenderMaterialId), "Material", "stone.material.json"),
-      manifest(std::string(TerrainMaterialId), "DataAsset", "clay.json",
-               R"({"content_type":"terrain_material","tags":[]})"),
+      // Both roles bind ordinary Material assets.
+      manifest(std::string(RenderMaterialId), "Material",
+               "stone.material.json"),
+      manifest(std::string(TerrainMaterialId), "Material", "clay.json"),
       // Declares the right content type but names a map slot that does not
       // exist, so only the material loader can reject it.
-      manifest(std::string(BrokenMaterialId), "DataAsset", "broken.json",
-               R"({"content_type":"terrain_material","tags":[]})"),
+      manifest(std::string(BrokenMaterialId), "Material", "broken.json"),
       manifest(std::string(AudioId), "AudioClip", "wind.audio.json"),
       manifest(std::string(SetId), "DataAsset", "set.json",
                R"({"content_type":"terrain_material_set","schema":")" +
@@ -143,9 +140,8 @@ constexpr std::string_view Full = R"json({
 })json";
 
 bool containsCode(const Diagnostics &diagnostics, const std::string_view code) {
-  return std::ranges::any_of(diagnostics, [&](const Diagnostic &item) {
-    return item.code == code;
-  });
+  return std::ranges::any_of(
+      diagnostics, [&](const Diagnostic &item) { return item.code == code; });
 }
 
 void validSetLoads() {
@@ -168,9 +164,9 @@ void validSetLoads() {
   assert(full->roles.at("rock") == RenderMaterialId);
   assert(full->roles.at("sediment") == TerrainMaterialId);
   // required_roles is normalized, so a duplicated authored entry collapses.
-  assert((full->requiredRoles == std::vector<std::string>{"cliff", "grass",
-                                                           "rock", "snow",
-                                                           "wet_ground"}));
+  assert(
+      (full->requiredRoles == std::vector<std::string>{"cliff", "grass", "rock",
+                                                       "snow", "wet_ground"}));
 }
 
 void roleVocabularyRoundTrips() {
@@ -201,8 +197,8 @@ void roleVocabularyRoundTrips() {
 }
 
 void rejectsInvalidDocumentHeader() {
-  // The DataAsset layer rejects a wrong format_version before the set rules run,
-  // so the set's own header rules are exercised through the document entry
+  // The DataAsset layer rejects a wrong format_version before the set rules
+  // run, so the set's own header rules are exercised through the document entry
   // point a Data.load consumer uses.
   auto rejectionMessage = [](const std::string_view document) -> std::string {
     const DataDocumentResult parsed = parseDataDocument(document);
@@ -214,24 +210,32 @@ void rejectsInvalidDocumentHeader() {
     }
     return std::string();
   };
-  assert(rejectionMessage(
-             R"json({"format_version":2,"name":"Test","roles":{"rock":"asset://materials/stone"}})json")
-             .find("format_version: must be 1") != std::string::npos);
-  assert(rejectionMessage(R"json({"name":"Test","roles":{"rock":"asset://materials/stone"}})json")
-             .find("format_version: is required") != std::string::npos);
-  assert(rejectionMessage(R"([1,2,3])")
-             .find("document: must be an object") != std::string::npos);
-  expectRejected(R"json({"format_version":1,"roles":{"rock":"asset://materials/stone"}})json",
-                 "name: is required");
-  expectRejected(R"json({"format_version":1,"name":"","roles":{"rock":"asset://materials/stone"}})json",
-                 "name: must be a non-empty string");
-  expectRejected(R"json({"format_version":1,"name":3,"roles":{"rock":"asset://materials/stone"}})json",
-                 "name: must be a string");
-  expectRejected(R"json({"format_version":1,"name":"Test","roles":{"rock":"asset://materials/stone"},"description":7})json",
-                 "description: must be a string");
+  assert(
+      rejectionMessage(
+          R"json({"format_version":2,"name":"Test","roles":{"rock":"asset://materials/stone"}})json")
+          .find("format_version: must be 1") != std::string::npos);
+  assert(
+      rejectionMessage(
+          R"json({"name":"Test","roles":{"rock":"asset://materials/stone"}})json")
+          .find("format_version: is required") != std::string::npos);
+  assert(rejectionMessage(R"([1,2,3])").find("document: must be an object") !=
+         std::string::npos);
+  expectRejected(
+      R"json({"format_version":1,"roles":{"rock":"asset://materials/stone"}})json",
+      "name: is required");
+  expectRejected(
+      R"json({"format_version":1,"name":"","roles":{"rock":"asset://materials/stone"}})json",
+      "name: must be a non-empty string");
+  expectRejected(
+      R"json({"format_version":1,"name":3,"roles":{"rock":"asset://materials/stone"}})json",
+      "name: must be a string");
+  expectRejected(
+      R"json({"format_version":1,"name":"Test","roles":{"rock":"asset://materials/stone"},"description":7})json",
+      "description: must be a string");
   // A misspelled top-level key would otherwise be silently ignored.
-  expectRejected(R"json({"format_version":1,"name":"Test","roles":{"rock":"asset://materials/stone"},"require_roles":["rock"]})json",
-                 "document: has unknown field \"require_roles\"");
+  expectRejected(
+      R"json({"format_version":1,"name":"Test","roles":{"rock":"asset://materials/stone"},"require_roles":["rock"]})json",
+      "document: has unknown field \"require_roles\"");
 }
 
 void rejectsUnknownRole() {
@@ -239,9 +243,10 @@ void rejectsUnknownRole() {
       R"json({"format_version":1,"name":"Test","roles":{"moss":"asset://materials/stone"}})json",
       "roles/moss: is not a known role");
   // The message has to name the vocabulary, otherwise a typo stays a typo.
-  assert(rejection(
-             R"json({"format_version":1,"name":"Test","roles":{"moss":"asset://materials/stone"}})json")
-             .find("underwater") != std::string::npos);
+  assert(
+      rejection(
+          R"json({"format_version":1,"name":"Test","roles":{"moss":"asset://materials/stone"}})json")
+          .find("underwater") != std::string::npos);
   // A scatter prop is not a surface role; the vocabulary deliberately does not
   // cover props.
   expectRejected(
@@ -263,8 +268,9 @@ void rejectsInvalidRoleMaterial() {
   expectRejected(
       R"json({"format_version":1,"name":"Test","roles":{"rock":3}})json",
       "roles/rock: must be a string");
-  expectRejected(R"json({"format_version":1,"name":"Test","roles":{"rock":""}})json",
-                 "roles/rock: must not be empty");
+  expectRejected(
+      R"json({"format_version":1,"name":"Test","roles":{"rock":""}})json",
+      "roles/rock: must not be empty");
   expectRejected(
       R"json({"format_version":1,"name":"Test","roles":{"rock":"materials/stone"}})json",
       "roles/rock: must be an asset:// reference");
@@ -283,9 +289,11 @@ void rejectsInvalidRoleMaterial() {
   expectRejected(
       R"json({"format_version":1,"name":"Test","roles":{"rock":"asset://materials/broken"}})json",
       "roles/rock: references a material that does not load");
-  assert(rejection(
-             R"json({"format_version":1,"name":"Test","roles":{"rock":"asset://materials/broken"}})json")
-             .find("has unknown map slot \"nomal\"") != std::string::npos);
+  assert(
+      rejection(
+          R"json({"format_version":1,"name":"Test","roles":{"rock":"asset://materials/broken"}})json")
+          .find("Unknown built-in material texture slot: nomal") !=
+      std::string::npos);
 }
 
 void rejectsInvalidRequiredRoles() {
@@ -304,8 +312,8 @@ void rejectsInvalidRequiredRoles() {
   const auto loaded = load(
       R"json({"format_version":1,"name":"Test","roles":{"rock":"asset://materials/stone","sediment":"asset://materials/clay"},"required_roles":["sediment","rock"]})json");
   assert(loaded.has_value());
-  assert((loaded->requiredRoles ==
-          std::vector<std::string>{"rock", "sediment"}));
+  assert(
+      (loaded->requiredRoles == std::vector<std::string>{"rock", "sediment"}));
 }
 
 void dependenciesAreSortedAndDeduped() {
@@ -319,10 +327,10 @@ void dependenciesAreSortedAndDeduped() {
   // Repeating the query cannot reorder or duplicate anything.
   assert(loaded->assetDependencies() == loaded->assetDependencies());
   assert(loaded->assetDependencies().size() == 2);
-  assert(std::ranges::none_of(loaded->assetDependencies(),
-                              [](const std::string &id) {
-                                return id == "asset://schemas/terrain_material_set";
-                              }));
+  assert(std::ranges::none_of(
+      loaded->assetDependencies(), [](const std::string &id) {
+        return id == "asset://schemas/terrain_material_set";
+      }));
 }
 
 void loadingIsDeterministic() {
@@ -330,10 +338,11 @@ void loadingIsDeterministic() {
   const std::string second = describe(*load(Full));
   assert(first == second);
   // A role map is key-sorted, so a differently ordered document is identical.
-  assert(describe(*load(
-             R"json({"roles":{"sediment":"asset://materials/clay"},"name":"Order","format_version":1})json")) ==
-         describe(*load(
-             R"json({"format_version":1,"name":"Order","roles":{"sediment":"asset://materials/clay"}})json")));
+  assert(
+      describe(*load(
+          R"json({"roles":{"sediment":"asset://materials/clay"},"name":"Order","format_version":1})json")) ==
+      describe(*load(
+          R"json({"format_version":1,"name":"Order","roles":{"sediment":"asset://materials/clay"}})json")));
 }
 
 void rejectsWrongManifestKind() {
@@ -342,22 +351,24 @@ void rejectsWrongManifestKind() {
     (void)loadTerrainMaterialSet(registry, RenderMaterialId);
     assert(false);
   } catch (const std::invalid_argument &failure) {
-    assert(std::string(failure.what())
-               .find("must be a DataAsset: asset://materials/stone is Material") !=
-           std::string::npos);
+    assert(
+        std::string(failure.what())
+            .find("must be a DataAsset: asset://materials/stone is Material") !=
+        std::string::npos);
   }
   try {
     (void)loadTerrainMaterialSet(registry, SchemaId);
     assert(false);
   } catch (const std::invalid_argument &failure) {
-    assert(std::string(failure.what())
-               .find("must be a DataAsset: asset://schemas/terrain_material_set "
-                     "is DataSchema") != std::string::npos);
+    assert(
+        std::string(failure.what())
+            .find("must be a DataAsset: asset://schemas/terrain_material_set "
+                  "is DataSchema") != std::string::npos);
   }
   // A DataAsset with a different content type is a different document kind,
   // even though it carries the same role references.
   try {
-    (void)loadTerrainMaterialSet(registry, TerrainMaterialId);
+    (void)loadTerrainMaterialSet(registry, NotesId);
     assert(false);
   } catch (const std::invalid_argument &failure) {
     assert(std::string(failure.what())
@@ -410,9 +421,9 @@ void exampleMaterialSetLoadsFromDisk() {
     assert(target != nullptr);
     assert(target->type == "Material");
   }
-  assert((set->requiredRoles == std::vector<std::string>{"cliff", "grass",
-                                                          "rock", "snow",
-                                                          "wet_ground"}));
+  assert(
+      (set->requiredRoles == std::vector<std::string>{"cliff", "grass", "rock",
+                                                      "snow", "wet_ground"}));
   const std::vector<std::string> dependencies = set->assetDependencies();
   // ground and sediment share the soil material.
   assert(dependencies.size() == 7);
@@ -439,11 +450,13 @@ int main() {
   std::filesystem::create_directories(root, filesystemError);
   // Only the DataAsset sources are ever read by these tests; the role targets
   // are resolved by id.
+  assert(write(root / "stone.material.json", R"({"format_version":1})"));
   assert(write(root / "notes.json", R"({"format_version":1,"note":"x"})"));
   assert(write(root / "clay.json",
-               R"({"format_version":1,"name":"Clay"})"));
-  assert(write(root / "broken.json",
-               R"({"format_version":1,"name":"Broken","maps":[{"nomal":"asset://materials/clay"}]})"));
+               R"({"format_version":1,"shader":"builtin://lit"})"));
+  assert(write(
+      root / "broken.json",
+      R"({"format_version":1,"textures":{"nomal":"asset://materials/clay"}})"));
   assert(write(root / "schema.json", R"({
         "format_version": 1,
         "type": "object",

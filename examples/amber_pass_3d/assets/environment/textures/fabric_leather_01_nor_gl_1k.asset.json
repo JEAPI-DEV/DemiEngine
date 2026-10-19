@@ -1,0 +1,15 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://amber_pass/textures/rider_leather/normal",
+  "importer": "image",
+  "importer_version": 1,
+  "settings": {
+    "filter": "trilinear",
+    "mipmaps": true,
+    "wrap": "repeat"
+  },
+  "source": "fabric_leather_01_nor_gl_1k.png",
+  "source_hash": "fnv1a64:be52d5a92d508a24",
+  "type": "Texture2D"
+}

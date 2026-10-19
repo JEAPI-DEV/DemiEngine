@@ -9,7 +9,9 @@
 #include "demi/runtime/scene/components/EngineComponents.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <future>
 #include <iostream>
 #include <utility>
 
@@ -728,6 +730,101 @@ bool testCharacterAndCameraMath() {
   return true;
 }
 
+bool testOffsetCharacterRetainsSupportAfterMoving() {
+  for (const bool capsule : {true, false}) {
+    for (const float centerHeight : {1.0F, 1.125F}) {
+      for (const bool prepared : {false, true}) {
+        World world;
+        Entity origin;
+        origin.id = "terrain_origin";
+        origin.setComponent(Transform3DComponent{.position = {-360, 0, -200}});
+        world.entities.push_back(std::move(origin));
+        auto geometry = std::make_shared<ColliderAsset3D>();
+        geometry->revision = 1;
+        for (int z = 192; z < 256; z += 2) {
+          for (int x = 320; x < 384; x += 2) {
+            const Vec3 a{float(x), 0, float(z)};
+            const Vec3 b{float(x), 0, float(z + 2)};
+            const Vec3 c{float(x + 2), 0, float(z + 2)};
+            const Vec3 d{float(x + 2), 0, float(z)};
+            geometry->triangles.push_back({a, b, c});
+            geometry->triangles.push_back({a, c, d});
+          }
+        }
+        Entity floor;
+        floor.id = "grid_floor";
+        floor.setComponent(Transform3DComponent{.parent = "terrain_origin"});
+        ModelCollider3DComponent terrainCollider;
+        terrainCollider.inlineGeometry = std::move(geometry);
+        floor.setComponent(std::move(terrainCollider));
+        world.entities.push_back(std::move(floor));
+        Entity rider;
+        rider.id = "foot_origin_character";
+        rider.setComponent(Transform3DComponent{.position = {0, 0.8F, 0},
+                                                .rotation = {0, -0.021F, 0}});
+        rider.setComponent(CharacterController3DComponent{
+            .stepHeight = 0.45F, .slopeLimit = 48, .gravity = -22});
+        if (capsule) {
+          rider.setComponent(CapsuleCollider3DComponent{
+              .radius = 0.6F, .height = 2, .offset = {0, centerHeight, 0}});
+        } else {
+          rider.setComponent(BoxCollider3DComponent{
+              .size = {1.2F, 2, 1.2F}, .offset = {0, centerHeight, 0}});
+        }
+        world.entities.push_back(std::move(rider));
+        if (prepared) {
+          std::string error;
+          if (!preparePhysicsShapes3D(world, error)) {
+            std::cerr << "Foot-origin fixture shape preparation failed: "
+                      << error << '\n';
+            return false;
+          }
+        }
+        for (int frame = 0; frame < 60; ++frame) {
+          stepPhysics3D(world, 1.0F / 60.0F, {});
+        }
+        // Walking over translated terrain triangles can put a contact a few
+        // floating-point units above visual-origin Y=0. Such contacts still lie
+        // below the offset collider's center and must remain valid support.
+        for (int segment = 0; segment < 8; ++segment) {
+          float speed = 0.0F;
+          for (int frame = 0; frame < 60; ++frame) {
+            speed = 3.2F * float(frame + 1) / 60.0F;
+            if (!setCharacterVelocity3D(world, "foot_origin_character",
+                                        {-0.021F * speed, 0, speed})) {
+              return false;
+            }
+            stepPhysics3D(world, 1.0F / 60.0F, {});
+          }
+          for (int frame = 0; frame < 60; ++frame) {
+            speed = std::max(0.0F, speed - 40.0F / 60.0F);
+            if (!setCharacterVelocity3D(world, "foot_origin_character",
+                                        {-0.021F * speed, 0, speed})) {
+              return false;
+            }
+            stepPhysics3D(world, 1.0F / 60.0F, {});
+          }
+          const auto *character = findEntity(world, "foot_origin_character");
+          const auto *controller =
+              character->component<CharacterController3DComponent>();
+          const auto position =
+              character->component<Transform3DComponent>()->position;
+          if (!controller->grounded ||
+              controller->groundEntity != "grid_floor" ||
+              !near(position.y, 1.0F - centerHeight, 0.03F)) {
+            std::cerr << "Offset " << (capsule ? "capsule" : "box")
+                      << " lost support after movement segment " << segment
+                      << " (prepared=" << prepared << ", Y=" << position.y
+                      << ").\n";
+            return false;
+          }
+        }
+      }
+    }
+  }
+  return true;
+}
+
 bool testCharacterUsesSelectedBoxCollider() {
   const Vec3 starts[]{{-3.0F, 0.0F, 0.0F},
                       {3.0F, 0.0F, 0.0F},
@@ -1039,6 +1136,276 @@ bool testDeterministicReplay() {
   return true;
 }
 
+class PhysicsPreparationProfile {
+public:
+  PhysicsPreparationProfile() {
+    RuntimeProfiler::setEnabled(true);
+    RuntimeProfiler::resetSession();
+  }
+  ~PhysicsPreparationProfile() { RuntimeProfiler::setEnabled(false); }
+};
+
+int physicsProfileCalls(const std::string &name) {
+  const auto entries = RuntimeProfiler::sessionEntries();
+  const auto found =
+      std::ranges::find(entries, name, &RuntimeProfiler::Entry::name);
+  return found == entries.end() ? 0 : found->calls;
+}
+
+double physicsProfileGauge(const std::string &name) {
+  const auto entries = RuntimeProfiler::sessionEntries();
+  const auto found =
+      std::ranges::find(entries, name, &RuntimeProfiler::Entry::name);
+  return found == entries.end() || !found->hasGauge ? -1.0 : found->gauge;
+}
+
+bool prepareOnWorker(World &world, std::string &error) {
+  auto preparation = std::async(
+      std::launch::async, [&] { return preparePhysicsShapes3D(world, error); });
+  return preparation.get();
+}
+
+World sharedModelColliderScene() {
+  World world;
+  ColliderAsset3D source;
+  source.size = {2.0F, 0.01F, 2.0F};
+  source.revision = 1;
+  source.triangles = {
+      {{-1, 0, -1}, {-1, 0, 1}, {1, 0, 1}},
+      {{-1, 0, -1}, {1, 0, 1}, {1, 0, -1}},
+  };
+  world.colliderAssets3D.emplace("asset://shared-plane", std::move(source));
+  const std::array<Vec3, 3> scales{Vec3{1, 1, 1}, Vec3{2, 1, 3},
+                                   Vec3{0.5F, 2, 0.75F}};
+  for (std::size_t index = 0; index < scales.size(); ++index) {
+    Entity entity;
+    entity.id = "plane_" + std::to_string(index);
+    Transform3DComponent transform;
+    transform.position = {float(index) * 10.0F, 0, 0};
+    transform.scale = scales[index];
+    entity.setComponent(transform);
+    ModelCollider3DComponent collider;
+    collider.asset = "asset://shared-plane";
+    collider.layer = "prepared";
+    entity.setComponent(collider);
+    world.entities.push_back(std::move(entity));
+  }
+  return world;
+}
+
+bool testPreparedShapesAndScaledModelReuse() {
+  World world = sharedModelColliderScene();
+  std::string error;
+  if (!prepareOnWorker(world, error) || !world.preparedPhysicsShapes3D ||
+      world.physicsWorld3D) {
+    std::cerr
+        << "Worker shape preparation must own shapes without a simulation: "
+        << error << '\n';
+    return false;
+  }
+  PhysicsPreparationProfile profile;
+  stepPhysics3D(world, 1.0F / 60.0F, {});
+  if (world.preparedPhysicsShapes3D ||
+      physicsProfileCalls("Physics3D.create_shape") != 0 ||
+      physicsProfileGauge("Physics3D.prepared_shapes") != 3 ||
+      physicsProfileGauge("Physics3D.prepared_model_geometries") != 1) {
+    std::cerr << "Prepared instances must adopt three shapes from one model "
+                 "geometry without recooking.\n";
+    return false;
+  }
+  auto &physics = ensurePhysicsWorld3D(world);
+  const auto wideHit =
+      physics.raycast({11.5F, 3, 0}, {0, -1, 0}, 5, "prepared");
+  const auto longHit =
+      physics.raycast({10, 3, 2.5F}, {0, -1, 0}, 5, "prepared");
+  const auto outside =
+      physics.raycast({12.5F, 3, 0}, {0, -1, 0}, 5, "prepared");
+  if (!wideHit || !longHit || outside || wideHit->entityId != "plane_1" ||
+      !near(wideHit->point.y, 0.0F, 0.001F)) {
+    std::cerr << "Shared model decorations must preserve nonuniform scaled "
+                 "collision bounds.\n";
+    return false;
+  }
+  findEntity(world, "plane_2")->component<Transform3DComponent>()->scale.x =
+      0.75F;
+  stepPhysics3D(world, 1.0F / 60.0F, {});
+  if (physicsProfileCalls("Physics3D.create_shape") != 1) {
+    std::cerr << "A live scale change must invalidate exactly its native body "
+                 "shape.\n";
+    return false;
+  }
+  auto &source = world.colliderAssets3D.at("asset://shared-plane");
+  for (auto &triangle : source.triangles) {
+    triangle.a.y = 0.5F;
+    triangle.b.y = 0.5F;
+    triangle.c.y = 0.5F;
+  }
+  ++source.revision;
+  stepPhysics3D(world, 1.0F / 60.0F, {});
+  const auto changed = physics.raycast({20, 3, 0}, {0, -1, 0}, 5, "prepared");
+  if (physicsProfileCalls("Physics3D.create_shape") != 4 || !changed ||
+      !near(changed->point.y, 1.0F, 0.001F)) {
+    std::cerr << "Model revision changes must refresh every shared scaled "
+                 "instance.\n";
+    return false;
+  }
+  return true;
+}
+
+bool testPreparedCompoundScalePreservesPartsAndFilters() {
+  World world;
+  ColliderAsset3D source;
+  source.revision = 1;
+  ColliderPart3D part;
+  part.id = "offset_block";
+  part.density = 2400.0F;
+  for (const float x : {0.5F, 1.5F}) {
+    for (const float y : {-0.5F, 0.5F}) {
+      for (const float z : {-0.5F, 0.5F}) {
+        part.points.push_back({x, y, z});
+      }
+    }
+  }
+  source.parts.push_back(std::move(part));
+  world.colliderAssets3D.emplace("asset://compound", std::move(source));
+  for (int index = 0; index < 2; ++index) {
+    Entity entity;
+    entity.id = index == 0 ? "positive_compound" : "negative_compound";
+    Transform3DComponent transform;
+    transform.position = {index * 10.0F, 0, 0};
+    transform.scale = {index == 0 ? 2.0F : -2.0F, 1, 1};
+    entity.setComponent(transform);
+    ModelCollider3DComponent collider;
+    collider.asset = "asset://compound";
+    collider.layer = "compound_layer";
+    collider.isTrigger = index == 1;
+    entity.setComponent(collider);
+    world.entities.push_back(std::move(entity));
+  }
+  std::string error;
+  if (!prepareOnWorker(world, error)) {
+    std::cerr << "Compound shape preparation failed: " << error << '\n';
+    return false;
+  }
+  PhysicsPreparationProfile profile;
+  stepPhysics3D(world, 1.0F / 60.0F, {});
+  auto &physics = ensurePhysicsWorld3D(world);
+  const auto positive =
+      physics.raycast({2, 3, 0}, {0, -1, 0}, 5, "compound_layer");
+  const auto negative =
+      physics.raycast({8, 3, 0}, {0, -1, 0}, 5, "compound_layer");
+  if (!positive || !negative || positive->colliderPartId != "offset_block" ||
+      negative->colliderPartId != "offset_block" || positive->isTrigger ||
+      !negative->isTrigger ||
+      physicsProfileGauge("Physics3D.prepared_model_geometries") != 1 ||
+      physicsProfileCalls("Physics3D.create_shape") != 0) {
+    std::cerr << "Scaled compound reuse changed signed geometry, stable part "
+                 "IDs, or trigger/layer policy.\n";
+    return false;
+  }
+  return true;
+}
+
+bool testPreparedShapeSignatureInvalidation() {
+  World world;
+  world.entities.push_back(box("prepared_box", {}, {1, 1, 1}, "static"));
+  std::string error;
+  if (!prepareOnWorker(world, error)) {
+    return false;
+  }
+  auto *collider = world.entities.front().component<BoxCollider3DComponent>();
+  collider->size.x = 4.0F;
+  PhysicsPreparationProfile profile;
+  stepPhysics3D(world, 1.0F / 60.0F, {});
+  const auto hit =
+      ensurePhysicsWorld3D(world).raycast({1.5F, 3, 0}, {0, -1, 0}, 5);
+  if (!hit || physicsProfileCalls("Physics3D.create_shape") != 1) {
+    std::cerr << "A collider edited after preparation must not adopt its stale "
+                 "shape.\n";
+    return false;
+  }
+  return true;
+}
+
+bool testAdditivePreparedShapesRetainRunningWorld() {
+  World active;
+  active.entities.push_back(box("existing", {0, 0, 0}, {1, 1, 1}, "static"));
+  stepPhysics3D(active, 1.0F / 60.0F, {});
+  const auto originalPhysics = active.physicsWorld3D;
+  World incoming;
+  incoming.entities.push_back(box("incoming", {5, 0, 0}, {2, 2, 2}, "static"));
+  std::string error;
+  if (!prepareOnWorker(incoming, error)) {
+    return false;
+  }
+  PhysicsPreparationProfile profile;
+  adoptPreparedPhysicsShapes3D(active, incoming);
+  active.entities.push_back(std::move(incoming.entities.front()));
+  stepPhysics3D(active, 1.0F / 60.0F, {});
+  const auto existing = originalPhysics->raycast({0, 3, 0}, {0, -1, 0}, 5);
+  const auto added = originalPhysics->raycast({5, 3, 0}, {0, -1, 0}, 5);
+  if (active.physicsWorld3D != originalPhysics ||
+      incoming.preparedPhysicsShapes3D ||
+      physicsProfileCalls("Physics3D.create_shape") != 0 || !existing ||
+      !added || existing->entityId != "existing" ||
+      added->entityId != "incoming") {
+    std::cerr << "Additive adoption must retain the live physics owner and use "
+                 "prepared incoming shapes.\n";
+    return false;
+  }
+  return true;
+}
+
+bool testAbandonedAndFailedShapePreparation() {
+  World active;
+  active.entities.push_back(box("moving", {}, {1, 1, 1}, "dynamic", {1, 0, 0}));
+  stepPhysics3D(active, 1.0F / 60.0F, {});
+  const auto originalPhysics = active.physicsWorld3D;
+  const float before =
+      active.entities.front().component<Transform3DComponent>()->position.x;
+  for (int attempt = 0; attempt < 8; ++attempt) {
+    std::weak_ptr<PreparedPhysicsShapes3D> retired;
+    {
+      World cancelled;
+      cancelled.entities.push_back(box("cancelled", {}, {1, 1, 1}, "static"));
+      std::string error;
+      if (!prepareOnWorker(cancelled, error)) {
+        return false;
+      }
+      retired = cancelled.preparedPhysicsShapes3D;
+    }
+    if (!retired.expired()) {
+      std::cerr
+          << "Discarded scene preparation retained its native shape owner.\n";
+      return false;
+    }
+  }
+  World failed;
+  failed.entities.push_back(box("valid_first", {}, {1, 1, 1}, "static"));
+  Entity invalid;
+  invalid.id = "invalid_hull";
+  invalid.setComponent(Transform3DComponent{});
+  invalid.setComponent(ConvexCollider3DComponent{});
+  failed.entities.push_back(std::move(invalid));
+  std::string error;
+  if (prepareOnWorker(failed, error) || failed.preparedPhysicsShapes3D ||
+      failed.physicsWorld3D ||
+      error.find("invalid_hull") == std::string::npos) {
+    std::cerr
+        << "Failed native shape preparation published incomplete state.\n";
+    return false;
+  }
+  stepPhysics3D(active, 1.0F / 60.0F, {});
+  if (active.physicsWorld3D != originalPhysics ||
+      active.entities.front().component<Transform3DComponent>()->position.x <=
+          before) {
+    std::cerr << "Cancelled or failed shape preparation disturbed the running "
+                 "simulation.\n";
+    return false;
+  }
+  return true;
+}
+
 bool testColliderShapeCachingAndInvalidation() {
   RuntimeProfiler::setEnabled(true);
   RuntimeProfiler::resetSession();
@@ -1221,11 +1588,17 @@ int main() {
       !testCollisionFromEverySide() || !testContinuousCollisionAndCommands() ||
       !testTriggersAndFiltering() || !testCharacterAndCameraMath() ||
       !testCharacterUsesSelectedBoxCollider() ||
+      !testOffsetCharacterRetainsSupportAfterMoving() ||
       !testAirborneJumpRequestIsNotBufferedByPhysics() ||
       !testShapeQueriesAndColliderKinds() || !testSolidOnlySphereCast() ||
       !testCharacterStepAndMovingPlatform() ||
       !testRepeatedLifetimeAndInterpolation() || !testDeterministicReplay() ||
-      !testColliderShapeCachingAndInvalidation())
+      !testColliderShapeCachingAndInvalidation() ||
+      !testPreparedShapesAndScaledModelReuse() ||
+      !testPreparedShapeSignatureInvalidation() ||
+      !testPreparedCompoundScalePreservesPartsAndFilters() ||
+      !testAdditivePreparedShapesRetainRunningWorld() ||
+      !testAbandonedAndFailedShapePreparation())
     return 1;
 
   return 0;

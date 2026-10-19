@@ -7,6 +7,8 @@ add_library(demi-core STATIC
   src/demi/runtime/terrain/TerrainGraphExecutor.cpp
   src/demi/runtime/terrain/TerrainGraphNodeEvaluation.cpp
   src/demi/runtime/terrain/TerrainGraphSpatialMasks.cpp
+  src/demi/runtime/terrain/TerrainGraphWater.cpp
+  src/demi/runtime/terrain/TerrainGraphWaterAuthoring.cpp
   src/demi/runtime/terrain/TerrainGraphSedimentMasks.cpp
   src/demi/runtime/terrain/TerrainLandform.cpp
   src/demi/runtime/terrain/TerrainRecipe.cpp
@@ -25,14 +27,17 @@ add_library(demi-core STATIC
   src/demi/runtime/terrain/TerrainGeneration.cpp
   src/demi/runtime/terrain/TerrainPipeline.cpp
   src/demi/runtime/terrain/TerrainDrainage.cpp
+  src/demi/runtime/terrain/TerrainDrainageRoute.cpp
   src/demi/runtime/terrain/TerrainErosion.cpp
+  # Scene-facing prepared-water queries are shared by rendering and gameplay;
+  # they must not depend on the application/runtime composition library.
+  src/demi/runtime/terrain/TerrainWaterRuntime.cpp
   src/demi/runtime/terrain/TerrainWaterDiagnostics.cpp
   src/demi/runtime/terrain/TerrainScatterConstraints.cpp
   src/demi/runtime/terrain/TerrainMaskBuilder.cpp
   src/demi/runtime/terrain/TerrainSurfaceMaterials.cpp
+  src/demi/runtime/terrain/TerrainSurfaceSediment.cpp
   src/demi/runtime/terrain/TerrainMaterialLayers.cpp
-  src/demi/runtime/terrain/TerrainMaterialBlend.cpp
-  src/demi/runtime/terrain/TerrainTextureResidency.cpp
   src/demi/runtime/terrain/TerrainScatterLayout.cpp
   src/demi/runtime/terrain/TerrainCook.cpp
   src/demi/runtime/terrain/TerrainCookFormat.cpp
@@ -80,7 +85,7 @@ add_library(demi-core STATIC
   src/demi/assets/GltfSkinnedModel.cpp
   src/demi/assets/AssetSourceFiles.cpp
   src/demi/assets/DataValueRead.cpp
-  src/demi/assets/MaterialAsset.cpp
+  src/demi/assets/MaterialSurface.cpp
   src/demi/assets/MaterialSet.cpp
   src/demi/assets/TerrainAssetValidation.cpp
   src/demi/assets/TerrainAssetCook.cpp

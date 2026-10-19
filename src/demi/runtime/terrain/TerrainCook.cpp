@@ -85,6 +85,10 @@ cookTerrainField(const TerrainCookInput &input, std::string *error) {
   cooked.seaLevel = input.water.seaLevel;
   cooked.baseHeights = cook_format::flatten(field.baseHeights);
   cooked.heights = cook_format::flatten(field.heights);
+  if (field.surfaceSedimentBalance) {
+    cooked.surfaceSedimentBalance =
+        cook_format::flatten(*field.surfaceSedimentBalance);
+  }
   cooked.biomeIndices = cook_format::flattenIndices(field.biomeIndices);
   cooked.exclusions = cook_format::flatten(field.exclusions);
   cooked.normalsX.reserve(samples);
@@ -200,6 +204,14 @@ loadTerrainCookedField(const TerrainCookedField &field) {
     loaded->biomeIndices.set(index, std::size_t(field.biomeIndices[index]));
     loaded->exclusions.set(index, field.exclusions[index]);
   }
+  if (!field.surfaceSedimentBalance.empty()) {
+    auto balance = std::make_shared<TerrainSamples<float>>();
+    balance->resize(samples);
+    for (std::size_t sample = 0; sample < samples; ++sample) {
+      balance->set(sample, field.surfaceSedimentBalance[sample]);
+    }
+    loaded->surfaceSedimentBalance = std::move(balance);
+  }
   loaded->biomeIds = field.biomeIds;
   loaded->biomeColors = field.biomeColors;
   loaded->biomeMaterials = field.biomeMaterials;
@@ -259,6 +271,13 @@ std::string terrainCookStaleness(const TerrainCookedField &cached,
         material != cached.biomeMaterials[index] ||
         scale != cached.biomeTextureScales[index])
       return "appearance";
+  }
+  const auto selectedBalance =
+      field.surfaceSedimentBalance
+          ? cook_format::flatten(*field.surfaceSedimentBalance)
+          : std::vector<float>{};
+  if (cached.surfaceSedimentBalance != selectedBalance) {
+    return "surface_sediment";
   }
   if (cached.stageOrder != field.stageOrder || cached.quality != field.quality)
     return "grid";

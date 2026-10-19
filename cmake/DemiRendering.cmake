@@ -58,107 +58,113 @@ add_custom_command(
     -o "${DEMI_BGFX_BUILTIN_SHADER_DIR}/fs_demi_directional_glsl.h"
     --type fragment --platform linux -p 140 --define DEMI_DIRECTIONAL_ONLY=1
     --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
-    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c fs_demi_directional_glsl
+    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" -i "${DEMI_PERFORMANCE_DEBUG_GENERATED_DIR}" --bin2c fs_demi_directional_glsl
   COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/fs_demi_lit.sc"
     -o "${DEMI_BGFX_BUILTIN_SHADER_DIR}/fs_demi_directional_essl.h"
     --type fragment --platform android -p 100_es --define DEMI_DIRECTIONAL_ONLY=1
     --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
-    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c fs_demi_directional_essl
+    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" -i "${DEMI_PERFORMANCE_DEBUG_GENERATED_DIR}" --bin2c fs_demi_directional_essl
   COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/fs_demi_lit.sc"
     -o "${DEMI_BGFX_BUILTIN_SHADER_DIR}/fs_demi_directional_spv.h"
     --type fragment --platform linux -p spirv --define DEMI_DIRECTIONAL_ONLY=1
     --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
-    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c fs_demi_directional_spv
+    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" -i "${DEMI_PERFORMANCE_DEBUG_GENERATED_DIR}" --bin2c fs_demi_directional_spv
   COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_skinned.sc"
     -o "${DEMI_BGFX_BUILTIN_SHADER_DIR}/vs_demi_skinned_spv.h"
     --type vertex --platform linux -p spirv
     --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
-    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c vs_demi_skinned_spv
+    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" -i "${DEMI_PERFORMANCE_DEBUG_GENERATED_DIR}" --bin2c vs_demi_skinned_spv
   COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_lit.sc"
     -o "${DEMI_BGFX_BUILTIN_SHADER_DIR}/vs_demi_lit_glsl.h"
     --type vertex --platform linux -p 140
     --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
-    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c vs_demi_lit_glsl
+    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" -i "${DEMI_PERFORMANCE_DEBUG_GENERATED_DIR}" --bin2c vs_demi_lit_glsl
   COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/fs_demi_lit.sc"
     -o "${DEMI_BGFX_BUILTIN_SHADER_DIR}/fs_demi_lit_glsl.h"
     --type fragment --platform linux -p 140
     --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
-    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c fs_demi_lit_glsl
+    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" -i "${DEMI_PERFORMANCE_DEBUG_GENERATED_DIR}" --bin2c fs_demi_lit_glsl
   COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_lit.sc"
     -o "${DEMI_BGFX_BUILTIN_SHADER_DIR}/vs_demi_lit_essl.h"
     --type vertex --platform android -p 100_es
     --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
-    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c vs_demi_lit_essl
+    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" -i "${DEMI_PERFORMANCE_DEBUG_GENERATED_DIR}" --bin2c vs_demi_lit_essl
   COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/fs_demi_lit.sc"
     -o "${DEMI_BGFX_BUILTIN_SHADER_DIR}/fs_demi_lit_essl.h"
     --type fragment --platform android -p 100_es
     --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
-    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c fs_demi_lit_essl
+    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" -i "${DEMI_PERFORMANCE_DEBUG_GENERATED_DIR}" --bin2c fs_demi_lit_essl
   COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_lit.sc"
     -o "${DEMI_BGFX_BUILTIN_SHADER_DIR}/vs_demi_lit_spv.h"
     --type vertex --platform linux -p spirv
     --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
-    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c vs_demi_lit_spv
+    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" -i "${DEMI_PERFORMANCE_DEBUG_GENERATED_DIR}" --bin2c vs_demi_lit_spv
   COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/fs_demi_lit.sc"
     -o "${DEMI_BGFX_BUILTIN_SHADER_DIR}/fs_demi_lit_spv.h"
     --type fragment --platform linux -p spirv
     --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
-    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c fs_demi_lit_spv
+    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" -i "${DEMI_PERFORMANCE_DEBUG_GENERATED_DIR}" --bin2c fs_demi_lit_spv
   COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_lit_instanced.sc"
     -o "${DEMI_BGFX_BUILTIN_SHADER_DIR}/vs_demi_lit_instanced_glsl.h"
     --type vertex --platform linux -p 140
     --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
-    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c vs_demi_lit_instanced_glsl
+    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" -i "${DEMI_PERFORMANCE_DEBUG_GENERATED_DIR}" --bin2c vs_demi_lit_instanced_glsl
   COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_lit_instanced.sc"
     -o "${DEMI_BGFX_BUILTIN_SHADER_DIR}/vs_demi_lit_instanced_essl.h"
     --type vertex --platform android -p 100_es
     --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
-    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c vs_demi_lit_instanced_essl
+    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" -i "${DEMI_PERFORMANCE_DEBUG_GENERATED_DIR}" --bin2c vs_demi_lit_instanced_essl
   COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_lit_instanced.sc"
     -o "${DEMI_BGFX_BUILTIN_SHADER_DIR}/vs_demi_lit_instanced_spv.h"
     --type vertex --platform linux -p spirv
     --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
-    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c vs_demi_lit_instanced_spv
+    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" -i "${DEMI_PERFORMANCE_DEBUG_GENERATED_DIR}" --bin2c vs_demi_lit_instanced_spv
   COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_post_process.sc"
     -o "${DEMI_BGFX_BUILTIN_SHADER_DIR}/vs_demi_post_process_glsl.h"
     --type vertex --platform linux -p 140
     --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
-    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c vs_demi_post_process_glsl
+    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" -i "${DEMI_PERFORMANCE_DEBUG_GENERATED_DIR}" --bin2c vs_demi_post_process_glsl
   COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/fs_demi_post_process.sc"
     -o "${DEMI_BGFX_BUILTIN_SHADER_DIR}/fs_demi_post_process_glsl.h"
     --type fragment --platform linux -p 140
     --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
-    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c fs_demi_post_process_glsl
+    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" -i "${DEMI_PERFORMANCE_DEBUG_GENERATED_DIR}" --bin2c fs_demi_post_process_glsl
   COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_post_process.sc"
     -o "${DEMI_BGFX_BUILTIN_SHADER_DIR}/vs_demi_post_process_essl.h"
     --type vertex --platform android -p 100_es
     --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
-    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c vs_demi_post_process_essl
+    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" -i "${DEMI_PERFORMANCE_DEBUG_GENERATED_DIR}" --bin2c vs_demi_post_process_essl
   COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/fs_demi_post_process.sc"
     -o "${DEMI_BGFX_BUILTIN_SHADER_DIR}/fs_demi_post_process_essl.h"
     --type fragment --platform android -p 100_es
     --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
-    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c fs_demi_post_process_essl
+    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" -i "${DEMI_PERFORMANCE_DEBUG_GENERATED_DIR}" --bin2c fs_demi_post_process_essl
   COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_post_process.sc"
     -o "${DEMI_BGFX_BUILTIN_SHADER_DIR}/vs_demi_post_process_spv.h"
     --type vertex --platform linux -p spirv
     --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
-    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c vs_demi_post_process_spv
+    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" -i "${DEMI_PERFORMANCE_DEBUG_GENERATED_DIR}" --bin2c vs_demi_post_process_spv
   COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/fs_demi_post_process.sc"
     -o "${DEMI_BGFX_BUILTIN_SHADER_DIR}/fs_demi_post_process_spv.h"
     --type fragment --platform linux -p spirv
     --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
-    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c fs_demi_post_process_spv
+    -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" -i "${DEMI_PERFORMANCE_DEBUG_GENERATED_DIR}" --bin2c fs_demi_post_process_spv
   DEPENDS ${DEMI_SHADERC_DEPENDENCY}
+        "${DEMI_PERFORMANCE_DEBUG_SHADER_HEADER}"
     "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_skinned.sc"
     "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_lit.sc"
+    "${DEMI_BGFX_SHADER_SOURCE_DIR}/mesh_wind.sh"
     "${DEMI_BGFX_SHADER_SOURCE_DIR}/fs_demi_lit.sc"
     "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_surface_lighting.sh"
     "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_shadow_receiver.sh"
     "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_terrain_material.sh"
+        "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_terrain_blending.sh"
+        "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_terrain_mapped.sh"
+        "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_terrain_normal_frame.sh"
     "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_lit_instanced.sc"
     "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_post_process.sc"
     "${DEMI_BGFX_SHADER_SOURCE_DIR}/fs_demi_post_process.sc"
+    "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_underwater.sh"
     "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
   VERBATIM)
 
@@ -186,8 +192,9 @@ foreach(variant glsl essl spv)
       COMMAND "${DEMI_SHADERC_EXECUTABLE}" -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/${stage}_demi_sky.sc"
         -o "${sky_header}" --type ${sky_stage} --platform ${sky_platform} -p ${sky_profile}
         --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
-        -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c ${stage}_demi_sky_${variant}
+        -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" -i "${DEMI_PERFORMANCE_DEBUG_GENERATED_DIR}" --bin2c ${stage}_demi_sky_${variant}
       DEPENDS ${DEMI_SHADERC_DEPENDENCY}
+        "${DEMI_PERFORMANCE_DEBUG_SHADER_HEADER}"
         "${DEMI_BGFX_SHADER_SOURCE_DIR}/${stage}_demi_sky.sc"
         "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
       VERBATIM)
@@ -209,7 +216,9 @@ foreach(terrain_variant glsl essl spv)
     set(terrain_profile spirv)
     set(terrain_platform linux)
   endif()
-  foreach(terrain_program vs_demi_terrain fs_demi_terrain fs_demi_terrain_directional)
+  foreach(terrain_program vs_demi_terrain fs_demi_terrain fs_demi_terrain_directional
+      fs_demi_terrain_mapped fs_demi_terrain_mapped_directional
+      fs_demi_terrain_mapped_opaque fs_demi_terrain_mapped_opaque_directional)
     set(terrain_defines)
     if(terrain_program STREQUAL "vs_demi_terrain")
       set(terrain_stage vertex)
@@ -217,8 +226,15 @@ foreach(terrain_variant glsl essl spv)
     else()
       set(terrain_stage fragment)
       set(terrain_source fs_demi_terrain.sc)
-      if(terrain_program STREQUAL "fs_demi_terrain_directional")
+      if(terrain_program MATCHES "directional$")
         set(terrain_defines --define DEMI_DIRECTIONAL_ONLY=1)
+      endif()
+      if(terrain_program MATCHES "mapped")
+        set(terrain_source fs_demi_terrain_mapped.sc)
+      endif()
+      if(terrain_program MATCHES "mapped_opaque")
+        set(terrain_source "${terrain_program}.sc")
+        set(terrain_defines)
       endif()
     endif()
     set(terrain_symbol "${terrain_program}_${terrain_variant}")
@@ -230,16 +246,99 @@ foreach(terrain_variant glsl essl spv)
         -o "${terrain_header}" --type ${terrain_stage}
         --platform ${terrain_platform} -p ${terrain_profile} ${terrain_defines}
         --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
-        -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" -i "${DEMI_BGFX_SHADER_SOURCE_DIR}"
+        -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" -i "${DEMI_PERFORMANCE_DEBUG_GENERATED_DIR}" -i "${DEMI_BGFX_SHADER_SOURCE_DIR}"
         --bin2c ${terrain_symbol}
       DEPENDS ${DEMI_SHADERC_DEPENDENCY}
+        "${DEMI_PERFORMANCE_DEBUG_SHADER_HEADER}"
         "${DEMI_BGFX_SHADER_SOURCE_DIR}/${terrain_source}"
         "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_surface_lighting.sh"
         "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_shadow_receiver.sh"
         "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_terrain_material.sh"
+        "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_terrain_blending.sh"
+        "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_terrain_mapped.sh"
+        "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_terrain_normal_frame.sh"
         "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
       VERBATIM)
     list(APPEND DEMI_BGFX_BUILTIN_SHADER_HEADERS "${terrain_header}")
+  endforeach()
+endforeach()
+
+# Shared PBR surfaces use the existing mesh vertex programs. Keep the fragment
+# variants separate so ordinary untextured materials retain the cheaper path.
+foreach(pbr_variant glsl essl spv)
+  if(pbr_variant STREQUAL "glsl")
+    set(pbr_profile 120)
+    set(pbr_platform linux)
+  elseif(pbr_variant STREQUAL "essl")
+    set(pbr_profile 100_es)
+    set(pbr_platform android)
+  else()
+    set(pbr_profile spirv)
+    set(pbr_platform linux)
+  endif()
+  foreach(pbr_program fs_demi_pbr fs_demi_pbr_directional)
+    set(pbr_defines)
+    if(pbr_program STREQUAL "fs_demi_pbr_directional")
+      set(pbr_defines --define DEMI_DIRECTIONAL_ONLY=1)
+    endif()
+    set(pbr_symbol "${pbr_program}_${pbr_variant}")
+    set(pbr_header "${DEMI_BGFX_BUILTIN_SHADER_DIR}/${pbr_symbol}.h")
+    add_custom_command(OUTPUT "${pbr_header}"
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${DEMI_BGFX_BUILTIN_SHADER_DIR}"
+      COMMAND "${DEMI_SHADERC_EXECUTABLE}"
+        -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/fs_demi_pbr.sc"
+        -o "${pbr_header}" --type fragment
+        --platform ${pbr_platform} -p ${pbr_profile} ${pbr_defines}
+        --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
+        -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" -i "${DEMI_PERFORMANCE_DEBUG_GENERATED_DIR}" -i "${DEMI_BGFX_SHADER_SOURCE_DIR}"
+        --bin2c ${pbr_symbol}
+      DEPENDS ${DEMI_SHADERC_DEPENDENCY}
+        "${DEMI_PERFORMANCE_DEBUG_SHADER_HEADER}"
+        "${DEMI_BGFX_SHADER_SOURCE_DIR}/fs_demi_pbr.sc"
+        "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_surface_lighting.sh"
+        "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_pbr_material.sh"
+        "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_shadow_receiver.sh"
+        "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
+      VERBATIM)
+    list(APPEND DEMI_BGFX_BUILTIN_SHADER_HEADERS "${pbr_header}")
+  endforeach()
+endforeach()
+
+# Water uses explicit opaque snapshots and modern portable fragment operations.
+foreach(water_variant glsl essl spv)
+  if(water_variant STREQUAL "glsl")
+    set(water_profile 150)
+    set(water_platform linux)
+  elseif(water_variant STREQUAL "essl")
+    set(water_profile 300_es)
+    set(water_platform android)
+  else()
+    set(water_profile spirv)
+    set(water_platform linux)
+  endif()
+  foreach(water_stage vs fs)
+    if(water_stage STREQUAL "vs")
+      set(water_type vertex)
+    else()
+      set(water_type fragment)
+    endif()
+    set(water_symbol "${water_stage}_demi_water_${water_variant}")
+    set(water_header "${DEMI_BGFX_BUILTIN_SHADER_DIR}/${water_symbol}.h")
+    add_custom_command(OUTPUT "${water_header}"
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${DEMI_BGFX_BUILTIN_SHADER_DIR}"
+      COMMAND "${DEMI_SHADERC_EXECUTABLE}"
+        -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/${water_stage}_demi_water.sc"
+        -o "${water_header}" --type ${water_type}
+        --platform ${water_platform} -p ${water_profile}
+        --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/water_varying.def.sc"
+        -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" -i "${DEMI_BGFX_SHADER_SOURCE_DIR}"
+        --bin2c ${water_symbol}
+      DEPENDS ${DEMI_SHADERC_DEPENDENCY}
+        "${DEMI_BGFX_SHADER_SOURCE_DIR}/${water_stage}_demi_water.sc"
+        "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_water_optics.sh"
+        "${DEMI_BGFX_SHADER_SOURCE_DIR}/water_varying.def.sc"
+      VERBATIM)
+    list(APPEND DEMI_BGFX_BUILTIN_SHADER_HEADERS "${water_header}")
   endforeach()
 endforeach()
 
@@ -252,6 +351,8 @@ add_library(demi-graphics-bgfx STATIC
   src/demi/runtime/render/backend/BgfxProfileCallback.cpp
   src/demi/runtime/render/backend/BgfxGpuResources.cpp
   src/demi/runtime/render/backend/BgfxRenderCommands.cpp
+  src/demi/runtime/render/backend/BgfxFrameSerial.cpp
+  src/demi/runtime/render/backend/BgfxInstanceBufferPool.cpp
   src/demi/runtime/render/backend/RenderCommands.cpp
   src/demi/runtime/render/backend/BgfxDrawBindings.cpp
   src/demi/runtime/render/backend/BgfxVertexLayout.cpp
@@ -262,6 +363,7 @@ add_library(demi-graphics-bgfx STATIC
   src/demi/runtime/render/backend/GifDecoder2D.cpp
   src/demi/runtime/render/backend/ImageDecoder2D.cpp
   src/demi/runtime/render/backend/ImageMipmaps2D.cpp
+  src/demi/runtime/render/backend/ImageResize2D.cpp
   src/demi/runtime/render/backend/QuadBatch.cpp
   src/demi/runtime/render/backend/RenderAssetLoading.cpp
   src/demi/runtime/render/backend/TextureLibrary2D.cpp
@@ -324,16 +426,23 @@ add_library(demi-render3d-bgfx STATIC
   src/demi/runtime/render/BgfxRenderer3D.cpp
   src/demi/runtime/render/BgfxRenderer3DMeshes.cpp
   src/demi/runtime/render/BgfxRenderer3DTerrain.cpp
+  src/demi/runtime/render/BgfxRenderer3DPreparation.cpp
   src/demi/runtime/render/bgfx3d/TerrainDrawSelection3D.cpp
   src/demi/runtime/render/bgfx3d/TerrainPatchTopology3D.cpp
   src/demi/runtime/render/bgfx3d/TerrainGpuFieldData3D.cpp
+  src/demi/runtime/render/bgfx3d/TerrainMaterialArrayData3D.cpp
+  src/demi/runtime/render/bgfx3d/TerrainMaterialArraySource3D.cpp
+  src/demi/runtime/render/bgfx3d/TerrainMaterialArrayCache3D.cpp
+  src/demi/runtime/render/bgfx3d/TerrainMaterialResidency3D.cpp
   src/demi/runtime/render/bgfx3d/TerrainGpuFieldCache3D.cpp
   src/demi/runtime/render/bgfx3d/TerrainPatchBatch3D.cpp
   src/demi/runtime/render/bgfx3d/TerrainCameraDemand3D.cpp
   src/demi/runtime/render/bgfx3d/TerrainGpuMeshCache3D.cpp
   src/demi/runtime/render/bgfx3d/MeshResourceRetention3D.cpp
   src/demi/runtime/render/bgfx3d/PreparedMeshDraw3D.cpp
+  src/demi/runtime/render/bgfx3d/MeshPbrBindings3D.cpp
   src/demi/runtime/render/bgfx3d/MeshInstanceBatch3D.cpp
+  src/demi/runtime/render/bgfx3d/PrimitiveSurfacePreparation3D.cpp
   src/demi/runtime/render/bgfx3d/MeshShadowSections3D.cpp
   src/demi/runtime/render/BgfxRenderer3DAssets.cpp
   src/demi/runtime/render/BgfxRenderer3DAnimation.cpp
@@ -349,6 +458,10 @@ add_library(demi-render3d-bgfx STATIC
   src/demi/runtime/render/bgfx3d/PrimitiveCanvas3D.cpp
   src/demi/runtime/render/bgfx3d/PrimitiveMeshFactory3D.cpp
   src/demi/runtime/render/bgfx3d/SkyRenderer3D.cpp
+  src/demi/runtime/render/bgfx3d/WaterSurfaceRenderer3D.cpp
+  src/demi/runtime/render/bgfx3d/UnderwaterCamera3D.cpp
+  src/demi/runtime/render/bgfx3d/OpaqueSceneCapture3D.cpp
+  src/demi/runtime/render/BgfxRenderer3DWater.cpp
   src/demi/runtime/render/bgfx3d/PostProcessRenderer3D.cpp
   src/demi/runtime/render/bgfx3d/DirectionalShadow3D.cpp
   src/demi/runtime/render/bgfx3d/ShadowCascadeLayout3D.cpp
@@ -356,6 +469,7 @@ add_library(demi-render3d-bgfx STATIC
   src/demi/runtime/render/bgfx3d/SceneLightBuffer3D.cpp
   src/demi/runtime/render/bgfx3d/SceneLighting3D.cpp
   src/demi/runtime/render/bgfx3d/SceneVisibility3D.cpp
+  src/demi/runtime/render/bgfx3d/MeshInstancePreparation3D.cpp
   src/demi/runtime/render/bgfx3d/WorldTextProjection3D.cpp
 )
 target_include_directories(demi-render3d-bgfx PUBLIC src)
@@ -375,7 +489,7 @@ if(NOT ANDROID)
 
   if(PkgConfig_FOUND)
     pkg_check_modules(LUA54 QUIET IMPORTED_TARGET lua5.4)
-    pkg_check_modules(RSVG QUIET IMPORTED_TARGET librsvg-2.0)
+    pkg_check_modules(RSVG QUIET IMPORTED_TARGET librsvg-2.0>=2.52)
     if(DEMI_ENABLE_MEDIA)
       pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET libavformat libavcodec libavutil libswscale)
     endif()

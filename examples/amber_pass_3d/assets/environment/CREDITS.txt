@@ -1,0 +1,59 @@
+Amber Pass environment source art
+
+Poly Haven original CC0 assets:
+https://polyhaven.com/a/rock_moss_set_01
+https://polyhaven.com/a/coastal_cliff_02
+https://polyhaven.com/a/tree_small_02
+https://polyhaven.com/a/kloppenheim_06_puresky
+License: CC0 1.0 Universal, https://polyhaven.com/license
+https://creativecommons.org/publicdomain/zero/1.0/
+
+Official API files records and MD5 source integrity hashes: downloads.json.
+Downloaded 2026-10-18. Meshes reduced, separated by material and exported as
+reusable source GLBs; original texture coordinates preserved. Original 2K maps
+retained. Autumn leaves derive source color into ochre/gold, combining the
+separate official leaf opacity map into real RGBA PNG. Sky derives 2K HDRI
+into an AgX tone-mapped 2K PNG suitable for the native image loader.
+
+Rebuild from repository root:
+blender -b --python tools/demo-art/amber_pass/environment_assets.py
+
+Missing original source files are downloaded and verified into
+/tmp/demi-environment; large original source binaries are not repository files.
+Editable .blend files contain production-resolution meshes, not million-triangle
+source meshes. Per-model triangle counts, bounds and material roles: summary.json.
+GLBs contain geometry only; assign explicit texture material assets by role.
+
+Additional rider surface textures (official 1K CC0 PNG sources):
+Fabric Pattern 07, Rob Tuytel: https://polyhaven.com/a/fabric_pattern_07
+Fabric Leather 01, Rob Tuytel: https://polyhaven.com/a/fabric_leather_01
+Metal Plate 02: https://polyhaven.com/a/metal_plate_02
+Rider neutral albedos derive restrained grayscale variation from the original
+color maps, retaining rider vertex colors as the visible cloth/leather/armor
+palette. Original source maps are preserved. The metal source is worn steel,
+not a promise of a brushed anisotropic shader.
+
+ARM maps split red into AO and green into roughness with Non-Color image data.
+PNG scalar outputs preserve source channel bytes exactly (verified for all four
+packed maps). Rebuild maps without processing meshes:
+blender -b --python tools/demo-art/amber_pass/environment_assets.py -- --materials-only
+
+Foliage revision: original connected tree leaf surfaces become complete textured
+cards with preserved source UV extents; 7,000 spatially distributed cards at
+full detail, 2,000 at medium detail. Cards expand 1.85x around their own centers
+to retain canopy coverage. No individual leaf triangles are discarded.
+Final complete-card canopy is also in autumn_canopy.blend and tree_small_02.blend.
+
+Photo grass: https://polyhaven.com/a/grass_medium_01 (CC0, Poly Haven).
+Official authored small_a, tall_a and tiny_c patches form 833/290/40 triangle
+LODs with matching metre bounds and feet at zero. Original photo colors are
+gently yellowed and combined with the official 1K opacity map into real RGBA.
+Native-compatible UV0 is the sole exported UV set for canopy and grass.
+Rebuild foliage: blender -b --python tools/demo-art/amber_pass/foliage_assets.py
+This runs automatically at the end of the complete environment rebuild.
+
+Grass cluster construction: two tuft
+centers, two leaning cutout cards each, staggered heights and tighter photo
+rectangles. Original photograph colors receive reproducible linear RGB
+exposure multipliers [3.15, 3.0, 2.55]; alpha remains the official opacity map.
+This bakes no lighting. Current LOD triangles are recorded in summary.json.

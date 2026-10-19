@@ -171,6 +171,7 @@ int main(const int argc, char **argv) {
     if (!ui->configureViewport(
             view, workspace.project().project.projectDirectory, error))
       shell.setNotice("Authored view unavailable: " + error);
+  shell.playSession().setHostServices(ui->embeddedHostServices());
   bool gameRendererReady = false;
   int frame = 0;
   bool profileFailed = false;
@@ -190,15 +191,18 @@ int main(const int argc, char **argv) {
       ui->acknowledgeCloseRequest();
     }
     const auto frameStarted = std::chrono::steady_clock::now();
-    const bool profileAuthoring =
-        profile.is_open() && !shell.playSession().isEmbedded();
-    if (profileAuthoring) {
+    const bool embeddedFrame = shell.playSession().isEmbedded();
+    if (embeddedFrame) {
+      shell.playSession().beginProfilerFrame();
+    } else if (profile.is_open()) {
       demi::runtime::RuntimeProfiler::setEnabled(true);
       demi::runtime::RuntimeProfiler::beginFrame();
     }
     ui->setUiScale(shell.uiScale());
     if (!ui->beginFrame(error)) {
       std::cerr << "Editor frame failed: " << error << '\n';
+      // Runtime host callbacks borrow the Game renderer; stop before UI teardown.
+      shell.playSession().stop();
       shell.releaseUiResources();
       ui->shutdown();
       return 1;
@@ -228,10 +232,14 @@ int main(const int argc, char **argv) {
     }
     shell.setGameTextureIndex(ui->gameTextureIndex());
     shell.playSession().setGpuTiming(ui->gpuTimingSample());
+    const auto uiStarted = std::chrono::steady_clock::now();
     {
       demi::runtime::ProfileScope scope("Editor.ui");
       shell.draw(ui->width(), ui->height(), ui->rendererName());
     }
+    const double uiMilliseconds = std::chrono::duration<double, std::milli>(
+                                      std::chrono::steady_clock::now() - uiStarted)
+                                      .count();
     if (shell.playSession().isEmbedded() && !gameRendererReady) {
       gameRendererReady = ui->configureGameRenderer(
           workspace.project().project.projectDirectory, error);
@@ -246,15 +254,22 @@ int main(const int argc, char **argv) {
           ui->gameInput(area, shell.gameViewFocused());
       const std::uint16_t gameWidth = area.width == 0 ? 960 : area.width;
       const std::uint16_t gameHeight = area.height == 0 ? 540 : area.height;
+      const bool stepRequested = shell.takeStepRequest();
       const bool advanced =
-          shell.takeStepRequest()
+          stepRequested
               ? shell.playSession().step(std::move(gameInput), gameWidth,
                                          gameHeight, error)
               : shell.playSession().update(std::move(gameInput),
                                            ui->deltaSeconds(), gameWidth,
                                            gameHeight, error);
-      if (!advanced)
+      if (!advanced) {
         shell.setNotice("Play session failed: " + error);
+      }
+      if (!embeddedFrame) {
+        // Starting Play during UI dispatch creates its first profiler frame.
+        // Preserve the UI cost that preceded that transition.
+        demi::runtime::RuntimeProfiler::record("Editor.ui", uiMilliseconds);
+      }
     }
     const bool gameOwnsPointer = shell.showingGameView() &&
                                  shell.gameViewFocused() &&
@@ -277,10 +292,15 @@ int main(const int argc, char **argv) {
     for (const auto view : demi::editor::EditorAuthoringViews) {
       const auto &state =
           shell.authoringViews()[static_cast<std::size_t>(view)];
+      const auto requestedArea = state.workspace
+                                     ? state.area
+                                     : demi::editor::EditorViewportArea{};
+      ui->observeViewportTarget(view, requestedArea);
       if (!state.workspace || !state.area.width || !state.area.height)
         continue;
       // Docked view rectangles first become available during shell.draw(). A
-      // newly opened view has no target until the next frame's preparation.
+      // newly opened view has no target until the next frame's preparation;
+      // observeViewportTarget keeps that work scheduled after focus settles.
       // Preparation and rendering failures still report their owning errors.
       if (!viewportTargetsReady[static_cast<std::size_t>(view)] ||
           ui->viewportTextureIndex(view) == UINT16_MAX)
@@ -314,7 +334,10 @@ int main(const int argc, char **argv) {
       ui->releaseGameRenderer();
       gameRendererReady = false;
     }
-    if (profileAuthoring && !shell.playSession().isEmbedded()) {
+    if (profile.is_open()) {
+      demi::runtime::RuntimeProfiler::setEnabled(true);
+      demi::runtime::RuntimeProfiler::setGauge(
+          "Editor.playing", shell.playSession().isEmbedded() ? 1.0 : 0.0);
       demi::runtime::RuntimeProfiler::record(
           "Editor.frame", std::chrono::duration<double, std::milli>(
                               std::chrono::steady_clock::now() - frameStarted)

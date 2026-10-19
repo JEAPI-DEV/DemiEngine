@@ -89,9 +89,78 @@ void planeCorrectionAvoidsSelfShadowAndRetainsRealOcclusion() {
   }
 }
 
+void normalOffsetRespectsAngleAndFilterFootprint() {
+  for (const float radius : {0.5F, 1.5F}) {
+    assert(receiverNormalOffsetDistance(0, 0.8F, radius) == 0);
+    assert(receiverNormalOffsetDistance(2, 1, radius) == 0);
+    assert(receiverNormalOffsetDistance(2, 1.000001F, radius) == 0);
+    assert(receiverNormalOffsetDistance(2, 0, radius) == 2 * radius);
+    const float offset = receiverNormalOffsetDistance(2, 0.8F, radius);
+    assert(std::abs(offset - 1.2F * radius) < 1e-6F);
+  }
+}
+
+void adjacentFacetsAvoidFalseSelfShadowAndRetainADistinctOccluder() {
+  constexpr float cosine = 0.8F;
+  constexpr float normalHorizontal = 0.6F;
+  constexpr float receiverSlope = normalHorizontal / cosine;
+  constexpr float resolution = 512;
+  for (const float scale : {0.01F, 1.0F, 1000.0F}) {
+    const float shadowDiameter = 64 * scale;
+    const float worldTexel = shadowDiameter / resolution;
+    for (const float radius : {0.5F, 1.5F}) {
+      const float normalOffset =
+          receiverNormalOffsetDistance(worldTexel, cosine, radius);
+      // A distinct parallel occluder is a quarter texel beyond the applied
+      // normal offset. Contacts inside the offset are inherently unresolved.
+      const float occluderNormalGap = normalOffset + 0.25F * worldTexel;
+      for (const float side : {-1.0F, 1.0F}) {
+        const auto surfaceDepth = [&](float x) {
+          const float mirroredX = side * x;
+          const float slope = mirroredX < 0 ? 1.5F : receiverSlope;
+          return 0.5F + slope * mirroredX / shadowDiameter;
+        };
+        const float receiverX = side * 0.25F * worldTexel;
+        const float receiverDepth = surfaceDepth(receiverX);
+        const float crossingTap = -side * radius;
+        const float unbiasedLookupX = receiverX + crossingTap * worldTexel;
+        const float unbiasedDepth =
+            receiverDepth +
+            side * receiverSlope * crossingTap * worldTexel / shadowDiameter;
+        // The receiver tangent overestimates the steeper neighboring facet:
+        // this continuous surface really fails the unoffset shadow comparison.
+        assert(unbiasedDepth > surfaceDepth(unbiasedLookupX) + 1e-6F);
+        const float shiftedX =
+            receiverX + side * normalHorizontal * normalOffset;
+        const float shiftedDepth =
+            receiverDepth - cosine * normalOffset / shadowDiameter;
+        const auto gradient =
+            receiverPlaneDepthGradient({1 / resolution, 0}, {0, 1 / resolution},
+                                       {side * receiverSlope / resolution, 0});
+        for (const float tap : {-radius, 0.0F, radius}) {
+          const float lookupX = shiftedX + tap * worldTexel;
+          const vec2 tapOffset{tap / resolution, 0};
+          const float comparedDepth = shiftedDepth + dot(gradient, tapOffset);
+          const float facetDepth = surfaceDepth(lookupX);
+          assert(comparedDepth <= facetDepth + 1e-6F);
+          const float currentFacetDepth =
+              receiverDepth +
+              side * receiverSlope * (lookupX - receiverX) / shadowDiameter;
+          const float occluderDepth =
+              std::min(facetDepth, currentFacetDepth) -
+              occluderNormalGap / (cosine * shadowDiameter);
+          assert(comparedDepth > occluderDepth);
+        }
+      }
+    }
+  }
+}
+
 } // namespace
 
 int main() {
+  normalOffsetRespectsAngleAndFilterFootprint();
+  adjacentFacetsAvoidFalseSelfShadowAndRetainADistinctOccluder();
   tinyWellConditionedProjectionKeepsItsPlane();
   independentPixelScalesPreserveTheGradient();
   degenerateAndPoorlyConditionedProjectionUsesSafeFallback();

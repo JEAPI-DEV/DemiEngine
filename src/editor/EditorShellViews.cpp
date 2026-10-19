@@ -50,6 +50,33 @@ bool EditorShell::viewportInputCaptured() const {
   return false;
 }
 
+bool EditorShell::documentFocusAvailable() const {
+  const auto &panels = dockingWorkspace_.visibility();
+  if (focusWindow_ == "Viewport") {
+    return panels.viewport;
+  }
+  if (focusWindow_ == "Prefab") {
+    return panels.prefab && documents_.workspace(EditorDocumentSession::Prefab);
+  }
+  if (focusWindow_ == "HUD") {
+    const auto *document = documents_.workspace(EditorDocumentSession::Hud);
+    return panels.hud && document && document->hasHudDocument();
+  }
+  if (focusWindow_ == "Terrain Asset") {
+    return panels.terrainAsset && documents_.workspace(EditorDocumentSession::TerrainAsset);
+  }
+  if (focusWindow_ == "Terrain Graph") {
+    return panels.terrainGraph && graphWorkspace_ && terrainGraphPanel_.isOpen();
+  }
+  if (focusWindow_ == "Game View") {
+    return panels.game;
+  }
+  if (focusWindow_ == "Specialized Document") {
+    return specializedPanel_.isOpen();
+  }
+  return false;
+}
+
 void EditorShell::drawDocumentViews(ImVec2 position, ImVec2 size) {
   auto &panels = dockingWorkspace_.visibility();
   for (auto &view : authoringViews_) {
@@ -63,7 +90,7 @@ void EditorShell::drawDocumentViews(ImVec2 position, ImVec2 size) {
   if (!panels.terrainGraph)
     showTerrainGraphView_ = false;
   const auto focus = [&](const char *name) {
-    if (focusWindow_ == name) {
+    if (focusWindow_ == name && !dockingWorkspace_.focusBlockedByModal(name)) {
       ImGui::SetNextWindowFocus();
     }
   };

@@ -11,6 +11,8 @@ struct TerrainWaterSample {
   std::string kind;
   Vec3 surface;
   Vec3 normal;
+  Vec3 columnUp{0, 1, 0};
+  Vec3 flowVelocity;
   float depth = 0;
   bool underwater = false;
 };

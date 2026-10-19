@@ -298,6 +298,9 @@ struct TerrainGpuFieldCache3D::Impl {
                                  float(data.paletteEntries & 0xffffU),
                                  float(data.paletteEntries >> 16U)};
     result->state = data.state;
+    result->mapped = data.mapped;
+    result->requiresFragmentCulling = data.requiresFragmentCulling;
+    result->materialIds = std::move(data.materialIds);
     return result;
   }
 };

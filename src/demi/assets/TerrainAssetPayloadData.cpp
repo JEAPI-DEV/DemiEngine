@@ -1,4 +1,5 @@
 #include "demi/assets/TerrainAssetPayloadData.h"
+#include "demi/runtime/terrain/TerrainWaterFlow.h"
 
 #include "demi/runtime/terrain/TerrainPalette.h"
 #include "demi/runtime/terrain/TerrainSurfaceMaterials.h"
@@ -20,6 +21,31 @@ using namespace demi::runtime;
 void require(bool condition, std::string_view message) {
   if (!condition)
     throw std::invalid_argument("Terrain payload: " + std::string(message));
+}
+
+Json transportLedger(const TerrainErosionTransport &transport) {
+  for (const double value : {transport.exportedSediment,
+                             transport.suspendedSediment,
+                             transport.erodedSediment,
+                             transport.depositedSediment}) {
+    require(std::isfinite(value) && value >= 0,
+            "hydraulic transport totals must be finite and nonnegative");
+  }
+  return {{"exported", transport.exportedSediment},
+          {"suspended", transport.suspendedSediment},
+          {"eroded", transport.erodedSediment},
+          {"deposited", transport.depositedSediment}};
+}
+
+TerrainErosionTransport readTransportLedger(const Json &document) {
+  require(document.is_object(), "hydraulic transport ledger must be an object");
+  TerrainErosionTransport transport;
+  transport.exportedSediment = document.at("exported").get<double>();
+  transport.suspendedSediment = document.at("suspended").get<double>();
+  transport.erodedSediment = document.at("eroded").get<double>();
+  transport.depositedSediment = document.at("deposited").get<double>();
+  (void)transportLedger(transport);
+  return transport;
 }
 
 float finiteFloat(const Json &value, std::string_view name) {
@@ -70,11 +96,12 @@ Json placement(const TerrainScatterPlacement &value) {
       {"biome", value.biome},
       {"biome_name", value.biomeName},
       {"cell", value.cell},
+      {"candidate_x", value.candidateX},
+      {"candidate_z", value.candidateZ},
       {"position", vec3(value.position)},
       {"yaw", value.yaw},
       {"scale", value.scale},
-      {"collision", std::string(terrainCollisionPolicyName(value.collision))},
-      {"lod", value.lod}};
+      {"collision", std::string(terrainCollisionPolicyName(value.collision))}};
 }
 
 TerrainCollisionPolicy readCollision(const Json &value) {
@@ -105,11 +132,19 @@ TerrainScatterPlacement readPlacement(const Json &value,
   result.biome = checkedSize(value.at("biome"), "placement biome");
   result.biomeName = value.at("biome_name").get<std::string>();
   result.cell = checkedSize(value.at("cell"), "placement cell");
+  const auto candidateX =
+      checkedSize(value.at("candidate_x"), "placement candidate X");
+  const auto candidateZ =
+      checkedSize(value.at("candidate_z"), "placement candidate Z");
+  require(candidateX <= std::size_t(std::numeric_limits<int>::max()) &&
+              candidateZ <= std::size_t(std::numeric_limits<int>::max()),
+          "placement candidate coordinates are out of range");
+  result.candidateX = static_cast<int>(candidateX);
+  result.candidateZ = static_cast<int>(candidateZ);
   result.position = readVec3(value.at("position"), "placement position");
   result.yaw = finiteFloat(value.at("yaw"), "placement yaw");
   result.scale = finiteFloat(value.at("scale"), "placement scale");
   result.collision = readCollision(value.at("collision"));
-  result.lod = value.at("lod").get<int>();
   require(result.biome < field.biomeIds.size() &&
               result.biomeName == field.biomeIds[result.biome],
           "placement biome does not match the field");
@@ -137,26 +172,37 @@ std::vector<TerrainScatterPlacement> readPlacements(const Json &value,
 }
 
 Json palette(const TerrainPalette &value) {
-  Json roles = Json::object();
+  Json rules = Json::object();
   for (const auto &[name, entry] : value.placements) {
-    roles[name] = {
+    rules[name] = {
         {"model", entry.model},
         {"prefab", entry.prefab},
-        {"weight", entry.weight},
+        {"density", entry.density},
+        {"candidate_spacing", entry.candidateSpacing},
+        {"category", terrainScatterCategoryName(entry.category)},
+        {"slope", {entry.slope.minimum, entry.slope.maximum}},
+        {"moisture", {entry.moisture.minimum, entry.moisture.maximum}},
+        {"water_distance",
+         {entry.waterDistance.minimum, entry.waterDistance.maximum}},
+        {"yaw", {entry.yawDegrees.minimum, entry.yawDegrees.maximum}},
+        {"cluster_size", entry.clusterSize},
+        {"cluster_strength", entry.clusterStrength},
         {"scale_min", entry.scaleMin},
         {"scale_max", entry.scaleMax},
         {"spacing", entry.spacing},
         {"collision", std::string(terrainCollisionPolicyName(entry.collision))},
-        {"lod", entry.lod},
         {"biomes", entry.biomes}};
   }
   return {{"format_version", value.formatVersion},
           {"id", value.id},
           {"name", value.name},
-          {"placements", std::move(roles)},
+          {"art_density", value.artDensity},
+          {"grass_density", value.grassDensity},
+          {"tree_density", value.treeDensity},
+          {"rock_density", value.rockDensity},
+          {"placements", std::move(rules)},
           {"material_set", value.materialSet},
-          {"surface_materials", value.surfaceMaterials},
-          {"unsupported_surface_roles", value.unsupportedSurfaceRoles}};
+          {"surface_materials", value.surfaceMaterials}};
 }
 
 TerrainPalette readPalette(const Json &value) {
@@ -167,14 +213,23 @@ TerrainPalette readPalette(const Json &value) {
           "palette format is unsupported");
   result.id = value.at("id").get<std::string>();
   result.name = value.at("name").get<std::string>();
+  result.artDensity =
+      finiteFloat(value.at("art_density"), "palette art density");
+  result.grassDensity =
+      finiteFloat(value.at("grass_density"), "palette grass density");
+  result.treeDensity =
+      finiteFloat(value.at("tree_density"), "palette tree density");
+  result.rockDensity =
+      finiteFloat(value.at("rock_density"), "palette rock density");
+  require(result.artDensity >= 0 && result.grassDensity >= 0 &&
+              result.treeDensity >= 0 && result.rockDensity >= 0,
+          "palette density multipliers must be nonnegative");
   result.materialSet = value.at("material_set").get<std::string>();
   result.surfaceMaterials =
       value.at("surface_materials").get<decltype(result.surfaceMaterials)>();
-  result.unsupportedSurfaceRoles =
-      value.at("unsupported_surface_roles").get<std::vector<std::string>>();
-  const auto &roles = value.at("placements");
-  require(roles.is_object(), "palette roles must be an object");
-  for (const auto &[name, item] : roles.items()) {
+  const auto &rules = value.at("placements");
+  require(rules.is_object(), "palette placements must be an object");
+  for (const auto &[name, item] : rules.items()) {
     require(validTerrainPlacementRuleId(name),
             "palette has an invalid rule ID");
     TerrainPaletteEntry entry;
@@ -182,16 +237,60 @@ TerrainPalette readPalette(const Json &value) {
     entry.prefab = item.at("prefab").get<std::string>();
     require(entry.model.empty() != entry.prefab.empty(),
             "palette placement requires exactly one model or prefab");
-    entry.weight = finiteFloat(item.at("weight"), "palette weight");
+    entry.density = finiteFloat(item.at("density"), "palette density");
+    entry.candidateSpacing =
+        finiteFloat(item.at("candidate_spacing"), "palette candidate spacing");
+    const auto category = item.at("category").get<std::string>();
+    bool categoryFound = false;
+    for (const auto candidate :
+         {TerrainScatterCategory::Prop, TerrainScatterCategory::Grass,
+          TerrainScatterCategory::Tree, TerrainScatterCategory::Rock}) {
+      if (terrainScatterCategoryName(candidate) == category) {
+        entry.category = candidate;
+        categoryFound = true;
+        break;
+      }
+    }
+    require(categoryFound, "palette contains an invalid category");
+    const auto range = [&](const char *field, float lower, float upper) {
+      const auto &values = item.at(field);
+      require(values.is_array() && values.size() == 2,
+              "palette range needs two values");
+      TerrainScatterRange parsed{finiteFloat(values[0], field),
+                                 finiteFloat(values[1], field)};
+      require(parsed.minimum >= lower && parsed.maximum <= upper &&
+                  parsed.minimum <= parsed.maximum,
+              "palette range is invalid");
+      return parsed;
+    };
+    entry.slope = range("slope", 0, 90);
+    entry.moisture = range("moisture", 0, 1);
+    entry.waterDistance =
+        range("water_distance", 0, std::numeric_limits<float>::max());
+    entry.yawDegrees = range("yaw", -360, 360);
+    entry.clusterSize =
+        finiteFloat(item.at("cluster_size"), "palette cluster size");
+    entry.clusterStrength =
+        finiteFloat(item.at("cluster_strength"), "palette cluster strength");
     entry.scaleMin = finiteFloat(item.at("scale_min"), "palette minimum scale");
     entry.scaleMax = finiteFloat(item.at("scale_max"), "palette maximum scale");
     entry.spacing = finiteFloat(item.at("spacing"), "palette spacing");
     entry.collision = readCollision(item.at("collision"));
-    entry.lod = item.at("lod").get<int>();
+    require(entry.model.empty() ||
+                entry.collision == TerrainCollisionPolicy::None,
+            "palette direct model placements require collision none; use an "
+            "authored prefab collider");
     entry.biomes = item.at("biomes").get<std::vector<std::string>>();
-    require(entry.weight >= 0 && entry.scaleMin > 0 &&
-                entry.scaleMin <= entry.scaleMax && entry.spacing >= 0,
+    require(entry.density >= 0 && entry.candidateSpacing >= 0 &&
+                entry.scaleMin > 0 && entry.scaleMin <= entry.scaleMax &&
+                entry.spacing >= 0 && entry.clusterSize > 0 &&
+                entry.clusterStrength >= 0 && entry.clusterStrength <= 1,
             "palette contains invalid placement dimensions");
+    const double step = entry.candidateStep();
+    const double probability =
+        double(entry.density) * result.densityFor(entry.category) * step * step;
+    require(std::isfinite(probability) && probability <= 1.000001,
+            "palette density exceeds candidate capacity");
     result.placements.emplace(name, std::move(entry));
   }
   return result;
@@ -222,16 +321,31 @@ TerrainWaterBody readWaterKind(const Json &value) {
 }
 
 Json waterBody(const TerrainWaterBodySpec &value) {
+  validateTerrainWaterFlow(value);
+  require(std::isfinite(value.riverDepth) && value.riverDepth > 0 &&
+              (value.kind == TerrainWaterBody::River ||
+               value.riverSurfaceMode == TerrainRiverSurfaceMode::Level),
+          "river surface mode/depth do not match the water body");
+  Json boundary = Json::array();
+  for (const auto &point : value.boundary) {
+    boundary.push_back(vec2(point));
+  }
   Json path = Json::array();
   for (const auto &point : value.riverPath)
     path.push_back(vec3(point));
   return {{"id", value.id},
           {"kind", std::string(waterKind(value.kind))},
           {"level", value.level},
+          {"river_surface_mode",
+           std::string(terrainRiverSurfaceModeName(value.riverSurfaceMode))},
+          {"river_depth", value.riverDepth},
+          {"flow_speed", value.flowSpeed},
+          {"flow_direction", vec2(value.flowDirection)},
           {"river_path", std::move(path)},
           {"river_width", value.riverWidth},
           {"center", vec2(value.center)},
           {"radius", value.radius},
+          {"boundary", std::move(boundary)},
           {"shoreline_softening", value.shorelineSoftening},
           {"appearance", terrainWaterAppearanceJson(value.appearance)}};
 }
@@ -242,6 +356,16 @@ TerrainWaterBodySpec readWaterBody(const Json &value) {
   require(!result.id.empty(), "water body id must not be empty");
   result.kind = readWaterKind(value.at("kind"));
   result.level = finiteFloat(value.at("level"), "water level");
+  result.riverSurfaceMode = parseTerrainRiverSurfaceMode(
+      value.at("river_surface_mode").get<std::string>());
+  result.riverDepth = finiteFloat(value.at("river_depth"), "river depth");
+  result.flowSpeed = finiteFloat(value.at("flow_speed"), "flow speed");
+  result.flowDirection = readVec2(value.at("flow_direction"), "flow direction");
+  validateTerrainWaterFlow(result);
+  require(result.riverDepth > 0 &&
+              (result.kind == TerrainWaterBody::River ||
+               result.riverSurfaceMode == TerrainRiverSurfaceMode::Level),
+          "river surface mode/depth do not match the water body");
   const auto &path = value.at("river_path");
   require(path.is_array(), "river path must be an array");
   for (const auto &point : path)
@@ -249,10 +373,18 @@ TerrainWaterBodySpec readWaterBody(const Json &value) {
   result.riverWidth = finiteFloat(value.at("river_width"), "river width");
   result.center = readVec2(value.at("center"), "water center");
   result.radius = finiteFloat(value.at("radius"), "water radius");
+  const auto &boundary = value.at("boundary");
+  require(boundary.is_array(), "water boundary must be an array");
+  for (const auto &point : boundary) {
+    result.boundary.push_back(readVec2(point, "water boundary point"));
+  }
   result.shorelineSoftening = value.at("shoreline_softening").get<bool>();
   result.appearance = parseTerrainWaterAppearance(value.at("appearance"));
   require(result.riverWidth >= 0 && result.radius >= 0,
           "water body dimensions must be nonnegative");
+  // Authored data retains bodies dropped during generation, including rivers
+  // with incomplete paths. Preserve those IDs and their coverage indices;
+  // acceptedBodies decides which geometry is usable after decoding.
   return result;
 }
 
@@ -300,11 +432,36 @@ void validateWaterCoverage(
               coverage.cellsZ == field.cellsZ,
           "water coverage dimensions must match the terrain grid");
   require(coverage.level.size() == count && coverage.wet.size() == count &&
-              coverage.body.size() == count,
+              coverage.body.size() == count &&
+              coverage.bodyLevels.size() == authoring.bodies.size(),
           "water coverage arrays must match the terrain grid");
   std::vector<std::uint8_t> accepted(authoring.bodies.size());
-  for (const auto body : terrain_water_detail::acceptedBodies(authoring))
+  for (const auto body : terrain_water_detail::acceptedBodies(authoring)) {
     accepted[body] = 1;
+    const auto &spec = authoring.bodies[body];
+    const auto &levels = coverage.bodyLevels[body];
+    const bool varying =
+        spec.riverSurfaceMode == TerrainRiverSurfaceMode::FollowBed;
+    require(bool(levels.samples) == varying,
+            "water body level representation must match its surface mode");
+    if (!varying) {
+      require(levels.constant == spec.level,
+              "constant water profile must match its authored level");
+      continue;
+    }
+    require(levels.samples->size() == count,
+            "water body level grid must match the terrain grid");
+    float minimum = std::numeric_limits<float>::infinity();
+    float maximum = -std::numeric_limits<float>::infinity();
+    for (const auto &point : spec.riverPath) {
+      minimum = std::min(minimum, point.y + spec.riverDepth);
+      maximum = std::max(maximum, point.y + spec.riverDepth);
+    }
+    for (const float level : *levels.samples) {
+      require(std::isfinite(level) && level >= minimum && level <= maximum,
+              "river level grid must stay within its authored profile bounds");
+    }
+  }
   for (std::size_t sample = 0; sample < count; ++sample) {
     require(std::isfinite(coverage.level[sample]),
             "water coverage levels must be finite");
@@ -320,8 +477,8 @@ void validateWaterCoverage(
             "water coverage body index lies outside authoring");
     require(accepted[body] != 0,
             "water coverage body index references a rejected body");
-    require(coverage.level[sample] == authoring.bodies[body].level,
-            "water coverage level must match its authored body");
+    require(coverage.level[sample] == coverage.bodyLevels[body].at(sample),
+            "water coverage level must match its owning body profile");
   }
 }
 
@@ -332,6 +489,10 @@ Json waterCoverage(const TerrainWaterResult &value, const HeightField &field,
   const auto &coverage = *value.resolvedCoverage;
   validateWaterCoverage(coverage, field, authoring);
   Json bodies = Json::array();
+  Json profiles = Json::array();
+  for (const auto &levels : coverage.bodyLevels) {
+    profiles.push_back(levels.samples ? Json(*levels.samples) : Json(nullptr));
+  }
   for (const auto body : coverage.body) {
     if (body == terrain_water_detail::WaterLevelField::noBody)
       bodies.push_back(-1);
@@ -340,7 +501,7 @@ Json waterCoverage(const TerrainWaterResult &value, const HeightField &field,
   }
   // Grid dimensions come from the terrain; flags and levels come from owners.
   // Ownership includes dry shore samples and must survive without re-solving.
-  return {{"body", std::move(bodies)}};
+  return {{"body", std::move(bodies)}, {"body_levels", std::move(profiles)}};
 }
 
 std::shared_ptr<const terrain_water_detail::WaterLevelField>
@@ -360,6 +521,25 @@ readWaterCoverage(const Json &value, const HeightField &field,
   coverage->level.assign(count, 0.F);
   coverage->wet.assign(count, 0);
   coverage->body.assign(count, terrain_water_detail::WaterLevelField::noBody);
+  const auto &profiles = value.at("body_levels");
+  require(profiles.is_array() && profiles.size() == authoring.bodies.size(),
+          "water level profiles must match authored bodies");
+  coverage->bodyLevels.resize(profiles.size());
+  for (std::size_t body = 0; body < profiles.size(); ++body) {
+    auto &levels = coverage->bodyLevels[body];
+    levels.constant = authoring.bodies[body].level;
+    if (profiles[body].is_null()) {
+      continue;
+    }
+    require(profiles[body].is_array() && profiles[body].size() == count,
+            "water body level grid must match the terrain grid");
+    auto samples = std::make_shared<std::vector<float>>();
+    samples->reserve(count);
+    for (const auto &level : profiles[body]) {
+      samples->push_back(finiteFloat(level, "river surface level"));
+    }
+    levels.samples = std::move(samples);
+  }
   for (std::size_t sample = 0; sample < count; ++sample) {
     const auto &entry = bodies[sample];
     if (entry.is_number_integer() && !entry.is_number_unsigned() &&
@@ -370,7 +550,7 @@ readWaterCoverage(const Json &value, const HeightField &field,
             "water coverage body index lies outside authoring");
     coverage->body[sample] = body;
     coverage->wet[sample] = 1;
-    coverage->level[sample] = authoring.bodies[body].level;
+    coverage->level[sample] = coverage->bodyLevels[body].at(sample);
   }
   validateWaterCoverage(*coverage, field, authoring);
   return coverage;
@@ -388,13 +568,16 @@ Json waterResult(const TerrainWaterResult &value, const HeightField &field,
       vertices.push_back(vec3(point));
     for (const auto &normal : surface.normals)
       normals.push_back(vec3(normal));
-    surfaces.push_back({{"id", surface.id},
-                        {"kind", std::string(waterKind(surface.kind))},
-                        {"level", surface.level},
-                        {"vertices", std::move(vertices)},
-                        {"indices", surface.indices},
-                        {"normals", std::move(normals)},
-                        {"depth", surface.depth}});
+    surfaces.push_back(
+        {{"id", surface.id},
+         {"kind", std::string(waterKind(surface.kind))},
+         {"level", surface.level},
+         {"river_surface_mode",
+          std::string(terrainRiverSurfaceModeName(surface.riverSurfaceMode))},
+         {"vertices", std::move(vertices)},
+         {"indices", surface.indices},
+         {"normals", std::move(normals)},
+         {"depth", surface.depth}});
   }
   return {{"resolved_coverage", waterCoverage(value, field, authoring)},
           {"carved_heights", std::move(carvedHeights)},
@@ -422,6 +605,15 @@ TerrainWaterResult readWaterResult(const Json &value,
     surface.id = entry.at("id").get<std::string>();
     surface.kind = readWaterKind(entry.at("kind"));
     surface.level = finiteFloat(entry.at("level"), "water surface level");
+    surface.riverSurfaceMode = parseTerrainRiverSurfaceMode(
+        entry.at("river_surface_mode").get<std::string>());
+    const auto body = std::ranges::find(authoring.bodies, surface.id,
+                                        &TerrainWaterBodySpec::id);
+    require(body != authoring.bodies.end() && body->kind == surface.kind &&
+                body->riverSurfaceMode == surface.riverSurfaceMode &&
+                (surface.riverSurfaceMode != TerrainRiverSurfaceMode::Level ||
+                 body->level == surface.level),
+            "water surface metadata must match its authored body");
     const auto &vertices = entry.at("vertices");
     const auto &normals = entry.at("normals");
     const auto &depth = entry.at("depth");
@@ -525,10 +717,15 @@ Json encodeDerived(const HeightField &field) {
   if (field.graphArtifacts) {
     const auto &artifacts = *field.graphArtifacts;
     Json runs = Json::array();
-    for (const auto &run : artifacts.nodes)
-      runs.push_back({{"id", run.id},
-                      {"cached", run.cached},
-                      {"milliseconds", run.milliseconds}});
+    for (const auto &run : artifacts.nodes) {
+      Json encoded{{"id", run.id},
+                   {"cached", run.cached},
+                   {"milliseconds", run.milliseconds}};
+      if (!run.status.empty()) {
+        encoded["status"] = run.status;
+      }
+      runs.push_back(std::move(encoded));
+    }
     result["graph"] = {
         {"candidates", artifacts.basePlacements
                            ? placements(*artifacts.basePlacements)
@@ -540,6 +737,13 @@ Json encodeDerived(const HeightField &field) {
                              : Json(nullptr)},
         {"runs", std::move(runs)},
         {"warnings", artifacts.warnings}};
+    if (!artifacts.hydraulicTransport.empty()) {
+      Json transport = Json::object();
+      for (const auto &[id, ledger] : artifacts.hydraulicTransport) {
+        transport[id] = transportLedger(ledger);
+      }
+      result["graph"]["hydraulic_transport"] = std::move(transport);
+    }
   }
   return result;
 }
@@ -575,6 +779,7 @@ void decodeDerived(const Json &document, HeightField &field) {
       TerrainGraphNodeRun decoded;
       decoded.id = run.at("id").get<std::string>();
       decoded.cached = run.at("cached").get<bool>();
+      decoded.status = run.value("status", std::string{});
       const double elapsed = run.at("milliseconds").get<double>();
       require(std::isfinite(elapsed) && elapsed >= 0,
               "graph run time must be finite and nonnegative");
@@ -582,6 +787,17 @@ void decodeDerived(const Json &document, HeightField &field) {
       artifacts->nodes.push_back(std::move(decoded));
     }
     artifacts->warnings = graph.at("warnings").get<std::vector<std::string>>();
+    if (graph.contains("hydraulic_transport")) {
+      const auto &transport = graph.at("hydraulic_transport");
+      require(transport.is_object(), "graph hydraulic transport must be an object");
+      for (const auto &[id, ledger] : transport.items()) {
+        const auto run = std::ranges::find(artifacts->nodes, id,
+                                           &TerrainGraphNodeRun::id);
+        require(run != artifacts->nodes.end(),
+                "hydraulic transport references a missing graph node");
+        artifacts->hydraulicTransport.emplace(id, readTransportLedger(ledger));
+      }
+    }
     field.graphArtifacts = std::move(artifacts);
   }
 }

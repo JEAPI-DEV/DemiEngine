@@ -1,11 +1,12 @@
 <h1>Assets &amp; streaming</h1>
-<p>Typed data assets can be imported with <code>--type DataAsset --content-type terrain_material</code>, <code>terrain_material_set</code> or <code>terrain_palette</code>. Import and reimport run the native content parser and derive asset-ID dependencies. Unknown application content types remain ordinary data; strings are not guessed to be asset references. See <a href="/docs/terrain">terrain asset authoring</a> for the editor creation and property controls.</p>
+<p>Typed data assets can be imported with <code>--type DataAsset --content-type terrain_material_set</code> or <code>terrain_palette</code>; surfaces use ordinary <code>Material</code> assets. Import and reimport run the native content parser and derive asset-ID dependencies. Unknown application content types remain ordinary data; strings are not guessed to be asset references. See <a href="/docs/terrain">terrain asset authoring</a> for the editor creation and property controls.</p>
 <p>Asset IDs are stable URIs you reference from scenes and scripts. Import records hashes and dependencies; cooking is keyed by content so rebuilds stay fast and deterministic.</p>
 
 <h2>Import a source</h2>
 <pre><code>demi asset import assets/textures/brick.png \
   --id asset://textures/brick</code></pre>
 <p>This copies the source into the project and writes a <code>*.asset.json</code> manifest. Supported importers: PNG, JPEG, BMP, TGA, QOI, SVG, GIF, WAV, OGG, MP3, FLAC, glTF/GLB, OBJ, IQM, M3D, MP4/WebM/MOV (media builds), JSON data, plus <code>text</code> (<code>.txt</code>, <code>.yaml</code>, <code>.yml</code>). When two importers could claim a source, pass <code>--importer &lt;id&gt;</code>.</p>
+<p>SVG textures rasterize at their intrinsic pixel dimensions, rounded up. A source with only a <code>viewBox</code> uses a 256-pixel longest edge while preserving its aspect ratio. <code>Icon2D</code> uses a 256 × 256 canvas with aspect-preserving placement and a white alpha mask for UI tinting.</p>
 <p>After editing the source file, refresh the manifest:</p>
 <pre><code>demi asset reimport assets/textures/brick.asset.json</code></pre>
 <p>That recomputes <code>source_hash</code>, dependencies, and generated output. Tools that generate sources under <code>assets/</code> call <code>demi asset register-generated</code>.</p>

@@ -2,6 +2,8 @@
 #include "editor/EditorSceneDocument.h"
 #include "demi/assets/RenderAsset.h"
 #include "demi/runtime/scene/model/World.h"
+#include "demi/runtime/scene/components/3dcomponents/Transform3DComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/PrefabPlacement3DComponent.h"
 #include "demi/runtime/terrain/TerrainWaterMesh.h"
 
 #ifdef NDEBUG
@@ -61,6 +63,46 @@ int main() {
       {.owner = "cube"});
   referenceWorld.entities.push_back(std::move(generatedWater));
   assert(editorEntityReferenceChoices(referenceWorld).size() == 2);
+
+  {
+    runtime::World large;
+    constexpr int Members = 24000;
+    large.entities.reserve(Members + 3);
+    runtime::Entity root;
+    root.id = "root";
+    root.name = "Root";
+    root.setComponent(runtime::Transform3DComponent{});
+    large.entities.push_back(root);
+    for (int index = 0; index < Members; ++index) {
+      runtime::Entity child;
+      child.id = "child-" + std::to_string(index);
+      child.name = child.id;
+      child.setComponent(runtime::Transform3DComponent{.parent = "root"});
+      large.entities.push_back(child);
+    }
+    runtime::Entity placement;
+    placement.id = "placement";
+    placement.name = "Placement";
+    placement.setComponent(runtime::Transform3DComponent{});
+    placement.setComponent(runtime::PrefabPlacement3DComponent{});
+    large.entities.push_back(placement);
+    runtime::Entity preview;
+    preview.id = "placement/__preview/body";
+    preview.name = "Generated preview";
+    preview.setComponent(runtime::Transform3DComponent{.parent = "placement"});
+    large.entities.push_back(preview);
+    const auto choices = editorEntityReferenceChoices(large);
+    assert(choices.size() == Members + 2);
+    assert(std::ranges::none_of(choices, [&](const auto &choice) {
+      return choice.id == preview.id;
+    }));
+    assert(std::ranges::any_of(choices, [&](const auto &choice) {
+      return choice.id == placement.id;
+    }));
+    const char childPayload[] = "child-23999";
+    assert(editorReferenceFromPayload(childPayload, choices) == "child-23999");
+  }
+
 
   const auto project = std::filesystem::path(__FILE__).parent_path().parent_path() /
                        "examples/performance_3d_lab";

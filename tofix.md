@@ -18,3 +18,19 @@
   remote input access before attributing this to either recovery or the editor.
   Evidence: `/tmp/terrain-perf-release-editor-full.png` (deleted state),
   `/tmp/terrain-perf-restored-full.png`, `/tmp/terrain-controlled-play-full.png`.
+
+## Material preview
+
+- The shared Material editor exposes PBR maps and settings, but its preview is
+  still a labeled base-color swatch. Add an actual sphere/plane preview through
+  the shared native renderer, with the same map semantics and lights as a scene.
+  Keep it isolated from authored scene state and pause rendering when unchanged.
+
+## Prefab initial framing
+
+- Opening Amber Pass's mounted traveller prefab selects and renders the correct
+  document, but the initial camera clips the rider's helmet above the viewport.
+  Check automatic framing against the complete visible child hierarchy, not
+  only the root collider or selection pivot. Reproduce with
+  `demi-editor --project examples/amber_pass_3d --open prefabs/amber_pass/mounted_traveller.prefab.json`.
+  Evidence: `/tmp/amber-prefab-verified.jpg`. Camera navigation remains available.

@@ -31,13 +31,15 @@ The game camera uses a 5,000-unit far clip to include the whole landscape.
 Its elevated position looks down the curved valley so the floor, river and
 ridge tops are visible together.
 
-This is a generation and shape probe. Its surface palette uses solid builtin
-lit materials and roughness values. It does not demonstrate tiled albedo,
-normal-map rock detail, texture splatting, image-based lighting or a dense
-vegetation system. Those surface and vegetation capabilities remain separate
-work; increasing the sample resolution is not a substitute for them.
-The GPU terrain path now blends neighboring solid palette samples, smoothing
-material borders without changing terrain resolution. The ordinary CPU mesh
-fallback still has hard, sometimes sawtooth borders. Grid-like shadow striping
-on steep cliffs remains unresolved; the probe keeps shadows enabled to expose it.
+The surface palette uses the Poly Haven Terrain Materials package's ordinary PBR
+materials with white biome tints. Rock/cliff roles select the pale gray fractured
+Marble Cliff 05 scan at its physical 20-metre tile width; Rock Face 03 remains
+available in the package as a warm brown alternative. Changing the material does
+not change terrain geometry or the 500 × 500-cell resolution.
+
+Compatible GPU terrain blends neighboring mapped samples and supports triplanar
+albedo, normals and roughness. The ordinary mesh fallback retains discrete
+material boundaries. Source maps provide surface shading, not geometric cracks,
+vegetation or image-based lighting. Shadows remain enabled to expose receiver
+quality; the earlier prominent cliff shadow grid has been corrected.
 Generated and cooked output stays outside the authored asset sources.

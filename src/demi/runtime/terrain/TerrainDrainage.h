@@ -46,12 +46,16 @@ struct TerrainDrainage {
   // basinOutlets[b] is a valid read for any id found in `basin`, and it holds
   // basinCount + 1 entries.
   std::vector<Vec3> basinOutlets;
+  // Parallel to basinOutlets, including index 0 for the field outlet. Sinks
+  // retain exact grid identity; spill levels come from the priority-flood
+  // surface rather than a guessed height or a simulated accumulation rate.
+  std::vector<std::size_t> basinSinks;
+  std::vector<float> basinSpillLevels;
   // The sample below which water stands, in world units.
   float seaLevel = 0;
-  // The sample each one drains into, or terrainNoDownstream at an outlet or
-  // sink. This is the direction the erosion stage walks instead of computing a
-  // second priority flood: the tree is already here, and re-deriving it would
-  // let the two disagree.
+  // Parent in the priority-flood tree. It descends on the filled surface and
+  // can climb the original ground while escaping a depression. Use the route
+  // tracer for a surface-following river, rather than drawing these links.
   TerrainSamples<std::size_t> downstream;
 };
 

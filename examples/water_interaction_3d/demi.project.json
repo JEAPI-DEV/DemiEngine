@@ -1,0 +1,14 @@
+{
+  "format_version": 1,
+  "name": "Water Interaction 3D",
+  "package_registry": "../../packages",
+  "packages": {
+    "demi.gameplay.water": "^1.0.0"
+  },
+  "main_scene": "scene://water_interaction_3d/main",
+  "scenes": [
+    {
+      "id": "scene://water_interaction_3d/main"
+    }
+  ]
+}

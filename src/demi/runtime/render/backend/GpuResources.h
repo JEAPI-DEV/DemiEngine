@@ -32,6 +32,7 @@ enum class TextureWrap { Clamp, Repeat, Mirror };
 enum class BufferKind { Vertex, DynamicVertex, Index16, Index32 };
 enum class BuiltinProgram {
   Textured2D,
+  WaterSurface3D,
   VertexColor3D,
   Textured3D,
   Lit3D,
@@ -43,7 +44,17 @@ enum class BuiltinProgram {
   Directional3DSkinned,
   PostProcess2D,
   Terrain3D,
-  Terrain3DDirectional
+  Terrain3DDirectional,
+  TerrainMapped3D,
+  TerrainMapped3DDirectional,
+  TerrainMappedOpaque3D,
+  TerrainMappedOpaque3DDirectional,
+  Pbr3D,
+  Pbr3DInstanced,
+  Pbr3DSkinned,
+  Pbr3DDirectional,
+  Pbr3DDirectionalInstanced,
+  Pbr3DDirectionalSkinned
 };
 enum class UniformType { Vec4, Matrix3, Matrix4 };
 enum class VertexSemantic {
@@ -83,10 +94,16 @@ struct TextureCreateInfo {
   std::span<const std::byte> data;
   bool renderTarget = false;
   bool generateMipmaps = false;
+  // RGB storage is sRGB; sampling decodes RGB before filtering. Alpha stays
+  // linear. Data maps and display-space/UI textures leave this disabled.
+  bool srgb = false;
   TextureFilter filter = TextureFilter::Linear;
   TextureWrap wrap = TextureWrap::Clamp;
   std::string debugName;
   int msaaSamples = 1;
+  // Array data is layer-major; each layer contains its complete mip chain.
+  std::uint16_t layers = 1;
+  bool blitDestination = false;
 };
 
 struct TextureUpdateInfo {
@@ -95,6 +112,8 @@ struct TextureUpdateInfo {
   std::uint16_t width = 0;
   std::uint16_t height = 0;
   std::span<const std::byte> data;
+  std::uint16_t layer = 0;
+  std::uint8_t mip = 0;
 };
 
 struct BufferCreateInfo {
@@ -140,11 +159,14 @@ struct RenderDeviceLimits {
   bool originBottomLeft = false;
   std::uint32_t maxTextureSamplers = 0;
   bool supportsInstancing = false;
+  std::uint32_t maxTextureLayers = 1;
+  bool supportsTextureBlit = false;
 };
 
 struct TextureCapabilities {
   bool sampled2D = false;
   bool vertexSampling = false;
+  bool sampledArray = false;
 };
 
 class GpuResources {

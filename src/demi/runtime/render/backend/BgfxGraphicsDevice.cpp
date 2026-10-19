@@ -1,6 +1,8 @@
 #include "demi/runtime/render/backend/BgfxGraphicsDevice.h"
+#include "demi/runtime/render/backend/BgfxFrameSerial.h"
 
 #include "demi/runtime/diagnostics/DeviceLog.h"
+#include "demi/runtime/render/PerformanceDebug.h"
 #include "demi/runtime/render/backend/BgfxProfileCallback.h"
 
 #include <bgfx/bgfx.h>
@@ -152,6 +154,7 @@ bool BgfxGraphicsDevice::initialize(const GraphicsDeviceConfig &config,
     return false;
   }
 
+  beginBgfxSubmissionContext();
   initialized_ = true;
   profile_ = config.profile;
   timings_ = {};
@@ -163,7 +166,12 @@ bool BgfxGraphicsDevice::initialize(const GraphicsDeviceConfig &config,
   height_ = config.height;
   rendererName_ = bgfx::getRendererName(bgfx::getRendererType());
   noop_ = bgfx::getRendererType() == bgfx::RendererType::Noop;
-  bgfx::setDebug(config.debug ? BGFX_DEBUG_TEXT : BGFX_DEBUG_NONE);
+  const std::uint32_t debugFlags =
+      (config.debug ? BGFX_DEBUG_TEXT : BGFX_DEBUG_NONE) |
+      (config.profile ? BGFX_DEBUG_PROFILER : BGFX_DEBUG_NONE);
+  // Per-view timestamps are collected only with the profiler flag; this does
+  // not enable the on-screen debug statistics overlay.
+  bgfx::setDebug(debugFlags);
   deviceLog(deviceLogMessage(
       "render", "bgfx initialized: requested " +
                     std::string(graphicsApiName(config.api)) + ", backend " +
@@ -171,6 +179,13 @@ bool BgfxGraphicsDevice::initialize(const GraphicsDeviceConfig &config,
                     std::to_string(config.width) + "x" +
                     std::to_string(config.height) + ", native window " +
                     devicePointerText(config.nativeWindow.window) + "."));
+#if DEMI_PERFORMANCE_DEBUG
+  deviceLog(deviceLogMessage(
+      "render",
+      "PERFORMANCE_DEBUG diagnostic build: disabled stages [" +
+          std::string(DEMI_PERFORMANCE_DEBUG_DISABLED_NAMES) + "], mask " +
+          std::to_string(DEMI_PERFORMANCE_DEBUG_DISABLED_MASK) + "."));
+#endif
   return true;
 }
 
@@ -206,6 +221,7 @@ void BgfxGraphicsDevice::shutdown() {
   if (!initialized_)
     return;
   bgfx::shutdown();
+  endBgfxSubmissionContext();
   initialized_ = false;
   noop_ = false;
   rendererName_.clear();
@@ -264,10 +280,14 @@ std::uint32_t BgfxGraphicsDevice::endFrame() {
   }
   surfaceSkipLogged = false;
 #endif
-  if (!profile_)
-    return bgfx::frame();
+  if (!profile_) {
+    const auto frame = bgfx::frame();
+    advanceBgfxSubmissionSerial();
+    return frame;
+  }
   const auto start = std::chrono::steady_clock::now();
   const auto frame = bgfx::frame();
+  advanceBgfxSubmissionSerial();
   timings_.advanceMilliseconds = std::chrono::duration<double, std::milli>(
                                      std::chrono::steady_clock::now() - start)
                                      .count();
@@ -298,6 +318,18 @@ std::uint32_t BgfxGraphicsDevice::endFrame() {
                             stats->gpuTimeEnd, stats->gpuTimerFreq);
     if (timings_.gpuMilliseconds) {
       timings_.gpuFrame = stats->gpuFrameNum;
+      if (stats->viewStats != nullptr) {
+        timings_.gpuViews.reserve(stats->numViews);
+        for (std::uint16_t index = 0; index < stats->numViews; ++index) {
+          const auto &view = stats->viewStats[index];
+          auto timing = makeGraphicsGpuViewTiming(
+              view.view, view.name, view.gpuFrameNum, stats->gpuFrameNum,
+              view.gpuTimeBegin, view.gpuTimeEnd, stats->gpuTimerFreq);
+          if (timing) {
+            timings_.gpuViews.push_back(std::move(*timing));
+          }
+        }
+      }
     }
   }
   return frame;

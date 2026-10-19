@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "id": "asset://polyhaven/terrain/textures/rock_face_03/height",
+  "type": "Texture2D",
+  "source": "height.png",
+  "importer": "image",
+  "importer_version": 1,
+  "source_hash": "fnv1a64:4cc21084e9eede9e",
+  "dependencies": [],
+  "settings": {
+    "filter": "trilinear",
+    "mipmaps": true,
+    "wrap": "repeat"
+  }
+}

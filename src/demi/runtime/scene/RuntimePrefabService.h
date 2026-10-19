@@ -1,8 +1,8 @@
 #pragma once
 
 #include "demi/diagnostics/Diagnostic.h"
-#include "demi/runtime/scene/WorldCommandBuffer.h"
 #include "demi/runtime/scene/PrefabTemplateCache.h"
+#include "demi/runtime/scene/WorldCommandBuffer.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 
 #include <nlohmann/json.hpp>
@@ -36,12 +36,31 @@ struct PrefabInstanceResult {
 class RuntimePrefabService {
 public:
   void configure(std::filesystem::path projectDirectory);
-  void setTemplateCacheCapacity(std::size_t entries) { templates_.setCapacity(entries); }
-  PrefabTemplateCacheStats templateCacheStatistics() const { return templates_.statistics(); }
+  void setTemplateCacheCapacity(std::size_t entries) {
+    templates_.setCapacity(entries);
+  }
+  PrefabTemplateCacheStats templateCacheStatistics() const {
+    return templates_.statistics();
+  }
 
-  [[nodiscard]] PrefabInstanceResult instantiate(
-      World &world, WorldCommandBuffer &commands, std::string prefab,
-      PrefabInstantiateOptions options);
+  // Expands and parses an unowned template without allocating a live instance.
+  // Render-only consumers can inspect shared geometry before deciding whether
+  // gameplay entities are needed.
+  [[nodiscard]] std::optional<std::vector<Entity>>
+  prepareEntities(std::string_view prefab, Diagnostics &diagnostics);
+
+  [[nodiscard]] PrefabInstanceResult
+  instantiate(World &world, WorldCommandBuffer &commands, std::string prefab,
+              PrefabInstantiateOptions options);
+  [[nodiscard]] std::optional<std::string_view>
+  sourcePrefab(std::string_view instanceId) const;
+  // Atomically prepares a replacement under the same durable instance ID.
+  // Failed preparation leaves live ownership and pending commands unchanged.
+  [[nodiscard]] PrefabInstanceResult replace(World &world,
+                                             WorldCommandBuffer &commands,
+                                             std::string prefab,
+                                             PrefabInstantiateOptions options);
+
   [[nodiscard]] bool release(World &world, WorldCommandBuffer &commands,
                              const std::string &instanceId);
   void prune(const World &world);
@@ -55,9 +74,9 @@ private:
     bool available = false;
   };
 
-  [[nodiscard]] PrefabInstanceResult build(
-      std::string_view prefab, const PrefabInstantiateOptions &options,
-      nlohmann::json &expanded);
+  [[nodiscard]] PrefabInstanceResult
+  build(std::string_view prefab, const PrefabInstantiateOptions &options,
+        nlohmann::json &expanded);
 
   std::filesystem::path projectDirectory_;
   std::unordered_map<std::string, Instance> instances_;

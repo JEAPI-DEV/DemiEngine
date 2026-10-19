@@ -1059,10 +1059,12 @@ void testSharedAssetScatterReconciliation() {
   scattered->scatterPlacements.push_back({.ruleId = "tree",
                                           .model = "asset://tree",
                                           .cell = 1,
+                                          .candidateX = 1,
+                                          .candidateZ = 0,
                                           .position = {1, 1, 1}});
   publish(scattered);
   const auto scatterId = [](std::string_view owner) {
-    return terrainScatterInstanceId(owner, "asset://palette", "tree", 1);
+    return terrainScatterInstanceId(owner, "asset://palette", "tree", 1, 0);
   };
   for (const auto &owner : {"land", "other"}) {
     auto &instance = entity(world, scatterId(owner));

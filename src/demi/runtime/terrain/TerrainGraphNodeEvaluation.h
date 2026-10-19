@@ -47,6 +47,8 @@ struct GraphNodeResult {
   GraphValues outputs;
   std::vector<std::string> warnings;
   std::shared_ptr<const TerrainSamples<float>> sedimentBalance;
+  std::string status;
+  std::optional<TerrainErosionTransport> hydraulicTransport;
 };
 
 [[nodiscard]] nlohmann::json

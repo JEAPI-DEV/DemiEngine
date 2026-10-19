@@ -7,6 +7,10 @@
 #include <string_view>
 #include <vector>
 
+namespace demi::runtime {
+class EntityComponentQuery;
+}
+
 namespace demi::runtime::render {
 
 enum class SceneLightKind3D { Point, Spot, Directional };
@@ -38,6 +42,9 @@ struct SceneLighting3D {
   std::size_t terrainLodCacheBytes = 64U * 1024U * 1024U;
   std::size_t terrainGpuCacheBytes = 128U * 1024U * 1024U;
   std::size_t terrainLodPrepareJobs = 2;
+  std::uint32_t terrainTextureMaxSize = 1024;
+  std::size_t terrainTextureCacheBytes = 128U * 1024U * 1024U;
+  float terrainDetailDistance = 200;
   std::array<float, 4> direction{-0.4F, -1.0F, -0.3F, 0.0F};
   std::array<float, 4> directionalColor{1.0F, 1.0F, 1.0F, 1.0F};
   std::array<float, 4> ambient{1.0F, 1.0F, 1.0F, 1.0F};
@@ -48,6 +55,7 @@ struct SceneLighting3D {
 };
 
 [[nodiscard]] SceneLighting3D
-collectSceneLighting3D(const World &world, std::string_view renderMask);
+collectSceneLighting3D(const World &world, std::string_view renderMask,
+                       EntityComponentQuery *query = nullptr);
 
 } // namespace demi::runtime::render

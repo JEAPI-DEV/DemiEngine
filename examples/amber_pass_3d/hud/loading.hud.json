@@ -1,0 +1,76 @@
+{
+  "format_version": 1,
+  "canvas_size": [1280, 720],
+  "children": [
+    {
+      "id": "loading_background",
+      "type": "image",
+      "texture": "asset://amber_pass/loading/background",
+      "dock": "fill",
+      "respect_safe_area": false
+    },
+    {
+      "id": "loading_title",
+      "type": "label",
+      "text": "AMBER PASS",
+      "at": [72, 60],
+      "size": [600, 60],
+      "font_size": 38,
+      "text_color": "#EBD7AEFF"
+    },
+    {
+      "id": "loading_subtitle",
+      "type": "label",
+      "text": "THE OLD ROAD",
+      "at": [75, 126],
+      "size": [500, 30],
+      "font_size": 16,
+      "text_color": "#BCAA8BFF"
+    },
+    {
+      "id": "loading_tip_title",
+      "type": "label",
+      "text": "Ride the valley",
+      "at": [76, 500],
+      "size": [850, 34],
+      "font_size": 24,
+      "text_color": "#EBD7AEFF"
+    },
+    {
+      "id": "loading_tip",
+      "type": "label",
+      "text": "WASD to ride. Hold Shift to gallop. Release movement to rein in.",
+      "at": [76, 545],
+      "size": [1050, 34],
+      "font_size": 17,
+      "text_color": "#C7C9C7FF"
+    },
+    {
+      "id": "loading_stage",
+      "type": "label",
+      "text": "Preparing the journey",
+      "at": [76, 619],
+      "size": [850, 30],
+      "font_size": 15,
+      "text_color": "#BCAA8BFF"
+    },
+    {
+      "id": "loading_progress",
+      "type": "progress",
+      "at": [76, 660],
+      "size": [1128, 5],
+      "value": 0,
+      "color": "#D4B67CFF",
+      "background_color": "#344047FF"
+    },
+    {
+      "id": "loading_error",
+      "type": "label",
+      "text": "",
+      "at": [76, 585],
+      "size": [1128, 50],
+      "font_size": 15,
+      "text_color": "#EDAB91FF"
+    }
+  ]
+}

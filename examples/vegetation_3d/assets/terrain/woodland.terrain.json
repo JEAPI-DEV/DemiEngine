@@ -1,0 +1,623 @@
+{
+  "format_version": 1,
+  "id": "asset://vegetation_3d/woodland",
+  "name": "Lake, slope, road and building clearing",
+  "recipe": {
+    "format_version": 1,
+    "size": [
+      96,
+      96
+    ],
+    "resolution": [
+      96,
+      96
+    ],
+    "chunk_cells": 24,
+    "seed": 1706,
+    "palette": "asset://demi/vegetation/palettes/woodland",
+    "biomes": {
+      "default": {
+        "color": [
+          0.28,
+          0.37,
+          0.16,
+          1
+        ],
+        "allow_snow": false
+      },
+      "shore": {
+        "color": [
+          0.44,
+          0.39,
+          0.23,
+          1
+        ],
+        "allow_snow": false
+      },
+      "rock": {
+        "color": [
+          0.36,
+          0.37,
+          0.35,
+          1
+        ],
+        "allow_snow": false
+      }
+    },
+    "rules": [
+      {
+        "id": "rock_slopes",
+        "biome": "rock",
+        "priority": 20,
+        "slope": [
+          30,
+          90
+        ]
+      },
+      {
+        "id": "lake_bank",
+        "biome": "shore",
+        "priority": 10,
+        "water_distance": [
+          0,
+          2.5
+        ]
+      }
+    ],
+    "exclusions": [
+      {
+        "center": [
+          60,
+          0
+        ],
+        "radius": 3,
+        "falloff": 0
+      },
+      {
+        "center": [
+          60,
+          4
+        ],
+        "radius": 3,
+        "falloff": 0
+      },
+      {
+        "center": [
+          60,
+          8
+        ],
+        "radius": 3,
+        "falloff": 0
+      },
+      {
+        "center": [
+          60,
+          12
+        ],
+        "radius": 3,
+        "falloff": 0
+      },
+      {
+        "center": [
+          60,
+          16
+        ],
+        "radius": 3,
+        "falloff": 0
+      },
+      {
+        "center": [
+          60,
+          20
+        ],
+        "radius": 3,
+        "falloff": 0
+      },
+      {
+        "center": [
+          60,
+          24
+        ],
+        "radius": 3,
+        "falloff": 0
+      },
+      {
+        "center": [
+          60,
+          28
+        ],
+        "radius": 3,
+        "falloff": 0
+      },
+      {
+        "center": [
+          60,
+          32
+        ],
+        "radius": 3,
+        "falloff": 0
+      },
+      {
+        "center": [
+          60,
+          36
+        ],
+        "radius": 3,
+        "falloff": 0
+      },
+      {
+        "center": [
+          60,
+          40
+        ],
+        "radius": 3,
+        "falloff": 0
+      },
+      {
+        "center": [
+          60,
+          44
+        ],
+        "radius": 3,
+        "falloff": 0
+      },
+      {
+        "center": [
+          60,
+          48
+        ],
+        "radius": 3,
+        "falloff": 0
+      },
+      {
+        "center": [
+          60,
+          52
+        ],
+        "radius": 3,
+        "falloff": 0
+      },
+      {
+        "center": [
+          60,
+          56
+        ],
+        "radius": 3,
+        "falloff": 0
+      },
+      {
+        "center": [
+          60,
+          60
+        ],
+        "radius": 3,
+        "falloff": 0
+      },
+      {
+        "center": [
+          60,
+          64
+        ],
+        "radius": 3,
+        "falloff": 0
+      },
+      {
+        "center": [
+          60,
+          68
+        ],
+        "radius": 3,
+        "falloff": 0
+      },
+      {
+        "center": [
+          60,
+          72
+        ],
+        "radius": 3,
+        "falloff": 0
+      },
+      {
+        "center": [
+          60,
+          76
+        ],
+        "radius": 3,
+        "falloff": 0
+      },
+      {
+        "center": [
+          60,
+          80
+        ],
+        "radius": 3,
+        "falloff": 0
+      },
+      {
+        "center": [
+          60,
+          84
+        ],
+        "radius": 3,
+        "falloff": 0
+      },
+      {
+        "center": [
+          60,
+          88
+        ],
+        "radius": 3,
+        "falloff": 0
+      },
+      {
+        "center": [
+          60,
+          92
+        ],
+        "radius": 3,
+        "falloff": 0
+      },
+      {
+        "center": [
+          60,
+          96
+        ],
+        "radius": 3,
+        "falloff": 0
+      },
+      {
+        "center": [
+          78,
+          72
+        ],
+        "radius": 9,
+        "falloff": 0
+      }
+    ],
+    "graph": {
+      "format_version": 1,
+      "output": "output",
+      "nodes": [
+        {
+          "id": "meadow",
+          "type": "constant",
+          "parameters": {
+            "height": 4
+          },
+          "position": [
+            0,
+            0
+          ]
+        },
+        {
+          "id": "uplands",
+          "type": "noise",
+          "parameters": {
+            "base_height": 8,
+            "height_variation": 8,
+            "feature_size": 20,
+            "octaves": 3
+          },
+          "position": [
+            0,
+            220
+          ]
+        },
+        {
+          "id": "hills_mask",
+          "type": "polygon_mask",
+          "parameters": {
+            "points": [
+              [
+                57,
+                2
+              ],
+              [
+                96,
+                2
+              ],
+              [
+                96,
+                48
+              ],
+              [
+                57,
+                48
+              ]
+            ],
+            "falloff": 10
+          },
+          "position": [
+            0,
+            440
+          ]
+        },
+        {
+          "id": "hills",
+          "type": "height_blend",
+          "parameters": {
+            "amount": 1
+          },
+          "position": [
+            300,
+            0
+          ]
+        },
+        {
+          "id": "bed",
+          "type": "constant",
+          "parameters": {
+            "height": 0
+          },
+          "position": [
+            300,
+            220
+          ]
+        },
+        {
+          "id": "lake_mask",
+          "type": "polygon_mask",
+          "parameters": {
+            "points": [
+              [
+                12,
+                20
+              ],
+              [
+                43,
+                20
+              ],
+              [
+                48,
+                48
+              ],
+              [
+                36,
+                64
+              ],
+              [
+                14,
+                58
+              ]
+            ],
+            "falloff": 8
+          },
+          "position": [
+            300,
+            440
+          ]
+        },
+        {
+          "id": "basin",
+          "type": "height_blend",
+          "parameters": {
+            "amount": 1
+          },
+          "position": [
+            600,
+            0
+          ]
+        },
+        {
+          "id": "lake",
+          "type": "water",
+          "parameters": {
+            "kind": "lake",
+            "level": 2.5,
+            "center_x": 28,
+            "center_z": 40,
+            "radius": 0,
+            "foam_width": 0.25,
+            "foam_strength": 0.25
+          },
+          "position": [
+            600,
+            220
+          ]
+        },
+        {
+          "id": "biomes",
+          "type": "biomes",
+          "position": [
+            600,
+            440
+          ]
+        },
+        {
+          "id": "vegetation",
+          "type": "scatter",
+          "position": [
+            900,
+            0
+          ]
+        },
+        {
+          "id": "output",
+          "type": "output",
+          "position": [
+            900,
+            220
+          ]
+        }
+      ],
+      "links": [
+        {
+          "id": "meadow_field_hills_mask_field",
+          "from": {
+            "node": "meadow",
+            "port": "field"
+          },
+          "to": {
+            "node": "hills_mask",
+            "port": "field"
+          }
+        },
+        {
+          "id": "meadow_field_hills_a",
+          "from": {
+            "node": "meadow",
+            "port": "field"
+          },
+          "to": {
+            "node": "hills",
+            "port": "a"
+          }
+        },
+        {
+          "id": "uplands_field_hills_b",
+          "from": {
+            "node": "uplands",
+            "port": "field"
+          },
+          "to": {
+            "node": "hills",
+            "port": "b"
+          }
+        },
+        {
+          "id": "hills_mask_mask_hills_mask",
+          "from": {
+            "node": "hills_mask",
+            "port": "mask"
+          },
+          "to": {
+            "node": "hills",
+            "port": "mask"
+          }
+        },
+        {
+          "id": "hills_field_lake_mask_field",
+          "from": {
+            "node": "hills",
+            "port": "field"
+          },
+          "to": {
+            "node": "lake_mask",
+            "port": "field"
+          }
+        },
+        {
+          "id": "hills_field_basin_a",
+          "from": {
+            "node": "hills",
+            "port": "field"
+          },
+          "to": {
+            "node": "basin",
+            "port": "a"
+          }
+        },
+        {
+          "id": "bed_field_basin_b",
+          "from": {
+            "node": "bed",
+            "port": "field"
+          },
+          "to": {
+            "node": "basin",
+            "port": "b"
+          }
+        },
+        {
+          "id": "lake_mask_mask_basin_mask",
+          "from": {
+            "node": "lake_mask",
+            "port": "mask"
+          },
+          "to": {
+            "node": "basin",
+            "port": "mask"
+          }
+        },
+        {
+          "id": "basin_field_lake_field",
+          "from": {
+            "node": "basin",
+            "port": "field"
+          },
+          "to": {
+            "node": "lake",
+            "port": "field"
+          }
+        },
+        {
+          "id": "lake_field_biomes_field",
+          "from": {
+            "node": "lake",
+            "port": "field"
+          },
+          "to": {
+            "node": "biomes",
+            "port": "field"
+          }
+        },
+        {
+          "id": "lake_water_biomes_water",
+          "from": {
+            "node": "lake",
+            "port": "water"
+          },
+          "to": {
+            "node": "biomes",
+            "port": "water"
+          }
+        },
+        {
+          "id": "biomes_field_vegetation_field",
+          "from": {
+            "node": "biomes",
+            "port": "field"
+          },
+          "to": {
+            "node": "vegetation",
+            "port": "field"
+          }
+        },
+        {
+          "id": "lake_water_vegetation_water",
+          "from": {
+            "node": "lake",
+            "port": "water"
+          },
+          "to": {
+            "node": "vegetation",
+            "port": "water"
+          }
+        },
+        {
+          "id": "biomes_field_output_field",
+          "from": {
+            "node": "biomes",
+            "port": "field"
+          },
+          "to": {
+            "node": "output",
+            "port": "field"
+          }
+        },
+        {
+          "id": "lake_water_output_water",
+          "from": {
+            "node": "lake",
+            "port": "water"
+          },
+          "to": {
+            "node": "output",
+            "port": "water"
+          }
+        },
+        {
+          "id": "vegetation_instances_output_instances",
+          "from": {
+            "node": "vegetation",
+            "port": "instances"
+          },
+          "to": {
+            "node": "output",
+            "port": "instances"
+          }
+        }
+      ]
+    }
+  }
+}

@@ -15,6 +15,7 @@
 #include "demi/runtime/assets/RuntimeAssetBootstrap.h"
 #include "demi/runtime/assets/RuntimeAssetReload.h"
 #include "demi/runtime/assets/RuntimeAssetService.h"
+#include "demi/runtime/assets/HeadlessVisualAssetLoader.h"
 #include "demi/runtime/audio/AudioSceneSystem.h"
 #include "demi/runtime/audio/AudioSystem.h"
 #include "demi/runtime/camera/Camera2DSystem.h"
@@ -486,6 +487,9 @@ int runProject(const RuntimeOptions &options) {
     printDiagnosticsText(std::cerr, runtimeAssetDiagnostics);
     return RuntimeFailure;
   }
+  if (isHeadless() || options.serve) {
+    runtimeAssets.registerLoader(createHeadlessVisualAssetLoader(assetRegistry));
+  }
   runtimeAssets.registerLoader(createColliderAssetLoader3D(loaded.world));
   if (audioInitialized)
     runtimeAssets.registerLoader(audioSystem.createAssetLoader(assetRegistry));
@@ -634,7 +638,7 @@ int runProject(const RuntimeOptions &options) {
       const auto frameStart = std::chrono::steady_clock::now();
       const auto updateStart = std::chrono::steady_clock::now();
       if (options.e2eTests) {
-        luaHost.drainSyntheticTouches(input);
+        luaHost.drainSyntheticTouches(input, fixedStep);
         luaHost.updateE2ETests(fixedStep);
       }
       stepSimulation(loaded, luaHost, input, audioSystem, mediaSystem,
@@ -867,7 +871,7 @@ int runProject(const RuntimeOptions &options) {
       const auto frameStart = std::chrono::steady_clock::now();
       const float dt = frameState.deltaSeconds;
       if (options.e2eTests) {
-        luaHost.drainSyntheticTouches(input);
+        luaHost.drainSyntheticTouches(input, frameState.deltaSeconds);
         luaHost.updateE2ETests(frameState.deltaSeconds);
       }
       double updateMs = 0.0;
@@ -1016,6 +1020,14 @@ int runProject(const RuntimeOptions &options) {
     for (const std::string &diagnostic : renderDiagnostics)
       std::cerr << "3D asset load failed: " << diagnostic << '\n';
     runtimeAssets.registerLoader(appHost.createAssetLoader(assetRegistry));
+    luaHost.setScenePresentationPreparation(
+        [&appHost](const World &prepared, bool &complete,
+                   std::string &preparationError) {
+          return appHost.prepareScenePresentation(prepared, complete,
+                                                  preparationError);
+        },
+        [&appHost] { appHost.cancelScenePresentationPreparation(); });
+
     if (!prepareStartupAssets()) {
       luaHost.destroy();
       runtimeAssets.shutdown();
@@ -1144,7 +1156,7 @@ int runProject(const RuntimeOptions &options) {
       const auto frameStart = std::chrono::steady_clock::now();
       const float dt = frameState.deltaSeconds;
       if (options.e2eTests) {
-        luaHost.drainSyntheticTouches(input);
+        luaHost.drainSyntheticTouches(input, frameState.deltaSeconds);
         luaHost.updateE2ETests(frameState.deltaSeconds);
       }
       double updateMs = 0.0;

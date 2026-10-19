@@ -1,0 +1,11 @@
+{
+  "format_version": 1,
+  "id": "asset://demi/vegetation/materials/bark",
+  "type": "Material",
+  "source": "bark.material.json",
+  "importer": "material",
+  "importer_version": 1,
+  "dependencies": [],
+  "settings": {},
+  "source_hash": "fnv1a64:8f8a53b847110738"
+}

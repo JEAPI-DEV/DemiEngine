@@ -7,9 +7,11 @@
 
 #include "demi/assets/AssetRegistry.h"
 #include "demi/assets/DataDocument.h"
-#include "demi/assets/MaterialAsset.h"
 #include "demi/assets/MaterialSet.h"
+#include "demi/assets/MaterialSurface.h"
+#include "demi/assets/RenderAsset.h"
 #include "demi/runtime/terrain/TerrainPalette.h"
+#include "editor/EditorMaterialControls.h"
 
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -74,9 +76,14 @@ public:
             std::string_view contentType, std::string &notice) {
     ImGui::NewFrame();
     ImGui::Begin("Data controls");
-    require(demi::editor::drawEditorDataAssetControls(workspace, document,
-                                                      contentType, notice),
-            "Expected native controls for " + std::string(contentType));
+    if (contentType == "material") {
+      demi::editor::drawEditorMaterialSurfaceControls(workspace, document,
+                                                      notice);
+    } else {
+      require(demi::editor::drawEditorDataAssetControls(workspace, document,
+                                                        contentType, notice),
+              "Expected native controls for " + std::string(contentType));
+    }
     ImGui::End();
     ImGui::Render();
     const auto *context = ImGui::GetCurrentContext();
@@ -98,13 +105,14 @@ nativeValidator(const demi::AssetRegistry &registry, std::string_view kind) {
     if (!parsed.document)
       return parsed.diagnostics;
     try {
-      if (kind == "terrain_material")
-        (void)demi::assets::parseTerrainMaterialAsset(*parsed.document,
-                                                      registry, "asset://test");
-      else if (kind == "terrain_material_set")
+      if (kind == "material") {
+        demi::Diagnostics diagnostics;
+        (void)demi::assets::parseMaterialAsset(value, path, &diagnostics);
+        return diagnostics;
+      } else if (kind == "terrain_material_set") {
         (void)demi::assets::parseTerrainMaterialSet(*parsed.document, registry,
                                                     "asset://test");
-      else
+      } else
         (void)demi::runtime::parseTerrainPalette(*parsed.document, registry,
                                                  "asset://test");
     } catch (const std::invalid_argument &failure) {
@@ -191,11 +199,50 @@ int main() {
   {
     std::ofstream output(materialPath);
     output << R"({"format_version":1,"name":"Sample"})";
-    require(output.good(), "Could not write terrain material fixture");
+    require(output.good(), "Could not write Material fixture");
   }
   demi::editor::EditorJsonDocument material;
-  open(material, materialPath, registry, "terrain_material");
-  imgui.draw(workspace, material, "terrain_material", notice);
+  open(material, materialPath, registry, "material");
+  imgui.draw(workspace, material, "material", notice);
+  require(demi::editor::setEditorMaterialMap(
+              material, demi::assets::MaterialMapSlot::DetailNormal,
+              "asset://textures/detail", error),
+          error);
+  require(material.set("/parameters/detail_strength", .5, error), error);
+  const auto withDetail = material.json();
+  require(demi::editor::setEditorMaterialMap(
+              material, demi::assets::MaterialMapSlot::DetailNormal, "", error),
+          error);
+  require(!material.json().at("textures").contains("detail_normal") &&
+              material.json().at("parameters").at("detail_strength") == 0,
+          "Clearing detail map did not reset its dependent strength");
+  require(material.undo(error) && material.json() == withDetail, error);
+  require(material.redo(error), error);
+  const auto originalMaterial = material.json();
+  require(material.set("/mapping", "triplanar", error), error);
+  require(material.set("/normal_map_convention", "directx", error), error);
+  require(material.set("/parameters/normal_strength", 2.0, error), error);
+  require(material.set("/parameters/tiling", 3.5, error), error);
+  const auto editedMaterial = material.json();
+  require(!material.set("/mapping", "planar", error) &&
+              material.json() == editedMaterial,
+          "Invalid mapping changed the material document");
+  require(!material.set("/parameters/tiling", 0, error) &&
+              material.json() == editedMaterial,
+          "Invalid tiling changed the material document");
+  require(material.undo(error) && material.redo(error), error);
+  require(material.json() == editedMaterial,
+          "Material Undo/Redo did not restore surface controls");
+  imgui.draw(workspace, material, "material", notice);
+  require(material.json() == editedMaterial,
+          "Viewing Material controls authored unrelated defaults");
+  require(material.save(error), error);
+  require(readJson(materialPath) == editedMaterial,
+          "Material save lost the unified surface fields");
+  require(originalMaterial.at("format_version") ==
+              material.json().at("format_version"),
+          "Surface editing changed document version");
+
   ImGui::NewFrame();
   ImGui::Begin("Data controls");
   require(!demi::editor::drawEditorDataAssetControls(workspace, material,
@@ -221,17 +268,15 @@ int main() {
   require(authoredWorkspace.open(authoredProject, error), error);
   fs::path created;
   require(demi::editor::createEditorSource(
-              authoredWorkspace,
-              demi::editor::EditorSourceKind::TerrainMaterial, "original",
-              created, error),
+              authoredWorkspace, demi::editor::EditorSourceKind::Material,
+              "original", created, error),
           error);
   require(demi::editor::createEditorSource(
-              authoredWorkspace,
-              demi::editor::EditorSourceKind::TerrainMaterial, "new_material",
-              created, error),
+              authoredWorkspace, demi::editor::EditorSourceKind::Material,
+              "new_material", created, error),
           error);
-  const std::string originalRef = "asset://terrain_materials/original";
-  const std::string newRef = "asset://terrain_materials/new_material";
+  const std::string originalRef = "asset://materials/original";
+  const std::string newRef = "asset://materials/new_material";
   require(demi::editor::createEditorSource(
               authoredWorkspace,
               demi::editor::EditorSourceKind::TerrainMaterialSet, "surface",
@@ -296,7 +341,7 @@ int main() {
   require(pending.has_value(),
           "Pending asset import was omitted from recovery");
   require(!panel.open(authoredProject /
-                          "assets/terrain_materials/original/original.json",
+                          "assets/materials/original/original.material.json",
                       authoredWorkspace.assetIndex(), error),
           "Opening another source discarded a pending import");
   writeJson(setManifest, updatedManifest);

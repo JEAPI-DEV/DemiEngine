@@ -1,0 +1,15 @@
+{
+  "dependencies": [
+    "asset://polyhaven/terrain/textures/marble_cliff_05/albedo",
+    "asset://polyhaven/terrain/textures/marble_cliff_05/normal",
+    "asset://polyhaven/terrain/textures/marble_cliff_05/roughness"
+  ],
+  "format_version": 1,
+  "id": "asset://amber_pass/materials/masonry",
+  "importer": "material",
+  "importer_version": 1,
+  "settings": {},
+  "source": "masonry.material.json",
+  "source_hash": "fnv1a64:d93665111c0af2d8",
+  "type": "Material"
+}

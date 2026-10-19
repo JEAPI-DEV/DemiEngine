@@ -1,0 +1,15 @@
+{
+  "dependencies": [
+    "asset://amber_pass/textures/rider_leather/albedo",
+    "asset://amber_pass/textures/rider_leather/normal",
+    "asset://amber_pass/textures/rider_leather/roughness"
+  ],
+  "format_version": 1,
+  "id": "asset://amber_pass/materials/shield",
+  "importer": "material",
+  "importer_version": 1,
+  "settings": {},
+  "source": "shield.material.json",
+  "source_hash": "fnv1a64:2fbce72e2ec4f172",
+  "type": "Material"
+}

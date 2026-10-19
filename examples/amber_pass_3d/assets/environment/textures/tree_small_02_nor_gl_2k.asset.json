@@ -1,0 +1,15 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://amber_pass/textures/trunk/normal",
+  "importer": "image",
+  "importer_version": 1,
+  "settings": {
+    "filter": "trilinear",
+    "mipmaps": true,
+    "wrap": "repeat"
+  },
+  "source": "tree_small_02_nor_gl_2k.jpg",
+  "source_hash": "fnv1a64:d0966d5c1fb69f6d",
+  "type": "Texture2D"
+}

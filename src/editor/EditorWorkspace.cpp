@@ -13,6 +13,8 @@
 #include "demi/assets/DataAsset.h"
 #include "demi/assets/TerrainAsset.h"
 #include "demi/runtime/scene/SceneEntityParser.h"
+#include "demi/runtime/scene/ComponentRegistry.h"
+#include "demi/runtime/scene/EntityPresets.h"
 #include "demi/runtime/scene/ProjectParser.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/2dcomponents/IsoGridComponent.h"
@@ -25,9 +27,21 @@
 #include <algorithm>
 #include <exception>
 #include <iterator>
+#include <stdexcept>
 
 namespace demi::editor {
 namespace {
+
+bool isTerrainPresentationCommand(const SetValueCommand *command) {
+  if (!command || command->createdComponent ||
+      command->createdComponentsContainer) {
+    return false;
+  }
+  const auto &target = command->target;
+  return target.component == "Terrain3D" &&
+         (target.field == "surface_blending" ||
+          target.field == "lod_error_pixels");
+}
 
 std::filesystem::path normalized(const std::filesystem::path &path) {
   return std::filesystem::absolute(path).lexically_normal();
@@ -110,6 +124,7 @@ bool EditorWorkspace::open(std::filesystem::path projectPath,
     return false;
 
   projectPath_ = std::move(projectPath);
+  invalidateHierarchyPreview();
   project_ = std::move(loaded);
   terrainPreviewPrefabs_.configure(project_->project.projectDirectory);
   openedHudDocument_.reset();
@@ -227,6 +242,7 @@ bool EditorWorkspace::openEntityDocument(const std::filesystem::path &path,
   else
     lastScenePath_ = sceneDocument_.path();
   hudDocument_ = std::move(hud);
+  invalidateHierarchyPreview();
   project_->world = std::move(*world);
   terrainPreviewPrefabs_ = std::move(previewPrefabs);
   activeDocument_ = EditorWorkspaceDocument::Scene;
@@ -346,6 +362,7 @@ bool EditorWorkspace::refresh(std::string &error) {
     return false;
   if (!projectDocument_.reload(error))
     return false;
+  invalidateHierarchyPreview();
   project_ = std::move(loaded);
   if (!rebuildWorld(error))
     return false;
@@ -556,6 +573,7 @@ bool EditorWorkspace::resolveExternalChange(
       syncEditorDiagnostic();
       return false;
     }
+    invalidateHierarchyPreview();
     project_ = std::move(loaded);
     if (!rebuildWorld(error))
       return false;
@@ -592,6 +610,9 @@ bool EditorWorkspace::undo(std::string &error) {
   }
   if (sceneDocument_.nextTerrainUndo())
     return terrainHistory(false, error);
+  if (isTerrainPresentationCommand(sceneDocument_.nextValueUndo())) {
+    return terrainPresentationHistory(false, error);
+  }
   if (!mutateAndRebuild(
           [](EditorSceneDocument &document, std::string &mutationError) {
             return document.undo(mutationError);
@@ -621,6 +642,9 @@ bool EditorWorkspace::redo(std::string &error) {
   }
   if (sceneDocument_.nextTerrainRedo())
     return terrainHistory(true, error);
+  if (isTerrainPresentationCommand(sceneDocument_.nextValueRedo())) {
+    return terrainPresentationHistory(true, error);
+  }
   if (!mutateAndRebuild(
           [](EditorSceneDocument &document, std::string &mutationError) {
             return document.redo(mutationError);
@@ -686,7 +710,8 @@ bool EditorWorkspace::editValue(SceneValueTarget target, nlohmann::json value,
     }
   }
   const bool terrainContentEdit =
-      target.component == "Terrain3D" && target.field != "lod_error_pixels";
+      target.component == "Terrain3D" && target.field != "lod_error_pixels" &&
+      target.field != "surface_blending";
   if (target.component == "PrefabPlacement3D" ||
       target.component == "Masonry3D" || terrainContentEdit ||
       (target.component.empty() && target.field == "enabled")) {
@@ -1496,6 +1521,7 @@ bool EditorWorkspace::pollTerrainAuthoring(std::string &error) {
     }
     return error.empty();
   }
+  invalidateHierarchyPreview();
   const runtime::Entity *entity =
       runtime::findEntity(project_->world, commit->entityId);
   const auto *terrain =
@@ -1601,6 +1627,7 @@ bool EditorWorkspace::restoreTerrainPreview(std::string &error) {
   (void)terrainAuthoring_->takeRollback();
   if (!terrainPreview_)
     return true;
+  invalidateHierarchyPreview();
   if (terrainAssetDocument_ &&
       terrainPreview_->document == terrainAssetDocument_->path().string()) {
     if (!restoreTerrainAssetPreview(error))
@@ -1651,6 +1678,97 @@ bool EditorWorkspace::restoreTerrainPreview(std::string &error) {
   }
   terrainPreview_.reset();
   terrainPreviewSurface_.reset();
+  return true;
+}
+
+bool EditorWorkspace::terrainPresentationHistory(bool forward,
+                                                 std::string &error) {
+  if (!restoreTerrainPreview(error)) {
+    return false;
+  }
+  const auto *command =
+      forward ? sceneDocument_.nextValueRedo() : sceneDocument_.nextValueUndo();
+  const auto target = command->target;
+  auto *entity = runtime::findEntity(project_->world, target.entityId);
+  auto *terrain =
+      entity ? entity->component<runtime::Terrain3DComponent>() : nullptr;
+  if (!terrain) {
+    error = "The terrain presentation owner no longer exists.";
+    return false;
+  }
+  auto previousDocument = sceneDocument_;
+  const auto previousTerrain = *terrain;
+  const auto serialized = entity->serializedComponents.find("Terrain3D");
+  std::optional<std::string> previousSerialized;
+  if (serialized != entity->serializedComponents.end()) {
+    previousSerialized = serialized->second;
+  }
+  if (!(forward ? sceneDocument_.redo(error) : sceneDocument_.undo(error))) {
+    return false;
+  }
+  try {
+    nlohmann::json effectiveComponent;
+    if (target.isPrefabOverride()) {
+      const auto *instance =
+          findPrefabInstance(sceneDocument_.json(), target.prefabInstanceId);
+      if (!instance) {
+        throw std::runtime_error(
+            "The terrain prefab instance no longer exists.");
+      }
+      const auto expanded = runtime::composition::expandPrefabInstance(
+          sceneDocument_.path(), *instance);
+      if (!expanded.document) {
+        throw std::runtime_error(
+            expanded.diagnostics.empty()
+                ? "Could not resolve the inherited terrain component."
+                : expanded.diagnostics.front().message);
+      }
+      const auto *source = runtime::composition::findAuthoredEntity(
+          *expanded.document, target.entityId);
+      if (!source) {
+        throw std::runtime_error(
+            "The inherited terrain owner no longer exists.");
+      }
+      const auto effectiveEntity =
+          runtime::scene_loading::expandEntityPreset(*source);
+      effectiveComponent = effectiveEntity.at("components").at("Terrain3D");
+    } else {
+      const auto *component =
+          sceneDocument_.component(target.entityId, "Terrain3D");
+      if (!component) {
+        throw std::runtime_error(
+            "The authored terrain component no longer exists.");
+      }
+      effectiveComponent = *component;
+    }
+    // Parsing the effective component restores inherited values while the
+    // binding copies only the presentation field into the existing native
+    // owner.
+    const auto *descriptor =
+        runtime::scene_loading::findComponentDescriptor("Terrain3D");
+    if (!descriptor ||
+        !descriptor->patch(*entity, target.field, effectiveComponent)) {
+      throw std::runtime_error(
+          "The terrain presentation field could not be bound.");
+    }
+  } catch (const std::exception &exception) {
+    sceneDocument_ = std::move(previousDocument);
+    *terrain = previousTerrain;
+    if (previousSerialized) {
+      entity->serializedComponents.insert_or_assign(
+          "Terrain3D", std::move(*previousSerialized));
+    } else {
+      entity->serializedComponents.erase("Terrain3D");
+    }
+    error = exception.what();
+    workspaceOperationError_ = error;
+    syncEditorDiagnostic();
+    return false;
+  }
+  error.clear();
+  workspaceOperationError_.clear();
+  lastEditTerrainAsset_ = false;
+  syncEditorDiagnostic();
   return true;
 }
 
@@ -1881,6 +1999,7 @@ bool EditorWorkspace::mutateAndRebuild(
 }
 
 void EditorWorkspace::syncChangedEntity() {
+  invalidateHierarchyPreview();
   const std::string_view changed = sceneDocument_.lastChangedEntityId();
   const auto flat = runtime::composition::flattenEntityHierarchy(
       sceneDocument_.json()["entities"]);
@@ -1925,6 +2044,7 @@ void EditorWorkspace::reconcileIsoGridCellSelection() {
 }
 
 bool EditorWorkspace::rebuildWorld(std::string &error) {
+  invalidateHierarchyPreview();
   error.clear();
   runtime::RuntimePrefabService previewPrefabs;
   previewPrefabs.configure(project_->project.projectDirectory);

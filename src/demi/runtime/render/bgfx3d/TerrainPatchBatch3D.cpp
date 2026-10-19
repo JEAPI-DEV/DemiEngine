@@ -4,6 +4,7 @@
 #include "demi/runtime/geometry/MeshDeformation3D.h"
 #include "demi/runtime/render/bgfx3d/MeshTransform3D.h"
 #include "demi/runtime/render/bgfx3d/TerrainCameraDemand3D.h"
+#include "demi/runtime/render/bgfx3d/TerrainMaterialResidency3D.h"
 #include "demi/runtime/scene/components/3dcomponents/AnimationPlayer3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshInstances3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
@@ -12,7 +13,10 @@
 #include "demi/runtime/scene/model/World.h"
 
 #include <algorithm>
+#include <cmath>
+#include <limits>
 #include <map>
+#include <tuple>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -128,13 +132,16 @@ struct TerrainPatchBatch3D::Impl {
     TerrainPatchInstance3D instance;
     std::vector<VisibleMesh3D> fallback;
     std::size_t level = 0;
+    std::shared_ptr<const TerrainMaterialArrays3D> arrays;
+    float detailDistance = 200;
   };
   std::vector<Patch> patches;
   std::vector<VisibleMesh3D> immediateFallback;
   TerrainPatchStatistics3D statistics;
   UniformHandle fieldUniform;
   UniformHandle paletteUniform;
-  std::array<SamplerHandle, 4> samplers{};
+  std::array<SamplerHandle, 9> samplers{};
+  UniformHandle surfaceUniform;
 
   bool bindingsReady(std::string &error) {
     if (!fieldUniform) {
@@ -145,14 +152,20 @@ struct TerrainPatchBatch3D::Impl {
       paletteUniform = resources.createUniform("u_terrainPalette",
                                                UniformType::Vec4, 1, error);
     }
-    constexpr std::array names{"s_terrainHeight", "s_terrainNormal",
-                               "s_terrainIds", "s_terrainPalette"};
+    if (!surfaceUniform) {
+      surfaceUniform = resources.createUniform("u_terrainSurface",
+                                               UniformType::Vec4, 1, error);
+    }
+    constexpr std::array names{
+        "s_terrainHeight",    "s_terrainNormal", "s_terrainIds",
+        "s_terrainPalette",   "s_terrainAlbedo", "s_terrainNormals",
+        "s_terrainOrmHeight", "s_terrainDetail", "s_terrainEmissive"};
     for (std::size_t index = 0; index < samplers.size(); ++index) {
       if (!samplers[index]) {
         samplers[index] = resources.createSampler(names[index], error);
       }
     }
-    return fieldUniform && paletteUniform &&
+    return fieldUniform && paletteUniform && surfaceUniform &&
            std::ranges::all_of(
                samplers, [](const auto sampler) { return bool(sampler); });
   }
@@ -298,6 +311,9 @@ TerrainPatchBatch3D::~TerrainPatchBatch3D() {
   if (impl_->fieldUniform) {
     impl_->resources.destroy(impl_->fieldUniform);
   }
+  if (impl_->surfaceUniform) {
+    impl_->resources.destroy(impl_->surfaceUniform);
+  }
   if (impl_->paletteUniform) {
     impl_->resources.destroy(impl_->paletteUniform);
   }
@@ -332,7 +348,8 @@ void TerrainPatchBatch3D::prepareExtraction(
     const BgfxCameraFrame3D &lodCamera, TerrainDrawSelection3D &selection,
     TerrainGpuFieldCache3D &fields, const MaterialLibrary &materials,
     TerrainCameraDemand3D &demand, std::size_t gpuBudgetBytes,
-    bool programsReady) {
+    bool programsReady, TerrainMaterialResidency3D *materialResidency,
+    float detailDistance, bool mappedProgramsReady) {
   if (impl_->profileWorld != &world) {
     impl_->owners.clear();
     impl_->profileWorld = &world;
@@ -384,9 +401,61 @@ void TerrainPatchBatch3D::prepareExtraction(
       }
       continue;
     }
+    std::shared_ptr<const TerrainMaterialArrays3D> arrays;
+    if (field.field->mapped) {
+      if (!mappedProgramsReady || !materialResidency) {
+        impl_->statistics.fallbackPatches += visible.size();
+        impl_->statistics.fallbackReason =
+            "Mapped terrain programs are unavailable";
+        continue;
+      }
+      const auto localCamera =
+          inverseTransformPoint3D(*transform, lodCamera.position);
+      float nearestDistance = std::numeric_limits<float>::max();
+      const float minimumScale =
+          std::min({std::abs(transform->scale.x), std::abs(transform->scale.y),
+                    std::abs(transform->scale.z)});
+      for (const auto *chunk : visible) {
+        const auto &bounds = *chunk->descriptor;
+        const float dx = std::max({bounds.boundsMin.x - localCamera.x, 0.F,
+                                   localCamera.x - bounds.boundsMax.x});
+        const float dy = std::max({bounds.boundsMin.y - localCamera.y, 0.F,
+                                   localCamera.y - bounds.boundsMax.y});
+        const float dz = std::max({bounds.boundsMin.z - localCamera.z, 0.F,
+                                   localCamera.z - bounds.boundsMax.z});
+        nearestDistance =
+            std::min(nearestDistance,
+                     std::sqrt(dx * dx + dy * dy + dz * dz) * minimumScale);
+      }
+      const auto request =
+          materialResidency->request(*field.field, nearestDistance);
+      arrays = request.arrays;
+      if (!arrays) {
+        impl_->statistics.fallbackPatches += visible.size();
+        impl_->statistics.fallbackReason = request.fallbackReason;
+        continue;
+      }
+    }
     impl_->statistics.consideredPatches += profile.chunks.size();
     impl_->statistics.culledPatches += culled;
     impl_->suppressed.insert(registration.id);
+    const auto viewDepth = [&](const OwnerChunk *chunk) {
+      const auto &bounds = *chunk->descriptor;
+      const Vec3 localCenter{(bounds.boundsMin.x + bounds.boundsMax.x) * 0.5F,
+                             (bounds.boundsMin.y + bounds.boundsMax.y) * 0.5F,
+                             (bounds.boundsMin.z + bounds.boundsMax.z) * 0.5F};
+      const auto center = transformPoint3D(*transform, localCenter);
+      return (center.x - view.position.x) * view.forward.x +
+             (center.y - view.position.y) * view.forward.y +
+             (center.z - view.position.z) * view.forward.z;
+    };
+    // Instance order survives topology grouping. Nearer opaque patches populate
+    // depth first so hidden terrain can skip expensive mapped surface shading.
+    // Shadow views use their own direction; LOD still belongs to lodCamera.
+    std::stable_sort(visible.begin(), visible.end(),
+                     [&](const OwnerChunk *first, const OwnerChunk *second) {
+                       return viewDepth(first) < viewDepth(second);
+                     });
     for (auto *chunk : visible) {
       const auto key = lodCamera.cameraId.empty()
                            ? "view:" + std::to_string(lodCamera.viewId)
@@ -406,14 +475,15 @@ void TerrainPatchBatch3D::prepareExtraction(
       TerrainPatchInstance3D instance{
           .transform = composeMeshTransform3D(*transform, {1, 1, 1}),
           .gridOrigin = {float(rectangle.firstCellX),
-                         float(rectangle.firstCellZ), 0, 0}};
+                         float(rectangle.firstCellZ),
+                         quality->surfaceBlending ? 1.F : 0.F, 0}};
       auto fallback = fullFallback(*chunk, *transform);
       std::string error;
       const auto textureBytes = fields.residentBytes();
       const auto topologyBudget =
           gpuBudgetBytes > textureBytes ? gpuBudgetBytes - textureBytes : 0;
       if (!addPatch(field.field, topology, instance, fallback, topologyBudget,
-                    error)) {
+                    error, arrays, detailDistance)) {
         impl_->statistics.fallbackReason = error;
         ++impl_->statistics.fallbackPatches;
         impl_->immediateFallback.insert(impl_->immediateFallback.end(),
@@ -435,7 +505,8 @@ bool TerrainPatchBatch3D::addPatch(
     std::shared_ptr<const TerrainGpuField3D> field,
     TerrainPatchTopologyKey3D topology, const TerrainPatchInstance3D &instance,
     std::vector<VisibleMesh3D> fallbackMeshes, std::size_t gpuBudgetBytes,
-    std::string &error) {
+    std::string &error, std::shared_ptr<const TerrainMaterialArrays3D> arrays,
+    float detailDistance) {
   if (!field) {
     error = "GPU terrain patches require a ready field binding";
     return false;
@@ -446,15 +517,16 @@ bool TerrainPatchBatch3D::addPatch(
   }
   impl_->patches.push_back({std::move(field), mesh, instance,
                             std::move(fallbackMeshes),
-                            std::size_t(terrainLodIndex(topology.level))});
+                            std::size_t(terrainLodIndex(topology.level)),
+                            std::move(arrays), detailDistance});
   return true;
 }
 
-std::vector<VisibleMesh3D>
-TerrainPatchBatch3D::flush(RenderCommands &commands, std::uint16_t viewId,
-                           ProgramHandle program,
-                           const std::array<DrawUniformValue, 8> &lighting,
-                           bool overdraw, std::string &error) {
+std::vector<VisibleMesh3D> TerrainPatchBatch3D::flush(
+    RenderCommands &commands, std::uint16_t viewId, ProgramHandle program,
+    const std::array<DrawUniformValue, 8> &lighting, bool overdraw,
+    std::string &error, ProgramHandle mappedProgram,
+    ProgramHandle opaqueMappedProgram) {
   auto fallback = std::move(impl_->immediateFallback);
   if (impl_->patches.empty()) {
     return fallback;
@@ -462,18 +534,25 @@ TerrainPatchBatch3D::flush(RenderCommands &commands, std::uint16_t viewId,
   struct Group {
     std::shared_ptr<const TerrainGpuField3D> field;
     std::shared_ptr<GpuTopology> mesh;
+    std::shared_ptr<const TerrainMaterialArrays3D> arrays;
+    float detailDistance = 200;
     std::vector<std::size_t> patches;
     std::vector<TerrainPatchInstance3D> instances;
   };
   std::vector<Group> groups;
-  using Key = std::pair<const TerrainGpuField3D *, const GpuTopology *>;
+  using Key = std::tuple<const TerrainGpuField3D *, const GpuTopology *,
+                         const TerrainMaterialArrays3D *, float>;
   std::map<Key, std::size_t> groupOf;
   for (std::size_t index = 0; index < impl_->patches.size(); ++index) {
     const auto &patch = impl_->patches[index];
-    const auto key = Key{patch.field.get(), patch.topology.get()};
+    const auto key = Key{patch.field.get(), patch.topology.get(),
+                         patch.arrays.get(), patch.detailDistance};
     auto [entry, first] = groupOf.try_emplace(key, groups.size());
     if (first) {
-      groups.push_back({.field = patch.field, .mesh = patch.topology});
+      groups.push_back({.field = patch.field,
+                        .mesh = patch.topology,
+                        .arrays = patch.arrays,
+                        .detailDistance = patch.detailDistance});
     }
     auto &group = groups[entry->second];
     group.patches.push_back(index);
@@ -482,20 +561,29 @@ TerrainPatchBatch3D::flush(RenderCommands &commands, std::uint16_t viewId,
   const bool ready = impl_->bindingsReady(error);
   for (const auto &group : groups) {
     std::size_t submitted = 0;
-    if (ready) {
+    const auto selectedMappedProgram =
+        !group.field->requiresFragmentCulling && opaqueMappedProgram
+            ? opaqueMappedProgram
+            : mappedProgram;
+    if (ready && (!group.arrays || selectedMappedProgram)) {
       auto state = group.field->state;
       if (overdraw) {
         state.blend = BlendMode::Additive;
         state.depthTest = DepthTest::Always;
         state.writeDepth = false;
       }
-      std::array<DrawUniformValue, 10> uniforms;
+      std::array<DrawUniformValue, 11> uniforms;
       std::copy(lighting.begin(), lighting.end(), uniforms.begin());
       uniforms[8] = {.handle = impl_->fieldUniform,
                      .values = group.field->fieldParameters};
       uniforms[9] = {.handle = impl_->paletteUniform,
                      .values = group.field->paletteParameters};
-      const std::array textures{
+      const std::array<float, 4> surfaceParameters{
+          group.arrays ? float(group.arrays->edge) : 1.F, group.detailDistance,
+          0, 0};
+      uniforms[10] = {.handle = impl_->surfaceUniform,
+                      .values = surfaceParameters};
+      std::vector<DrawTextureBinding> textures{
           DrawTextureBinding{.stage = 3,
                              .texture = group.field->height,
                              .sampler = impl_->samplers[0]},
@@ -508,13 +596,21 @@ TerrainPatchBatch3D::flush(RenderCommands &commands, std::uint16_t viewId,
           DrawTextureBinding{.stage = 6,
                              .texture = group.field->palette,
                              .sampler = impl_->samplers[3]}};
+      if (group.arrays) {
+        for (std::size_t slot = 0; slot < group.arrays->textures.size();
+             ++slot) {
+          textures.push_back({.stage = static_cast<std::uint8_t>(7 + slot),
+                              .texture = group.arrays->textures[slot],
+                              .sampler = impl_->samplers[4 + slot]});
+        }
+      }
       const auto result = commands.submitInstanceBatches(
           {.viewId = viewId,
            .vertices = {.handle = group.mesh->vertices,
                         .count = group.mesh->vertexCount},
            .indices = {.handle = group.mesh->indices,
                        .count = group.mesh->indexCount},
-           .program = program,
+           .program = group.arrays ? selectedMappedProgram : program,
            .state = state,
            .instances = instanceData(std::span(group.instances)),
            .uniforms = uniforms,

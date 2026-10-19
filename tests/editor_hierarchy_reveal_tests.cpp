@@ -1,4 +1,7 @@
 #include "editor/EditorHierarchyPanel.h"
+#include "editor/EditorGameViewPanel.h"
+#include "demi/runtime/profiling/RuntimeProfiler.h"
+#include <ranges>
 #include "editor/EditorModuleCatalog.h"
 #include "editor/EditorWorkspace.h"
 #include <cstdlib>
@@ -61,6 +64,11 @@ void check(const fs::path &root) {
       {"id":"middle","components":{"Transform3D":{}},"children":[{"id":"leaf","components":{"Transform3D":{}}}]},
       {"id":"branch","prefab":"prefab://branch"}]},
     {"id":"unrelated","components":{"Transform3D":{}},"children":[{"id":"other","components":{"Transform3D":{}}}]}]})");
+  for (int index = 0; index < 300; ++index) {
+    scene["entities"].push_back(
+        {{"id", "far_" + std::to_string(index)},
+         {"components", {{"Transform3D", Json::object()}}}});
+  }
   write(root / "scenes/main.scene.json", scene);
   Json hud = Json::parse(
       R"({"format_version":1,"canvas_size":[640,360],"root":{"id":"root","type":"container","children":[
@@ -120,6 +128,15 @@ void check(const fs::path &root) {
               !workspace.sceneDocument().canUndo(),
           "Hierarchy reveal mutated the scene");
 
+  workspace.selectEntity("far_299");
+  frame(panel, workspace, false);
+  frame(panel, workspace, false);
+  require(window().Scroll.y > 100,
+          "Clipped scene selection was not scrolled into view");
+  workspace.selectEntity("leaf");
+  frame(panel, workspace, false);
+  frame(panel, workspace, false);
+
   require(workspace.openHudDocument(root / "hud/main.hud.json", error), error);
   frame(panel, workspace, true);
   frame(panel, workspace, true);
@@ -172,6 +189,37 @@ void check(const fs::path &root) {
   require(workspace.hudDocument()->json() == hud,
           "Reveal added an authored Undo command");
 }
+void checkRuntimeClipping() {
+  demi::runtime::World world;
+  world.entities.resize(20000);
+  for (std::size_t index = 0; index < world.entities.size(); ++index) {
+    world.entities[index].id = "runtime-" + std::to_string(index);
+  }
+  std::string selected = world.entities.back().id;
+  demi::runtime::RuntimeProfiler::setEnabled(true);
+  const auto draw = [&] {
+    demi::runtime::RuntimeProfiler::beginFrame();
+    ImGui::NewFrame();
+    drawRuntimeHierarchy(world, {0, 0}, {340, 280}, selected, nullptr);
+    ImGui::Render();
+    require(ImGui::GetCurrentContext()->ErrorCountCurrentFrame == 0,
+            "Runtime hierarchy ImGui error");
+    const auto entries = demi::runtime::RuntimeProfiler::frameEntries();
+    const auto rows = std::ranges::find(entries, "Editor.runtime_hierarchy.rows",
+                                       &demi::runtime::RuntimeProfiler::Entry::name);
+    require(rows != entries.end() && rows->gauge > 0 && rows->gauge < 30,
+            "Runtime hierarchy submitted offscreen rows");
+    require(selected == world.entities.back().id,
+            "Runtime hierarchy changed the stable selection");
+  };
+  draw();
+  draw();
+  require(window().ScrollMax.y > 100000,
+          "Runtime clipping removed offscreen scroll content");
+  window().Scroll.y = window().ScrollMax.y;
+  draw();
+  demi::runtime::RuntimeProfiler::setEnabled(false);
+}
 } // namespace
 int main() {
   auto pattern =
@@ -196,6 +244,7 @@ int main() {
   io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
   try {
     check(root);
+    checkRuntimeClipping();
     ImGui::DestroyContext();
     fs::remove_all(root);
     std::cout << "Hierarchy reveal checks passed\n";

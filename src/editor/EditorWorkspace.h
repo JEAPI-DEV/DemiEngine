@@ -210,6 +210,9 @@ public:
                                   std::optional<runtime::Vec3> worldPosition = {});
   [[nodiscard]] bool createPresetEntity(std::string_view preset,
                                         std::string &error);
+  [[nodiscard]] bool promoteTerrainScatter(std::string_view ownerId,
+                                            std::string_view placementId,
+                                            std::string &error);
   [[nodiscard]] bool unpackPrefab(std::string_view id, std::string &error);
   [[nodiscard]] bool unpackHudPrefab(std::string_view id, std::string &error);
   [[nodiscard]] bool unpackPreset(std::string_view id, std::string &error);
@@ -437,6 +440,13 @@ public:
   [[nodiscard]] bool alignSelectedCameraToView(std::string &error);
   // Explicit selection events include selecting the same object again, so
   // presentation can reveal a collapsed hierarchy without changing documents.
+  // Preview publishers and external native preview mutations invalidate
+  // retained presentation projections explicitly, even when entity counts
+  // match.
+  void invalidateHierarchyPreview() { ++hierarchyPreviewRevision_; }
+  [[nodiscard]] std::uint64_t hierarchyPreviewRevision() const {
+    return hierarchyPreviewRevision_;
+  }
   [[nodiscard]] std::uint64_t selectionRevision() const {
     return selectionRevision_;
   }
@@ -516,6 +526,7 @@ private:
   [[nodiscard]] bool rebuildParkedSceneWorld(std::string &error);
   void leaveTerrainAssetDocument();
   [[nodiscard]] bool terrainHistory(bool forward, std::string &error);
+  [[nodiscard]] bool terrainPresentationHistory(bool forward, std::string &error);
   [[nodiscard]] std::optional<nlohmann::json>
   effectiveTerrainRecipe(const SceneValueTarget &target, std::string &error) const;
   [[nodiscard]] bool applyViewportAction(EditorViewportToolAction action,
@@ -566,6 +577,7 @@ private:
   std::unordered_map<std::string, runtime::TilemapAsset2D> tilemaps2D_;
   Diagnostics diagnostics_;
   std::uint64_t selectionRevision_ = 0;
+  std::uint64_t hierarchyPreviewRevision_ = 0;
   std::vector<std::string> selectedEntityIds_;
   std::string selectedHudNodeId_;
   std::vector<std::string> selectedHudNodeIds_;

@@ -1,0 +1,96 @@
+{
+  "asset": {
+    "version": "2.0",
+    "generator": "Demi original vegetation make_models.py"
+  },
+  "scene": 0,
+  "scenes": [
+    {
+      "nodes": [
+        0
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "mesh": 0
+    }
+  ],
+  "meshes": [
+    {
+      "name": "trunk",
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0,
+            "NORMAL": 1
+          },
+          "indices": 2
+        }
+      ]
+    }
+  ],
+  "buffers": [
+    {
+      "byteLength": 1860,
+      "uri": "data:application/octet-stream;base64,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"
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteOffset": 0,
+      "byteLength": 840
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 840,
+      "byteLength": 840
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 1680,
+      "byteLength": 180
+    }
+  ],
+  "accessors": [
+    {
+      "bufferView": 0,
+      "componentType": 5126,
+      "count": 70,
+      "type": "VEC3",
+      "min": [
+        -0.21,
+        0,
+        -0.19972186842198225
+      ],
+      "max": [
+        0.21,
+        3.5,
+        0.19972186842198225
+      ]
+    },
+    {
+      "bufferView": 1,
+      "componentType": 5126,
+      "count": 70,
+      "type": "VEC3",
+      "min": [
+        -0.9506319481837212,
+        -1.0,
+        -0.9995535826692126
+      ],
+      "max": [
+        0.9506319481837212,
+        0.029877004085774095,
+        0.9995535826692128
+      ]
+    },
+    {
+      "bufferView": 2,
+      "componentType": 5123,
+      "count": 90,
+      "type": "SCALAR"
+    }
+  ]
+}

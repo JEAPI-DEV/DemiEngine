@@ -1,0 +1,16 @@
+{
+  "dependencies": [
+    "asset://amber_pass/textures/grass_photo/albedo",
+    "asset://amber_pass/textures/grass_photo/ambient_occlusion",
+    "asset://amber_pass/textures/grass_photo/normal",
+    "asset://amber_pass/textures/grass_photo/roughness"
+  ],
+  "format_version": 1,
+  "id": "asset://amber_pass/materials/grass_photo",
+  "importer": "material",
+  "importer_version": 1,
+  "settings": {},
+  "source": "grass_photo.material.json",
+  "source_hash": "fnv1a64:af74603756cec75a",
+  "type": "Material"
+}

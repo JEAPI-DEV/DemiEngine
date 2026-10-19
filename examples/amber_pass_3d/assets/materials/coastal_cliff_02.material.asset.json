@@ -1,0 +1,16 @@
+{
+  "dependencies": [
+    "asset://amber_pass/textures/coastal_cliff_02/albedo",
+    "asset://amber_pass/textures/coastal_cliff_02/ambient_occlusion",
+    "asset://amber_pass/textures/coastal_cliff_02/normal",
+    "asset://amber_pass/textures/coastal_cliff_02/roughness"
+  ],
+  "format_version": 1,
+  "id": "asset://amber_pass/materials/coastal_cliff_02",
+  "importer": "material",
+  "importer_version": 1,
+  "settings": {},
+  "source": "coastal_cliff_02.material.json",
+  "source_hash": "fnv1a64:bdec9744dad39a6e",
+  "type": "Material"
+}

@@ -5,11 +5,16 @@
 #include "demi/runtime/terrain/TerrainCook.h"
 #include "demi/runtime/terrain/TerrainGraph.h"
 #include "demi/runtime/terrain/TerrainGraphExecutor.h"
-#include "demi/runtime/terrain/TerrainUpdate.h"
 #include "demi/runtime/terrain/TerrainSurfaceMaterials.h"
+#include "demi/runtime/terrain/TerrainUpdate.h"
+#include "demi/runtime/terrain/TerrainWaterQueries.h"
 
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <cassert>
 #include <chrono>
+#include <cmath>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -170,6 +175,18 @@ void completePayloadRoundTrip() {
   field.surfaceMaterials = appearance;
   TerrainPaletteEntry ruleId;
   ruleId.model = "asset://tree";
+  ruleId.collision = TerrainCollisionPolicy::None;
+  ruleId.category = TerrainScatterCategory::Tree;
+  ruleId.density = 0.03F;
+  ruleId.candidateSpacing = 2;
+  ruleId.slope = {5, 45};
+  ruleId.moisture = {0.2F, 0.8F};
+  ruleId.waterDistance = {2, 30};
+  ruleId.yawDegrees = {-30, 50};
+  ruleId.clusterSize = 12;
+  ruleId.clusterStrength = 0.7F;
+  palette->artDensity = 0.8F;
+  palette->treeDensity = 1.2F;
   palette->placements.emplace("tree", ruleId);
   field.resolvedPalette = palette;
   TerrainScatterPlacement tree;
@@ -178,6 +195,8 @@ void completePayloadRoundTrip() {
   tree.biome = 0;
   tree.biomeName = field.biomeIds[0];
   tree.cell = 1;
+  tree.candidateX = 4;
+  tree.candidateZ = 7;
   tree.position = {2, field.height(1, 0), 0};
   field.scatterPlacements.push_back(tree);
 
@@ -220,6 +239,22 @@ void completePayloadRoundTrip() {
   }
   assert(restored->biomeIndices == field.biomeIndices);
   assert(restored->chunks.size() == field.chunks.size());
+  assert(restored->scatterPlacements.front().candidateX == 4);
+  assert(restored->scatterPlacements.front().candidateZ == 7);
+  const auto &restoredRule = restored->resolvedPalette->placements.at("tree");
+  assert(restoredRule.category == TerrainScatterCategory::Tree);
+  assert(restoredRule.density == 0.03F && restoredRule.candidateSpacing == 2);
+  assert(restoredRule.slope.minimum == 5 && restoredRule.slope.maximum == 45);
+  assert(restoredRule.moisture.minimum == 0.2F &&
+         restoredRule.moisture.maximum == 0.8F);
+  assert(restoredRule.waterDistance.minimum == 2 &&
+         restoredRule.waterDistance.maximum == 30);
+  assert(restoredRule.yawDegrees.minimum == -30 &&
+         restoredRule.yawDegrees.maximum == 50);
+  assert(restoredRule.clusterSize == 12 &&
+         restoredRule.clusterStrength == 0.7F);
+  assert(restored->resolvedPalette->artDensity == 0.8F &&
+         restored->resolvedPalette->treeDensity == 1.2F);
   assert(restored->scatterPlacements.size() == 1);
   assert(restored->resolvedPalette &&
          restored->resolvedPalette->placements.size() == 1);
@@ -229,8 +264,9 @@ void completePayloadRoundTrip() {
   auto malformed = derived;
   malformed["surface_materials"]["samples"][0] = 17;
   HeightField invalidField = field;
-  expectFailure([&] { terrain_payload::decodeDerived(malformed, invalidField); },
-                "out of range");
+  expectFailure(
+      [&] { terrain_payload::decodeDerived(malformed, invalidField); },
+      "out of range");
   assert(restored->graphArtifacts && restored->graphArtifacts->baseField);
   assert(restored->graphArtifacts->basePlacements->size() == 1);
   assert(restored->graphArtifacts->water.bodies.size() == 1);
@@ -267,6 +303,7 @@ HeightField fieldWithWaterCoverage() {
   coverage->wet.assign(field.heights.size(), 0);
   coverage->body.assign(field.heights.size(),
                         terrain_water_detail::WaterLevelField::noBody);
+  coverage->bodyLevels = {{2, {}}, {7, {}}, {4, {}}};
   coverage->level[0] = 2;
   coverage->wet[0] = 1;
   coverage->body[0] = 0;
@@ -282,16 +319,24 @@ HeightField fieldWithWaterCoverage() {
 }
 
 void waterCoverageRoundTrip() {
-  const auto field = fieldWithWaterCoverage();
+  auto field = fieldWithWaterCoverage();
+  auto selectedBalance = std::make_shared<TerrainSamples<float>>();
+  selectedBalance->assign(field.heights.size(), 0);
+  selectedBalance->set(0, -2);
+  selectedBalance->set(1, 3);
+  field.surfaceSedimentBalance = selectedBalance;
   const auto derived = terrain_payload::encodeDerived(field);
   const auto &encoded = derived["graph"]["water_result"]["resolved_coverage"];
-  assert(encoded.is_object() && encoded.size() == 1);
+  assert(encoded.is_object() && encoded.size() == 2);
   assert(encoded["body"].size() == field.heights.size());
   assert(encoded["body"][0] == 0 && encoded["body"][1] == 2 &&
          encoded["body"][2] == -1);
   const auto payload = serializeTerrainAssetPayload(field, "recipe", "inputs");
-  assert(terrainAssetPayloadVersion == 6 && payload[7] == std::byte{'6'});
+  assert(terrainAssetPayloadVersion == 11 && payload[7] == std::byte{'1'} &&
+         payload[8] == std::byte{'1'});
   const auto restored = deserializeTerrainAssetPayload(payload);
+  assert(restored->surfaceSedimentBalance);
+  assert(*restored->surfaceSedimentBalance == *selectedBalance);
   const auto &before = *field.graphArtifacts->waterResult;
   const auto &after = *restored->graphArtifacts->waterResult;
   assert(after.resolvedCoverage);
@@ -306,9 +351,83 @@ void waterCoverageRoundTrip() {
   assert(after.carvedHeights[2] < 2 && coverage.wet[2] == 0);
 
   auto oldPayload = payload;
-  oldPayload[7] = std::byte{'3'};
+  oldPayload[7] = std::byte{'7'};
   expectFailure([&] { (void)deserializeTerrainAssetPayload(oldPayload); },
                 "unknown format");
+}
+
+void followingBedWaterPayloadRoundTrip() {
+  auto recipe = smallRecipe();
+  recipe.landforms.at("default").baseHeight = 10;
+  recipe.landforms.at("default").heightVariation = 0;
+  auto generated = TerrainGenerator::generate(recipe);
+  assert(generated);
+  auto field = std::move(*generated);
+  auto artifacts = std::make_shared<TerrainGraphArtifacts>();
+  artifacts->baseField = std::make_shared<const HeightField>(field);
+  TerrainWaterBodySpec river;
+  river.id = "downhill";
+  river.kind = TerrainWaterBody::River;
+  river.riverSurfaceMode = TerrainRiverSurfaceMode::FollowBed;
+  river.riverDepth = 2;
+  river.riverWidth = 6;
+  river.flowSpeed = 2.5F;
+  river.flowDirection = {0, 1};
+  river.appearance.waveAmplitude = 0.12F;
+  river.appearance.waveLength = 3.F;
+  river.appearance.waveSpeed = 0.7F;
+  river.appearance.normalStrength = 0.8F;
+  river.appearance.foamWidth = 0.3F;
+  river.appearance.foamStrength = 0.75F;
+  river.appearance.foamColor = {0.9F, 0.8F, 0.7F, 0.6F};
+  river.riverPath = {{2, 8, 6}, {14, 2, 6}};
+  river.shorelineSoftening = false;
+  artifacts->water.authored = true;
+  artifacts->water.bodies = {river};
+  artifacts->waterResult = carveTerrainWater(field, artifacts->water, nullptr);
+  assert(artifacts->waterResult);
+  field.heights = artifacts->waterResult->carvedHeights;
+  assert(TerrainGenerator::recomputeTerrainNormals(field));
+  field.graphArtifacts = std::move(artifacts);
+  const auto payload = serializeTerrainAssetPayload(field, "recipe", "inputs");
+  const auto restored = deserializeTerrainAssetPayload(payload);
+  const auto &after = *restored->graphArtifacts;
+  assert(after.water.bodies.front().riverSurfaceMode ==
+         TerrainRiverSurfaceMode::FollowBed);
+  assert(after.water.bodies.front().riverDepth == 2);
+  assert(after.water.bodies.front().flowSpeed == 2.5F);
+  assert(after.water.bodies.front().flowDirection.y == 1.F);
+  assert(sameTerrainWaterAppearance(after.water.bodies.front().appearance,
+                                    river.appearance));
+  const auto &beforeProfile =
+      field.graphArtifacts->waterResult->resolvedCoverage->bodyLevels.front();
+  const auto &afterProfile =
+      after.waterResult->resolvedCoverage->bodyLevels.front();
+  assert(afterProfile.samples &&
+         *afterProfile.samples == *beforeProfile.samples);
+  const auto query = TerrainWaterQueryContext::build(
+      after.water, *after.waterResult, nullptr, recipe.cellsX, recipe.cellsZ,
+      recipe.size);
+  const auto sample = query->sample({8, 6, 6});
+  assert(sample && sample->surfaceHeight == 7 && sample->depth == 2);
+  assert(std::abs(sample->normal.x - 1 / std::sqrt(5.F)) < 1e-5F);
+
+  const auto derived = terrain_payload::encodeDerived(field);
+  auto malformed = derived;
+  malformed["graph"]["water_result"]["resolved_coverage"]["body_levels"][0]
+      .erase(std::size_t{0});
+  auto decoded = field;
+  expectFailure([&] { terrain_payload::decodeDerived(malformed, decoded); },
+                "level grid must match");
+  malformed = derived;
+  malformed["graph"]["water_result"]["resolved_coverage"]["body_levels"][0][0] =
+      1000;
+  expectFailure([&] { terrain_payload::decodeDerived(malformed, decoded); },
+                "authored profile bounds");
+  malformed = derived;
+  malformed["graph"]["water_authoring"]["bodies"][0]["river_depth"] = 0;
+  expectFailure([&] { terrain_payload::decodeDerived(malformed, decoded); },
+                "mode/depth");
 }
 
 void malformedWaterCoverageDecode() {
@@ -413,23 +532,43 @@ void malformedNativeWaterCoverageEncode() {
   reject([](auto &coverage) { coverage.body[0] = 1; },
          "references a rejected body");
   reject([](auto &coverage) { coverage.level[0] = 3; },
-         "level must match its authored body");
+         "level must match its owning body profile");
 }
 
 void graphColdLoadKeepsLocalBrush(const std::filesystem::path &root) {
   auto recipe = smallRecipe();
   recipe.graph = defaultTerrainGraph();
+  recipe.graph["nodes"].push_back({
+      {"id", "erosion"},
+      {"type", "erosion"},
+      {"parameters", {{"iterations", 2}}},
+  });
+  recipe.graph["links"][0]["from"]["node"] = "erosion";
+  recipe.graph["links"].push_back({
+      {"id", "landform_erosion"},
+      {"from", {{"node", "landform"}, {"port", "field"}}},
+      {"to", {{"node", "erosion"}, {"port", "field"}}},
+  });
   auto registry = registryFor(root / "graph", recipe);
   const auto id = std::string("asset://terrain/hill");
   const auto inputs = resolveTerrainAssetGenerationInputs(registry, recipe);
   auto generated = TerrainGenerator::generate(recipe, inputs.palette.get(), {},
                                               {}, inputs.fingerprint);
   assert(generated && generated->graphArtifacts);
+  const auto transport =
+      generated->graphArtifacts->hydraulicTransport.at("erosion");
+  auto artifacts =
+      std::make_shared<TerrainGraphArtifacts>(*generated->graphArtifacts);
+  const std::string status = "River route joined water body: receiving_lake";
+  artifacts->nodes.front().status = status;
+  generated->graphArtifacts = std::move(artifacts);
   const auto prepared = storeTerrainAssetPreview(
       registry, id, recipe.toJson(),
       std::make_shared<const HeightField>(std::move(*generated)));
   const auto loaded = loadTerrainAsset(registry, id);
   assert(loaded->graphArtifacts && loaded->graphArtifacts->baseField);
+  assert(loaded->graphArtifacts->nodes.front().status == status);
+  assert(loaded->graphArtifacts->hydraulicTransport.at("erosion") == transport);
   auto moved = recipe;
   moved.graph["nodes"][0]["position"] = {144, 48};
   writeText(
@@ -447,6 +586,8 @@ void graphColdLoadKeepsLocalBrush(const std::filesystem::path &root) {
   assert(updated);
   assert(!updated->invalidation.fullGeneration);
   assert(updated->stats.baseEvaluations == 0);
+  assert(updated->field->graphArtifacts->hydraulicTransport.at("erosion") ==
+         transport);
 }
 
 void appearanceDoesNotInvalidateGeneration() {
@@ -475,10 +616,11 @@ void appearanceDoesNotInvalidateGeneration() {
   registry.assets.front().type = "Texture2D";
   assert(hasErrors(validateTerrainSurfaceReferences(registry, recipe)));
   registry.assets.front().type = "DataAsset";
-  registry.assets.front().settingsJson = R"({"content_type":"terrain_material"})";
+  registry.assets.front().settingsJson =
+      R"({"content_type":"terrain_material"})";
   const auto unsupported = validateTerrainSurfaceReferences(registry, recipe);
-  assert(!hasErrors(unsupported) && unsupported.size() == 1 &&
-         unsupported.front().severity == Severity::Warning);
+  assert(hasErrors(unsupported) && unsupported.size() == 1 &&
+         unsupported.front().severity == Severity::Error);
   registry.assets.clear();
   assert(hasErrors(validateTerrainSurfaceReferences(registry, recipe)));
 }
@@ -492,6 +634,7 @@ int main() {
   try {
     completePayloadRoundTrip();
     waterCoverageRoundTrip();
+    followingBedWaterPayloadRoundTrip();
     malformedWaterCoverageDecode();
     malformedNativeWaterCoverageEncode();
     sourceAndPersistentCache(root);

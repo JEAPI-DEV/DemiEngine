@@ -1,0 +1,17 @@
+{
+  "format_version": 1,
+  "id": "asset://polyhaven/terrain/materials/rock_face_03",
+  "type": "Material",
+  "source": "rock_face_03.material.json",
+  "importer": "material",
+  "importer_version": 1,
+  "source_hash": "fnv1a64:f6941988f76c18fc",
+  "dependencies": [
+    "asset://polyhaven/terrain/textures/rock_face_03/albedo",
+    "asset://polyhaven/terrain/textures/rock_face_03/ambient_occlusion",
+    "asset://polyhaven/terrain/textures/rock_face_03/height",
+    "asset://polyhaven/terrain/textures/rock_face_03/normal",
+    "asset://polyhaven/terrain/textures/rock_face_03/roughness"
+  ],
+  "settings": {}
+}

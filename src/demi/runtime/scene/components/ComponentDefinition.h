@@ -24,6 +24,7 @@ enum class ComponentFieldType {
   Vec2Array,
   Vec3Array,
   ColorArray,
+  StringArray,
 };
 
 enum class ComponentReferenceKind {
@@ -43,6 +44,14 @@ struct ComponentFieldEditorMetadata {
 };
 
 struct ComponentFieldDescriptor {
+  // Structured authoring fields may otherwise contain nested resource URIs.
+  // Set only when their contract contains identity/math data, never assets.
+  [[nodiscard]] constexpr ComponentFieldDescriptor withoutAssetReferences() const {
+    auto result = *this;
+    result.assetReferenceFree = true;
+    return result;
+  }
+
   [[nodiscard]] constexpr ComponentFieldDescriptor withLabel(std::string_view text) const {
     auto result = *this;
     result.editor.label = text;
@@ -128,6 +137,7 @@ struct ComponentFieldDescriptor {
   double maximum = 0.0;
   bool hasMaximum = false;
   ComponentReferenceKind referenceKind = ComponentReferenceKind::None;
+  bool assetReferenceFree = false;
   std::string_view arrayElementSchema;
   std::string_view nestedObjectSchema;
   bool restartRequired = false;

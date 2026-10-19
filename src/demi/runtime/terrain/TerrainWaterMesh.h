@@ -1,6 +1,9 @@
 #pragma once
 
 #include "demi/runtime/scene/model/Entity.h"
+#include "demi/runtime/terrain/TerrainWaterAppearance.h"
+
+#include <memory>
 
 #include <stop_token>
 #include <string>
@@ -13,6 +16,9 @@ namespace terrain_detail {
 // Native-only ownership; water surfaces never acquire terrain collision.
 struct TerrainGeneratedWaterSurface {
   std::string owner;
+  std::string bodyId;
+  TerrainWaterAppearance appearance;
+  std::shared_ptr<const HeightField> sourceField;
 };
 } // namespace terrain_detail
 

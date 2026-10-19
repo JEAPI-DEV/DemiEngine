@@ -1,6 +1,9 @@
 #include "demi/runtime/terrain/TerrainCook.h"
 #include "demi/runtime/terrain/TerrainGraph.h"
 
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <cassert>
 #include <cmath>
 #include <cstring>
@@ -730,6 +733,26 @@ void nonFinalCookedQualityCannotLoad() {
   }
 }
 
+void selectedTransportSurvivesCookAndRejectsMalformedBalances() {
+  auto source = std::make_shared<HeightField>(*generateField());
+  auto balance = std::make_shared<TerrainSamples<float>>();
+  balance->assign(source->heights.size(), 0);
+  balance->set(0, -2);
+  balance->set(1, 3);
+  source->surfaceSedimentBalance = balance;
+  const auto cooked = cookTerrainField(inputFor(*source, nullptr));
+  assert(cooked);
+  const auto decoded =
+      deserializeTerrainCookedField(serializeTerrainCookedField(*cooked));
+  assert(decoded);
+  const auto loaded = loadTerrainCookedField(*decoded);
+  assert(loaded->surfaceSedimentBalance);
+  assert(*loaded->surfaceSedimentBalance == *balance);
+  auto malformed = *cooked;
+  malformed.surfaceSedimentBalance.resize(1);
+  assert(serializeTerrainCookedField(malformed).empty());
+}
+
 int main() {
   TerrainRecipe graphRecipe;
   graphRecipe.graph = defaultTerrainGraph();
@@ -739,6 +762,7 @@ int main() {
   graphRecipe.seed += 1;
   assert(terrainCookRecipeDigest(graphRecipe) != graphDigest);
   nonFinalCookedQualityCannotLoad();
+  selectedTransportSurvivesCookAndRejectsMalformedBalances();
   roundTripsEveryField();
   emptyBiomesAndEmptyMasksRoundTrip();
   maskPresenceIsRecorded();

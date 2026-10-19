@@ -98,6 +98,10 @@
       {
         "id": "lowland_sediment",
         "biome": "shore",
+        "water_distance": [
+          0,
+          12
+        ],
         "priority": 50,
         "blend": 1,
         "elevation": [
@@ -461,6 +465,17 @@
           "to": {
             "node": "biome_rules",
             "port": "field"
+          }
+        },
+        {
+          "id": "water_biomes",
+          "from": {
+            "node": "outlet_river",
+            "port": "water"
+          },
+          "to": {
+            "node": "biome_rules",
+            "port": "water"
           }
         },
         {
