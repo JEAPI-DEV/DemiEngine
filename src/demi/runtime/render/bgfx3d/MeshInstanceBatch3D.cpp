@@ -18,6 +18,8 @@ std::size_t MeshInstanceBatch3D::KeyHash::operator()(const Key &key) const {
   }
   combine(key.unlit ? 1U : 0U);
   hash ^= std::hash<const MeshRendererComponent *>{}(key.source);
+  hash ^= std::hash<const MaterialBinding *>{}(key.material);
+  combine(key.surface ? 1U : 0U);
   return hash;
 }
 
@@ -50,9 +52,25 @@ std::size_t MeshInstanceBatch3D::addSurface(
     const MeshRendererComponent &source, const MaterialBinding *material,
     const PreparedMeshDraw3D &prepared, ProgramHandle instancedProgram,
     const std::array<float, 16> &transform) {
-  // A source has one resolved surface per pass. Different LOD geometry still
-  // receives its own key, while copies of the same source share all bindings.
-  const Key key{.mesh = &mesh, .texture = texture, .source = &source};
+  const bool ownerOverrides =
+      !source.materialNumbers.empty() || !source.materialColors.empty() ||
+      source.metallic || source.roughness || source.opacity ||
+      source.surfaceMode || source.wireframe;
+  Key key{.mesh = &mesh,
+          .texture = texture,
+          .unlit = prepared.unlit,
+          .source = ownerOverrides ? &source : nullptr,
+          .material = material,
+          .surface = true};
+  // Transform/size are instance data. Distinct entities using the same plain
+  // material and geometry must not become separate draw calls merely because
+  // their Mesh Renderer components have different addresses.
+  for (std::size_t index = 0; index < 4; ++index) {
+    key.uniformBits[index] =
+        std::bit_cast<std::uint32_t>(prepared.builtinSurfaceTint[index]);
+    key.uniformBits[index + 4] =
+        std::bit_cast<std::uint32_t>(prepared.metalRough[index]);
+  }
   const auto [found, inserted] = groupLookup_.try_emplace(key, groups_.size());
   if (inserted) {
     groups_.push_back({.mesh = &mesh,

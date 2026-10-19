@@ -17,8 +17,9 @@
 
 namespace demi::runtime::render {
 
-// Opaque draws retain extraction order for batching. Transparent draws use
-// camera depth, with source order breaking ties deterministically.
+// Near opaque copies populate depth before farther copies of the same batch.
+// Batch collection still groups matching surfaces; stable ties retain authored
+// order. Transparent surfaces require the opposite order for compositing.
 [[nodiscard]] inline std::size_t
 orderMeshSurfaces3D(std::vector<VisibleMesh3D> &meshes,
                     const MaterialLibrary &materials, Vec3 cameraPosition,
@@ -112,6 +113,9 @@ orderMeshSurfaces3D(std::vector<VisibleMesh3D> &meshes,
   const auto firstTransparent = std::stable_partition(
       meshes.begin(), meshes.end(),
       [&](const VisibleMesh3D &visible) { return !isTransparent(visible); });
+  std::stable_sort(
+      meshes.begin(), firstTransparent,
+      [&](const auto &a, const auto &b) { return depth(a) < depth(b); });
   std::stable_sort(
       firstTransparent, meshes.end(),
       [&](const auto &a, const auto &b) { return depth(a) > depth(b); });

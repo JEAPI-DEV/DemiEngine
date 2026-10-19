@@ -11,6 +11,10 @@ rises outside a protected road corridor; sculpted hills shape the playable
 valley. Eighty trees and tens of thousands of grass instances surround the
 road, with authored model LODs and a grass cull distance.
 
+The application starts in a small loading scene. Its progress bar follows CPU
+scene and collider preparation, staged resource work, and presentation readiness.
+It enters the valley only after preparation succeeds.
+
 From the repository root, build the optimized desktop runtime and editor:
 
 ```sh
@@ -30,8 +34,9 @@ To inspect or author the scene:
 ```
 
 W rides forward; S brakes and reverses slowly. A/D steer, including while
-stationary. Hold Left Shift to move faster. Hold the right mouse button and
-drag to orbit the camera; moving without it lets the camera follow behind.
+stationary. Releasing movement uses a separate braking rate, so the horse stops
+promptly instead of coasting at its acceleration rate. Hold Left Shift to move
+faster. Hold the right mouse button and drag to orbit the camera; moving without it lets the camera follow behind.
 R returns the mount to its starting position. Enable **Touch controls** to show
 the HUD stick. It feeds the same movement action through touch or pointer
 dragging; toggle it again to hide the stick.
@@ -92,3 +97,10 @@ native grid triangles within the protected corridor.
 Back up intentional edits before regenerating authored files. Rider and ruins
 retain editable Blender files beside their GLBs; temporary previews are written
 below `/tmp`. Environment preparation also rebuilds foliage and grass clusters. Cooking and packaging remain owned by the engine CLI.
+
+Grass retains 30,637 authored clumps. Full geometry is used near the camera,
+with medium/low models beyond 10/35 metres and a 160-metre visibility limit.
+These distances are editable Mesh Renderer settings, not engine limits.
+
+See [loading and performance qualification](../../docs/amber-pass-loading-performance.md)
+for measured costs, regression checks, and remaining rendering limitations.

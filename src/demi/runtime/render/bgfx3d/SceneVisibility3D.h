@@ -57,6 +57,9 @@ struct SceneVisibility3D {
   std::vector<VisibleMesh3D> meshes;
   std::size_t considered = 0;
   std::size_t culled = 0;
+  std::size_t instanceNodesTested = 0;
+  std::size_t instanceCopiesExamined = 0;
+  std::size_t instanceCopiesRejectedByIndex = 0;
 };
 
 // Extracts immutable draw inputs in World order. Bounds tests may run on the

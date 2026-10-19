@@ -8,8 +8,139 @@
 #include "demi/runtime/render/bgfx2d/ColorPacking2D.h"
 
 #include <nlohmann/json.hpp>
+#include <stop_token>
+#include <thread>
 
 namespace demi::runtime::render {
+
+namespace {
+
+struct PreparedModelAsset {
+  std::optional<assets::ModelImportProfile> profile;
+  std::optional<assets::GltfSkinnedModel3D> animated;
+  MeshGeometry3D geometry;
+  std::vector<GpuSkinnedVertex3D> skinVertices;
+  GpuSkinPaletteLayout skinLayout;
+  std::optional<PreparedTexture2D> albedo;
+  std::string error;
+};
+
+void prepareModelAsset(const AssetManifest &asset, PreparedModelAsset &result,
+                       std::stop_token stop) {
+  if (stop.stop_requested()) {
+    return;
+  }
+  const auto settings =
+      nlohmann::json::parse(asset.settingsJson, nullptr, false);
+  const bool hasProfile =
+      settings.is_object() && settings.contains("model_import");
+  result.profile =
+      hasProfile
+          ? assets::parseModelImportProfile(settings)
+          : std::make_optional(assets::modelImportPreset("animated_character"));
+  if (!result.profile) {
+    result.error = "Invalid model import profile.";
+    return;
+  }
+  auto &geometry = result.geometry;
+  result.animated = assets::loadGltfSkinnedModel3D(
+      asset.sourcePath, *result.profile, result.error);
+  if (result.animated) {
+    if (!result.animated->bindPosePositions(geometry.positions, result.error)) {
+      return;
+    }
+    for (const auto &vertex : result.animated->vertices) {
+      geometry.uvs.push_back(vertex.uv);
+      geometry.colors.push_back(packVertexColorRgba8(vertex.color));
+    }
+    geometry.indices = result.animated->indices;
+    std::string unsupportedSkin;
+    if (!buildGpuSkinVertices(*result.animated, result.skinVertices,
+                              result.skinLayout, unsupportedSkin)) {
+      result.skinVertices.clear();
+    }
+  } else {
+    result.error.clear();
+    const auto source = assets::loadGltfGeometry(asset.sourcePath,
+                                                 *result.profile, result.error);
+    if (!source) {
+      return;
+    }
+    geometry.positions.reserve(source->triangles.size() * 3U);
+    geometry.uvs.reserve(source->triangles.size() * 3U);
+    for (const auto &triangle : source->triangles) {
+      for (const auto point : {triangle.a, triangle.b, triangle.c}) {
+        geometry.positions.push_back({point.x, point.y, point.z});
+      }
+      for (const auto point : {triangle.uvA, triangle.uvB, triangle.uvC}) {
+        geometry.uvs.push_back({point.x, point.y});
+      }
+    }
+  }
+  if (result.profile->materialPolicy == "ignore" || stop.stop_requested()) {
+    return;
+  }
+  auto encoded = asset.texturePath ? readRenderAssetBytes(*asset.texturePath)
+                 : result.animated ? std::move(result.animated->albedoImage)
+                                   : std::vector<std::byte>{};
+  if (!asset.texturePath && encoded.empty()) {
+    return;
+  }
+  auto sampling = textureSampling2D(asset);
+  sampling.mipSemantic = ImageMipSemantic::Color;
+  PreparedTexture2D texture;
+  if (!prepareTexture2D(encoded, sampling, texture, result.error, stop)) {
+    return;
+  }
+  result.albedo = std::move(texture);
+}
+
+ImageMipSemantic materialMapSemantic(assets::MaterialMapSlot slot) {
+  using Slot = assets::MaterialMapSlot;
+  if (slot == Slot::Albedo || slot == Slot::Emissive) {
+    return ImageMipSemantic::Color;
+  }
+  if (slot == Slot::Normal || slot == Slot::DetailNormal) {
+    return ImageMipSemantic::Normal;
+  }
+  return ImageMipSemantic::Linear;
+}
+
+} // namespace
+
+struct BgfxRenderer3D::AssetPreparation {
+  struct TextureRequest {
+    std::string id;
+    ImageMipSemantic semantic;
+  };
+  struct TextureResult {
+    PreparedTexture2D texture;
+    std::string error;
+  };
+  AssetRegistry registry;
+  JobSystem *jobs = nullptr;
+  std::size_t nextAsset = 0;
+  std::vector<TextureRequest> textures;
+  std::size_t nextTexture = 0;
+  std::shared_ptr<PreparedModelAsset> model;
+  std::shared_ptr<TextureResult> image;
+  JobHandle job;
+  std::stop_source cancellation;
+  std::size_t completedUnits = 0;
+  std::size_t totalUnits = 0;
+};
+
+struct BgfxRenderer3D::TextureVariantPreparation {
+  struct Result {
+    PreparedTexture2D texture;
+    std::string error;
+  };
+  std::string id;
+  ImageMipSemantic semantic;
+  std::shared_ptr<Result> result;
+  JobHandle job;
+  std::stop_source cancellation;
+};
 
 TextureView2D BgfxRenderer3D::materialTexture(std::string_view id,
                                               ImageMipSemantic semantic) {
@@ -53,6 +184,8 @@ TextureView2D BgfxRenderer3D::materialTexture(std::string_view id,
   if (bytes.empty() ||
       !textures_.load(std::string(id), bytes, error, sampling)) {
     descriptor.failedVariants[variant] = true;
+    descriptor.variantErrors[variant] =
+        error.empty() ? "Could not read texture source." : error;
     deviceLogError(deviceLogMessage(
         "material.texture",
         std::string(id) + ": " +
@@ -68,6 +201,9 @@ void BgfxRenderer3D::finishMaterialTexturePresentation(bool succeeded) {
   }
   textures_.retainVariants(
       [this](std::string_view id, ImageMipSemantic semantic) {
+        if (preparedTextureVariants_.contains({std::string(id), semantic})) {
+          return true;
+        }
         const auto use = materialTextureUse_.find(id);
         if (use == materialTextureUse_.end()) {
           return false;
@@ -107,8 +243,11 @@ bool BgfxRenderer3D::setRenderTargetSamples(RenderTarget &target,
   return true;
 }
 
-bool BgfxRenderer3D::loadAssets(const AssetRegistry &registry,
-                                std::vector<std::string> &diagnostics) {
+bool BgfxRenderer3D::beginAssetPreparation(
+    const AssetRegistry &registry, JobSystem &jobs,
+    std::vector<std::string> &diagnostics, const bool prepareMaterialImages) {
+  cancelAssetPreparation();
+  preparedTextureVariants_.clear();
   textures_.clear();
   textureSources_.clear();
   materialTextureUse_.clear();
@@ -162,32 +301,174 @@ bool BgfxRenderer3D::loadAssets(const AssetRegistry &registry,
       }
     }
   }
-  for (const AssetManifest &asset : registry.assets) {
-    if (asset.type == "Texture2D") {
-      // Source registration does not allocate a 3D copy. The first actual mesh,
-      // sky or particle use resolves its own sampling semantic lazily.
-      textureSources_.emplace(
-          asset.id, TextureSource{.path = asset.sourcePath,
-                                  .sampling = textureSampling2D(asset)});
-    } else if (asset.type == "RenderTarget") {
-      const auto descriptor = assets::loadRenderTargetAsset(asset.sourcePath);
-      if (!descriptor) {
-        diagnostics.push_back(asset.id + ": could not load render target");
-        success = false;
+  if (!success) {
+    return false;
+  }
+  auto preparation = std::make_shared<AssetPreparation>();
+  preparation->registry = registry;
+  preparation->jobs = &jobs;
+  std::set<std::pair<std::string, ImageMipSemantic>> requests;
+  std::set<std::string> mappedIds;
+  for (const auto &asset : registry.assets) {
+    const auto *material = materials_.find(asset.id);
+    if (!material) {
+      continue;
+    }
+    for (const auto &[slot, id] : material->surface.maps) {
+      if (material->program && slot != assets::MaterialMapSlot::Albedo) {
         continue;
       }
-      std::string error;
-      const RenderTargetHandles handles = resources_.createRenderTarget(
-          {.width = static_cast<std::uint16_t>(descriptor->width),
-           .height = static_cast<std::uint16_t>(descriptor->height),
-           .colorFormat = TextureFormat::RGBA8,
-           .depth = descriptor->depth,
-           .debugName = asset.id},
-          error);
-      if (!handles.frameBuffer || !handles.color) {
-        diagnostics.push_back(asset.id + ": " + error);
-        success = false;
-      } else {
+      mappedIds.insert(id);
+      requests.emplace(id, materialMapSemantic(slot));
+    }
+  }
+  for (const auto &asset : registry.assets) {
+    if (asset.type == "Texture2D" && !mappedIds.contains(asset.id)) {
+      requests.emplace(asset.id, ImageMipSemantic::Color);
+    }
+  }
+  if (prepareMaterialImages) {
+    for (const auto &[id, semantic] : requests) {
+      preparation->textures.push_back({id, semantic});
+    }
+  }
+  for (const auto &asset : registry.assets) {
+    const bool isModel =
+        asset.type == "Model3D" && (asset.sourcePath.extension() == ".gltf" ||
+                                    asset.sourcePath.extension() == ".glb");
+    preparation->totalUnits += isModel ? 2U : 1U;
+  }
+  for (const auto &request : preparation->textures) {
+    const auto *asset = findAsset(registry, request.id);
+    if (asset && asset->type == "Texture2D") {
+      preparation->totalUnits += 2U;
+    }
+  }
+  assetPreparation_ = std::move(preparation);
+  return true;
+}
+
+bool BgfxRenderer3D::stepAssetPreparation(
+    const double budgetMilliseconds, bool &complete,
+    std::vector<std::string> &diagnostics) {
+  complete = false;
+  if (!assetPreparation_) {
+    complete = true;
+    return true;
+  }
+  auto &preparation = *assetPreparation_;
+  const auto started = std::chrono::steady_clock::now();
+  const auto exhausted = [&] {
+    const auto elapsed = std::chrono::duration<double, std::milli>(
+                             std::chrono::steady_clock::now() - started)
+                             .count();
+    return budgetMilliseconds >= 0.0 && elapsed >= budgetMilliseconds;
+  };
+  const auto workerReady = [&] {
+    if (!preparation.job.ready()) {
+      return false;
+    }
+    preparation.job.wait();
+    preparation.job = {};
+    return true;
+  };
+  try {
+    while (preparation.nextAsset < preparation.registry.assets.size()) {
+      const auto &asset = preparation.registry.assets[preparation.nextAsset];
+      const bool isModel =
+          asset.type == "Model3D" && (asset.sourcePath.extension() == ".gltf" ||
+                                      asset.sourcePath.extension() == ".glb");
+      if (isModel) {
+        if (!preparation.model) {
+          auto model = std::make_shared<PreparedModelAsset>();
+          preparation.model = model;
+          preparation.job = preparation.jobs->submit(
+              [asset, model, stop = preparation.cancellation.get_token()] {
+                prepareModelAsset(asset, *model, stop);
+              });
+          return true;
+        }
+        if (!workerReady()) {
+          return true;
+        }
+        auto &model = *preparation.model;
+        if (!model.error.empty()) {
+          diagnostics.push_back(asset.id + ": " + model.error);
+          return false;
+        }
+        auto cached = std::make_unique<CachedMesh>(resources_);
+        auto &geometry = model.geometry;
+        std::string error;
+        if (!cached->gpu.upload(geometry.positions, geometry.uvs,
+                                geometry.indices, 0xffffffffU, error, {},
+                                geometry.colors)) {
+          diagnostics.push_back(asset.id + ": " + error);
+          return false;
+        }
+        cached->bounds = meshBounds3D(geometry.positions);
+        cached->restGeometry = std::move(geometry);
+        if (gpuSkinningEnabled_ && !model.skinVertices.empty()) {
+          cached->gpuSkin = std::make_unique<GpuSkinnedMesh3D>(resources_);
+          if (!cached->gpuSkin->upload(model.skinVertices,
+                                       model.animated->indices,
+                                       std::move(model.skinLayout), error)) {
+            diagnostics.push_back(asset.id + ": " + error);
+            return false;
+          }
+        }
+        modelUnlit_[asset.id] = model.profile->materialPolicy == "unlit";
+        modelMeshes_.emplace(asset.id, std::move(cached));
+        if (model.albedo) {
+          const std::string textureId = asset.id + "#albedo";
+          if (!textures_.uploadPrepared(textureId, *model.albedo, error)) {
+            diagnostics.push_back(asset.id + ": " + error);
+            return false;
+          }
+          TextureSource source;
+          source.sampling = model.albedo->sampling;
+          if (asset.texturePath) {
+            source.path = *asset.texturePath;
+          } else {
+            source.readEmbedded = [path = asset.sourcePath,
+                                   profile =
+                                       *model.profile](std::string &readError) {
+              auto model =
+                  assets::loadGltfSkinnedModel3D(path, profile, readError);
+              return model ? std::move(model->albedoImage)
+                           : std::vector<std::byte>{};
+            };
+          }
+          textureSources_.emplace(textureId, std::move(source));
+          modelTextures_[asset.id] = textureId;
+          preparedTextureVariants_.emplace(textureId, ImageMipSemantic::Color);
+        }
+        if (model.animated && (!model.animated->clips.empty() ||
+                               !model.animated->skins.empty())) {
+          animatedModels_.emplace(asset.id, std::move(*model.animated));
+        }
+        preparation.model.reset();
+      } else if (asset.type == "Texture2D") {
+        textureSources_.emplace(
+            asset.id, TextureSource{.path = asset.sourcePath,
+                                    .sampling = textureSampling2D(asset)});
+      } else if (asset.type == "RenderTarget") {
+        const auto descriptor = assets::loadRenderTargetAsset(asset.sourcePath);
+        if (!descriptor) {
+          diagnostics.push_back(asset.id + ": could not load render target");
+          return false;
+        }
+        std::string error;
+        const auto handles = resources_.createRenderTarget(
+            {.width = static_cast<std::uint16_t>(descriptor->width),
+             .height = static_cast<std::uint16_t>(descriptor->height),
+             .colorFormat = TextureFormat::RGBA8,
+             .depth = descriptor->depth,
+             .debugName = asset.id},
+            error);
+        if (!handles.frameBuffer || !handles.color) {
+          diagnostics.push_back(asset.id + ": " + error);
+          return false;
+        }
         renderTargets_.emplace(
             asset.id,
             RenderTarget{.handles = handles,
@@ -201,131 +482,192 @@ bool BgfxRenderer3D::loadAssets(const AssetRegistry &registry,
              .width = static_cast<std::uint16_t>(descriptor->width),
              .height = static_cast<std::uint16_t>(descriptor->height)});
       }
-    } else if (asset.type == "Model3D" &&
-               (asset.sourcePath.extension() == ".gltf" ||
-                asset.sourcePath.extension() == ".glb")) {
-      std::string error;
-      std::vector<Vec3> positions;
-      std::vector<Vec2> textureCoordinates;
-      std::vector<std::uint32_t> vertexColors;
-      std::vector<std::uint32_t> indices;
-      const nlohmann::json settings =
-          nlohmann::json::parse(asset.settingsJson, nullptr, false);
-      // Legacy manifests had no import profile and always exposed animation
-      // clips. Preserve that behavior while new imports remain explicit.
-      const bool hasProfile =
-          settings.is_object() && settings.contains("model_import");
-      const auto profile =
-          hasProfile ? assets::parseModelImportProfile(settings)
-                     : std::make_optional(
-                           assets::modelImportPreset("animated_character"));
-      if (!profile) {
-        diagnostics.push_back(asset.id + ": invalid model import profile");
-        success = false;
-        continue;
-      }
-      modelUnlit_[asset.id] = profile->materialPolicy == "unlit";
-      auto animated =
-          assets::loadGltfSkinnedModel3D(asset.sourcePath, *profile, error);
-      if (animated) {
-        if (!animated->bindPosePositions(positions, error)) {
-          diagnostics.push_back(asset.id + ": " + error);
-          success = false;
-          continue;
-        }
-        textureCoordinates.reserve(animated->vertices.size());
-        vertexColors.reserve(animated->vertices.size());
-        for (const assets::GltfSkinnedVertex3D &vertex : animated->vertices) {
-          textureCoordinates.push_back(vertex.uv);
-          vertexColors.push_back(packVertexColorRgba8(vertex.color));
-        }
-        indices = animated->indices;
-      } else {
-        error.clear();
-        const auto geometry =
-            assets::loadGltfGeometry(asset.sourcePath, *profile, error);
-        if (!geometry) {
-          diagnostics.push_back(asset.id + ": " + error);
-          success = false;
-          continue;
-        }
-        positions.reserve(geometry->triangles.size() * 3U);
-        textureCoordinates.reserve(geometry->triangles.size() * 3U);
-        for (const assets::GltfTriangle &triangle : geometry->triangles) {
-          for (const assets::GltfPoint3 point :
-               {triangle.a, triangle.b, triangle.c})
-            positions.push_back({point.x, point.y, point.z});
-          for (const assets::GltfPoint2 point :
-               {triangle.uvA, triangle.uvB, triangle.uvC})
-            textureCoordinates.push_back({point.x, point.y});
-        }
-      }
-      auto cached = std::make_unique<CachedMesh>(resources_);
-      if (!cached->gpu.upload(positions, textureCoordinates, indices,
-                              0xffffffffU, error, {}, vertexColors)) {
-        diagnostics.push_back(asset.id + ": " + error);
-        success = false;
-      } else {
-        cached->bounds = meshBounds3D(positions);
-        cached->restGeometry = {.positions = std::move(positions),
-                                .uvs = std::move(textureCoordinates),
-                                .indices = std::move(indices),
-                                .colors = std::move(vertexColors)};
-        if (gpuSkinningEnabled_ && animated) {
-          std::vector<GpuSkinnedVertex3D> skinVertices;
-          GpuSkinPaletteLayout layout;
-          std::string reason;
-          if (buildGpuSkinVertices(*animated, skinVertices, layout, reason)) {
-            cached->gpuSkin = std::make_unique<GpuSkinnedMesh3D>(resources_);
-            if (!cached->gpuSkin->upload(skinVertices, animated->indices,
-                                         std::move(layout), error)) {
-              diagnostics.push_back(asset.id + ": " + error);
-              success = false;
-              cached->gpuSkin.reset();
-            }
-          }
-        }
-        modelMeshes_.emplace(asset.id, std::move(cached));
-        std::vector<std::byte> embeddedAlbedo =
-            animated ? std::move(animated->albedoImage)
-                     : std::vector<std::byte>{};
-        if (animated && (!animated->clips.empty() || !animated->skins.empty()))
-          animatedModels_.emplace(asset.id, std::move(*animated));
-        if (profile->materialPolicy != "ignore" &&
-            (asset.texturePath || !embeddedAlbedo.empty())) {
-          const std::string textureId = asset.id + "#albedo";
-          const auto bytes = asset.texturePath
-                                 ? readRenderAssetBytes(*asset.texturePath)
-                                 : embeddedAlbedo;
-          auto sampling = textureSampling2D(asset);
-          sampling.mipSemantic = ImageMipSemantic::Color;
-          TextureSource imageSource;
-          imageSource.sampling = sampling;
-          if (asset.texturePath) {
-            imageSource.path = *asset.texturePath;
-          } else {
-            imageSource.readEmbedded = [path = asset.sourcePath,
-                                        importProfile =
-                                            *profile](std::string &readError) {
-              auto model = assets::loadGltfSkinnedModel3D(path, importProfile,
-                                                          readError);
-              return model ? std::move(model->albedoImage)
-                           : std::vector<std::byte>{};
-            };
-          }
-          textureSources_.emplace(textureId, std::move(imageSource));
-          if (bytes.empty() ||
-              !textures_.load(textureId, bytes, error, sampling)) {
-            diagnostics.push_back(asset.id + ": " + error);
-            success = false;
-          } else {
-            modelTextures_[asset.id] = textureId;
-          }
-        }
+      preparation.completedUnits += isModel ? 2U : 1U;
+      ++preparation.nextAsset;
+      if (exhausted()) {
+        return true;
       }
     }
+    while (preparation.nextTexture < preparation.textures.size()) {
+      const auto &request = preparation.textures[preparation.nextTexture];
+      const auto source = textureSources_.find(request.id);
+      // Live render targets have no encoded image; the target itself is ready.
+      if (source == textureSources_.end()) {
+        ++preparation.nextTexture;
+        continue;
+      }
+      if (!preparation.image) {
+        auto image = std::make_shared<AssetPreparation::TextureResult>();
+        preparation.image = image;
+        auto descriptor = source->second;
+        descriptor.sampling.mipSemantic = request.semantic;
+        preparation.job = preparation.jobs->submit(
+            [descriptor, image, stop = preparation.cancellation.get_token()] {
+              if (stop.stop_requested()) {
+                return;
+              }
+              const auto encoded = descriptor.readEmbedded
+                                       ? descriptor.readEmbedded(image->error)
+                                       : readRenderAssetBytes(descriptor.path);
+              if (image->error.empty()) {
+                (void)prepareTexture2D(encoded, descriptor.sampling,
+                                       image->texture, image->error, stop);
+              }
+            });
+        return true;
+      }
+      if (!workerReady()) {
+        return true;
+      }
+      auto &image = *preparation.image;
+      if (!image.error.empty() ||
+          !textures_.uploadPrepared(request.id, image.texture, image.error)) {
+        diagnostics.push_back(request.id + ": " + image.error);
+        return false;
+      }
+      preparedTextureVariants_.emplace(request.id, request.semantic);
+      preparation.image.reset();
+      preparation.completedUnits += 2U;
+      ++preparation.nextTexture;
+      if (exhausted()) {
+        return true;
+      }
+    }
+  } catch (const std::exception &error) {
+    diagnostics.push_back(std::string("Asset preparation failed: ") +
+                          error.what());
+    return false;
   }
-  return success;
+  assetPreparation_.reset();
+  complete = true;
+  return true;
+}
+
+void BgfxRenderer3D::cancelAssetPreparation() {
+  cancelTextureVariantPreparation();
+  // Jobs own their CPU payload and source descriptors, never this renderer.
+  // Dropping a candidate cannot wait on decoding or touch an active renderer.
+  if (assetPreparation_) {
+    assetPreparation_->cancellation.request_stop();
+    assetPreparation_.reset();
+  }
+}
+
+void BgfxRenderer3D::cancelTextureVariantPreparation() {
+  if (textureVariantPreparation_) {
+    textureVariantPreparation_->cancellation.request_stop();
+    textureVariantPreparation_.reset();
+  }
+}
+
+bool BgfxRenderer3D::prepareTextureVariant(const std::string_view id,
+                                           const ImageMipSemantic semantic,
+                                           bool &complete, std::string &error) {
+  complete = false;
+  error.clear();
+  // Finish an earlier camera's request before starting another. Multiple
+  // cameras can need different skies without cancelling each other's jobs.
+  if (textureVariantPreparation_) {
+    const auto pending = textureVariantPreparation_;
+    if (!pending->job.ready()) {
+      return true;
+    }
+    auto &result = *pending->result;
+    try {
+      pending->job.wait();
+    } catch (const std::exception &failure) {
+      result.error = failure.what();
+    }
+    const auto variant = static_cast<std::size_t>(pending->semantic);
+    if (!result.error.empty() ||
+        !textures_.uploadPrepared(pending->id, result.texture, result.error)) {
+      if (result.error.empty()) {
+        result.error = "Texture variant upload failed.";
+      }
+      if (const auto source = textureSources_.find(pending->id);
+          source != textureSources_.end()) {
+        source->second.failedVariants[variant] = true;
+        source->second.variantErrors[variant] = result.error;
+      }
+      error = pending->id + ": " + result.error;
+      textureVariantPreparation_.reset();
+      return false;
+    }
+    preparedTextureVariants_.emplace(pending->id, pending->semantic);
+    textureVariantPreparation_.reset();
+  }
+  if (textures_.find(id, semantic).handle) {
+    preparedTextureVariants_.emplace(std::string(id), semantic);
+    complete = true;
+    return true;
+  }
+  if (renderTargets_.contains(std::string(id))) {
+    complete = true;
+    return true;
+  }
+  const auto source = textureSources_.find(std::string(id));
+  if (source == textureSources_.end()) {
+    error = "Texture source is not loaded: " + std::string(id);
+    return false;
+  }
+  const auto variant = static_cast<std::size_t>(semantic);
+  if (source->second.failedVariants[variant]) {
+    error = std::string(id) + ": " + source->second.variantErrors[variant];
+    return false;
+  }
+  auto pending = std::make_shared<TextureVariantPreparation>();
+  pending->id = id;
+  pending->semantic = semantic;
+  pending->result = std::make_shared<TextureVariantPreparation::Result>();
+  auto descriptor = source->second;
+  descriptor.sampling.mipSemantic = semantic;
+  pending->job =
+      extractionJobs_.submit([descriptor, result = pending->result,
+                              stop = pending->cancellation.get_token()] {
+        if (stop.stop_requested()) {
+          return;
+        }
+        const auto encoded = descriptor.readEmbedded
+                                 ? descriptor.readEmbedded(result->error)
+                                 : readRenderAssetBytes(descriptor.path);
+        if (result->error.empty()) {
+          (void)prepareTexture2D(encoded, descriptor.sampling, result->texture,
+                                 result->error, stop);
+        }
+      });
+  textureVariantPreparation_ = std::move(pending);
+  return true;
+}
+
+double BgfxRenderer3D::assetPreparationProgress() const {
+  if (!assetPreparation_) {
+    return 0.0;
+  }
+  const auto &preparation = *assetPreparation_;
+  const std::size_t completedCpuUnit =
+      preparation.job && preparation.job.ready() ? 1U : 0U;
+  // Models and images each have a CPU preparation and a GPU upload unit.
+  // Reserve the final unit for atomic publication, which belongs to the host.
+  return static_cast<double>(preparation.completedUnits + completedCpuUnit) /
+         static_cast<double>(preparation.totalUnits + 1U);
+}
+
+bool BgfxRenderer3D::loadAssets(const AssetRegistry &registry,
+                                std::vector<std::string> &diagnostics) {
+  if (!beginAssetPreparation(registry, extractionJobs_, diagnostics, false)) {
+    return false;
+  }
+  bool complete = false;
+  while (!complete) {
+    if (!stepAssetPreparation(-1.0, complete, diagnostics)) {
+      cancelAssetPreparation();
+      return false;
+    }
+    if (!complete) {
+      std::this_thread::yield();
+    }
+  }
+  return true;
 }
 
 } // namespace demi::runtime::render

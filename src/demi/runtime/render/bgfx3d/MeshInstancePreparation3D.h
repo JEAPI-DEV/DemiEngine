@@ -1,9 +1,10 @@
 #pragma once
 
 #include "demi/runtime/geometry/MeshDeformation3D.h"
+#include "demi/runtime/render/bgfx3d/InstanceSpatialIndex3D.h"
 #include "demi/runtime/render/bgfx3d/MeshBounds3D.h"
-#include "demi/runtime/scene/WorldTransformSnapshot3D.h"
 #include "demi/runtime/scene/EntityComponentQuery.h"
+#include "demi/runtime/scene/WorldTransformSnapshot3D.h"
 #include <array>
 #include <optional>
 #include <unordered_map>
@@ -47,6 +48,9 @@ public:
     const MeshInstances3DComponent *component = nullptr;
     std::uint64_t contentRevision = 0;
     std::vector<Copy> copies;
+    InstanceSpatialIndex3D spatialIndex;
+    std::vector<std::size_t> visibleCandidates;
+    std::vector<std::uint64_t> visibilityWords;
     bool visited = false;
     bool geometryPrepared = false;
     std::optional<Vec3> meshSize;

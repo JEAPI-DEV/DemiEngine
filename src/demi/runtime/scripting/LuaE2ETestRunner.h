@@ -33,7 +33,7 @@ public:
   void start(const std::string &moduleName);
   void update(double deltaTime);
   void abort(const std::string &reason);
-  void drainSyntheticTouches(InputState &input);
+  void drainSyntheticTouches(InputState &input, double deltaSeconds);
   [[nodiscard]] bool active() const;
   [[nodiscard]] int passed() const;
   [[nodiscard]] int failed() const;
@@ -48,9 +48,10 @@ public:
   void expectScene(const std::string &sceneId, double timeout);
 
 private:
-  struct SyntheticFrame {
+  struct SyntheticTouchEvent {
     TouchPhase phase = TouchPhase::Began;
     Vec2 position;
+    double durationSeconds = 0.0;
   };
   struct TestDefinition {
     std::string name;
@@ -77,8 +78,10 @@ private:
   double waitElapsed_ = 0.0;
   std::string waitScene_;
   double waitTimeout_ = 0.0;
-  int pendingGestureFrames_ = 0;
-  std::deque<SyntheticFrame> syntheticTouches_;
+  int pendingGestureEvents_ = 0;
+  Vec2 gestureStart_;
+  double gestureElapsed_ = 0.0;
+  std::deque<SyntheticTouchEvent> syntheticTouches_;
   int passed_ = 0;
   int failed_ = 0;
   bool active_ = false;

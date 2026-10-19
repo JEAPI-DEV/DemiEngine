@@ -86,6 +86,12 @@ public:
   [[nodiscard]] virtual std::size_t
   uploadBatch(std::span<const AssetResourceUpload> uploads,
               double budgetMilliseconds, std::string &error);
+  virtual void cancelUploadBatch(std::span<const std::string>) {}
+  [[nodiscard]] virtual bool hasPendingUploadBatch() const { return false; }
+  [[nodiscard]] virtual double
+  pendingUploadProgress(std::span<const std::string>) const {
+    return 0.0;
+  }
   virtual void unload(std::string_view assetId) = 0;
   // On failure, the backend must retain the batch's existing resources.
   // Ordinary loaders have infallible per-resource unload implementations.

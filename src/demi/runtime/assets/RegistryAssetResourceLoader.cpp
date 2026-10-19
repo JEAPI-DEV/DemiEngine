@@ -1,6 +1,8 @@
 #include "demi/runtime/assets/RegistryAssetResourceLoader.h"
 
+#include <algorithm>
 #include <array>
+#include <cmath>
 #include <fstream>
 #include <map>
 
@@ -8,7 +10,7 @@ namespace demi::runtime {
 namespace {
 
 struct VerifiedSourcePayload {
-  std::map<std::filesystem::path, std::vector<std::byte>> files;
+  std::size_t sourceBytes = 0;
 };
 
 } // namespace
@@ -43,18 +45,28 @@ RegistryAssetResourceLoader::readAndDecode(const AssetManifest &asset,
       return std::nullopt;
     }
     input.seekg(0);
-    std::vector<std::byte> content(static_cast<std::size_t>(size));
-    if (size > 0 &&
-        !input.read(reinterpret_cast<char *>(content.data()), size)) {
+    // Native backends consume stable paths, not this verification buffer.
+    // Keeping complete encoded files here duplicates every model and image.
+    std::array<char, 64U * 1024U> buffer;
+    std::size_t verified = 0;
+    while (input) {
+      if (isCancelled.load()) {
+        error = "Asset source verification was cancelled.";
+        return std::nullopt;
+      }
+      input.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+      verified += static_cast<std::size_t>(input.gcount());
+    }
+    if (input.bad() || verified != static_cast<std::size_t>(size)) {
       error = "Could not read complete backend asset source: " + path.string();
       return std::nullopt;
     }
-    bytes += content.size();
-    payload->files.emplace(path, std::move(content));
+    bytes += verified;
   }
+  payload->sourceBytes = bytes;
   error.clear();
   return assets::DecodedAsset{.payload = std::move(payload),
-                              .decodedBytes = bytes,
+                              .decodedBytes = sizeof(VerifiedSourcePayload),
                               .residentBytes = bytes};
 }
 
@@ -67,10 +79,22 @@ bool RegistryAssetResourceLoader::upload(const AssetManifest &asset,
 
 std::size_t RegistryAssetResourceLoader::uploadBatch(
     const std::span<const assets::AssetResourceUpload> uploads,
-    const double /*budgetMilliseconds*/, std::string &error) {
+    const double budgetMilliseconds, std::string &error) {
   error.clear();
   if (uploads.empty()) {
     return 0;
+  }
+  std::vector<std::string> requestedIds;
+  for (const auto &upload : uploads) {
+    requestedIds.push_back(upload.asset.id);
+  }
+  const bool staged = backend_.applyStep && budgetMilliseconds >= 0.0;
+  if (!pendingUploadIds_.empty() && pendingUploadIds_ != requestedIds) {
+    if (staged) {
+      return 0;
+    }
+    const auto cancelledIds = pendingUploadIds_;
+    cancelUploadBatch(cancelledIds);
   }
   std::set<std::string> candidateIds = residentIds_;
   for (const auto &upload : uploads) {
@@ -86,6 +110,26 @@ std::size_t RegistryAssetResourceLoader::uploadBatch(
   if (!error.empty()) {
     return 0;
   }
+  if (staged) {
+    if (pendingUploadIds_.empty()) {
+      pendingUploadIds_ = requestedIds;
+      pendingResidentIds_ = candidateIds;
+    }
+    const auto stage = backend_.applyStep(candidate, budgetMilliseconds, error);
+    if (stage == AssetPublicationStage::Pending) {
+      return 0;
+    }
+    if (stage == AssetPublicationStage::Failed) {
+      cancelUploadBatch(requestedIds);
+      if (error.empty()) {
+        error = "Backend staged asset publication failed.";
+      }
+      return 0;
+    }
+    residentIds_ = std::move(pendingResidentIds_);
+    pendingUploadIds_.clear();
+    return uploads.size();
+  }
   if (!backend_.apply || !backend_.apply(candidate, error)) {
     if (error.empty()) {
       error = "Backend asset-registry replacement failed.";
@@ -94,6 +138,31 @@ std::size_t RegistryAssetResourceLoader::uploadBatch(
   }
   residentIds_ = std::move(candidateIds);
   return uploads.size();
+}
+
+void RegistryAssetResourceLoader::cancelUploadBatch(
+    const std::span<const std::string> assetIds) {
+  const bool intersects = std::ranges::any_of(assetIds, [this](const auto &id) {
+    return std::ranges::find(pendingUploadIds_, id) != pendingUploadIds_.end();
+  });
+  if (!intersects) {
+    return;
+  }
+  if (backend_.cancelApply) {
+    backend_.cancelApply();
+  }
+  pendingUploadIds_.clear();
+  pendingResidentIds_.clear();
+}
+
+double RegistryAssetResourceLoader::pendingUploadProgress(
+    const std::span<const std::string> assetIds) const {
+  if (pendingUploadIds_.empty() || !backend_.applyProgress ||
+      !std::ranges::equal(assetIds, pendingUploadIds_)) {
+    return 0.0;
+  }
+  const double fraction = backend_.applyProgress();
+  return std::isfinite(fraction) ? std::clamp(fraction, 0.0, 1.0) : 0.0;
 }
 
 void RegistryAssetResourceLoader::unload(const std::string_view assetId) {
@@ -112,6 +181,8 @@ bool RegistryAssetResourceLoader::unloadBatch(
   if (candidateIds == residentIds_) {
     return true;
   }
+  const auto cancelledIds = pendingUploadIds_;
+  cancelUploadBatch(cancelledIds);
   const AssetRegistry candidate = snapshot(candidateIds, error);
   if (!error.empty()) {
     return false;

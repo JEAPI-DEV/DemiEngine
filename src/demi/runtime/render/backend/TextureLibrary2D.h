@@ -11,9 +11,11 @@
 
 #include <cstdint>
 #include <span>
+#include <stop_token>
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <vector>
 
 namespace demi::runtime::render {
 
@@ -32,6 +34,27 @@ struct TextureSampling2D {
   bool mipmaps = false;
   ImageMipSemantic mipSemantic = ImageMipSemantic::Linear;
 };
+
+// Immutable-by-convention CPU payload. RGBA8 base pixels and optional mip
+// levels are packed in upload order; no GPU/device state is retained.
+struct PreparedTexture2D {
+  std::uint16_t width = 0;
+  std::uint16_t height = 0;
+  TextureSampling2D sampling;
+  std::vector<std::byte> rgbaMipBytes;
+};
+
+// Worker-safe decode/filter operations. Failure leaves output unchanged.
+[[nodiscard]] bool prepareTexture2D(std::span<const std::byte> encoded,
+                                    TextureSampling2D sampling,
+                                    PreparedTexture2D &output,
+                                    std::string &error,
+                                    std::stop_token stop = {});
+[[nodiscard]] bool prepareTexture2D(const ImageData2D &image,
+                                    TextureSampling2D sampling,
+                                    PreparedTexture2D &output,
+                                    std::string &error,
+                                    std::stop_token stop = {});
 
 struct TextureSource2D {
   using Reader = std::function<std::vector<std::byte>(std::string &)>;
@@ -67,6 +90,11 @@ public:
   [[nodiscard]] bool upload(std::string id, const ImageData2D &image,
                             std::string &error,
                             TextureSampling2D sampling = {});
+  // Main/render-thread operation: validates storage and allocates/uploads only.
+  // CPU decoding and semantic mip generation have already completed.
+  [[nodiscard]] bool uploadPrepared(std::string id,
+                                    const PreparedTexture2D &prepared,
+                                    std::string &error);
   [[nodiscard]] TextureView2D
   find(std::string_view id,
        ImageMipSemantic semantic = ImageMipSemantic::Linear) const;

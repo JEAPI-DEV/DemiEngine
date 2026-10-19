@@ -8,6 +8,9 @@
 #include "demi/runtime/scene/model/Entity.h"
 #include "demi/runtime/scene/model/World.h"
 
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <cassert>
 #include <string>
 #include <vector>
@@ -29,7 +32,171 @@ Entity mesh(std::string id, const Vec3 position, const Vec3 minimum,
 
 } // namespace
 
+void orthographicCullingMatchesExactProjectionEdges() {
+  World world;
+  const std::array<Vec3, 12> positions{{{10, 0, 10},
+                                        {-10, 0, 10},
+                                        {0, 5, 10},
+                                        {0, -5, 10},
+                                        {0, 0, 1},
+                                        {0, 0, 20},
+                                        {10.01F, 0, 10},
+                                        {-10.01F, 0, 10},
+                                        {0, 5.01F, 10},
+                                        {0, -5.01F, 10},
+                                        {0, 0, 0.99F},
+                                        {0, 0, 20.01F}}};
+  for (std::size_t index = 0; index < positions.size(); ++index) {
+    world.entities.push_back(
+        mesh(std::to_string(index), positions[index], {}, {}));
+  }
+  BgfxCameraFrame3D frame;
+  frame.camera.perspective = false;
+  frame.camera.orthographicSize = 10;
+  frame.camera.nearClip = 1;
+  frame.camera.farClip = 20;
+  frame.viewportWidth = 200;
+  frame.viewportHeight = 100;
+  frame.forward = {0, 0, 1};
+  frame.up = {0, 1, 0};
+  const auto visible = extractVisibleMeshes3D(world, frame);
+  assert(visible.meshes.size() == 6);
+  for (std::size_t index = 0; index < visible.meshes.size(); ++index) {
+    assert(visible.meshes[index].entity->id == std::to_string(index));
+  }
+}
+
+void spatialInstancesMatchReferenceAndKeepOffscreenShadowCasters() {
+  World instanced;
+  Entity owner;
+  owner.id = "vegetation";
+  owner.setComponent(Transform3DComponent{});
+  owner.setComponent(MeshRendererComponent{.shape = "cube"});
+  MeshInstances3DComponent instances;
+  for (unsigned index = 0; index < 4096; ++index) {
+    instances.setTransform(
+        std::to_string(index),
+        {.position = {float(index % 64) * 10, 0, float(index / 64) * 10}});
+  }
+  owner.setComponent(std::move(instances));
+  instanced.entities.push_back(std::move(owner));
+  MeshInstancePreparation3D preparation;
+  BgfxCameraFrame3D camera;
+  camera.position = {5, 0, -10};
+  camera.forward = {0, 0, 1};
+  camera.up = {0, 1, 0};
+  camera.camera.fov = 60;
+  camera.camera.farClip = 40;
+  camera.viewportWidth = camera.viewportHeight = 128;
+  const auto reference = [&](const BgfxCameraFrame3D &view) {
+    World ordinary;
+    const auto transform =
+        *resolveWorldTransform3D(instanced, instanced.entities.front());
+    for (const auto &[id, local] : instanced.entities.front()
+                                       .component<MeshInstances3DComponent>()
+                                       ->transforms()) {
+      const auto world = composeWorldTransform3D(transform, local);
+      auto entity =
+          mesh(id, world.position, {-.5F, -.5F, -.5F}, {.5F, .5F, .5F});
+      entity.component<Transform3DComponent>()->rotation = world.rotation;
+      entity.component<Transform3DComponent>()->scale = world.scale;
+      ordinary.entities.push_back(std::move(entity));
+    }
+    const auto expected = extractVisibleMeshes3D(ordinary, view);
+    const auto actual = extractVisibleMeshes3D(
+        instanced, view, nullptr, nullptr, &camera, nullptr, nullptr, nullptr,
+        nullptr, {}, &preparation);
+    assert(actual.meshes.size() == expected.meshes.size());
+    for (std::size_t index = 0; index < actual.meshes.size(); ++index) {
+      assert(actual.meshes[index].transform.position.x ==
+             expected.meshes[index].transform.position.x);
+      assert(actual.meshes[index].transform.position.z ==
+             expected.meshes[index].transform.position.z);
+    }
+    assert(actual.considered == 4096);
+    assert(actual.instanceCopiesExamined < 512);
+    assert(actual.instanceCopiesRejectedByIndex > 3500);
+    assert(actual.instanceNodesTested > 0);
+    return actual;
+  };
+  assert(!reference(camera).meshes.empty());
+  auto shadow = camera;
+  shadow.viewId = 1;
+  shadow.position = {150, 100, 150};
+  shadow.forward = {0, -1, 0};
+  shadow.up = {0, 0, 1};
+  shadow.camera.perspective = false;
+  shadow.camera.orthographicSize = 60;
+  shadow.camera.farClip = 200;
+  const auto casters = reference(shadow);
+  assert(!casters.meshes.empty());
+  assert(casters.meshes.front().transform.position.x > 100);
+  // Content edits and transformed owners rebuild the position index. Bounds
+  // retain nonuniform/mirrored scale and rotations through the ordinary path.
+  instanced.entities.front()
+      .component<MeshInstances3DComponent>()
+      ->setTransform("4095", {.position = {5, 0, 5}});
+  preparation.reset();
+  reference(camera);
+  auto *transform =
+      instanced.entities.front().component<Transform3DComponent>();
+  transform->position = {-10, 0, 0};
+  transform->rotation = {0, .1F, 0};
+  transform->scale = {-1, 2, .5F};
+  preparation.reset();
+  reference(camera);
+}
+
+void spatialIndexExpandsForChangingLodBounds() {
+  World world;
+  Entity owner;
+  owner.id = "lod-instances";
+  owner.setComponent(Transform3DComponent{});
+  MeshRendererComponent geometry;
+  geometry.model = "asset://base";
+  geometry.mediumLodModel = "asset://larger-lod";
+  owner.setComponent(geometry);
+  MeshInstances3DComponent instances;
+  instances.setTransform("edge", {.position = {10, 0, 10}});
+  for (unsigned index = 0; index < 128; ++index) {
+    instances.setTransform("far" + std::to_string(index),
+                           {.position = {1000, 0, 10}});
+  }
+  owner.setComponent(std::move(instances));
+  world.entities.push_back(std::move(owner));
+  BgfxCameraFrame3D camera;
+  camera.forward = {0, 0, 1};
+  camera.up = {0, 1, 0};
+  camera.viewportWidth = camera.viewportHeight = 128;
+  camera.camera.perspective = false;
+  camera.camera.orthographicSize = 10;
+  camera.camera.farClip = 50;
+  float lodExtent = .5F;
+  const ModelBoundsResolver3D bounds = [&](std::string_view model) {
+    const auto extent = model == "asset://larger-lod" ? lodExtent : .5F;
+    return std::optional<MeshBounds3D>{
+        {{-extent, -extent, -extent}, {extent, extent, extent}}};
+  };
+  MeshInstancePreparation3D preparation;
+  const auto extract = [&] {
+    return extractVisibleMeshes3D(world, camera, nullptr, nullptr, nullptr,
+                                  nullptr, nullptr, nullptr, nullptr, bounds,
+                                  &preparation);
+  };
+  assert(extract().meshes.empty());
+  // Resource bounds can change without an instance-content revision. The
+  // cached position hierarchy must accept the new geometry expansion.
+  lodExtent = 5;
+  preparation.reset();
+  const auto larger = extract();
+  assert(larger.meshes.size() == 1);
+  assert(larger.meshes.front().transform.position.x == 10);
+}
+
 int main() {
+  orthographicCullingMatchesExactProjectionEdges();
+  spatialIndexExpandsForChangingLodBounds();
+  spatialInstancesMatchReferenceAndKeepOffscreenShadowCasters();
   {
     MeshInstances3DComponent instances;
     instances.setTransform("tree", {.position = {1, 0, 4}});
@@ -199,9 +366,8 @@ int main() {
 
     // A new presentation observes edits even when the component address and
     // number of copies stay unchanged.
-    copies.entities.front()
-        .component<MeshInstances3DComponent>()
-        ->setTransform("near-viewer", {.position = {-5, 0, 3.F}});
+    copies.entities.front().component<MeshInstances3DComponent>()->setTransform(
+        "near-viewer", {.position = {-5, 0, 3.F}});
     preparation.reset();
     const auto nextPresentation = extractVisibleMeshes3D(
         copies, shadowFrame, nullptr, nullptr, nullptr, nullptr, nullptr,
@@ -226,7 +392,8 @@ int main() {
     assert(movedOwner.meshes.front().transform.position.x == 1.F);
     // Retained instance matrices must observe mesh size and local edits even
     // when the instance labels, source address and copy count are unchanged.
-    auto *resizedMesh = copies.entities.front().component<MeshRendererComponent>();
+    auto *resizedMesh =
+        copies.entities.front().component<MeshRendererComponent>();
     resizedMesh->size = {4.F, 2.F, 3.F};
     preparation.reset();
     const auto resized = extractVisibleMeshes3D(
@@ -263,7 +430,8 @@ int main() {
     MeshInstancePreparation3D preparation;
     float extent = 1.F;
     const auto bounds = [&](std::string_view) -> std::optional<MeshBounds3D> {
-      return MeshBounds3D{{-extent, -extent, -extent}, {extent, extent, extent}};
+      return MeshBounds3D{{-extent, -extent, -extent},
+                          {extent, extent, extent}};
     };
     const auto extract = [&] {
       return extractVisibleMeshes3D(copies, frame, nullptr, nullptr, nullptr,

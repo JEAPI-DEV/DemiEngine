@@ -11,6 +11,7 @@
 #include "demi/runtime/scene/model/World.h"
 #include "demi/runtime/terrain/TerrainRenderLod.h"
 #include <algorithm>
+#include <cmath>
 
 namespace demi::runtime::render {
 namespace {
@@ -34,18 +35,16 @@ void MeshInstancePreparation3D::reset() {
   // Retain only sources used in the last presentation. Cached copy transforms
   // own their values; component pointers and geometry decisions expire here.
   for (auto &[world, sources] : sources_) {
-    std::erase_if(sources, [](const auto &entry) {
-      return !entry.second.visited;
-    });
+    std::erase_if(sources,
+                  [](const auto &entry) { return !entry.second.visited; });
     for (auto &[entity, source] : sources) {
       source.visited = false;
       source.component = nullptr;
       source.geometryPrepared = false;
     }
   }
-  std::erase_if(sources_, [](const auto &entry) {
-    return entry.second.empty();
-  });
+  std::erase_if(sources_,
+                [](const auto &entry) { return entry.second.empty(); });
   worldSources_.clear();
   animations_.clear();
 }
@@ -76,8 +75,7 @@ MeshInstancePreparation3D::worldSources(const World &world) {
   const auto populateComponents = [&]<typename Component>(
                                       const Component *EntitySource::*member,
                                       bool requireMesh = false) {
-    const auto &indices =
-        sourceMembership_.queryAny<Component>(world.entities);
+    const auto &indices = sourceMembership_.queryAny<Component>(world.entities);
     for (const auto index : indices) {
       auto &source = sources[index];
       if (!requireMesh || source.mesh) {
@@ -96,7 +94,8 @@ MeshInstancePreparation3D::worldSources(const World &world) {
        sourceMembership_.queryAny<Dentable3DComponent>(world.entities)) {
     auto &source = sources[index];
     if (source.mesh) {
-      source.dents = world.entities[index].component<Dentable3DComponent>()->dents;
+      source.dents =
+          world.entities[index].component<Dentable3DComponent>()->dents;
     }
   }
 
@@ -155,8 +154,8 @@ MeshInstancePreparation3D::source(const World &world, const Entity &entity,
   std::size_t index = 0;
   for (const auto &[id, local] : instances.transforms()) {
     auto &copy = prepared.copies[index];
-    const bool changed = ownerChanged || index >= oldCount ||
-                         !sameTransform(copy.local, local);
+    const bool changed =
+        ownerChanged || index >= oldCount || !sameTransform(copy.local, local);
     if (changed) {
       const auto point = local.position;
       const Vec3 position{owner.position.x + basisX.x * point.x +
@@ -169,6 +168,15 @@ MeshInstancePreparation3D::source(const World &world, const Entity &entity,
     }
     ++index;
   }
+  prepared.spatialIndex.rebuild(
+      prepared.copies.size(),
+      [&](std::size_t index) { return prepared.copies[index].position; },
+      [&](std::size_t index) {
+        const auto scale = prepared.copies[index].local.scale;
+        return std::max({std::abs(owner.scale.x * scale.x),
+                         std::abs(owner.scale.y * scale.y),
+                         std::abs(owner.scale.z * scale.z)});
+      });
   return prepared;
 }
 } // namespace demi::runtime::render

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "demi/runtime/app/EmbeddedRuntimeHostServices.h"
+
 #include <cstdint>
 #include <filesystem>
 #include <memory>
@@ -80,6 +82,7 @@ public:
                                        const runtime::ui::UiDocument &document,
                                        EditorViewportArea area,
                                        std::string &error) = 0;
+  [[nodiscard]] virtual runtime::EmbeddedRuntimeHostServices embeddedHostServices() = 0;
   [[nodiscard]] virtual bool
   configureGameRenderer(const std::filesystem::path &projectDirectory,
                         std::string &error) = 0;

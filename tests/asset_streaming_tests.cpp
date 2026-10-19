@@ -192,6 +192,143 @@ void cancelledReadyBatchReleasesTogetherTest() {
   assert(service.memoryReport().assets.empty());
 }
 
+class PendingBatchLoader final : public demi::assets::AssetResourceLoader {
+public:
+  std::atomic_bool allowFirstRead = false;
+  bool allowPublication = false;
+  int cancellations = 0;
+  double progress = 0.0;
+  std::vector<std::string> pending;
+  std::vector<std::string> published;
+
+  bool supports(const demi::AssetManifest &) const override { return true; }
+  std::optional<demi::assets::DecodedAsset>
+  readAndDecode(const demi::AssetManifest &asset,
+                const std::atomic_bool &cancelled,
+                std::string &error) override {
+    while (asset.id == "asset://a" && !allowFirstRead.load()) {
+      if (cancelled.load()) {
+        error = "Cancelled test read.";
+        return std::nullopt;
+      }
+      std::this_thread::yield();
+    }
+    return demi::assets::DecodedAsset{.payload = std::make_shared<int>(1),
+                                      .decodedBytes = 16,
+                                      .residentBytes = 32};
+  }
+  bool upload(const demi::AssetManifest &, const demi::assets::DecodedAsset &,
+              std::string &) override {
+    return true;
+  }
+  std::size_t
+  uploadBatch(std::span<const demi::assets::AssetResourceUpload> uploads,
+              double, std::string &) override {
+    std::vector<std::string> ids;
+    for (const auto &upload : uploads) {
+      ids.push_back(upload.asset.id);
+    }
+    if (pending.empty()) {
+      pending = ids;
+      progress = 0.0;
+    }
+    assert(ids == pending);
+    if (!allowPublication) {
+      return 0;
+    }
+    published.insert(published.end(), ids.begin(), ids.end());
+    pending.clear();
+    return uploads.size();
+  }
+  bool hasPendingUploadBatch() const override { return !pending.empty(); }
+  double
+  pendingUploadProgress(std::span<const std::string> ids) const override {
+    return !pending.empty() && std::ranges::equal(ids, pending) ? progress
+                                                                : 0.0;
+  }
+  void cancelUploadBatch(std::span<const std::string> ids) override {
+    if (!pending.empty() && std::ranges::any_of(ids, [&](const auto &id) {
+          return std::ranges::find(pending, id) != pending.end();
+        })) {
+      ++cancellations;
+      pending.clear();
+      progress = 0.0;
+    }
+  }
+  void unload(std::string_view) override {}
+  std::string_view backendName() const override { return "pending-test"; }
+};
+
+void pendingBatchesKeepTheirPrefixAndTransferAfterCancellation() {
+  demi::AssetRegistry registry;
+  registry.assets = {{.id = "asset://a", .type = "Texture2D"},
+                     {.id = "asset://b", .type = "Texture2D"}};
+  auto loader = std::make_shared<PendingBatchLoader>();
+  demi::assets::AssetGroupService service(registry);
+  service.registerLoader(loader);
+  const auto request = service.prepare(
+      {.id = "asset-group://stable", .roots = {"asset://a", "asset://b"}});
+  const auto deadline =
+      std::chrono::steady_clock::now() + std::chrono::seconds(5);
+  while (loader->pending.empty() &&
+         std::chrono::steady_clock::now() < deadline) {
+    service.update();
+    std::this_thread::yield();
+  }
+  loader->allowFirstRead = true;
+  assert(loader->pending == std::vector<std::string>{"asset://b"});
+  while (service.progress(request).decodedBytes < 32 &&
+         std::chrono::steady_clock::now() < deadline) {
+    service.update();
+    std::this_thread::yield();
+  }
+  assert(service.progress(request).decodedBytes == 32);
+  assert(loader->pending == std::vector<std::string>{"asset://b"});
+  loader->progress = 0.5;
+  service.update();
+  assert(service.progress(request).completedAssets == 0);
+  assert(service.progress(request).fraction == 0.25);
+  const auto borrowed = service.prepare(
+      {.id = "asset-group://borrowed-progress", .roots = {"asset://b"}});
+  service.update();
+  assert(service.progress(borrowed).fraction == 0.0);
+  assert(service.cancel(borrowed));
+  loader->progress = 1.0;
+  service.update();
+  assert(service.progress(request).fraction == 0.5);
+  loader->allowPublication = true;
+  assert(waitUntilReady(service, request));
+  assert(loader->published ==
+         std::vector<std::string>({"asset://b", "asset://a"}));
+  assert(service.cancel(request));
+
+  loader->allowPublication = false;
+  const demi::assets::AssetGroupDescriptor first{
+      .id = "asset-group://pending-first", .roots = {"asset://b"}};
+  const auto firstRequest = service.prepare(first);
+  const auto transferDeadline =
+      std::chrono::steady_clock::now() + std::chrono::seconds(5);
+  while (loader->pending.empty() &&
+         std::chrono::steady_clock::now() < transferDeadline) {
+    service.update();
+    std::this_thread::yield();
+  }
+  assert(!loader->pending.empty());
+  loader->progress = 1.0;
+  service.update();
+  assert(service.progress(firstRequest).fraction > 0.0);
+  assert(service.progress(firstRequest).fraction < 1.0);
+  const auto secondRequest = service.prepare(
+      {.id = "asset-group://pending-second", .roots = first.roots});
+  assert(service.cancel(firstRequest));
+  assert(loader->cancellations == 1);
+  assert(loader->progress == 0.0);
+  loader->allowPublication = true;
+  assert(waitUntilReady(service, secondRequest));
+  assert(service.activate(secondRequest));
+  assert(service.releaseGroup("asset-group://pending-second"));
+}
+
 void importerRegistryTest() {
   demi::assets::AssetImporterRegistry registry;
   demi::Diagnostics diagnostics;
@@ -712,6 +849,7 @@ int main() {
   failedBatchReleasesSuccessfulPrefixTest();
   batchGroupLifetimeTest();
   cancelledReadyBatchReleasesTogetherTest();
+  pendingBatchesKeepTheirPrefixAndTransferAfterCancellation();
   importerRegistryTest();
   cookGraphTest();
   cookGraphFailureClearsPublishedState();

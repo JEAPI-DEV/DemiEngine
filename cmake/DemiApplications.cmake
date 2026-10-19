@@ -187,6 +187,7 @@ else()
     src/editor/EditorDebugPanel.cpp
     src/editor/EditorDockingWorkspace.cpp
     src/editor/EditorGameRenderer.cpp
+    src/editor/EditorGameRendererPreparation.cpp
     src/editor/EditorGameViewPanel.cpp
     src/editor/EditorHierarchyPanel.cpp
     src/editor/EditorHudNodeInspector.cpp

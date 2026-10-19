@@ -37,12 +37,14 @@ public:
   [[nodiscard]] float progress() const;
   [[nodiscard]] const std::string &error() const;
   [[nodiscard]] bool preparedAdditive() const;
+  [[nodiscard]] const World *preparedWorld() const;
+  [[nodiscard]] std::string_view preparedSceneId() const;
   [[nodiscard]] std::string activationError(const World &world) const;
-  [[nodiscard]] std::optional<SceneTransition> activate(
-      World &world, ResourceLifetimeRegistry &resources);
-  [[nodiscard]] std::optional<SceneTransition> unload(
-      World &world, std::string_view sceneId,
-      ResourceLifetimeRegistry &resources);
+  [[nodiscard]] std::optional<SceneTransition>
+  activate(World &world, ResourceLifetimeRegistry &resources);
+  [[nodiscard]] std::optional<SceneTransition>
+  unload(World &world, std::string_view sceneId,
+         ResourceLifetimeRegistry &resources);
   [[nodiscard]] bool setPersistent(World &world, std::string_view entityId,
                                    bool persistent);
 
@@ -52,12 +54,19 @@ private:
     bool additive = false;
     std::optional<World> world;
     std::string error;
+    bool physicsShapesPrepared = false;
   };
+
+  void retireLoadingJob();
+  void reapRetiredJobs();
 
   ProjectData project_;
   RuntimePrefabService *prefabs_ = nullptr;
   ScenePreparationState state_ = ScenePreparationState::Idle;
   std::future<Prepared> future_;
+  // A cancelled std::async future must not be destroyed on the frame thread
+  // while its worker is running. Jobs capture their own project snapshot.
+  std::vector<std::future<Prepared>> retiredJobs_;
   std::optional<Prepared> prepared_;
   std::string error_;
 };

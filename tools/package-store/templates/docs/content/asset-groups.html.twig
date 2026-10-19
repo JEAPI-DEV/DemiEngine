@@ -1,6 +1,7 @@
 <h1>Asset groups &amp; streaming</h1>
 <p>An <strong>asset group</strong> is a named set of assets and scenes prepared together, with memory limits and an upload time target. Use groups to manage level residency and monitor preparation before activating a level.</p>
 
+<p>Headless and serve runs verify visual sources and resource ownership without allocating GPU resources or retaining unused encoded image/model copies. Text and data resources retain their normal loading behavior. <code>Assets.text</code> reads resident text/data sources, not visual resources.</p>
 <h2>What a group is</h2>
 <p>A group is an authored <code>*.asset-group.json</code> document listing <strong>roots</strong> (what to load) and a <strong>budget</strong> (memory and per-frame upload targets). Roots are <code>asset://</code> or <code>scene://</code> URIs. Loading a <code>scene://</code> root pulls in the assets referenced by that scene, its HUD, and expanded prefabs.</p>
 <pre><code>{
@@ -25,6 +26,7 @@
   <li><code>budget.upload_ms_per_frame</code> — target milliseconds of upload work per update.</li>
 </ul>
 <p>The upload budget is a scheduling target, not a hard frame-time limit. Ordinary loaders yield between resources when the target is reached. Native backends that replace a resource registry atomically combine ready resources into one transaction; that transaction can exceed the target. Memory limits still apply to the group, and a failed native replacement preserves the previous resource snapshot. Inspect <code>Assets.memory_report()</code> and measure loading on the target platform before choosing budgets.</p>
+<p>Memory counters describe storage retained by each resource loader. Native registry loaders retain source verification records rather than complete encoded files, and report source-file sizes as a residency estimate. Renderer decoding buffers and GPU allocations have separate lifetimes; <code>decoded_mb</code> is not a hard cap on all renderer transient or GPU memory.</p>
 
 <h2>Startup preload versus on-demand</h2>
 <p>The project document's <code>assets</code> array is <strong>startup preload only</strong> — the few things needed before the first frame (the title font, a placeholder). It does not load every project asset automatically. Everything else loads when a group asks for it, when its scene loads, or when script code calls <code>Assets.load</code>.</p>
@@ -68,6 +70,7 @@ end
 
 return Game</code></pre>
 <p><code>Assets.load(uri)</code> returns a request ID and an error string. <code>Assets.is_ready(request)</code> returns a boolean. <code>Assets.progress(request)</code> returns a table with <code>stage</code>, <code>fraction</code>, byte counts, and any error. Call <code>Assets.unload(uri)</code> when this owner no longer needs the group. The full load API is in <a href="{{ path('docs_page', {slug: 'assets-time-api'}) }}">Assets, time &amp; timers</a>.</p>
+<p>During staged native preparation, <code>fraction</code> includes completed CPU preparation and GPU upload units within this request's pending batch. It measures completed work units rather than elapsed time, so differently sized assets can advance at different rates. The fraction reaches <code>1</code> only after the prepared resources have been published and the request is ready.</p>
 
 <h2>Next steps</h2>
 <ul>

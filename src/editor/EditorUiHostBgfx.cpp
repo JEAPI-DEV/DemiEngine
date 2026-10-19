@@ -408,6 +408,10 @@ public:
                                frame.deltaSeconds, error);
   }
 
+  runtime::EmbeddedRuntimeHostServices embeddedHostServices() override {
+    return gameRenderer_->hostServices();
+  }
+
   bool configureGameRenderer(const std::filesystem::path &projectDirectory,
                              std::string &error) override {
     return gameRenderer_->configure(projectDirectory, error);
@@ -491,6 +495,8 @@ public:
       }
     }
     if (gameRenderer_) {
+      // Warmup can run while a 2D loading HUD is drawn or Game is hidden.
+      gameRenderer_->finishPresentation();
       gameRenderer_->maintainTerrainResidency();
       if (auto diagnostic = gameRenderer_->takeTerrainDiagnostic();
           !diagnostic.empty()) {

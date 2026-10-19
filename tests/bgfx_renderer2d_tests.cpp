@@ -11,7 +11,9 @@
 #undef NDEBUG
 #endif
 #include <cassert>
+#include <chrono>
 #include <filesystem>
+#include <fstream>
 #include <string>
 #include <vector>
 
@@ -19,7 +21,81 @@ using namespace demi;
 using namespace demi::runtime;
 using namespace demi::runtime::render;
 
+#if DEMI_HAS_RSVG
+namespace {
+
+void svgDimensionsAndIconAlpha() {
+  const auto root =
+      std::filesystem::temp_directory_path() /
+      ("demi_svg_dimensions_" +
+       std::to_string(
+           std::chrono::steady_clock::now().time_since_epoch().count()));
+  std::filesystem::create_directories(root);
+  const auto writeSvg = [&](const char *name, const char *source) {
+    const auto path = root / name;
+    std::ofstream output(path);
+    output << source;
+    return path;
+  };
+  const auto background = writeSvg(
+      "background.svg",
+      R"(<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720"><rect width="1280" height="720" fill="red"/></svg>)");
+  ImageData2D image;
+  std::string error;
+  assert(decodeSvg2D(background, false, image, error));
+  assert(image.width == 1280 && image.height == 720);
+  const auto channel = [](const ImageData2D &pixels, std::size_t x,
+                          std::size_t y, std::size_t index) {
+    return std::to_integer<unsigned char>(
+        pixels.rgba[(y * pixels.width + x) * 4U + index]);
+  };
+  assert(channel(image, 0, 0, 0) == 255);
+  assert(channel(image, 0, 0, 3) == 255);
+  assert(channel(image, 1279, 719, 3) == 255);
+  assert(decodeSvg2D(background, true, image, error));
+  assert(image.width == 256 && image.height == 256);
+  assert(channel(image, 128, 0, 3) == 0);
+  assert(channel(image, 128, 128, 0) == 255);
+  assert(channel(image, 128, 128, 1) == 255);
+  assert(channel(image, 128, 128, 2) == 255);
+  assert(channel(image, 128, 128, 3) == 255);
+
+  const auto viewBox = writeSvg(
+      "viewbox.svg",
+      R"(<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180"><rect width="320" height="180" fill="blue"/></svg>)");
+  assert(decodeSvg2D(viewBox, false, image, error));
+  assert(image.width == 256 && image.height == 144);
+  assert(channel(image, 0, 0, 2) == 255);
+  assert(channel(image, 255, 143, 3) == 255);
+
+  const auto icon = writeSvg(
+      "icon.svg",
+      R"(<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="16" r="8" fill="red" opacity="0.5"/></svg>)");
+  assert(decodeSvg2D(icon, true, image, error));
+  assert(image.width == 256 && image.height == 256);
+  assert(channel(image, 0, 0, 3) == 0);
+  assert(channel(image, 128, 128, 0) == 255);
+  assert(channel(image, 128, 128, 1) == 255);
+  assert(channel(image, 128, 128, 2) == 255);
+  const auto alpha = channel(image, 128, 128, 3);
+  assert(alpha >= 127 && alpha <= 128);
+
+  const auto oversized = writeSvg(
+      "oversized.svg",
+      R"(<svg xmlns="http://www.w3.org/2000/svg" width="65536" height="1"/>)");
+  assert(!decodeSvg2D(oversized, false, image, error));
+  assert(!error.empty());
+  assert(image.width == 0 && image.height == 0 && image.rgba.empty());
+  std::filesystem::remove_all(root);
+}
+
+} // namespace
+#endif
+
 int main() {
+#if DEMI_HAS_RSVG
+  svgDimensionsAndIconAlpha();
+#endif
   BgfxGraphicsDevice graphics;
   std::string error;
   assert(graphics.initialize(GraphicsDeviceConfig{.api = GraphicsApi::Noop,

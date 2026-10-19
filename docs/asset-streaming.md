@@ -4,6 +4,16 @@ The asset pipeline separates authored manifests, deterministic cook
 policy, and runtime resource ownership. Importers never upload resources and
 resource loaders never resolve package versions.
 
+Headless and serve runtimes, and embedded sessions without a visible host
+loader, use the verification-only visual backend. It streams visual source
+files to check availability and keeps small ownership records, rather than
+retaining unused encoded model/image copies. Visual source byte counts remain
+residency estimates; no GPU resources are allocated. `Assets.text` remains
+available for loaded text/data resources through the ordinary source loader,
+and does not expose visual resources as text. Native prepared collision shapes
+are transient physics-owned data carried with a prepared world, never authored
+or packaged scene content.
+
 ## Importers and deterministic cooking
 
 `AssetImporterRegistry` accepts in-tree and package-provided importer
@@ -187,6 +197,11 @@ the worker stage; backend replacement happens during the upload stage. Ready
 resources for one registry backend are combined into one atomic replacement.
 The upload budget is a scheduling target: ordinary loaders yield between
 resources, while an indivisible registry transaction can exceed that target.
+Registry source verification streams through a fixed buffer and retains only
+a small verification record. Its decoded-byte counter measures that retained
+record; resident bytes remain an encoded-source-size estimate. Renderer worker
+payloads and GPU allocations are separate measurements, so the group's decoded
+budget is not a hard cap on renderer transient or GPU memory.
 The resident-source loader remains only for headless runs and asset types that
 have no native backend.
 

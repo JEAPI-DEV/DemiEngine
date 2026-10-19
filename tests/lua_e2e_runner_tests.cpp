@@ -6,6 +6,7 @@ extern "C" {
 #include <lualib.h>
 }
 
+#include <cmath>
 #include <iostream>
 #include <memory>
 
@@ -16,6 +17,77 @@ using namespace demi::runtime;
 LuaE2ETestRunner &runnerFromLua(lua_State *state) {
   return *static_cast<LuaE2ETestRunner *>(
       lua_touserdata(state, lua_upvalueindex(1)));
+}
+
+bool testSwipeDurationAcrossFrameRates() {
+  constexpr double duration = 0.3;
+  for (const int rate : {30, 60, 165}) {
+    LuaE2ETestRunner runner;
+    InputState input;
+    const double deltaSeconds = 1.0 / rate;
+    runner.enqueueSwipe({0, 0}, {80, 40}, duration);
+    runner.drainSyntheticTouches(input, deltaSeconds);
+    if (input.touches.size() != 1 ||
+        input.touches.front().phase != TouchPhase::Began) {
+      std::cerr << "Timed swipe did not deliver its own begin update.\n";
+      return false;
+    }
+    const auto finger = input.touches.front().id;
+    double elapsed = 0.0;
+    bool ended = false;
+    float previousX = 0.0F;
+    for (int frame = 0; frame < rate && !ended; ++frame) {
+      input.touches.clear();
+      runner.drainSyntheticTouches(input, deltaSeconds);
+      elapsed += deltaSeconds;
+      if (input.touches.size() != 1 || input.touches.front().id != finger) {
+        std::cerr << "Timed swipe lost its held pointer between updates.\n";
+        return false;
+      }
+      const auto &touch = input.touches.front();
+      if (touch.position.x < previousX) {
+        return false;
+      }
+      previousX = touch.position.x;
+      if (touch.phase == TouchPhase::Ended) {
+        ended = true;
+        if (elapsed + 0.0000001 < duration ||
+            elapsed > duration + deltaSeconds + 0.0000001 ||
+            touch.position.x != 80 || touch.position.y != 40) {
+          std::cerr << "Swipe duration changed at " << rate << "Hz: " << elapsed
+                    << " seconds.\n";
+          return false;
+        }
+      } else {
+        const float expectedX = 80.0F * static_cast<float>(elapsed / duration);
+        if (touch.phase != TouchPhase::Moved ||
+            std::abs(touch.position.x - expectedX) > 0.0001F) {
+          std::cerr << "Swipe position did not interpolate from actual elapsed "
+                       "time.\n";
+          return false;
+        }
+      }
+    }
+    if (!ended) {
+      std::cerr << "Timed swipe failed to deliver its end update.\n";
+      return false;
+    }
+    input.touches.clear();
+    runner.drainSyntheticTouches(input, deltaSeconds);
+    if (!input.touches.empty()) {
+      return false;
+    }
+  }
+  LuaE2ETestRunner instant;
+  InputState input;
+  instant.enqueueSwipe({0, 0}, {1, 1}, 0.0);
+  instant.drainSyntheticTouches(input, 1.0);
+  if (input.touches.size() != 1 ||
+      input.touches.front().phase != TouchPhase::Began) {
+    return false;
+  }
+  instant.drainSyntheticTouches(input, 0.0);
+  return input.touches.front().phase == TouchPhase::Ended;
 }
 
 bool runTests() {
@@ -96,21 +168,21 @@ bool runTests() {
   runner.start("sequence");
   runner.update(0.0);
   runner.update(0.25);
-  runner.drainSyntheticTouches(input);
+  runner.drainSyntheticTouches(input, 1.0 / 60.0);
   if (!input.touches.empty()) {
     std::cerr << "Seconds wait resumed early.\n";
     return false;
   }
   runner.update(0.25);
   runner.update(10.0); // Elapsed time cannot complete a queued gesture.
-  runner.drainSyntheticTouches(input);
+  runner.drainSyntheticTouches(input, 1.0 / 60.0);
   if (input.touches.size() != 1 ||
       input.touches.front().phase != TouchPhase::Began) {
     return false;
   }
   const auto finger = input.touches.front().id;
   runner.update(0.0);
-  runner.drainSyntheticTouches(input);
+  runner.drainSyntheticTouches(input, 1.0 / 60.0);
   if (input.touches.size() != 1 || input.touches.front().id != finger ||
       input.touches.front().phase != TouchPhase::Ended) {
     return false;
@@ -161,16 +233,16 @@ bool runTests() {
 
   input.touches.clear();
   runner.enqueueSwipe({0.0F, 0.0F}, {8.0F, 4.0F}, 0.05);
-  runner.drainSyntheticTouches(input);
+  runner.drainSyntheticTouches(input, 0.025);
   if (input.touches.front().phase != TouchPhase::Began) {
     return false;
   }
-  runner.drainSyntheticTouches(input);
+  runner.drainSyntheticTouches(input, 0.025);
   if (input.touches.front().phase != TouchPhase::Moved ||
       input.touches.front().position.x != 4.0F) {
     return false;
   }
-  runner.drainSyntheticTouches(input);
+  runner.drainSyntheticTouches(input, 0.025);
   if (input.touches.front().phase != TouchPhase::Ended ||
       input.touches.front().position.x != 8.0F) {
     return false;
@@ -181,7 +253,7 @@ bool runTests() {
   runner.update(0.5); // Suspend with an outstanding coroutine and touch queue.
   runner.shutdown();
   input.touches.clear();
-  runner.drainSyntheticTouches(input);
+  runner.drainSyntheticTouches(input, 1.0 / 60.0);
   runner.update(1.0);
   if (runner.active() || !input.touches.empty() || quits != 5 ||
       luaL_dostring(state,
@@ -199,7 +271,7 @@ bool runTests() {
 } // namespace
 
 int main() {
-  if (!runTests()) {
+  if (!testSwipeDurationAcrossFrameRates() || !runTests()) {
     std::cerr << "Lua E2E runner tests failed.\n";
     return 1;
   }

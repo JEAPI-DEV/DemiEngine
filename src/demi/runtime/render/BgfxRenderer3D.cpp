@@ -222,6 +222,7 @@ bool BgfxRenderer3D::initialize(std::string &error) {
 }
 
 void BgfxRenderer3D::shutdown() {
+  cancelAssetPreparation();
   meshPbr_.shutdown();
   for (auto &program : pbrPrograms_) {
     if (program) {
@@ -372,28 +373,7 @@ bool BgfxRenderer3D::renderFrame(const World &world,
   }
   const auto sceneLighting =
       collectSceneLighting3D(world, frame.camera.renderMask, &entityQueries_);
-  terrainLodResidency_.setSettings(
-      {.maximumResidentBytes = sceneLighting.terrainLodCacheBytes,
-       .maximumPendingJobs = sceneLighting.terrainLodPrepareJobs,
-       .maximumJobsPerPresentation = sceneLighting.terrainLodPrepareJobs});
-  const auto topologyBytes = terrainPatches_.topologyBytes();
-  const auto gpuFieldBudget =
-      sceneLighting.terrainGpuCacheBytes > topologyBytes
-          ? sceneLighting.terrainGpuCacheBytes - topologyBytes
-          : 0;
-  terrainGpuFields_.setBudgets(gpuFieldBudget,
-                               sceneLighting.terrainLodCacheBytes,
-                               sceneLighting.terrainLodPrepareJobs);
-  terrainMaterials_.setQuality(
-      sceneLighting.terrainTextureMaxSize,
-      sceneLighting.terrainTextureCacheBytes,
-      sceneLighting.terrainDetailDistance,
-      std::max(sceneLighting.terrainLodCacheBytes,
-               sceneLighting.terrainTextureCacheBytes * 2),
-      sceneLighting.terrainLodPrepareJobs);
-  terrainCameraDemand_.beginCamera(
-      world, frame, terrainLodResidency_,
-      [this](const auto &field) { terrainGpuFields_.touch(field); });
+  configureTerrainPresentation(world, frame, sceneLighting);
   const auto &lighting =
       frame.lightingOverride ? *frame.lightingOverride : sceneLighting;
   if (!shadows_.prepare(lighting, frame, error)) {
@@ -407,6 +387,7 @@ bool BgfxRenderer3D::renderFrame(const World &world,
   }
   auto mainFrame = frame;
   std::size_t shadowBatches = 0;
+  std::size_t shadowTriangles = 0;
   const auto depthFrames = shadows_.depthFrames();
   for (std::size_t cascade = 0; cascade < depthFrames.size(); ++cascade) {
     ProfileScope scope("Renderer3D.directional_shadow");
@@ -416,9 +397,14 @@ bool BgfxRenderer3D::renderFrame(const World &world,
       return false;
     }
     shadowBatches += statistics_.batches;
+    shadowTriangles += statistics_.triangles;
+    const auto prefix = "Renderer3D.shadow." + std::to_string(cascade) + ".";
+    RuntimeProfiler::setGauge(prefix + "triangles", statistics_.triangles);
+    RuntimeProfiler::setGauge(prefix + "batches", statistics_.batches);
     ++mainFrame.viewId;
   }
   RuntimeProfiler::setGauge("Renderer3D.shadow_batches", shadowBatches);
+  RuntimeProfiler::setGauge("Renderer3D.shadow_triangles", shadowTriangles);
   RuntimeProfiler::setGauge("Renderer3D.shadow_cascades", depthFrames.size());
   shadows_.receive();
   if (frame.updateContent && frame.camera.debugMode == "shaded" &&

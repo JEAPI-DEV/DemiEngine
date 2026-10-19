@@ -1,10 +1,89 @@
 #include "demi/runtime/render/backend/TextureLibrary2D.h"
 #include "demi/runtime/render/backend/ImageMipmaps2D.h"
 
+#include <algorithm>
 #include <exception>
 #include <utility>
 
 namespace demi::runtime::render {
+
+namespace {
+
+bool validSemantic(const ImageMipSemantic semantic) {
+  return semantic == ImageMipSemantic::Linear ||
+         semantic == ImageMipSemantic::Color ||
+         semantic == ImageMipSemantic::Normal;
+}
+
+std::size_t preparedByteCount(const std::uint16_t width,
+                              const std::uint16_t height, const bool mipmaps) {
+  if (width == 0 || height == 0) {
+    return 0;
+  }
+  unsigned levelWidth = width;
+  unsigned levelHeight = height;
+  std::size_t bytes = std::size_t(levelWidth) * levelHeight * 4;
+  while (mipmaps && (levelWidth > 1 || levelHeight > 1)) {
+    levelWidth = std::max(1U, levelWidth / 2);
+    levelHeight = std::max(1U, levelHeight / 2);
+    bytes += std::size_t(levelWidth) * levelHeight * 4;
+  }
+  return bytes;
+}
+
+} // namespace
+
+bool prepareTexture2D(const std::span<const std::byte> encoded,
+                      const TextureSampling2D sampling,
+                      PreparedTexture2D &output, std::string &error,
+                      const std::stop_token stop) {
+  if (stop.stop_requested()) {
+    error = "Texture preparation was cancelled.";
+    return false;
+  }
+  ImageData2D image;
+  if (!decodeImage2D(encoded, image, error)) {
+    return false;
+  }
+  return prepareTexture2D(image, sampling, output, error, stop);
+}
+
+bool prepareTexture2D(const ImageData2D &image,
+                      const TextureSampling2D sampling,
+                      PreparedTexture2D &output, std::string &error,
+                      const std::stop_token stop) {
+  if (stop.stop_requested()) {
+    error = "Texture preparation was cancelled.";
+    return false;
+  }
+  const auto expectedBytes =
+      preparedByteCount(image.width, image.height, false);
+  if (expectedBytes == 0 || image.rgba.size() != expectedBytes ||
+      !validSemantic(sampling.mipSemantic)) {
+    error = "Texture preparation requires complete RGBA image data and a valid "
+            "semantic.";
+    return false;
+  }
+  PreparedTexture2D candidate{
+      .width = image.width,
+      .height = image.height,
+      .sampling = sampling,
+      .rgbaMipBytes = sampling.mipmaps
+                          ? imageMipChain2D(image, sampling.mipSemantic, stop)
+                          : image.rgba};
+  if (stop.stop_requested()) {
+    error = "Texture preparation was cancelled.";
+    return false;
+  }
+  if (candidate.rgbaMipBytes.size() !=
+      preparedByteCount(image.width, image.height, sampling.mipmaps)) {
+    error = "Texture preparation produced an incomplete mip chain.";
+    return false;
+  }
+  output = std::move(candidate);
+  error.clear();
+  return true;
+}
 
 TextureLibrary2D::TextureLibrary2D(GpuResources &resources)
     : resources_(resources) {}
@@ -89,50 +168,56 @@ bool TextureLibrary2D::load(std::string id,
                             const std::span<const std::byte> encoded,
                             std::string &error,
                             const TextureSampling2D sampling) {
-  ImageData2D image;
-  return decodeImage2D(encoded, image, error) &&
-         upload(std::move(id), image, error, sampling);
+  PreparedTexture2D prepared;
+  return prepareTexture2D(encoded, sampling, prepared, error) &&
+         uploadPrepared(std::move(id), prepared, error);
 }
 
 bool TextureLibrary2D::upload(std::string id, const ImageData2D &image,
                               std::string &error,
                               const TextureSampling2D sampling) {
-  if (id.empty() || image.width == 0 || image.height == 0 ||
-      image.rgba.size() !=
-          static_cast<std::size_t>(image.width) * image.height * 4U) {
-    error = "Texture upload requires an ID and complete RGBA image data.";
+  PreparedTexture2D prepared;
+  return prepareTexture2D(image, sampling, prepared, error) &&
+         uploadPrepared(std::move(id), prepared, error);
+}
+
+bool TextureLibrary2D::uploadPrepared(std::string id,
+                                      const PreparedTexture2D &prepared,
+                                      std::string &error) {
+  const auto &sampling = prepared.sampling;
+  const auto expectedBytes =
+      preparedByteCount(prepared.width, prepared.height, sampling.mipmaps);
+  if (id.empty() || expectedBytes == 0 ||
+      prepared.rgbaMipBytes.size() != expectedBytes ||
+      !validSemantic(sampling.mipSemantic)) {
+    error =
+        "Texture upload requires an ID and complete prepared RGBA mip data.";
     return false;
   }
-  const ImageData2D &uploadImage = image;
-  const auto mipChain = sampling.mipmaps
-                            ? imageMipChain2D(image, sampling.mipSemantic)
-                            : std::vector<std::byte>{};
   const TextureHandle replacement = resources_.createTexture(
-      TextureCreateInfo{.width = uploadImage.width,
-                        .height = uploadImage.height,
+      TextureCreateInfo{.width = prepared.width,
+                        .height = prepared.height,
                         .format = TextureFormat::RGBA8,
-                        .data =
-                            sampling.mipmaps
-                                ? std::span<const std::byte>(mipChain)
-                                : std::span<const std::byte>(uploadImage.rgba),
+                        .data = prepared.rgbaMipBytes,
                         .generateMipmaps = sampling.mipmaps,
                         .srgb = sampling.mipSemantic == ImageMipSemantic::Color,
                         .filter = sampling.filter,
                         .wrap = sampling.wrap,
                         .debugName = id},
       error);
-  if (!replacement)
+  if (!replacement) {
     return false;
-
+  }
   auto &view =
       textures_[std::move(id)][static_cast<std::size_t>(sampling.mipSemantic)];
   if (view.handle) {
     resources_.destroy(view.handle);
   }
   view = {.handle = replacement,
-          .width = uploadImage.width,
-          .height = uploadImage.height,
+          .width = prepared.width,
+          .height = prepared.height,
           .srgbDecoded = sampling.mipSemantic == ImageMipSemantic::Color};
+  error.clear();
   return true;
 }
 

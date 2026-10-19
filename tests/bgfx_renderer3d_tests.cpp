@@ -6,9 +6,9 @@
 #include "demi/runtime/render/BgfxRenderer3D.h"
 #include "demi/runtime/render/backend/BgfxGraphicsDevice.h"
 #include "demi/runtime/render/bgfx2d/ColorPacking2D.h"
+#include "demi/runtime/render/bgfx3d/MeshDrawOrder3D.h"
 #include "demi/runtime/render/bgfx3d/MeshInstanceBatch3D.h"
 #include "demi/runtime/render/bgfx3d/MeshInstancePreparation3D.h"
-#include "demi/runtime/render/bgfx3d/MeshDrawOrder3D.h"
 #include "demi/runtime/render/bgfx3d/PreparedMeshDraw3D.h"
 #include "demi/runtime/render/bgfx3d/PrimitiveSurfacePreparation3D.h"
 #include "demi/runtime/render/bgfx3d/SceneVisibility3D.h"
@@ -21,14 +21,15 @@
 #include "demi/runtime/scene/components/3dcomponents/Environment3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshInstances3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
-#include "demi/runtime/scene/components/3dcomponents/SurfaceRelief3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/ParticleEmitter3DComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/SurfaceRelief3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/Transform3DComponent.h"
 #include "demi/runtime/scene/model/MeshMaterialSections3D.h"
 #include "demi/runtime/terrain/TerrainMeshBuilder.h"
 #include "demi/runtime/terrain/TerrainRenderLod.h"
 #include "demi/runtime/terrain/TerrainWorld.h"
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <limits>
@@ -61,12 +62,14 @@ public:
   std::vector<std::string> textureNames;
   std::vector<TextureHandle> textureHandles;
   std::vector<TextureHandle> retiredTextures;
+  std::thread::id uploadThread = std::this_thread::get_id();
   RenderDeviceLimits limits() const override { return target_.limits(); }
   TextureCapabilities textureCapabilities(TextureFormat format) const override {
     return target_.textureCapabilities(format);
   }
   TextureHandle createTexture(const TextureCreateInfo &info,
                               std::string &error) override {
+    assert(std::this_thread::get_id() == uploadThread);
     textureSrgbSampling.push_back(info.srgb);
     textureNames.push_back(info.debugName);
     const auto handle = target_.createTexture(info, error);
@@ -92,6 +95,7 @@ public:
   }
   BufferHandle createBuffer(const BufferCreateInfo &info,
                             std::string &error) override {
+    assert(std::this_thread::get_id() == uploadThread);
     if (failNextMeshUpload && info.kind == BufferKind::Vertex &&
         info.debugName == "3D mesh vertices") {
       failNextMeshUpload = false;
@@ -525,10 +529,14 @@ int main() {
     };
     auto forwardDraws = preparedCopies();
     assert(orderMeshSurfaces3D(forwardDraws, materials, {}, {0, 0, 1}) == 3);
+    assert(forwardDraws[0].transform.position.z == 0);
+    assert(forwardDraws[2].transform.position.z == 2);
     assert(forwardDraws[3].transform.position.z == 2);
     // A second camera shares classification, but computes its own depth order.
     auto reverseDraws = preparedCopies();
     assert(orderMeshSurfaces3D(reverseDraws, materials, {}, {0, 0, -1}) == 3);
+    assert(reverseDraws[0].transform.position.z == 2);
+    assert(reverseDraws[2].transform.position.z == 0);
     assert(reverseDraws[3].transform.position.z == 0);
 
     MeshMaterialSections3D terrainSections;
@@ -914,7 +922,11 @@ int main() {
     MeshInstanceBatch3D batches;
     const auto surfaceGroup = batches.addSurface(
         geometry, {}, source, &material, prepared, {}, transform);
-    batches.appendTransform(surfaceGroup, transform);
+    MeshRendererComponent anotherOwner = source;
+    PreparedMeshDraw3D anotherPrepared(anotherOwner, &material, std::nullopt,
+                                       false, false, false, {});
+    assert(batches.addSurface(geometry, {}, anotherOwner, &material,
+                              anotherPrepared, {}, transform) == surfaceGroup);
     batches.appendTransform(surfaceGroup, transform);
     std::array<std::array<float, 4>, 8> values{};
     std::array<DrawUniformValue, 8> lighting;
@@ -931,6 +943,22 @@ int main() {
     assert(surfaceCapture.instanceStates.back().cull == CullMode::Clockwise);
     assert(surfaceCapture.instanceStates.back().writeDepth);
     assert(surfaceCapture.instanceCutoffs.back()[0] == 0.4F);
+
+    MeshInstanceBatch3D distinctSurfaces;
+    const auto baseGroup = distinctSurfaces.addSurface(
+        geometry, {}, source, &material, prepared, {}, transform);
+    MeshRendererComponent tintedOwner = source;
+    tintedOwner.color = {1, 0, 0, 1};
+    PreparedMeshDraw3D tinted(tintedOwner, &material, std::nullopt, false,
+                              false, false, {});
+    assert(distinctSurfaces.addSurface(geometry, {}, tintedOwner, &material,
+                                       tinted, {}, transform) != baseGroup);
+    MeshRendererComponent tiledOwner = source;
+    tiledOwner.materialNumbers["tiling"] = 2;
+    PreparedMeshDraw3D tiled(tiledOwner, &material, std::nullopt, false,
+                             false, false, {});
+    assert(distinctSurfaces.addSurface(geometry, {}, tiledOwner, &material,
+                                       tiled, {}, transform) != baseGroup);
     assert(surfaceCapture.lastInstanceUniforms.back() ==
            (std::array<float, 4>{0.2F, 1.5F, 2.F, 3.F}));
 
@@ -1101,6 +1129,188 @@ int main() {
     assert(lazyRenderer.renderFrame(lazyWorld, frame, 0.016F, error));
     static_cast<void>(graphics.endFrame());
     assert(colorUploads(usedId) == 2 && colorUploads(unusedId) == 0);
+  }
+
+  {
+    MeshUploadCapture uploads(*resources);
+    TextureCapture stagedDraws(*commands);
+    BgfxRenderer3D stagedRenderer(uploads, stagedDraws);
+    assert(stagedRenderer.initialize(error));
+    JobSystem preparationJobs(1);
+    const auto imagePath = std::filesystem::path(DEMI_SOURCE_DIR) /
+                           "examples/minimal_3d/assets/textures/checker.png";
+    const auto materialPath = std::filesystem::temp_directory_path() /
+                              "demi_staged_material_test.material.json";
+    {
+      std::ofstream source(materialPath);
+      source
+          << R"({"format_version":1,"shader":"builtin://lit","textures":{"albedo":"asset://staged/albedo","normal":"asset://staged/normal"}})";
+    }
+    demi::AssetRegistry stagedRegistry;
+    stagedRegistry.assets = {
+        {.id = "asset://staged/albedo",
+         .type = "Texture2D",
+         .sourcePath = imagePath},
+        {.id = "asset://staged/normal",
+         .type = "Texture2D",
+         .sourcePath = imagePath},
+        {.id = "asset://staged/material",
+         .type = "Material",
+         .sourcePath = materialPath},
+    };
+    const auto stagedTextureCount = [&] {
+      return std::ranges::count_if(uploads.textureNames, [](const auto &id) {
+        return id.starts_with("asset://staged/");
+      });
+    };
+    std::atomic_bool releaseWorker = false;
+    auto blockedWorker = preparationJobs.submit([&] {
+      while (!releaseWorker.load()) {
+        std::this_thread::yield();
+      }
+    });
+    assert(stagedRenderer.beginAssetPreparation(stagedRegistry, preparationJobs,
+                                                diagnostics));
+    assert(stagedRenderer.assetPreparationProgress() == 0.0);
+    bool complete = false;
+    for (int step = 0; step < 5; ++step) {
+      assert(stagedRenderer.stepAssetPreparation(0.0, complete, diagnostics));
+      assert(!complete);
+    }
+    assert(stagedTextureCount() == 0);
+    assert(stagedRenderer.assetPreparationProgress() > 0.0);
+    assert(stagedRenderer.assetPreparationProgress() < 1.0);
+    std::atomic_bool cancelled = false;
+    std::atomic_bool cancellationWaitedForWorker = false;
+    std::thread releaseGuard([&] {
+      const auto deadline =
+          std::chrono::steady_clock::now() + std::chrono::seconds(2);
+      while (!cancelled.load() && std::chrono::steady_clock::now() < deadline) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      }
+      cancellationWaitedForWorker = !cancelled.load();
+      releaseWorker = true;
+    });
+    stagedRenderer.cancelAssetPreparation();
+    assert(stagedRenderer.assetPreparationProgress() == 0.0);
+    cancelled = true;
+    releaseGuard.join();
+    blockedWorker.wait();
+    assert(!cancellationWaitedForWorker.load());
+    assert(stagedTextureCount() == 0);
+
+    assert(stagedRenderer.beginAssetPreparation(stagedRegistry, preparationJobs,
+                                                diagnostics));
+    const auto deadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    double lastProgress = 0.0;
+    while (!complete && std::chrono::steady_clock::now() < deadline) {
+      assert(stagedRenderer.stepAssetPreparation(0.0, complete, diagnostics));
+      if (!complete) {
+        const double progress = stagedRenderer.assetPreparationProgress();
+        assert(progress >= lastProgress && progress < 1.0);
+        lastProgress = progress;
+      }
+      std::this_thread::yield();
+    }
+    assert(complete);
+    assert(stagedTextureCount() == 2);
+    for (std::size_t index = 0; index < uploads.textureNames.size(); ++index) {
+      if (uploads.textureNames[index] == "asset://staged/albedo") {
+        assert(uploads.textureSrgbSampling[index]);
+      } else if (uploads.textureNames[index] == "asset://staged/normal") {
+        assert(!uploads.textureSrgbSampling[index]);
+      }
+    }
+    World stagedWorld;
+    auto box = shape("staged_mesh", "cube", {});
+    box.component<MeshRendererComponent>()->material =
+        "asset://staged/material";
+    stagedWorld.entities.push_back(std::move(box));
+    for (int presentation = 0; presentation < 3; ++presentation) {
+      assert(stagedRenderer.renderFrame(stagedWorld, frame, 0.016F, error));
+      static_cast<void>(graphics.endFrame());
+    }
+    assert(stagedTextureCount() == 2);
+    std::filesystem::remove(materialPath);
+  }
+
+  {
+    MeshUploadCapture uploads(*resources);
+    TextureCapture skyDraws(*commands);
+    BgfxRenderer3D skyRenderer(uploads, skyDraws);
+    assert(skyRenderer.initialize(error));
+    JobSystem preparationJobs(1);
+    const std::string skyId = "asset://sky/prewarm";
+    demi::AssetManifest panorama;
+    panorama.id = skyId;
+    panorama.type = "Texture2D";
+    panorama.sourcePath = std::filesystem::path(DEMI_SOURCE_DIR) /
+                          "examples/minimal_3d/assets/textures/checker.png";
+    panorama.textureSettings.mipmaps = true;
+    demi::AssetRegistry skyRegistry;
+    skyRegistry.assets.push_back(std::move(panorama));
+    assert(skyRenderer.beginAssetPreparation(skyRegistry, preparationJobs,
+                                             diagnostics));
+    bool complete = false;
+    const auto assetsDeadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    while (!complete && std::chrono::steady_clock::now() < assetsDeadline) {
+      assert(skyRenderer.stepAssetPreparation(0.0, complete, diagnostics));
+      std::this_thread::yield();
+    }
+    assert(complete);
+    const auto variantCounts = [&] {
+      std::array<std::size_t, 2> counts{};
+      for (std::size_t index = 0; index < uploads.textureNames.size();
+           ++index) {
+        if (uploads.textureNames[index] == skyId) {
+          ++counts[uploads.textureSrgbSampling[index] ? 0 : 1];
+        }
+      }
+      return counts;
+    };
+    assert((variantCounts() == std::array<std::size_t, 2>{1, 0}));
+    const auto skyWorld = [&] {
+      World result;
+      Entity environment;
+      environment.id = "sky_environment";
+      Environment3DComponent lighting;
+      lighting.skyTexture = skyId;
+      environment.setComponent(lighting);
+      result.entities.push_back(std::move(environment));
+      return result;
+    };
+    {
+      World cancelled = skyWorld();
+      assert(skyRenderer.prepareScenePresentation(cancelled, frame, complete,
+                                                  error));
+      assert(!complete);
+      assert((variantCounts() == std::array<std::size_t, 2>{1, 0}));
+      skyRenderer.cancelScenePresentationPreparation();
+      skyRenderer.endPresentation(true);
+    }
+    World incoming = skyWorld();
+    const auto warmupDeadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    do {
+      assert(skyRenderer.prepareScenePresentation(incoming, frame, complete,
+                                                  error));
+      skyRenderer.endPresentation(true);
+      static_cast<void>(graphics.endFrame());
+      std::this_thread::yield();
+    } while (!complete && std::chrono::steady_clock::now() < warmupDeadline);
+    assert(complete);
+    assert((variantCounts() == std::array<std::size_t, 2>{1, 1}));
+    assert(
+        skyRenderer.prepareScenePresentation(incoming, frame, complete, error));
+    assert(complete);
+    skyRenderer.endPresentation(true);
+    for (int presentation = 0; presentation < 3; ++presentation) {
+      assert(skyRenderer.renderFrame(incoming, frame, 0.016F, error));
+      static_cast<void>(graphics.endFrame());
+    }
+    assert((variantCounts() == std::array<std::size_t, 2>{1, 1}));
   }
 
   {
@@ -2182,6 +2392,10 @@ int main() {
     const auto reducedTriangles = chunk->triangleCounts[3];
     surface.setComponent(TerrainRenderLod{chunk, "grass", "terrain-owner"});
     terrainWorld.entities.push_back(std::move(surface));
+    // Native TerrainWorld publication registers owned surfaces. Keep this
+    // focused CPU-LOD fixture discoverable by presentation/demand replay too.
+    terrainWorld.terrainOwners.push_back(
+        {.id = "terrain-owner", .surfaces = {"terrain-surface"}});
     auto nearCamera = frame;
     nearCamera.cameraId = "near-camera";
     nearCamera.camera.renderHud = false;

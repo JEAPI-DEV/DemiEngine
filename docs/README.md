@@ -7,6 +7,9 @@ are registered in `tools/package-store/src/Docs.php`.
 
 This directory keeps material that has a different job:
 
+- [Amber Pass loading and performance](amber-pass-loading-performance.md) records
+  asynchronous preparation, riding regressions, visibility costs and separate
+  main/shadow geometry measurements.
 - [Amber Pass mounted demo](amber-pass-qualification.md) records native mountain
   terrain, reusable horse art, riding checks, foliage coverage and AC-power GPU
   measurements, plus shared asset lifetime and shader fixes.

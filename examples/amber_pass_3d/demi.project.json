@@ -1,11 +1,14 @@
 {
   "format_version": 1,
   "name": "Amber Pass",
-  "main_scene": "scene://amber_pass/main",
+  "main_scene": "scene://amber_pass/loading",
   "assets": [
-    "asset-group://amber_pass/showcase"
+    "asset://amber_pass/loading/background"
   ],
   "scenes": [
+    {
+      "id": "scene://amber_pass/loading"
+    },
     {
       "id": "scene://amber_pass/main"
     }
@@ -22,31 +25,19 @@
         "bindings": [
           {
             "input": "key:w",
-            "vector": [
-              0,
-              -1
-            ]
+            "vector": [0, -1]
           },
           {
             "input": "key:s",
-            "vector": [
-              0,
-              1
-            ]
+            "vector": [0, 1]
           },
           {
             "input": "key:a",
-            "vector": [
-              -1,
-              0
-            ]
+            "vector": [-1, 0]
           },
           {
             "input": "key:d",
-            "vector": [
-              1,
-              0
-            ]
+            "vector": [1, 0]
           },
           {
             "input": "virtual:riding_move"

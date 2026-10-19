@@ -87,6 +87,20 @@ Sphere worldBounds(const MeshRendererComponent &mesh,
           std::sqrt(dot(scaledExtent, scaledExtent))};
 }
 
+void recordInstanceCullingStatistics(const SceneVisibility3D &result,
+                                     std::uint16_t viewId) {
+  if (RuntimeProfiler::enabled()) {
+    const auto prefix =
+        "Renderer3D.view." + std::to_string(viewId) + ".instances.";
+    RuntimeProfiler::setGauge(prefix + "nodes_tested",
+                              result.instanceNodesTested);
+    RuntimeProfiler::setGauge(prefix + "copies_examined",
+                              result.instanceCopiesExamined);
+    RuntimeProfiler::setGauge(prefix + "copies_rejected_by_index",
+                              result.instanceCopiesRejectedByIndex);
+  }
+}
+
 struct ViewFrustum {
   Vec3 position;
   Vec3 forward;
@@ -110,7 +124,7 @@ struct ViewFrustum {
     const float aspect =
         float(std::max(frame.viewportWidth, std::uint16_t{1})) /
         float(std::max(frame.viewportHeight, std::uint16_t{1}));
-    halfHeight = std::max(frame.camera.orthographicSize, .001F);
+    halfHeight = frame.camera.orthographicSize * .5F;
     if (perspective) {
       constexpr float DegreesToRadians = .01745329251994329577F;
       halfHeight = std::tan(std::clamp(frame.camera.fov, 1.F, 179.F) *
@@ -226,7 +240,8 @@ void appendVisibleInstances(
     const auto oldWindExpansion = prepared.windExpansion;
     const auto oldSize = prepared.meshSize;
     const bool sizeChanged = !oldSize || oldSize->x != mesh.size.x ||
-                             oldSize->y != mesh.size.y || oldSize->z != mesh.size.z;
+                             oldSize->y != mesh.size.y ||
+                             oldSize->z != mesh.size.z;
     if (sizeChanged) {
       for (auto &copy : prepared.copies) {
         copy.modelMatrix.reset();
@@ -251,7 +266,8 @@ void appendVisibleInstances(
       return left.x == right.x && left.y == right.y && left.z == right.z;
     };
     const bool boundsChanged =
-        sizeChanged || oldBounds.has_value() != prepared.localBounds.has_value() ||
+        sizeChanged ||
+        oldBounds.has_value() != prepared.localBounds.has_value() ||
         !sameVector(oldCenter, prepared.localCenter) ||
         !sameVector(oldExtent, prepared.localExtent) ||
         oldWindExpansion != prepared.windExpansion;
@@ -266,8 +282,49 @@ void appendVisibleInstances(
   const bool unrotatedOwner = source.transform.rotation.x == 0 &&
                               source.transform.rotation.y == 0 &&
                               source.transform.rotation.z == 0;
-  for (auto &copy : prepared.copies) {
-    ++result.considered;
+  const Vec3 scaledCenter{prepared.localCenter.x * mesh.size.x,
+                          prepared.localCenter.y * mesh.size.y,
+                          prepared.localCenter.z * mesh.size.z};
+  const Vec3 scaledExtent{prepared.localExtent.x * mesh.size.x,
+                          prepared.localExtent.y * mesh.size.y,
+                          prepared.localExtent.z * mesh.size.z};
+  const float geometryExpansion = std::sqrt(dot(scaledCenter, scaledCenter)) +
+                                  std::sqrt(dot(scaledExtent, scaledExtent));
+  result.instanceNodesTested += prepared.spatialIndex.query(
+      [&](const InstanceSpatialIndex3D::Node &node) {
+        const Vec3 distance{std::max({node.minimum.x - lodPosition.x, 0.F,
+                                      lodPosition.x - node.maximum.x}),
+                            std::max({node.minimum.y - lodPosition.y, 0.F,
+                                      lodPosition.y - node.maximum.y}),
+                            std::max({node.minimum.z - lodPosition.z, 0.F,
+                                      lodPosition.z - node.maximum.z})};
+        if (mesh.cullDistance > 0 &&
+            dot(distance, distance) >= cullDistanceSquared) {
+          return false;
+        }
+        if (!prepared.localBounds) {
+          return true;
+        }
+        const Vec3 center{node.minimum.x * .5F + node.maximum.x * .5F,
+                          node.minimum.y * .5F + node.maximum.y * .5F,
+                          node.minimum.z * .5F + node.maximum.z * .5F};
+        const Vec3 extent{(node.maximum.x - node.minimum.x) * .5F,
+                          (node.maximum.y - node.minimum.y) * .5F,
+                          (node.maximum.z - node.minimum.z) * .5F};
+        const float radius = std::sqrt(dot(extent, extent)) +
+                             node.maximumScale * geometryExpansion +
+                             prepared.windExpansion;
+        return frustum.visible({center, radius});
+      },
+      prepared.visibleCandidates, prepared.visibilityWords);
+  const auto rejected =
+      prepared.copies.size() - prepared.visibleCandidates.size();
+  result.considered += prepared.copies.size();
+  result.culled += rejected;
+  result.instanceCopiesRejectedByIndex += rejected;
+  result.instanceCopiesExamined += prepared.visibleCandidates.size();
+  for (const auto index : prepared.visibleCandidates) {
+    auto &copy = prepared.copies[index];
     const Vec3 distance{copy.position.x - lodPosition.x,
                         copy.position.y - lodPosition.y,
                         copy.position.z - lodPosition.z};
@@ -372,8 +429,9 @@ SceneVisibility3D extractVisibleMeshes3D(
     if (!source.geometryPrepared) {
       const auto localBounds =
           instanced ? std::nullopt : localMeshBounds(entity, modelBounds);
-      const auto bounds = worldBounds(*mesh, transform, entityMeshDents3D(entity),
-                                     chunk, std::nullopt, localBounds);
+      const auto bounds =
+          worldBounds(*mesh, transform, entityMeshDents3D(entity), chunk,
+                      std::nullopt, localBounds);
       source.bounds = {bounds.center,
                        bounds.radius + windBoundsExpansion(entity, materials)};
       source.bounded = localBounds.has_value() || chunk != nullptr;
@@ -400,7 +458,8 @@ SceneVisibility3D extractVisibleMeshes3D(
     // Transform hierarchy lookup is cheap for ordinary scenes. Dispatch only
     // when extraction is large enough to amortize wake-up and synchronization.
     constexpr std::size_t ParallelExtractionThreshold = 1024;
-    if (jobs != nullptr && world.entities.size() >= ParallelExtractionThreshold) {
+    if (jobs != nullptr &&
+        world.entities.size() >= ParallelExtractionThreshold) {
       jobs->parallelFor(world.entities.size(), 64, extract);
     } else {
       for (std::size_t index = 0; index < world.entities.size(); ++index) {
@@ -420,9 +479,10 @@ SceneVisibility3D extractVisibleMeshes3D(
         const auto sourceIndex = source.entity - world.entities.data();
         const auto &metadata = sources[sourceIndex];
         const bool hasInlineSections = metadata.sections &&
-            !metadata.sections->sections.empty() && !metadata.mesh->vertices.empty();
-        needsSectionSelection = needsSectionSelection || metadata.terrain ||
-                                hasInlineSections;
+                                       !metadata.sections->sections.empty() &&
+                                       !metadata.mesh->vertices.empty();
+        needsSectionSelection =
+            needsSectionSelection || metadata.terrain || hasInlineSections;
         const auto *instances = metadata.instances;
         if (instances) {
           appendVisibleInstances(world, source, *instances, result, materials,
@@ -441,6 +501,7 @@ SceneVisibility3D extractVisibleMeshes3D(
   // Ordinary meshes and instance copies already are final draw records. Do not
   // allocate and copy the entire visible list when no source needs expansion.
   if (!needsSectionSelection) {
+    recordInstanceCullingStatistics(result, frame.viewId);
     return result;
   }
   ProfileScope sectionScope("Renderer3D.select_sections");
@@ -538,6 +599,7 @@ SceneVisibility3D extractVisibleMeshes3D(
     }
   }
   result.meshes = std::move(draws);
+  recordInstanceCullingStatistics(result, frame.viewId);
   return result;
 }
 

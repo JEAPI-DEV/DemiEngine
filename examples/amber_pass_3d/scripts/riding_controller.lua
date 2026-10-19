@@ -26,6 +26,8 @@ RidingController.gallop_speed = 9.0
 ---@demi_property
 RidingController.acceleration = 7.0
 ---@demi_property
+RidingController.braking = 40.0
+---@demi_property
 RidingController.turn_speed = 1.65
 ---@demi_property
 RidingController.horse_visual_id = "horse"
@@ -182,10 +184,22 @@ function RidingController:on_fixed_update(dt)
   if self.throttle < 0.0 then
     maximum_speed = self.walk_speed * 0.45
   end
-  self.speed = approach(self.speed, self.throttle * maximum_speed, self.acceleration * dt)
+  local target_speed = self.throttle * maximum_speed
+  local changing_direction = self.speed * target_speed < 0.0
+  local slowing_down = math.abs(target_speed) < math.abs(self.speed)
+  local speed_change = self.acceleration
+  if changing_direction or slowing_down then
+    speed_change = self.braking
+  end
+  if changing_direction then
+    target_speed = 0.0
+  end
+  self.speed = approach(self.speed, target_speed, speed_change * dt)
   -- Steering remains available at rest; reversing keeps natural rein direction.
   local reverse_direction = self.speed < -0.1 and -1.0 or 1.0
-  self.yaw = self.yaw + self.steering * self.turn_speed * reverse_direction * dt
+  -- The camera uses right = forward cross up: looking along +Z, screen right
+  -- is -X. Negative yaw therefore turns the mount toward the D/right input.
+  self.yaw = self.yaw - self.steering * self.turn_speed * reverse_direction * dt
   Transform3D.set_rotation(self.entity_id, 0.0, self.yaw, 0.0)
   CharacterController3D.set_velocity(self.entity_id,
     math.sin(self.yaw) * self.speed, 0.0, math.cos(self.yaw) * self.speed)

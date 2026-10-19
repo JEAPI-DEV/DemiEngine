@@ -262,6 +262,27 @@ std::string RuntimeAssetService::sceneGroupId(const std::string_view sceneId) {
          std::string(sceneId.substr(prefix.size()));
 }
 
+assets::AssetGroupRequestHandle
+RuntimeAssetService::prepareScene(const std::string_view sceneId,
+                                  const World &preparedWorld,
+                                  Diagnostics *diagnostics) {
+  if (!service_ || !sceneId.starts_with("scene://")) {
+    report(diagnostics, "ASSET_GROUP_SCENE_INVALID",
+           "Implicit asset preparation requires a scene:// ID.",
+           std::string(sceneId));
+    return 0;
+  }
+  auto referencedAssets = collectSceneAssetReferences(preparedWorld, sceneId);
+  if (referencedAssets.empty()) {
+    return 0;
+  }
+  assets::AssetGroupDescriptor group{.id = sceneGroupId(sceneId),
+                                     .roots = std::move(referencedAssets),
+                                     .budget = {},
+                                     .sourcePath = {}};
+  return service_->prepare(group, diagnostics);
+}
+
 void RuntimeAssetService::update(const double uploadBudgetMilliseconds) {
   if (!service_)
     return;

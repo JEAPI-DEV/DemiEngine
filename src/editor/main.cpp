@@ -171,6 +171,7 @@ int main(const int argc, char **argv) {
     if (!ui->configureViewport(
             view, workspace.project().project.projectDirectory, error))
       shell.setNotice("Authored view unavailable: " + error);
+  shell.playSession().setHostServices(ui->embeddedHostServices());
   bool gameRendererReady = false;
   int frame = 0;
   bool profileFailed = false;
@@ -200,6 +201,8 @@ int main(const int argc, char **argv) {
     ui->setUiScale(shell.uiScale());
     if (!ui->beginFrame(error)) {
       std::cerr << "Editor frame failed: " << error << '\n';
+      // Runtime host callbacks borrow the Game renderer; stop before UI teardown.
+      shell.playSession().stop();
       shell.releaseUiResources();
       ui->shutdown();
       return 1;

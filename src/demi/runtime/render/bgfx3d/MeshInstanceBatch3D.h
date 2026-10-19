@@ -17,8 +17,8 @@ public:
                   const std::array<float, 4> &tint,
                   const std::array<float, 4> &metalRough, bool unlit,
                   const std::array<float, 16> &transform);
-  // Surface batches retain the source identity because its material overrides
-  // and local texture scale belong to this owner, rather than to the GPU mesh.
+  // Plain surfaces can share a batch across entities. Owner-specific material
+  // overrides retain separate groups so their binding values cannot leak.
   std::size_t addSurface(const GpuMesh3D &mesh, TextureHandle texture,
                          const MeshRendererComponent &source,
                          const MaterialBinding *material,
@@ -56,6 +56,8 @@ private:
     std::array<std::uint32_t, 8> uniformBits{};
     bool unlit = false;
     const MeshRendererComponent *source = nullptr;
+    const MaterialBinding *material = nullptr;
+    bool surface = false;
     bool operator==(const Key &) const = default;
   };
   struct KeyHash {

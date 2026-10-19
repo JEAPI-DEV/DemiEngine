@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <fstream>
 #include <nlohmann/json.hpp>
 
@@ -169,6 +170,11 @@ struct AssetGroupService::Work {
 };
 
 struct AssetGroupService::Request {
+  struct UploadBatch {
+    std::shared_ptr<AssetResourceLoader> loader;
+    std::vector<std::string> assetIds;
+  };
+  std::vector<UploadBatch> uploadBatches;
   AssetGroupDescriptor group;
   AssetGroupProgress progress;
   std::vector<Work> work;
@@ -192,40 +198,54 @@ struct AssetGroupService::Resource {
 void AssetGroupService::uploadReady(const AssetGroupRequestHandle handle,
                                     Request &request,
                                     const double budgetMilliseconds) {
-  struct Batch {
-    std::shared_ptr<AssetResourceLoader> loader;
-    std::vector<Work *> work;
-    std::vector<AssetResourceUpload> uploads;
-  };
-  std::vector<Batch> batches;
-  std::map<AssetResourceLoader *, std::size_t> loaderIndices;
+  // Keep an unfinished batch stable across updates. New worker completions
+  // must not change the prefix a staged backend is preparing to publish.
+  std::erase_if(request.uploadBatches, [](const auto &batch) {
+    return !batch.loader->hasPendingUploadBatch();
+  });
+  if (request.uploadBatches.empty()) {
+    std::map<AssetResourceLoader *, std::size_t> loaderIndices;
+    for (Work &work : request.work) {
+      if (!work.decoded || work.uploaded) {
+        continue;
+      }
+      const auto [entry, inserted] = loaderIndices.emplace(
+          work.loader.get(), request.uploadBatches.size());
+      if (inserted) {
+        request.uploadBatches.push_back({.loader = work.loader});
+      }
+      request.uploadBatches[entry->second].assetIds.push_back(work.asset->id);
+    }
+  }
+  std::map<std::string, Work *> readyWork;
   for (Work &work : request.work) {
-    if (!work.decoded || work.uploaded) {
-      continue;
+    if (work.decoded && !work.uploaded) {
+      readyWork.emplace(work.asset->id, &work);
     }
-    const auto [entry, inserted] =
-        loaderIndices.emplace(work.loader.get(), batches.size());
-    if (inserted) {
-      batches.push_back({.loader = work.loader});
-    }
-    Batch &batch = batches[entry->second];
-    batch.work.push_back(&work);
-    batch.uploads.push_back({*work.asset, *work.decoded});
   }
 
   const auto started = std::chrono::steady_clock::now();
-  for (Batch &batch : batches) {
+  for (auto &batch : request.uploadBatches) {
+    if (batch.assetIds.empty()) {
+      continue;
+    }
+    std::vector<Work *> workItems;
+    std::vector<AssetResourceUpload> uploads;
+    for (const auto &assetId : batch.assetIds) {
+      Work &work = *readyWork.at(assetId);
+      workItems.push_back(&work);
+      uploads.push_back({*work.asset, *work.decoded});
+    }
     const double elapsedBefore = std::chrono::duration<double, std::milli>(
                                      std::chrono::steady_clock::now() - started)
                                      .count();
     std::string error;
     const std::size_t completed = batch.loader->uploadBatch(
-        batch.uploads, std::max(0.0, budgetMilliseconds - elapsedBefore),
-        error);
+        uploads, std::max(0.0, budgetMilliseconds - elapsedBefore), error);
     // Default loaders can finish a prefix before failing. Publish its lifetime
     // entries first so rollback releases every native resource they created.
     for (std::size_t index = 0; index < completed; ++index) {
-      Work &work = *batch.work[index];
+      Work &work = *workItems[index];
       request.progress.decodedBytes -= work.decoded->decodedBytes;
       Resource &resource = resources_.at(work.asset->id);
       resource.residentBytes = work.decoded->residentBytes;
@@ -234,8 +254,8 @@ void AssetGroupService::uploadReady(const AssetGroupRequestHandle handle,
       work.uploaded = true;
     }
     if (!error.empty()) {
-      if (completed < batch.work.size()) {
-        Resource &failed = resources_.at(batch.work[completed]->asset->id);
+      if (completed < workItems.size()) {
+        Resource &failed = resources_.at(workItems[completed]->asset->id);
         failed.failed = true;
         failed.error = error;
       }
@@ -244,6 +264,8 @@ void AssetGroupService::uploadReady(const AssetGroupRequestHandle handle,
       rollback(handle, request);
       return;
     }
+    batch.assetIds.erase(batch.assetIds.begin(),
+                         batch.assetIds.begin() + completed);
     const double elapsedAfter = std::chrono::duration<double, std::milli>(
                                     std::chrono::steady_clock::now() - started)
                                     .count();
@@ -251,6 +273,8 @@ void AssetGroupService::uploadReady(const AssetGroupRequestHandle handle,
       break;
     }
   }
+  std::erase_if(request.uploadBatches,
+                [](const auto &batch) { return batch.assetIds.empty(); });
 }
 
 AssetGroupService::AssetGroupService(const AssetRegistry &registry,
@@ -259,6 +283,9 @@ AssetGroupService::AssetGroupService(const AssetRegistry &registry,
 
 AssetGroupService::~AssetGroupService() {
   for (auto &[handle, request] : requests_) {
+    for (const auto &batch : request.uploadBatches) {
+      batch.loader->cancelUploadBatch(batch.assetIds);
+    }
     for (Work &work : request.work)
       if (work.future.valid())
         work.future.wait();
@@ -456,10 +483,20 @@ void AssetGroupService::update(double uploadBudgetMilliseconds) {
       request.progress.stage = AssetGroupStage::Ready;
       request.progress.fraction = 1.0;
     } else if (request.progress.totalAssets > 0) {
+      double pendingAssets = 0.0;
+      for (const auto &batch : request.uploadBatches) {
+        pendingAssets += batch.assetIds.size() *
+                         batch.loader->pendingUploadProgress(batch.assetIds);
+      }
       const double measured =
-          static_cast<double>(request.progress.completedAssets) /
+          (static_cast<double>(request.progress.completedAssets) +
+           pendingAssets) /
           static_cast<double>(request.progress.totalAssets);
-      request.progress.fraction = std::max(request.progress.fraction, measured);
+      // A rounded worker fraction must never announce publication early.
+      const double pendingFraction =
+          std::min(measured, std::nextafter(1.0, 0.0));
+      request.progress.fraction =
+          std::max(request.progress.fraction, pendingFraction);
     }
   }
 }
@@ -541,6 +578,10 @@ bool AssetGroupService::unloadResources(
 
 void AssetGroupService::rollback(const AssetGroupRequestHandle handle,
                                  Request &request) {
+  for (const auto &batch : request.uploadBatches) {
+    batch.loader->cancelUploadBatch(batch.assetIds);
+  }
+  request.uploadBatches.clear();
   std::vector<std::string> unowned;
   for (const std::string &assetId : request.heldAssets) {
     const auto found = resources_.find(assetId);
@@ -563,6 +604,10 @@ bool AssetGroupService::cancel(const AssetGroupRequestHandle handle) {
   const auto found = requests_.find(handle);
   if (found == requests_.end() || found->second.isActive)
     return false;
+  for (const auto &batch : found->second.uploadBatches) {
+    batch.loader->cancelUploadBatch(batch.assetIds);
+  }
+  found->second.uploadBatches.clear();
   for (Work &work : found->second.work) {
     if (work.uploaded)
       continue;

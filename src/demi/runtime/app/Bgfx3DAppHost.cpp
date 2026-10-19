@@ -16,6 +16,10 @@ public:
   render::BgfxRenderer3D renderer;
 };
 
+render::BgfxRenderer3D *Bgfx3DAppHost::rendererForPreparation() {
+  return renderer_ ? &renderer_->renderer : nullptr;
+}
+
 Bgfx3DAppHost::Bgfx3DAppHost() = default;
 
 Bgfx3DAppHost::~Bgfx3DAppHost() { shutdown(); }
@@ -43,6 +47,7 @@ bool Bgfx3DAppHost::initialize(const Bgfx3DAppHostConfig &config,
 bool Bgfx3DAppHost::reloadAssets(const AssetRegistry &assets,
                                  std::vector<std::string> &diagnostics,
                                  std::string &error) {
+  cancelAssetPublication();
   if (renderer_ == nullptr) {
     error = "The bgfx 3D application host is not initialized.";
     return false;
@@ -64,6 +69,49 @@ bool Bgfx3DAppHost::reloadAssets(const AssetRegistry &assets,
   return true;
 }
 
+bool Bgfx3DAppHost::stepAssetPublication(const AssetRegistry &assets,
+                                         const double budgetMilliseconds,
+                                         bool &complete, std::string &error) {
+  complete = false;
+  std::vector<std::string> diagnostics;
+  if (!preparingRenderer_) {
+    preparingRenderer_ = std::make_unique<RendererOwner>(*context_.resources(),
+                                                         *context_.commands());
+    if (!preparingRenderer_->renderer.initialize(error) ||
+        !preparingRenderer_->renderer.beginAssetPreparation(
+            assets, assetPreparationJobs_, diagnostics)) {
+      if (error.empty() && !diagnostics.empty()) {
+        error = diagnostics.front();
+      }
+      cancelAssetPublication();
+      return false;
+    }
+    // Initialization and upload are separate presentation steps.
+    return true;
+  }
+  if (!preparingRenderer_->renderer.stepAssetPreparation(
+          budgetMilliseconds, complete, diagnostics)) {
+    error = diagnostics.empty() ? "3D asset preparation failed."
+                                : diagnostics.front();
+    cancelAssetPublication();
+    return false;
+  }
+  if (!complete) {
+    return true;
+  }
+  renderer_->renderer.shutdown();
+  renderer_ = std::move(preparingRenderer_);
+  cameraScheduler_ = {};
+  return true;
+}
+
+void Bgfx3DAppHost::cancelAssetPublication() {
+  if (preparingRenderer_) {
+    preparingRenderer_->renderer.cancelAssetPreparation();
+    preparingRenderer_.reset();
+  }
+}
+
 std::shared_ptr<assets::AssetResourceLoader>
 Bgfx3DAppHost::createAssetLoader(const AssetRegistry &source) {
   return std::make_shared<RegistryAssetResourceLoader>(
@@ -74,17 +122,36 @@ Bgfx3DAppHost::createAssetLoader(const AssetRegistry &source) {
                          "ImageAnimation2D", "Material", "Model3D",
                          "RenderTarget", "Shader", "SvgTexture2D", "Texture2D",
                          "Tilemap2D"},
-          .apply = [this](const AssetRegistry &assets, std::string &error) {
-            std::vector<std::string> diagnostics;
-            if (reloadAssets(assets, diagnostics, error))
-              return true;
-            if (error.empty() && !diagnostics.empty())
-              error = diagnostics.front();
-            return false;
-          }});
+          .apply =
+              [this](const AssetRegistry &assets, std::string &error) {
+                std::vector<std::string> diagnostics;
+                if (reloadAssets(assets, diagnostics, error))
+                  return true;
+                if (error.empty() && !diagnostics.empty())
+                  error = diagnostics.front();
+                return false;
+              },
+          .applyStep =
+              [this](const AssetRegistry &assets, double budget,
+                     std::string &error) {
+                bool complete = false;
+                if (!stepAssetPublication(assets, budget, complete, error)) {
+                  return AssetPublicationStage::Failed;
+                }
+                return complete ? AssetPublicationStage::Ready
+                                : AssetPublicationStage::Pending;
+              },
+          .cancelApply = [this] { cancelAssetPublication(); },
+          .applyProgress =
+              [this] {
+                return preparingRenderer_ ? preparingRenderer_->renderer
+                                                .assetPreparationProgress()
+                                          : 0.0;
+              }});
 }
 
 void Bgfx3DAppHost::shutdown() {
+  cancelAssetPublication();
   if (renderer_ != nullptr)
     renderer_->renderer.shutdown();
   renderer_.reset();
@@ -149,6 +216,16 @@ bool Bgfx3DAppHost::renderFrames(
   frameExtractionMilliseconds_ = 0.0;
   cameraScheduler_.beginFrame();
   renderer_->renderer.beginPresentation();
+  if (preparingPresentationWorld_ && !presentationPreparedThisFrame_) {
+    bool ready = false;
+    if (!prepareScenePresentation(*preparingPresentationWorld_, ready, error)) {
+      cameraScheduler_.endFrame();
+      renderer_->renderer.endPresentation(false);
+      context_.endFrame();
+      presentationPreparedThisFrame_ = false;
+      return false;
+    }
+  }
   for (render::BgfxCameraFrame3D current : cameras) {
     if(!current.frameBuffer)current.destinationSamples=samples;
     if (current.viewportWidth == 0)
@@ -185,6 +262,7 @@ bool Bgfx3DAppHost::renderFrames(
   cameraScheduler_.endFrame();
   renderer_->renderer.endPresentation(rendered);
   context_.endFrame();
+  presentationPreparedThisFrame_ = false;
   if (cameras.empty())
     error = "At least one 3D camera frame is required.";
   return rendered;

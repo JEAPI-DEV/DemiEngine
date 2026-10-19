@@ -10,6 +10,7 @@ import random
 import re
 import subprocess
 import terrain_landscape
+import loading_screen
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -399,10 +400,10 @@ def place_grass(rng):
         'MeshRenderer': {
             'model': asset_id('models/grass_patch'),
             'medium_lod_model': asset_id('models/grass_patch_mid'),
-            'medium_lod_distance': 20,
+            'medium_lod_distance': 10,
             'low_lod_model': asset_id('models/grass_patch_low'),
-            'low_lod_distance': 40,
-            'cull_distance': 65,
+            'low_lod_distance': 35,
+            'cull_distance': 160,
             'material': asset_id('materials/grass_photo'),
         },
         'MeshInstances3D': {
@@ -441,9 +442,9 @@ def build_project_and_hud():
     write_json(PROJECT / 'demi.project.json', {
         'format_version': 1,
         'name': 'Amber Pass',
-        'main_scene': 'scene://amber_pass/main',
-        'assets': ['asset-group://amber_pass/showcase'],
-        'scenes': [{
+        'main_scene': 'scene://amber_pass/loading',
+        'assets': [loading_screen.BACKGROUND_ID],
+        'scenes': [{'id': 'scene://amber_pass/loading'}, {
             'id': 'scene://amber_pass/main',
         }],
         'package_registry': '../../packages',
@@ -607,6 +608,7 @@ if __name__ == '__main__':
     build_terrain()
     build_scene()
     build_project_and_hud()
+    loading_screen.write_documents(PROJECT, write_json, manifest)
 
     engine = ROOT / 'build/linux-release/demi'
     import_authored_assets(engine)

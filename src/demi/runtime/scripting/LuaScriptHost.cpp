@@ -250,6 +250,7 @@ void LuaScriptHost::fixedUpdate(const float dt) {
 }
 
 void LuaScriptHost::destroy() {
+  setScenePresentationPreparation({});
   e2eTestRunner_.shutdown();
   unloadScripts();
   workerTasks_.shutdown();

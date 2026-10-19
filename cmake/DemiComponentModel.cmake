@@ -37,6 +37,7 @@ set(DEMI_COMPONENT_MODEL_SOURCES
   src/demi/runtime/scene/PrefabTemplateCache.cpp
   src/demi/runtime/scene/PrefabPlacements3D.cpp
   src/demi/runtime/scene/ResourceLifetimeRegistry.cpp
+  src/demi/runtime/scene/SceneAssetReferences.cpp
   src/demi/runtime/scene/SceneJson.cpp
   src/demi/runtime/scene/Transform3DHierarchy.cpp
   src/demi/runtime/scene/WorldTransformSnapshot3D.cpp

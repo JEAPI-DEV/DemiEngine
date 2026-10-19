@@ -12,6 +12,7 @@ struct MeshInstances3DComponent {
   static constexpr ComponentDomain domain = ComponentDomain::ThreeDimensional;
   static constexpr std::array fields{
       ComponentFieldDescriptor{"transforms", ComponentFieldType::Object}
+          .withoutAssetReferences()
           .withHelp(
               "Render-only local instances keyed by stable labels. Each "
               "supports position, rotation and scale. Uses the owner's shared "

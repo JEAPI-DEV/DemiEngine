@@ -130,7 +130,7 @@ return {tests = {
   }
 
   for (int frame = 0; frame < 600 && host.e2eTestsActive(); ++frame) {
-    host.drainSyntheticTouches(input);
+    host.drainSyntheticTouches(input, 1.0 / 60.0);
     host.updateE2ETests(1.0 / 60.0);
     host.update(1.0 / 60.0);
   }

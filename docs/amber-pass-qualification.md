@@ -75,8 +75,9 @@ art. At primary-desktop content resolution **3840 × 2022**, frames 180–599 ga
 | Main GPU view | 8.495 | 10.176 |
 | Update | 0.696 | 1.020 |
 
-The fixed-camera view submitted about 2.16 million triangles, including shadow
-passes; terrain patch fallbacks were zero in the measured interval. Frame total
+The fixed-camera view submitted about 2.16 million main-view triangles; the
+counter used here excluded shadow passes. See the later loading/performance
+report for separate shadow counters; terrain patch fallbacks were zero in the measured interval. Frame total
 and GPU time are overlapping asynchronous measurements, not quantities to add.
 This qualifies the starting view, not all camera routes or all hardware.
 Trace: `/tmp/amber-final-desktop.csv`; screenshot:

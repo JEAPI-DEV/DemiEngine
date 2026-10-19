@@ -3,6 +3,7 @@
 #include "demi/runtime/physics/ColliderAsset3D.h"
 #include "demi/runtime/physics/JoltCompoundShape3D.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
+#include "demi/runtime/scene/model/Entity.h"
 
 #include <Jolt/Geometry/Triangle.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
@@ -10,9 +11,11 @@
 #include <Jolt/Physics/Collision/Shape/ConvexHullShape.h>
 #include <Jolt/Physics/Collision/Shape/MeshShape.h>
 #include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
+#include <Jolt/Physics/Collision/Shape/ScaledShape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 
 namespace demi::runtime {
@@ -30,7 +33,13 @@ JPH::ShapeRefC createJoltCapsuleShape3D(float radius, float totalHeight) {
 
 JPH::ShapeRefC createJoltBodyShape3D(const World &world,
                                      const PhysicsBodyInputs3D &inputs,
-                                     const WorldTransform3D &resolved) {
+                                     const WorldTransform3D &resolved,
+                                     JoltModelShapeCache3D *models) {
+  const bool modelOwnsShape = inputs.model && !inputs.box && !inputs.sphere &&
+                              !inputs.capsule && !inputs.convex;
+  if (models && modelOwnsShape) {
+    return models->resolve(world, inputs, resolved);
+  }
   const Entity &entity = inputs.entity;
   const Vec3 scale{std::abs(resolved.scale.x), std::abs(resolved.scale.y),
                    std::abs(resolved.scale.z)};
@@ -124,6 +133,73 @@ JPH::ShapeRefC createJoltBodyShape3D(const World &world,
     shape = result.Get();
   }
   return shape;
+}
+
+JPH::ShapeRefC
+JoltModelShapeCache3D::resolve(const World &world,
+                               const PhysicsBodyInputs3D &inputs,
+                               const WorldTransform3D &transform) {
+  const auto *source = resolvedColliderAsset3D(world, inputs.entity);
+  if (!source) {
+    return {};
+  }
+  const std::string key = inputs.model->inlineGeometry
+                              ? "inline:" + inputs.entity.id
+                              : "asset:" + inputs.model->asset;
+  auto found = shapes_.find(key);
+  if (found == shapes_.end() || found->second.revision != source->revision) {
+    const auto started = std::chrono::steady_clock::now();
+    WorldTransform3D unscaled;
+    unscaled.scale = {1.0F, 1.0F, 1.0F};
+    auto shape = createJoltBodyShape3D(world, inputs, unscaled);
+    if (!shape) {
+      return {};
+    }
+    ++geometryBuilds_;
+    geometryBuildMilliseconds_ +=
+        std::chrono::duration<double, std::milli>(
+            std::chrono::steady_clock::now() - started)
+            .count();
+    found =
+        shapes_.insert_or_assign(key, Entry{source->revision, std::move(shape)})
+            .first;
+  }
+  // Preserve the existing signed compound scale and absolute triangle/convex
+  // scale policies. Decorations retain the shared base shape independently.
+  const Vec3 scale = source->parts.empty() ? Vec3{std::abs(transform.scale.x),
+                                                  std::abs(transform.scale.y),
+                                                  std::abs(transform.scale.z)}
+                                           : transform.scale;
+  if (scale.x == 1.0F && scale.y == 1.0F && scale.z == 1.0F) {
+    return found->second.shape;
+  }
+  const JPH::ScaledShapeSettings settings(found->second.shape,
+                                          JPH::Vec3(scale.x, scale.y, scale.z));
+  const auto scaled = settings.Create();
+  return scaled.HasError() ? JPH::ShapeRefC{} : scaled.Get();
+}
+
+void JoltModelShapeCache3D::adopt(JoltModelShapeCache3D &source) {
+  for (auto &[id, entry] : source.shapes_) {
+    shapes_.insert_or_assign(id, std::move(entry));
+  }
+  source.shapes_.clear();
+  geometryBuilds_ += source.geometryBuilds_;
+  geometryBuildMilliseconds_ += source.geometryBuildMilliseconds_;
+  source.geometryBuilds_ = 0;
+  source.geometryBuildMilliseconds_ = 0.0;
+}
+
+void JoltModelShapeCache3D::eraseInline(const std::string &entityId) {
+  shapes_.erase("inline:" + entityId);
+}
+
+void JoltModelShapeCache3D::retireUnused() {
+  std::erase_if(shapes_, [](const auto &entry) {
+    // Live bodies and scale decorations hold their own references. Keep a base
+    // only while something besides this cache still owns it.
+    return entry.second.shape->GetRefCount() == 1;
+  });
 }
 
 } // namespace demi::runtime

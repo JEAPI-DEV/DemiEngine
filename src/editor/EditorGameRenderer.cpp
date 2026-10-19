@@ -26,12 +26,11 @@ EditorGameRenderer::~EditorGameRenderer() { release(); }
 
 bool EditorGameRenderer::configure(
     const std::filesystem::path &projectDirectory, std::string &error) {
-  release();
-  const AssetRegistry assets = loadAssetRegistry(projectDirectory);
-  if (hasErrors(assets.diagnostics)) {
-    error = assets.diagnostics.front().message;
-    return false;
+  const auto directory = projectDirectory.lexically_normal();
+  if (renderer3D_ && renderer2D_ && projectDirectory_ == directory) {
+    return true;
   }
+  release();
   renderer3D_ =
       std::make_unique<runtime::render::BgfxRenderer3D>(resources_, commands_);
   renderer2D_ =
@@ -40,18 +39,27 @@ bool EditorGameRenderer::configure(
     release();
     return false;
   }
+  // Scene asset groups publish only their resident subset through the shared
+  // asset service. Opening Play must not synchronously load the whole project.
+  AssetRegistry empty;
+  empty.projectDirectory = directory;
   std::vector<std::string> diagnostics;
-  if (!renderer3D_->loadAssets(assets, diagnostics) ||
-      !renderer2D_->loadAssets(assets, diagnostics)) {
-    error = diagnostics.empty() ? "Could not load Game view assets."
+  if (!renderer3D_->loadAssets(empty, diagnostics) ||
+      !renderer2D_->loadAssets(empty, diagnostics)) {
+    error = diagnostics.empty() ? "Could not initialize Game view assets."
                                 : diagnostics.front();
     release();
     return false;
   }
+  projectDirectory_ = directory;
   return true;
 }
 
 void EditorGameRenderer::release() {
+  cancelScenePreparation();
+  finishPresentation();
+  cancelAssetPublication();
+  projectDirectory_.clear();
   if (renderer2D_ != nullptr)
     renderer2D_->shutdown();
   if (renderer3D_ != nullptr)

@@ -1,5 +1,6 @@
 #include "demi/runtime/scene/SceneFlow.h"
 
+#include "demi/runtime/physics/PhysicsWorld3D.h"
 #include "demi/runtime/scene/SceneLoader.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/terrain/TerrainWorld.h"
@@ -11,6 +12,8 @@
 namespace demi::runtime {
 
 void SceneFlow::configure(ProjectData project) {
+  retireLoadingJob();
+  reapRetiredJobs();
   project_ = std::move(project);
   state_ = ScenePreparationState::Idle;
   prepared_.reset();
@@ -20,20 +23,21 @@ void SceneFlow::configure(ProjectData project) {
 bool SceneFlow::prepare(std::string sceneId, const bool additive) {
   if (state_ == ScenePreparationState::Loading || sceneId.empty())
     return false;
+  retireLoadingJob();
+  reapRetiredJobs();
   state_ = ScenePreparationState::Loading;
   prepared_.reset();
   error_.clear();
   const ProjectData project = project_;
-  future_ = std::async(std::launch::async,
-                       [project, sceneId = std::move(sceneId), additive] {
-                         Prepared result{.sceneId = sceneId,
-                                         .additive = additive,
-                                         .world = std::nullopt,
-                                         .error = {}};
-                         result.world =
-                             loadScene(project, sceneId, result.error);
-                         return result;
-                       });
+  future_ = std::async(
+      std::launch::async, [project, sceneId = std::move(sceneId), additive] {
+        Prepared result{.sceneId = sceneId,
+                        .additive = additive,
+                        .world = std::nullopt,
+                        .error = {}};
+        result.world = loadScene(project, sceneId, result.error);
+        return result;
+      });
   return true;
 }
 
@@ -41,21 +45,44 @@ bool SceneFlow::cancel() {
   if (state_ != ScenePreparationState::Loading &&
       state_ != ScenePreparationState::Ready)
     return false;
+  retireLoadingJob();
   prepared_.reset();
   error_.clear();
   state_ = ScenePreparationState::Cancelled;
   return true;
 }
 
+void SceneFlow::retireLoadingJob() {
+  if (future_.valid()) {
+    retiredJobs_.push_back(std::move(future_));
+  }
+}
+
+void SceneFlow::reapRetiredJobs() {
+  std::erase_if(retiredJobs_, [](std::future<Prepared> &job) {
+    return job.wait_for(std::chrono::seconds(0)) == std::future_status::ready;
+  });
+}
+
 void SceneFlow::poll() {
+  reapRetiredJobs();
   if (state_ != ScenePreparationState::Loading || !future_.valid() ||
-      future_.wait_for(std::chrono::seconds(0)) !=
-          std::future_status::ready)
+      future_.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
     return;
-  prepared_ = future_.get();
+  try {
+    prepared_ = future_.get();
+  } catch (const std::exception &failure) {
+    error_ = failure.what();
+    state_ = ScenePreparationState::Failed;
+    return;
+  }
   if (!prepared_->world) {
     error_ = prepared_->error;
     state_ = ScenePreparationState::Failed;
+    return;
+  }
+  if (prepared_->physicsShapesPrepared) {
+    state_ = ScenePreparationState::Ready;
     return;
   }
   // The world is not adopted yet and this runs on the main thread, so this is
@@ -65,16 +92,27 @@ void SceneFlow::poll() {
   const auto resolution =
       materializeTerrainScatter(*prepared_->world, prefabs_, scatterError);
   if (!scatterError.empty() || resolution.unresolved != 0) {
-    error_ = !scatterError.empty()
-                 ? scatterError
-                 : "Terrain scatter left " +
-                       std::to_string(resolution.unresolved) +
-                       " prefab placement(s) unresolved.";
+    error_ = !scatterError.empty() ? scatterError
+                                   : "Terrain scatter left " +
+                                         std::to_string(resolution.unresolved) +
+                                         " prefab placement(s) unresolved.";
     prepared_.reset();
     state_ = ScenePreparationState::Failed;
     return;
   }
-  state_ = ScenePreparationState::Ready;
+  // Shared prefab ownership is now settled. Native shape cooking only borrows
+  // the isolated incoming world and runs off the frame thread, including any
+  // colliders introduced by the scatter adoption above.
+  Prepared incoming = std::move(*prepared_);
+  prepared_.reset();
+  future_ = std::async(
+      std::launch::async, [incoming = std::move(incoming)]() mutable {
+        incoming.physicsShapesPrepared = true;
+        if (!preparePhysicsShapes3D(*incoming.world, incoming.error)) {
+          incoming.world.reset();
+        }
+        return std::move(incoming);
+      });
 }
 
 ScenePreparationState SceneFlow::state() const { return state_; }
@@ -85,18 +123,28 @@ float SceneFlow::progress() const {
 
 const std::string &SceneFlow::error() const { return error_; }
 
+const World *SceneFlow::preparedWorld() const {
+  if (state_ != ScenePreparationState::Ready || !prepared_ ||
+      !prepared_->world) {
+    return nullptr;
+  }
+  return &*prepared_->world;
+}
+
+std::string_view SceneFlow::preparedSceneId() const {
+  return prepared_ ? std::string_view(prepared_->sceneId) : std::string_view{};
+}
+
 bool SceneFlow::preparedAdditive() const {
   return prepared_.has_value() && prepared_->additive;
 }
 
 std::string SceneFlow::activationError(const World &world) const {
-  if (state_ != ScenePreparationState::Ready || !prepared_ ||
-      !prepared_->world)
+  if (state_ != ScenePreparationState::Ready || !prepared_ || !prepared_->world)
     return "No prepared scene is ready for activation.";
 
   const World &incoming = *prepared_->world;
-  if (prepared_->additive &&
-      world.loadedSceneIds.contains(prepared_->sceneId))
+  if (prepared_->additive && world.loadedSceneIds.contains(prepared_->sceneId))
     return "Scene is already loaded: " + prepared_->sceneId;
 
   std::unordered_set<std::string> entityIds;
@@ -104,8 +152,7 @@ std::string SceneFlow::activationError(const World &world) const {
     if (!entityIds.insert(entity.id).second)
       return "Prepared scene contains duplicate entity id: " + entity.id;
     const Entity *existing = findEntity(world, entity.id);
-    if (existing != nullptr &&
-        (prepared_->additive || existing->persistent))
+    if (existing != nullptr && (prepared_->additive || existing->persistent))
       return "Prepared scene entity id conflicts with a live entity: " +
              entity.id;
   }
@@ -155,6 +202,7 @@ SceneFlow::activate(World &world, ResourceLifetimeRegistry &resources) {
 
   if (prepared_->additive) {
     world.colliderAssets3D.merge(incoming.colliderAssets3D);
+    adoptPreparedPhysicsShapes3D(world, incoming);
     for (Entity &entity : incoming.entities)
       world.entities.push_back(std::move(entity));
     for (ui::UiNode &node : incoming.ui.nodes)
@@ -178,7 +226,8 @@ SceneFlow::activate(World &world, ResourceLifetimeRegistry &resources) {
     // commit. Keep resident/preloaded shapes and persistent users' snapshots.
     incoming.colliderAssets3D.merge(world.colliderAssets3D);
     // The replacement world starts a fresh physics epoch. Old transient shape
-    // epochs must not accidentally retain unused fragment snapshots after reset.
+    // epochs must not accidentally retain unused fragment snapshots after
+    // reset.
     for (auto &[id, collider] : incoming.colliderAssets3D)
       collider.lastUsedEpoch = 0;
     world = std::move(incoming);
@@ -225,10 +274,9 @@ SceneFlow::unload(World &world, const std::string_view sceneId,
   rebuildTerrainOwnership(world);
   resources.release(sceneId);
   if (world.activeSceneId == sceneId) {
-    world.activeSceneId =
-        world.loadedSceneIds.empty()
-            ? std::string{}
-            : *std::ranges::min_element(world.loadedSceneIds);
+    world.activeSceneId = world.loadedSceneIds.empty()
+                              ? std::string{}
+                              : *std::ranges::min_element(world.loadedSceneIds);
     transition.activeScene = world.activeSceneId;
   }
   return transition;

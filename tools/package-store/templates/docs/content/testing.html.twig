@@ -39,6 +39,7 @@ return { tests = tests }</code></pre>
 [test] FAIL menu_starts_game: scene never activated.
 [test] SUMMARY passed=3 failed=1.</code></pre>
 <p>Prefer stable HUD node IDs and scene IDs over screen coordinates so tests survive resolution and orientation changes. Keep tests deterministic and bounded by explicit timeouts.</p>
+<p>Swipe durations use elapsed runtime seconds, with touch positions interpolated each update. The same requested drag duration therefore applies at different frame rates. Touch-down and touch-up are always delivered on separate updates, including a zero-duration gesture.</p>
 
 <h2>Run tests</h2>
 <pre><code># Desktop E2E through the real runtime

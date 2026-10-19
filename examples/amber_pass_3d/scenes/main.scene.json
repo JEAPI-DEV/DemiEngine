@@ -6210,10 +6210,10 @@
         "MeshRenderer": {
           "model": "asset://amber_pass/models/grass_patch",
           "medium_lod_model": "asset://amber_pass/models/grass_patch_mid",
-          "medium_lod_distance": 20,
+          "medium_lod_distance": 10,
           "low_lod_model": "asset://amber_pass/models/grass_patch_low",
-          "low_lod_distance": 40,
-          "cull_distance": 65,
+          "low_lod_distance": 35,
+          "cull_distance": 160,
           "material": "asset://amber_pass/materials/grass_photo"
         },
         "MeshInstances3D": {

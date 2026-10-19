@@ -13,12 +13,100 @@
 #include <cstddef>
 #include <filesystem>
 #include <fstream>
+#include <future>
 #include <string>
 #include <string_view>
 
 using namespace demi::runtime::render;
 
 namespace {
+
+void workerPreparationOwnsDecodedPixelsAndSemanticMips() {
+  auto job = std::async(std::launch::async, [] {
+    const auto encoded = demi::tests::redPixelPng();
+    PreparedTexture2D prepared;
+    std::string error;
+    assert(prepareTexture2D(encoded,
+                            {.filter = TextureFilter::Nearest,
+                             .wrap = TextureWrap::Mirror,
+                             .mipmaps = true,
+                             .mipSemantic = ImageMipSemantic::Color},
+                            prepared, error));
+    assert(error.empty());
+    return prepared;
+  });
+  // The worker's encoded bytes and decoder storage have already gone away.
+  const auto decoded = job.get();
+  assert(decoded.width == 1 && decoded.height == 1);
+  assert(decoded.rgbaMipBytes ==
+         std::vector<std::byte>(
+             {std::byte{255}, std::byte{0}, std::byte{0}, std::byte{255}}));
+  assert(decoded.sampling.filter == TextureFilter::Nearest);
+  assert(decoded.sampling.wrap == TextureWrap::Mirror);
+  assert(decoded.sampling.mipmaps);
+  assert(decoded.sampling.mipSemantic == ImageMipSemantic::Color);
+
+  ImageData2D image{.width = 2,
+                    .height = 1,
+                    .rgba = {std::byte{0}, std::byte{0}, std::byte{0},
+                             std::byte{0}, std::byte{255}, std::byte{255},
+                             std::byte{255}, std::byte{255}}};
+  PreparedTexture2D linear;
+  PreparedTexture2D color;
+  std::string error;
+  assert(prepareTexture2D(image, {.mipmaps = true}, linear, error));
+  assert(prepareTexture2D(
+      image, {.mipmaps = true, .mipSemantic = ImageMipSemantic::Color}, color,
+      error));
+  assert(linear.rgbaMipBytes.size() == 12);
+  assert(color.rgbaMipBytes.size() == 12);
+  assert(linear.rgbaMipBytes[8] == std::byte{128});
+  assert(color.rgbaMipBytes[8] == std::byte{188});
+  assert(color.rgbaMipBytes[11] == std::byte{128});
+  image.rgba = {std::byte{255}, std::byte{128}, std::byte{128}, std::byte{255},
+                std::byte{128}, std::byte{255}, std::byte{128}, std::byte{255}};
+  PreparedTexture2D normal;
+  assert(prepareTexture2D(
+      image, {.mipmaps = true, .mipSemantic = ImageMipSemantic::Normal}, normal,
+      error));
+  assert(normal.rgbaMipBytes[8] == std::byte{218});
+  assert(normal.rgbaMipBytes[9] == std::byte{218});
+  assert(normal.rgbaMipBytes[10] == std::byte{128});
+
+  PreparedTexture2D unchanged = decoded;
+  assert(!prepareTexture2D(std::span<const std::byte>{}, {}, unchanged, error));
+  assert(!error.empty() && unchanged.rgbaMipBytes == decoded.rgbaMipBytes);
+  std::stop_source cancellation;
+  cancellation.request_stop();
+  assert(!prepareTexture2D(image, {.mipmaps = true}, unchanged, error,
+                           cancellation.get_token()));
+  assert(error.find("cancelled") != std::string::npos);
+  assert(unchanged.width == decoded.width);
+  assert(unchanged.rgbaMipBytes == decoded.rgbaMipBytes);
+}
+
+void preparedUploadPreservesResidentVariantsOnFailure(GpuResources &resources) {
+  TextureLibrary2D textures(resources);
+  PreparedTexture2D prepared;
+  std::string error;
+  assert(prepareTexture2D(
+      demi::tests::redPixelPng(),
+      {.mipmaps = true, .mipSemantic = ImageMipSemantic::Color}, prepared,
+      error));
+  assert(textures.uploadPrepared("asset://prepared", prepared, error));
+  const auto resident =
+      textures.find("asset://prepared", ImageMipSemantic::Color);
+  assert(resident.handle && resident.srgbDecoded);
+  assert(resident.width == 1 && resident.height == 1);
+  prepared.width = 2;
+  assert(!textures.uploadPrepared("asset://prepared", prepared, error));
+  assert(textures.find("asset://prepared", ImageMipSemantic::Color).handle ==
+         resident.handle);
+  prepared = {};
+  assert(!textures.uploadPrepared("asset://prepared", prepared, error));
+  assert(textures.find("asset://prepared", ImageMipSemantic::Color).handle ==
+         resident.handle);
+}
 
 void lazySourcesResolveOnceAndCacheFailures(GpuResources &resources) {
   TextureLibrary2D textures(resources);
@@ -119,6 +207,7 @@ void materialMipSemanticsPreserveColorAndNormalMeaning() {
 } // namespace
 
 int main() {
+  workerPreparationOwnsDecodedPixelsAndSemanticMips();
   materialMipSemanticsPreserveColorAndNormalMeaning();
   assert(imageMipChain2D({}).empty());
   ImageData2D square{
@@ -164,6 +253,7 @@ int main() {
       error));
   auto resources = createBgfxGpuResources();
   lazySourcesResolveOnceAndCacheFailures(*resources);
+  preparedUploadPreservesResidentVariantsOnFailure(*resources);
   TextureLibrary2D textures(*resources);
 
   assert(!textures.upload("", {}, error));

@@ -426,6 +426,7 @@ add_library(demi-render3d-bgfx STATIC
   src/demi/runtime/render/BgfxRenderer3D.cpp
   src/demi/runtime/render/BgfxRenderer3DMeshes.cpp
   src/demi/runtime/render/BgfxRenderer3DTerrain.cpp
+  src/demi/runtime/render/BgfxRenderer3DPreparation.cpp
   src/demi/runtime/render/bgfx3d/TerrainDrawSelection3D.cpp
   src/demi/runtime/render/bgfx3d/TerrainPatchTopology3D.cpp
   src/demi/runtime/render/bgfx3d/TerrainGpuFieldData3D.cpp
@@ -488,7 +489,7 @@ if(NOT ANDROID)
 
   if(PkgConfig_FOUND)
     pkg_check_modules(LUA54 QUIET IMPORTED_TARGET lua5.4)
-    pkg_check_modules(RSVG QUIET IMPORTED_TARGET librsvg-2.0)
+    pkg_check_modules(RSVG QUIET IMPORTED_TARGET librsvg-2.0>=2.52)
     if(DEMI_ENABLE_MEDIA)
       pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET libavformat libavcodec libavutil libswscale)
     endif()

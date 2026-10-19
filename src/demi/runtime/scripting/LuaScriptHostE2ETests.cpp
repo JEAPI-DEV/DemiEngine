@@ -48,8 +48,9 @@ void LuaScriptHost::updateE2ETests(double deltaTime) {
   e2eTestRunner_.update(deltaTime);
 }
 
-void LuaScriptHost::drainSyntheticTouches(InputState &input) {
-  e2eTestRunner_.drainSyntheticTouches(input);
+void LuaScriptHost::drainSyntheticTouches(InputState &input,
+                                          double deltaSeconds) {
+  e2eTestRunner_.drainSyntheticTouches(input, deltaSeconds);
 }
 
 bool LuaScriptHost::e2eTestsActive() const { return e2eTestRunner_.active(); }

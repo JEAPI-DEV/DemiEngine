@@ -43,6 +43,7 @@
 #include <filesystem>
 #include <functional>
 #include <memory>
+#include <set>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -90,9 +91,27 @@ public:
   void shutdown();
   [[nodiscard]] bool loadAssets(const AssetRegistry &registry,
                                 std::vector<std::string> &diagnostics);
+  [[nodiscard]] bool
+  beginAssetPreparation(const AssetRegistry &registry, JobSystem &jobs,
+                        std::vector<std::string> &diagnostics,
+                        bool prepareMaterialImages = true);
+  [[nodiscard]] bool
+  stepAssetPreparation(double budgetMilliseconds, bool &complete,
+                       std::vector<std::string> &diagnostics);
+  void cancelAssetPreparation();
+  [[nodiscard]] double assetPreparationProgress() const;
   [[nodiscard]] bool renderFrame(const World &world,
                                  const BgfxCameraFrame3D &frame,
                                  float deltaSeconds, std::string &error);
+
+  // Resource-only preparation before the live world's next presentation. Opens
+  // a shared presentation scope which the host must close after rendering its
+  // current world; this keeps incoming terrain demand alive during loading UI.
+  [[nodiscard]] bool prepareScenePresentation(const World &world,
+                                              const BgfxCameraFrame3D &frame,
+                                              bool &complete,
+                                              std::string &error);
+  void cancelScenePresentationPreparation();
 
   // Hosts with multiple cameras bracket them once; direct/editor rendering
   // automatically creates a single-camera presentation scope.
@@ -119,6 +138,18 @@ public:
   }
 
 private:
+  void configureTerrainPresentation(const World &world,
+                                    const BgfxCameraFrame3D &frame,
+                                    const SceneLighting3D &lighting);
+  struct AssetPreparation;
+  std::shared_ptr<AssetPreparation> assetPreparation_;
+  struct TextureVariantPreparation;
+  std::shared_ptr<TextureVariantPreparation> textureVariantPreparation_;
+  [[nodiscard]] bool prepareTextureVariant(std::string_view id,
+                                           ImageMipSemantic semantic,
+                                           bool &complete, std::string &error);
+  void cancelTextureVariantPreparation();
+  std::set<std::pair<std::string, ImageMipSemantic>> preparedTextureVariants_;
   bool drawCosmeticDebris(std::vector<CosmeticFragment3D> &,
                           const BgfxCameraFrame3D &,
                           std::span<const DrawUniformValue>, ProgramHandle,
@@ -213,6 +244,7 @@ private:
     std::function<std::vector<std::byte>(std::string &)> readEmbedded;
     TextureSampling2D sampling;
     std::array<bool, 3> failedVariants{};
+    std::array<std::string, 3> variantErrors{};
   };
   std::unordered_map<std::string, TextureSource> textureSources_;
   SkyRenderer3D sky_;
