@@ -15,7 +15,7 @@ namespace demi::runtime
   struct ProjectAndroidSettings
   {
     std::string orientation = "unspecified";
-    int minimumSdk = 26;
+    int minimumSdk = 24;
     std::vector<std::string> abis{"arm64-v8a"};
     std::vector<std::string> permissions;
   };

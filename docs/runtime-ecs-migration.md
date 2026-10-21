@@ -195,8 +195,9 @@ completed rendering optimization. Main/shadow counts remain 116,888/423,124.
 
 The full native build passed. Full CTest initially passed 442 of 449 tests;
 after correcting six test fixtures/expectations, all six passed on rerun.
-The remaining Android packaging test is blocked by the existing libuv/API-level
-mismatch described in [Android qualification](libuv-android-qualification.md).
+The remaining Android packaging test was blocked by the existing libuv/API-level
+mismatch. A subsequent API-24 change passed that test; see
+[Android qualification](libuv-android-qualification.md).
 Thus 448 distinct tests passed across the full run and focused rerun, not a
 single all-green run. Amber Pass native mounted-riding E2E also passed.
 Mutation tests cover no-op suppression, callback failure, retained detached
