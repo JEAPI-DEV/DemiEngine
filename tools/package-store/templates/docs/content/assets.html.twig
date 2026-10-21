@@ -112,6 +112,8 @@ demi asset import-package brick_pack.demipack
   --id asset://colliders/crate</code></pre>
 <p>Generates a <code>Collider3D</code> asset from a model. Triangle-mesh results are static-only; convex or compound collider assets can support moving bodies. See <a href="{{ path('docs_page', {slug: 'colliders'}) }}">Colliders</a> for authored collider sources and attachment.</p>
 
+<p>glTF/GLB parsing is shared across geometry, skinned models, and collider generation. Static geometry and metadata bounds use the selected default scene (or the first scene when none is selected); skinned model import retains its all-node behavior. Zero-detail glTF collider bounds use declared accessor bounds without decoding vertex buffers, but generation still verifies source-file hashes. Malformed references rejected by the parser report <code>COLLIDER_GLTF_STRUCTURE_INVALID</code> with the source path.</p>
+
 <h2>Performance budgets</h2>
 <pre><code>demi asset budget games/my_game/demi.project.json --platform android</code></pre>
 <p>Reports usage against project <code>performance_budgets</code>: frame time, draw calls, resident assets, visible instances, unique meshes, triangles, texture memory, lights, shadow lights, and transparent draws.</p>

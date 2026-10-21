@@ -47,7 +47,7 @@ void updateDetachedFragmentFades3D(World &world, float dt, Vec3 gravity) {
       else
         expired.insert(e.id);
     }
-  std::erase_if(world.entities,
+  world.entities.eraseIf(
                 [&](const Entity &e) { return expired.contains(e.id); });
 }
 } // namespace demi::runtime

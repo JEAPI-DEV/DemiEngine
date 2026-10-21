@@ -27,9 +27,9 @@ namespace demi::runtime::render {
 
 // Renderer-owned, presentation-local preparation. Worlds are immutable while
 // their camera/shadow/depth views render; reset before the next presentation.
-// Component addresses are retained behind storage-epoch validation. Matrices
-// and plain primitive bounds reuse checked inputs; asset-dependent geometry and
-// live surface classification are refreshed each presentation.
+// Component addresses are retained behind registry-revision validation.
+// Matrices and plain primitive bounds reuse checked inputs; asset-dependent
+// geometry and live surface classification are refreshed each presentation.
 class MeshInstancePreparation3D {
 public:
   struct Sphere {
@@ -107,7 +107,9 @@ private:
   struct WorldSources {
     std::vector<EntitySource> entries;
     const Entity *entityData = nullptr;
-    std::uint64_t storageEpoch = 0;
+    std::uint64_t registryIdentity = 0;
+    std::uint64_t orderRevision = 0;
+    std::uint64_t storageRevision = 0;
     bool prepared = false;
     bool visited = false;
   };

@@ -12,7 +12,7 @@ namespace demi::runtime {
 class JobSystem;
 
 // Owns a content-checked transform snapshot. Borrowed local addresses are
-// checked against the storage epoch before use; values and IDs are checked
+// checked against the registry revision before use; values and IDs are checked
 // every refresh.
 class WorldTransformSnapshot3D {
 public:
@@ -28,7 +28,9 @@ private:
 
   std::vector<std::string> ids_;
   const Entity *entityData_ = nullptr;
-  std::uint64_t storageEpoch_ = 0;
+  std::uint64_t registryIdentity_ = 0;
+  std::uint64_t orderRevision_ = 0;
+  std::uint64_t storageRevision_ = 0;
   std::vector<const Transform3DComponent *> localSources_;
   std::vector<std::optional<Transform3DComponent>> locals_;
   std::unordered_map<std::string, std::size_t> indices_;

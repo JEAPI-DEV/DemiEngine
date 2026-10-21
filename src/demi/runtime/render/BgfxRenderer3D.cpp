@@ -593,9 +593,16 @@ bool BgfxRenderer3D::renderView(const World &world,
     ProfileScope scope("Renderer3D.compact_shadow_sections");
     compactOpaqueShadowSections3D(visibility.meshes, materials_);
   }
-  if (frame.updateContent && instancePreparation_.hasAnimations(world) &&
-      !prepareAnimatedMeshes(visibility.meshes, frame, error)) {
-    return false;
+  if (frame.updateContent) {
+    // Empty animation membership still publishes this view's zero counters.
+    // Pass no candidates so static scenes avoid an animation source scan.
+    const auto animatedCandidates =
+        instancePreparation_.hasAnimations(world)
+            ? std::span<const VisibleMesh3D>(visibility.meshes)
+            : std::span<const VisibleMesh3D>{};
+    if (!prepareAnimatedMeshes(animatedCandidates, frame, error)) {
+      return false;
+    }
   }
   std::size_t firstTransparent = visibility.meshes.size();
   if (!shadowPass) {

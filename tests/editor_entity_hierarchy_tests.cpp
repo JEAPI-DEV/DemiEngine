@@ -152,7 +152,7 @@ void retainedProjectionInvalidatesByRevisionAndClosesRows() {
   assert(projection.index()
              .node(*projection.index().find("child")->parent)
              .entity->id == "other");
-  std::swap(world.entities[0], world.entities[2]);
+  world.entities.swapElements(0, 2);
   projection.refresh(world, document, 3, 2, "");
   assert(projection.index().find("other")->entity == &world.entities[0]);
   assert(projection.indexBuildCount() == 4);

@@ -368,6 +368,12 @@ public:
       throw std::length_error(
           "Generated terrain exceeds entity storage capacity.");
     world.entities.reserve(world.entities.size() + additions.size());
+    for (auto &[index, entity] : replacements) {
+      world.entities.prepareAdoption(entity);
+    }
+    for (auto &entity : additions) {
+      world.entities.prepareAdoption(entity);
+    }
     for (const auto &publication : ownerPublications) {
       auto &components = world.entities[publication.index].serializedComponents;
       if (!components.contains("Terrain3D"))
@@ -403,9 +409,9 @@ public:
       }
     }
     for (auto &[index, entity] : replacements)
-      world.entities[index] = std::move(entity);
+      world.entities.replace(index, std::move(entity));
     std::size_t index = 0;
-    std::erase_if(world.entities,
+    world.entities.eraseIf(
                   [&](const auto &) { return removals.contains(index++); });
     for (auto &entity : additions)
       world.entities.push_back(std::move(entity));

@@ -1,5 +1,17 @@
 # Third-party dependency configuration and platform-specific dependency options.
 include(FetchContent)
+if(POLICY CMP0135)
+  cmake_policy(SET CMP0135 NEW)
+endif()
+
+# Typed runtime component pools. Disable empty-type elision because the public
+# component storage contract returns references even for empty marker values.
+FetchContent_Declare(EnTT
+  URL https://github.com/skypjack/entt/archive/refs/tags/v3.15.0.tar.gz
+  URL_HASH SHA256=01466fcbf77618a79b62891510c0bbf25ac2804af5751c84982b413852234d66
+)
+FetchContent_MakeAvailable(EnTT)
+target_compile_definitions(EnTT INTERFACE ENTT_NO_ETO)
 
 if(NOT ANDROID)
   FetchContent_Declare(imnodes
@@ -17,9 +29,6 @@ file(MAKE_DIRECTORY "${DEMI_RENDER_GENERATED_INCLUDE_DIR}")
 
 if(POLICY CMP0169)
   cmake_policy(SET CMP0169 OLD)
-endif()
-if(POLICY CMP0135)
-  cmake_policy(SET CMP0135 NEW)
 endif()
 
 # Header-only deterministic noise generator, FastNoiseLite 1.1.1 (MIT).

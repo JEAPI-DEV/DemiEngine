@@ -1,12 +1,12 @@
 #include "demi/runtime/scene/EntityLookup.h"
-#include "demi/runtime/scene/model/Entity.h"
+#include "demi/runtime/scene/model/EntityCollection.h"
 #include <algorithm>
 #include <iostream>
 #include <stdexcept>
 #include <utility>
 
 using namespace demi::runtime;
-void verify(EntityLookup &lookup, std::vector<Entity> &entities) {
+void verify(EntityLookup &lookup, EntityCollection &entities) {
   for (auto &entity : entities) {
     if (lookup.find(entities, entity.id) != &entity ||
         lookup.find(std::as_const(entities), entity.id) != &entity)
@@ -18,7 +18,7 @@ void verify(EntityLookup &lookup, std::vector<Entity> &entities) {
 int main() {
   try {
     EntityLookup lookup;
-    std::vector<Entity> entities;
+    EntityCollection entities;
     verify(lookup, entities);
     for (int i = 0; i < 2000; ++i) {
       Entity entity;
@@ -28,7 +28,9 @@ int main() {
     verify(lookup, entities);
     entities.reserve(8000); // Reallocation must not leave cached pointers.
     verify(lookup, entities);
-    std::ranges::reverse(entities);
+    for (std::size_t index = 0; index < entities.size() / 2; ++index) {
+      entities.swapElements(index, entities.size() - index - 1);
+    }
     verify(lookup, entities);
     const auto removedId = entities[10].id;
     entities.erase(entities.begin() + 10);

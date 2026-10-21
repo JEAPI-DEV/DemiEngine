@@ -15,7 +15,7 @@ constexpr std::string_view GeneratedPrefix = "__tilemap_collider/";
 }
 
 void generateTilemapColliders(World &world, const AssetRegistry &registry) {
-  std::erase_if(world.entities, [](const Entity &entity) {
+  world.entities.eraseIf( [](const Entity &entity) {
     return entity.id.starts_with(GeneratedPrefix);
   });
 

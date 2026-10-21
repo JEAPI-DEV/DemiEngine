@@ -268,6 +268,12 @@ int main() {
     world.entities.clear();
     render();
     assert(gauge("Renderer3D.gpu_skinned_meshes") == 0);
+    assert(gauge("Renderer3D.cpu_skinned_meshes") == 0);
+    assert(gauge("Renderer3D.animation_batch_meshes") == 0);
+    assert(gauge("Renderer3D.animation_batch_vertices") == 0);
+    assert(gauge("Renderer3D.animation_deferred") == 0);
+    assert(calls("Renderer3D.skin_palette_cpu") == 0);
+    assert(calls("Renderer3D.mesh_vertices_cpu") == 0);
     for (int i = 0; i < 260; ++i) {
       Entity peer;
       peer.id = "peer_" + std::to_string(i);

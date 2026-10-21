@@ -41,7 +41,13 @@ int main() {
   animator->clip = "run";
   animator->currentFrame = 2;
   World world;
+  world.entities.push_back(entity);
+  entity.id = "disabled";
+  entity.enabled = false;
   world.entities.push_back(std::move(entity));
+  Entity unrelated;
+  unrelated.id = "unrelated";
+  world.entities.push_back(std::move(unrelated));
   SpriteAnimationSystem system;
   system.update(world, 0.11F);
   animator = world.entities.front().component<SpriteAnimator2DComponent>();
@@ -49,6 +55,11 @@ int main() {
       world.animationEvents.front().name != "step" ||
       world.animationEvents.front().entityId != "player") {
     std::cerr << "Sprite frame advancement or event emission failed.\n";
+    return 1;
+  }
+
+  if (world.entities[1].component<SpriteAnimator2DComponent>()->time != 0.0F) {
+    std::cerr << "Disabled sprite animation advanced.\n";
     return 1;
   }
 

@@ -7,6 +7,13 @@ are registered in `tools/package-store/src/Docs.php`.
 
 This directory keeps material that has a different job:
 
+- [Runtime ECS migration](runtime-ecs-migration.md) records typed world storage,
+  ownership contracts, the controlled prototype and integrated measurements.
+- [Shared glTF import qualification](gltf-import-consolidation.md) records the
+  parser consolidation, preserved scene policies and collider fast path.
+- [Library and fallback audit](library-and-fallback-audit.md) distinguishes
+  concrete code-replacement opportunities from capability and failure paths.
+
 - [Amber Pass loading and performance](amber-pass-loading-performance.md) records
   asynchronous preparation, riding regressions, visibility costs and separate
   main/shadow geometry measurements.

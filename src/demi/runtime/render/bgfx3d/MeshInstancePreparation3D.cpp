@@ -54,15 +54,24 @@ std::vector<MeshInstancePreparation3D::EntitySource> &
 MeshInstancePreparation3D::worldSources(const World &world, JobSystem *jobs) {
   auto &cached = worldSources_[&world];
   auto &sources = cached.entries;
-  const auto epoch = ComponentStorage::storageEpoch();
-  const bool refreshAddresses = cached.storageEpoch != epoch ||
-                                cached.entityData != world.entities.data() ||
-                                sources.size() != world.entities.size();
+  const auto &registry = world.entities.componentRegistry();
+  const auto revision = registry.storageRevision();
+  const bool refreshAddresses =
+      cached.orderRevision != world.entities.orderRevision() ||
+      cached.storageRevision != revision ||
+      cached.registryIdentity != registry.identity() ||
+      cached.entityData != world.entities.data() ||
+      sources.size() != world.entities.size();
   cached.visited = true;
   if (cached.prepared && !refreshAddresses) {
     return sources;
   }
   ProfileScope prepareScope("Renderer3D.prepare_sources");
+  RuntimeProfiler::setGauge("Renderer3D.source_addresses_rebuilt",
+                            refreshAddresses ? 1.0 : 0.0);
+  RuntimeProfiler::setGauge("Renderer3D.component_storage_revision", revision);
+  RuntimeProfiler::setGauge("Renderer3D.entity_order_revision",
+                            world.entities.orderRevision());
   const auto &transforms = transformSnapshot_.refresh(world, jobs);
   sources.resize(world.entities.size());
   for (std::size_t index = 0; index < world.entities.size(); ++index) {
@@ -103,7 +112,9 @@ MeshInstancePreparation3D::worldSources(const World &world, JobSystem *jobs) {
     populateComponents(&EntitySource::fade, true);
     populateComponents(&EntitySource::relief, true);
     populateComponents(&EntitySource::dentable, true);
-    cached.storageEpoch = epoch;
+    cached.storageRevision = revision;
+    cached.registryIdentity = registry.identity();
+    cached.orderRevision = world.entities.orderRevision();
     cached.entityData = world.entities.data();
   }
 

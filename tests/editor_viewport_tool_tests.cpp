@@ -141,7 +141,8 @@ int main() {
     assert(!editor::pickSceneEntity3D(closeWorld, closeCamera, {400, 300},
                                       viewport));
     closeCamera.position.z = -.45F;
-    closeWorld.entities.back() = cube("close-cube", 0);
+    closeWorld.entities.replace(closeWorld.entities.size() - 1,
+                                cube("close-cube", 0));
     closeWorld.entities.front()
         .component<runtime::Transform3DComponent>()
         ->position = closeCamera.position;
@@ -202,7 +203,7 @@ int main() {
              .x < 0.0F);
   assert(editor::pickSceneEntity3D(world, sceneView.camera(), *duplicateScreen,
                                    viewport) == "duplicate");
-  std::erase_if(world.entities,
+  world.entities.eraseIf(
                 [](const auto &entity) { return entity.id == "cube"; });
   assert(!editor::pickSceneEntity3D(world, sceneView.camera(), {400.0F, 300.0F},
                                     viewport));
@@ -438,7 +439,7 @@ int main() {
                         .leftPressed = true,
                         .leftDown = true});
   assert(tool.isDragging());
-  std::erase_if(world.entities, [](const auto &entity) {
+  world.entities.eraseIf( [](const auto &entity) {
     return entity.id == "reloaded-cube";
   });
   action = tool.update(world, "reloaded-cube", sceneView,

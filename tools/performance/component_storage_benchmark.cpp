@@ -6,7 +6,7 @@
 #include "demi/runtime/scene/components/3dcomponents/SphereCollider3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/Transform3DComponent.h"
-#include "demi/runtime/scene/model/ComponentStorage.h"
+#include "ecs/MapComponentStorage.h"
 #include <algorithm>
 #include <charconv>
 #include <chrono>
@@ -18,6 +18,7 @@
 #include <vector>
 
 using namespace demi::runtime;
+using ComponentStorage = demi::evaluation::MapComponentStorage;
 struct AllocationStats {
   std::size_t calls = 0;
   std::size_t bytes = 0;

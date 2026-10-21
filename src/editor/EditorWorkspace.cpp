@@ -2027,7 +2027,8 @@ void EditorWorkspace::syncChangedEntity() {
   reparsed.sceneOwner = existing->sceneOwner;
   reparsed.prefabInstance = existing->prefabInstance;
   reparsed.prefabLocalId = existing->prefabLocalId;
-  *existing = std::move(reparsed);
+  const auto index = static_cast<std::size_t>(existing - project_->world.entities.begin());
+  project_->world.entities.replace(index, std::move(reparsed));
 }
 
 void EditorWorkspace::reconcileIsoGridCellSelection() {

@@ -1,5 +1,5 @@
 #include "demi/runtime/scene/EntityLookup.h"
-#include "demi/runtime/scene/model/Entity.h"
+#include "demi/runtime/scene/model/EntityCollection.h"
 #include <algorithm>
 
 namespace demi::runtime {
@@ -8,7 +8,7 @@ void EntityLookup::clear() {
   size_ = 0;
 }
 
-void EntityLookup::rebuild(const std::vector<Entity> &entities) {
+void EntityLookup::rebuild(const EntityCollection &entities) {
   indices_.clear();
   indices_.reserve(entities.size());
   for (std::size_t i = 0; i < entities.size(); ++i)
@@ -16,9 +16,8 @@ void EntityLookup::rebuild(const std::vector<Entity> &entities) {
   size_ = entities.size();
 }
 
-std::optional<std::size_t>
-EntityLookup::index(const std::vector<Entity> &entities,
-                    const std::string &id) {
+std::optional<std::size_t> EntityLookup::index(const EntityCollection &entities,
+                                               const std::string &id) {
   if (size_ != entities.size())
     rebuild(entities);
   auto found = indices_.find(id);
@@ -41,13 +40,12 @@ EntityLookup::index(const std::vector<Entity> &entities,
   return position;
 }
 
-Entity *EntityLookup::find(std::vector<Entity> &entities,
-                           const std::string &id) {
+Entity *EntityLookup::find(EntityCollection &entities, const std::string &id) {
   const auto position = index(entities, id);
   return position ? &entities[*position] : nullptr;
 }
 
-const Entity *EntityLookup::find(const std::vector<Entity> &entities,
+const Entity *EntityLookup::find(const EntityCollection &entities,
                                  const std::string &id) {
   const auto position = index(entities, id);
   return position ? &entities[*position] : nullptr;

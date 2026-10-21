@@ -31,6 +31,7 @@ file(GENERATE
 set(DEMI_COMPONENT_MODEL_SOURCES
   src/demi/runtime/scene/ComponentRegistry.cpp
   src/demi/runtime/scene/components/RuntimeFieldBinding.cpp
+  src/demi/runtime/scene/model/EntityCollection.cpp
   src/demi/runtime/scene/EntityLookup.cpp
   src/demi/runtime/scene/RuntimeObjectModel.cpp
   src/demi/runtime/scene/RuntimePrefabService.cpp

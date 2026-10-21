@@ -26,7 +26,11 @@ bool overlaps(const Box &left, const Box &right) {
 
 void AnimationCollision2DSystem::update(World &world) const {
   world.animationCollisionOverlaps.clear();
-  for (Entity &source : world.entities) {
+  const auto collisionEntities =
+      world.componentQueries.queryAny<AnimationCollision2DComponent>(
+          world.entities);
+  for (const auto sourceIndex : collisionEntities) {
+    Entity &source = world.entities[sourceIndex];
     if (!source.enabled) {
       continue;
     }
@@ -59,7 +63,8 @@ void AnimationCollision2DSystem::update(World &world) const {
         .center = {sourcePosition.x + window->second.offset.x * facing,
                    sourcePosition.y + window->second.offset.y},
         .size = window->second.size};
-    for (const Entity &target : world.entities) {
+    for (const auto targetIndex : collisionEntities) {
+      const Entity &target = world.entities[targetIndex];
       if (!target.enabled) {
         continue;
       }

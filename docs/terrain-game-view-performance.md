@@ -1,5 +1,9 @@
 # Dense-terrain Game View performance
 
+Later storage and typed-query changes are qualified in
+[runtime ECS migration](runtime-ecs-migration.md). The sections below retain
+the measurements and architecture of their stated dates.
+
 This follows the [viewport qualification](editor-viewport-navigation-qualification.md).
 The reported problem is still excessive CPU time in `examples/terrain_3d`, with
 embedded Play slower than the authored viewport. Scene density, materials,

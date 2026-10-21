@@ -4,7 +4,7 @@
 #include "demi/runtime/physics/Box2DWorldState.h"
 #include "demi/runtime/physics/ColliderAsset3D.h"
 #include "demi/runtime/physics/Physics3DTypes.h"
-#include "demi/runtime/scene/model/Entity.h"
+#include "demi/runtime/scene/model/EntityCollection.h"
 #include "demi/runtime/scene/EntityLookup.h"
 #include "demi/runtime/scene/EntityComponentQuery.h"
 #include "demi/runtime/ui/UiModel.h"
@@ -83,7 +83,7 @@ struct World {
   ui::UiTweenSystem uiTweens;
   std::unordered_map<std::string, std::unique_ptr<ui::UiVirtualRecycler>>
       uiVirtualRecyclers;
-  std::vector<Entity> entities;
+  EntityCollection entities;
   EntityComponentQuery componentQueries;
   std::vector<TerrainRuntimeOwner> terrainOwners;
   EntityLookup terrainEntityLookup;

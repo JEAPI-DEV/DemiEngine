@@ -258,7 +258,7 @@ SceneFlow::unload(World &world, const std::string_view sceneId,
                              .unloadingUiNodes = {},
                              .loadedUiNodes = {},
                              .additive = true};
-  std::erase_if(world.entities, [&](const Entity &entity) {
+  world.entities.eraseIf( [&](const Entity &entity) {
     if (entity.sceneOwner != sceneId || entity.persistent)
       return false;
     transition.unloadingEntities.push_back(entity.id);

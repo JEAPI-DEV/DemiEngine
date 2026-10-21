@@ -213,7 +213,7 @@ bool testPooledSceneOwnership(const LoadedProject &project) {
       entity->sceneOwner != world.activeSceneId ||
       !resources.owns(world.activeSceneId, "asset://textures/checker"))
     return false;
-  std::erase_if(world.entities, [&](const Entity &candidate) {
+  world.entities.eraseIf( [&](const Entity &candidate) {
     return candidate.sceneOwner == world.activeSceneId;
   });
   resources.release(world.activeSceneId);

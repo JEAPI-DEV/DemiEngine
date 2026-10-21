@@ -801,6 +801,14 @@ bool publishTerrainWorldUpdate(World &world,
         world.entities.max_size() - world.entities.size())
       throw std::length_error(
           "Generated terrain exceeds entity storage capacity");
+    for (auto &change : state.changes) {
+      if (change.replacement) {
+        world.entities.prepareAdoption(*change.replacement);
+      }
+    }
+    for (auto &entity : state.additions) {
+      world.entities.prepareAdoption(entity);
+    }
     // Capacity is the last fallible work. Nothing below allocates, so render,
     // collision, recipe and the retained field become visible in one commit.
     if (state.ownershipChanged && !state.ownershipIndex)
@@ -824,7 +832,7 @@ bool publishTerrainWorldUpdate(World &world,
     for (auto &change : state.changes) {
       if (change.replacement) {
         change.replacement->enabled = enabled;
-        world.entities[change.index] = std::move(*change.replacement);
+        world.entities.replace(change.index, std::move(*change.replacement));
       } else {
         auto *mesh =
             world.entities[change.index].component<MeshRendererComponent>();
@@ -865,7 +873,7 @@ bool publishTerrainWorldUpdate(World &world,
           std::move(state.serializedTerrainInsertion));
     if (!state.removals.empty()) {
       std::size_t index = 0;
-      std::erase_if(world.entities, [&](const Entity &) {
+      world.entities.eraseIf( [&](const Entity &) {
         return std::ranges::binary_search(state.removals, index++);
       });
     }
@@ -1024,6 +1032,9 @@ bool materializeTerrains(World &world, std::string &error,
       throw std::length_error(
           "Generated terrain exceeds entity storage capacity");
     world.entities.reserve(world.entities.size() + generated.size());
+    for (auto &entity : generated) {
+      world.entities.prepareAdoption(entity);
+    }
   } catch (const std::exception &exception) {
     error = "Terrain3D on " + ownerId + ": " + exception.what();
     return false;
@@ -1034,7 +1045,7 @@ bool materializeTerrains(World &world, std::string &error,
     if (!terrain->asset.empty())
       terrain->recipe.swap(sourceRecipe);
   }
-  std::erase_if(world.entities, [](const Entity &entity) {
+  world.entities.eraseIf( [](const Entity &entity) {
     return terrainSurfaceOwner(entity).has_value();
   });
   for (auto &entity : generated)

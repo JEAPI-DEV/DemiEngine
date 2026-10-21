@@ -608,7 +608,7 @@ void localized() {
           ->position;
   expect(resting.y > 0.4F && resting.y < 0.7F,
          "Detached fragment did not collide with and settle on the floor");
-  std::erase_if(world.entities,
+  world.entities.eraseIf(
                 [](const Entity &entity) { return entity.id == "root"; });
   physics.step(world, 1.0F / 60);
   expect(world.destruction3D->state("root").status == "unattached",

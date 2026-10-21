@@ -1,43 +1,4 @@
-#define cgltf_accessor_index demi_cgltf_accessor_index
-#define cgltf_accessor_read_float demi_cgltf_accessor_read_float
-#define cgltf_accessor_read_index demi_cgltf_accessor_read_index
-#define cgltf_accessor_read_uint demi_cgltf_accessor_read_uint
-#define cgltf_accessor_unpack_floats demi_cgltf_accessor_unpack_floats
-#define cgltf_accessor_unpack_indices demi_cgltf_accessor_unpack_indices
-#define cgltf_animation_channel_index demi_cgltf_animation_channel_index
-#define cgltf_animation_index demi_cgltf_animation_index
-#define cgltf_animation_sampler_index demi_cgltf_animation_sampler_index
-#define cgltf_buffer_index demi_cgltf_buffer_index
-#define cgltf_buffer_view_data demi_cgltf_buffer_view_data
-#define cgltf_buffer_view_index demi_cgltf_buffer_view_index
-#define cgltf_calc_size demi_cgltf_calc_size
-#define cgltf_camera_index demi_cgltf_camera_index
-#define cgltf_component_size demi_cgltf_component_size
-#define cgltf_copy_extras_json demi_cgltf_copy_extras_json
-#define cgltf_decode_string demi_cgltf_decode_string
-#define cgltf_decode_uri demi_cgltf_decode_uri
-#define cgltf_find_accessor demi_cgltf_find_accessor
-#define cgltf_free demi_cgltf_free
-#define cgltf_image_index demi_cgltf_image_index
-#define cgltf_light_index demi_cgltf_light_index
-#define cgltf_load_buffer_base64 demi_cgltf_load_buffer_base64
-#define cgltf_load_buffers demi_cgltf_load_buffers
-#define cgltf_material_index demi_cgltf_material_index
-#define cgltf_mesh_index demi_cgltf_mesh_index
-#define cgltf_node_index demi_cgltf_node_index
-#define cgltf_node_transform_local demi_cgltf_node_transform_local
-#define cgltf_node_transform_world demi_cgltf_node_transform_world
-#define cgltf_num_components demi_cgltf_num_components
-#define cgltf_parse demi_cgltf_parse
-#define cgltf_parse_file demi_cgltf_parse_file
-#define cgltf_sampler_index demi_cgltf_sampler_index
-#define cgltf_scene_index demi_cgltf_scene_index
-#define cgltf_skin_index demi_cgltf_skin_index
-#define cgltf_texture_index demi_cgltf_texture_index
-#define cgltf_validate demi_cgltf_validate
-#define CGLTF_IMPLEMENTATION
-#include <cgltf.h>
-
+#include "demi/assets/GltfDocument.h"
 #include "demi/assets/GltfSkinnedModel.h"
 
 #include <algorithm>
@@ -195,16 +156,6 @@ int nodeIndex(const cgltf_data &data, const cgltf_node *node) {
 
 int skinIndex(const cgltf_data &data, const cgltf_skin *skin) {
   return skin == nullptr ? -1 : static_cast<int>(skin - data.skins);
-}
-
-const cgltf_accessor *attribute(const cgltf_primitive &primitive,
-                                const cgltf_attribute_type type,
-                                const int index = 0) {
-  for (cgltf_size item = 0; item < primitive.attributes_count; ++item)
-    if (primitive.attributes[item].type == type &&
-        primitive.attributes[item].index == index)
-      return primitive.attributes[item].data;
-  return nullptr;
 }
 
 bool readVec(const cgltf_accessor *accessor, const cgltf_size index,
@@ -527,21 +478,11 @@ loadGltfSkinnedModel3D(const std::filesystem::path &path, std::string &error) {
 std::optional<GltfSkinnedModel3D>
 loadGltfSkinnedModel3D(const std::filesystem::path &path,
                        const ModelImportProfile &profile, std::string &error) {
-  cgltf_options options{};
-  cgltf_data *raw = nullptr;
-  cgltf_result result = cgltf_parse_file(&options, path.string().c_str(), &raw);
-  if (result != cgltf_result_success) {
-    error = "Could not parse glTF/GLB model.";
+  auto document = gltf::parseDocument(path, error);
+  if (!document || !gltf::loadDocumentBuffers(*document, path, error)) {
     return std::nullopt;
   }
-  const auto cleanup = [&] { cgltf_free(raw); };
-  result = cgltf_load_buffers(&options, raw, path.string().c_str());
-  if (result != cgltf_result_success ||
-      cgltf_validate(raw) != cgltf_result_success) {
-    error = "Could not load or validate glTF/GLB buffers.";
-    cleanup();
-    return std::nullopt;
-  }
+  const cgltf_data *raw = document.get();
 
   GltfSkinnedModel3D model;
   model.importTransform = modelImportConversion(profile);
@@ -622,16 +563,17 @@ loadGltfSkinnedModel3D(const std::filesystem::path &path,
         }
       }
       const cgltf_accessor *positions =
-          attribute(primitive, cgltf_attribute_type_position);
+          gltf::attribute(primitive, cgltf_attribute_type_position);
       if (positions == nullptr)
         continue;
-      const cgltf_accessor *normals = attribute(primitive, cgltf_attribute_type_normal);
+      const cgltf_accessor *normals =
+          gltf::attribute(primitive, cgltf_attribute_type_normal);
       const cgltf_accessor *texcoords =
-          attribute(primitive, cgltf_attribute_type_texcoord);
+          gltf::attribute(primitive, cgltf_attribute_type_texcoord);
       const cgltf_accessor *joints =
-          attribute(primitive, cgltf_attribute_type_joints);
+          gltf::attribute(primitive, cgltf_attribute_type_joints);
       const cgltf_accessor *weights =
-          attribute(primitive, cgltf_attribute_type_weights);
+          gltf::attribute(primitive, cgltf_attribute_type_weights);
       runtime::Color baseColor{1.0F, 1.0F, 1.0F, 1.0F};
       if (primitive.material != nullptr &&
           primitive.material->has_pbr_metallic_roughness) {
@@ -728,7 +670,6 @@ loadGltfSkinnedModel3D(const std::filesystem::path &path,
     }
     model.clips.push_back(std::move(clip));
   }
-  cleanup();
   if (model.vertices.empty() || model.indices.empty()) {
     error = "glTF/GLB model contains no triangle geometry.";
     return std::nullopt;

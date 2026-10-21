@@ -194,7 +194,7 @@ struct DestructionWorld3D::Impl {
       if (removed.size() == before)
         break;
     }
-    std::erase_if(candidate.entities, [&](const Entity &entity) {
+    candidate.entities.eraseIf( [&](const Entity &entity) {
       return removed.contains(entity.id);
     });
     std::string error;
@@ -345,7 +345,7 @@ struct DestructionWorld3D::Impl {
           require(collider != nullptr, "Fracture body lost its collider");
           candidate.colliderAssets3D.erase(collider->asset);
           privateAssets.erase(collider->asset);
-          std::erase_if(candidate.entities, [&](const Entity &value) {
+          candidate.entities.eraseIf( [&](const Entity &value) {
             return value.id == old.body;
           });
         }
@@ -374,7 +374,7 @@ struct DestructionWorld3D::Impl {
           nextGroups.push_back({group,{},true});
           for (const auto &part:group.chunks) {
             const auto visual=assembly.visuals.at(part);
-            std::erase_if(candidate.entities,[&](const Entity &entity) {
+            candidate.entities.eraseIf([&](const Entity &entity) {
               const auto *t=entity.component<Transform3DComponent>();
               return entity.id==visual || (t && t->parent==visual);
             });
@@ -509,7 +509,7 @@ void DestructionWorld3D::prune(World &world) {
       if (owned.size() == before)
         break;
     }
-    std::erase_if(world.entities, [&](const Entity &entity) {
+    world.entities.eraseIf( [&](const Entity &entity) {
       if (owned.contains(entity.id))
         return true;
       const auto *transform = entity.component<Transform3DComponent>();

@@ -24,17 +24,21 @@ const std::vector<std::optional<WorldTransform3D>> &
 WorldTransformSnapshot3D::refresh(const World &world, JobSystem *jobs) {
   ProfileScope scope("Renderer3D.world_transforms");
   const auto count = world.entities.size();
-  const auto storageEpoch = ComponentStorage::storageEpoch();
-  if (entityData_ != world.entities.data() || localSources_.size() != count ||
-      storageEpoch_ != storageEpoch) {
+  const auto &registry = world.entities.componentRegistry();
+  const auto storageRevision = registry.storageRevision();
+  if (orderRevision_ != world.entities.orderRevision() ||
+      entityData_ != world.entities.data() || localSources_.size() != count ||
+      storageRevision_ != storageRevision ||
+      registryIdentity_ != registry.identity()) {
     localSources_.resize(count);
     for (std::size_t index = 0; index < count; ++index) {
       const auto &entity = world.entities[index];
-      entity.components.observeMembership();
       localSources_[index] = entity.component<Transform3DComponent>();
     }
     entityData_ = world.entities.data();
-    storageEpoch_ = storageEpoch;
+    storageRevision_ = storageRevision;
+    registryIdentity_ = registry.identity();
+    orderRevision_ = world.entities.orderRevision();
   }
   bool idsChanged = ids_.size() != count;
   bool localsChanged = locals_.size() != count;

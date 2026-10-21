@@ -66,7 +66,9 @@ bool BgfxRenderer3D::prepareAnimatedMeshes(
   constexpr std::size_t MaximumBatch = 16;
   constexpr std::size_t MaximumPaletteBatch = 128;
   std::vector<Work> batch;
-  batch.reserve(MaximumPaletteBatch);
+  if (!visible.empty()) {
+    batch.reserve(MaximumPaletteBatch);
+  }
   std::size_t verticesInBatch = 0;
   bool batchHasCpu = false;
   std::size_t peakVertices = 0;

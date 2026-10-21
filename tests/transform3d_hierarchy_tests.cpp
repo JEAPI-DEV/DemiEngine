@@ -175,11 +175,10 @@ bool checkRetainedSnapshot() {
   if (!snapshotMatchesWorld(snapshot, world)) {
     return false;
   }
-  // Replacing the same type leaves membership unchanged, but std::any may
-  // release its previous object. A retained snapshot must reacquire addresses.
-  const auto membership = ComponentStorage::membershipEpoch();
+  // Replacement publishes a registry update even though membership is unchanged.
+  const auto revision = world.entities.componentRegistry().storageRevision();
   world.entities[0].setComponent(Transform3DComponent{.position = {8, 2, 4}});
-  if (ComponentStorage::membershipEpoch() != membership ||
+  if (world.entities.componentRegistry().storageRevision() == revision ||
       !snapshotMatchesWorld(snapshot, world)) {
     return false;
   }
@@ -191,7 +190,7 @@ bool checkRetainedSnapshot() {
   if (!snapshotMatchesWorld(snapshot, world) || !snapshot.refresh(world)[1]) {
     return false;
   }
-  std::swap(world.entities[0], world.entities[1]);
+  world.entities.swapElements(0, 1);
   if (!snapshotMatchesWorld(snapshot, world)) {
     return false;
   }

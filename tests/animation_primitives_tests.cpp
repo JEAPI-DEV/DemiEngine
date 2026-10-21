@@ -129,5 +129,25 @@ int main() {
     std::cerr << "Finished transition failed.\n";
     return 1;
   }
+  Entity laterTarget = world.entities[1];
+  laterTarget.id = "later_target";
+  world.entities.push_back(laterTarget);
+  laterTarget.id = "disabled_target";
+  laterTarget.enabled = false;
+  world.entities.push_back(std::move(laterTarget));
+  machine->state = "attack";
+  machine->time = 0.12F;
+  auto *collision =
+      world.entities[0].component<AnimationCollision2DComponent>();
+  collision->activeWindow.clear();
+  collision->reportedOverlaps.clear();
+  collisionSystem.update(world);
+  if (world.animationCollisionOverlaps.size() != 2 ||
+      world.animationCollisionOverlaps[0].targetId != "target" ||
+      world.animationCollisionOverlaps[1].targetId != "later_target") {
+    std::cerr
+        << "Collision receivers lost authored order or enabled filtering.\n";
+    return 1;
+  }
   return 0;
 }

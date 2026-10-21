@@ -44,5 +44,25 @@ int main() {
     std::cerr << "Camera follow smoothing failed.\n";
     return 1;
   }
+  Entity disabledCamera = world.entities[1];
+  disabledCamera.id = "disabled_camera";
+  disabledCamera.enabled = false;
+  disabledCamera.component<Transform2DComponent>()->position = {7.0F, 9.0F};
+  world.entities.push_back(std::move(disabledCamera));
+  Entity cameraWithoutTransform;
+  cameraWithoutTransform.id = "camera_without_transform";
+  cameraWithoutTransform.setComponent(Camera2DComponent{.target = "player"});
+  world.entities.push_back(std::move(cameraWithoutTransform));
+  world.entities[0].enabled = false;
+  Camera2DSystem{}.update(world, 0.5F);
+  const Vec2 unchanged =
+      world.entities[1].component<Transform2DComponent>()->position;
+  const Vec2 disabledPosition =
+      world.entities[2].component<Transform2DComponent>()->position;
+  if (unchanged.x != smoothed.x || unchanged.y != smoothed.y ||
+      disabledPosition.x != 7.0F || disabledPosition.y != 9.0F) {
+    std::cerr << "Camera filtering advanced a disabled camera or target.\n";
+    return 1;
+  }
   return 0;
 }

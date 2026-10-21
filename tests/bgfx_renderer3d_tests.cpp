@@ -1931,7 +1931,7 @@ int main() {
   proceduralEntity->component<MeshRendererComponent>()->revision = 2;
   assert(renderer.renderFrame(world, frame, 0.016F, error));
   static_cast<void>(graphics.endFrame());
-  std::erase_if(world.entities,
+  world.entities.eraseIf(
                 [](const Entity &entity) { return entity.id == "procedural"; });
   assert(renderer.renderFrame(world, frame, 0.016F, error));
   static_cast<void>(graphics.endFrame());

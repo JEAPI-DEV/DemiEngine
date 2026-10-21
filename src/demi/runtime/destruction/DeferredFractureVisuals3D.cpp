@@ -122,7 +122,7 @@ std::set<std::string> DeferredFractureVisuals3D::prepare(
     }
     if (const auto batch = intactVisuals_.find(region);
         batch != intactVisuals_.end())
-      std::erase_if(candidate.entities, [&](const Entity &entity) {
+      candidate.entities.eraseIf( [&](const Entity &entity) {
         return std::ranges::find(batch->second, entity.id) !=
                batch->second.end();
       });

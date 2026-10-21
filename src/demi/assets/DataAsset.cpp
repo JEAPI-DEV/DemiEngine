@@ -153,11 +153,13 @@ void validateValue(const DataValue &value, const Json &schema,
       }
     }
   }
-  if (const auto *array = value.array(); schema.contains("items")) {
-    for (std::size_t index = 0; index < array->size(); ++index)
+  if (const auto *array = value.array();
+      array != nullptr && schema.contains("items")) {
+    for (std::size_t index = 0; index < array->size(); ++index) {
       validateValue((*array)[index], schema["items"], registry, path,
                     pointer + "/" + std::to_string(index), diagnostics,
                     references);
+    }
   }
 }
 

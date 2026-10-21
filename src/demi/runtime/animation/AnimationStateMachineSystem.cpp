@@ -136,7 +136,11 @@ void AnimationStateMachineSystem::update(World &world,
                                          const float deltaTime,
                                          const float unscaledDeltaTime) const {
   world.stateAnimationEvents.clear();
-  for (Entity &entity : world.entities) {
+  for (const auto entityIndex :
+       world.componentQueries.queryAny<AnimationStateMachineComponent,
+                                       AnimationPlayer3DComponent>(
+           world.entities)) {
+    Entity &entity = world.entities[entityIndex];
     if (!entity.enabled) {
       continue;
     }

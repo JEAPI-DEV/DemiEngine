@@ -19,6 +19,27 @@ bool near(float left, float right) {
 } // namespace
 
 int main() {
+  World playbackWorld;
+  Entity unrelated;
+  unrelated.id = "unrelated";
+  playbackWorld.entities.push_back(std::move(unrelated));
+  Entity standalone;
+  standalone.id = "standalone";
+  standalone.setComponent(AnimationPlayer3DComponent{.speed = 2.0F});
+  playbackWorld.entities.push_back(standalone);
+  standalone.id = "disabled";
+  standalone.enabled = false;
+  playbackWorld.entities.push_back(std::move(standalone));
+  AnimationStateMachineSystem{}.update(playbackWorld, 0.25F, 0.5F);
+  const auto *playing =
+      playbackWorld.entities[1].component<AnimationPlayer3DComponent>();
+  const auto *disabled =
+      playbackWorld.entities[2].component<AnimationPlayer3DComponent>();
+  if (!near(playing->time, 0.5F) || !near(playing->visualClock, 0.5F) ||
+      !near(disabled->time, 0.0F) || !near(disabled->visualClock, 0.0F)) {
+    std::cerr << "Standalone animation playback or enabled filtering failed.\n";
+    return 1;
+  }
   AnimationBlendSpace line{.parameterX = "speed",
                            .points = {{"idle", 0.0F, 0.0F},
                                       {"walk", 1.0F, 0.0F},
