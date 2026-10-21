@@ -369,7 +369,7 @@ bool BgfxRenderer3D::renderFrame(const World &world,
     }
   } presentationScope{*this, ownsPresentation, presentationSucceeded};
   if (frame.updateContent) {
-    meshRetention_.collect(instancePreparation_.worldSources(world));
+    meshRetention_.collect(instancePreparation_.worldSources(world, &extractionJobs_));
   }
   const auto sceneLighting =
       collectSceneLighting3D(world, frame.camera.renderMask, &entityQueries_);

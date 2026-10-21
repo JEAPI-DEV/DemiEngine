@@ -1,5 +1,6 @@
 #include "demi/runtime/scene/WorldTransformSnapshot3D.h"
 
+#include "demi/runtime/concurrency/JobSystem.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/scene/model/World.h"
 
@@ -20,37 +21,65 @@ bool sameLocal(const Transform3DComponent &left,
 } // namespace
 
 const std::vector<std::optional<WorldTransform3D>> &
-WorldTransformSnapshot3D::refresh(const World &world) {
+WorldTransformSnapshot3D::refresh(const World &world, JobSystem *jobs) {
   ProfileScope scope("Renderer3D.world_transforms");
   const auto count = world.entities.size();
+  const auto storageEpoch = ComponentStorage::storageEpoch();
+  if (entityData_ != world.entities.data() || localSources_.size() != count ||
+      storageEpoch_ != storageEpoch) {
+    localSources_.resize(count);
+    for (std::size_t index = 0; index < count; ++index) {
+      const auto &entity = world.entities[index];
+      entity.components.observeMembership();
+      localSources_[index] = entity.component<Transform3DComponent>();
+    }
+    entityData_ = world.entities.data();
+    storageEpoch_ = storageEpoch;
+  }
   bool idsChanged = ids_.size() != count;
   bool localsChanged = locals_.size() != count;
   bool parentsChanged = localsChanged;
   ids_.resize(count);
   locals_.resize(count);
-  for (std::size_t index = 0; index < count; ++index) {
+  changes_.assign(count, {});
+  const auto inspect = [&](std::size_t index) {
+    auto &changed = changes_[index];
     const auto &entity = world.entities[index];
     if (ids_[index] != entity.id) {
       ids_[index] = entity.id;
-      idsChanged = true;
+      changed.id = true;
     }
-    const auto *local = entity.component<Transform3DComponent>();
+    const auto *local = localSources_[index];
     auto &previous = locals_[index];
     if (local == nullptr) {
       if (previous) {
         previous.reset();
-        localsChanged = true;
-        parentsChanged = true;
+        changed.local = true;
+        changed.parent = true;
       }
-      continue;
+      return;
     }
     if (!previous || !sameLocal(*previous, *local)) {
       if (!previous || previous->parent != local->parent) {
-        parentsChanged = true;
+        changed.parent = true;
       }
       previous = *local;
-      localsChanged = true;
+      changed.local = true;
     }
+  };
+  // Only independent content checks run on workers. Hierarchy resolution and
+  // publication stay ordered on the caller after every check has completed.
+  if (jobs && count >= 1024) {
+    jobs->parallelFor(count, 256, inspect);
+  } else {
+    for (std::size_t index = 0; index < count; ++index) {
+      inspect(index);
+    }
+  }
+  for (const auto &changed : changes_) {
+    idsChanged |= changed.id;
+    localsChanged |= changed.local;
+    parentsChanged |= changed.parent;
   }
   if (idsChanged) {
     rebuildIndices();
@@ -123,8 +152,8 @@ void WorldTransformSnapshot3D::resolve() {
       const auto &local = locals_[*entry];
       if (valid && local) {
         WorldTransform3D transform{.position = local->position,
-                                    .rotation = local->rotation,
-                                    .scale = local->scale};
+                                   .rotation = local->rotation,
+                                   .scale = local->scale};
         if (!local->parent.empty()) {
           const auto &parent = results_[*parents_[*entry]];
           if (parent) {

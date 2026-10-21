@@ -392,12 +392,16 @@ SceneVisibility3D extractVisibleMeshes3D(
   MeshInstancePreparation3D uncachedPreparation;
   auto &preparation =
       instancePreparation ? *instancePreparation : uncachedPreparation;
-  auto &sources = preparation.worldSources(world);
-  std::vector<std::optional<VisibleMesh3D>> extracted(world.entities.size());
-  // byte-per-entry storage lets workers write independent indices without the
-  // packed-bit races of std::vector<bool>.
-  std::vector<std::uint8_t> considered(world.entities.size(), 0);
-  std::vector<std::uint8_t> culled(world.entities.size(), 0);
+  auto &sources = preparation.worldSources(world, jobs);
+  enum class Visibility : std::uint8_t {
+    Ignored,
+    MissingTransform,
+    Culled,
+    Visible,
+  };
+  // Workers write independent bytes. Full draw records are constructed only
+  // for accepted sources, rather than initialized for every entity per view.
+  std::vector<Visibility> visibility(world.entities.size(), Visibility::Ignored);
   const auto extract = [&](const std::size_t index) {
     const Entity &entity = world.entities[index];
     if (!entity.enabled) {
@@ -417,7 +421,7 @@ SceneVisibility3D extractVisibleMeshes3D(
         frame.camera.renderMask != mesh->renderLayer) {
       return;
     }
-    considered[index] = 1;
+    visibility[index] = Visibility::MissingTransform;
     if (!source.transform) {
       return;
     }
@@ -439,19 +443,13 @@ SceneVisibility3D extractVisibleMeshes3D(
     }
     if (!instanced && source.bounded &&
         !frustum.visible({source.bounds.center, source.bounds.radius})) {
-      culled[index] = 1;
+      visibility[index] = Visibility::Culled;
       return;
     }
     if (instancePreparation && !instanced && !terrain && !source.modelMatrix) {
       source.modelMatrix = composeMeshTransform3D(transform, mesh->size);
     }
-    extracted[index] = VisibleMesh3D{
-        .entity = &entity,
-        .transform = transform,
-        .preparedModelMatrix = instancePreparation && source.modelMatrix
-                                   ? &*source.modelMatrix
-                                   : nullptr,
-        .preparedSource = instancePreparation ? &source : nullptr};
+    visibility[index] = Visibility::Visible;
   };
   {
     ProfileScope cullScope("Renderer3D.cull_sources");
@@ -473,31 +471,40 @@ SceneVisibility3D extractVisibleMeshes3D(
   result.meshes.reserve(world.entities.size());
   {
     ProfileScope gatherScope("Renderer3D.gather_instances");
-    for (std::size_t index = 0; index < extracted.size(); ++index) {
-      if (extracted[index]) {
-        const auto &source = *extracted[index];
-        const auto sourceIndex = source.entity - world.entities.data();
-        const auto &metadata = sources[sourceIndex];
-        const bool hasInlineSections = metadata.sections &&
-                                       !metadata.sections->sections.empty() &&
-                                       !metadata.mesh->vertices.empty();
-        needsSectionSelection =
-            needsSectionSelection || metadata.terrain || hasInlineSections;
-        const auto *instances = metadata.instances;
-        if (instances) {
-          appendVisibleInstances(world, source, *instances, result, materials,
-                                 modelBounds, frustum, instanceLodPosition,
-                                 instancePreparation);
-          continue;
-        }
+    for (std::size_t index = 0; index < visibility.size(); ++index) {
+      const auto decision = visibility[index];
+      if (decision == Visibility::Ignored) {
+        continue;
       }
-      result.considered += considered[index] ? 1U : 0U;
-      result.culled += culled[index] ? 1U : 0U;
-      if (extracted[index]) {
-        result.meshes.push_back(std::move(*extracted[index]));
+      if (decision != Visibility::Visible) {
+        ++result.considered;
+        result.culled += decision == Visibility::Culled ? 1U : 0U;
+        continue;
       }
+      const auto &metadata = sources[index];
+      VisibleMesh3D draw{
+          .entity = metadata.entity,
+          .transform = *metadata.transform,
+          .preparedModelMatrix = instancePreparation && metadata.modelMatrix
+                                     ? &*metadata.modelMatrix
+                                     : nullptr,
+          .preparedSource = instancePreparation ? &metadata : nullptr};
+      const bool hasInlineSections = metadata.sections &&
+                                     !metadata.sections->sections.empty() &&
+                                     !metadata.mesh->vertices.empty();
+      needsSectionSelection =
+          needsSectionSelection || metadata.terrain || hasInlineSections;
+      if (metadata.instances) {
+        appendVisibleInstances(world, draw, *metadata.instances, result,
+                               materials, modelBounds, frustum,
+                               instanceLodPosition, instancePreparation);
+        continue;
+      }
+      ++result.considered;
+      result.meshes.push_back(std::move(draw));
     }
   }
+
   // Ordinary meshes and instance copies already are final draw records. Do not
   // allocate and copy the entire visible list when no source needs expansion.
   if (!needsSectionSelection) {

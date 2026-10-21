@@ -32,6 +32,63 @@ Entity mesh(std::string id, const Vec3 position, const Vec3 minimum,
 
 } // namespace
 
+void retainedSourcesObserveComponentReplacement() {
+  BgfxCameraFrame3D frame;
+  World changing;
+  changing.entities.push_back(mesh("replacement", {0, 0, 8}, {}, {}));
+  MeshInstancePreparation3D preparation;
+  const auto extract = [&] {
+    return extractVisibleMeshes3D(changing, frame, nullptr, nullptr, nullptr,
+                                  nullptr, nullptr, nullptr, nullptr, {},
+                                  &preparation);
+  };
+  assert(extract().meshes.size() == 1);
+  auto replacement = *changing.entities.front().component<MeshRendererComponent>();
+  replacement.color = {1.F, 0.F, 0.F, 1.F};
+  changing.entities.front().setComponent(std::move(replacement));
+  preparation.reset();
+  const auto replaced = extract();
+  assert(replaced.meshes.size() == 1);
+  assert(replaced.meshes.front().preparedSource->mesh ==
+         changing.entities.front().component<MeshRendererComponent>());
+  assert(replaced.meshes.front().preparedSource->mesh->color.g == 0.F);
+  changing.entities.front().removeComponent<MeshRendererComponent>();
+  preparation.reset();
+  assert(extract().meshes.empty());
+  changing.entities.front().setComponent(MeshRendererComponent{});
+  preparation.reset();
+  assert(extract().meshes.size() == 1);
+}
+
+void retainedPrimitiveBoundsFollowLiveEdits() {
+  World world;
+  world.entities.push_back(mesh("editable", {30, 0, 10}, {-.5F, -.5F, -.5F},
+                                {.5F, .5F, .5F}));
+  BgfxCameraFrame3D frame;
+  frame.viewportWidth = 100;
+  frame.viewportHeight = 100;
+  MeshInstancePreparation3D preparation;
+  const auto visibleCount = [&] {
+    preparation.reset();
+    return extractVisibleMeshes3D(world, frame, nullptr, nullptr, nullptr,
+                                  nullptr, nullptr, nullptr, nullptr, {},
+                                  &preparation).meshes.size();
+  };
+  auto *appearance = world.entities.front().component<MeshRendererComponent>();
+  assert(visibleCount() == 0);
+  appearance->size = {100, 100, 100};
+  assert(visibleCount() == 1);
+  appearance->size = {1, 1, 1};
+  assert(visibleCount() == 0);
+  appearance->boundsMin = {-40, -40, -40};
+  appearance->boundsMax = {40, 40, 40};
+  assert(visibleCount() == 1);
+  appearance->hasBounds = false;
+  assert(visibleCount() == 0);
+  world.entities.front().component<Transform3DComponent>()->position.x = 0;
+  assert(visibleCount() == 1);
+}
+
 void orthographicCullingMatchesExactProjectionEdges() {
   World world;
   const std::array<Vec3, 12> positions{{{10, 0, 10},
@@ -51,6 +108,8 @@ void orthographicCullingMatchesExactProjectionEdges() {
         mesh(std::to_string(index), positions[index], {}, {}));
   }
   BgfxCameraFrame3D frame;
+
+
   frame.camera.perspective = false;
   frame.camera.orthographicSize = 10;
   frame.camera.nearClip = 1;
@@ -194,6 +253,8 @@ void spatialIndexExpandsForChangingLodBounds() {
 }
 
 int main() {
+  retainedPrimitiveBoundsFollowLiveEdits();
+  retainedSourcesObserveComponentReplacement();
   orthographicCullingMatchesExactProjectionEdges();
   spatialIndexExpandsForChangingLodBounds();
   spatialInstancesMatchReferenceAndKeepOffscreenShadowCasters();

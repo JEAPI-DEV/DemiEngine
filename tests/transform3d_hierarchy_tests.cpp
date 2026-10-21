@@ -6,6 +6,7 @@
 #include "demi/runtime/scene/model/Entity.h"
 #include "demi/runtime/scene/model/World.h"
 
+#include "demi/runtime/concurrency/JobSystem.h"
 #include <array>
 #include <cmath>
 #include <iostream>
@@ -96,8 +97,8 @@ Entity transformed(std::string id, Transform3DComponent transform) {
 }
 
 bool snapshotMatchesWorld(WorldTransformSnapshot3D &snapshot,
-                          const World &world) {
-  const auto &results = snapshot.refresh(world);
+                          const World &world, JobSystem *jobs = nullptr) {
+  const auto &results = snapshot.refresh(world, jobs);
   if (results.size() != world.entities.size()) {
     return false;
   }
@@ -119,6 +120,30 @@ bool snapshotMatchesWorld(WorldTransformSnapshot3D &snapshot,
     }
   }
   return true;
+}
+
+bool checkParallelSnapshot() {
+  World world;
+  for (int index = 0; index < 2048; ++index) {
+    const std::string parent = index % 2 == 0 ? "" : std::to_string(index - 1);
+    world.entities.push_back(transformed(std::to_string(index),
+        {.parent = parent, .position = {float(index), 1, 2}}));
+  }
+  JobSystem jobs(3);
+  WorldTransformSnapshot3D snapshot;
+  if (!snapshotMatchesWorld(snapshot, world, &jobs)) {
+    return false;
+  }
+  for (std::size_t index = 0; index < world.entities.size(); index += 8) {
+    world.entities[index].component<Transform3DComponent>()->position.y = 8;
+  }
+  if (!snapshotMatchesWorld(snapshot, world, &jobs)) {
+    return false;
+  }
+  world.entities[0].id = "renamed";
+  world.entities[2].removeComponent<Transform3DComponent>();
+  world.entities[4].component<Transform3DComponent>()->parent = "5";
+  return snapshotMatchesWorld(snapshot, world, &jobs);
 }
 
 bool checkRetainedSnapshot() {
@@ -148,6 +173,14 @@ bool checkRetainedSnapshot() {
   }
   parent->scale = {4, -0.5F, 2};
   if (!snapshotMatchesWorld(snapshot, world)) {
+    return false;
+  }
+  // Replacing the same type leaves membership unchanged, but std::any may
+  // release its previous object. A retained snapshot must reacquire addresses.
+  const auto membership = ComponentStorage::membershipEpoch();
+  world.entities[0].setComponent(Transform3DComponent{.position = {8, 2, 4}});
+  if (ComponentStorage::membershipEpoch() != membership ||
+      !snapshotMatchesWorld(snapshot, world)) {
     return false;
   }
   world.entities[0].id = "renamed";
@@ -191,6 +224,10 @@ bool checkRetainedSnapshot() {
 } // namespace
 
 int main() {
+  if (!checkParallelSnapshot()) {
+    std::cerr << "Parallel snapshot diverged after live hierarchy edits.\n";
+    return 1;
+  }
   using namespace demi::runtime;
   if (!checkTransformBasis() || !checkUnrotatedParentComposition() ||
       !checkRetainedSnapshot()) {

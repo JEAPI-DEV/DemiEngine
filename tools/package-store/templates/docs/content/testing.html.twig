@@ -66,6 +66,7 @@ DEMI_HEADLESS=1 demi test</code></pre>
 demi run linux \
   --profile-report report.csv --profile-frames frames.csv</code></pre>
 <p><code>--profile-report</code> writes aggregate scope totals; <code>--profile-frames</code> writes per-frame rows. Profile a repeatable scene and keep the CSV with the change that motivated it.</p>
+<p>The editor enables GPU timestamps for embedded Play even when launched without profiler flags. <strong>GPU Game</strong> measures the Game view's GPU passes; <strong>Render submit</strong> measures CPU-side preparation and command submission, including shadow views. These timings overlap and should not be added. Expand the scope list to distinguish transform preparation, visibility selection, shadow work, and mesh submission. Unsupported backends may still lack GPU timestamps.</p>
 <pre><code>local Profile = require("demi.profile")
 
 Profile.scope("ai_update", function()

@@ -50,6 +50,12 @@ public:
     return membershipEpoch_.load(std::memory_order_relaxed);
   }
 
+  // Replacing an existing std::any also invalidates borrowed component addresses,
+  // even though the set of component types has not changed.
+  [[nodiscard]] static std::uint64_t storageEpoch() noexcept {
+    return storageEpoch_.load(std::memory_order_relaxed);
+  }
+
   // Query scans observe every slot, including entities with no matching type.
   // Standalone parser/default-value temporaries do not invalidate live queries.
   void observeMembership() const noexcept { membershipObserved_ = true; }
@@ -82,6 +88,8 @@ public:
         StoredType(std::forward<ComponentType>(component)));
     if (inserted) {
       invalidateMembership();
+    } else if (membershipObserved_) {
+      storageEpoch_.fetch_add(1, std::memory_order_relaxed);
     }
     return *std::any_cast<StoredType>(&iterator->second);
   }
@@ -107,11 +115,13 @@ private:
   void invalidateMembership() const noexcept {
     if (membershipObserved_) {
       membershipEpoch_.fetch_add(1, std::memory_order_relaxed);
+      storageEpoch_.fetch_add(1, std::memory_order_relaxed);
     }
   }
 
   mutable bool membershipObserved_ = false;
   inline static std::atomic<std::uint64_t> membershipEpoch_{1};
+  inline static std::atomic<std::uint64_t> storageEpoch_{1};
 
   struct TypeKey {
     explicit TypeKey(std::type_index componentType)
