@@ -62,28 +62,17 @@ int main() {
 
   // The package-content audit rejects non-runtime content and records
   // deterministic per-root file counts for the archived build report.
-  const auto audit = demi::build::auditPackagedProject(cooked);
+  const fs::path packagedProject = bundle / "project";
+  const auto audit = demi::build::auditPackagedProject(packagedProject);
   assert(audit.unexpected.empty());
   assert(audit.fileCounts.contains("scenes") &&
          audit.fileCounts.at("scenes") == 1);
   assert(audit.fileCounts.contains("demi.project.json") &&
          audit.fileCounts.at("demi.project.json") == 1);
   assert(fs::is_regular_file(bundle / "build-report.json"));
-  demi::build::stripCookCache(cooked);
 
-  const fs::path leaky = root / "output/leaky-cooked";
-  fs::create_directories(leaky);
-  if (fs::exists(cooked / "assets"))
-    fs::copy(cooked / "assets", leaky / "assets",
-             fs::copy_options::recursive);
-  for (const char *allowed : {"scenes", "scripts", "certs", "packages"}) {
-    if (fs::exists(cooked / allowed))
-      fs::copy(cooked / allowed, leaky / allowed, fs::copy_options::recursive);
-  }
-  fs::copy_file(cooked / "demi.project.json", leaky / "demi.project.json",
-                fs::copy_options::overwrite_existing);
-  fs::copy_file(cooked / "cook.manifest.json", leaky / "cook.manifest.json",
-                fs::copy_options::overwrite_existing);
+  const fs::path leaky = root / "output/leaky-package";
+  fs::copy(packagedProject, leaky, fs::copy_options::recursive);
   write(leaky / "saves/leaked.save.json", "{}");
   write(leaky / ".cook-cache/junk.bin", "junk");
   const auto leakAudit = demi::build::auditPackagedProject(leaky);

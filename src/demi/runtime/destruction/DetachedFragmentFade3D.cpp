@@ -27,13 +27,17 @@ void updateDetachedFragmentFades3D(World &world, float dt, Vec3 gravity) {
                      f->velocity.z + gravity.z * dt};
       const auto a = f->angularVelocity;
       const float speed = std::sqrt(a.x * a.x + a.y * a.y + a.z * a.z);
-      if (speed > 0)
-        t->rotation = rotateWorldEuler3D(
-            t->rotation, {a.x / speed, a.y / speed, a.z / speed}, speed * dt);
-      const auto offset =
-          transformPoint3D({{}, t->rotation, t->scale}, f->localCenter);
-      t->position = {f->center.x - offset.x, f->center.y - offset.y,
-                     f->center.z - offset.z};
+      e.updateComponent<Transform3DComponent>([&](Transform3DComponent &transform) {
+        if (speed > 0) {
+          transform.rotation = rotateWorldEuler3D(
+              transform.rotation, {a.x / speed, a.y / speed, a.z / speed},
+              speed * dt);
+        }
+        const auto offset = transformPoint3D(
+            {{}, transform.rotation, transform.scale}, f->localCenter);
+        transform.position = {f->center.x - offset.x, f->center.y - offset.y,
+                              f->center.z - offset.z};
+      });
       opacity[e.id] = f->fade > 0
                           ? std::clamp((f->lifetime - f->age) /
                                            std::min(f->lifetime, f->fade),

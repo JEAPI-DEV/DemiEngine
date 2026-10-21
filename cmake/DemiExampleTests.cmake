@@ -140,9 +140,11 @@ add_test(NAME demi-runtime-minimal-3d-gameplay-replay
       ${CMAKE_SOURCE_DIR}/examples/minimal_3d/replays/jump_and_fire.replay.json
     --profiler
 )
+# Six initial native bodies, one character shape, and one fired projectile.
+# Character initialization shares acquireShape profiling with body creation.
 set_tests_properties(demi-runtime-minimal-3d-gameplay-replay PROPERTIES
   ENVIRONMENT "DEMI_HEADLESS=1"
-  PASS_REGULAR_EXPRESSION "Physics3D.create_shape,[^\n]*,7,0"
+  PASS_REGULAR_EXPRESSION "Physics3D.create_shape,[^\n]*,8,0"
 )
 add_test(NAME demi-runtime-animation-3d-frame
   COMMAND demi run

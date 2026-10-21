@@ -104,7 +104,10 @@ std::set<std::string> DeferredFractureVisuals3D::prepare(
     if (parents.size() == 1 && !parents.begin()->empty()) {
       if (!intact)
         throw std::runtime_error("Deferred region disappeared: " + region);
-      intact->component<Transform3DComponent>()->parent = *parents.begin();
+      intact->updateComponent<Transform3DComponent>(
+          [&](Transform3DComponent &transform) {
+            transform.parent = *parents.begin();
+          });
       continue;
     }
     // A retired whole region needs no leaves. A split region creates only its
@@ -118,7 +121,8 @@ std::set<std::string> DeferredFractureVisuals3D::prepare(
       intact->serializedComponents.erase("MeshRenderer");
       intact->serializedComponents.erase("MeshInstances3D");
       intact->serializedComponents.erase("SurfaceRelief3D");
-      intact->component<Transform3DComponent>()->parent = root_;
+      intact->updateComponent<Transform3DComponent>(
+          [&](Transform3DComponent &transform) { transform.parent = root_; });
     }
     if (const auto batch = intactVisuals_.find(region);
         batch != intactVisuals_.end())
@@ -138,8 +142,10 @@ std::set<std::string> DeferredFractureVisuals3D::prepare(
       if (!entity)
         throw std::runtime_error(error);
       entity->sceneOwner = sceneOwner;
-      if (id == leafOwners_.at(id))
-        entity->component<Transform3DComponent>()->parent = parent;
+      if (id == leafOwners_.at(id)) {
+        entity->updateComponent<Transform3DComponent>(
+            [&](Transform3DComponent &transform) { transform.parent = parent; });
+      }
       candidate.entities.push_back(std::move(*entity));
     }
     refined.insert(region);

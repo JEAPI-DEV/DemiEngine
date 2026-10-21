@@ -1,6 +1,7 @@
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/render/backend/BgfxProfileCallback.h"
 
+#include <cstddef>
 #include <iostream>
 #include <thread>
 
@@ -28,11 +29,13 @@ int main() {
     callback->profilerEnd();
   callback->profilerEnd(); // Unmatched end must not underflow.
   const auto entries = RuntimeProfiler::frameEntries();
-  if (entries.size() != 3) {
-    std::cerr << "Unexpected callback scope population\n";
-    return 1;
-  }
+  std::size_t callbackScopes = 0;
   for (const auto &entry : entries) {
+    // Frame startup also publishes process telemetry, independently of bgfx.
+    if (entry.name.starts_with("Process.")) {
+      continue;
+    }
+    ++callbackScopes;
     if (entry.calls != 1 || entry.totalMilliseconds < 0 ||
         (entry.name != "Vulkan.acquire_total" &&
          entry.name != "Vulkan.acquire_image" &&
@@ -40,6 +43,10 @@ int main() {
       std::cerr << "Invalid callback timing: " << entry.name << '\n';
       return 1;
     }
+  }
+  if (callbackScopes != 3) {
+    std::cerr << "Unexpected callback scope population\n";
+    return 1;
   }
   std::cout << "bgfx callback scope/thread/overflow checks passed\n";
 }

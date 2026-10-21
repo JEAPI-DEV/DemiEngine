@@ -11,6 +11,7 @@ namespace demi::runtime {
 struct Transform3DComponent {
   static constexpr std::string_view typeName = "Transform3D";
   static constexpr bool exposedToLua = true;
+  static constexpr bool trackedMutation = true;
   static constexpr ComponentDomain domain = ComponentDomain::ThreeDimensional;
   static constexpr std::array fields{
       ComponentFieldDescriptor::entityReference("parent"),
@@ -27,6 +28,14 @@ struct Transform3DComponent {
   Vec3 position;
   Vec3 rotation;
   Vec3 scale = {1.0F, 1.0F, 1.0F};
+  [[nodiscard]] bool operator==(const Transform3DComponent &other) const {
+    const auto sameVector = [](Vec3 left, Vec3 right) {
+      return left.x == right.x && left.y == right.y && left.z == right.z;
+    };
+    return parent == other.parent && sameVector(position, other.position) &&
+           sameVector(rotation, other.rotation) && sameVector(scale, other.scale);
+  }
+
   static constexpr std::array runtimeFields{
       RuntimeFieldBinding<Transform3DComponent>::member<
           &Transform3DComponent::parent>("parent"),

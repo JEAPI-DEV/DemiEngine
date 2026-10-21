@@ -1,12 +1,12 @@
 #include "demi/runtime/scene/Transform3DHierarchy.h"
-#include "demi/runtime/scene/WorldTransformSnapshot3D.h"
 #include "demi/runtime/scene/WorldQueries.h"
+#include "demi/runtime/scene/WorldTransformSnapshot3D.h"
 #include "demi/runtime/scene/components/3dcomponents/Camera3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/Transform3DComponent.h"
 #include "demi/runtime/scene/model/Entity.h"
 #include "demi/runtime/scene/model/World.h"
 
-#include "demi/runtime/concurrency/JobSystem.h"
+#include "demi/runtime/profiling/RuntimeProfiler.h"
 #include <array>
 #include <cmath>
 #include <iostream>
@@ -35,15 +35,14 @@ bool checkTransformBasis() {
       Vec3{}, Vec3{0.37F, -0.91F, 1.23F},
       Vec3{0.4F, std::numbers::pi_v<float> * 0.5F, -0.7F},
       Vec3{-2.3F, 2.1F, 4.7F}};
-  const std::array<Vec3, 3> scales{
-      Vec3{2.0F, 3.0F, 0.5F}, Vec3{-2.0F, 0.25F, -4.0F},
-      Vec3{0.0F, -3.0F, 1.5F}};
+  const std::array<Vec3, 3> scales{Vec3{2.0F, 3.0F, 0.5F},
+                                   Vec3{-2.0F, 0.25F, -4.0F},
+                                   Vec3{0.0F, -3.0F, 1.5F}};
   for (const auto rotation : rotations) {
     for (const auto scale : scales) {
-      const WorldTransform3D transform{
-          .position = {3.0F, -7.0F, 2.0F},
-          .rotation = rotation,
-          .scale = scale};
+      const WorldTransform3D transform{.position = {3.0F, -7.0F, 2.0F},
+                                       .rotation = rotation,
+                                       .scale = scale};
       const auto basis = transformBasis3D(transform);
       const auto expectedRight =
           transformDirection3D(transform, {scale.x, 0.0F, 0.0F});
@@ -52,13 +51,13 @@ bool checkTransformBasis() {
       const auto expectedForward =
           transformDirection3D(transform, {0.0F, 0.0F, scale.z});
       const Vec3 point{0.7F, -1.2F, 2.3F};
-      const Vec3 projected{
-          transform.position.x + basis.right.x * point.x +
-              basis.up.x * point.y + basis.forward.x * point.z,
-          transform.position.y + basis.right.y * point.x +
-              basis.up.y * point.y + basis.forward.y * point.z,
-          transform.position.z + basis.right.z * point.x +
-              basis.up.z * point.y + basis.forward.z * point.z};
+      const Vec3 projected{transform.position.x + basis.right.x * point.x +
+                               basis.up.x * point.y + basis.forward.x * point.z,
+                           transform.position.y + basis.right.y * point.x +
+                               basis.up.y * point.y + basis.forward.y * point.z,
+                           transform.position.z + basis.right.z * point.x +
+                               basis.up.z * point.y +
+                               basis.forward.z * point.z};
       if (!closeVector(basis.right, expectedRight) ||
           !closeVector(basis.up, expectedUp) ||
           !closeVector(basis.forward, expectedForward) ||
@@ -71,8 +70,8 @@ bool checkTransformBasis() {
 }
 
 bool checkUnrotatedParentComposition() {
-  const WorldTransform3D parent{
-      .position = {4.0F, -3.0F, 8.0F}, .scale = {-2.0F, 3.0F, 0.25F}};
+  const WorldTransform3D parent{.position = {4.0F, -3.0F, 8.0F},
+                                .scale = {-2.0F, 3.0F, 0.25F}};
   const WorldTransform3D local{.position = {2.0F, -1.0F, 4.0F},
                                .rotation = {0.37F, 2.1F, -4.2F},
                                .scale = {0.5F, -2.0F, 4.0F}};
@@ -97,8 +96,8 @@ Entity transformed(std::string id, Transform3DComponent transform) {
 }
 
 bool snapshotMatchesWorld(WorldTransformSnapshot3D &snapshot,
-                          const World &world, JobSystem *jobs = nullptr) {
-  const auto &results = snapshot.refresh(world, jobs);
+                          const World &world) {
+  const auto &results = snapshot.refresh(world);
   if (results.size() != world.entities.size()) {
     return false;
   }
@@ -115,44 +114,48 @@ bool snapshotMatchesWorld(WorldTransformSnapshot3D &snapshot,
         !closeVector(actual->scale, expected->scale) ||
         !closeVector(rightDirection3D(*actual), rightDirection3D(*expected)) ||
         !closeVector(upDirection3D(*actual), upDirection3D(*expected)) ||
-        !closeVector(forwardDirection3D(*actual), forwardDirection3D(*expected))) {
+        !closeVector(forwardDirection3D(*actual),
+                     forwardDirection3D(*expected))) {
       return false;
     }
   }
   return true;
 }
 
-bool checkParallelSnapshot() {
+bool checkTrackedSnapshot() {
   World world;
   for (int index = 0; index < 2048; ++index) {
     const std::string parent = index % 2 == 0 ? "" : std::to_string(index - 1);
-    world.entities.push_back(transformed(std::to_string(index),
-        {.parent = parent, .position = {float(index), 1, 2}}));
+    world.entities.push_back(
+        transformed(std::to_string(index),
+                    {.parent = parent, .position = {float(index), 1, 2}}));
   }
-  JobSystem jobs(3);
   WorldTransformSnapshot3D snapshot;
-  if (!snapshotMatchesWorld(snapshot, world, &jobs)) {
+  if (!snapshotMatchesWorld(snapshot, world)) {
     return false;
   }
   for (std::size_t index = 0; index < world.entities.size(); index += 8) {
-    world.entities[index].component<Transform3DComponent>()->position.y = 8;
+    world.entities[index].updateComponent<Transform3DComponent>(
+        [](auto &value) { value.position.y = 8; });
   }
-  if (!snapshotMatchesWorld(snapshot, world, &jobs)) {
+  if (!snapshotMatchesWorld(snapshot, world)) {
     return false;
   }
   world.entities[0].id = "renamed";
   world.entities[2].removeComponent<Transform3DComponent>();
-  world.entities[4].component<Transform3DComponent>()->parent = "5";
-  return snapshotMatchesWorld(snapshot, world, &jobs);
+  world.entities[4].updateComponent<Transform3DComponent>(
+      [](auto &value) { value.parent = "5"; });
+  return snapshotMatchesWorld(snapshot, world);
 }
 
 bool checkRetainedSnapshot() {
   World world;
-  world.entities.push_back(transformed(
-      "parent", {.position = {4, 1, 2}, .scale = {-2, 3, 0.5F}}));
-  world.entities.push_back(transformed(
-      "child", {.parent = "parent", .position = {1, 2, 3},
-                .rotation = {0.3F, -0.7F, 1.2F}}));
+  world.entities.push_back(
+      transformed("parent", {.position = {4, 1, 2}, .scale = {-2, 3, 0.5F}}));
+  world.entities.push_back(
+      transformed("child", {.parent = "parent",
+                            .position = {1, 2, 3},
+                            .rotation = {0.3F, -0.7F, 1.2F}}));
   WorldTransformSnapshot3D snapshot;
   if (!snapshotMatchesWorld(snapshot, world)) {
     return false;
@@ -162,23 +165,26 @@ bool checkRetainedSnapshot() {
       snapshot.refresh(world).data() != retained) {
     return false;
   }
-  auto *parent = world.entities[0].component<Transform3DComponent>();
-  parent->position = {-3, 2, 7};
+  world.entities[0].updateComponent<Transform3DComponent>(
+      [](auto &value) { value.position = {-3, 2, 7}; });
   if (!snapshotMatchesWorld(snapshot, world)) {
     return false;
   }
-  parent->rotation = {0.6F, -0.2F, 0.9F};
+  world.entities[0].updateComponent<Transform3DComponent>(
+      [](auto &value) { value.rotation = {0.6F, -0.2F, 0.9F}; });
   if (!snapshotMatchesWorld(snapshot, world)) {
     return false;
   }
-  parent->scale = {4, -0.5F, 2};
+  world.entities[0].updateComponent<Transform3DComponent>(
+      [](auto &value) { value.scale = {4, -0.5F, 2}; });
   if (!snapshotMatchesWorld(snapshot, world)) {
     return false;
   }
-  // Replacement publishes a registry update even though membership is unchanged.
+  // Replacement publishes a registry update even though membership is
+  // unchanged.
   const auto revision = world.entities.componentRegistry().storageRevision();
   world.entities[0].setComponent(Transform3DComponent{.position = {8, 2, 4}});
-  if (world.entities.componentRegistry().storageRevision() == revision ||
+  if (world.entities.componentRegistry().storageRevision() != revision ||
       !snapshotMatchesWorld(snapshot, world)) {
     return false;
   }
@@ -186,7 +192,8 @@ bool checkRetainedSnapshot() {
   if (!snapshotMatchesWorld(snapshot, world) || snapshot.refresh(world)[1]) {
     return false;
   }
-  world.entities[1].component<Transform3DComponent>()->parent = "renamed";
+  world.entities[1].updateComponent<Transform3DComponent>(
+      [](auto &value) { value.parent = "renamed"; });
   if (!snapshotMatchesWorld(snapshot, world) || !snapshot.refresh(world)[1]) {
     return false;
   }
@@ -203,7 +210,8 @@ bool checkRetainedSnapshot() {
       snapshot.refresh(world)[1]) {
     return false;
   }
-  world.entities[1].component<Transform3DComponent>()->parent.clear();
+  world.entities[1].updateComponent<Transform3DComponent>(
+      [](auto &value) { value.parent.clear(); });
   if (!snapshotMatchesWorld(snapshot, world) || !snapshot.refresh(world)[0]) {
     return false;
   }
@@ -220,11 +228,69 @@ bool checkRetainedSnapshot() {
          snapshotMatchesWorld(snapshot, world);
 }
 
+bool checkReactiveSnapshotLifetime() {
+  const bool profiling = RuntimeProfiler::enabled();
+  struct RestoreProfiler {
+    bool enabled;
+    ~RestoreProfiler() { RuntimeProfiler::setEnabled(enabled); }
+  } restore{profiling};
+  RuntimeProfiler::setEnabled(true);
+  World world;
+  world.entities.push_back(transformed("root", {}));
+  world.entities.push_back(transformed("child", {.parent = "root"}));
+  world.entities.push_back(transformed("leaf", {.parent = "child"}));
+  world.entities.push_back(transformed("independent", {}));
+  WorldTransformSnapshot3D first;
+  WorldTransformSnapshot3D second;
+  const auto verify = [&](WorldTransformSnapshot3D &snapshot,
+                          std::size_t recomputed) {
+    RuntimeProfiler::beginFrame();
+    if (!snapshotMatchesWorld(snapshot, world)) {
+      return false;
+    }
+    for (const auto &entry : RuntimeProfiler::frameEntries()) {
+      if (entry.name == "Renderer3D.transforms_recomputed") {
+        return entry.gauge == double(recomputed);
+      }
+    }
+    return false;
+  };
+  if (!verify(first, 4) || !verify(second, 4) || !verify(first, 0)) {
+    return false;
+  }
+  world.entities[0].updateComponent<Transform3DComponent>(
+      [](auto &value) { value.position.x = 3; });
+  world.entities[0].updateComponent<Transform3DComponent>(
+      [](auto &value) { value.position.x = 4; });
+  if (!verify(first, 3) || !verify(second, 3) || !verify(first, 0)) {
+    return false;
+  }
+  WorldTransformSnapshot3D moved(std::move(first));
+  world.entities[0].updateComponent<Transform3DComponent>(
+      [](auto &value) { value.position.x = 5; });
+  if (!verify(moved, 3)) {
+    return false;
+  }
+  // Recycled native slots must not collide with an old generation retained by
+  // an independent observer which has not yet consumed its events.
+  world.entities.clear();
+  world.entities.push_back(transformed("replacement", {.position = {7, 2, 1}}));
+  if (!verify(moved, 1) || !verify(second, 1)) {
+    return false;
+  }
+  {
+    World temporary;
+    temporary.entities.push_back(transformed("temporary", {}));
+    moved.refresh(temporary);
+  }
+  return verify(moved, 1);
+}
+
 } // namespace
 
 int main() {
-  if (!checkParallelSnapshot()) {
-    std::cerr << "Parallel snapshot diverged after live hierarchy edits.\n";
+  if (!checkTrackedSnapshot() || !checkReactiveSnapshotLifetime()) {
+    std::cerr << "Tracked snapshot diverged after live hierarchy edits.\n";
     return 1;
   }
   using namespace demi::runtime;
@@ -314,13 +380,14 @@ int main() {
     return 1;
   }
 
-  auto *rootTransform = world.entities[0].component<Transform3DComponent>();
-  rootTransform->scale.x = 0.0F;
+  world.entities[0].updateComponent<Transform3DComponent>(
+      [](auto &value) { value.scale.x = 0.0F; });
   if (worldToLocalTransform3D(world, world.entities[1], *child)) {
     std::cerr << "World-to-local conversion accepted a singular parent.\n";
     return 1;
   }
-  rootTransform->scale.x = 2.0F;
+  world.entities[0].updateComponent<Transform3DComponent>(
+      [](auto &value) { value.scale.x = 2.0F; });
 
   World cameraWorld;
   cameraWorld.entities.push_back(transformed(
@@ -342,7 +409,8 @@ int main() {
 
   const auto bulk = resolveWorldTransforms3D(world);
   for (std::size_t index = 0; index < world.entities.size(); ++index) {
-    const auto individual = resolveWorldTransform3D(world, world.entities[index]);
+    const auto individual =
+        resolveWorldTransform3D(world, world.entities[index]);
     if (bulk[index].has_value() != individual.has_value()) {
       std::cerr << "Bulk hierarchy resolution changed transform presence.\n";
       return 1;
@@ -362,13 +430,16 @@ int main() {
       return 1;
     }
   }
-  world.entities[0].component<Transform3DComponent>()->position.x += 4;
+  world.entities[0].updateComponent<Transform3DComponent>(
+      [](auto &value) { value.position.x += 4; });
   const auto editedBulk = resolveWorldTransforms3D(world);
-  if (!editedBulk[2] || !close(editedBulk[2]->position.x, bulk[2]->position.x + 4)) {
+  if (!editedBulk[2] ||
+      !close(editedBulk[2]->position.x, bulk[2]->position.x + 4)) {
     std::cerr << "A new bulk hierarchy snapshot retained an old parent edit.\n";
     return 1;
   }
-  world.entities[0].component<Transform3DComponent>()->parent = "grandchild";
+  world.entities[0].updateComponent<Transform3DComponent>(
+      [](auto &value) { value.parent = "grandchild"; });
   const auto cycleIssues = validateTransform3DHierarchy(world);
   if (cycleIssues.empty() ||
       cycleIssues.front().kind != Transform3DHierarchyIssueKind::Cycle ||
@@ -378,8 +449,10 @@ int main() {
     return 1;
   }
 
-  world.entities[0].component<Transform3DComponent>()->parent.clear();
-  world.entities[1].component<Transform3DComponent>()->parent = "missing";
+  world.entities[0].updateComponent<Transform3DComponent>(
+      [](auto &value) { value.parent.clear(); });
+  world.entities[1].updateComponent<Transform3DComponent>(
+      [](auto &value) { value.parent = "missing"; });
   const auto missingIssues = validateTransform3DHierarchy(world);
   if (missingIssues.empty() ||
       missingIssues.front().kind !=

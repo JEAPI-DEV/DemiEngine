@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cassert>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -25,6 +26,116 @@ struct GameplayData {
   std::string name;
   std::vector<int> values;
 };
+struct TrackedPosition {
+  static constexpr bool trackedMutation = true;
+  int value = 0;
+  bool operator==(const TrackedPosition &) const = default;
+};
+
+static_assert(std::is_same_v<decltype(std::declval<ComponentStorage &>()
+                                          .get<TrackedPosition>()),
+                             const TrackedPosition *>);
+static_assert(std::is_same_v<decltype(std::declval<ComponentStorage &>().set(
+                                 TrackedPosition{})),
+                             const TrackedPosition &>);
+static_assert(std::is_same_v<decltype(std::declval<demi::runtime::Entity &>()
+                                          .component<TrackedPosition>()),
+                             const TrackedPosition *>);
+static_assert(std::is_same_v<decltype(std::declval<demi::runtime::Entity &>()
+                                          .setComponent(TrackedPosition{})),
+                             const TrackedPosition &>);
+static_assert(
+    std::is_same_v<decltype(std::declval<ComponentStorage &>().get<Position>()),
+                   Position *>);
+
+struct UpdateCounter {
+  int count = 0;
+  void updated(entt::registry &, entt::entity) { ++count; }
+};
+
+void notifiedUpdatesCommitOnlyCompletedChanges() {
+  demi::runtime::Entity entity;
+  bool called = false;
+  assert(!entity.updateComponent<TrackedPosition>(
+      [&](TrackedPosition &) { called = true; }));
+  assert(!called);
+  entity.setComponent(TrackedPosition{4});
+  assert(entity.components.owner() == nullptr);
+  assert(entity.updateComponent<TrackedPosition>(
+      [](TrackedPosition &value) { value.value = 7; }));
+  assert(entity.component<TrackedPosition>()->value == 7);
+
+  auto registry = std::make_shared<demi::runtime::ComponentRegistry>();
+  entity.components.bind(registry);
+  UpdateCounter updates;
+  const entt::scoped_connection updateConnection =
+      registry->native()
+          .on_update<TrackedPosition>()
+          .connect<&UpdateCounter::updated>(updates);
+  const auto revision = registry->storageRevision();
+  assert(entity.component<TrackedPosition>()->value == 7);
+  assert(registry->storageRevision() == revision);
+  assert(updates.count == 0);
+  assert(entity.updateComponent<TrackedPosition>(
+      [](TrackedPosition &value) { value.value = 9; }));
+  assert(entity.component<TrackedPosition>()->value == 9);
+  assert(registry->storageRevision() == revision);
+  assert(updates.count == 1);
+  entity.setComponent(TrackedPosition{9});
+  assert(entity.updateComponent<TrackedPosition>([](TrackedPosition &) {}));
+  assert(registry->storageRevision() == revision);
+  assert(updates.count == 1);
+
+  bool threw = false;
+  try {
+    entity.updateComponent<TrackedPosition>([](TrackedPosition &value) {
+      value.value = 12;
+      throw std::runtime_error("injected mutation failure");
+    });
+  } catch (const std::runtime_error &) {
+    threw = true;
+  }
+  assert(threw);
+  assert(entity.component<TrackedPosition>()->value == 9);
+  assert(registry->storageRevision() == revision);
+  assert(updates.count == 1);
+  entity.setComponent(Position{2});
+  entity.component<Position>()->value = 3;
+  assert(entity.updateComponent<Position>(
+      [](Position &value) { value.value += 4; }));
+  assert(entity.component<Position>()->value == 7);
+}
+
+void detachedUpdatesPreserveBorrowedValuesAndUnrelatedState() {
+  demi::runtime::Entity entity;
+  entity.setComponent(GameplayData{"original", {1, 2, 3}});
+  auto *borrowed = entity.component<GameplayData>();
+  assert(entity.updateComponent<GameplayData>(
+      [](GameplayData &value) { value.name = "edited"; }));
+  assert(entity.component<GameplayData>() == borrowed);
+  assert(borrowed->name == "edited");
+  assert((borrowed->values == std::vector<int>{1, 2, 3}));
+  assert(entity.updateComponent<GameplayData>(
+      [](GameplayData &value) { value.values.push_back(4); }));
+  assert(entity.component<GameplayData>() == borrowed);
+  assert(borrowed->name == "edited");
+  assert((borrowed->values == std::vector<int>{1, 2, 3, 4}));
+
+  bool threw = false;
+  try {
+    entity.updateComponent<GameplayData>([](GameplayData &value) {
+      value.name = "uncommitted";
+      value.values.clear();
+      throw std::runtime_error("injected detached mutation failure");
+    });
+  } catch (const std::runtime_error &) {
+    threw = true;
+  }
+  assert(threw);
+  assert(entity.component<GameplayData>() == borrowed);
+  assert(borrowed->name == "edited");
+  assert((borrowed->values == std::vector<int>{1, 2, 3, 4}));
+}
 
 void distinctTypesAndReplacementRemainChecked() {
   ComponentStorage storage;
@@ -173,17 +284,23 @@ void registryRevisionsAreLocalAndTrackTypedMutation() {
   assert(firstRegistry->storageRevision() > revision);
   assert(secondRegistry->storageRevision() == secondRevision);
   revision = firstRegistry->storageRevision();
+  UpdateCounter updates;
+  const entt::scoped_connection updateConnection =
+      firstRegistry->native()
+          .on_update<Position>()
+          .connect<&UpdateCounter::updated>(updates);
   first.set(Position{2});
-  assert(firstRegistry->storageRevision() > revision);
-  revision = firstRegistry->storageRevision();
+  assert(firstRegistry->storageRevision() == revision);
+  assert(updates.count == 1);
   assert(first.get<Position>()->value == 2);
   first.get<Position>()->value = 3;
   // Borrowed mutable access is deliberately not a notification boundary.
   assert(firstRegistry->storageRevision() == revision);
+  assert(updates.count == 1);
   firstRegistry->native().patch<Position>(
       first.handle(), [](Position &value) { value.value = 4; });
-  assert(firstRegistry->storageRevision() > revision);
-  revision = firstRegistry->storageRevision();
+  assert(firstRegistry->storageRevision() == revision);
+  assert(updates.count == 2);
   firstRegistry->native().remove<Position>(first.handle());
   assert(firstRegistry->storageRevision() > revision);
   revision = firstRegistry->storageRevision();
@@ -332,6 +449,8 @@ void registryRowsFollowStorageLifetimeAndMoves() {
 } // namespace
 
 int main() {
+  detachedUpdatesPreserveBorrowedValuesAndUnrelatedState();
+  notifiedUpdatesCommitOnlyCompletedChanges();
   detachedValuesStayLightweightUntilPublished();
   sharedRegistryOwnsTypedPoolsAndDetachedCopies();
   registryRowsFollowStorageLifetimeAndMoves();

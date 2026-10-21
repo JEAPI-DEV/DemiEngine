@@ -44,9 +44,18 @@ public:
     requires std::copy_constructible<std::remove_cvref_t<ComponentType>>
   std::remove_cvref_t<ComponentType> &set(ComponentType &&component) {
     using StoredType = std::remove_cvref_t<ComponentType>;
-    Entry entry{entt::any{std::in_place_type<StoredType>,
-                          std::forward<ComponentType>(component)},
-                &publish<StoredType>};
+    // Preserve borrowed native addresses when committing a staged edit, just
+    // as the bound registry's assignable component update does.
+    StoredType replacement(std::forward<ComponentType>(component));
+    if constexpr (std::is_move_assignable_v<StoredType>) {
+      if (auto *existing = get<StoredType>()) {
+        *existing = std::move(replacement);
+        return *existing;
+      }
+    }
+    Entry entry{
+        entt::any{std::in_place_type<StoredType>, std::move(replacement)},
+        &publish<StoredType>};
     auto result = values_.insert_or_assign(entt::type_hash<StoredType>::value(),
                                            std::move(entry));
     return *entt::any_cast<StoredType>(&result.first->second.value);

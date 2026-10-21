@@ -647,7 +647,7 @@ int main() {
     World cachedWorld;
     auto parent = shape("cached-parent", "cube", {1, 0, 5});
     auto child = shape("cached-child", "cube", {2, 0, 0});
-    child.component<Transform3DComponent>()->parent = "cached-parent";
+    child.updateComponent<Transform3DComponent>([&](auto &transform) { transform.parent = "cached-parent"; });
     child.component<MeshRendererComponent>()->model = "asset://cache/model";
     cachedWorld.entities.push_back(std::move(parent));
     cachedWorld.entities.push_back(std::move(child));
@@ -682,17 +682,17 @@ int main() {
     otherView.position.x = 100;
     assert(extract(otherView).meshes.empty());
     assert(boundsQueries == 1);
-    cachedWorld.entities[0].component<Transform3DComponent>()->position.x = 4;
+    cachedWorld.entities[0].updateComponent<Transform3DComponent>([&](auto &transform) { transform.position.x = 4; });
     preparation.reset();
     const auto edited = extract(cachedFrame);
     assert(edited.meshes.size() == 2 && boundsQueries == 2);
     assert(edited.meshes[1].transform.position.x == 6);
     assert((*edited.meshes[1].preparedModelMatrix)[12] == 6);
-    cachedWorld.entities[0].component<Transform3DComponent>()->parent = "cached-child";
+    cachedWorld.entities[0].updateComponent<Transform3DComponent>([&](auto &transform) { transform.parent = "cached-child"; });
     preparation.reset();
     assert(extract(cachedFrame).meshes.empty());
-    cachedWorld.entities[0].component<Transform3DComponent>()->parent.clear();
-    cachedWorld.entities[1].component<Transform3DComponent>()->parent = "missing";
+    cachedWorld.entities[0].updateComponent<Transform3DComponent>([](auto &transform) { transform.parent.clear(); });
+    cachedWorld.entities[1].updateComponent<Transform3DComponent>([&](auto &transform) { transform.parent = "missing"; });
     preparation.reset();
     assert(extract(cachedFrame).meshes.size() == 1);
   }
@@ -1049,7 +1049,7 @@ int main() {
   Entity parent = shape("parent", "cube", {0.0F, 0.0F, 0.0F});
   world.entities.push_back(std::move(parent));
   Entity child = shape("child", "sphere", {1.0F, 0.0F, 0.0F});
-  child.component<Transform3DComponent>()->parent = "parent";
+  child.updateComponent<Transform3DComponent>([&](auto &transform) { transform.parent = "parent"; });
   world.entities.push_back(std::move(child));
   world.entities.push_back(shape("plane", "plane", {0.0F, -1.0F, 0.0F}));
   world.entities.push_back(shape("cylinder", "cylinder", {-1.0F, 0.0F, 0.0F}));
@@ -1381,13 +1381,11 @@ int main() {
     static_cast<void>(graphics.endFrame());
 
     // Camera visibility must not control GPU resource ownership.
-    auto *transform =
-        retentionWorld.entities.front().component<Transform3DComponent>();
-    transform->position = {10000, 0, 0};
+    retentionWorld.entities.front().updateComponent<Transform3DComponent>([&](auto &value) { value.position = {10000, 0, 0}; });
     assert(extractVisibleMeshes3D(retentionWorld, frame).meshes.empty());
     assert(retentionRenderer.renderFrame(retentionWorld, frame, 0.016F, error));
     static_cast<void>(graphics.endFrame());
-    transform->position = {};
+    retentionWorld.entities.front().updateComponent<Transform3DComponent>([&](auto &value) { value.position = {}; });
     assert(retentionRenderer.renderFrame(retentionWorld, frame, 0.016F, error));
     assert(uploads.meshUploads.size() == 1);
     static_cast<void>(graphics.endFrame());
@@ -1777,12 +1775,12 @@ int main() {
   assert(resources->destroy(secondTarget.frameBuffer));
   assert(resources->destroy(secondTarget.depth));
   assert(resources->destroy(secondTarget.color));
-  world.entities.front().component<Transform3DComponent>()->position.x += .5F;
+  world.entities.front().updateComponent<Transform3DComponent>([&](auto &transform) { transform.position.x += .5F; });
   capture.transformsByView.clear();
   assert(renderer.renderFrame(world, frame, .016F, error));
   assert(capture.transformsByView[frame.viewId] != previousShadow);
   static_cast<void>(graphics.endFrame());
-  world.entities.front().component<Transform3DComponent>()->position.x -= .5F;
+  world.entities.front().updateComponent<Transform3DComponent>([&](auto &transform) { transform.position.x -= .5F; });
   Entity shadowSettings;
   shadowSettings.id = "shadow-settings";
   shadowSettings.setComponent(Environment3DComponent{.maxShadowLights = 0});
@@ -2276,7 +2274,7 @@ int main() {
     MaterialLibrary windMaterials(*resources);
     std::vector<std::string> windDiagnostics;
     assert(windMaterials.load(windRegistry, windDiagnostics));
-    primitiveWorld.entities.front().component<Transform3DComponent>()->position.x = 3.F;
+    primitiveWorld.entities.front().updateComponent<Transform3DComponent>([&](auto &transform) { transform.position.x = 3.F; });
     primitiveWorld.entities.front().component<MeshRendererComponent>()->material = "asset://bounds/wind";
     assert(extractVisibleMeshes3D(primitiveWorld, boundsFrame).meshes.empty());
     assert(extractVisibleMeshes3D(

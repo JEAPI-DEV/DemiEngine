@@ -100,9 +100,13 @@ int main() {
   deformMeshPositions3D(positions, dents);
   assert(positions[0].z == 0);
 
-  world.entities[1].component<Transform3DComponent>()->rotation = {0, 0.7F, 0};
-  world.entities[1].component<Transform3DComponent>()->scale = {2, 3, 4};
-  world.entities[0].component<Transform3DComponent>()->parent = "reference";
+  world.entities[1].updateComponent<Transform3DComponent>(
+      [](Transform3DComponent &transform) {
+        transform.rotation = {0, 0.7F, 0};
+        transform.scale = {2, 3, 4};
+      });
+  world.entities[0].updateComponent<Transform3DComponent>(
+      [](Transform3DComponent &transform) { transform.parent = "reference"; });
   mesh->size = {0.5F, 1, 2};
   auto transform = *resolveWorldTransform3D(world, world.entities[0]);
   transform.scale = {transform.scale.x * mesh->size.x,

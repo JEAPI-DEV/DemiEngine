@@ -238,16 +238,19 @@ void AnimationStateMachineSystem::update(World &world,
       }
     }
     if (machine->rootMotion && dt > 0.0F) {
-      if (auto *transform = entity.component<Transform3DComponent>()) {
+      if (entity.hasComponent<Transform3DComponent>()) {
         const Vec3 motion =
             presentation->rootMotionTrack.size() >= 2
                 ? extractRootMotion(presentation->rootMotionTrack, previousTime,
                                     machine->time, presentation->duration,
                                     presentation->loop)
                 : Vec3{};
-        transform->position.x += motion.x;
-        transform->position.y += motion.y;
-        transform->position.z += motion.z;
+        entity.updateComponent<Transform3DComponent>(
+            [&](Transform3DComponent &transform) {
+              transform.position.x += motion.x;
+              transform.position.y += motion.y;
+              transform.position.z += motion.z;
+            });
       }
     }
     machine->entered = false;

@@ -109,11 +109,20 @@ an entity/world preserves independent snapshot semantics. Collection replacement
 removal and swapping use explicit operations to maintain handle/order ownership.
 Fallible component adoption is completed before transactional terrain publication.
 
-EnTT signals publish pool construction, destruction and explicit updates into a
-registry-local revision. Collection ordering has a separate revision. Direct
-mutable C++ component references still require value-sensitive consumers to check
-values; replacing those mutation boundaries is required before removing transform
-polling. See [ECS migration evidence](runtime-ecs-migration.md).
+EnTT construction/destruction signals publish structural pool revisions; in-place
+updates do not invalidate every component address. Collection ordering has its
+own revision. Transform3D reads through the native entity/storage facade are
+const. Native writers use `updateComponent<Transform3DComponent>(callback)` or
+replace the complete value with `setComponent`. Updates stage a value copy,
+commit only after the callback succeeds, suppress identical poses, and publish
+EnTT update events. Lua and JSON contracts are unchanged.
+
+World-pose snapshots consume independent EnTT reactive change sets and recompose
+affected descendants. Parent/topology changes rebuild the dependency graph;
+cyclic or missing parents still yield invalid poses. Entity-ID rename detection
+still scans mutable metadata. Other components with mutable native references
+retain their existing value-sensitive preparation until their own writer
+boundaries are migrated. See [ECS migration evidence](runtime-ecs-migration.md).
 
 Runtime composition keeps three narrow owners: `RuntimePrefabService` expands
 and pools authored prefabs, `SceneFlow` prepares and applies scene transitions,

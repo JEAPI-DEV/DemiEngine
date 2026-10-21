@@ -92,17 +92,17 @@ int main() {
 
   runtime::World hierarchyWorld;
   runtime::Entity parent = transformed("parent");
-  *parent.component<runtime::Transform3DComponent>() = {
+  parent.setComponent(runtime::Transform3DComponent{
       .position = {10.0F, 2.0F, 3.0F},
       .rotation = {0.0F, 1.57079632679F, 0.0F},
-      .scale = {2.0F, 3.0F, 4.0F}};
+      .scale = {2.0F, 3.0F, 4.0F}});
   hierarchyWorld.entities.push_back(std::move(parent));
 
   runtime::Entity child = transformed("child");
-  *child.component<runtime::Transform3DComponent>() = {
+  child.setComponent(runtime::Transform3DComponent{
       .parent = "parent",
       .position = {1.0F, 0.0F, 0.0F},
-      .scale = {0.5F, 2.0F, 1.0F}};
+      .scale = {0.5F, 2.0F, 1.0F}});
   child.setComponent(runtime::MeshRendererComponent{
       .size = {80.0F, 2.0F, 4.0F},
       .boundsMin = {-0.5F, -0.5F, -0.5F},

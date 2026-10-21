@@ -28,8 +28,9 @@ The engine still needs ownership and authoring boundaries around the library:
 - Terrain publication pre-adopts replacement/addition rows and sizes index
   storage before changing visible entities. Failed adoption preserves original
   source and live state. Unpublished rows are excluded from ordered queries.
-- Registry-local construct/destroy/update signals and collection-order revisions
-  invalidate borrowed addresses. A change in another registry does not invalidate
+- Registry-local construct/destroy signals and collection-order revisions
+  invalidate borrowed addresses. In-place update signals notify value consumers
+  without invalidating unrelated addresses. A change in another registry does not invalidate
   this world's component pointers.
 
 An initial implementation gave each detached entity its own registry. Native
@@ -67,20 +68,64 @@ or a claim of 100,000 fully simulated/rendered objects at a particular FPS.
 Raw evidence: `/tmp/demi-ecs-results.jsonl`. The reproduction commands and scope
 limitations are in `tools/performance/ecs/README.md`.
 
-## Mutation boundary still to migrate
+## Explicit Transform3D mutation and derived world poses
 
-Native component getters still expose mutable references for compatibility with
-existing systems. Those writes cannot emit EnTT update notifications by magic.
-Value-sensitive transform consumers therefore still compare live values.
-Removing those checks before migrating writers would cause stale rendering.
+The Transform3D follow-up replaces polling of component values with notified
+writes. `Entity::component<Transform3DComponent>()` and the matching storage
+getter return const pointers, including on mutable entities. `setComponent`
+also returns a const reference for this type. Callers can publish a complete
+value with `setComponent`, or edit a staged copy through the explicit boundary:
 
-The bounded next step is an explicit, notified component-update operation,
-followed by const Transform3D reads enforced at compile time. Persistent writers
-include physics character/body synchronization, Lua transform setters and
-look-at, animation root motion, fragment movement, replication and reflected
-field patches. Detached builders and unpublished transaction worlds have a
-separate lifecycle. Once those writers are migrated, transform-specific dirty
-sets and descendant invalidation can replace full transform polling.
+```cpp
+const bool present = entity.updateComponent<Transform3DComponent>(
+    [&](Transform3DComponent &transform) {
+      transform.position = position;
+      transform.rotation = rotation;
+    });
+```
+
+`updateComponent` returns false when the component is absent and does not invoke
+the callback. Otherwise it copies the current value, invokes the callback on
+that copy, and commits through component storage. A throwing callback leaves
+the live value unchanged. An identical Transform3D replacement succeeds without
+emitting an update; comparison covers parent, position, rotation and scale.
+Actual live changes publish EnTT update signals. Reads do not mark data dirty.
+Do not retain the callback's staged reference after the callback returns.
+
+Physics character/body synchronization, Lua transform setters and look-at,
+animation root motion, fragment movement, replicated poses, and reflected field
+patching use this boundary. Reflected edits retain the owning component's
+invalidation hook and preserve unrelated state. Detached builders and candidate
+transaction worlds also use explicit updates or complete-value publication;
+collection replacement remains the publication boundary for whole entities.
+Low-level integrations operating on the native registry must preserve the same
+construct/update/destroy signal contract.
+
+`WorldTransformSnapshot3D` subscribes to Transform3D construction, update and
+removal with EnTT reactive storage. It retains copied local values and derived
+world poses, not borrowed component pointers. Refresh consumes changed handles,
+maps them to authored order and recomposes affected entities and descendants.
+Repeated updates coalesce in the pending set; values equal to the retained
+snapshot need no recomposition. Registry replacement or collection reordering
+forces a rebuild. Parent-reference changes, component presence changes and ID
+changes rebuild the hierarchy and resolve all poses. Missing parents and cycles
+still produce absent world transforms. Listener lifetime does not keep a dead
+world registry alive.
+
+This removes full Transform3D value polling, not every full-world operation.
+Entity IDs remain publicly mutable native metadata, so each refresh still scans
+IDs to detect same-sized renames. Other component types still expose mutable
+access and have not all migrated to notified value updates. Renderer preparation
+outside the world-transform snapshot may therefore retain value comparisons or
+broader registry-revision invalidation. No general event-driven rendering claim
+follows from this transform-specific boundary.
+
+The profiler exposes `Renderer3D.transform_updates` for changed local snapshots
+and `Renderer3D.transforms_recomputed` for recomposed poses. These are diagnostic
+counts, not measured performance gains. The Linux timings below describe the
+preceding storage/system-iteration qualification; the explicit mutation and
+reactive-snapshot follow-up requires its own measurements before a performance
+comparison is reported.
 
 The library audit is separate: existing cgltf consolidation and a shared schema
 validator have concrete deletion opportunities. No new general schema engine or
@@ -128,3 +173,31 @@ the final importer/system changes. Terrain and Amber Pass validated, and the
 minimal 2D Android example passed Android-target validation plus a Linux headless
 smoke. This does not claim a device run, Windows qualification, or a full-suite
 result. No online documentation or packages were deployed.
+
+## Transform notification follow-up qualification
+
+Release, Vulkan/SDL3 X11, same terrain_3d camera and 2560 x 1440 window,
+900 frames with samples 180–899; one engine process and no concurrent builds.
+The new trace is `/tmp/demi-transform-events-final.csv`. Comparison is with the
+previous recorded run, not an alternating same-session binary comparison.
+
+| Scope | Previous median / p95 | Follow-up median / p95 |
+| --- | ---: | ---: |
+| CPU frame | 9.372 / 10.561 ms | 9.499 / 10.533 ms |
+| Simulation update | 0.599 / 0.725 ms | 0.609 / 0.761 ms |
+| CPU render preparation | 8.322 / 9.373 ms | 8.392 / 9.358 ms |
+| World transforms | 0.507 / 0.657 ms | 0.770 / 1.020 ms |
+
+No overall speedup is demonstrated. The transform scope increased despite zero
+steady-state recompositions; the mutable-ID scan remains. This change establishes
+an enforceable mutation contract and selective hierarchy propagation, not a
+completed rendering optimization. Main/shadow counts remain 116,888/423,124.
+
+The full native build passed. Full CTest initially passed 442 of 449 tests;
+after correcting six test fixtures/expectations, all six passed on rerun.
+The remaining Android packaging test is blocked by the existing libuv/API-level
+mismatch described in [Android qualification](libuv-android-qualification.md).
+Thus 448 distinct tests passed across the full run and focused rerun, not a
+single all-green run. Amber Pass native mounted-riding E2E also passed.
+Mutation tests cover no-op suppression, callback failure, retained detached
+addresses, independent consumers, hierarchy propagation and registry lifetime.

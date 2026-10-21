@@ -28,9 +28,8 @@ public:
   }
 
   [[nodiscard]] std::uint64_t identity() const noexcept { return identity_; }
-  // Tracks pool membership and published updates. Borrowed mutable component
-  // references do not publish updates; value-sensitive consumers compare
-  // values.
+  // Tracks pool membership and component address invalidation. Value updates
+  // stay in place and notify their owning consumers through EnTT on_update.
   [[nodiscard]] std::uint64_t storageRevision() const noexcept {
     return storageRevision_;
   }
@@ -49,8 +48,6 @@ public:
       registry_.on_construct<StoredType>()
           .template connect<&ComponentRegistry::storageChanged>(*this);
       registry_.on_destroy<StoredType>()
-          .template connect<&ComponentRegistry::storageChanged>(*this);
-      registry_.on_update<StoredType>()
           .template connect<&ComponentRegistry::storageChanged>(*this);
     }
   }

@@ -11,6 +11,7 @@
 #include <vector>
 
 namespace demi::runtime {
+class JobSystem;
 struct Entity;
 struct World;
 struct MeshInstances3DComponent;

@@ -85,7 +85,7 @@ void retainedPrimitiveBoundsFollowLiveEdits() {
   assert(visibleCount() == 1);
   appearance->hasBounds = false;
   assert(visibleCount() == 0);
-  world.entities.front().component<Transform3DComponent>()->position.x = 0;
+  world.entities.front().updateComponent<Transform3DComponent>([&](auto &transform) { transform.position.x = 0; });
   assert(visibleCount() == 1);
 }
 
@@ -157,8 +157,8 @@ void spatialInstancesMatchReferenceAndKeepOffscreenShadowCasters() {
       const auto world = composeWorldTransform3D(transform, local);
       auto entity =
           mesh(id, world.position, {-.5F, -.5F, -.5F}, {.5F, .5F, .5F});
-      entity.component<Transform3DComponent>()->rotation = world.rotation;
-      entity.component<Transform3DComponent>()->scale = world.scale;
+      entity.updateComponent<Transform3DComponent>([&](auto &transform) { transform.rotation = world.rotation; });
+      entity.updateComponent<Transform3DComponent>([&](auto &transform) { transform.scale = world.scale; });
       ordinary.entities.push_back(std::move(entity));
     }
     const auto expected = extractVisibleMeshes3D(ordinary, view);
@@ -197,11 +197,9 @@ void spatialInstancesMatchReferenceAndKeepOffscreenShadowCasters() {
       ->setTransform("4095", {.position = {5, 0, 5}});
   preparation.reset();
   reference(camera);
-  auto *transform =
-      instanced.entities.front().component<Transform3DComponent>();
-  transform->position = {-10, 0, 0};
-  transform->rotation = {0, .1F, 0};
-  transform->scale = {-1, 2, .5F};
+  instanced.entities.front().updateComponent<Transform3DComponent>([&](auto &value) { value.position = {-10, 0, 0}; });
+  instanced.entities.front().updateComponent<Transform3DComponent>([&](auto &value) { value.rotation = {0, .1F, 0}; });
+  instanced.entities.front().updateComponent<Transform3DComponent>([&](auto &value) { value.scale = {-1, 2, .5F}; });
   preparation.reset();
   reference(camera);
 }
@@ -351,7 +349,7 @@ int main() {
     World copies;
     auto owner = mesh("distance-copies", {10, 0, 0}, {-.5F, -.5F, -.5F},
                       {.5F, .5F, .5F});
-    owner.component<Transform3DComponent>()->scale = {2, 2, 2};
+    owner.updateComponent<Transform3DComponent>([&](auto &transform) { transform.scale = {2, 2, 2}; });
     owner.component<MeshRendererComponent>()->cullDistance = 10;
     owner.component<MeshRendererComponent>()->size = {2, 3, 4};
     MeshInstances3DComponent instances;
@@ -443,8 +441,7 @@ int main() {
 
     // Editor renderFrame calls own separate presentations. Owner edits, like
     // copy edits above, become visible after resetting the immutable snapshot.
-    copies.entities.front().component<Transform3DComponent>()->position.x =
-        11.F;
+    copies.entities.front().updateComponent<Transform3DComponent>([&](auto &transform) { transform.position.x = 11.F; });
     preparation.reset();
     const auto movedOwner = extractVisibleMeshes3D(
         copies, shadowFrame, nullptr, nullptr, nullptr, nullptr, nullptr,
@@ -469,8 +466,7 @@ int main() {
     preparation.reset();
     World otherWorld;
     otherWorld.entities = copies.entities;
-    otherWorld.entities.front().component<Transform3DComponent>()->position.x =
-        12.F;
+    otherWorld.entities.front().updateComponent<Transform3DComponent>([&](auto &transform) { transform.position.x = 12.F; });
     const auto otherScene = extractVisibleMeshes3D(
         otherWorld, shadowFrame, nullptr, nullptr, nullptr, nullptr, nullptr,
         nullptr, nullptr, {}, &preparation);

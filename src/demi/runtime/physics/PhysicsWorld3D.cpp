@@ -647,8 +647,12 @@ bool PhysicsWorld3D::replaceBodies(
         if (!lock.Succeeded())
           throw std::runtime_error("Replacement source lock failed");
         const auto &parent = lock.GetBody();
-        transform->position = demi(parent.GetPosition());
-        transform->rotation = demi(parent.GetRotation().GetEulerAngles());
+        entity->updateComponent<Transform3DComponent>(
+            [&](Transform3DComponent &updated) {
+              updated.position = demi(parent.GetPosition());
+              updated.rotation = demi(parent.GetRotation().GetEulerAngles());
+            });
+        transform = entity->component<Transform3DComponent>();
         const auto center = parent.GetPosition() +
                             parent.GetRotation() * shape->GetCenterOfMass();
         angular = parent.IsStatic() ? JPH::Vec3::sZero()
@@ -666,7 +670,8 @@ bool PhysicsWorld3D::replaceBodies(
                        checkpointVelocity, checkpointAngular})
           if (!std::isfinite(v.x) || !std::isfinite(v.y) || !std::isfinite(v.z))
             throw std::runtime_error("Non-finite replacement checkpoint state");
-        *transform = checkpointTransform;
+        entity->setComponent(checkpointTransform);
+        transform = entity->component<Transform3DComponent>();
         position = JPH::RVec3(transform->position.x,transform->position.y,transform->position.z);
         rotation = joltRotation(transform->rotation);
         linear = jolt(checkpointVelocity);
@@ -1199,7 +1204,11 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
       }
 
       const JPH::RVec3 position = character.GetPosition();
-      transform->position = demi(position);
+      entity.updateComponent<Transform3DComponent>(
+          [&](Transform3DComponent &updated) {
+            updated.position = demi(position);
+          });
+      transform = entity.component<Transform3DComponent>();
       controller->velocity = demi(character.GetLinearVelocity());
       controller->grounded = character.GetGroundState() ==
                              JPH::CharacterBase::EGroundState::OnGround;
@@ -1267,10 +1276,14 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
       const JPH::RVec3 position = simulated.GetPosition();
       const JPH::Quat rotation = simulated.GetRotation();
       record.currentPosition = demi(position);
-      if (transform->parent.empty())
-        transform->position = record.currentPosition;
-      if (transform->parent.empty())
-        transform->rotation = demi(rotation.GetEulerAngles());
+      if (transform->parent.empty()) {
+        entity->updateComponent<Transform3DComponent>(
+            [&](Transform3DComponent &updated) {
+              updated.position = record.currentPosition;
+              updated.rotation = demi(rotation.GetEulerAngles());
+            });
+        transform = entity->component<Transform3DComponent>();
+      }
       record.lastAuthoredPosition = transform->position;
       record.lastAuthoredRotation = transform->rotation;
       if (transform->parent.empty()) {

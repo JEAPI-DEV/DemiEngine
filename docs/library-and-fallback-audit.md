@@ -244,3 +244,72 @@ documentation and CMake registration. This is a maintenance-size result, not a
 performance measurement. Metadata parsing validates declared buffer/view sizes
 and references without loading external buffers; runtime buffer reads and
 loaded index validation remain in the explicit load step.
+
+## Next library candidates, ranked against observed work
+
+The glTF figure above includes the new shared adapter: it is a **247-line
+reduction within the glTF consolidation**, not an overall repository shrink.
+The earlier combined EnTT/import work had **319 net added lines under `src/`**;
+its new storage/lifetime implementation outweighed the local parser deletion.
+Keep those scopes separate when reporting results. The following candidates
+are not implemented or benchmarked. Jsoncons remains the strongest outstanding
+correctness/deletion opportunity described above.
+
+1. **meshoptimizer: first performance experiment; mostly pipeline improvement.**
+   The recorded Amber Pass probe identifies foliage/shadows as the next GPU
+   target: 1.69M main triangles plus 5.37M shadow triangles, with diagnostic GPU
+   samples falling from roughly 9–11 ms to 3.4 ms without grass or 2.8 ms without
+   shadows (`amber-pass-loading-performance.md:58-108`). These overlapping
+   experiments are not additive savings. The existing
+   `src/demi/runtime/render/BgfxRenderer3DModelLod.cpp:10` selects authored model
+   tiers; it does not generate them. [meshoptimizer](https://github.com/zeux/meshoptimizer)
+   provides MIT-licensed cache/fetch optimization and attribute-aware
+   simplification. Put optional deterministic simplification/reordering in the
+   model importer/cooker, then reuse current LOD selection. This adds missing
+   tier-generation capability rather than replacing a large custom simplifier.
+   Preserve UV/material seams, skin weights and silhouette; preserve terrain
+   chunk boundaries and source-cell attribution if later evaluating
+   `TerrainLodGeometry.cpp:29`. It is not a drop-in replacement for that regular
+   terrain topology contract. Shadow/alpha overdraw may dominate even after
+   triangle reduction; compare GPU/frame times and visual quality on the same
+   scene. Linux integration and Android ARM64 compilation require qualification.
+
+2. **ozz-animation: credible algorithm deletion if sampling becomes costly.**
+   `GltfSkinnedModel.cpp:167-443` owns channel sampling, pose hierarchy and skin
+   matrices; `BgfxRenderer3DAnimation.cpp:88` calls that work per animated model.
+   [ozz-animation](https://github.com/guillaumeblanc/ozz-animation) provides
+   sampling, blending and local-to-model jobs under MIT; upstream tests Linux
+   and ARM and describes a C++17 runtime without OS dependencies. A private
+   cooked-animation adapter could replace those numerical mechanisms while
+   keeping cgltf import, stable clip/bone names, timing/loop/STEP behavior,
+   inverse binds, coordinate conversion, bone overrides, root-motion ownership
+   and the GPU palette contract. Do not delete state-machine/gameplay rules.
+   Conversion, compression tolerance and non-joint animated nodes make this a
+   substantial migration. There is no current evidence that it addresses the
+   recorded foliage/shadow bottleneck; qualify pose equivalence, crowd CPU time,
+   cooked size and Android before replacement.
+
+3. **enkiTS: bounded scheduler replacement, contingent on queue measurements.**
+   `runtime/concurrency/JobSystem.cpp:45-115` implements submission, a shared
+   mutex/deque, workers and shutdown; its header adds parallel ranges. Terrain
+   residency uses it at `TerrainLodResidency.cpp:315`.
+   [enkiTS](https://github.com/dougbinks/enkiTS) is a small C++11 task scheduler
+   under zlib with task/data parallel APIs. It could replace worker/queue/range
+   execution while Demi retains exception propagation, inline zero-worker mode,
+   lifetime/drain guarantees and deterministic publication order. The current
+   pool is only 253 header/implementation lines: an adapter may erase little.
+   Do not add a second competing pool beside it. Measure queue contention,
+   task granularity and worker utilization first; no observed scheduler
+   bottleneck or Android qualification currently justifies promising a gain.
+
+4. **Recast/Detour: useful 3D feature foundation, not current code reduction.**
+   Existing `runtime/navigation/NavigationGrid2D.h:35` and
+   `runtime/isometric/GridPathfinder.cpp` expose cell costs/blockers and grid
+   semantics. [Recast/Detour](https://github.com/recastnavigation/recastnavigation)
+   supplies zlib-licensed navmesh generation, queries/pathfinding and optional
+   tile/crowd modules, with no dependencies for the core libraries. Introduce it
+   only when a real 3D navigation requirement appears; keep existing 2D/grid
+   behavior. It would add cooking, agent configuration, dynamic-obstacle policy,
+   IDs/serialization and platform tests, not remove an existing 3D navmesh engine.
+   No measured navigation bottleneck warrants it today. CPU-only core design
+   makes Linux/Android plausible, not already qualified.

@@ -84,8 +84,10 @@ void onlyWetCameraPointsReceiveUnderwaterAppearance() {
 
 void transformedWaterAndSceneChangesDoNotRetainCameraState() {
   auto world = waterWorld();
-  auto *pose = world.entities.front().component<Transform3DComponent>();
-  pose->rotation = {0.3F, 0.2F, 0.1F};
+  world.entities.front().updateComponent<Transform3DComponent>(
+      [](Transform3DComponent &transform) {
+        transform.rotation = {0.3F, 0.2F, 0.1F};
+      });
   const auto transform = resolveWorldTransform3D(world, world.entities.front());
   assert(transform);
   UnderwaterCamera3D camera;
@@ -136,7 +138,8 @@ void waterVisibilityDoesNotRetirePreparedQueries() {
   assert(!meshBoundsVisible3D(*mesh, *transform, frame));
   assert(camera.sample(world, wetPoint));
   frame.forward = {0, 0, 1};
-  world.entities.front().component<Transform3DComponent>()->position.z = -200;
+  world.entities.front().updateComponent<Transform3DComponent>(
+      [](Transform3DComponent &transform) { transform.position.z = -200; });
   transform = resolveWorldTransform3D(world, world.entities.back());
   assert(transform && !meshBoundsVisible3D(*mesh, *transform, frame));
   assert(camera.sample(world, transformPoint3D(*transform, {4, 1, 4})));

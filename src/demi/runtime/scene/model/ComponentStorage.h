@@ -5,11 +5,29 @@
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <type_traits>
 #include <utility>
 
 namespace demi::runtime {
+
+// Components opt into explicit mutation without depending on a domain header.
+template <typename ComponentType>
+inline constexpr bool componentTracksMutation = [] {
+  using StoredType = std::remove_cvref_t<ComponentType>;
+  if constexpr (requires { StoredType::trackedMutation; }) {
+    return static_cast<bool>(StoredType::trackedMutation);
+  } else {
+    return false;
+  }
+}();
+
+template <typename ComponentType>
+using ComponentAccessType =
+    std::conditional_t<componentTracksMutation<ComponentType>,
+                       const std::remove_cvref_t<ComponentType>,
+                       std::remove_reference_t<ComponentType>>;
 
 class ComponentStorage {
 public:
@@ -94,7 +112,7 @@ public:
   }
 
   template <typename ComponentType>
-  [[nodiscard]] std::remove_reference_t<ComponentType> *get() {
+  [[nodiscard]] ComponentAccessType<ComponentType> *get() {
     using StoredType = std::remove_cvref_t<ComponentType>;
     if (owner_ != nullptr) {
       return owner_->native().try_get<StoredType>(handle_);
@@ -114,10 +132,18 @@ public:
 
   template <typename ComponentType>
     requires std::copy_constructible<std::remove_cvref_t<ComponentType>>
-  std::remove_cvref_t<ComponentType> &set(ComponentType &&component) {
+  ComponentAccessType<std::remove_cvref_t<ComponentType>> &
+  set(ComponentType &&component) {
     using StoredType = std::remove_cvref_t<ComponentType>;
     // Capture first: callers may replace a component using its current value.
     StoredType replacement(std::forward<ComponentType>(component));
+    if constexpr (componentTracksMutation<StoredType> &&
+                  std::equality_comparable<StoredType>) {
+      if (const auto *existing = get<StoredType>();
+          existing != nullptr && *existing == replacement) {
+        return *existing;
+      }
+    }
     if (owner_ == nullptr) {
       if (detached_ == nullptr) {
         detached_ = std::make_unique<DetachedComponents>();
@@ -137,6 +163,23 @@ public:
     }
     return owner_->native().emplace<StoredType>(handle_,
                                                 std::move(replacement));
+  }
+
+  // Stage callbacks outside live storage. A failed callback cannot publish a
+  // partial value or signal an update to other runtime systems.
+  template <typename ComponentType, typename Function>
+    requires std::copy_constructible<std::remove_cvref_t<ComponentType>> &&
+             std::invocable<Function, std::remove_cvref_t<ComponentType> &>
+  bool update(Function &&function) {
+    using StoredType = std::remove_cvref_t<ComponentType>;
+    const auto *current = get<StoredType>();
+    if (current == nullptr) {
+      return false;
+    }
+    StoredType replacement(*current);
+    std::invoke(std::forward<Function>(function), replacement);
+    set(std::move(replacement));
+    return true;
   }
 
   template <typename ComponentType> bool remove() {

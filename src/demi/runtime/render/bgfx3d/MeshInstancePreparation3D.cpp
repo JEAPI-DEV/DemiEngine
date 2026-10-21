@@ -72,7 +72,7 @@ MeshInstancePreparation3D::worldSources(const World &world, JobSystem *jobs) {
   RuntimeProfiler::setGauge("Renderer3D.component_storage_revision", revision);
   RuntimeProfiler::setGauge("Renderer3D.entity_order_revision",
                             world.entities.orderRevision());
-  const auto &transforms = transformSnapshot_.refresh(world, jobs);
+  const auto &transforms = transformSnapshot_.refresh(world);
   sources.resize(world.entities.size());
   for (std::size_t index = 0; index < world.entities.size(); ++index) {
     if (refreshAddresses) {

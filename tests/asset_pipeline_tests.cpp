@@ -139,7 +139,8 @@ int main() {
       {"mesh": 0, "scale": [2, 1, 1]}
     ],
     "meshes": [{"primitives": [{"attributes": {"POSITION": 0}}]}],
-    "accessors": [{"type": "VEC3", "min": [-1, -2, -3], "max": [1, 2, 3]}]
+    "accessors": [{"type": "VEC3", "componentType": 5126, "count": 3,
+                   "min": [-1, -2, -3], "max": [1, 2, 3]}]
   })");
   writeJson(modelDirectory / "model.asset.json",
             {{"format_version", 1},
@@ -199,9 +200,15 @@ int main() {
       {.projectDirectory = sourceProject,
        .modelManifestPath = modelDirectory / "model.asset.json",
        .id = "asset://colliders/fixture"});
+  if (hasErrors(collider.diagnostics)) {
+    for (const auto &diagnostic : collider.diagnostics) {
+      std::cerr << diagnostic.code << ": " << diagnostic.message << '\n';
+    }
+    return 1;
+  }
   const auto colliderData = readJson(collider.manifestPath);
   const auto colliderManifest = loadAssetManifest(collider.manifestPath);
-  if (hasErrors(collider.diagnostics) || !colliderManifest ||
+  if (!colliderManifest ||
       colliderManifest->type != "Collider3D" ||
       colliderManifest->dependencies !=
           std::vector<std::string>{"asset://models/fixture"} ||
@@ -246,9 +253,14 @@ int main() {
        .id = "asset://colliders/fixture",
        .detail = 1.0F,
        .replaceExisting = true});
+  if (hasErrors(detailedCollider.diagnostics)) {
+    for (const auto &diagnostic : detailedCollider.diagnostics) {
+      std::cerr << diagnostic.code << ": " << diagnostic.message << '\n';
+    }
+    return 1;
+  }
   const auto detailedData = readJson(detailedCollider.manifestPath);
-  if (hasErrors(detailedCollider.diagnostics) ||
-      detailedData["shape"] != "triangle_mesh" ||
+  if (detailedData["shape"] != "triangle_mesh" ||
       detailedData["detail"] != 1.0) {
     std::cerr << "Detailed glTF collider asset generation failed.\n";
     return 1;

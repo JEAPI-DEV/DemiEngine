@@ -116,7 +116,8 @@ void testWorld() {
   ancestor.id = "container";
   ancestor.enabled = false;
   ancestor.setComponent(Transform3DComponent{});
-  world.entities[0].component<Transform3DComponent>()->parent = "container";
+  world.entities[0].updateComponent<Transform3DComponent>(
+      [](Transform3DComponent &transform) { transform.parent = "container"; });
   world.entities.push_back(std::move(ancestor));
   synchronizeTerrainVisibility(world);
   check(!world.entities[1].enabled, "Disabled ancestor left terrain visible");
@@ -127,7 +128,8 @@ void testWorld() {
   synchronizeTerrainVisibility(world);
   check(!world.entities[1].enabled, "Disabled owner left terrain visible");
   world.entities[0].enabled = true;
-  world.entities[0].component<Transform3DComponent>()->parent.clear();
+  world.entities[0].updateComponent<Transform3DComponent>(
+      [](Transform3DComponent &transform) { transform.parent.clear(); });
   world.entities.pop_back();
   const auto previous =
       world.entities[0].component<Terrain3DComponent>()->generated;

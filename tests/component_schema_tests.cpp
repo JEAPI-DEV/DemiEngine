@@ -387,7 +387,8 @@ int main() {
     transform->parse({{"position", {1, 2, 3}}}, entity);
     body->parse(nlohmann::json::object(), entity);
     const auto authored = entity.serializedComponents;
-    entity.component<Transform3DComponent>()->position = {7, 8, 9};
+    entity.updateComponent<Transform3DComponent>(
+        [](Transform3DComponent &value) { value.position = {7, 8, 9}; });
     entity.component<Rigidbody3DComponent>()->velocity = {4, 5, 6};
     if (transform->inspect(entity).at("position") !=
             nlohmann::json({7, 8, 9}) ||
@@ -399,7 +400,8 @@ int main() {
             nlohmann::json({1, 2, 3}))
       throw std::runtime_error("Runtime inspection must read native values "
                                "without changing authored serialization");
-    entity.component<Transform3DComponent>()->position.x = 12;
+    entity.updateComponent<Transform3DComponent>(
+        [](Transform3DComponent &value) { value.position.x = 12; });
     if (transform->inspect(entity).at("position")[0] != 12)
       throw std::runtime_error("Runtime inspection cached an earlier snapshot");
     Entity absent;

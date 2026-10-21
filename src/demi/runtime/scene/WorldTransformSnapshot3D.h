@@ -1,7 +1,7 @@
 #pragma once
 
 #include "demi/runtime/scene/Transform3DHierarchy.h"
-
+#include <memory>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -9,45 +9,46 @@
 
 namespace demi::runtime {
 
-class JobSystem;
-
-// Owns a content-checked transform snapshot. Borrowed local addresses are
-// checked against the registry revision before use; values and IDs are checked
-// every refresh.
+// Owns derived world poses. Transform changes arrive through EnTT signals;
+// only affected descendants are recomposed. No component pointers are retained.
 class WorldTransformSnapshot3D {
 public:
-  // Results retain World entity order. Missing parents and cyclic chains
-  // produce null. The returned reference remains valid until the next refresh.
+  WorldTransformSnapshot3D();
+  ~WorldTransformSnapshot3D();
+  WorldTransformSnapshot3D(const WorldTransformSnapshot3D &) = delete;
+  WorldTransformSnapshot3D &
+  operator=(const WorldTransformSnapshot3D &) = delete;
+  WorldTransformSnapshot3D(WorldTransformSnapshot3D &&) noexcept;
+  WorldTransformSnapshot3D &operator=(WorldTransformSnapshot3D &&) noexcept;
+
+  // Results retain authored order. Missing parents and cyclic chains yield
+  // null.
   const std::vector<std::optional<WorldTransform3D>> &
-  refresh(const World &world, JobSystem *jobs = nullptr);
+  refresh(const World &world);
 
 private:
+  struct ChangeTracker;
   void rebuildIndices();
   void rebuildParents();
-  void resolve();
+  void resolveAll();
+  void resolveChanged();
+  void resolveChain(std::size_t index);
 
-  std::vector<std::string> ids_;
-  const Entity *entityData_ = nullptr;
+  std::unique_ptr<ChangeTracker> changes_;
   std::uint64_t registryIdentity_ = 0;
   std::uint64_t orderRevision_ = 0;
-  std::uint64_t storageRevision_ = 0;
-  std::vector<const Transform3DComponent *> localSources_;
+  std::vector<std::string> ids_;
   std::vector<std::optional<Transform3DComponent>> locals_;
   std::unordered_map<std::string, std::size_t> indices_;
   std::vector<std::optional<std::size_t>> parents_;
+  std::vector<std::vector<std::size_t>> children_;
   std::vector<std::optional<WorldTransform3D>> results_;
-  struct Changes {
-    bool id = false;
-    bool local = false;
-    bool parent = false;
-  };
-  std::vector<Changes> changes_;
   std::vector<unsigned char> states_;
+  std::vector<std::size_t> dirty_;
+  std::vector<std::size_t> affected_;
   std::vector<std::size_t> chain_;
 };
 
-// One-shot convenience for callers that do not retain a snapshot.
 [[nodiscard]] std::vector<std::optional<WorldTransform3D>>
 resolveWorldTransforms3D(const World &world);
-
 } // namespace demi::runtime

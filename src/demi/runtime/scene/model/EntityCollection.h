@@ -106,6 +106,8 @@ public:
   void swapElements(size_type first, size_type second);
   void swap(EntityCollection &other) noexcept;
 
+  const std::shared_ptr<ComponentRegistry> &registryOwner() const { return registry(); }
+
   ComponentRegistry &componentRegistry() { return *registry(); }
   const ComponentRegistry &componentRegistry() const { return *registry(); }
   [[nodiscard]] std::optional<size_type> indexOf(entt::entity handle) const;

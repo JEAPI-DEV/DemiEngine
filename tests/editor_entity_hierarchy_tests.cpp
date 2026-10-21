@@ -146,7 +146,8 @@ void retainedProjectionInvalidatesByRevisionAndClosesRows() {
   projection.refresh(world, document, 2, 1, "renamed");
   assert(projection.indexBuildCount() == 2);
   assert(projection.rows().size() == 2);
-  world.entities[1].component<Transform3DComponent>()->parent = "other";
+  world.entities[1].updateComponent<Transform3DComponent>(
+      [](Transform3DComponent &transform) { transform.parent = "other"; });
   projection.refresh(world, document, 3, 1, "renamed");
   assert(projection.rows().size() == 2);
   assert(projection.index()

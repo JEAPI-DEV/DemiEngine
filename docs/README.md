@@ -74,6 +74,9 @@ This directory keeps material that has a different job:
 - [Terrain LOD qualification](terrain-lod-qualification.md) records error bounds,
   shared chunk boundaries, live camera selection, GPU residency and moving-camera
   measurements, with CPU streaming still pending.
+- [libuv Android qualification blocker](libuv-android-qualification.md) records
+  the pinned dependency's API 24 minimum against the engine's API 23 target and
+  the observed barrier/interface-enumeration compile failures.
 - [Shared runtime efficiency qualification](runtime-efficiency-qualification.md)
   records readable renderer/physics rewrites, same-build measurements, native
   editor verification and mutation/lifetime regression coverage.

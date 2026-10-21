@@ -38,9 +38,11 @@ void applyRootPosition(Entity &entity, const Vec3 &position,
                         {"scale", {transform->scale.x, transform->scale.y}}})
             .dump();
   }
-  if (auto *transform = entity.component<Transform3DComponent>();
+  if (const auto *transform = entity.component<Transform3DComponent>();
       transform != nullptr && !isInstanceChild(transform->parent)) {
-    transform->position = position;
+    entity.updateComponent<Transform3DComponent>(
+        [&](Transform3DComponent &value) { value.position = position; });
+    transform = entity.component<Transform3DComponent>();
     entity.serializedComponents[std::string(Transform3DComponent::typeName)] =
         nlohmann::json(
             {{"parent", transform->parent},

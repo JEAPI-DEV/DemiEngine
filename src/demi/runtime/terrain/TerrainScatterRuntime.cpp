@@ -29,13 +29,17 @@ std::string instancePrefix(std::string_view ownerId,
 
 void applyTransform(Entity &entity, const TerrainScatterPlacement &placement,
                     std::string_view ownerId) {
-  auto *transform = entity.component<Transform3DComponent>();
-  if (transform == nullptr)
+  const bool updated = entity.updateComponent<Transform3DComponent>(
+      [&](Transform3DComponent &transform) {
+        transform.parent = ownerId;
+        transform.position = placement.position;
+        transform.rotation = {0, placement.yaw, 0};
+        transform.scale = {placement.scale, placement.scale, placement.scale};
+      });
+  if (!updated) {
     return;
-  transform->parent = ownerId;
-  transform->position = placement.position;
-  transform->rotation = {0, placement.yaw, 0};
-  transform->scale = {placement.scale, placement.scale, placement.scale};
+  }
+  const auto *transform = entity.component<Transform3DComponent>();
   entity.serializedComponents[std::string(Transform3DComponent::typeName)] =
       nlohmann::json(
           {{"parent", transform->parent},
