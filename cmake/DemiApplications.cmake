@@ -184,6 +184,7 @@ else()
     src/editor/EditorConflictPanel.cpp
     src/editor/EditorConsolePanel.cpp
     src/editor/EditorProfilerOverview.cpp
+    src/editor/EditorProfilerCapture.cpp
     src/editor/EditorDebugPanel.cpp
     src/editor/EditorDockingWorkspace.cpp
     src/editor/EditorGameRenderer.cpp

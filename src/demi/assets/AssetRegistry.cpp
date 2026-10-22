@@ -9,6 +9,7 @@
 #include "demi/assets/DataAsset.h"
 #include "demi/assets/GeneratedAtlasCooker.h"
 #include "demi/assets/ModelImportProfile.h"
+#include "demi/assets/ModelLodGenerator.h"
 #include "demi/assets/PackageContent.h"
 #include "demi/assets/RenderAsset.h"
 #include "demi/assets/TerrainAsset.h"
@@ -356,12 +357,24 @@ Diagnostics validateAssetRegistry(const AssetRegistry &registry) {
                              .message = "Duplicate asset ID: " + asset.id,
                              .path = asset.manifestPath.string(),
                              .suggestion = "Assign one stable ID per asset."});
-    for (const auto &source : asset.sourcePaths)
-      if (!std::filesystem::is_regular_file(source))
-        diagnostics.push_back({.severity = Severity::Error,
-                               .code = "ASSET_SOURCE_NOT_FOUND",
-                               .message = "Asset source file does not exist.",
-                               .path = source.string()});
+    for (const auto &source : asset.sourcePaths) {
+      if (!std::filesystem::is_regular_file(source)) {
+        const auto *lodSource = assets::modelLodSource(registry, asset.id);
+        diagnostics.push_back(
+            {.severity = Severity::Error,
+             .code = lodSource ? "MODEL_LOD_GENERATION_REQUIRED"
+                               : "ASSET_SOURCE_NOT_FOUND",
+             .message =
+                 lodSource
+                     ? "Generated model LOD source is missing for " + asset.id
+                     : "Asset source file does not exist.",
+             .path = source.string(),
+             .suggestion = lodSource ? "Run demi asset reimport " +
+                                           lodSource->manifestPath.string() +
+                                           " or build/cook the project."
+                                     : ""});
+      }
+    }
     if (!asset.sourceHash.empty()) {
       const auto actual = assets::hashFiles(asset.sourcePaths);
       if (actual && *actual != asset.sourceHash)
@@ -439,6 +452,25 @@ Diagnostics validateAssetRegistry(const AssetRegistry &registry) {
       static_cast<void>(assets::parseModelImportProfile(
           settings.is_object() ? settings : nlohmann::json::object(),
           &diagnostics, asset.manifestPath.string()));
+      const auto lodDiagnostics =
+          assets::validateModelLodSettings(settings, asset.manifestPath);
+      diagnostics.insert(diagnostics.end(), lodDiagnostics.begin(),
+                         lodDiagnostics.end());
+      if (!hasErrors(lodDiagnostics) && settings.is_object() &&
+          settings.contains("model_lods") &&
+          (!findAsset(registry, asset.id + "/lod/medium") ||
+           !findAsset(registry, asset.id + "/lod/low"))) {
+        diagnostics.push_back(
+            {.severity = Severity::Error,
+             .code = "MODEL_LOD_GENERATION_REQUIRED",
+             .message =
+                 "Model LOD recipe outputs have not been generated for " +
+                 asset.id,
+             .path = asset.manifestPath.string(),
+             .suggestion =
+                 "Run demi asset reimport on this model or build/cook the "
+                 "project to regenerate its LOD assets."});
+      }
     }
     if (asset.type == "Terrain") {
       try {
@@ -450,11 +482,12 @@ Diagnostics validateAssetRegistry(const AssetRegistry &registry) {
               assets::loadTerrainAssetSource(asset);
           const auto expected = assets::terrainAssetDependencies(source);
           if (expected != asset.dependencies)
-            diagnostics.push_back({.severity = Severity::Error,
-                                   .code = "TERRAIN_ASSET_DEPENDENCIES_STALE",
-                                   .message = "Terrain dependencies changed since import.",
-                                   .path = asset.manifestPath.string(),
-                                   .suggestion = "Run demi asset reimport on this manifest."});
+            diagnostics.push_back(
+                {.severity = Severity::Error,
+                 .code = "TERRAIN_ASSET_DEPENDENCIES_STALE",
+                 .message = "Terrain dependencies changed since import.",
+                 .path = asset.manifestPath.string(),
+                 .suggestion = "Run demi asset reimport on this manifest."});
         } else if (asset.sourcePath.filename().string().ends_with(
                        ".terrain.bin")) {
           (void)assets::loadTerrainAsset(registry, asset.id);

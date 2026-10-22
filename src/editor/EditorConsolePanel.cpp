@@ -288,13 +288,19 @@ void EditorConsolePanel::drawLuaConsole(EditorPlaySession &playSession,
 
 void EditorConsolePanel::drawProfiler(EditorPlaySession &playSession) {
   const float panelWidth = ImGui::GetContentRegionAvail().x;
-  const EditorProfilerSnapshot snapshot = playSession.profilerSnapshot();
-  if (!snapshot.attached) {
+  if (!playSession.isEmbedded()) {
     ImGui::TextDisabled("Start Play in the Game view to capture runtime data.");
     return;
   }
-  ImGui::Text("%zu frames%s", snapshot.frameCount,
-              snapshot.paused ? " · paused" : "");
+  EditorProfilerSnapshot snapshot;
+  if (const auto *capture = profilerCapture_.draw()) {
+    snapshot = buildEditorProfilerSnapshot(true, playSession.isPaused(),
+                                          capture->entries, capture->number,
+                                          !capture->gpuScopes.empty());
+  } else {
+    snapshot = playSession.profilerSnapshot();
+  }
+  ImGui::TextUnformatted("Selected-frame measurements (milliseconds)");
   if (snapshot.gpuTimingAvailable)
     metric("GPU Game", editorProfilerTimedScope(snapshot, "GPU.game_view"));
   else
@@ -341,7 +347,7 @@ void EditorConsolePanel::drawProfiler(EditorPlaySession &playSession) {
                             ImGuiTableFlags_ScrollY,
                         {0.0F, 0.0F})) {
     ImGui::TableSetupColumn("Scope", ImGuiTableColumnFlags_WidthStretch, 2.2F);
-    ImGui::TableSetupColumn("Latest");
+    ImGui::TableSetupColumn("Last call");
     ImGui::TableSetupColumn("Average");
     ImGui::TableSetupColumn("P95");
     ImGui::TableSetupColumn("Max");
@@ -350,7 +356,13 @@ void EditorConsolePanel::drawProfiler(EditorPlaySession &playSession) {
     for (const EditorProfilerRow &row : rows) {
       ImGui::TableNextRow();
       ImGui::TableNextColumn();
-      ImGui::TextUnformatted(row.entry.name.c_str());
+      ImGui::TextUnformatted(row.entry.name == "Editor.present"
+                                 ? "Presentation / backend wait"
+                                 : row.entry.name.c_str());
+      if (row.entry.name == "Editor.present" && ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("Includes graphics presentation and synchronization waits; "
+                          "this is not CPU busy time.");
+      }
       if (row.entry.name == "Lua.gc_explicit" && ImGui::IsItemHovered())
         ImGui::SetTooltip("Time spent servicing explicit Lua GC requests. "
                           "Automatic collection can also run, but its "

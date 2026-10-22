@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/assets/ColliderAssetGenerator.h"
+#include "demi/assets/ModelLodGenerator.h"
 #include "editor/EditorAssetGroupDocument.h"
 #include "editor/EditorSourceCreation.h"
 
@@ -23,6 +24,8 @@ public:
   void queueImport(std::filesystem::path source);
   void openCreateGroup() { showCreateGroup_ = true; }
   void openNewFolder(std::filesystem::path relativeParent);
+  void openGenerateModelLods(std::filesystem::path modelManifest,
+                             std::string_view modelId);
   void openGenerateCollider(std::filesystem::path modelManifest,
                             std::string_view modelId);
   void openNewSource(EditorSourceKind kind, std::string selectedEntity = {},
@@ -43,6 +46,7 @@ public:
   void draw(EditorWorkspace &workspace, std::string &notice);
 
 private:
+  void drawGenerateModelLods(EditorWorkspace &workspace, std::string &notice);
   EditorSourceKind sourceKind_ = EditorSourceKind::Scene3D;
   bool showNewSource_ = false;
   std::array<char, 192> sourceName_{};
@@ -63,6 +67,14 @@ private:
   std::array<char, 240> importSource_{};
   std::array<char, 160> importId_{};
   std::array<char, 80> importType_{};
+  std::filesystem::path lodModelManifest_;
+  std::string lodModelId_;
+  float lodMediumRatio_ = 0.5F;
+  float lodLowRatio_ = 0.2F;
+  float lodMaxError_ = 0.01F;
+  bool showGenerateModelLods_ = false;
+  std::string lodError_;
+  std::optional<assets::ModelLodGenerationResult> lodResult_;
   std::filesystem::path colliderModelManifest_;
   std::array<char, 160> colliderId_{};
   std::string colliderBody_ = "static";

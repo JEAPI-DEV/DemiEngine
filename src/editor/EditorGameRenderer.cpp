@@ -60,6 +60,7 @@ void EditorGameRenderer::release() {
   finishPresentation();
   cancelAssetPublication();
   projectDirectory_.clear();
+  terrainDemand_.reset();
   if (renderer2D_ != nullptr)
     renderer2D_->shutdown();
   if (renderer3D_ != nullptr)
@@ -88,6 +89,10 @@ bool EditorGameRenderer::render(const runtime::World &world,
   }
   if (area.width == 0 || area.height == 0)
     return true;
+  const bool threeDimensional = runtime::sceneIs3D(world);
+  if (threeDimensional) {
+    terrainDemand_.request3D();
+  }
   if (!target_->frameBuffer) {
     if (!ensureTarget(area.width, area.height, error))
       return false;
@@ -96,7 +101,7 @@ bool EditorGameRenderer::render(const runtime::World &world,
     // prepareTarget resizes it safely before the next UI frame.
     return true;
   }
-  if (!runtime::sceneIs3D(world)) {
+  if (!threeDimensional) {
     const runtime::Camera2DComponent fallback;
     const runtime::Camera2DComponent *camera = runtime::activeCamera(world);
     if (!renderer2D_->beginFrameRegion(
@@ -145,7 +150,6 @@ bool EditorGameRenderer::render(const runtime::World &world,
           *transform, {0.0F, frame.camera.upAxis, 0.0F});
     }
   }
-  terrainPresentedThisFrame_ = true;
   const bool rendered =
       renderer3D_->renderFrame(world, frame, deltaSeconds, error);
   const auto &statistics = renderer3D_->statistics();
@@ -215,22 +219,21 @@ std::string EditorGameRenderer::takeTerrainDiagnostic() {
 }
 
 bool EditorGameRenderer::terrainNeedsFrame() const {
-  return terrainWasVisible_ && renderer3D_ &&
+  return terrainDemand_.active() && renderer3D_ &&
          renderer3D_->terrainPreparationPending();
 }
 
 void EditorGameRenderer::maintainIdleTerrain() {
-  if (!terrainWasVisible_ && renderer3D_) {
+  if (!terrainDemand_.active() && renderer3D_) {
     renderer3D_->tickInactiveTerrain();
   }
 }
 
 void EditorGameRenderer::maintainTerrainResidency() {
-  if (renderer3D_ && !terrainPresentedThisFrame_) {
+  const bool active = terrainDemand_.finishFrame();
+  if (renderer3D_ && !active) {
     renderer3D_->tickInactiveTerrain();
   }
-  terrainWasVisible_ = terrainPresentedThisFrame_;
-  terrainPresentedThisFrame_ = false;
 }
 
 } // namespace demi::editor

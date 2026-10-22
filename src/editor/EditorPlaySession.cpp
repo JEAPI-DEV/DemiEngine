@@ -54,6 +54,7 @@ bool EditorPlaySession::startEmbedded(const std::filesystem::path &project,
   session->setHostServices(hostServices_);
   runtime::RuntimeProfiler::setEnabled(true);
   runtime::RuntimeProfiler::resetSession();
+  runtime::RuntimeProfiler::setCaptureEnabled(true);
   if (!session->start(project, error, sceneId)) {
     runtime::RuntimeProfiler::setEnabled(false);
     reportFailure(error);
@@ -119,6 +120,7 @@ void EditorPlaySession::stop() {
     embedded_.reset();
     runtime::RuntimeProfiler::setEnabled(false);
   }
+  gpuTimingAvailable_ = false;
   state_ = EditorPlayState::Stopped;
 }
 
@@ -149,8 +151,14 @@ void EditorPlaySession::setGpuTiming(EditorGpuTimingSample sample) {
     return;
   gpuTimingAvailable_ = true;
   runtime::RuntimeProfiler::record("GPU.game_view", sample.totalMilliseconds);
-  for (const EditorGpuPassTiming &pass : sample.passes)
+  runtime::RuntimeProfiler::setGauge("GPU.game_view_frame", sample.gpuFrame);
+  for (const EditorGpuPassTiming &pass : sample.passes) {
     runtime::RuntimeProfiler::record("GPU." + pass.name, pass.milliseconds);
+    runtime::RuntimeProfiler::recordGpuScope({
+        .name = pass.name,
+        .startMilliseconds = pass.startMilliseconds,
+        .durationMilliseconds = pass.milliseconds});
+  }
 }
 
 runtime::RuntimeDebugSnapshot EditorPlaySession::debugSnapshot() const {
@@ -188,6 +196,11 @@ void EditorPlaySession::reportFailure(std::string message) {
     embedded_->stop();
     embedded_.reset();
   }
+  // Failure ends the profiling session even after embedded_ has been released.
+  // Otherwise editor scopes keep accumulating without a runtime frame boundary.
+  runtime::RuntimeProfiler::setCaptureEnabled(false);
+  runtime::RuntimeProfiler::setEnabled(false);
+  gpuTimingAvailable_ = false;
   failure_ = std::move(message);
   state_ = EditorPlayState::Failed;
 }

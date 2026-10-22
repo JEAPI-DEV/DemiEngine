@@ -4,6 +4,7 @@
 #include "demi/runtime/physics/PhysicsWorld3D.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/render/BgfxRenderer3D.h"
+#include "editor/EditorTerrainViewDemand.h"
 #include "demi/runtime/render/backend/BgfxGraphicsDevice.h"
 #include "demi/runtime/render/bgfx2d/ColorPacking2D.h"
 #include "demi/runtime/render/bgfx3d/MeshDrawOrder3D.h"
@@ -1208,7 +1209,31 @@ int main() {
     assert(lazyRenderer.renderFrame(lazyWorld, frame, 0.016F, error));
     static_cast<void>(graphics.endFrame());
     assert(colorUploads(usedId) == 1);
+    TextureHandle residentColor;
+    for (std::size_t index = 0; index < uploads.textureNames.size(); ++index) {
+      if (uploads.textureNames[index] == usedId &&
+          uploads.textureSrgbSampling[index]) {
+        residentColor = uploads.textureHandles[index];
+      }
+    }
+    assert(residentColor);
+    // Editor maintenance runs when a Game/Scene view skips even one UI frame.
+    // Resuming must keep asset-owned textures rather than decode/upload again.
+    for (unsigned skipped = 0; skipped < 3; ++skipped) {
+      lazyRenderer.tickInactiveTerrain();
+      assert(std::ranges::find(uploads.retiredTextures, residentColor) ==
+             uploads.retiredTextures.end());
+      lazyDraws.textures.clear();
+      assert(lazyRenderer.renderFrame(lazyWorld, frame, 0.016F, error));
+      static_cast<void>(graphics.endFrame());
+      assert(colorUploads(usedId) == 1);
+      assert(std::ranges::find(lazyDraws.textures, residentColor) !=
+             lazyDraws.textures.end());
+    }
+    // Explicit asset replacement still retires and recreates its resources.
     assert(lazyRenderer.loadAssets(lazyRegistry, diagnostics));
+    assert(std::ranges::find(uploads.retiredTextures, residentColor) !=
+           uploads.retiredTextures.end());
     assert(colorUploads(usedId) == 1);
     assert(lazyRenderer.renderFrame(lazyWorld, frame, 0.016F, error));
     static_cast<void>(graphics.endFrame());
@@ -2897,6 +2922,56 @@ int main() {
     assert(uploads.meshUploads.size() == fullGpuUploads);
     assert(gpuTerrain.statistics().batches <= 3);
     static_cast<void>(graphics.endFrame());
+
+    // The editor's active view intent survives target preparation or a skipped
+    // draw. Both terrain bundles and an ordinary material share this lifecycle.
+    demi::editor::EditorTerrainViewDemand viewDemand;
+    viewDemand.request3D();
+    assert(viewDemand.finishFrame());
+    const auto textureUploads = uploads.textureHandles.size();
+    const auto fieldHeight = uploadedHandle("Terrain GPU heights");
+    assert(fieldHeight);
+    for (unsigned skipped = 0; skipped < 3; ++skipped) {
+      viewDemand.observeVisibility(true);
+      if (!viewDemand.finishFrame()) {
+        gpuTerrain.tickInactiveTerrain();
+      }
+      viewDemand.request3D();
+      assert(gpuTerrain.renderFrame(terrain, camera, .016F, error));
+      assert(viewDemand.finishFrame());
+      static_cast<void>(graphics.endFrame());
+      assert(gpuTerrain.terrainStatistics().gpuPatchInstances == 4);
+      assert(uploads.textureHandles.size() == textureUploads);
+      assert(uploads.meshUploads.size() == fullGpuUploads);
+      assert(std::ranges::find(uploads.retiredTextures, fieldHeight) ==
+             uploads.retiredTextures.end());
+      assert(std::ranges::find(uploads.retiredTextures, sharedColor) ==
+             uploads.retiredTextures.end());
+    }
+    // Actual inactivity still releases the terrain budget. Ordinary material
+    // assets remain owned by publication, and resume uses the normal warmup.
+    assert(!viewDemand.finishFrame());
+    gpuTerrain.tickInactiveTerrain();
+    assert(std::ranges::find(uploads.retiredTextures, fieldHeight) !=
+           uploads.retiredTextures.end());
+    assert(std::ranges::find(uploads.retiredTextures, sharedColor) ==
+           uploads.retiredTextures.end());
+    const auto resumeDeadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    do {
+      viewDemand.request3D();
+      assert(gpuTerrain.renderFrame(terrain, camera, .016F, error));
+      assert(viewDemand.finishFrame());
+      static_cast<void>(graphics.endFrame());
+      if (gpuTerrain.terrainStatistics().gpuPatchInstances == 4) {
+        break;
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    } while (std::chrono::steady_clock::now() < resumeDeadline);
+    assert(gpuTerrain.terrainStatistics().gpuPatchInstances == 4);
+    assert(uploads.textureHandles.size() > textureUploads);
+    assert(std::ranges::find(uploads.retiredTextures, sharedColor) ==
+           uploads.retiredTextures.end());
 
     // The deliberate compatibility switch returns to complete native Full
     // geometry without changing the field, picking/collision or authored data.

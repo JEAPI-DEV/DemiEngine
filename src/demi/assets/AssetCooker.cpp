@@ -4,6 +4,7 @@
 #include "demi/assets/FractureAuthoring.h"
 #include "demi/assets/MasonryGeneration.h"
 #include "demi/assets/AssetHash.h"
+#include "demi/assets/ModelLodGenerator.h"
 #include "demi/assets/AssetImporterRegistry.h"
 #include "demi/assets/AssetRegistry.h"
 #include "demi/assets/AssetSourceFiles.h"
@@ -274,17 +275,23 @@ Diagnostics cookProject(const CookRequest &request) {
     effectiveRequest.shaderCompiler = DEMI_SHADERC_PATH;
   if (effectiveRequest.shaderIncludeDirectory.empty())
     effectiveRequest.shaderIncludeDirectory = DEMI_BGFX_SHADER_INCLUDE_DIR;
+  const auto projectDirectory = absoluteProject.parent_path();
+  if (pathIsInside(request.outputDirectory, projectDirectory)) {
+    diagnostics.push_back(
+        {.severity = Severity::Error,
+         .code = "COOK_OUTPUT_OVERLAPS_PROJECT",
+         .message = "Cook output cannot contain the authored project.",
+         .path = request.outputDirectory.string()});
+    return diagnostics;
+  }
+  const auto generated = ensureModelLods(projectDirectory);
+  diagnostics.insert(diagnostics.end(), generated.begin(), generated.end());
+  if (hasErrors(diagnostics)) {
+    return diagnostics;
+  }
   const auto summary = validateProjectPath(absoluteProject);
   diagnostics.insert(diagnostics.end(), summary.diagnostics.begin(),
                      summary.diagnostics.end());
-  const auto projectDirectory = absoluteProject.parent_path();
-  if (pathIsInside(request.outputDirectory, projectDirectory)) {
-    diagnostics.push_back({.severity = Severity::Error,
-                           .code = "COOK_OUTPUT_OVERLAPS_PROJECT",
-                           .message = "Cook output cannot contain the authored project.",
-                           .path = request.outputDirectory.string()});
-    return diagnostics;
-  }
   AssetRegistry registry = loadAuthoredAssetRegistry(projectDirectory);
   LockedPackageContent packageContent =
       loadLockedPackageContent(projectDirectory, request.platform, &registry);

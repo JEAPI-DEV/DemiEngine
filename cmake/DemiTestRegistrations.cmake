@@ -444,3 +444,5 @@ add_test(NAME demi-performance-debug-configure-tests
 add_test(NAME demi-gltf-materials-tests COMMAND demi-gltf-materials-tests)
 
 add_test(NAME demi-opaque-instance-plan-tests COMMAND demi-opaque-instance-plan-tests)
+
+add_test(NAME demi-model-lod-generation-tests COMMAND demi-model-lod-generation-tests)

@@ -2,8 +2,11 @@
 
 #include <chrono>
 #include <cstddef>
-#include <string>
+#include <cstdint>
+#include <deque>
 #include <iosfwd>
+#include <memory>
+#include <string>
 #include <vector>
 
 namespace demi::runtime {
@@ -25,6 +28,29 @@ public:
     std::size_t sampleCount = 0;
   };
 
+  struct ScopeEvent {
+    std::string name;
+    double startMilliseconds = 0.0;
+    double durationMilliseconds = 0.0;
+    std::size_t depth = 0;
+  };
+
+  struct FrameCapture {
+    std::size_t number = 0;
+    double durationMilliseconds = 0.0;
+    std::vector<Entry> entries;
+    std::vector<ScopeEvent> scopes;
+    std::vector<ScopeEvent> gpuScopes;
+    std::size_t droppedScopes = 0;
+  };
+
+  // Opt-in bounded capture for tooling; ordinary profiling keeps no traces.
+  using CaptureHistory = std::deque<std::shared_ptr<const FrameCapture>>;
+
+  static void setCaptureEnabled(bool enabled);
+  static void recordGpuScope(ScopeEvent event);
+  [[nodiscard]] static const CaptureHistory &captures();
+  [[nodiscard]] static std::uint64_t sessionGeneration();
   static void setEnabled(bool enabled);
   [[nodiscard]] static bool enabled();
   static void resetSession();
@@ -53,6 +79,10 @@ private:
   std::string name_;
   std::chrono::steady_clock::time_point start_;
   bool enabled_ = false;
+  std::size_t frame_ = 0;
+  std::size_t depth_ = 0;
+  std::uint64_t generation_ = 0;
+  std::uint64_t captureGeneration_ = 0;
 };
 
 } // namespace demi::runtime

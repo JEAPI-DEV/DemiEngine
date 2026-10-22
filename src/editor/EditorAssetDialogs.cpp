@@ -3,6 +3,7 @@
 
 #include "editor/EditorAssetDrop.h"
 #include "editor/EditorWorkspace.h"
+#include "demi/assets/AssetRegistry.h"
 
 #include <imgui.h>
 
@@ -37,6 +38,34 @@ void drawAssetChoice(const char *label, const std::vector<std::string> &choices,
 }
 
 } // namespace
+
+void EditorAssetDialogs::openGenerateModelLods(
+    std::filesystem::path modelManifest, const std::string_view modelId) {
+  lodModelManifest_ = std::move(modelManifest);
+  lodModelId_ = modelId;
+  lodMediumRatio_ = 0.5F;
+  lodLowRatio_ = 0.2F;
+  lodMaxError_ = 0.01F;
+  lodError_.clear();
+  if (const auto manifest = loadAssetManifest(lodModelManifest_)) {
+    const auto settings =
+        nlohmann::json::parse(manifest->settingsJson, nullptr, false);
+    if (settings.is_object() && settings.contains("model_lods")) {
+      const auto diagnostics =
+          assets::validateModelLodSettings(settings, lodModelManifest_);
+      if (hasErrors(diagnostics)) {
+        lodError_ = diagnostics.front().message;
+      } else {
+        const auto &recipe = settings.at("model_lods");
+        lodMediumRatio_ = recipe.at("medium_ratio").get<float>();
+        lodLowRatio_ = recipe.at("low_ratio").get<float>();
+        lodMaxError_ = recipe.at("max_error").get<float>();
+      }
+    }
+  }
+  lodResult_.reset();
+  showGenerateModelLods_ = true;
+}
 
 void EditorAssetDialogs::openNewSource(
     const EditorSourceKind kind, std::string selectedEntity,
@@ -87,6 +116,85 @@ bool EditorAssetDialogs::openEditGroup(const std::filesystem::path &path,
   groupDocument_ = std::move(document);
   showEditGroup_ = true;
   return true;
+}
+
+void EditorAssetDialogs::drawGenerateModelLods(EditorWorkspace &workspace,
+                                              std::string &notice) {
+  if (showGenerateModelLods_) {
+    prepareEditorDialog({.preferredEm = {48, 34}, .minimumEm = {32, 24}});
+    if (ImGui::Begin("Generate Model LODs", &showGenerateModelLods_,
+                     ImGuiWindowFlags_NoSavedSettings)) {
+      ImGui::TextWrapped("Create ordinary medium and low Model3D assets using "
+                         "the shared static-model generator. The source model "
+                         "is preserved. Skins, morphs and animations are unsupported.");
+      ImGui::TextWrapped("Source: %s", lodModelId_.c_str());
+      bool settingsChanged = ImGui::SliderFloat(
+          "Medium triangle ratio", &lodMediumRatio_, 0.01F, 0.99F);
+      settingsChanged |= ImGui::SliderFloat(
+          "Low triangle ratio", &lodLowRatio_, 0.01F, 0.99F);
+      settingsChanged |= ImGui::InputFloat(
+          "Maximum simplification error", &lodMaxError_, 0.001F, 0.01F, "%.4f");
+      if (settingsChanged) {
+        lodResult_.reset();
+        lodError_.clear();
+      }
+      ImGui::TextWrapped("Ratios are targets, not guarantees. Error and material/UV "
+                         "constraints can retain more triangles. Inspect foliage "
+                         "coverage and silhouettes before using reduced models.");
+      if (ImGui::Button("Generate assets")) {
+        lodError_.clear();
+        lodResult_ = workspace.generateModelLods(
+            {.modelManifestPath = lodModelManifest_,
+             .mediumRatio = lodMediumRatio_,
+             .lowRatio = lodLowRatio_,
+             .maxError = lodMaxError_});
+        notice = hasErrors(lodResult_->diagnostics)
+            ? "Model LOD generation failed" : "Model LOD assets generated";
+      }
+      if (lodResult_) {
+        for (const auto &diagnostic : lodResult_->diagnostics) {
+          ImGui::TextWrapped("%s: %s", diagnostic.code.c_str(),
+                             diagnostic.message.c_str());
+        }
+        for (const auto &variant : lodResult_->variants) {
+          ImGui::Separator();
+          ImGui::TextWrapped("%s: %s", variant.level.c_str(), variant.id.c_str());
+          ImGui::Text("Triangles: %zu -> %zu; error: %.6g",
+                      variant.sourceTriangles, variant.triangles,
+                      static_cast<double>(variant.achievedError));
+        }
+        if (!hasErrors(lodResult_->diagnostics) &&
+            lodResult_->variants.size() == 2) {
+          ImGui::TextWrapped("Optionally apply both references to the selected "
+                             "entity using this source model. This is one undoable "
+                             "scene edit. Existing LOD distances are preserved; "
+                             "set positive distances in the Inspector to enable them.");
+          if (ImGui::Button("Apply to selected model entity")) {
+            std::string mediumId;
+            std::string lowId;
+            for (const auto &variant : lodResult_->variants) {
+              if (variant.level == "medium") {
+                mediumId = variant.id;
+              } else if (variant.level == "low") {
+                lowId = variant.id;
+              }
+            }
+            if (workspace.applyModelLods(lodResult_->sourceModelId, mediumId,
+                                         lowId, lodError_)) {
+              notice = "LOD references applied; configure distances in the Inspector";
+            }
+          }
+        }
+      }
+      if (!lodError_.empty()) {
+        ImGui::TextWrapped("%s", lodError_.c_str());
+      }
+      if (ImGui::Button("Close")) {
+        showGenerateModelLods_ = false;
+      }
+    }
+    ImGui::End();
+  }
 }
 
 void EditorAssetDialogs::draw(EditorWorkspace &workspace, std::string &notice) {
@@ -323,6 +431,8 @@ void EditorAssetDialogs::draw(EditorWorkspace &workspace, std::string &notice) {
     }
     ImGui::End();
   }
+
+  drawGenerateModelLods(workspace, notice);
 
   if (showGenerateCollider_) {
     prepareEditorDialog({.preferredEm = {48, 36}, .minimumEm = {32, 24}});

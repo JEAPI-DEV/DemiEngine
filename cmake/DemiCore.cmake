@@ -1,5 +1,12 @@
 # Engine data, asset, scene, UI, input, physics, and navigation foundations.
 include(DemiTerrain)
+# Reuse the pinned bgfx source bundle; geometry generation stays in assets.
+add_library(demi-mesh-simplification STATIC
+  "${bgfx_SOURCE_DIR}/bgfx/3rdparty/meshoptimizer/src/allocator.cpp"
+  "${bgfx_SOURCE_DIR}/bgfx/3rdparty/meshoptimizer/src/simplifier.cpp")
+set_target_properties(demi-mesh-simplification PROPERTIES POSITION_INDEPENDENT_CODE ON)
+target_include_directories(demi-mesh-simplification PUBLIC
+  "${bgfx_SOURCE_DIR}/bgfx/3rdparty/meshoptimizer/src")
 add_library(demi-core STATIC
   src/demi/graph/DependencyGraph.cpp
   src/demi/runtime/terrain/TerrainGraph.cpp
@@ -79,6 +86,10 @@ add_library(demi-core STATIC
   src/demi/schema/DestructionValidation.cpp
   src/demi/schema/PrefabPlacementValidation.cpp
   src/demi/assets/ModelImportProfile.cpp
+  src/demi/assets/ModelLodGenerator.cpp
+  src/demi/assets/ModelLodPublication.cpp
+  src/demi/assets/ModelLodSimplifier.cpp
+  src/demi/assets/ModelLodGltfWriter.cpp
   src/demi/assets/ModelInspector.cpp
   src/demi/assets/SceneBudget3D.cpp
   src/demi/assets/GltfDocument.cpp
@@ -183,7 +194,7 @@ target_include_directories(demi-core PRIVATE
   "${bgfx_SOURCE_DIR}/bgfx/3rdparty/stb")
 
 target_compile_features(demi-core PUBLIC cxx_std_20)
-target_link_libraries(demi-core PRIVATE demi-fastnoise)
+target_link_libraries(demi-core PRIVATE demi-fastnoise demi-mesh-simplification)
 target_link_libraries(demi-core PUBLIC EnTT::EnTT demi-terrain-water nlohmann_json::nlohmann_json box2d
   utf8proc harfbuzz freetype SheenBidi::SheenBidi mbedcrypto bimg_decode bimg
   yaml-cpp::yaml-cpp)

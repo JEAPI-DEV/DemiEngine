@@ -56,6 +56,7 @@ void EditorViewportRenderer::release() {
     renderer3D_->shutdown();
   renderer2D_.reset();
   renderer3D_.reset();
+  terrainDemand_.reset();
   destroyTarget();
 }
 
@@ -72,6 +73,9 @@ bool EditorViewportRenderer::render3D(const runtime::World &world,
                                       const float deltaSeconds,
                                       std::string &error) {
   runtime::ProfileScope scope("Editor.viewport3d");
+  if (area.width != 0 && area.height != 0) {
+    terrainDemand_.request3D();
+  }
   if (!targetReady(area, error))
     return error.empty();
   runtime::render::BgfxCameraFrame3D frame;
@@ -95,7 +99,6 @@ bool EditorViewportRenderer::render3D(const runtime::World &world,
     lighting.ambient = {0.3F, 0.32F, 0.36F, 1.0F};
     frame.lightingOverride = lighting;
   }
-  terrainPresentedThisFrame_ = true;
   if (runtime::RuntimeProfiler::enabled()) {
     runtime::RuntimeProfiler::setGauge("Editor.camera.x", frame.position.x);
     runtime::RuntimeProfiler::setGauge("Editor.camera.y", frame.position.y);
@@ -126,6 +129,7 @@ bool EditorViewportRenderer::render2D(const runtime::World &world,
                                       const bool showColliders,
                                       const float deltaSeconds,
                                       std::string &error) {
+  terrainDemand_.requestOtherContent();
   if (!targetReady(area, error))
     return error.empty();
   if (!renderer2D_->beginFrameRegion(
@@ -143,6 +147,7 @@ bool EditorViewportRenderer::renderHud(const runtime::ui::UiDocument &document,
                                        const EditorViewportArea area,
                                        const float deltaSeconds,
                                        std::string &error) {
+  terrainDemand_.requestOtherContent();
   if (!targetReady(area, error))
     return error.empty();
   if (!renderer2D_->beginOverlayRegion(firstView_, 0, 0, area.width,
@@ -229,22 +234,21 @@ std::string EditorViewportRenderer::takeTerrainDiagnostic() {
 }
 
 bool EditorViewportRenderer::terrainNeedsFrame() const {
-  return terrainWasVisible_ && renderer3D_ &&
+  return terrainDemand_.active() && renderer3D_ &&
          renderer3D_->terrainPreparationPending();
 }
 
 void EditorViewportRenderer::maintainIdleTerrain() {
-  if (!terrainWasVisible_ && renderer3D_) {
+  if (!terrainDemand_.active() && renderer3D_) {
     renderer3D_->tickInactiveTerrain();
   }
 }
 
 void EditorViewportRenderer::maintainTerrainResidency() {
-  if (renderer3D_ && !terrainPresentedThisFrame_) {
+  const bool active = terrainDemand_.finishFrame();
+  if (renderer3D_ && !active) {
     renderer3D_->tickInactiveTerrain();
   }
-  terrainWasVisible_ = terrainPresentedThisFrame_;
-  terrainPresentedThisFrame_ = false;
 }
 
 } // namespace demi::editor

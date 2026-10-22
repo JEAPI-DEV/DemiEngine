@@ -24,14 +24,17 @@ struct GraphicsGpuViewTiming {
   std::uint16_t viewId = 0;
   std::string name;
   double milliseconds = 0;
+  // Offset on the sampled GPU frame clock; independent of the CPU frame.
+  double startMilliseconds = 0;
 };
 
 inline std::optional<GraphicsGpuViewTiming>
 makeGraphicsGpuViewTiming(std::uint16_t viewId, std::string name,
                           std::uint32_t viewGpuFrame,
                           std::uint32_t sampledGpuFrame, std::int64_t begin,
-                          std::int64_t end, std::int64_t frequency) {
-  if (viewGpuFrame != sampledGpuFrame) {
+                          std::int64_t end, std::int64_t frequency,
+                          std::int64_t sampledGpuBegin = 0) {
+  if (sampledGpuBegin < 0 || viewGpuFrame != sampledGpuFrame) {
     return std::nullopt;
   }
   const auto duration = intervalMilliseconds(begin, end, frequency);
@@ -40,7 +43,10 @@ makeGraphicsGpuViewTiming(std::uint16_t viewId, std::string name,
   }
   return GraphicsGpuViewTiming{.viewId = viewId,
                                .name = name.empty() ? "View" : std::move(name),
-                               .milliseconds = *duration};
+                               .milliseconds = *duration,
+                               .startMilliseconds =
+                                   static_cast<double>(begin - sampledGpuBegin) *
+                                   1000.0 / static_cast<double>(frequency)};
 }
 
 // Optional samples are absent when unavailable or already reported. Backend

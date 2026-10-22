@@ -40,6 +40,11 @@ int main() {
         !makeGraphicsGpuViewTiming(17, "Shadow", 41, 42, 100, 350, 1000) &&
             !makeGraphicsGpuViewTiming(17, "Shadow", 43, 42, 100, 350, 1000),
         "GPU view from a different frame was attributed to current sample");
+    const auto offsetView = makeGraphicsGpuViewTiming(
+        17, "Shadow", 42, 42, 1100, 1350, 1000, 1000);
+    require(offsetView && offsetView->startMilliseconds == 100.0 &&
+                offsetView->milliseconds == 250.0,
+            "GPU view offset must use the sampled GPU frame clock");
     const auto unnamedView =
         makeGraphicsGpuViewTiming(17, "", 42, 42, 100, 350, 1000);
     require(unnamedView && unnamedView->name == "View",
