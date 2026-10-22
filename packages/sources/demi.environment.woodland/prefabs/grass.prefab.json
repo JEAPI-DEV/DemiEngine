@@ -1,0 +1,23 @@
+{
+  "format_version": 1,
+  "id": "prefab://demi/woodland/grass",
+  "name": "Grass",
+  "entities": [
+    {
+      "id": "grass",
+      "name": "Photographic grass tuft",
+      "components": {
+        "Transform3D": {},
+        "MeshRenderer": {
+          "model": "asset://demi/woodland/models/grass_patch",
+          "medium_lod_model": "asset://demi/woodland/models/grass_patch_mid",
+          "medium_lod_distance": 35,
+          "low_lod_model": "asset://demi/woodland/models/grass_patch_low",
+          "low_lod_distance": 90,
+          "cull_distance": 220,
+          "material": "asset://demi/woodland/materials/grass_photo"
+        }
+      }
+    }
+  ]
+}

@@ -84,6 +84,7 @@ add_library(demi-core STATIC
   src/demi/assets/GltfDocument.cpp
   src/demi/assets/GltfGeometry.cpp
   src/demi/assets/GltfSkinnedModel.cpp
+  src/demi/assets/GltfMaterials.cpp
   src/demi/assets/AssetSourceFiles.cpp
   src/demi/assets/DataValueRead.cpp
   src/demi/assets/MaterialSurface.cpp

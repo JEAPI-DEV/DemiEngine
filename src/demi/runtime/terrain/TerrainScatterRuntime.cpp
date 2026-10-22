@@ -129,8 +129,16 @@ syncTerrainScatter(World &world, WorldCommandBuffer &commands,
     return stats;
   }
 
+  std::optional<RuntimePrefabService::PreparationBatch> preparation;
+  const TerrainPrefabServiceProvider batchProvider = [&] {
+    auto *service = prefabProvider ? prefabProvider() : nullptr;
+    if (service != nullptr && !preparation) {
+      preparation.emplace(service->beginPreparationBatch());
+    }
+    return service;
+  };
   auto batches = syncTerrainScatterBatches(world, commands, ownerId, field,
-                                           prefabProvider, error);
+                                           batchProvider, error);
   if (!error.empty()) {
     return batches.statistics;
   }
@@ -185,7 +193,7 @@ syncTerrainScatter(World &world, WorldCommandBuffer &commands,
         return stats;
       }
       if (!placement.prefab.empty()) {
-        auto *prefabs = prefabProvider ? prefabProvider() : nullptr;
+        auto *prefabs = batchProvider();
         if (!prefabs) {
           error =
               "Terrain scatter requires its prefab service to reconcile " + id;
@@ -266,7 +274,7 @@ syncTerrainScatter(World &world, WorldCommandBuffer &commands,
       continue;
     }
 
-    auto *prefabs = prefabProvider ? prefabProvider() : nullptr;
+    auto *prefabs = batchProvider();
     if (prefabs == nullptr) {
       ++stats.unresolved;
       continue;
@@ -305,7 +313,8 @@ syncTerrainScatter(World &world, WorldCommandBuffer &commands,
     const std::string &key =
         entity.prefabInstance.empty() ? entity.id : entity.prefabInstance;
     // A wanted key can transfer to a render batch. Its previous individual
-    // entity/prefab must still retire, including service-owned collider children.
+    // entity/prefab must still retire, including service-owned collider
+    // children.
     if ((wanted.contains(key) && !batches.placements.contains(key)) ||
         !entity.enabled) {
       continue;
@@ -315,7 +324,7 @@ syncTerrainScatter(World &world, WorldCommandBuffer &commands,
     if (!entity.prefabInstance.empty()) {
       if (!released.insert(entity.prefabInstance).second)
         continue;
-      auto *prefabs = prefabProvider ? prefabProvider() : nullptr;
+      auto *prefabs = batchProvider();
       if (!prefabs) {
         error = "Terrain scatter requires a prefab service to release " +
                 entity.prefabInstance;

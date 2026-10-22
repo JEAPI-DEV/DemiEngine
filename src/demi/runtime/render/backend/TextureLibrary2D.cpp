@@ -203,7 +203,11 @@ bool TextureLibrary2D::uploadPrepared(std::string id,
                         .srgb = sampling.mipSemantic == ImageMipSemantic::Color,
                         .filter = sampling.filter,
                         .wrap = sampling.wrap,
-                        .debugName = id},
+                        .debugName = id,
+                        .wrapV = sampling.wrapV,
+                        .minFilter = sampling.minFilter,
+                        .magFilter = sampling.magFilter,
+                        .mipFilter = sampling.mipFilter},
       error);
   if (!replacement) {
     return false;

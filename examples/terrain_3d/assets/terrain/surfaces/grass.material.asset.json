@@ -1,11 +1,17 @@
 {
-  "dependencies": [],
+  "dependencies": [
+    "asset://polyhaven/terrain/textures/grass_ground/albedo",
+    "asset://polyhaven/terrain/textures/grass_ground/ambient_occlusion",
+    "asset://polyhaven/terrain/textures/grass_ground/height",
+    "asset://polyhaven/terrain/textures/grass_ground/normal",
+    "asset://polyhaven/terrain/textures/grass_ground/roughness"
+  ],
   "format_version": 1,
   "id": "asset://terrain/surfaces/grass",
   "importer": "material",
   "importer_version": 1,
   "settings": {},
   "source": "grass.material.json",
-  "source_hash": "fnv1a64:dfdf31482d8f563e",
+  "source_hash": "fnv1a64:fe41565a0684f3eb",
   "type": "Material"
 }

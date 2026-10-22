@@ -7,6 +7,14 @@ are registered in `tools/package-store/src/Docs.php`.
 
 This directory keeps material that has a different job:
 
+- [Static shadow model LOD policy](shadow-model-lod-policy.md) explains the
+  cascade sampling heuristic, exclusions and pending visual qualification.
+
+- [3D showcase and authoring plan](../3d-showcase-plan.md) inventories verified
+  capabilities and phases the requested landscape, cinematic and editor work.
+
+- [Silvermere terrain showcase](silvermere-showcase.md) records the camera tour,
+  real placement counts, visual qualification and prioritized feature gaps.
 - [Runtime ECS migration](runtime-ecs-migration.md) records typed world storage,
   ownership contracts, the controlled prototype and integrated measurements.
 - [Shared glTF import qualification](gltf-import-consolidation.md) records the

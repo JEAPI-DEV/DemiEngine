@@ -74,10 +74,17 @@ bool BgfxAppContext::initialize(const BgfxAppContextConfig &config,
     error = "The bgfx application context is already initialized.";
     return false;
   }
+  bool validMode = false;
+  const auto mode = windowMode(config.windowMode, validMode);
+  if (!validMode) {
+    error = "Unknown window mode: " + config.windowMode + ".";
+    return false;
+  }
   if (!platform_->initialize({.title = config.title,
                               .width = config.width,
                               .height = config.height,
-                              .resizable = true},
+                              .resizable = true,
+                              .mode = mode},
                              error))
     return false;
   const auto &state = platform_->frameState();
@@ -242,6 +249,10 @@ void BgfxAppContext::poll(InputState &input) { platform_->poll(input); }
 
 const platform::PlatformFrameState &BgfxAppContext::frameState() const {
   return platform_->frameState();
+}
+
+bool BgfxAppContext::setWindowTitle(const std::string &title, std::string &error) {
+  return platform_->setWindowTitle(title, error);
 }
 
 bool BgfxAppContext::setWindowMode(const std::string_view mode,

@@ -1,0 +1,23 @@
+{
+  "format_version": 1,
+  "shader": "builtin://lit",
+  "mapping": "uv",
+  "parameters": {
+    "roughness": 0.88,
+    "normal_strength": 0.7,
+    "wind_strength": 0.08,
+    "wind_height": 5.0,
+    "wind_frequency": 0.7
+  },
+  "textures": {
+    "albedo": "asset://demi/woodland/textures/grass_photo/albedo",
+    "normal": "asset://demi/woodland/textures/grass_photo/normal",
+    "roughness": "asset://demi/woodland/textures/grass_photo/roughness",
+    "ambient_occlusion": "asset://demi/woodland/textures/grass_photo/ambient_occlusion"
+  },
+  "render_state": {
+    "cull": "none",
+    "blend": "opaque",
+    "alpha_cutoff": 0.5
+  }
+}

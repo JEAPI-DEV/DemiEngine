@@ -177,18 +177,27 @@ bool GpuSkinnedMesh3D::draw(RenderCommands &commands, std::uint16_t view,
                             const std::array<float, 16> &transform,
                             const DrawState &state,
                             std::span<const DrawUniformValue> uniforms,
-                            std::string &error) const {
+                            std::string &error, std::uint32_t firstIndex,
+                            std::uint32_t indexCount) const {
+  if (firstIndex > indexCount_ ||
+      (indexCount != UINT32_MAX && indexCount > indexCount_ - firstIndex)) {
+    error = "GPU skin draw range is outside the index array.";
+    return false;
+  }
+  const auto count =
+      indexCount == UINT32_MAX ? indexCount_ - firstIndex : indexCount;
   return commands.submit(
-      BufferedDraw{.viewId = view,
-                   .vertices = {.handle = vertices_, .count = vertexCount_},
-                   .indices = {.handle = indices_, .count = indexCount_},
-                   .program = program,
-                   .texture = texture,
-                   .sampler = sampler,
-                   .state = state,
-                   .scissor = {},
-                   .transform = transform,
-                   .uniforms = uniforms},
+      BufferedDraw{
+          .viewId = view,
+          .vertices = {.handle = vertices_, .count = vertexCount_},
+          .indices = {.handle = indices_, .first = firstIndex, .count = count},
+          .program = program,
+          .texture = texture,
+          .sampler = sampler,
+          .state = state,
+          .scissor = {},
+          .transform = transform,
+          .uniforms = uniforms},
       error);
 }
 

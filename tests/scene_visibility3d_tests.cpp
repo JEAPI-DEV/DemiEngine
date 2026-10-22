@@ -1,18 +1,25 @@
 #include "demi/runtime/concurrency/JobSystem.h"
 #include "demi/runtime/render/bgfx3d/MeshInstancePreparation3D.h"
 #include "demi/runtime/render/bgfx3d/MeshTransform3D.h"
+#include "demi/runtime/render/bgfx3d/ModelLodSampling3D.h"
+#include "demi/runtime/render/bgfx3d/PreparedInstanceView3D.h"
 #include "demi/runtime/render/bgfx3d/SceneVisibility3D.h"
+#include "demi/runtime/scene/components/3dcomponents/AnimationPlayer3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshInstances3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/Transform3DComponent.h"
 #include "demi/runtime/scene/model/Entity.h"
+#include "demi/runtime/scene/RuntimeObjectModel.h"
+#include "demi/runtime/scene/model/MeshMaterialSections3D.h"
 #include "demi/runtime/scene/model/World.h"
 
 #ifdef NDEBUG
 #undef NDEBUG
 #endif
+#include <algorithm>
 #include <cassert>
 #include <string>
+#include <utility>
 #include <vector>
 
 using namespace demi::runtime;
@@ -43,7 +50,8 @@ void retainedSourcesObserveComponentReplacement() {
                                   &preparation);
   };
   assert(extract().meshes.size() == 1);
-  auto replacement = *changing.entities.front().component<MeshRendererComponent>();
+  auto replacement =
+      *changing.entities.front().component<MeshRendererComponent>();
   replacement.color = {1.F, 0.F, 0.F, 1.F};
   changing.entities.front().setComponent(std::move(replacement));
   preparation.reset();
@@ -62,8 +70,8 @@ void retainedSourcesObserveComponentReplacement() {
 
 void retainedPrimitiveBoundsFollowLiveEdits() {
   World world;
-  world.entities.push_back(mesh("editable", {30, 0, 10}, {-.5F, -.5F, -.5F},
-                                {.5F, .5F, .5F}));
+  world.entities.push_back(
+      mesh("editable", {30, 0, 10}, {-.5F, -.5F, -.5F}, {.5F, .5F, .5F}));
   BgfxCameraFrame3D frame;
   frame.viewportWidth = 100;
   frame.viewportHeight = 100;
@@ -72,7 +80,8 @@ void retainedPrimitiveBoundsFollowLiveEdits() {
     preparation.reset();
     return extractVisibleMeshes3D(world, frame, nullptr, nullptr, nullptr,
                                   nullptr, nullptr, nullptr, nullptr, {},
-                                  &preparation).meshes.size();
+                                  &preparation)
+        .meshes.size();
   };
   auto *appearance = world.entities.front().component<MeshRendererComponent>();
   assert(visibleCount() == 0);
@@ -85,7 +94,8 @@ void retainedPrimitiveBoundsFollowLiveEdits() {
   assert(visibleCount() == 1);
   appearance->hasBounds = false;
   assert(visibleCount() == 0);
-  world.entities.front().updateComponent<Transform3DComponent>([&](auto &transform) { transform.position.x = 0; });
+  world.entities.front().updateComponent<Transform3DComponent>(
+      [&](auto &transform) { transform.position.x = 0; });
   assert(visibleCount() == 1);
 }
 
@@ -108,7 +118,6 @@ void orthographicCullingMatchesExactProjectionEdges() {
         mesh(std::to_string(index), positions[index], {}, {}));
   }
   BgfxCameraFrame3D frame;
-
 
   frame.camera.perspective = false;
   frame.camera.orthographicSize = 10;
@@ -157,8 +166,10 @@ void spatialInstancesMatchReferenceAndKeepOffscreenShadowCasters() {
       const auto world = composeWorldTransform3D(transform, local);
       auto entity =
           mesh(id, world.position, {-.5F, -.5F, -.5F}, {.5F, .5F, .5F});
-      entity.updateComponent<Transform3DComponent>([&](auto &transform) { transform.rotation = world.rotation; });
-      entity.updateComponent<Transform3DComponent>([&](auto &transform) { transform.scale = world.scale; });
+      entity.updateComponent<Transform3DComponent>(
+          [&](auto &transform) { transform.rotation = world.rotation; });
+      entity.updateComponent<Transform3DComponent>(
+          [&](auto &transform) { transform.scale = world.scale; });
       ordinary.entities.push_back(std::move(entity));
     }
     const auto expected = extractVisibleMeshes3D(ordinary, view);
@@ -197,9 +208,12 @@ void spatialInstancesMatchReferenceAndKeepOffscreenShadowCasters() {
       ->setTransform("4095", {.position = {5, 0, 5}});
   preparation.reset();
   reference(camera);
-  instanced.entities.front().updateComponent<Transform3DComponent>([&](auto &value) { value.position = {-10, 0, 0}; });
-  instanced.entities.front().updateComponent<Transform3DComponent>([&](auto &value) { value.rotation = {0, .1F, 0}; });
-  instanced.entities.front().updateComponent<Transform3DComponent>([&](auto &value) { value.scale = {-1, 2, .5F}; });
+  instanced.entities.front().updateComponent<Transform3DComponent>(
+      [&](auto &value) { value.position = {-10, 0, 0}; });
+  instanced.entities.front().updateComponent<Transform3DComponent>(
+      [&](auto &value) { value.rotation = {0, .1F, 0}; });
+  instanced.entities.front().updateComponent<Transform3DComponent>(
+      [&](auto &value) { value.scale = {-1, 2, .5F}; });
   preparation.reset();
   reference(camera);
 }
@@ -250,7 +264,488 @@ void spatialIndexExpandsForChangingLodBounds() {
   assert(larger.meshes.front().transform.position.x == 10);
 }
 
+void shadowHullPrunesInstancesConservativelyInAuthoredOrder() {
+  World world;
+  auto owner =
+      mesh("hull-instances", {}, {-.25F, -.25F, -.25F}, {.25F, .25F, .25F});
+  MeshInstances3DComponent instances;
+  std::vector<std::pair<std::string, float>> expectedByLabel;
+  for (unsigned index = 0; index < 128; ++index) {
+    const float x = index % 2 == 0 ? 10.F : -10.F;
+    const float z = 5.F + float(index) * .1F;
+    instances.setTransform(std::to_string(index), {.position = {x, 0, z}});
+    if (x < 0) {
+      expectedByLabel.emplace_back(std::to_string(index), z);
+    }
+  }
+  // Its circumsphere overlaps the hull even though its centre lies outside.
+  instances.setTransform("boundary", {.position = {.25F, 0, 20}});
+  expectedByLabel.emplace_back("boundary", 20);
+  // MeshInstances is authored as a stable-label object, whose canonical order
+  // is lexicographic. Deliberately unpadded numeric labels catch a BVH that
+  // returns insertion, numeric or spatial order instead of source order.
+  std::sort(expectedByLabel.begin(), expectedByLabel.end());
+  assert(expectedByLabel[0].first == "1" && expectedByLabel[1].first == "101");
+  owner.setComponent(std::move(instances));
+  world.entities.push_back(std::move(owner));
+  world.entities.push_back(mesh("known-outside", {10, 0, 10},
+                                {-.25F, -.25F, -.25F}, {.25F, .25F, .25F}));
+  auto unknown = mesh("unknown-bounds", {10, 0, 10}, {}, {});
+  unknown.component<MeshRendererComponent>()->hasBounds = false;
+  unknown.component<MeshRendererComponent>()->model = "asset://unknown/bounds";
+  world.entities.push_back(std::move(unknown));
+
+  BgfxCameraFrame3D frame;
+  frame.viewportWidth = frame.viewportHeight = 100;
+  frame.camera.perspective = false;
+  frame.camera.orthographicSize = 50;
+  frame.camera.farClip = 100;
+  frame.shadowCasterHull.count = 1;
+  frame.shadowCasterHull.planes[0] = {1, 0, 0, 0};
+  MeshInstancePreparation3D preparation;
+  PreparedInstanceView3D prepared;
+  const auto extract = [&] {
+    return extractVisibleMeshes3D(world, frame, nullptr, nullptr, nullptr,
+                                  nullptr, nullptr, nullptr, nullptr, {},
+                                  &preparation, &prepared);
+  };
+  const auto visible = extract();
+  assert(visible.meshes.size() == expectedByLabel.size() + 1);
+  for (std::size_t index = 0; index < expectedByLabel.size(); ++index) {
+    assert(visible.meshes[index].entity->id == "hull-instances");
+    assert(visible.meshes[index].transform.position.z ==
+           expectedByLabel[index].second);
+  }
+  assert(visible.meshes.back().entity->id == "unknown-bounds");
+  assert(visible.shadowHullSourcesRejected == 1);
+  assert(visible.shadowHullCopiesRejectedByIndex > 0);
+  assert(visible.shadowHullCopiesRejectedByIndex +
+             visible.shadowHullCopiesRejected ==
+         64);
+  assert(extract().instanceSourcesReused == 1);
+
+  // Origin and plane changes affect visibility even if camera/projection and
+  // source poses are otherwise identical. Neither may reuse old source slices.
+  frame.shadowCasterHull.origin[0] = 100;
+  const auto movedOrigin = extract();
+  assert(movedOrigin.instanceSourcesReused == 0);
+  assert(movedOrigin.meshes.size() == 131);
+  frame.shadowCasterHull.origin[0] = 0;
+  frame.shadowCasterHull.planes[0][0] = -1;
+  const auto reversedPlane = extract();
+  assert(reversedPlane.instanceSourcesReused == 0);
+  assert(reversedPlane.meshes.size() == 67);
+  frame.shadowCasterHull.count = 0;
+  const auto ordinary = extract();
+  assert(ordinary.instanceSourcesReused == 0);
+  assert(ordinary.meshes.size() == 131);
+}
+
+void pairedInstanceViewsRespectCameraAndPresentationBoundaries() {
+  World world;
+  auto batch = mesh("instances", {}, {-.25F, -.25F, -.25F}, {.25F, .25F, .25F});
+  batch.component<MeshRendererComponent>()->cullDistance = 12.F;
+  batch.component<MeshRendererComponent>()->renderLayer = "foliage";
+  MeshInstances3DComponent instances;
+  instances.setTransform("near", {.position = {0, 0, 5}});
+  instances.setTransform("far", {.position = {0, 0, 20}});
+  instances.setTransform("side", {.position = {100, 0, 5}});
+  batch.setComponent(instances);
+  world.entities.push_back(std::move(batch));
+  world.entities.push_back(mesh("ordinary", {0, 0, 7}, {}, {}));
+
+  BgfxCameraFrame3D camera;
+  camera.cameraId = "tour";
+  camera.viewportWidth = 320;
+  camera.viewportHeight = 180;
+  camera.camera.farClip = 100;
+  MeshInstancePreparation3D preparation;
+  PreparedInstanceView3D paired;
+  const auto extract = [&](const BgfxCameraFrame3D &view,
+                           PreparedInstanceView3D *shared) {
+    return extractVisibleMeshes3D(world, view, nullptr, nullptr, nullptr,
+                                  nullptr, nullptr, nullptr, nullptr, {},
+                                  &preparation, shared);
+  };
+  const auto assertParity = [](const SceneVisibility3D &actual,
+                               const SceneVisibility3D &expected) {
+    assert(actual.meshes.size() == expected.meshes.size());
+    assert(actual.considered == expected.considered);
+    assert(actual.culled == expected.culled);
+    for (std::size_t index = 0; index < actual.meshes.size(); ++index) {
+      assert(actual.meshes[index].entity == expected.meshes[index].entity);
+      assert(actual.meshes[index].transform.position.x ==
+             expected.meshes[index].transform.position.x);
+      assert(actual.meshes[index].transform.position.z ==
+             expected.meshes[index].transform.position.z);
+    }
+  };
+
+  auto depthCamera = camera;
+  depthCamera.pass = BgfxCameraPass3D::OpaqueDepth;
+  auto depth = extract(depthCamera, &paired);
+  assert(depth.instanceSourcesReused == 0);
+  assert(depth.meshes.size() == 2);
+  assert(depth.meshes[0].entity->id == "instances");
+  assert(depth.meshes[1].entity->id == "ordinary");
+  // A pass owns its result and may compact/order it without editing the slices
+  // consumed by the following camera pass.
+  depth.meshes.clear();
+  const auto color = extract(camera, &paired);
+  assertParity(color, extract(camera, nullptr));
+  assert(color.instanceSourcesReused == 1);
+  assert(color.instanceCopiesReused == 1);
+
+  std::vector<BgfxCameraFrame3D> differentViews;
+  auto changed = camera;
+  changed.cameraId = "second_camera";
+  differentViews.push_back(changed);
+  changed = camera;
+  changed.position.x = 100;
+  differentViews.push_back(changed);
+  changed = camera;
+  changed.forward = {1, 0, 0};
+  differentViews.push_back(changed);
+  changed = camera;
+  changed.up = {0, 0, 1};
+  differentViews.push_back(changed);
+  changed = camera;
+  changed.viewportWidth = 640;
+  differentViews.push_back(changed);
+  changed = camera;
+  changed.viewportX = 40;
+  differentViews.push_back(changed);
+  changed = camera;
+  changed.camera.fov = 90;
+  differentViews.push_back(changed);
+  changed = camera;
+  changed.camera.nearClip = 6;
+  differentViews.push_back(changed);
+  changed = camera;
+  changed.camera.farClip = 6;
+  differentViews.push_back(changed);
+  changed = camera;
+  changed.camera.perspective = false;
+  differentViews.push_back(changed);
+  changed = camera;
+  changed.camera.orthographicSize = 20;
+  differentViews.push_back(changed);
+  changed = camera;
+  changed.camera.renderMask = "different_layer";
+  differentViews.push_back(changed);
+  changed = camera;
+  changed.lodPosition = Vec3{100, 0, 5};
+  differentViews.push_back(changed);
+  for (const auto &different : differentViews) {
+    const auto result = extract(different, &paired);
+    assert(result.instanceSourcesReused == 0);
+    assertParity(result, extract(different, nullptr));
+  }
+
+  (void)extract(camera, &paired);
+  assert(extract(camera, &paired).instanceSourcesReused == 1);
+  paired.reset();
+  preparation.reset();
+  auto *liveInstances =
+      world.entities.front().component<MeshInstances3DComponent>();
+  liveInstances->setTransform("near", {.position = {0, 0, 50}});
+  const auto nextPresentation = extract(camera, &paired);
+  assert(nextPresentation.instanceSourcesReused == 0);
+  assert(nextPresentation.meshes.size() == 1);
+  assertParity(nextPresentation, extract(camera, nullptr));
+}
+void sectionSelectionTouchesOnlySourcesThatNeedExpansion() {
+  for (const bool animated : {false, true}) {
+    World world;
+    auto grass = mesh("grass", {}, {-.1F, -.1F, -.1F}, {.1F, .1F, .1F});
+    grass.component<MeshRendererComponent>()->model = "asset://grass/model";
+    grass.component<MeshRendererComponent>()->material =
+        "asset://grass/material";
+    MeshInstances3DComponent copies;
+    constexpr std::size_t GrassCopies = 1024;
+    for (std::size_t index = 0; index < GrassCopies; ++index) {
+      copies.setTransform(std::to_string(index), {.position = {0, 0, 10}});
+    }
+    grass.setComponent(copies);
+    world.entities.push_back(std::move(grass));
+    auto church = mesh("church", {0, 0, 20}, {-1, -1, -1}, {1, 1, 1});
+    church.component<MeshRendererComponent>()->model = "asset://church/model";
+    if (animated) {
+      church.setComponent(AnimationPlayer3DComponent{});
+    }
+    world.entities.push_back(std::move(church));
+    world.entities.push_back(mesh("marker", {0, 0, 30}, {}, {}));
+
+    MeshMaterialSections3D importedSections;
+    for (std::size_t index = 0; index < 6; ++index) {
+      importedSections.sections.push_back(
+          {.id = "part_" + std::to_string(index),
+           .material = "asset://church/material_" + std::to_string(index),
+           .firstIndex = static_cast<std::uint32_t>(index * 9),
+           .indexCount = 9});
+    }
+    std::size_t resolverCalls = 0;
+    const ModelSectionsResolver3D sections = [&](const VisibleMesh3D &draw,
+                                                 Vec3) {
+      ++resolverCalls;
+      assert(draw.entity->id == "church");
+      return &importedSections;
+    };
+    BgfxCameraFrame3D frame;
+    MeshInstancePreparation3D preparation;
+    const auto visible = extractVisibleMeshes3D(
+        world, frame, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+        nullptr, {}, &preparation, nullptr, sections);
+    assert(visible.meshes.size() == GrassCopies + 7);
+    assert(visible.considered == GrassCopies + 2);
+    assert(visible.sectionSourcesExamined == 1);
+    assert(visible.sectionCopiesExamined == 1);
+    assert(visible.sectionDrawsEmitted == 6);
+    assert(resolverCalls == 1);
+    for (std::size_t index = 0; index < GrassCopies; ++index) {
+      assert(visible.meshes[index].entity->id == "grass");
+      assert(!visible.meshes[index].materialSection);
+      assert(visible.meshes[index].modelSections == nullptr);
+    }
+    for (std::size_t index = 0; index < 6; ++index) {
+      const auto &draw = visible.meshes[GrassCopies + index];
+      assert(draw.entity->id == "church");
+      assert(draw.materialSection == index);
+      assert(draw.modelSections == &importedSections);
+      const auto &section = draw.modelSections->sections[*draw.materialSection];
+      assert(section.firstIndex == index * 9);
+      assert(section.indexCount == 9);
+      assert(section.material ==
+             "asset://church/material_" + std::to_string(index));
+    }
+    assert(visible.meshes.back().entity->id == "marker");
+  }
+}
+
+void pairedRawInstancesKeepPerCopyLodSectionsPassLocal() {
+  World world;
+  auto source = mesh("two_lods", {}, {-1, -1, -1}, {1, 1, 1});
+  source.component<MeshRendererComponent>()->model = "asset://model/high";
+  MeshInstances3DComponent copies;
+  copies.setTransform("near", {.position = {0, 0, 10}});
+  copies.setTransform("far", {.position = {0, 0, 40}});
+  source.setComponent(copies);
+  world.entities.push_back(std::move(source));
+  MeshMaterialSections3D high;
+  high.sections = {{.id = "stone", .firstIndex = 0, .indexCount = 6},
+                   {.id = "roof", .firstIndex = 6, .indexCount = 3}};
+  MeshMaterialSections3D low;
+  low.sections = {{.id = "combined", .firstIndex = 3, .indexCount = 6}};
+  const ModelSectionsResolver3D sections = [&](const VisibleMesh3D &draw,
+                                               Vec3 viewer) {
+    return draw.transform.position.z - viewer.z < 30 ? &high : &low;
+  };
+  BgfxCameraFrame3D frame;
+  PreparedInstanceView3D paired;
+  MeshInstancePreparation3D preparation;
+  const auto extract = [&] {
+    return extractVisibleMeshes3D(world, frame, nullptr, nullptr, nullptr,
+                                  nullptr, nullptr, nullptr, nullptr, {},
+                                  &preparation, &paired, sections);
+  };
+  frame.pass = BgfxCameraPass3D::OpaqueDepth;
+  auto depth = extract();
+  assert(depth.sectionSourcesExamined == 1);
+  assert(depth.sectionCopiesExamined == 2);
+  assert(depth.meshes.size() == 3);
+  const auto &raw = paired.source(world.entities.front()).visibility.meshes;
+  assert(raw.size() == 2);
+  assert(!raw[0].materialSection && raw[0].modelSections == nullptr);
+  depth.meshes.clear();
+  frame.pass = BgfxCameraPass3D::Color;
+  const auto color = extract();
+  assert(color.instanceSourcesReused == 1);
+  assert(color.sectionCopiesExamined == 2);
+  assert(color.meshes.size() == 3);
+  std::size_t nearDraws = 0;
+  std::size_t farDraws = 0;
+  for (const auto &draw : color.meshes) {
+    if (draw.transform.position.z == 10) {
+      ++nearDraws;
+      assert(draw.modelSections == &high);
+      const auto &section = draw.modelSections->sections[*draw.materialSection];
+      assert(section.firstIndex == (*draw.materialSection == 0 ? 0 : 6));
+    } else {
+      ++farDraws;
+      assert(draw.modelSections == &low);
+      assert(draw.modelSections->sections[*draw.materialSection].firstIndex ==
+             3);
+    }
+  }
+  assert(nearDraws == 2 && farDraws == 1);
+}
+void shadowSamplingFloorPreservesDistanceCullingAndDynamicSources() {
+  BgfxCameraFrame3D main;
+  main.viewportHeight = 1080;
+  main.camera.fov = 60;
+  const auto height = effectiveModelLodPixelHeight3D(main);
+  const float floor = shadowModelLodDistanceFloor3D(0.1F, main, height);
+  assert(std::abs(floor - 93.53074F) < .001F);
+  assert(std::abs(shadowModelLodDistanceFloor3D(0.05F, main, height) -
+                  floor / 2) < .001F);
+  assert(std::abs(shadowModelLodDistanceFloor3D(0.1F, main, height * 2) -
+                  floor * 2) < .001F);
+  main.camera.renderScale = 0.5F;
+  assert(effectiveModelLodPixelHeight3D(main) == 540);
+  assert(effectiveModelLodPixelHeight3D(main, 720) == 720);
+  main.camera.perspective = false;
+  assert(shadowModelLodDistanceFloor3D(0.1F, main, height) == 0);
+  main.camera.perspective = true;
+  assert(shadowModelLodDistanceFloor3D(0, main, height) == 0);
+  assert(shadowModelLodDistanceFloor3D(0.1F, main, 0) == 0);
+
+  Entity entity;
+  entity.setComponent(MeshRendererComponent{.model = "asset://high",
+                                            .mediumLodModel = "asset://medium",
+                                            .mediumLodDistance = 12,
+                                            .lowLodModel = "asset://low",
+                                            .lowLodDistance = 38,
+                                            .cullDistance = 50});
+  VisibleMesh3D draw{.entity = &entity, .transform = {.position = {0, 0, 5}}};
+  BgfxCameraFrame3D cascade;
+  cascade.shadowModelLodDistanceFloor = floor;
+  const auto select = [&](bool shadowPass, Vec3 position = {0, 0, 5},
+                          bool preserveHigh = false) {
+    return selectModelLodGeometry3D(
+        *entity.component<MeshRendererComponent>(), position, {}, preserveHigh,
+        staticShadowModelLodFloor3D(draw, cascade, shadowPass));
+  };
+  assert(select(false).level == 0);
+  assert(select(true).level == 2 && !select(true).isCulled);
+  assert(select(true, {0, 0, 60}).isCulled);
+  assert(select(true, {0, 0, 5}, true).level == 0);
+  entity.setComponent(AnimationPlayer3DComponent{});
+  assert(select(true).level == 0);
+  entity.removeComponent<AnimationPlayer3DComponent>();
+  entity.setComponent(Dentable3DComponent{});
+  assert(select(true).level == 0);
+  entity.removeComponent<Dentable3DComponent>();
+  entity.setComponent(SurfaceRelief3DComponent{});
+  assert(select(true).level == 0);
+  entity.removeComponent<SurfaceRelief3DComponent>();
+  MeshInstancePreparation3D::EntitySource prepared;
+  prepared.entity = &entity;
+  prepared.mesh = entity.component<MeshRendererComponent>();
+  draw.preparedSource = &prepared;
+  assert(select(true).level == 2);
+  AnimationPlayer3DComponent animated;
+  prepared.animation = &animated;
+  assert(select(true).level == 0);
+}
+
+void shadowSectionSelectionUsesTheSameStaticSamplingFloor() {
+  World world;
+  auto subject = mesh("subject", {0, 0, 5}, {-1, -1, -1}, {1, 1, 1});
+  subject.setComponent(MeshRendererComponent{.model = "asset://high",
+                                             .lowLodModel = "asset://low",
+                                             .lowLodDistance = 38,
+                                             .cullDistance = 50});
+  world.entities.push_back(std::move(subject));
+  MeshMaterialSections3D high;
+  high.sections = {{.id = "high", .firstIndex = 0, .indexCount = 12}};
+  MeshMaterialSections3D low;
+  low.sections = {{.id = "low_a", .firstIndex = 3, .indexCount = 3},
+                  {.id = "low_b", .firstIndex = 6, .indexCount = 3}};
+  BgfxCameraFrame3D frame;
+  frame.lodPosition = Vec3{};
+  frame.shadowModelLodDistanceFloor = 100;
+  bool shadowPass = true;
+  const ModelSectionsResolver3D sections = [&](const VisibleMesh3D &draw,
+                                               Vec3 camera) {
+    const auto selected = selectModelLodGeometry3D(
+        *draw.preparedSource->mesh, draw.transform.position, camera, false,
+        staticShadowModelLodFloor3D(draw, frame, shadowPass));
+    assert(!selected.isCulled);
+    return *selected.model == "asset://low" ? &low : &high;
+  };
+  MeshInstancePreparation3D preparation;
+  const auto extract = [&] {
+    return extractVisibleMeshes3D(world, frame, nullptr, nullptr, nullptr,
+                                  nullptr, nullptr, nullptr, nullptr, {},
+                                  &preparation, nullptr, sections);
+  };
+  const auto shadow = extract();
+  assert(shadow.meshes.size() == 2);
+  assert(shadow.meshes[0].modelSections == &low);
+  assert(shadow.meshes[1].modelSections == &low);
+  assert(low.sections[*shadow.meshes[0].materialSection].firstIndex == 3);
+  assert(low.sections[*shadow.meshes[1].materialSection].firstIndex == 6);
+  shadowPass = false;
+  assert(extract().meshes.front().modelSections == &high);
+  shadowPass = true;
+  world.entities.front().setComponent(AnimationPlayer3DComponent{});
+  preparation.reset();
+  assert(extract().meshes.front().modelSections == &high);
+}
+void meshShadowOptOutSkipsSourcesBeforeInstanceWork() {
+  World world;
+  auto blade = mesh("single_grass", {0, 0, 5}, {-1, -1, -1}, {1, 1, 1});
+  blade.component<MeshRendererComponent>()->castsShadows = false;
+  world.entities.push_back(std::move(blade));
+  auto grass = mesh("grass", {}, {-1, -1, -1}, {1, 1, 1});
+  grass.component<MeshRendererComponent>()->castsShadows = false;
+  MeshInstances3DComponent copies;
+  copies.setTransform("a", {.position = {0, 0, 5}});
+  copies.setTransform("b", {.position = {0, 0, 10}});
+  grass.setComponent(copies);
+  world.entities.push_back(std::move(grass));
+  world.entities.push_back(mesh("tree", {0, 0, 8}, {-1, -1, -1}, {1, 1, 1}));
+  assert(
+      world.entities.back().component<MeshRendererComponent>()->castsShadows);
+
+  BgfxCameraFrame3D camera;
+  camera.viewportWidth = 320;
+  camera.viewportHeight = 180;
+  MeshInstancePreparation3D preparation;
+  PreparedInstanceView3D paired;
+  const auto extract = [&](BgfxCameraPass3D pass) {
+    camera.pass = pass;
+    return extractVisibleMeshes3D(world, camera, nullptr, nullptr, nullptr,
+                                  nullptr, nullptr, nullptr, nullptr, {},
+                                  &preparation, &paired);
+  };
+  const auto color = extract(BgfxCameraPass3D::Color);
+  assert(color.meshes.size() == 4 && color.instanceCopiesExamined == 2);
+  const auto cameraDepth = extract(BgfxCameraPass3D::OpaqueDepth);
+  assert(cameraDepth.meshes.size() == color.meshes.size());
+  assert(cameraDepth.instanceSourcesReused == 1);
+  const auto shadow = extract(BgfxCameraPass3D::Shadow);
+  assert(shadow.meshes.size() == 1 &&
+         shadow.meshes.front().entity->id == "tree");
+  assert(shadow.considered == 1);
+  assert(shadow.instanceCopiesExamined == 0 && shadow.instanceNodesTested == 0);
+  assert(shadow.instanceSourcesReused == 0);
+
+  assert(RuntimeObjectModel::setComponentField(world, "grass", "MeshRenderer",
+                                               "casts_shadows", true));
+  preparation.reset();
+  paired.reset();
+  const auto enabled = extract(BgfxCameraPass3D::Shadow);
+  assert(enabled.meshes.size() == 3 && enabled.instanceCopiesExamined == 2);
+  assert(RuntimeObjectModel::setComponentField(world, "grass", "MeshRenderer",
+                                               "casts_shadows", false));
+  preparation.reset();
+  paired.reset();
+  camera.outputAnalyticDepth = true;
+  const auto mrt = extract(BgfxCameraPass3D::Color);
+  assert(mrt.meshes.size() == 4);
+  const auto fallbackDepth = extract(BgfxCameraPass3D::OpaqueDepth);
+  assert(fallbackDepth.meshes.size() == 4);
+  assert(extract(BgfxCameraPass3D::Shadow).instanceCopiesExamined == 0);
+}
 int main() {
+  meshShadowOptOutSkipsSourcesBeforeInstanceWork();
+  shadowHullPrunesInstancesConservativelyInAuthoredOrder();
+  shadowSamplingFloorPreservesDistanceCullingAndDynamicSources();
+  shadowSectionSelectionUsesTheSameStaticSamplingFloor();
+  sectionSelectionTouchesOnlySourcesThatNeedExpansion();
+  pairedRawInstancesKeepPerCopyLodSectionsPassLocal();
+  pairedInstanceViewsRespectCameraAndPresentationBoundaries();
   retainedPrimitiveBoundsFollowLiveEdits();
   retainedSourcesObserveComponentReplacement();
   orthographicCullingMatchesExactProjectionEdges();
@@ -349,7 +844,8 @@ int main() {
     World copies;
     auto owner = mesh("distance-copies", {10, 0, 0}, {-.5F, -.5F, -.5F},
                       {.5F, .5F, .5F});
-    owner.updateComponent<Transform3DComponent>([&](auto &transform) { transform.scale = {2, 2, 2}; });
+    owner.updateComponent<Transform3DComponent>(
+        [&](auto &transform) { transform.scale = {2, 2, 2}; });
     owner.component<MeshRendererComponent>()->cullDistance = 10;
     owner.component<MeshRendererComponent>()->size = {2, 3, 4};
     MeshInstances3DComponent instances;
@@ -441,7 +937,8 @@ int main() {
 
     // Editor renderFrame calls own separate presentations. Owner edits, like
     // copy edits above, become visible after resetting the immutable snapshot.
-    copies.entities.front().updateComponent<Transform3DComponent>([&](auto &transform) { transform.position.x = 11.F; });
+    copies.entities.front().updateComponent<Transform3DComponent>(
+        [&](auto &transform) { transform.position.x = 11.F; });
     preparation.reset();
     const auto movedOwner = extractVisibleMeshes3D(
         copies, shadowFrame, nullptr, nullptr, nullptr, nullptr, nullptr,
@@ -466,7 +963,8 @@ int main() {
     preparation.reset();
     World otherWorld;
     otherWorld.entities = copies.entities;
-    otherWorld.entities.front().updateComponent<Transform3DComponent>([&](auto &transform) { transform.position.x = 12.F; });
+    otherWorld.entities.front().updateComponent<Transform3DComponent>(
+        [&](auto &transform) { transform.position.x = 12.F; });
     const auto otherScene = extractVisibleMeshes3D(
         otherWorld, shadowFrame, nullptr, nullptr, nullptr, nullptr, nullptr,
         nullptr, nullptr, {}, &preparation);

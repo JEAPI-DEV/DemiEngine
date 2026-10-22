@@ -29,6 +29,7 @@ struct Bgfx2DAppHostConfig {
   render::GraphicsApi graphicsApi = render::GraphicsApi::Automatic;
   bool vsync = true;
   bool debugGraphics = false;
+  std::string windowMode = "windowed";
 };
 
 // Owns the platform window and bgfx objects in their required lifetime order.
@@ -55,6 +56,7 @@ public:
 
   void poll(InputState &input);
   [[nodiscard]] const platform::PlatformFrameState &frameState() const;
+  [[nodiscard]] bool setWindowTitle(const std::string &title, std::string &error);
   [[nodiscard]] bool setWindowMode(std::string_view mode, std::string &error);
   [[nodiscard]] bool setMouseCaptured(bool captured, std::string &error);
   [[nodiscard]] bool setMouseVisible(bool visible, std::string &error);

@@ -1,11 +1,17 @@
 {
-  "dependencies": [],
+  "dependencies": [
+    "asset://polyhaven/terrain/textures/rock_face_03/albedo",
+    "asset://polyhaven/terrain/textures/rock_face_03/ambient_occlusion",
+    "asset://polyhaven/terrain/textures/rock_face_03/height",
+    "asset://polyhaven/terrain/textures/rock_face_03/normal",
+    "asset://polyhaven/terrain/textures/rock_face_03/roughness"
+  ],
   "format_version": 1,
   "id": "asset://terrain/surfaces/exposed_rock",
   "importer": "material",
   "importer_version": 1,
   "settings": {},
   "source": "exposed_rock.material.json",
-  "source_hash": "fnv1a64:b29d4a0257f9eeae",
+  "source_hash": "fnv1a64:a1ecb99baf61dbb9",
   "type": "Material"
 }

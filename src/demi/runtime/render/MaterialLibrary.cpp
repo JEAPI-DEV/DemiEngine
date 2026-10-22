@@ -174,6 +174,11 @@ bool MaterialLibrary::load(const AssetRegistry &registry,
   return success;
 }
 
+void MaterialLibrary::publishImported(std::string id, MaterialBinding binding) {
+  binding.uniformSet = static_cast<std::uint32_t>(materials_.size() + 1);
+  materials_.insert_or_assign(std::move(id), std::move(binding));
+}
+
 void MaterialLibrary::clear() {
   for (auto &[unused, material] : materials_)
     for (const MaterialParameter &parameter : material.parameters)

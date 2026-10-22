@@ -1,4 +1,5 @@
 #include "demi/runtime/render/backend/BgfxGraphicsDevice.h"
+#include "demi/runtime/render/backend/BgfxFrameSerial.h"
 #include "demi/runtime/render/backend/GpuResources.h"
 
 #include <array>
@@ -27,6 +28,15 @@ int main() {
   assert(limits.maxTextureSize == nativeCaps->limits.maxTextureSize);
   assert(limits.maxTextureSamplers == nativeCaps->limits.maxTextureSamplers);
   assert(limits.maxTextureLayers == nativeCaps->limits.maxTextureLayers);
+  assert(limits.maxFrameBufferAttachments == nativeCaps->limits.maxFBAttachments);
+  assert(limits.supportsMultisampleCountQuery ==
+         (bgfx::getRendererType() == bgfx::RendererType::Vulkan));
+  const auto firstPalette = reserveBgfxClearPalette(2);
+  const auto secondPalette = reserveBgfxClearPalette(2);
+  assert(firstPalette && *firstPalette == 0);
+  assert(secondPalette && *secondPalette == 2);
+  assert(!reserveBgfxClearPalette(255));
+  assert(reserveBgfxClearPalette(1) == 4);
   assert(limits.supportsInstancing ==
          ((nativeCaps->supported & BGFX_CAPS_INSTANCING) != 0));
   for (const auto &[format, nativeFormat] : std::array{
@@ -40,6 +50,12 @@ int main() {
                           BGFX_CAPS_FORMAT_TEXTURE_2D_EMULATED)) != 0));
     assert(capabilities.vertexSampling ==
            ((supported & BGFX_CAPS_FORMAT_TEXTURE_VERTEX) != 0));
+    assert(capabilities.renderTarget ==
+           ((supported & BGFX_CAPS_FORMAT_TEXTURE_FRAMEBUFFER) != 0));
+    assert(capabilities.multisampleRenderTarget ==
+           ((supported & BGFX_CAPS_FORMAT_TEXTURE_FRAMEBUFFER_MSAA) != 0));
+    assert(capabilities.sampledMultisample ==
+           ((supported & BGFX_CAPS_FORMAT_TEXTURE_MSAA) != 0));
   }
   assert(!resources->textureCapabilities(static_cast<TextureFormat>(-1))
               .sampled2D);

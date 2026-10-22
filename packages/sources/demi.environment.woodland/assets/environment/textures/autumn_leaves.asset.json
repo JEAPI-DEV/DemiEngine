@@ -1,0 +1,15 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://demi/woodland/textures/leaves/albedo",
+  "importer": "image",
+  "importer_version": 1,
+  "settings": {
+    "filter": "trilinear",
+    "mipmaps": true,
+    "wrap": "repeat"
+  },
+  "source": "autumn_leaves.png",
+  "source_hash": "fnv1a64:afefee5ecc7ae273",
+  "type": "Texture2D"
+}

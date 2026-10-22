@@ -64,3 +64,25 @@ fixtures rather than replaced with one supposedly equivalent skinned path.
 
 The catch-all asset resource loader and broader JSON Schema replacement remain
 separate audit items; they were not silently changed as part of import cleanup.
+
+## Imported model materials
+
+The model resource now retains primitive index ranges and core glTF material
+assignments. Imported bindings own albedo, normal, roughness/metallic channel
+selection, occlusion strength, emissive color, alpha mode and double-sided
+state. Source sampler wrapping and filter stages reach texture creation;
+omitted model overrides preserve glTF repeat. Derived bindings and sections do
+not add authored entities or synthetic asset manifests. Authored model material
+overrides still replace imported appearance across the complete model.
+
+Static uploads now use transformed authored bind-pose normals when complete.
+Static, instanced and skinned submissions preserve section index ranges; pose
+preparation remains shared across an entity's sections. Texture demand reloads
+repeat the same source channel/factor conversion rather than falling back to a
+first-material image.
+
+`demi-gltf-materials-tests` exercises independent material assignments, source
+UVs outside 0-1, default/per-axis/overridden samplers, packed scalar channels,
+authored material override, static/instanced/skinned draw ranges, and explicit
+unsupported-UV diagnostics. Build and native appearance qualification must be
+recorded separately from implementation; this section is not a device gate.

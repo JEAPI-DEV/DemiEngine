@@ -9,12 +9,20 @@
 
 #include <filesystem>
 #include <map>
+#include <memory>
 #include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
+namespace demi {
+struct AssetRegistry;
+}
+
 namespace demi::runtime {
+namespace composition {
+class PrefabResolutionContext;
+}
 
 struct PrefabInstantiateOptions {
   std::string id;
@@ -35,6 +43,30 @@ struct PrefabInstanceResult {
 
 class RuntimePrefabService {
 public:
+  class PreparationBatch {
+  public:
+    PreparationBatch(const PreparationBatch &) = delete;
+    PreparationBatch &operator=(const PreparationBatch &) = delete;
+    PreparationBatch(PreparationBatch &&other) noexcept;
+    ~PreparationBatch();
+    [[nodiscard]] std::size_t packageVerificationCount() const noexcept;
+    [[nodiscard]] composition::PrefabResolutionContext &
+    resolutionContext() const noexcept;
+
+  private:
+    friend class RuntimePrefabService;
+    PreparationBatch(
+        RuntimePrefabService &owner,
+        std::shared_ptr<composition::PrefabResolutionContext> previous);
+    RuntimePrefabService *owner_;
+    std::shared_ptr<composition::PrefabResolutionContext> previous_;
+    std::shared_ptr<composition::PrefabResolutionContext> context_;
+  };
+
+  // Nested operations share the caller's verified source inventory. The
+  // outermost scope releases it; later batches validate packages afresh.
+  [[nodiscard]] PreparationBatch
+  beginPreparationBatch(const AssetRegistry *verifiedRegistry = nullptr);
   void configure(std::filesystem::path projectDirectory);
   void setTemplateCacheCapacity(std::size_t entries) {
     templates_.setCapacity(entries);
@@ -81,6 +113,7 @@ private:
   std::filesystem::path projectDirectory_;
   std::unordered_map<std::string, Instance> instances_;
   PrefabTemplateCache templates_;
+  std::shared_ptr<composition::PrefabResolutionContext> resolution_;
 };
 
 } // namespace demi::runtime

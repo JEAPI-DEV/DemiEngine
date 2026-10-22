@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "id": "asset://demi/woodland/understory/sorrel/albedo",
+  "type": "Texture2D",
+  "importer": "image",
+  "importer_version": 1,
+  "source": "albedo.png",
+  "source_hash": "fnv1a64:a2379c22a5b31a75",
+  "settings": {
+    "filter": "trilinear",
+    "mipmaps": true,
+    "wrap": "clamp"
+  },
+  "dependencies": []
+}

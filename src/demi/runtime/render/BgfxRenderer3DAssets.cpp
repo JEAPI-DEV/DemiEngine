@@ -1,11 +1,12 @@
 #include "demi/runtime/render/BgfxRenderer3D.h"
 
-#include "demi/assets/GltfGeometry.h"
 #include "demi/assets/ModelImportProfile.h"
 #include "demi/assets/RenderAsset.h"
 #include "demi/runtime/diagnostics/DeviceLog.h"
 #include "demi/runtime/render/backend/RenderAssetLoading.h"
 #include "demi/runtime/render/bgfx2d/ColorPacking2D.h"
+#include "demi/runtime/render/bgfx3d/ImportedModelMaterials3D.h"
+#include "demi/runtime/scene/model/MeshMaterialSections3D.h"
 
 #include <nlohmann/json.hpp>
 #include <stop_token>
@@ -21,7 +22,9 @@ struct PreparedModelAsset {
   MeshGeometry3D geometry;
   std::vector<GpuSkinnedVertex3D> skinVertices;
   GpuSkinPaletteLayout skinLayout;
-  std::optional<PreparedTexture2D> albedo;
+  std::vector<Vec3> normals;
+  std::vector<PreparedImportedMaterial3D> materials;
+  std::vector<std::string> diagnostics;
   std::string error;
 };
 
@@ -45,54 +48,63 @@ void prepareModelAsset(const AssetManifest &asset, PreparedModelAsset &result,
   auto &geometry = result.geometry;
   result.animated = assets::loadGltfSkinnedModel3D(
       asset.sourcePath, *result.profile, result.error);
-  if (result.animated) {
-    if (!result.animated->bindPosePositions(geometry.positions, result.error)) {
+  if (!result.animated) {
+    return;
+  }
+  if (!result.animated->bindPosePositions(geometry.positions, result.error) ||
+      !result.animated->bindPoseNormals(result.normals, result.error)) {
+    return;
+  }
+  for (const auto &vertex : result.animated->vertices) {
+    geometry.uvs.push_back(vertex.uv);
+    geometry.colors.push_back(packVertexColorRgba8(vertex.color));
+  }
+  geometry.indices = result.animated->indices;
+  std::string unsupportedSkin;
+  if (!buildGpuSkinVertices(*result.animated, result.skinVertices,
+                            result.skinLayout, unsupportedSkin)) {
+    result.skinVertices.clear();
+  }
+  std::set<std::size_t> usedMaterials;
+  for (const auto &section : result.animated->materialSections) {
+    usedMaterials.insert(section.material);
+  }
+  for (const auto index : usedMaterials) {
+    for (const auto &diagnostic :
+         result.animated->materials.at(index).diagnostics) {
+      result.diagnostics.push_back(diagnostic);
+    }
+    PreparedImportedMaterial3D material;
+    if (!prepareImportedMaterial(asset, index,
+                                 result.animated->materials.at(index),
+                                 result.profile->materialPolicy == "unlit",
+                                 material, result.error, stop)) {
       return;
     }
-    for (const auto &vertex : result.animated->vertices) {
-      geometry.uvs.push_back(vertex.uv);
-      geometry.colors.push_back(packVertexColorRgba8(vertex.color));
-    }
-    geometry.indices = result.animated->indices;
-    std::string unsupportedSkin;
-    if (!buildGpuSkinVertices(*result.animated, result.skinVertices,
-                              result.skinLayout, unsupportedSkin)) {
-      result.skinVertices.clear();
-    }
-  } else {
-    result.error.clear();
-    const auto source = assets::loadGltfGeometry(asset.sourcePath,
-                                                 *result.profile, result.error);
-    if (!source) {
-      return;
-    }
-    geometry.positions.reserve(source->triangles.size() * 3U);
-    geometry.uvs.reserve(source->triangles.size() * 3U);
-    for (const auto &triangle : source->triangles) {
-      for (const auto point : {triangle.a, triangle.b, triangle.c}) {
-        geometry.positions.push_back({point.x, point.y, point.z});
-      }
-      for (const auto point : {triangle.uvA, triangle.uvB, triangle.uvC}) {
-        geometry.uvs.push_back({point.x, point.y});
-      }
+    result.materials.push_back(std::move(material));
+  }
+  // Animated geometry retains material identity, not duplicate encoded images.
+  for (auto &material : result.animated->materials) {
+    for (auto &[role, texture] : material.textures) {
+      texture.encoded.reset();
     }
   }
-  if (result.profile->materialPolicy == "ignore" || stop.stop_requested()) {
-    return;
+}
+
+template <typename Source>
+bool prepareTextureSource(const Source &source, ImageMipSemantic semantic,
+                          PreparedTexture2D &output, std::string &error,
+                          std::stop_token stop = {}) {
+  if (source.prepareImported) {
+    return source.prepareImported(semantic, output, error, stop);
   }
-  auto encoded = asset.texturePath ? readRenderAssetBytes(*asset.texturePath)
-                 : result.animated ? std::move(result.animated->albedoImage)
-                                   : std::vector<std::byte>{};
-  if (!asset.texturePath && encoded.empty()) {
-    return;
+  const auto encoded = readRenderAssetBytes(source.path);
+  if (!error.empty()) {
+    return false;
   }
-  auto sampling = textureSampling2D(asset);
-  sampling.mipSemantic = ImageMipSemantic::Color;
-  PreparedTexture2D texture;
-  if (!prepareTexture2D(encoded, sampling, texture, result.error, stop)) {
-    return;
-  }
-  result.albedo = std::move(texture);
+  auto sampling = source.sampling;
+  sampling.mipSemantic = semantic;
+  return prepareTexture2D(encoded, sampling, output, error, stop);
 }
 
 ImageMipSemantic materialMapSemantic(assets::MaterialMapSlot slot) {
@@ -176,13 +188,9 @@ TextureView2D BgfxRenderer3D::materialTexture(std::string_view id,
   // Retain only source identity and sampling, never decoded image memory.
   // A second role pays its decode/upload once at first use.
   std::string error;
-  const auto bytes = descriptor.readEmbedded
-                         ? descriptor.readEmbedded(error)
-                         : readRenderAssetBytes(descriptor.path);
-  auto sampling = descriptor.sampling;
-  sampling.mipSemantic = semantic;
-  if (bytes.empty() ||
-      !textures_.load(std::string(id), bytes, error, sampling)) {
+  PreparedTexture2D prepared;
+  if (!prepareTextureSource(descriptor, semantic, prepared, error) ||
+      !textures_.uploadPrepared(std::string(id), prepared, error)) {
     descriptor.failedVariants[variant] = true;
     descriptor.variantErrors[variant] =
         error.empty() ? "Could not read texture source." : error;
@@ -262,7 +270,6 @@ bool BgfxRenderer3D::beginAssetPreparation(
   deformedMeshes_.clear();
   reliefMeshes_.loadAssets(registry);
   animatedModels_.clear();
-  modelTextures_.clear();
   modelUnlit_.clear();
   materials_.clear();
   for (const auto &[id, target] : renderTargets_) {
@@ -396,12 +403,15 @@ bool BgfxRenderer3D::stepAssetPreparation(
           diagnostics.push_back(asset.id + ": " + model.error);
           return false;
         }
+        for (const auto &diagnostic : model.diagnostics) {
+          diagnostics.push_back(asset.id + ": " + diagnostic);
+        }
         auto cached = std::make_unique<CachedMesh>(resources_);
         auto &geometry = model.geometry;
         std::string error;
         if (!cached->gpu.upload(geometry.positions, geometry.uvs,
-                                geometry.indices, 0xffffffffU, error, {},
-                                geometry.colors)) {
+                                geometry.indices, 0xffffffffU, error,
+                                model.normals, geometry.colors)) {
           diagnostics.push_back(asset.id + ": " + error);
           return false;
         }
@@ -418,29 +428,42 @@ bool BgfxRenderer3D::stepAssetPreparation(
         }
         modelUnlit_[asset.id] = model.profile->materialPolicy == "unlit";
         modelMeshes_.emplace(asset.id, std::move(cached));
-        if (model.albedo) {
-          const std::string textureId = asset.id + "#albedo";
-          if (!textures_.uploadPrepared(textureId, *model.albedo, error)) {
-            diagnostics.push_back(asset.id + ": " + error);
-            return false;
+        for (auto &material : model.materials) {
+          for (auto &texture : material.textures) {
+            if (!textures_.uploadPrepared(texture.id, texture.texture, error)) {
+              diagnostics.push_back(asset.id + ": " + error);
+              return false;
+            }
+            const auto materialIndex = material.sourceMaterial;
+            TextureSource source;
+            source.sampling = texture.texture.sampling;
+            source.prepareImported =
+                [asset, materialIndex, slot = texture.slot](
+                    ImageMipSemantic semantic, PreparedTexture2D &output,
+                    std::string &readError, std::stop_token stop) {
+                  return reloadImportedTexture(asset, materialIndex, slot,
+                                               semantic, output, readError,
+                                               stop);
+                };
+            textureSources_.emplace(texture.id, std::move(source));
+            preparedTextureVariants_.emplace(
+                texture.id, texture.texture.sampling.mipSemantic);
           }
-          TextureSource source;
-          source.sampling = model.albedo->sampling;
-          if (asset.texturePath) {
-            source.path = *asset.texturePath;
-          } else {
-            source.readEmbedded = [path = asset.sourcePath,
-                                   profile =
-                                       *model.profile](std::string &readError) {
-              auto model =
-                  assets::loadGltfSkinnedModel3D(path, profile, readError);
-              return model ? std::move(model->albedoImage)
-                           : std::vector<std::byte>{};
-            };
+          materials_.publishImported(material.id, std::move(material.binding));
+        }
+        if (!model.animated->materialSections.empty()) {
+          auto sections = std::make_shared<MeshMaterialSections3D>();
+          sections->indices =
+              std::make_shared<const std::vector<std::uint32_t>>(
+                  model.animated->indices);
+          for (const auto &section : model.animated->materialSections) {
+            sections->sections.push_back(
+                {.id = std::to_string(sections->sections.size()),
+                 .material = importedMaterialId(asset.id, section.material),
+                 .firstIndex = section.firstIndex,
+                 .indexCount = section.indexCount});
           }
-          textureSources_.emplace(textureId, std::move(source));
-          modelTextures_[asset.id] = textureId;
-          preparedTextureVariants_.emplace(textureId, ImageMipSemantic::Color);
+          modelMeshes_.at(asset.id)->materialSections = std::move(sections);
         }
         if (model.animated && (!model.animated->clips.empty() ||
                                !model.animated->skins.empty())) {
@@ -506,13 +529,9 @@ bool BgfxRenderer3D::stepAssetPreparation(
               if (stop.stop_requested()) {
                 return;
               }
-              const auto encoded = descriptor.readEmbedded
-                                       ? descriptor.readEmbedded(image->error)
-                                       : readRenderAssetBytes(descriptor.path);
-              if (image->error.empty()) {
-                (void)prepareTexture2D(encoded, descriptor.sampling,
-                                       image->texture, image->error, stop);
-              }
+              (void)prepareTextureSource(descriptor,
+                                         descriptor.sampling.mipSemantic,
+                                         image->texture, image->error, stop);
             });
         return true;
       }
@@ -627,13 +646,8 @@ bool BgfxRenderer3D::prepareTextureVariant(const std::string_view id,
         if (stop.stop_requested()) {
           return;
         }
-        const auto encoded = descriptor.readEmbedded
-                                 ? descriptor.readEmbedded(result->error)
-                                 : readRenderAssetBytes(descriptor.path);
-        if (result->error.empty()) {
-          (void)prepareTexture2D(encoded, descriptor.sampling, result->texture,
-                                 result->error, stop);
-        }
+        (void)prepareTextureSource(descriptor, descriptor.sampling.mipSemantic,
+                                   result->texture, result->error, stop);
       });
   textureVariantPreparation_ = std::move(pending);
   return true;

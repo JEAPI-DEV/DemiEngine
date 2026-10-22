@@ -1,0 +1,15 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://demi/woodland/textures/grass_photo/roughness",
+  "importer": "image",
+  "importer_version": 1,
+  "settings": {
+    "filter": "trilinear",
+    "mipmaps": true,
+    "wrap": "repeat"
+  },
+  "source": "grass_medium_01_roughness_1k.png",
+  "source_hash": "fnv1a64:8010d3b5ee28d2e6",
+  "type": "Texture2D"
+}

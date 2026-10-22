@@ -1,5 +1,10 @@
 # DemiEngine Roadmap
 
+The [3D showcase and authoring plan](3d-showcase-plan.md) tracks Silvermere
+and the requested terrain, foliage, cinematic, animation and editor workflows,
+with verified implemented/partial/missing boundaries and phased acceptance gates.
+It does not replace the lightweight-3D capability limits or existing qualification.
+
 Terrain Milestone 6 is complete for Linux lightweight 3D: stable physical-density
 scatter, shared environmental rules, conversion into editable scene objects,
 batched groundcover, selective collision, real model LOD and shared Material

@@ -27,13 +27,15 @@ public:
   GpuSkinnedMesh3D &operator=(const GpuSkinnedMesh3D &) = delete;
   [[nodiscard]] bool upload(std::span<const GpuSkinnedVertex3D> vertices,
                             std::span<const std::uint32_t> indices,
-                            GpuSkinPaletteLayout layout,
-                            std::string &error);
-  [[nodiscard]] bool
-  draw(RenderCommands &commands, std::uint16_t view, ProgramHandle program,
-       TextureHandle texture, SamplerHandle sampler,
-       const std::array<float, 16> &transform, const DrawState &state,
-       std::span<const DrawUniformValue> uniforms, std::string &error) const;
+                            GpuSkinPaletteLayout layout, std::string &error);
+  [[nodiscard]] bool draw(RenderCommands &commands, std::uint16_t view,
+                          ProgramHandle program, TextureHandle texture,
+                          SamplerHandle sampler,
+                          const std::array<float, 16> &transform,
+                          const DrawState &state,
+                          std::span<const DrawUniformValue> uniforms,
+                          std::string &error, std::uint32_t firstIndex = 0,
+                          std::uint32_t indexCount = UINT32_MAX) const;
   [[nodiscard]] std::uint32_t indexCount() const { return indexCount_; }
   [[nodiscard]] const GpuSkinPaletteLayout &paletteLayout() const { return layout_; }
 

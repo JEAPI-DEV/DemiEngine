@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -43,6 +44,7 @@ enum class BuiltinProgram {
   Directional3DInstanced,
   Directional3DSkinned,
   PostProcess2D,
+  LinearDepthResolve3D,
   Terrain3D,
   Terrain3DDirectional,
   TerrainMapped3D,
@@ -104,6 +106,13 @@ struct TextureCreateInfo {
   // Array data is layer-major; each layer contains its complete mip chain.
   std::uint16_t layers = 1;
   bool blitDestination = false;
+  // Imported samplers may choose axes and filter stages independently.
+  std::optional<TextureWrap> wrapV;
+  std::optional<TextureFilter> minFilter;
+  std::optional<TextureFilter> magFilter;
+  std::optional<TextureFilter> mipFilter;
+  // Preserve multisample storage for explicit shader resolution.
+  bool sampleMultisample = false;
 };
 
 struct TextureUpdateInfo {
@@ -161,12 +170,18 @@ struct RenderDeviceLimits {
   bool supportsInstancing = false;
   std::uint32_t maxTextureLayers = 1;
   bool supportsTextureBlit = false;
+  std::uint32_t maxFrameBufferAttachments = 1;
+  // The backend shader path can query the actual allocated MSAA sample count.
+  bool supportsMultisampleCountQuery = false;
 };
 
 struct TextureCapabilities {
   bool sampled2D = false;
   bool vertexSampling = false;
   bool sampledArray = false;
+  bool renderTarget = false;
+  bool multisampleRenderTarget = false;
+  bool sampledMultisample = false;
 };
 
 class GpuResources {
@@ -203,6 +218,15 @@ public:
   createProgram(const ProgramCreateInfo &info, std::string &error) = 0;
   [[nodiscard]] virtual ProgramHandle
   createBuiltinProgram(BuiltinProgram program, std::string &error) = 0;
+  [[nodiscard]] virtual ProgramHandle
+  createBuiltinProgram(BuiltinProgram program, bool linearDepthOutput,
+                         std::string &error) {
+    if (linearDepthOutput) {
+      error = "This backend does not provide analytic-depth MRT shaders.";
+      return {};
+    }
+    return createBuiltinProgram(program, error);
+  }
   // Stable name used by cooked shader manifests (vulkan, opengl, opengles,
   // or noop). Keeping this query here prevents material code from depending
   // on bgfx renderer enums.
@@ -210,6 +234,15 @@ public:
   [[nodiscard]] virtual RenderTargetHandles
   createRenderTarget(const RenderTargetCreateInfo &info,
                      std::string &error) = 0;
+
+  // Attach existing textures without transferring their ownership. This is
+  // required when an opaque MRT and its continuation share color/hardware depth.
+  [[nodiscard]] virtual FrameBufferHandle
+  createFrameBuffer(std::span<const TextureHandle> attachments,
+                      const std::string &debugName, std::string &error) {
+    error = "This backend cannot attach existing render-target textures.";
+    return {};
+  }
 
   virtual bool destroy(TextureHandle handle) = 0;
   virtual bool destroy(SamplerHandle handle) = 0;

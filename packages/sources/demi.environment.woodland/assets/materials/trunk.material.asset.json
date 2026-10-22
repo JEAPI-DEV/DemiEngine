@@ -1,0 +1,16 @@
+{
+  "dependencies": [
+    "asset://demi/woodland/textures/trunk/albedo",
+    "asset://demi/woodland/textures/trunk/ambient_occlusion",
+    "asset://demi/woodland/textures/trunk/normal",
+    "asset://demi/woodland/textures/trunk/roughness"
+  ],
+  "format_version": 1,
+  "id": "asset://demi/woodland/materials/trunk",
+  "importer": "material",
+  "importer_version": 1,
+  "settings": {},
+  "source": "trunk.material.json",
+  "source_hash": "fnv1a64:41070f4af5078659",
+  "type": "Material"
+}

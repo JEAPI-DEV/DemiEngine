@@ -1,11 +1,15 @@
 {
   "format_version": 1,
-  "name": "Meadow surfaces",
+  "name": "Silvermere Poly Haven terrain surfaces",
   "roles": {
+    "ground": "asset://terrain/surfaces/grass",
+    "grass": "asset://terrain/surfaces/grass",
     "rock": "asset://terrain/surfaces/exposed_rock",
-    "ground": "asset://terrain/surfaces/soil",
-    "sand": "asset://terrain/surfaces/sand",
-    "snow": "asset://terrain/surfaces/snow",
-    "wet_ground": "asset://terrain/surfaces/wet_ground"
+    "cliff": "asset://terrain/surfaces/exposed_rock",
+    "sediment": "asset://polyhaven/terrain/materials/rocky_gravel",
+    "sand": "asset://polyhaven/terrain/materials/sand_02",
+    "snow": "asset://polyhaven/terrain/materials/snow_02",
+    "wet_ground": "asset://polyhaven/terrain/materials/wet_gravel",
+    "underwater": "asset://polyhaven/terrain/materials/wet_gravel"
   }
 }

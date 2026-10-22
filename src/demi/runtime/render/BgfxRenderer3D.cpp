@@ -3,6 +3,8 @@
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/render/bgfx3d/MeshShadowSections3D.h"
 #include "demi/runtime/render/bgfx3d/SceneVisibility3D.h"
+#include "demi/runtime/render/bgfx3d/VisibleMeshGeometry3D.h"
+#include "demi/runtime/scene/components/3dcomponents/AnimationPlayer3DComponent.h"
 #include "demi/runtime/terrain/TerrainWaterMesh.h"
 
 #include "demi/runtime/render/bgfx3d/DebugGeometry3D.h"
@@ -224,6 +226,10 @@ bool BgfxRenderer3D::initialize(std::string &error) {
 void BgfxRenderer3D::shutdown() {
   cancelAssetPreparation();
   meshPbr_.shutdown();
+  for (const auto &[ordinary, analytic] : analyticDepthPrograms_) {
+    resources_.destroy(analytic);
+  }
+  analyticDepthPrograms_.clear();
   for (auto &program : pbrPrograms_) {
     if (program) {
       resources_.destroy(program);
@@ -288,7 +294,6 @@ void BgfxRenderer3D::shutdown() {
   primitiveMeshes_.clear();
   modelMeshes_.clear();
   animatedModels_.clear();
-  modelTextures_.clear();
   modelUnlit_.clear();
   materials_.clear();
   for (const auto &[id, target] : renderTargets_) {
@@ -369,14 +374,22 @@ bool BgfxRenderer3D::renderFrame(const World &world,
     }
   } presentationScope{*this, ownsPresentation, presentationSucceeded};
   if (frame.updateContent) {
-    meshRetention_.collect(instancePreparation_.worldSources(world, &extractionJobs_));
+    meshRetention_.collect(
+        instancePreparation_.worldSources(world, &extractionJobs_));
   }
   const auto sceneLighting =
       collectSceneLighting3D(world, frame.camera.renderMask, &entityQueries_);
   configureTerrainPresentation(world, frame, sceneLighting);
   const auto &lighting =
       frame.lightingOverride ? *frame.lightingOverride : sceneLighting;
-  if (!shadows_.prepare(lighting, frame, error)) {
+  std::optional<std::uint16_t> authoredTargetHeight;
+  if (const auto target = renderTargets_.find(frame.camera.renderTarget);
+      target != renderTargets_.end()) {
+    authoredTargetHeight = target->second.height;
+  }
+  const auto lodPixelHeight =
+      effectiveModelLodPixelHeight3D(frame, authoredTargetHeight);
+  if (!shadows_.prepare(lighting, frame, error, lodPixelHeight)) {
     return false;
   }
   // Advance shared visual time before any shadow/depth/color view consumes
@@ -385,6 +398,7 @@ bool BgfxRenderer3D::renderFrame(const World &world,
     waterTime_ += std::max(deltaSeconds, 0.F);
     waterTimeAdvanced_ = true;
   }
+  cameraInstances_.reset();
   auto mainFrame = frame;
   std::size_t shadowBatches = 0;
   std::size_t shadowTriangles = 0;
@@ -401,6 +415,15 @@ bool BgfxRenderer3D::renderFrame(const World &world,
     const auto prefix = "Renderer3D.shadow." + std::to_string(cascade) + ".";
     RuntimeProfiler::setGauge(prefix + "triangles", statistics_.triangles);
     RuntimeProfiler::setGauge(prefix + "batches", statistics_.batches);
+    RuntimeProfiler::setGauge(
+        prefix + "world_units_per_texel",
+        depthFrames[cascade].camera.orthographicSize /
+            depthFrames[cascade].viewportHeight);
+    RuntimeProfiler::setGauge(
+        prefix + "model_lod_distance_floor",
+        depthFrames[cascade].shadowModelLodDistanceFloor);
+    RuntimeProfiler::setGauge(prefix + "lod_medium", statistics_.mediumLodMeshes);
+    RuntimeProfiler::setGauge(prefix + "lod_low", statistics_.lowLodMeshes);
     ++mainFrame.viewId;
   }
   RuntimeProfiler::setGauge("Renderer3D.shadow_batches", shadowBatches);
@@ -414,14 +437,24 @@ bool BgfxRenderer3D::renderFrame(const World &world,
     mainFrame.underwater.reset();
   }
   std::string captureError;
-  auto *capture = prepareWaterCapture(world, mainFrame, captureError);
+  auto *capture =
+      prepareWaterCapture(world, mainFrame, sceneLighting, captureError);
   if (!captureError.empty()) {
     error = std::move(captureError);
     return false;
   }
-  if (capture != nullptr) {
+  RuntimeProfiler::setGauge("Renderer3D.water_capture_path",
+                            capture ? static_cast<int>(capture->pathReason)
+                                    : -1);
+  if (capture && capture->usesMrt()) {
+    if (!prepareAnalyticDepthPrograms(error)) {
+      return false;
+    }
+    mainFrame.outputAnalyticDepth = true;
+  }
+  if (capture != nullptr && !capture->usesMrt()) {
     auto depthFrame = mainFrame;
-    depthFrame.captureLinearDepth = true;
+    depthFrame.pass = BgfxCameraPass3D::OpaqueDepth;
     depthFrame.underwater.reset();
     depthFrame.frameBuffer = capture->depth.frameBuffer;
     depthFrame.viewportX = 0;
@@ -436,8 +469,8 @@ bool BgfxRenderer3D::renderFrame(const World &world,
     depthFrame.camera.clearColor = {1.F, 1.F, 1.F, 1.F};
     depthFrame.camera.clearMode = "color";
     depthFrame.postProcess.reset();
-    if (!renderView(world, depthFrame, 0.F, error, false, sceneLighting,
-                    frame)) {
+    if (!renderView(world, depthFrame, 0.F, error, false, sceneLighting, frame,
+                    nullptr, &cameraInstances_)) {
       return false;
     }
     ++mainFrame.viewId;
@@ -445,8 +478,9 @@ bool BgfxRenderer3D::renderFrame(const World &world,
   if (mainFrame.underwater && capture) {
     mainFrame.underwater->linearDepth = capture->depth.color;
   }
-  const bool rendered = renderView(world, mainFrame, deltaSeconds, error, false,
-                                   sceneLighting, frame, capture);
+  const bool rendered = renderView(
+      world, mainFrame, deltaSeconds, error, false, sceneLighting, frame,
+      capture, capture != nullptr ? &cameraInstances_ : nullptr);
   statistics_.shadowPasses = depthFrames.size();
   if (rendered && frame.updateContent) {
     deformedMeshes_.retain([this](const std::string &id) {
@@ -466,9 +500,10 @@ bool BgfxRenderer3D::renderView(const World &world,
                                 bool shadowPass,
                                 const SceneLighting3D &sceneLighting,
                                 const BgfxCameraFrame3D &lodCamera,
-                                OpaqueSceneCapture3D::Target *waterCapture) {
+                                OpaqueSceneCapture3D::Target *waterCapture,
+                                PreparedInstanceView3D *preparedInstances) {
   auto frame = inputFrame;
-  const bool depthCapture = frame.captureLinearDepth;
+  const bool depthCapture = frame.pass == BgfxCameraPass3D::OpaqueDepth;
   if (!initialized_) {
     error = "BgfxRenderer3D must be initialized before rendering.";
     return false;
@@ -498,7 +533,8 @@ bool BgfxRenderer3D::renderView(const World &world,
   const bool applyPostProcess =
       hasPostProcessEffects(frame.postProcess) || frame.underwater.has_value();
   const bool targetPostProcess =
-      authoredOffscreen && frame.updateContent && applyPostProcess;
+      authoredOffscreen && frame.updateContent &&
+      (applyPostProcess || (waterCapture && waterCapture->usesMrt()));
   const float renderScale =
       authoredOffscreen ? 1.0F
                         : std::clamp(frame.camera.renderScale, 0.25F, 2.0F);
@@ -529,7 +565,9 @@ bool BgfxRenderer3D::renderView(const World &world,
                 1L, static_cast<long>(UINT16_MAX)));
   RenderTargetHandles sourceTarget;
   sourceTarget.msaaSamples = frame.destinationSamples;
-  if (authoredOffscreen && !targetPostProcess) {
+  if (waterCapture && waterCapture->usesMrt()) {
+    sourceTarget = waterCapture->scene;
+  } else if (authoredOffscreen && !targetPostProcess) {
     sourceTarget = renderTarget->second.handles;
   } else if (resolveSurface) {
     sourceTarget = postProcess_.scratchTarget(
@@ -571,11 +609,36 @@ bool BgfxRenderer3D::renderView(const World &world,
     const auto extractionStarted = std::chrono::steady_clock::now();
     visibility = extractVisibleMeshes3D(
         world, frame, &extractionJobs_, &terrainSelection_, &lodCamera,
-        &terrainLodResidency_, &terrainCameraDemand_, &terrainPatches_, &materials_,
+        &terrainLodResidency_, &terrainCameraDemand_, &terrainPatches_,
+        &materials_,
         [this](std::string_view model) -> std::optional<MeshBounds3D> {
           const auto cached = modelMeshes_.find(std::string(model));
-          return cached == modelMeshes_.end() ? std::nullopt : cached->second->bounds;
-        }, &instancePreparation_);
+          return cached == modelMeshes_.end() ? std::nullopt
+                                              : cached->second->bounds;
+        },
+        &instancePreparation_, preparedInstances,
+        [this, &frame, shadowPass](
+            const VisibleMesh3D &draw,
+            Vec3 camera) -> const MeshMaterialSections3D * {
+          const auto &mesh = visibleMeshGeometry3D(draw);
+          const auto *player =
+              draw.preparedSource
+                  ? draw.preparedSource->animation
+                  : draw.entity->component<AnimationPlayer3DComponent>();
+          const auto dents = draw.preparedSource
+                                 ? draw.preparedSource->dents
+                                 : entityMeshDents3D(*draw.entity);
+          const auto lod = selectModelLod(
+              mesh, player, draw.transform.position, camera, !dents.empty(),
+              staticShadowModelLodFloor3D(draw, frame, shadowPass));
+          if (lod.isCulled) {
+            return nullptr;
+          }
+          const auto cached = modelMeshes_.find(*lod.model);
+          return cached == modelMeshes_.end()
+                     ? nullptr
+                     : cached->second->materialSections.get();
+        });
     lastExtractionMilliseconds_ =
         std::chrono::duration<double, std::milli>(
             std::chrono::steady_clock::now() - extractionStarted)
@@ -607,8 +670,10 @@ bool BgfxRenderer3D::renderView(const World &world,
   std::size_t firstTransparent = visibility.meshes.size();
   if (!shadowPass) {
     ProfileScope scope("Renderer3D.order_surfaces");
-    firstTransparent = orderMeshSurfaces3D(visibility.meshes, materials_,
-                                          frame.position, frame.forward);
+    firstTransparent = orderMeshSurfaces3D(
+        visibility.meshes, materials_, frame.position, frame.forward,
+        depthCapture ? MeshSurfacePass3D::OpaqueDepth
+                     : MeshSurfacePass3D::Color);
   }
   if (depthCapture) {
     visibility.meshes.resize(firstTransparent);
@@ -616,6 +681,10 @@ bool BgfxRenderer3D::renderView(const World &world,
   const bool hasTransparentMeshes = firstTransparent < visibility.meshes.size();
   if (frame.updateContent) {
     const bool usesTargetLocalCoordinates = offscreen && !shadowPass;
+    const std::array<std::array<float, 4>, 2> attachmentClears{
+        {{frame.camera.clearColor.r, frame.camera.clearColor.g,
+          frame.camera.clearColor.b, frame.camera.clearColor.a},
+         {1.F, 0.F, 0.F, 1.F}}};
     const View3DConfig viewConfig{
         .id = frame.viewId,
         .x = usesTargetLocalCoordinates ? std::uint16_t{0} : frame.viewportX,
@@ -634,10 +703,18 @@ bool BgfxRenderer3D::renderView(const World &world,
         .clearColor = frame.camera.clearMode == "color",
         .clearDepth = frame.camera.clearMode != "none",
         .frameBuffer =
-            offscreen ? sourceTarget.frameBuffer : FrameBufferHandle{},
+            frame.outputAnalyticDepth
+                ? waterCapture->opaqueFrameBuffer
+                : (offscreen ? sourceTarget.frameBuffer : FrameBufferHandle{}),
         .sequential = !cosmeticFragments.empty() || hasTransparentMeshes,
         .debugName =
             shadowPass ? "Shadow" : (depthCapture ? "OpaqueDepth" : "Main"),
+        .attachmentClearColors =
+            frame.outputAnalyticDepth
+                ? std::span<const std::array<float, 4>>(attachmentClears)
+                : std::span<const std::array<float, 4>>{},
+        .attachmentClearMask = static_cast<std::uint8_t>(
+            frame.camera.clearMode == "color" ? 3U : 2U),
     };
     if (!primitives_.begin(viewConfig, error)) {
       return false;
@@ -665,7 +742,7 @@ bool BgfxRenderer3D::renderView(const World &world,
       return false;
     }
     if (!sky_.draw(commands_, frame.viewId, texture.handle, frame.position,
-                   error)) {
+                   error, frame.outputAnalyticDepth)) {
       return false;
     }
     skyDrawn = true;
@@ -680,22 +757,29 @@ bool BgfxRenderer3D::renderView(const World &world,
   const bool directionalOnly = !lighting.hasAdditionalLights();
   RuntimeProfiler::setGauge("Renderer3D.directional_shader",
                             directionalOnly ? 1.0 : 0.0);
-  const ProgramHandle defaultMeshProgram =
-      directionalOnly ? directionalMeshProgram_ : meshProgram_;
-  const ProgramHandle defaultInstancedProgram =
-      directionalOnly ? directionalInstancedProgram_ : instancedMeshProgram_;
-  const ProgramHandle defaultSkinnedProgram =
-      directionalOnly ? directionalSkinnedProgram_ : skinnedMeshProgram_;
+  const ProgramHandle defaultMeshProgram = analyticDepthProgram(
+      directionalOnly ? directionalMeshProgram_ : meshProgram_,
+      frame.outputAnalyticDepth);
+  const ProgramHandle defaultInstancedProgram = analyticDepthProgram(
+      directionalOnly ? directionalInstancedProgram_ : instancedMeshProgram_,
+      frame.outputAnalyticDepth);
+  const ProgramHandle defaultSkinnedProgram = analyticDepthProgram(
+      directionalOnly ? directionalSkinnedProgram_ : skinnedMeshProgram_,
+      frame.outputAnalyticDepth);
   const std::array<float, 4> whiteTint{1.0F, 1.0F, 1.0F, 1.0F};
   const std::array<float, 4> noAlphaCutoff{};
   const std::array<float, 4> debugMode =
       depthCapture ? std::array<float, 4>{8.F, frame.forward.x, frame.forward.y,
                                           frame.forward.z}
                    : std::array<float, 4>{
-                         debugModeValue(frame.camera.debugMode), 0.F, 0.F, 0.F};
+                         debugModeValue(frame.camera.debugMode),
+                         frame.outputAnalyticDepth ? frame.forward.x : 0.F,
+                         frame.outputAnalyticDepth ? frame.forward.y : 0.F,
+                         frame.outputAnalyticDepth ? frame.forward.z : 0.F};
   const std::array<float, 4> viewPosition{
       frame.position.x, frame.position.y, frame.position.z,
-      depthCapture ? 1.F / frame.camera.farClip : 0.F};
+      (depthCapture || frame.outputAnalyticDepth) ? 1.F / frame.camera.farClip
+                                                  : 0.F};
   const std::array<float, 4> defaultMetalRough{0.0F, 0.8F, 0.0F, 0.0F};
   const std::array<DrawUniformValue, 8> lightingUniforms{{
       {.handle = tintUniform_, .values = whiteTint},
@@ -708,15 +792,19 @@ bool BgfxRenderer3D::renderView(const World &world,
       {.handle = metalRoughUniform_, .values = defaultMetalRough},
   }};
   if (frame.updateContent) {
-    const auto terrainProgram =
-        directionalOnly ? directionalTerrainProgram_ : terrainProgram_;
+    const auto terrainProgram = analyticDepthProgram(
+        directionalOnly ? directionalTerrainProgram_ : terrainProgram_,
+        frame.outputAnalyticDepth);
     auto fallback = terrainPatches_.flush(
         commands_, frame.viewId, terrainProgram, lightingUniforms,
         frame.camera.debugMode == "overdraw", error,
-        directionalOnly ? directionalMappedTerrainProgram_
-                        : mappedTerrainProgram_,
-        directionalOnly ? directionalOpaqueMappedTerrainProgram_
-                        : opaqueMappedTerrainProgram_);
+        analyticDepthProgram(directionalOnly ? directionalMappedTerrainProgram_
+                                             : mappedTerrainProgram_,
+                             frame.outputAnalyticDepth),
+        analyticDepthProgram(directionalOnly
+                                 ? directionalOpaqueMappedTerrainProgram_
+                                 : opaqueMappedTerrainProgram_,
+                             frame.outputAnalyticDepth));
     if (!fallback.empty()) {
       visibility.meshes.insert(visibility.meshes.end(), fallback.begin(),
                                fallback.end());
@@ -732,8 +820,10 @@ bool BgfxRenderer3D::renderView(const World &world,
         firstTransparent = visibility.meshes.size();
       } else {
         ProfileScope scope("Renderer3D.order_surfaces");
-        firstTransparent = orderMeshSurfaces3D(visibility.meshes, materials_,
-                                              frame.position, frame.forward);
+        firstTransparent = orderMeshSurfaces3D(
+            visibility.meshes, materials_, frame.position, frame.forward,
+            depthCapture ? MeshSurfacePass3D::OpaqueDepth
+                         : MeshSurfacePass3D::Color);
       }
     }
   }
@@ -771,10 +861,10 @@ bool BgfxRenderer3D::renderView(const World &world,
   MeshSubmissionStatistics meshStatistics;
   {
     ProfileScope scope("Renderer3D.submit_meshes");
-    if (!submitVisibleMeshes(visibility, frame, shadowPass, firstTransparent,
-                             lightingUniforms, defaultMeshProgram,
-                             defaultInstancedProgram, defaultSkinnedProgram,
-                             meshStatistics, error, waterCapture ? 0 : -1)) {
+    if (!submitVisibleMeshes(
+            visibility, frame, shadowPass, firstTransparent, lightingUniforms,
+            defaultMeshProgram, defaultInstancedProgram, defaultSkinnedProgram,
+            meshStatistics, error, waterCapture ? 0 : -1, preparedInstances)) {
       return false;
     }
   }
@@ -792,9 +882,12 @@ bool BgfxRenderer3D::renderView(const World &world,
   const std::uint32_t mediumLodMeshes = meshStatistics.mediumLodMeshes;
   const std::uint32_t lowLodMeshes = meshStatistics.lowLodMeshes;
   if (!cosmeticFragments.empty() &&
-      !drawCosmeticDebris(cosmeticFragments, frame, lightingUniforms,
-                          defaultMeshProgram, bufferedDraws, bufferedTriangles,
-                          error)) {
+      !drawCosmeticDebris(
+          cosmeticFragments, frame, lightingUniforms,
+          frame.outputAnalyticDepth
+              ? defaultMeshProgram
+              : (directionalOnly ? directionalMeshProgram_ : meshProgram_),
+          bufferedDraws, bufferedTriangles, error)) {
     return false;
   }
   if (!shadowPass) {
@@ -846,7 +939,8 @@ bool BgfxRenderer3D::renderView(const World &world,
     debugRequest.bounds =
         debugRequest.bounds || frame.camera.debugMode == "bounds";
     if (!shadowPass && !depthCapture &&
-        !appendDebugGeometry3D(world, primitives_, debugRequest, &entityQueries_)) {
+        !appendDebugGeometry3D(world, primitives_, debugRequest,
+                               &entityQueries_)) {
       error = "3D debug geometry exceeded the transient line capacity.";
       return false;
     }
@@ -871,9 +965,9 @@ bool BgfxRenderer3D::renderView(const World &world,
     BgfxCameraFrame3D targetFrame = frame;
     targetFrame.viewportWidth = renderWidth;
     targetFrame.viewportHeight = renderHeight;
-    const bool rendered =
-        overlay_.drawHud(world) &&
-        overlay_.drawUi(projectWorldText3D(world, targetFrame, &entityQueries_));
+    const bool rendered = overlay_.drawHud(world) &&
+                          overlay_.drawUi(projectWorldText3D(world, targetFrame,
+                                                             &entityQueries_));
     if (!rendered || !overlay_.endFrame(error)) {
       if (error.empty()) {
         error = "Could not queue the render-target HUD.";
@@ -916,7 +1010,8 @@ bool BgfxRenderer3D::renderView(const World &world,
       hudFrame.viewportWidth = renderWidth;
       hudFrame.viewportHeight = renderHeight;
       if (!overlay_.drawHud(world) ||
-          !overlay_.drawUi(projectWorldText3D(world, hudFrame, &entityQueries_)) ||
+          !overlay_.drawUi(
+              projectWorldText3D(world, hudFrame, &entityQueries_)) ||
           !overlay_.endFrame(error)) {
         return false;
       }
@@ -961,8 +1056,9 @@ bool BgfxRenderer3D::renderView(const World &world,
               frame.viewportHeight, deltaSeconds, error, frame.frameBuffer)) {
         return false;
       }
-      const bool rendered = overlay_.drawHud(world) &&
-                            overlay_.drawUi(projectWorldText3D(world, frame, &entityQueries_));
+      const bool rendered =
+          overlay_.drawHud(world) &&
+          overlay_.drawUi(projectWorldText3D(world, frame, &entityQueries_));
       if (!rendered || !overlay_.endFrame(error)) {
         if (error.empty()) {
           error = "Could not render the camera HUD.";
@@ -1005,8 +1101,13 @@ bool BgfxRenderer3D::renderView(const World &world,
   statistics_.particles = static_cast<std::uint32_t>(particleData.size());
   statistics_.consideredMeshes =
       visibility.considered + patches.consideredPatches;
-  statistics_.visibleMeshes =
-      visibility.meshes.size() - distanceCulled + patches.instances;
+  const auto visibleSources = std::count_if(
+      visibility.meshes.begin(), visibility.meshes.end(),
+      [](const VisibleMesh3D &draw) {
+        return !draw.materialSection || *draw.materialSection == 0;
+      });
+  statistics_.visibleMeshes = static_cast<std::size_t>(visibleSources) -
+                              distanceCulled + patches.instances;
   statistics_.culledMeshes =
       visibility.culled + distanceCulled + patches.culledPatches;
   statistics_.mediumLodMeshes = mediumLodMeshes;

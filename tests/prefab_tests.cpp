@@ -1,7 +1,10 @@
-#include "demi/runtime/scene/composition/PrefabResolver.h"
-#include "demi/schema/Validation.h"
+#include "demi/assets/AssetRegistry.h"
 #include "demi/packages/PackageLock.h"
 #include "demi/packages/PackageManifest.h"
+#include "demi/runtime/scene/RuntimePrefabService.h"
+#include "demi/runtime/scene/composition/PrefabResolutionContext.h"
+#include "demi/runtime/scene/composition/PrefabResolver.h"
+#include "demi/schema/Validation.h"
 
 #include <filesystem>
 #include <fstream>
@@ -73,6 +76,90 @@ bool testPackagePrefabResolution(const std::filesystem::path &root) {
     return false;
   }
 
+  const Json nested{
+      {"format_version", 1},
+      {"id", "prefab://test.trees/model"},
+      {"entities", Json::array({{{"id", "nested"},
+                                 {"prefab", "prefab://test.rocks/model"}}})}};
+  write(treeOwner, nested.dump().c_str());
+  demi::runtime::RuntimePrefabService prefabs;
+  prefabs.configure(project);
+  demi::Diagnostics diagnostics;
+  {
+    const auto batch = prefabs.beginPreparationBatch();
+    if (batch.packageVerificationCount() != 1 ||
+        !prefabs.prepareEntities("prefab://test.trees/model", diagnostics) ||
+        !prefabs.prepareEntities("prefab://test.rocks/model", diagnostics) ||
+        batch.packageVerificationCount() != 1) {
+      std::cerr << "One prefab batch repeated package verification or lost "
+                   "nested resolution.\n";
+      return false;
+    }
+    const auto nestedBatch = prefabs.beginPreparationBatch();
+    if (!prefabs.prepareEntities("prefab://test.trees/model", diagnostics) ||
+        nestedBatch.packageVerificationCount() != 1) {
+      std::cerr << "Nested prefab batch did not reuse its operation context.\n";
+      return false;
+    }
+  }
+  {
+    demi::runtime::composition::PrefabResolutionContext resolution(project);
+    if (resolvePrefabReference(treeOwner, "prefab://test.rocks/model",
+                               &resolution) != rocks ||
+        resolvePrefabReference(treeOwner, "prefab://test.unrelated/model",
+                               &resolution) ||
+        resolvePrefabReference(treeOwner, "prefab://private", &resolution) ||
+        resolvePrefabReference(scenePath, "prefab://../escape", &resolution) ||
+        resolution.packageVerificationCount() != 1) {
+      std::cerr << "Verified prefab inventory changed visibility or path "
+                   "confinement.\n";
+      return false;
+    }
+    const auto unrelated = project / ".demi/packages/test.unrelated/prefabs/model.prefab.json";
+    const Json duplicate{{"format_version", 1},
+                         {"id", "prefab://test.rocks/model"},
+                         {"entities", Json::array()}};
+    write(unrelated, duplicate.dump().c_str());
+    if (resolvePrefabReference(scenePath, "prefab://test.rocks/model", &resolution) ||
+        resolvePrefabReference(treeOwner, "prefab://test.rocks/model", &resolution) != rocks ||
+        resolution.packageVerificationCount() != 1) {
+      std::cerr << "Batch inventory lost duplicate-ID or dependency visibility checks.\n";
+      return false;
+    }
+    const Json restored{{"format_version", 1},
+                        {"id", "prefab://test.unrelated/model"},
+                        {"entities", Json::array()}};
+    write(unrelated, restored.dump().c_str());
+  }
+  const auto treeManifest = trees / "demi.package.json";
+  auto changedManifest =
+      demi::packages::packageManifestJson(releases.at("test.trees").manifest);
+  changedManifest["version"] = "1.0.1";
+  write(treeManifest, changedManifest.dump().c_str());
+  {
+    const auto freshBatch = prefabs.beginPreparationBatch();
+    if (prefabs.prepareEntities("prefab://test.trees/model", diagnostics) ||
+        !demi::hasErrors(diagnostics) ||
+        freshBatch.packageVerificationCount() != 1) {
+      std::cerr << "A new batch reused stale package verification for a cached "
+                   "prefab.\n";
+      return false;
+    }
+  }
+  write(treeManifest,
+        demi::packages::packageManifestJson(releases.at("test.trees").manifest)
+            .dump()
+            .c_str());
+  const auto verifiedRegistry = demi::loadAssetRegistry(project);
+  {
+    const auto seeded = prefabs.beginPreparationBatch(&verifiedRegistry);
+    if (!prefabs.prepareEntities("prefab://test.trees/model", diagnostics) ||
+        seeded.packageVerificationCount() != 0) {
+      std::cerr
+          << "Prefab preparation reverified an existing registry snapshot.\n";
+      return false;
+    }
+  }
   // Cooked packages have no installer manifests. The lock remains the owner
   // and dependency authority after relocation.
   std::filesystem::rename(project / ".demi/packages", project / "packages");
@@ -185,8 +272,10 @@ int main() {
     return 1;
   }
   const auto &child = (*expanded.document)["entities"][1];
-  if ((*expanded.document)["entities"][0]["components"]["Destructible3D"]["parts"]["piece"] != "hero/child") {
-    std::cerr << "Destructible visual references were not remapped inside the prefab.\n";
+  if ((*expanded.document)["entities"][0]["components"]["Destructible3D"]
+                          ["parts"]["piece"] != "hero/child") {
+    std::cerr << "Destructible visual references were not remapped inside the "
+                 "prefab.\n";
     return 1;
   }
   if (child["id"] != "hero/child" || child["name"] != "Changed" ||

@@ -14,6 +14,7 @@ void BgfxRenderer3D::beginPresentation() {
   }
   presentationActive_ = true;
   waterTimeAdvanced_ = false;
+  cameraInstances_.reset();
   instancePreparation_.reset();
   primitiveSurfaces_.reset();
   opaqueCapture_.beginPresentation();
@@ -34,6 +35,7 @@ void BgfxRenderer3D::endPresentation(bool succeeded) {
   if (!presentationActive_) {
     return;
   }
+  cameraInstances_.reset();
   opaqueCapture_.endPresentation();
   waterRenderer_.endPresentation();
   terrainGpuFields_.endPresentation();

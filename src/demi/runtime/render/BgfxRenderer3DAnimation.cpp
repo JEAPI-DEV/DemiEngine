@@ -9,6 +9,7 @@
 #include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
 
 #include <bit>
+#include <unordered_set>
 
 namespace demi::runtime::render {
 namespace {
@@ -179,6 +180,8 @@ bool BgfxRenderer3D::prepareAnimatedMeshes(
     return true;
   };
 
+  // Material sections share one pose and one dynamic geometry resource.
+  std::unordered_set<const Entity *> preparedEntities;
   for (const auto &item : visible) {
     const auto *preparedSource = item.preparedSource;
     const auto *mesh = preparedSource
@@ -210,6 +213,9 @@ bool BgfxRenderer3D::prepareAnimatedMeshes(
     const auto lod = selectModelLod(*mesh, player, item.transform.position,
                                     lodPosition, !dents.empty());
     if (lod.isCulled) continue;
+    if (!preparedEntities.insert(item.entity).second) {
+      continue;
+    }
     const auto &selectedModel=*lod.model;
     const auto source = animatedModels_.find(selectedModel);
     const auto rest = modelMeshes_.find(selectedModel);

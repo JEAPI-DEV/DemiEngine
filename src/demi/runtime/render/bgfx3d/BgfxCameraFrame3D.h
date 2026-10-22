@@ -3,6 +3,7 @@
 #include "demi/runtime/render/backend/GpuResources.h"
 #include "demi/runtime/render/bgfx3d/DebugGeometry3D.h"
 #include "demi/runtime/render/bgfx3d/SceneLighting3D.h"
+#include "demi/runtime/render/bgfx3d/ShadowCasterHull3D.h"
 #include "demi/runtime/render/bgfx3d/UnderwaterAppearance3D.h"
 #include "demi/runtime/scene/components/3dcomponents/Camera3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/PostProcessStackComponent.h"
@@ -15,6 +16,8 @@ namespace demi::runtime::render {
 // Four shadow cascades, opaque depth/main/capture/water and presentation.
 // Reserve the entire range per camera, including disabled passes.
 inline constexpr std::uint16_t CameraViewCount3D = 12;
+
+enum class BgfxCameraPass3D { Color, OpaqueDepth, Shadow };
 
 struct BgfxCameraFrame3D {
   std::string cameraId;
@@ -34,10 +37,15 @@ struct BgfxCameraFrame3D {
   bool updateContent = true;
   std::optional<SceneLighting3D> lightingOverride;
   std::optional<Vec3> lodPosition;
+  // Internal static-caster sampling floor, populated only for shadow cascades.
+  float shadowModelLodDistanceFloor = 0;
   // Native host backbuffer/target sample mode; editor images default to 1.
   int destinationSamples = 1;
-  // Internal sampling pass; never an authored camera setting.
-  bool captureLinearDepth = false;
+  // Internal pass identity; optical camera depth is not shadow casting.
+  BgfxCameraPass3D pass = BgfxCameraPass3D::Color;
+  // Built-in opaque shading writes color and analytic depth simultaneously.
+  bool outputAnalyticDepth = false;
+  ShadowCasterHull3D shadowCasterHull;
 };
 
 } // namespace demi::runtime::render

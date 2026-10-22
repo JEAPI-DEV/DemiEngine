@@ -1,9 +1,31 @@
 {
   "format_version": 1,
   "shader": "builtin://lit",
-  "fallback": "builtin://unlit",
+  "mapping": "triplanar",
+  "normal_map_convention": "opengl",
+  "textures": {
+    "albedo": "asset://polyhaven/terrain/textures/grass_ground/albedo",
+    "normal": "asset://polyhaven/terrain/textures/grass_ground/normal",
+    "roughness": "asset://polyhaven/terrain/textures/grass_ground/roughness",
+    "ambient_occlusion": "asset://polyhaven/terrain/textures/grass_ground/ambient_occlusion",
+    "height": "asset://polyhaven/terrain/textures/grass_ground/height"
+  },
   "parameters": {
-    "base_color": [0.32, 0.52, 0.22, 1],
-    "roughness": 0.9
+    "base_color": [
+      0.5,
+      0.84,
+      0.38,
+      1
+    ],
+    "roughness": 1,
+    "metallic": 0,
+    "normal_strength": 0.7,
+    "tiling": 0.39840637450199207,
+    "macro_variation_strength": 0.12,
+    "macro_variation_scale": 0.02
+  },
+  "render_state": {
+    "blend": "opaque",
+    "cull": "none"
   }
 }

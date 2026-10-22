@@ -172,16 +172,24 @@ bool GpuMesh3D::drawInstanced(
     const SamplerHandle sampler,
     const std::span<const std::array<float, 16>> transforms,
     const DrawState &state, std::string &error,
-    const std::span<const DrawUniformValue> uniforms) const {
+    const std::span<const DrawUniformValue> uniforms, std::uint32_t firstIndex,
+    std::uint32_t indexCount) const {
   if (!valid()) {
     error = "GPU mesh must be uploaded before drawing.";
     return false;
   }
+  if (firstIndex > indexCount_ ||
+      (indexCount != UINT32_MAX && indexCount > indexCount_ - firstIndex)) {
+    error = "GPU instance draw range is outside the index array.";
+    return false;
+  }
+  const auto count =
+      indexCount == UINT32_MAX ? indexCount_ - firstIndex : indexCount;
   return commands.submit(
       InstancedBufferedDraw{
           .viewId = viewId,
           .vertices = {.handle = vertices_, .count = vertexCount_},
-          .indices = {.handle = indices_, .count = indexCount_},
+          .indices = {.handle = indices_, .first = firstIndex, .count = count},
           .program = program,
           .texture = texture,
           .sampler = sampler,

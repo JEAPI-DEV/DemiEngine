@@ -1,0 +1,23 @@
+{
+  "format_version": 1,
+  "id": "prefab://demi/woodland/rock_tall",
+  "name": "Rock Tall",
+  "entities": [
+    {
+      "id": "rock",
+      "name": "Tall mossy rock",
+      "components": {
+        "Transform3D": {},
+        "MeshRenderer": {
+          "model": "asset://demi/woodland/models/rock_04",
+          "medium_lod_model": "asset://demi/woodland/models/rock_04_mid",
+          "medium_lod_distance": 50,
+          "low_lod_model": "asset://demi/woodland/models/rock_04_mid",
+          "low_lod_distance": 150,
+          "cull_distance": 0,
+          "material": "asset://demi/woodland/materials/rock_moss_set_01"
+        }
+      }
+    }
+  ]
+}

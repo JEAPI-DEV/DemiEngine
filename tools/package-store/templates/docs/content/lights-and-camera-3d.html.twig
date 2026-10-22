@@ -68,6 +68,7 @@
 
 <h2>PostProcessStack</h2>
 <p>For shadow distance, cascades, filtering, bias and their costs, see the <a href="{{ path('docs_page', {slug: 'gameplay-3d'}) }}#directional-shadows">directional shadow settings</a>. Cascades improve near-camera detail without shrinking the whole scene's shadow range.</p>
+<p>For static models with authored medium/low LODs, a shadow cascade can select a coarser model when its texels cover more world space than the main perspective camera's pixel footprint. This sampling-aware distance floor affects shadow geometry only: authored distance culling still uses the actual camera position, and the main view retains its ordinary model LOD. Orthographic main cameras, skeletal animation, dentable/deformed meshes and surface relief keep the existing policy. The floor is a heuristic over authored distance thresholds, not a geometric-error or alpha-coverage guarantee; inspect cutout foliage, shader wind and cascade blends in motion when authoring reduced models.</p>
 <p>Post-processing is the final grade applied to the whole rendered image after the scene is drawn — bloom on neon signs, color grading for a cold station mood, vignette to focus the center.</p>
 <pre><code>{
   "PostProcessStack": {
@@ -194,3 +195,6 @@ if px then T.look_at(spot_id, px, py, pz) end</code></pre>
 <h2>Create and edit lighting in the editor</h2>
 <p>Open <strong>Create from entity preset</strong> (the prefab icon) in Hierarchy. <strong>Basic Lighting</strong> creates an environment and a shadow-casting sun together; <strong>Point Light</strong> and <strong>Spot Light</strong> create movable local lights with a Transform. Select a light using its Hierarchy row or the sun-shaped viewport marker. Use Move for a local light's position and Rotate to aim a spot or sun. Moving a directional sun changes its authoring marker, not its illumination direction.</p>
 <p>For a desk lamp, parent a point or spot light under the lamp entity, then create a prefab from that hierarchy. Each instance has its own light. Use <strong>View → Studio preview lighting</strong> only for neutral inspection; disable it to see the authored lighting. Older sun entities without Transform offer <strong>Enable light gizmo</strong> in Inspector.</p>
+
+<h2>Animated camera paths</h2>
+<p>The optional <code>demi.camera.paths</code> package exports <code>demi.camera.path</code>. It samples authored position and aim-point keyframes with Catmull-Rom interpolation and supports looping, pause, seek and restart. A scene script applies the sampled pose through <code>demi.transform3d</code>; this is not an editor scene-animation timeline. Silvermere in <code>examples/terrain_3d</code> demonstrates a complete tour with chapter controls. Keep <code>Camera3D.target_offset</code> at <code>[0,0,1]</code> when driving orientation with <code>Transform3D.look_at</code>, and check the whole interpolated route for terrain clearance, not only its keyframes.</p>

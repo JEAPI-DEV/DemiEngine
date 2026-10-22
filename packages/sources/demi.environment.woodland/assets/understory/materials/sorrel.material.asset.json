@@ -1,0 +1,16 @@
+{
+  "format_version": 1,
+  "id": "asset://demi/woodland/understory/sorrel/material",
+  "type": "Material",
+  "importer": "material",
+  "importer_version": 1,
+  "source": "sorrel.material.json",
+  "source_hash": "fnv1a64:316e2a4c17d98901",
+  "settings": {},
+  "dependencies": [
+    "asset://demi/woodland/understory/sorrel/albedo",
+    "asset://demi/woodland/understory/sorrel/ambient_occlusion",
+    "asset://demi/woodland/understory/sorrel/normal",
+    "asset://demi/woodland/understory/sorrel/roughness"
+  ]
+}

@@ -4,6 +4,7 @@
 local Entity = {}
 ---@alias MeshSurfaceMode "opaque"|"transparent"|"additive"
 ---@class MeshRendererConfig
+---@field casts_shadows? boolean Defaults true. False skips shadow casting only; receiving and camera depth remain enabled.
 ---@field vertex_colors? number[][] Normalized RGBA per inline vertex; empty means white. Counts must match vertices.
 ---@field model? string
 ---@field shape? "cube"|"sphere"|"cylinder"|"plane"

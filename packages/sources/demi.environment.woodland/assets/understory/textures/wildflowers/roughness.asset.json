@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "id": "asset://demi/woodland/understory/wildflowers/roughness",
+  "type": "Texture2D",
+  "importer": "image",
+  "importer_version": 1,
+  "source": "roughness.png",
+  "source_hash": "fnv1a64:21803ffd74ba28d2",
+  "settings": {
+    "filter": "trilinear",
+    "mipmaps": true,
+    "wrap": "clamp"
+  },
+  "dependencies": []
+}

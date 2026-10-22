@@ -43,6 +43,10 @@ struct MeshRendererComponent {
                                {},
                                0.0,
                                true}.asAdvanced().withHelp("Stop drawing beyond this camera distance. Zero disables distance culling."),
+      ComponentFieldDescriptor{"casts_shadows", ComponentFieldType::Boolean}
+          .withLabel("Cast shadows")
+          .withHelp("Cast directional shadows. Disable for dense ground cover; "
+                    "receiving shadows and camera depth remain enabled."),
       ComponentFieldDescriptor{"shape", ComponentFieldType::String}.withHelp("Built-in geometry: cube, sphere, cylinder, or plane. Used when no model or inline vertices are supplied."),
       ComponentFieldDescriptor{"size", ComponentFieldType::Vec3}.withHelp("Mesh dimensions applied before the entity Transform scale. Built-in primitives have unit dimensions."),
       ComponentFieldDescriptor{"color", ComponentFieldType::Color}.withHelp("RGBA tint multiplied with the base-color texture. Use white to preserve texture colors."),
@@ -87,6 +91,7 @@ struct MeshRendererComponent {
   std::string lowLodModel;
   float lowLodDistance = 0.0F;
   float cullDistance = 0.0F;
+  bool castsShadows = true;
   std::string shape = "cube";
   Vec3 size = {1.0F, 1.0F, 1.0F};
   Color color = {0.8F, 0.8F, 0.8F, 1.0F};
@@ -125,6 +130,8 @@ struct MeshRendererComponent {
           &MeshRendererComponent::lowLodDistance>("low_lod_distance"),
       RuntimeFieldBinding<MeshRendererComponent>::member<
           &MeshRendererComponent::cullDistance>("cull_distance"),
+      RuntimeFieldBinding<MeshRendererComponent>::member<
+          &MeshRendererComponent::castsShadows>("casts_shadows"),
       RuntimeFieldBinding<MeshRendererComponent>::member<
           &MeshRendererComponent::shape>("shape"),
       RuntimeFieldBinding<MeshRendererComponent>::member<

@@ -17,13 +17,15 @@
 
 namespace demi::runtime::render {
 
-// Near opaque copies populate depth before farther copies of the same batch.
-// Batch collection still groups matching surfaces; stable ties retain authored
-// order. Transparent surfaces require the opposite order for compositing.
+enum class MeshSurfacePass3D { Color, OpaqueDepth };
+
+// Opaque surfaces retain source order for batching; only blended surfaces need
+// camera-depth ordering. Depth capture excludes blended surfaces entirely.
 [[nodiscard]] inline std::size_t
 orderMeshSurfaces3D(std::vector<VisibleMesh3D> &meshes,
                     const MaterialLibrary &materials, Vec3 cameraPosition,
-                    Vec3 cameraForward) {
+                    Vec3 cameraForward,
+                    MeshSurfacePass3D pass = MeshSurfacePass3D::Color) {
   const Entity *source = nullptr;
   const MeshRendererComponent *sourceMesh = nullptr;
   const FragmentOpacity3D *sourceFade = nullptr;
@@ -47,9 +49,9 @@ orderMeshSurfaces3D(std::vector<VisibleMesh3D> &meshes,
         }
         return *prepared->transparent;
       }
-      const auto *sections = visible.terrainSections
-                                 ? visible.terrainSections
-                                 : prepared->sections;
+      const auto *sections = visible.terrainSections ? visible.terrainSections
+                             : visible.modelSections ? visible.modelSections
+                                                     : prepared->sections;
       auto &variants = prepared->sectionTransparency;
       auto variant = std::ranges::find(
           variants, sections,
@@ -101,6 +103,10 @@ orderMeshSurfaces3D(std::vector<VisibleMesh3D> &meshes,
     sectionTransparency.emplace_back(visible.materialSection, transparent);
     return transparent;
   };
+  if (pass == MeshSurfacePass3D::OpaqueDepth) {
+    std::erase_if(meshes, isTransparent);
+    return meshes.size();
+  }
   if (std::ranges::find_if(meshes, isTransparent) == meshes.end()) {
     return meshes.size();
   }
@@ -113,9 +119,6 @@ orderMeshSurfaces3D(std::vector<VisibleMesh3D> &meshes,
   const auto firstTransparent = std::stable_partition(
       meshes.begin(), meshes.end(),
       [&](const VisibleMesh3D &visible) { return !isTransparent(visible); });
-  std::stable_sort(
-      meshes.begin(), firstTransparent,
-      [&](const auto &a, const auto &b) { return depth(a) < depth(b); });
   std::stable_sort(
       firstTransparent, meshes.end(),
       [&](const auto &a, const auto &b) { return depth(a) > depth(b); });

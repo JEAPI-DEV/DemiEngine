@@ -132,6 +132,35 @@ void maximizedConfigurationKeepsHeadlessLifecycleValid() {
   host->shutdown();
 }
 
+void authoredStartupModesAndSceneTitlesReachTheNativeWindow() {
+  assert(PlatformHostConfig{}.mode == WindowMode::Windowed);
+  assert(setenv("SDL_VIDEODRIVER", "dummy", 1) == 0);
+  for (const auto mode :
+       {WindowMode::Windowed, WindowMode::Borderless, WindowMode::Fullscreen}) {
+    auto host = createSdlPlatformHost();
+    std::string error;
+    assert(host->initialize(
+        {.title = "Preparing scene", .width = 640, .height = 360, .mode = mode},
+        error));
+    int count = 0;
+    SDL_Window **windows = SDL_GetWindows(&count);
+    assert(windows != nullptr && count == 1);
+    const auto flags = SDL_GetWindowFlags(windows[0]);
+    assert(bool(flags & SDL_WINDOW_FULLSCREEN) ==
+           (mode == WindowMode::Fullscreen));
+    if (mode != WindowMode::Fullscreen) {
+      assert(bool(flags & SDL_WINDOW_BORDERLESS) ==
+             (mode == WindowMode::Borderless));
+      assert(host->frameState().width == 640);
+      assert(host->frameState().height == 360);
+    }
+    assert(host->setWindowTitle("Activated scene", error));
+    assert(std::string(SDL_GetWindowTitle(windows[0])) == "Activated scene");
+    SDL_free(windows);
+    host->shutdown();
+  }
+}
+
 } // namespace
 
 int main() {
@@ -139,5 +168,6 @@ int main() {
   invalidConfigurationIsRejected();
   lifecycleAndEventTranslationWorkWithoutAGpu();
   maximizedConfigurationKeepsHeadlessLifecycleValid();
+  authoredStartupModesAndSceneTitlesReachTheNativeWindow();
   return 0;
 }

@@ -1,0 +1,16 @@
+{
+  "dependencies": [
+    "asset://demi/woodland/textures/leaves/albedo",
+    "asset://demi/woodland/textures/leaves/ambient_occlusion",
+    "asset://demi/woodland/textures/leaves/normal",
+    "asset://demi/woodland/textures/leaves/roughness"
+  ],
+  "format_version": 1,
+  "id": "asset://demi/woodland/materials/leaves",
+  "importer": "material",
+  "importer_version": 1,
+  "settings": {},
+  "source": "leaves.material.json",
+  "source_hash": "fnv1a64:3ef53cbbf3bf6a79",
+  "type": "Material"
+}

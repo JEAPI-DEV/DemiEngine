@@ -1,0 +1,10 @@
+Chapel mesh: original DemiEngine Amber Pass demo art.
+Source generator: tools/demo-art/amber_pass (repository).
+Ground/stone surface: Poly Haven CC0 via polyhaven.materials.terrain.
+
+Cathedral ruin: CathedralRuins_01, Ron Kapaun / 3TD Studios.
+Source: https://opengameart.org/content/3td-fantasy-ruins-pack
+License: CC0 1.0 Universal; original waiver: 3TD_CC0_License_EULA.pdf
+Source archive, checksums, texture inventory and adaptations: cathedral.source.json
+Conversion: tools/demo-art/silvermere/convert_cathedral.py (Blender 5.2).
+This is authored textured architecture, not a photogrammetry scan.

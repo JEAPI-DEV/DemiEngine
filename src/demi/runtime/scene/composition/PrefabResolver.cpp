@@ -1,8 +1,7 @@
 #include "demi/runtime/scene/composition/PrefabResolver.h"
+#include "demi/assets/AssetSourceFiles.h"
 #include "demi/assets/FractureAuthoring.h"
 #include "demi/assets/MasonryGeneration.h"
-#include "demi/assets/PackageContent.h"
-#include "demi/assets/AssetSourceFiles.h"
 #include "demi/filesystem/ProjectPaths.h"
 #include "demi/packages/PackageLock.h"
 #include "demi/packages/PackageManifest.h"
@@ -10,6 +9,7 @@
 #include "demi/runtime/scene/EntityPresets.h"
 #include "demi/runtime/scene/composition/EntityHierarchy.h"
 #include "demi/runtime/scene/composition/PrefabEntityIdentity.h"
+#include "demi/runtime/scene/composition/PrefabResolutionContext.h"
 
 #include <algorithm>
 #include <fstream>
@@ -219,11 +219,13 @@ public:
                             std::filesystem::path overridePath = {},
                             std::optional<Json> overrideDocument = {},
                             bool compileFractures = true,
-                            bool expandProcedural = true)
-      : diagnostics_(diagnostics), overridePath_(std::move(overridePath)),
+                            bool expandProcedural = true,
+                            PrefabResolutionContext *resolution = nullptr)
+      : resolution_(resolution ? resolution : &ownedResolution_),
+        diagnostics_(diagnostics), overridePath_(std::move(overridePath)),
         overrideDocument_(std::move(overrideDocument)),
-        compileFractures_(compileFractures),
-        expandProcedural_(expandProcedural) {}
+        expandProcedural_(expandProcedural),
+        compileFractures_(compileFractures) {}
 
   Json expandInstance(const std::filesystem::path &ownerPath,
                       const Json &instance, const std::string &parentPrefix) {
@@ -237,7 +239,8 @@ public:
     }
 
     const std::string reference = instance["prefab"].get<std::string>();
-    const auto prefabPath = resolvePrefabReference(ownerPath, reference);
+    const auto prefabPath =
+        resolvePrefabReference(ownerPath, reference, resolution_);
     if (!prefabPath.has_value()) {
       report(ownerPath, "PREFAB_INVALID_REFERENCE",
              "Could not resolve prefab reference: " + reference);
@@ -572,6 +575,8 @@ private:
         .suggestion = "Inspect the prefab reference and composition chain."});
   }
 
+  PrefabResolutionContext ownedResolution_;
+  PrefabResolutionContext *resolution_ = nullptr;
   Diagnostics &diagnostics_;
   std::set<std::filesystem::path> active_;
   std::vector<std::filesystem::path> stack_;
@@ -738,7 +743,8 @@ bool visiblePackagePrefab(const PrefabSourceScope &scope,
 }
 
 std::optional<std::vector<std::filesystem::path>>
-visiblePrefabSources(const PrefabSourceScope &scope) {
+visiblePrefabSources(const PrefabSourceScope &scope,
+                     PrefabResolutionContext &resolution) {
   std::vector<std::filesystem::path> candidates;
   if (scope.ownerManifest) {
     for (const auto &file : scope.ownerManifest->files) {
@@ -748,13 +754,13 @@ visiblePrefabSources(const PrefabSourceScope &scope) {
     }
   }
   if (scope.hostRoot) {
-    // This shared loader verifies installed source and relocated cooked
-    // content. Arbitrary sibling package directories are never searched.
-    const auto content = assets::loadLockedPackageContent(*scope.hostRoot, "");
-    if (hasErrors(content.diagnostics)) {
+    // The preparation owner verifies installed and relocated cooked content
+    // once. Arbitrary sibling package directories are never searched.
+    const auto *files = resolution.packageFiles(*scope.hostRoot);
+    if (files == nullptr) {
       return std::nullopt;
     }
-    for (const auto &file : content.files) {
+    for (const auto &file : *files) {
       if (isPrefabFile(file) && visiblePackagePrefab(scope, file)) {
         candidates.push_back(file);
       }
@@ -767,7 +773,8 @@ visiblePrefabSources(const PrefabSourceScope &scope) {
 
 std::optional<std::filesystem::path>
 resolvePrefabReference(const std::filesystem::path &sourcePath,
-                       const std::string_view reference) {
+                       const std::string_view reference,
+                       PrefabResolutionContext *resolution) {
   constexpr std::string_view Prefix = "prefab://";
   if (!reference.starts_with(Prefix) || reference.size() == Prefix.size()) {
     return std::nullopt;
@@ -787,7 +794,9 @@ resolvePrefabReference(const std::filesystem::path &sourcePath,
   if (!scope->ownerManifest && std::filesystem::is_regular_file(local)) {
     return local;
   }
-  const auto candidates = visiblePrefabSources(*scope);
+  PrefabResolutionContext localResolution;
+  const auto candidates =
+      visiblePrefabSources(*scope, resolution ? *resolution : localResolution);
   if (!candidates) {
     return std::nullopt;
   }
@@ -828,10 +837,11 @@ Json mergeOverride(Json inherited, const Json &overrideValue) {
   return inherited;
 }
 
-static ExpansionResult expandSceneImpl(const std::filesystem::path &scenePath,
-                                       const Json &sceneDocument,
-                                       bool compileFractures,
-                                       bool expandProcedural) {
+static ExpansionResult
+expandSceneImpl(const std::filesystem::path &scenePath,
+                const Json &sceneDocument, bool compileFractures,
+                bool expandProcedural,
+                PrefabResolutionContext *resolution = nullptr) {
   ExpansionResult result{.document = sceneDocument, .diagnostics = {}};
   if (!sceneDocument.is_object()) {
     result.document.reset();
@@ -862,7 +872,7 @@ static ExpansionResult expandSceneImpl(const std::filesystem::path &scenePath,
       prefabSource ? std::filesystem::weakly_canonical(scenePath)
                    : std::filesystem::path{},
       prefabSource ? std::optional<Json>(sceneDocument) : std::nullopt,
-      compileFractures, expandProcedural);
+      compileFractures, expandProcedural, resolution);
   if (expanded.contains("entities") && expanded["entities"].is_array()) {
     Json resolved = Json::array();
     for (const Json &entity : authoredEntities) {
@@ -926,8 +936,9 @@ static ExpansionResult expandSceneImpl(const std::filesystem::path &scenePath,
 }
 
 ExpansionResult expandScene(const std::filesystem::path &path,
-                            const Json &document, bool compileFractures) {
-  return expandSceneImpl(path, document, compileFractures, true);
+                            const Json &document, bool compileFractures,
+                            PrefabResolutionContext *resolution) {
+  return expandSceneImpl(path, document, compileFractures, true, resolution);
 }
 ExpansionResult expandSceneForAuthoring(const std::filesystem::path &path,
                                         const Json &document) {
@@ -935,9 +946,10 @@ ExpansionResult expandSceneForAuthoring(const std::filesystem::path &path,
 }
 
 ExpansionResult expandPrefabInstance(const std::filesystem::path &ownerPath,
-                                     const Json &instance) {
+                                     const Json &instance,
+                                     PrefabResolutionContext *resolution) {
   ExpansionResult result{.document = Json::array(), .diagnostics = {}};
-  ExpansionContext context(result.diagnostics);
+  ExpansionContext context(result.diagnostics, {}, {}, true, true, resolution);
   *result.document = context.expandInstance(ownerPath, instance, {});
   if (hasErrors(result.diagnostics))
     result.document.reset();
@@ -973,9 +985,12 @@ ExpansionResult bakeFracturePrefab(const std::filesystem::path &path,
       (!assets::hasFractureAuthoring(source) && !assets::hasMasonryAuthoring(source) &&
        !hasPrefabComposition(source))) {
     return {.document = std::nullopt,
-            .diagnostics = {{.severity = Severity::Error, .code = "FRACTURE_AUTHORING_REQUIRED",
-                             .message = "Expected a prefab with fracture or masonry components, directly or through nested prefabs.",
-                             .path = path.string()}}};
+            .diagnostics = {
+                {.severity = Severity::Error,
+                 .code = "FRACTURE_AUTHORING_REQUIRED",
+                 .message = "Expected a prefab with fracture or masonry "
+                            "components, directly or through nested prefabs.",
+                 .path = path.string()}}};
   }
   return preparePrefabDocument(path, source);
 }
@@ -1043,7 +1058,8 @@ ExpansionResult preparePrefabDocument(const std::filesystem::path &path,
   }
   if (containsFracture) {
     // The prepared path remains cheap. Keep the compact recipe for meaningful
-    // runtime overrides instead of applying authoring edits to generated shards.
+    // runtime overrides instead of applying authoring edits to generated
+    // shards.
     (*result.document)["source_recipe"] = source.value("source_recipe", source);
   }
   return result;

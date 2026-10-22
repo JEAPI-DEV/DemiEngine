@@ -5,7 +5,7 @@ namespace demi::runtime::render {
 
 bool SkyRenderer3D::draw(RenderCommands &commands, std::uint16_t view,
                          TextureHandle texture, Vec3 cameraPosition,
-                         std::string &error) {
+                         std::string &error, bool outputAnalyticDepth) {
   if (!program_) {
     program_ = resources_.createBuiltinProgram(BuiltinProgram::Sky3D, error);
     sampler_ = resources_.createSampler("s_texColor", error);
@@ -14,6 +14,13 @@ bool SkyRenderer3D::draw(RenderCommands &commands, std::uint16_t view,
         !mesh_.upload(cube.positions, cube.textureCoordinates, cube.indices,
                       0xffffffffU, error)) {
       clear();
+      return false;
+    }
+  }
+  if (outputAnalyticDepth && !analyticProgram_) {
+    analyticProgram_ =
+        resources_.createBuiltinProgram(BuiltinProgram::Sky3D, true, error);
+    if (!analyticProgram_) {
       return false;
     }
   }
@@ -35,7 +42,9 @@ bool SkyRenderer3D::draw(RenderCommands &commands, std::uint16_t view,
                                         1};
   // Vertex shader places this at the far plane. It cannot obscure geometry,
   // irrespective of draw sorting, and never writes depth for later objects.
-  return mesh_.draw(commands, view, program_, texture, sampler_, transform,
+  return mesh_.draw(commands, view,
+                    outputAnalyticDepth ? analyticProgram_ : program_, texture,
+                    sampler_, transform,
                     {.blend = BlendMode::Opaque,
                      .depthTest = DepthTest::LessEqual,
                      .cull = CullMode::None,
@@ -47,6 +56,10 @@ void SkyRenderer3D::clear() {
   mesh_.clear();
   if (program_)
     resources_.destroy(program_);
+  if (analyticProgram_) {
+    resources_.destroy(analyticProgram_);
+  }
+  analyticProgram_ = {};
   if (sampler_)
     resources_.destroy(sampler_);
   program_ = {};

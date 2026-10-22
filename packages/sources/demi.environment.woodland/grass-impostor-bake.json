@@ -1,0 +1,98 @@
+{
+  "format_version": 1,
+  "source": "grass_lush",
+  "source_triangles": 6422,
+  "low_triangles": 10,
+  "atlas_size": [
+    2048,
+    2048
+  ],
+  "views": [
+    {
+      "index": 0,
+      "yaw_degrees": 0,
+      "right": [
+        -1.0,
+        0.0,
+        -1.5099580252808664e-07
+      ],
+      "pixel_bounds_bottom_up": [
+        83,
+        175,
+        429,
+        337
+      ],
+      "alpha_pixels": 26911,
+      "ortho_scale": 2.1
+    },
+    {
+      "index": 1,
+      "yaw_degrees": 45,
+      "right": [
+        -0.7071069478988647,
+        0.7071065902709961,
+        3.893860878179112e-08
+      ],
+      "pixel_bounds_bottom_up": [
+        120,
+        175,
+        451,
+        337
+      ],
+      "alpha_pixels": 25888,
+      "ortho_scale": 2.1
+    },
+    {
+      "index": 2,
+      "yaw_degrees": 90,
+      "right": [
+        -4.371138828673793e-08,
+        1.0,
+        0.0
+      ],
+      "pixel_bounds_bottom_up": [
+        78,
+        176,
+        434,
+        337
+      ],
+      "alpha_pixels": 26250,
+      "ortho_scale": 2.1
+    },
+    {
+      "index": 3,
+      "yaw_degrees": 135,
+      "right": [
+        0.7071068286895752,
+        0.7071067690849304,
+        1.490736281084537e-07
+      ],
+      "pixel_bounds_bottom_up": [
+        69,
+        175,
+        437,
+        337
+      ],
+      "alpha_pixels": 26856,
+      "ortho_scale": 2.1
+    },
+    {
+      "index": 4,
+      "yaw_degrees": 180,
+      "right": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "pixel_bounds_bottom_up": [
+        84,
+        78,
+        429,
+        434
+      ],
+      "alpha_pixels": 39352,
+      "ortho_scale": 2.1
+    }
+  ],
+  "color": "unlit source photograph, Standard sRGB view, transparent RGBA"
+}

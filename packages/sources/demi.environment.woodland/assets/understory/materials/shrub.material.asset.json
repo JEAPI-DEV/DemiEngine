@@ -1,0 +1,16 @@
+{
+  "format_version": 1,
+  "id": "asset://demi/woodland/understory/shrub/material",
+  "type": "Material",
+  "importer": "material",
+  "importer_version": 1,
+  "source": "shrub.material.json",
+  "source_hash": "fnv1a64:a9e20fc300411bc2",
+  "settings": {},
+  "dependencies": [
+    "asset://demi/woodland/understory/shrub/albedo",
+    "asset://demi/woodland/understory/shrub/ambient_occlusion",
+    "asset://demi/woodland/understory/shrub/normal",
+    "asset://demi/woodland/understory/shrub/roughness"
+  ]
+}

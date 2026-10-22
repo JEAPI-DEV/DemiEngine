@@ -280,6 +280,7 @@ add_test(NAME demi-water-surface-renderer3d-tests COMMAND demi-water-surface-ren
 add_test(NAME demi-shadow-receiver-gradient-tests
   COMMAND demi-shadow-receiver-gradient-tests)
 add_test(NAME demi-shadow-cascade-layout-tests COMMAND demi-shadow-cascade-layout-tests)
+add_test(NAME demi-shadow-caster-hull-tests COMMAND demi-shadow-caster-hull-tests)
 add_test(NAME demi-bgfx-scene-extraction-tests
   COMMAND demi-bgfx-scene-extraction-tests)
 add_test(NAME demi-scene-visibility3d-tests
@@ -439,3 +440,7 @@ endif()
 
 add_test(NAME demi-performance-debug-configure-tests
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/performance_debug_configure_tests.py)
+
+add_test(NAME demi-gltf-materials-tests COMMAND demi-gltf-materials-tests)
+
+add_test(NAME demi-opaque-instance-plan-tests COMMAND demi-opaque-instance-plan-tests)

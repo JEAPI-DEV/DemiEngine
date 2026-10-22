@@ -1,0 +1,19 @@
+{
+  "format_version": 1,
+  "shader": "builtin://lit",
+  "mapping": "uv",
+  "parameters": {
+    "roughness": 0.88,
+    "normal_strength": 0.7
+  },
+  "textures": {
+    "albedo": "asset://demi/woodland/textures/branches/albedo",
+    "normal": "asset://demi/woodland/textures/branches/normal",
+    "roughness": "asset://demi/woodland/textures/branches/roughness",
+    "ambient_occlusion": "asset://demi/woodland/textures/branches/ambient_occlusion"
+  },
+  "render_state": {
+    "cull": "none",
+    "blend": "opaque"
+  }
+}

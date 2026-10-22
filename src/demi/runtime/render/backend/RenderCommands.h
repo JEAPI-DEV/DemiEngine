@@ -55,6 +55,10 @@ struct View3DConfig {
   FrameBufferHandle frameBuffer;
   bool sequential = false;
   std::string_view debugName;
+  // Empty uses clearRgba; MRT views specify one linear clear value per color attachment.
+  std::span<const std::array<float, 4>> attachmentClearColors;
+  // With explicit attachment colors, bits select clears independently of clearColor.
+  std::uint8_t attachmentClearMask = UINT8_MAX;
 };
 
 enum class DepthTest { Disabled, Less, LessEqual, Always };

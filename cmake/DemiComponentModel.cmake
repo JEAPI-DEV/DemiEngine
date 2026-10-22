@@ -36,6 +36,7 @@ set(DEMI_COMPONENT_MODEL_SOURCES
   src/demi/runtime/scene/RuntimeObjectModel.cpp
   src/demi/runtime/scene/RuntimePrefabService.cpp
   src/demi/runtime/scene/PrefabTemplateCache.cpp
+  src/demi/runtime/scene/composition/PrefabResolutionContext.cpp
   src/demi/runtime/scene/PrefabPlacements3D.cpp
   src/demi/runtime/scene/ResourceLifetimeRegistry.cpp
   src/demi/runtime/scene/SceneAssetReferences.cpp

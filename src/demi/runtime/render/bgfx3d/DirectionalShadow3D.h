@@ -16,7 +16,8 @@ public:
   void shutdown();
   void clearTargets();
   bool prepare(const SceneLighting3D &, const BgfxCameraFrame3D &,
-               std::string &error);
+               std::string &error,
+               std::uint16_t effectiveMainPixelHeight = 0);
   std::span<const BgfxCameraFrame3D> depthFrames() const { return frames_; }
   void cast(std::size_t cascade);
   void receive();

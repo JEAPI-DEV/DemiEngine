@@ -1085,6 +1085,10 @@ materializeTerrainScatter(World &world, RuntimePrefabService *prefabs,
         !terrain->generated->scatterPlacements.empty())
       owners.push_back(entity.id);
   }
+  std::optional<RuntimePrefabService::PreparationBatch> preparation;
+  if (prefabs != nullptr && !owners.empty()) {
+    preparation.emplace(prefabs->beginPreparationBatch());
+  }
   for (const auto &id : owners) {
     const auto *owner = findEntity(world, id);
     const auto *terrain =

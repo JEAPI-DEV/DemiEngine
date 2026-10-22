@@ -1,0 +1,15 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://demi/woodland/textures/grass_photo/normal",
+  "importer": "image",
+  "importer_version": 1,
+  "settings": {
+    "filter": "trilinear",
+    "mipmaps": true,
+    "wrap": "repeat"
+  },
+  "source": "grass_medium_01_nor_gl_1k.jpg",
+  "source_hash": "fnv1a64:41b910b1fcc5f9bb",
+  "type": "Texture2D"
+}

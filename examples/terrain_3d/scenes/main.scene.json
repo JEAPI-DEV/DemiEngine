@@ -1,45 +1,50 @@
 {
   "format_version": 1,
   "id": "scene://terrain_3d/main",
-  "name": "Terrain generation and manual edits",
+  "name": "Silvermere - Lake, woodland and ridges",
+  "hud": "main.hud.json",
   "entities": [
     {
       "id": "terrain",
-      "name": "Paint and sculpt this terrain",
+      "name": "Silvermere landscape \u2014 edit the Terrain Graph",
       "components": {
         "Transform3D": {
           "position": [
-            -64,
+            -384,
             0,
-            -64
+            -384
           ]
         },
         "Terrain3D": {
-          "asset": "asset://terrain/landscape"
+          "asset": "asset://terrain/landscape",
+          "lod_error_pixels": 1.5,
+          "surface_blending": true
         }
       }
     },
     {
       "id": "camera",
+      "name": "Animated tour camera",
       "components": {
         "Transform3D": {
           "position": [
-            85,
-            85,
-            105
+            -210,
+            120,
+            -240
           ]
         },
         "Camera3D": {
           "target_offset": [
-            -85,
-            -80,
-            -105
+            0,
+            0,
+            1
           ],
-          "far_clip": 2000,
+          "far_clip": 1800,
+          "fov": 58,
           "clear_color": [
-            0.22,
-            0.32,
-            0.43,
+            0.3,
+            0.42,
+            0.53,
             1
           ]
         }
@@ -47,14 +52,21 @@
     },
     {
       "id": "sun",
+      "name": "Late afternoon sun",
       "components": {
         "DirectionalLight": {
           "direction": [
-            -0.5,
-            -1,
-            -0.35
+            -0.45,
+            -0.8,
+            0.3
           ],
-          "intensity": 1.2,
+          "color": [
+            1,
+            0.94,
+            0.82,
+            1
+          ],
+          "intensity": 1.6,
           "casts_shadows": true
         }
       }
@@ -63,53 +75,50 @@
       "id": "environment",
       "components": {
         "Environment3D": {
-          "ambient_intensity": 0.4,
-          "shadow_distance": 140,
+          "sky_texture": "asset://terrain/sky",
+          "ambient_color": [
+            0.8,
+            0.88,
+            1,
+            1
+          ],
+          "ambient_intensity": 0.65,
+          "shadow_cascades": 4,
+          "shadow_distance": 180,
           "shadow_resolution": 2048,
-          "shadow_bias": 0.025
+          "shadow_bias": 0.015,
+          "msaa_samples": 4
         }
       }
     },
     {
-      "id": "building",
-      "name": "Independent scene object",
+      "id": "terrain_tour",
+      "name": "Camera tour \u2014 pause, restart, next chapter",
+      "components": {
+        "LuaScript": {
+          "module": "script://scripts/terrain_tour.lua"
+        }
+      }
+    },
+    {
+      "id": "shore_chapel",
+      "name": "Ruined lakeside cathedral",
       "components": {
         "Transform3D": {
           "position": [
-            8,
-            6,
-            5
+            -60,
+            28,
+            -163
+          ],
+          "rotation": [
+            0,
+            35,
+            0
           ]
         },
         "MeshRenderer": {
-          "shape": "cube",
-          "size": [
-            5,
-            4,
-            5
-          ],
-          "color": [
-            0.7,
-            0.25,
-            0.12,
-            1
-          ]
-        },
-        "BoxCollider3D": {
-          "size": [
-            5,
-            4,
-            5
-          ]
+          "model": "asset://terrain/landmarks/cathedral"
         }
-      }
-    },
-    {
-      "id": "ent_new",
-      "name": "Player",
-      "components": {
-        "CapsuleCollider3D": {},
-        "CharacterController3D": {}
       }
     }
   ]

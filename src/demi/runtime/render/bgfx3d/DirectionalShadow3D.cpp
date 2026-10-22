@@ -1,4 +1,5 @@
 #include "demi/runtime/render/bgfx3d/DirectionalShadow3D.h"
+#include "demi/runtime/render/bgfx3d/ModelLodSampling3D.h"
 #include "demi/runtime/render/bgfx3d/ShadowCascadeLayout3D.h"
 
 #include <algorithm>
@@ -65,7 +66,8 @@ void DirectionalShadow3D::shutdown() {
 
 bool DirectionalShadow3D::prepare(const SceneLighting3D &light,
                                   const BgfxCameraFrame3D &camera,
-                                  std::string &error) {
+                                  std::string &error,
+                                  std::uint16_t effectiveMainPixelHeight) {
   frames_.clear();
   cascadeValues_ = {};
   sharedValues_ = {};
@@ -135,9 +137,15 @@ bool DirectionalShadow3D::prepare(const SceneLighting3D &light,
       std::copy(values[row].begin(), values[row].end(),
                 cascadeValues_[row].begin() + index * 4);
     auto frame = camera;
+    frame.pass = BgfxCameraPass3D::Shadow;
     frame.viewId = std::uint16_t(camera.viewId + index);
     frame.destinationSamples = 1;
     frame.lodPosition = camera.lodPosition.value_or(camera.position);
+    const auto pixelHeight = effectiveMainPixelHeight != 0
+                                 ? effectiveMainPixelHeight
+                                 : effectiveModelLodPixelHeight3D(camera);
+    frame.shadowModelLodDistanceFloor = shadowModelLodDistanceFloor3D(
+        2.F * cascade.radius / light.shadowResolution, camera, pixelHeight);
     frame.camera.renderTarget.clear();
     frame.camera.renderScale = 1;
     frame.camera.perspective = false;
@@ -148,6 +156,7 @@ bool DirectionalShadow3D::prepare(const SceneLighting3D &light,
     frame.camera.clearColor = {1, 1, 1, 1};
     frame.camera.renderHud = false;
     frame.camera.debugMode.clear();
+    frame.shadowCasterHull = cascade.casterHull;
     frame.position = cascade.eye;
     frame.forward = cascade.direction;
     frame.up = cascade.up;

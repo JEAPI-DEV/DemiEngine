@@ -1,0 +1,16 @@
+{
+  "dependencies": [
+    "asset://demi/woodland/textures/branches/albedo",
+    "asset://demi/woodland/textures/branches/ambient_occlusion",
+    "asset://demi/woodland/textures/branches/normal",
+    "asset://demi/woodland/textures/branches/roughness"
+  ],
+  "format_version": 1,
+  "id": "asset://demi/woodland/materials/branches",
+  "importer": "material",
+  "importer_version": 1,
+  "settings": {},
+  "source": "branches.material.json",
+  "source_hash": "fnv1a64:b5fc3f4ac340b271",
+  "type": "Material"
+}

@@ -1,5 +1,6 @@
-#include "demi/assets/GltfDocument.h"
 #include "demi/assets/GltfSkinnedModel.h"
+#include "demi/assets/GltfDocument.h"
+#include "demi/assets/GltfMaterialImport.h"
 
 #include <algorithm>
 #include <cmath>
@@ -450,6 +451,74 @@ bool GltfSkinnedModel3D::posePositions(const Pose &pose,
   return positionsForPose(*this, pose, out, error);
 }
 
+bool GltfSkinnedModel3D::bindPoseNormals(std::vector<runtime::Vec3> &out,
+                                         std::string &error) const {
+  Pose pose;
+  if (!bindPose(pose, error)) {
+    return false;
+  }
+  const auto transformNormal = [](const Matrix &matrix, runtime::Vec3 normal) {
+    const runtime::Vec3 a{matrix[0], matrix[1], matrix[2]};
+    const runtime::Vec3 b{matrix[4], matrix[5], matrix[6]};
+    const runtime::Vec3 c{matrix[8], matrix[9], matrix[10]};
+    const auto cross = [](runtime::Vec3 left, runtime::Vec3 right) {
+      return runtime::Vec3{left.y * right.z - left.z * right.y,
+                           left.z * right.x - left.x * right.z,
+                           left.x * right.y - left.y * right.x};
+    };
+    const auto x = cross(b, c);
+    const auto y = cross(c, a);
+    const auto z = cross(a, b);
+    const float determinant = a.x * x.x + a.y * x.y + a.z * x.z;
+    if (std::abs(determinant) < 1e-12F) {
+      return runtime::Vec3{};
+    }
+    return runtime::Vec3{
+        (x.x * normal.x + y.x * normal.y + z.x * normal.z) / determinant,
+        (x.y * normal.x + y.y * normal.y + z.y * normal.z) / determinant,
+        (x.z * normal.x + y.z * normal.y + z.z * normal.z) / determinant};
+  };
+  std::vector<runtime::Vec3> normals;
+  normals.reserve(vertices.size());
+  for (const auto &vertex : vertices) {
+    runtime::Vec3 normal = vertex.normal;
+    if (vertex.skin >= 0) {
+      normal = {};
+      float totalWeight = 0;
+      for (std::size_t influence = 0; influence < 4; ++influence) {
+        const float weight = vertex.weights[influence];
+        if (weight <= 0) {
+          continue;
+        }
+        const auto transformed = transformNormal(
+            pose.skins.at(vertex.skin).at(vertex.joints[influence]),
+            vertex.normal);
+        normal.x += weight * transformed.x;
+        normal.y += weight * transformed.y;
+        normal.z += weight * transformed.z;
+        totalWeight += weight;
+      }
+      if (totalWeight == 0) {
+        normal = vertex.normal;
+      }
+    } else if (vertex.node >= 0) {
+      normal = transformNormal(pose.nodes.at(vertex.node), normal);
+    }
+    normal = transformNormal(importTransform, normal);
+    const float length = std::sqrt(normal.x * normal.x + normal.y * normal.y +
+                                   normal.z * normal.z);
+    if (length <= 1e-12F) {
+      out.clear(); // Incomplete authored normals use the existing geometry
+                   // fallback.
+      return true;
+    }
+    normals.push_back(
+        {normal.x / length, normal.y / length, normal.z / length});
+  }
+  out = std::move(normals);
+  return true;
+}
+
 bool GltfSkinnedModel3D::bindPosePositions(std::vector<runtime::Vec3> &out,
                                            std::string &error,
                                            const BoneSegments &segments) const {
@@ -486,6 +555,10 @@ loadGltfSkinnedModel3D(const std::filesystem::path &path,
 
   GltfSkinnedModel3D model;
   model.importTransform = modelImportConversion(profile);
+  if (profile.materialPolicy != "ignore" &&
+      !importGltfMaterials(*raw, path, model.materials, error)) {
+    return std::nullopt;
+  }
   model.nodes.reserve(raw->nodes_count);
   for (cgltf_size index = 0; index < raw->nodes_count; ++index) {
     const cgltf_node &source = raw->nodes[index];
@@ -535,33 +608,6 @@ loadGltfSkinnedModel3D(const std::filesystem::path &path,
       const cgltf_primitive &primitive = owner.mesh->primitives[primitiveIndex];
       if (primitive.type != cgltf_primitive_type_triangles)
         continue;
-      if (model.albedoImage.empty() && primitive.material != nullptr &&
-          primitive.material->has_pbr_metallic_roughness) {
-        const cgltf_texture *texture = primitive.material
-                                           ->pbr_metallic_roughness
-                                           .base_color_texture.texture;
-        const cgltf_image *image = texture == nullptr ? nullptr : texture->image;
-        if (image != nullptr && image->buffer_view != nullptr) {
-          const std::uint8_t *bytes = cgltf_buffer_view_data(image->buffer_view);
-          if (bytes != nullptr)
-            model.albedoImage.assign(
-                reinterpret_cast<const std::byte *>(bytes),
-                reinterpret_cast<const std::byte *>(
-                    bytes + image->buffer_view->size));
-        } else if (image != nullptr && image->uri != nullptr &&
-                   !std::string_view(image->uri).starts_with("data:")) {
-          std::ifstream input(path.parent_path() / image->uri,
-                              std::ios::binary);
-          const std::vector<char> encoded((std::istreambuf_iterator<char>(input)),
-                                          {});
-          model.albedoImage.resize(encoded.size());
-          std::transform(encoded.begin(), encoded.end(),
-                         model.albedoImage.begin(), [](const char value) {
-                           return static_cast<std::byte>(
-                               static_cast<unsigned char>(value));
-                         });
-        }
-      }
       const cgltf_accessor *positions =
           gltf::attribute(primitive, cgltf_attribute_type_position);
       if (positions == nullptr)
@@ -574,13 +620,8 @@ loadGltfSkinnedModel3D(const std::filesystem::path &path,
           gltf::attribute(primitive, cgltf_attribute_type_joints);
       const cgltf_accessor *weights =
           gltf::attribute(primitive, cgltf_attribute_type_weights);
-      runtime::Color baseColor{1.0F, 1.0F, 1.0F, 1.0F};
-      if (primitive.material != nullptr &&
-          primitive.material->has_pbr_metallic_roughness) {
-        const cgltf_float *factor =
-            primitive.material->pbr_metallic_roughness.base_color_factor;
-        baseColor = {factor[0], factor[1], factor[2], factor[3]};
-      }
+      const auto *colors =
+          gltf::attribute(primitive, cgltf_attribute_type_color);
       const std::uint32_t base =
           static_cast<std::uint32_t>(model.vertices.size());
       for (cgltf_size vertexIndex = 0; vertexIndex < positions->count;
@@ -600,7 +641,26 @@ loadGltfSkinnedModel3D(const std::filesystem::path &path,
         readVec(weights, vertexIndex, weightValues, 4);
         vertex.position = {position[0], position[1], position[2]};
         vertex.uv = {uv[0], uv[1]};
-        vertex.color = baseColor;
+        float color[4]{1, 1, 1, 1};
+        if (colors != nullptr) {
+          cgltf_accessor_read_float(colors, vertexIndex, color, 4);
+        }
+        const auto display = [](float value) {
+          if (value >= 1.0F) {
+            return 1.0F;
+          }
+          return value <= 0.0031308F
+                     ? value * 12.92F
+                     : 1.055F * std::pow(value, 1.0F / 2.4F) - 0.055F;
+        };
+        vertex.color = {display(color[0]), display(color[1]), display(color[2]),
+                        color[3]};
+        const auto materialIndex = primitive.material == nullptr ? raw->materials_count
+            : cgltf_material_index(raw, primitive.material);
+        if (profile.materialPolicy != "ignore" &&
+            model.materials.at(materialIndex).alphaMode == GltfAlphaMode::Opaque) {
+          vertex.color.a = 1;
+        }
         for (std::size_t influence = 0; influence < 4; ++influence) {
           vertex.joints[influence] =
               static_cast<std::uint16_t>(jointValues[influence]);
@@ -613,6 +673,14 @@ loadGltfSkinnedModel3D(const std::filesystem::path &path,
       const cgltf_size indexCount = primitive.indices != nullptr
                                         ? primitive.indices->count
                                         : positions->count;
+      if (profile.materialPolicy != "ignore") {
+        model.materialSections.push_back(
+            {.material = primitive.material == nullptr
+                             ? raw->materials_count
+                             : cgltf_material_index(raw, primitive.material),
+             .firstIndex = static_cast<std::uint32_t>(model.indices.size()),
+             .indexCount = static_cast<std::uint32_t>(indexCount)});
+      }
       for (cgltf_size index = 0; index < indexCount; ++index)
         model.indices.push_back(
             base + static_cast<std::uint32_t>(

@@ -33,6 +33,11 @@ bool MeshRendererComponent::validateAuthored(const nlohmann::json &json,
     error = "MeshRenderer must be an object";
     return false;
   }
+  if (const auto shadows = json.find("casts_shadows");
+      shadows != json.end() && !shadows->is_boolean()) {
+    error = "MeshRenderer.casts_shadows must be a boolean";
+    return false;
+  }
   const auto colors = json.find("vertex_colors");
   if (colors == json.end())
     return true;
@@ -177,6 +182,8 @@ void MeshRendererComponent::parse(const nlohmann::json &json, Entity &entity) {
       0.0F);
   component.cullDistance = std::max(
       scene_loading::numberField(json, "cull_distance").value_or(0.0F), 0.0F);
+  component.castsShadows =
+      scene_loading::boolField(json, "casts_shadows").value_or(true);
   component.shape = scene_loading::stringOr(json, "shape", "cube");
   if (auto value = scene_loading::vec3Field(json, "size"))
     component.size = *value;

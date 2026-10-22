@@ -20,6 +20,7 @@ struct PlatformHostConfig {
   int height = 540;
   bool resizable = true;
   bool maximized = false;
+  WindowMode mode = WindowMode::Windowed;
 };
 
 struct PlatformFrameState {
@@ -64,6 +65,8 @@ public:
 
   [[nodiscard]] virtual const PlatformFrameState &frameState() const = 0;
   [[nodiscard]] virtual render::NativeWindowHandle nativeWindow() const = 0;
+  [[nodiscard]] virtual bool setWindowTitle(const std::string &title,
+                                            std::string &error) = 0;
   [[nodiscard]] virtual bool setWindowMode(WindowMode mode,
                                            std::string &error) = 0;
   [[nodiscard]] virtual bool setMouseCaptured(bool captured,

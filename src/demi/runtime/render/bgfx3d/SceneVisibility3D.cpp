@@ -4,6 +4,7 @@
 #include "demi/runtime/render/MaterialLibrary.h"
 #include "demi/runtime/render/bgfx3d/MeshInstancePreparation3D.h"
 #include "demi/runtime/render/bgfx3d/MeshTransform3D.h"
+#include "demi/runtime/render/bgfx3d/PreparedInstanceView3D.h"
 #include "demi/runtime/render/bgfx3d/TerrainCameraDemand3D.h"
 #include "demi/runtime/render/bgfx3d/TerrainDrawSelection3D.h"
 #include "demi/runtime/render/bgfx3d/TerrainPatchBatch3D.h"
@@ -92,6 +93,24 @@ void recordInstanceCullingStatistics(const SceneVisibility3D &result,
   if (RuntimeProfiler::enabled()) {
     const auto prefix =
         "Renderer3D.view." + std::to_string(viewId) + ".instances.";
+    const auto sectionsPrefix =
+        "Renderer3D.view." + std::to_string(viewId) + ".sections.";
+    RuntimeProfiler::setGauge(prefix + "hull_sources_rejected",
+                              result.shadowHullSourcesRejected);
+    RuntimeProfiler::setGauge(prefix + "hull_copies_rejected_by_index",
+                              result.shadowHullCopiesRejectedByIndex);
+    RuntimeProfiler::setGauge(prefix + "hull_copies_rejected",
+                              result.shadowHullCopiesRejected);
+    RuntimeProfiler::setGauge(sectionsPrefix + "sources_examined",
+                              result.sectionSourcesExamined);
+    RuntimeProfiler::setGauge(sectionsPrefix + "copies_examined",
+                              result.sectionCopiesExamined);
+    RuntimeProfiler::setGauge(sectionsPrefix + "draws_emitted",
+                              result.sectionDrawsEmitted);
+    RuntimeProfiler::setGauge(prefix + "sources_reused",
+                              result.instanceSourcesReused);
+    RuntimeProfiler::setGauge(prefix + "copies_reused",
+                              result.instanceCopiesReused);
     RuntimeProfiler::setGauge(prefix + "nodes_tested",
                               result.instanceNodesTested);
     RuntimeProfiler::setGauge(prefix + "copies_examined",
@@ -113,6 +132,7 @@ struct ViewFrustum {
   float horizontalRadiusScale = 1;
   float verticalRadiusScale = 1;
   bool perspective;
+  const ShadowCasterHull3D &hull;
 
   explicit ViewFrustum(const BgfxCameraFrame3D &frame)
       : position(frame.position),
@@ -120,7 +140,7 @@ struct ViewFrustum {
         right(normalized(cross(frame.up, forward), {1.F, 0.F, 0.F})),
         up(normalized(cross(forward, right), {0.F, 1.F, 0.F})),
         nearClip(frame.camera.nearClip), farClip(frame.camera.farClip),
-        perspective(frame.camera.perspective) {
+        perspective(frame.camera.perspective), hull(frame.shadowCasterHull) {
     const float aspect =
         float(std::max(frame.viewportWidth, std::uint16_t{1})) /
         float(std::max(frame.viewportHeight, std::uint16_t{1}));
@@ -138,6 +158,11 @@ struct ViewFrustum {
   }
 
   bool visible(Sphere sphere) const {
+    return projectionVisible(sphere) &&
+           hull.intersectsSphere(sphere.center, sphere.radius);
+  }
+
+  bool projectionVisible(Sphere sphere) const {
     const Vec3 relative{sphere.center.x - position.x,
                         sphere.center.y - position.y,
                         sphere.center.z - position.z};
@@ -314,7 +339,17 @@ void appendVisibleInstances(
         const float radius = std::sqrt(dot(extent, extent)) +
                              node.maximumScale * geometryExpansion +
                              prepared.windExpansion;
-        return frustum.visible({center, radius});
+        if (!frustum.projectionVisible({center, radius})) {
+          return false;
+        }
+        const float geometryPadding =
+            node.maximumScale * geometryExpansion + prepared.windExpansion;
+        if (!frustum.hull.intersectsAabb(node.minimum, node.maximum,
+                                         geometryPadding)) {
+          result.shadowHullCopiesRejectedByIndex += node.count;
+          return false;
+        }
+        return true;
       },
       prepared.visibleCandidates, prepared.visibilityWords);
   const auto rejected =
@@ -357,8 +392,15 @@ void appendVisibleInstances(
             transformPoint3D(transform, prepared.localCenter),
             std::sqrt(dot(extent, extent)) + prepared.windExpansion};
       }
-      if (!frustum.visible({copy.bounds->center, copy.bounds->radius})) {
+      if (!frustum.projectionVisible(
+              {copy.bounds->center, copy.bounds->radius})) {
         ++result.culled;
+        continue;
+      }
+      if (!frustum.hull.intersectsSphere(copy.bounds->center,
+                                         copy.bounds->radius)) {
+        ++result.culled;
+        ++result.shadowHullCopiesRejected;
         continue;
       }
     }
@@ -378,6 +420,62 @@ void appendVisibleInstances(
 
 } // namespace
 
+void PreparedInstanceView3D::reset() {
+  opaquePlan_.reset();
+  key_.reset();
+  indices_.clear();
+  usedSources_ = 0;
+  for (auto &source : sources_) {
+    source.ready = false;
+    auto retained = std::move(source.visibility.meshes);
+    retained.clear();
+    source.visibility = SceneVisibility3D{.meshes = std::move(retained)};
+  }
+}
+
+void PreparedInstanceView3D::beginView(const World &world,
+                                       const BgfxCameraFrame3D &frame,
+                                       Vec3 lodPosition) {
+  const Key key{
+      .world = &world,
+      .cameraId = frame.cameraId,
+      .renderMask = frame.camera.renderMask,
+      .projectionAndPose = {frame.position.x, frame.position.y,
+                            frame.position.z, frame.forward.x, frame.forward.y,
+                            frame.forward.z, frame.up.x, frame.up.y, frame.up.z,
+                            lodPosition.x, lodPosition.y, lodPosition.z,
+                            frame.camera.nearClip, frame.camera.farClip,
+                            frame.camera.fov, frame.camera.orthographicSize},
+      .viewport = {frame.viewportX, frame.viewportY, frame.viewportWidth,
+                   frame.viewportHeight},
+      .perspective = frame.camera.perspective,
+      .shadowCasterHull = frame.shadowCasterHull,
+      .shadowPass = frame.pass == BgfxCameraPass3D::Shadow};
+  if (!key_ || *key_ != key) {
+    reset();
+    key_ = key;
+  }
+}
+
+PreparedInstanceView3D::Source &
+PreparedInstanceView3D::source(const Entity &entity) {
+  const auto [found, inserted] = indices_.try_emplace(&entity, usedSources_);
+  if (inserted) {
+    if (usedSources_ == sources_.size()) {
+      sources_.emplace_back();
+    }
+    ++usedSources_;
+  }
+  return sources_[found->second];
+}
+
+std::size_t PreparedInstanceView3D::capacityHint() const {
+  std::size_t capacity = 0;
+  for (const auto &source : sources_) {
+    capacity += source.visibility.meshes.capacity();
+  }
+  return capacity;
+}
 SceneVisibility3D extractVisibleMeshes3D(
     const World &world, const BgfxCameraFrame3D &frame, JobSystem *jobs,
     TerrainDrawSelection3D *terrainSelection,
@@ -385,10 +483,20 @@ SceneVisibility3D extractVisibleMeshes3D(
     TerrainCameraDemand3D *terrainDemand,
     const TerrainPatchBatch3D *terrainPatches, const MaterialLibrary *materials,
     const ModelBoundsResolver3D &modelBounds,
-    MeshInstancePreparation3D *instancePreparation) {
+    MeshInstancePreparation3D *instancePreparation,
+    PreparedInstanceView3D *preparedInstances,
+    const ModelSectionsResolver3D &modelSections) {
   const ViewFrustum frustum(frame);
   const Vec3 instanceLodPosition = frame.lodPosition.value_or(
       lodCamera ? lodCamera->position : frame.position);
+  // Reused records may borrow renderer-owned source and matrix addresses.
+  // Standalone extraction without that owner must remain independent.
+  if (instancePreparation == nullptr) {
+    preparedInstances = nullptr;
+  }
+  if (preparedInstances != nullptr) {
+    preparedInstances->beginView(world, frame, instanceLodPosition);
+  }
   MeshInstancePreparation3D uncachedPreparation;
   auto &preparation =
       instancePreparation ? *instancePreparation : uncachedPreparation;
@@ -397,11 +505,13 @@ SceneVisibility3D extractVisibleMeshes3D(
     Ignored,
     MissingTransform,
     Culled,
+    HullCulled,
     Visible,
   };
   // Workers write independent bytes. Full draw records are constructed only
   // for accepted sources, rather than initialized for every entity per view.
-  std::vector<Visibility> visibility(world.entities.size(), Visibility::Ignored);
+  std::vector<Visibility> visibility(world.entities.size(),
+                                     Visibility::Ignored);
   const auto extract = [&](const std::size_t index) {
     const Entity &entity = world.entities[index];
     if (!entity.enabled) {
@@ -410,6 +520,9 @@ SceneVisibility3D extractVisibleMeshes3D(
     auto &source = sources[index];
     const auto *mesh = source.mesh;
     if (mesh == nullptr) {
+      return;
+    }
+    if (frame.pass == BgfxCameraPass3D::Shadow && !mesh->castsShadows) {
       return;
     }
     const auto *terrainMarker = source.terrain;
@@ -441,10 +554,17 @@ SceneVisibility3D extractVisibleMeshes3D(
       source.bounded = localBounds.has_value() || chunk != nullptr;
       source.geometryPrepared = true;
     }
-    if (!instanced && source.bounded &&
-        !frustum.visible({source.bounds.center, source.bounds.radius})) {
-      visibility[index] = Visibility::Culled;
-      return;
+    if (!instanced && source.bounded) {
+      if (!frustum.projectionVisible(
+              {source.bounds.center, source.bounds.radius})) {
+        visibility[index] = Visibility::Culled;
+        return;
+      }
+      if (!frustum.hull.intersectsSphere(source.bounds.center,
+                                         source.bounds.radius)) {
+        visibility[index] = Visibility::HullCulled;
+        return;
+      }
     }
     if (instancePreparation && !instanced && !terrain && !source.modelMatrix) {
       source.modelMatrix = composeMeshTransform3D(transform, mesh->size);
@@ -467,8 +587,141 @@ SceneVisibility3D extractVisibleMeshes3D(
   }
 
   SceneVisibility3D result;
-  bool needsSectionSelection = false;
-  result.meshes.reserve(world.entities.size());
+  const auto instanceCapacity = preparedInstances != nullptr
+                                    ? preparedInstances->capacityHint()
+                                    : std::size_t{0};
+  result.meshes.reserve(world.entities.size() + instanceCapacity);
+  std::unordered_map<std::string, float> ownerQuality;
+  struct ChunkDrawSelection {
+    std::size_t level = 0;
+    std::shared_ptr<const PreparedTerrainLodLevel> prepared;
+  };
+  std::unordered_map<
+      std::string,
+      std::unordered_map<const PreparedTerrainChunkLod *, ChunkDrawSelection>>
+      chunkLevels;
+  const auto &selectionCamera = lodCamera ? *lodCamera : frame;
+  const auto appendSelectedDraw =
+      [&](VisibleMesh3D visible,
+          const MeshInstancePreparation3D::EntitySource &source) {
+        const auto *terrain = source.terrain;
+        if (terrain && terrain->chunk) {
+          auto [quality, inserted] =
+              ownerQuality.try_emplace(terrain->owner, 0.0F);
+          if (inserted) {
+            const auto *owner = findEntity(world, terrain->owner);
+            const auto *component =
+                owner ? owner->component<Terrain3DComponent>() : nullptr;
+            if (component) {
+              quality->second = component->lodErrorPixels;
+            }
+          }
+          const auto *appearance = source.mesh;
+          visible.terrainSurface = true;
+          auto [decision, firstSurface] =
+              chunkLevels[terrain->owner].try_emplace(terrain->chunk.get());
+          if (firstSurface) {
+            decision->second.level =
+                terrainSelection
+                    ? terrainSelection->select(
+                          terrain->chunk, visible.transform, appearance->size,
+                          selectionCamera, quality->second, terrain->owner)
+                    : selectTerrainDrawLevel3D(
+                          *terrain->chunk, visible.transform, appearance->size,
+                          selectionCamera, quality->second);
+          }
+          if (terrainPatches &&
+              terrainPatches->forcesFullOwner(terrain->owner)) {
+            decision->second.level = 0;
+          }
+          if (firstSurface && decision->second.level != 0) {
+            if (terrainDemand) {
+              terrainDemand->record(selectionCamera, visible.entity->id,
+                                    terrain->owner, terrain->chunk,
+                                    decision->second.level);
+            }
+            decision->second.prepared =
+                terrainResidency ? terrainResidency->request(
+                                       terrain->chunk, decision->second.level)
+                                 : nullptr;
+            if (!decision->second.prepared) {
+              decision->second.level = 0;
+            }
+          }
+          visible.terrainLevel = decision->second.level;
+          visible.terrainPreparedLevel = decision->second.prepared;
+          if (visible.terrainLevel != 0) {
+            const auto surface =
+                visible.terrainPreparedLevel->find(terrain->biome);
+            if (surface == visible.terrainPreparedLevel->end()) {
+              return;
+            }
+            visible.terrainGeometry = surface->second.geometry;
+            visible.terrainSections = &surface->second.sections;
+          }
+        }
+        const auto &mesh =
+            visible.terrainGeometry ? *visible.terrainGeometry : *source.mesh;
+        if (modelSections && !mesh.model.empty() && mesh.material.empty()) {
+          visible.modelSections = modelSections(visible, instanceLodPosition);
+        }
+        const auto *sections = visible.modelSections ? visible.modelSections
+                               : visible.terrainSections
+                                   ? visible.terrainSections
+                                   : source.sections;
+        if (visible.terrainSurface && mesh.hasBounds) {
+          const auto *appearance =
+              visible.entity->component<MeshRendererComponent>();
+          const auto bounds = worldBounds(mesh, visible.transform,
+                                          entityMeshDents3D(*visible.entity),
+                                          nullptr, appearance->size);
+          if (!sphereVisible(bounds, frame)) {
+            ++result.culled;
+            return;
+          }
+        }
+        if ((!visible.modelSections && mesh.vertices.empty()) || !sections ||
+            sections->sections.empty()) {
+          result.meshes.push_back(std::move(visible));
+          return;
+        }
+        for (std::size_t index = 0; index < sections->sections.size();
+             ++index) {
+          auto draw = visible;
+          draw.materialSection = index;
+          result.meshes.push_back(std::move(draw));
+        }
+      };
+
+  const auto appendSourceDraws =
+      [&](std::span<const VisibleMesh3D> draws,
+          const MeshInstancePreparation3D::EntitySource &source,
+          bool needsSelection) {
+        if (!needsSelection) {
+          result.meshes.insert(result.meshes.end(), draws.begin(), draws.end());
+          return;
+        }
+        ProfileScope sectionScope("Renderer3D.select_sections");
+        ++result.sectionSourcesExamined;
+        result.sectionCopiesExamined += draws.size();
+        const auto firstDraw = result.meshes.size();
+        for (const auto &draw : draws) {
+          appendSelectedDraw(draw, source);
+        }
+        result.sectionDrawsEmitted += result.meshes.size() - firstDraw;
+      };
+  const auto appendInstanceCounters = [&](const SceneVisibility3D &prepared) {
+    result.considered += prepared.considered;
+    result.culled += prepared.culled;
+    result.instanceNodesTested += prepared.instanceNodesTested;
+    result.shadowHullCopiesRejectedByIndex +=
+        prepared.shadowHullCopiesRejectedByIndex;
+    result.shadowHullCopiesRejected += prepared.shadowHullCopiesRejected;
+    result.instanceCopiesExamined += prepared.instanceCopiesExamined;
+    result.instanceCopiesRejectedByIndex +=
+        prepared.instanceCopiesRejectedByIndex;
+  };
+
   {
     ProfileScope gatherScope("Renderer3D.gather_instances");
     for (std::size_t index = 0; index < visibility.size(); ++index) {
@@ -478,7 +731,12 @@ SceneVisibility3D extractVisibleMeshes3D(
       }
       if (decision != Visibility::Visible) {
         ++result.considered;
-        result.culled += decision == Visibility::Culled ? 1U : 0U;
+        result.culled +=
+            decision == Visibility::Culled || decision == Visibility::HullCulled
+                ? 1U
+                : 0U;
+        result.shadowHullSourcesRejected +=
+            decision == Visibility::HullCulled ? 1U : 0U;
         continue;
       }
       const auto &metadata = sources[index];
@@ -492,120 +750,53 @@ SceneVisibility3D extractVisibleMeshes3D(
       const bool hasInlineSections = metadata.sections &&
                                      !metadata.sections->sections.empty() &&
                                      !metadata.mesh->vertices.empty();
-      needsSectionSelection =
-          needsSectionSelection || metadata.terrain || hasInlineSections;
+      const bool needsSectionSelection =
+          metadata.terrain || hasInlineSections ||
+          (modelSections && !metadata.mesh->model.empty() &&
+           metadata.mesh->material.empty());
       if (metadata.instances) {
-        appendVisibleInstances(world, draw, *metadata.instances, result,
-                               materials, modelBounds, frustum,
-                               instanceLodPosition, instancePreparation);
+        auto *shared =
+            preparedInstances != nullptr && metadata.terrain == nullptr
+                ? &preparedInstances->source(*metadata.entity)
+                : nullptr;
+        if (shared != nullptr) {
+          const bool reused = shared->ready;
+          if (!shared->ready) {
+            appendVisibleInstances(
+                world, draw, *metadata.instances, shared->visibility, materials,
+                modelBounds, frustum, instanceLodPosition, instancePreparation);
+            shared->ready = true;
+          }
+          const auto &prepared = shared->visibility;
+          appendSourceDraws(prepared.meshes, metadata, needsSectionSelection);
+          appendInstanceCounters(prepared);
+          if (reused) {
+            ++result.instanceSourcesReused;
+            result.instanceCopiesReused += prepared.meshes.size();
+          }
+        } else if (needsSectionSelection) {
+          SceneVisibility3D sourceInstances;
+          appendVisibleInstances(
+              world, draw, *metadata.instances, sourceInstances, materials,
+              modelBounds, frustum, instanceLodPosition, instancePreparation);
+          appendSourceDraws(sourceInstances.meshes, metadata, true);
+          appendInstanceCounters(sourceInstances);
+        } else {
+          appendVisibleInstances(world, draw, *metadata.instances, result,
+                                 materials, modelBounds, frustum,
+                                 instanceLodPosition, instancePreparation);
+        }
         continue;
       }
       ++result.considered;
-      result.meshes.push_back(std::move(draw));
+      if (needsSectionSelection) {
+        appendSourceDraws(std::span(&draw, 1), metadata, true);
+      } else {
+        result.meshes.push_back(std::move(draw));
+      }
     }
   }
 
-  // Ordinary meshes and instance copies already are final draw records. Do not
-  // allocate and copy the entire visible list when no source needs expansion.
-  if (!needsSectionSelection) {
-    recordInstanceCullingStatistics(result, frame.viewId);
-    return result;
-  }
-  ProfileScope sectionScope("Renderer3D.select_sections");
-  std::vector<VisibleMesh3D> draws;
-  draws.reserve(result.meshes.size());
-  std::unordered_map<std::string, float> ownerQuality;
-  struct ChunkDrawSelection {
-    std::size_t level = 0;
-    std::shared_ptr<const PreparedTerrainLodLevel> prepared;
-  };
-  std::unordered_map<
-      std::string,
-      std::unordered_map<const PreparedTerrainChunkLod *, ChunkDrawSelection>>
-      chunkLevels;
-  const auto &selectionCamera = lodCamera ? *lodCamera : frame;
-  for (auto visible : result.meshes) {
-    const auto sourceIndex = visible.entity - world.entities.data();
-    const auto &source = sources[sourceIndex];
-    const auto *terrain = source.terrain;
-    if (terrain && terrain->chunk) {
-      auto [quality, inserted] = ownerQuality.try_emplace(terrain->owner, 0.0F);
-      if (inserted) {
-        const auto *owner = findEntity(world, terrain->owner);
-        const auto *component =
-            owner ? owner->component<Terrain3DComponent>() : nullptr;
-        if (component) {
-          quality->second = component->lodErrorPixels;
-        }
-      }
-      const auto *appearance = source.mesh;
-      visible.terrainSurface = true;
-      auto [decision, firstSurface] =
-          chunkLevels[terrain->owner].try_emplace(terrain->chunk.get());
-      if (firstSurface) {
-        decision->second.level =
-            terrainSelection
-                ? terrainSelection->select(terrain->chunk, visible.transform,
-                                           appearance->size, selectionCamera,
-                                           quality->second, terrain->owner)
-                : selectTerrainDrawLevel3D(*terrain->chunk, visible.transform,
-                                           appearance->size, selectionCamera,
-                                           quality->second);
-      }
-      if (terrainPatches && terrainPatches->forcesFullOwner(terrain->owner)) {
-        decision->second.level = 0;
-      }
-      if (firstSurface && decision->second.level != 0) {
-        if (terrainDemand) {
-          terrainDemand->record(selectionCamera, visible.entity->id,
-                                terrain->owner, terrain->chunk,
-                                decision->second.level);
-        }
-        decision->second.prepared =
-            terrainResidency ? terrainResidency->request(terrain->chunk,
-                                                         decision->second.level)
-                             : nullptr;
-        if (!decision->second.prepared) {
-          decision->second.level = 0;
-        }
-      }
-      visible.terrainLevel = decision->second.level;
-      visible.terrainPreparedLevel = decision->second.prepared;
-      if (visible.terrainLevel != 0) {
-        const auto surface = visible.terrainPreparedLevel->find(terrain->biome);
-        if (surface == visible.terrainPreparedLevel->end()) {
-          continue;
-        }
-        visible.terrainGeometry = surface->second.geometry;
-        visible.terrainSections = &surface->second.sections;
-      }
-    }
-    const auto *sections =
-        visible.terrainSections ? visible.terrainSections : source.sections;
-    const auto &mesh =
-        visible.terrainGeometry ? *visible.terrainGeometry : *source.mesh;
-    if (visible.terrainSurface && mesh.hasBounds) {
-      const auto *appearance =
-          visible.entity->component<MeshRendererComponent>();
-      const auto bounds = worldBounds(mesh, visible.transform,
-                                      entityMeshDents3D(*visible.entity),
-                                      nullptr, appearance->size);
-      if (!sphereVisible(bounds, frame)) {
-        ++result.culled;
-        continue;
-      }
-    }
-    if (mesh.vertices.empty() || !sections || sections->sections.empty()) {
-      draws.push_back(std::move(visible));
-      continue;
-    }
-    for (std::size_t index = 0; index < sections->sections.size(); ++index) {
-      auto draw = visible;
-      draw.materialSection = index;
-      draws.push_back(std::move(draw));
-    }
-  }
-  result.meshes = std::move(draws);
   recordInstanceCullingStatistics(result, frame.viewId);
   return result;
 }

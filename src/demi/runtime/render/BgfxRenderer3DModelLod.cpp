@@ -9,22 +9,13 @@ namespace demi::runtime::render {
 
 BgfxRenderer3D::ModelLodSelection BgfxRenderer3D::selectModelLod(
     const MeshRendererComponent &mesh, const AnimationPlayer3DComponent *player,
-    Vec3 position, Vec3 camera, bool preserveHigh) const {
-  const float x = position.x - camera.x, y = position.y - camera.y,
-              z = position.z - camera.z;
-  const float squaredDistance = x * x + y * y + z * z;
-  const auto reached = [&](float distance) {
-    return distance > 0 && squaredDistance >= distance * distance;
-  };
-  if (reached(mesh.cullDistance))
-    return {.model = &mesh.model, .isCulled = true};
-  ModelLodSelection selected{.model = &mesh.model};
-  if (preserveHigh)
+    Vec3 position, Vec3 camera, bool preserveHigh,
+    float shadowDistanceFloor) const {
+  auto selected = selectModelLodGeometry3D(
+      mesh, position, camera, preserveHigh, player ? 0 : shadowDistanceFloor);
+  if (selected.isCulled) {
     return selected;
-  if (!mesh.lowLodModel.empty() && reached(mesh.lowLodDistance))
-    selected = {.model = &mesh.lowLodModel, .level = 2};
-  else if (!mesh.mediumLodModel.empty() && reached(mesh.mediumLodDistance))
-    selected = {.model = &mesh.mediumLodModel, .level = 1};
+  }
   if (!player || selected.level == 0)
     return selected;
   // Bone overrides/layers can name bones absent from reduced rigs. Named clips

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "demi/assets/GltfMaterials.h"
 #include "demi/assets/ModelImportProfile.h"
 #include "demi/runtime/scene/model/SceneTypes.h"
 
@@ -72,7 +73,8 @@ struct GltfSkinnedModel3D {
   std::vector<Node> nodes;
   std::vector<Skin> skins;
   std::vector<Clip> clips;
-  std::vector<std::byte> albedoImage;
+  std::vector<GltfMaterial3D> materials;
+  std::vector<GltfMaterialSection3D> materialSections;
   std::array<float, 16> importTransform{1.0F, 0.0F, 0.0F, 0.0F, 0.0F, 1.0F,
                                         0.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.0F,
                                         0.0F, 0.0F, 0.0F, 1.0F};
@@ -81,10 +83,13 @@ struct GltfSkinnedModel3D {
   [[nodiscard]] bool bindPose(Pose &out, std::string &error,
                                const BoneSegments &segments = {}) const;
   [[nodiscard]] bool samplePose(int clip, float time, bool loop, Pose &out,
-                                 std::string &error,
-                                 const BoneSegments &segments = {}) const;
-  [[nodiscard]] bool posePositions(const Pose &pose, std::vector<runtime::Vec3> &out,
-                                    std::string &error) const;
+                                std::string &error,
+                                const BoneSegments &segments = {}) const;
+  [[nodiscard]] bool posePositions(const Pose &pose,
+                                   std::vector<runtime::Vec3> &out,
+                                   std::string &error) const;
+  [[nodiscard]] bool bindPoseNormals(std::vector<runtime::Vec3> &out,
+                                     std::string &error) const;
   [[nodiscard]] bool bindPosePositions(std::vector<runtime::Vec3> &out,
                                        std::string &error,
                                        const BoneSegments &segments = {}) const;

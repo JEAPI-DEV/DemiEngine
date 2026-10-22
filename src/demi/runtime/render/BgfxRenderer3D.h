@@ -1,5 +1,6 @@
 #pragma once
 #include "demi/runtime/destruction/CosmeticDebris3D.h"
+#include <stop_token>
 
 #include "demi/assets/AssetRegistry.h"
 #include "demi/assets/GltfSkinnedModel.h"
@@ -14,17 +15,19 @@
 #include "demi/runtime/render/bgfx3d/DirectionalShadow3D.h"
 #include "demi/runtime/render/bgfx3d/GpuMesh3D.h"
 #include "demi/runtime/render/bgfx3d/GpuSkinnedMesh3D.h"
+#include "demi/runtime/render/bgfx3d/MeshInstancePreparation3D.h"
 #include "demi/runtime/render/bgfx3d/MeshPbrBindings3D.h"
 #include "demi/runtime/render/bgfx3d/MeshResourceRetention3D.h"
 #include "demi/runtime/render/bgfx3d/OpaqueSceneCapture3D.h"
 #include "demi/runtime/render/bgfx3d/ParticleBillboardRenderer3D.h"
 #include "demi/runtime/render/bgfx3d/PostProcessRenderer3D.h"
+#include "demi/runtime/render/bgfx3d/PreparedInstanceView3D.h"
 #include "demi/runtime/render/bgfx3d/PrimitiveCanvas3D.h"
+#include "demi/runtime/render/bgfx3d/PrimitiveSurfacePreparation3D.h"
 #include "demi/runtime/render/bgfx3d/ReliefMeshCache3D.h"
 #include "demi/runtime/render/bgfx3d/SceneLightBuffer3D.h"
 #include "demi/runtime/render/bgfx3d/SceneVisibility3D.h"
-#include "demi/runtime/render/bgfx3d/MeshInstancePreparation3D.h"
-#include "demi/runtime/render/bgfx3d/PrimitiveSurfacePreparation3D.h"
+#include "demi/runtime/render/bgfx3d/ModelLodSampling3D.h"
 #include "demi/runtime/render/bgfx3d/SkyRenderer3D.h"
 #include "demi/runtime/render/bgfx3d/TerrainCameraDemand3D.h"
 #include "demi/runtime/render/bgfx3d/TerrainDrawSelection3D.h"
@@ -34,8 +37,8 @@
 #include "demi/runtime/render/bgfx3d/TerrainPatchBatch3D.h"
 #include "demi/runtime/render/bgfx3d/UnderwaterCamera3D.h"
 #include "demi/runtime/render/bgfx3d/VisualAnimationBudget3D.h"
-#include "demi/runtime/scene/model/World.h"
 #include "demi/runtime/scene/EntityComponentQuery.h"
+#include "demi/runtime/scene/model/World.h"
 #include "demi/runtime/terrain/TerrainLodResidency.h"
 
 #include <chrono>
@@ -157,9 +160,15 @@ private:
   bool renderView(const World &, const BgfxCameraFrame3D &, float,
                   std::string &, bool shadowPass, const SceneLighting3D &,
                   const BgfxCameraFrame3D &lodCamera,
-                  OpaqueSceneCapture3D::Target *waterCapture = nullptr);
+                  OpaqueSceneCapture3D::Target *waterCapture = nullptr,
+                  PreparedInstanceView3D *preparedInstances = nullptr);
+  bool prepareAnalyticDepthPrograms(std::string &error);
+  [[nodiscard]] ProgramHandle analyticDepthProgram(ProgramHandle program,
+                                                   bool enabled) const;
+  std::vector<std::pair<ProgramHandle, ProgramHandle>> analyticDepthPrograms_;
   OpaqueSceneCapture3D::Target *prepareWaterCapture(const World &,
                                                     const BgfxCameraFrame3D &,
+                                                    const SceneLighting3D &,
                                                     std::string &error);
   bool prepareTerrainMeshes(SceneVisibility3D &, std::string &error);
   struct MeshSubmissionStatistics {
@@ -185,16 +194,20 @@ private:
                            ProgramHandle defaultInstancedProgram,
                            ProgramHandle defaultSkinnedProgram,
                            MeshSubmissionStatistics &, std::string &error,
-                           int selectedSurfacePass = -1);
-  struct ModelLodSelection {
-    const std::string *model = nullptr;
-    bool isCulled = false;
-    int level = 0;
-  };
+                           int selectedSurfacePass = -1,
+                           PreparedInstanceView3D *preparedInstances = nullptr);
+  [[nodiscard]] bool opaqueInstanceSourceEligible(
+      const MeshInstancePreparation3D::EntitySource &source) const;
+  [[nodiscard]] bool compileOpaqueInstanceSource(
+      const MeshInstancePreparation3D::EntitySource &source,
+      const SceneVisibility3D &copies, const BgfxCameraFrame3D &frame,
+      OpaqueInstancePlan3D &plan, std::string &error);
+  using ModelLodSelection = ModelLodGeometrySelection3D;
   [[nodiscard]] ModelLodSelection
   selectModelLod(const MeshRendererComponent &mesh,
                  const AnimationPlayer3DComponent *player, Vec3 position,
-                 Vec3 camera, bool preserveHigh) const;
+                 Vec3 camera, bool preserveHigh,
+                 float shadowDistanceFloor = 0) const;
   struct RenderTarget {
     RenderTargetHandles handles;
     std::uint16_t width = 1;
@@ -212,6 +225,7 @@ private:
     std::uint64_t inlineColorSignature = 0;
     std::vector<std::uint32_t> inlineColors;
     MeshGeometry3D restGeometry;
+    std::shared_ptr<const MeshMaterialSections3D> materialSections;
     std::optional<MeshBounds3D> bounds;
     std::string animationModel;
     std::unique_ptr<GpuSkinnedMesh3D> gpuSkin;
@@ -239,9 +253,11 @@ private:
   TextureLibrary2D textures_;
   struct TextureSource {
     std::filesystem::path path;
-    // Embedded model images are re-read from their authored model only when
-    // another sampling role is first used; no image bytes stay in this record.
-    std::function<std::vector<std::byte>(std::string &)> readEmbedded;
+    // Imported images are recreated from source with their channel/factor
+    // conversion whenever a sampling variant is demanded again.
+    std::function<bool(ImageMipSemantic, PreparedTexture2D &, std::string &,
+                       std::stop_token)>
+        prepareImported;
     TextureSampling2D sampling;
     std::array<bool, 3> failedVariants{};
     std::array<std::string, 3> variantErrors{};
@@ -272,6 +288,7 @@ private:
   UniformHandle alphaCutoffUniform_;
   UniformHandle debugModeUniform_;
   MeshInstancePreparation3D instancePreparation_;
+  PreparedInstanceView3D cameraInstances_;
   EntityComponentQuery entityQueries_;
   PrimitiveSurfacePreparation3D primitiveSurfaces_;
   UniformHandle viewPositionUniform_;
@@ -311,7 +328,6 @@ private:
   std::vector<DrawUniformValue> meshDrawUniforms_;
   ReliefMeshCache3D reliefMeshes_;
   std::unordered_map<std::string, assets::GltfSkinnedModel3D> animatedModels_;
-  std::unordered_map<std::string, std::string> modelTextures_;
   std::unordered_map<std::string, bool> modelUnlit_;
   std::unordered_map<std::string, RenderTarget> renderTargets_;
   ParticleSimulation3D particles_;

@@ -1,0 +1,49 @@
+Woodland environment art — CC0 1.0 Universal
+
+Poly Haven source assets:
+Tree Small 02: https://polyhaven.com/a/tree_small_02
+Grass Medium 01: https://polyhaven.com/a/grass_medium_01
+Rock Moss Set 01: https://polyhaven.com/a/rock_moss_set_01
+License: https://polyhaven.com/license
+https://creativecommons.org/publicdomain/zero/1.0/
+
+Derived from the repository Amber Pass source GLBs and material textures.
+Tree trunk/branches retain original UVs. Autumn leaf cards retain full source
+UV rectangles and real RGBA opacity. Grass patches retain photographic alpha;
+source photographs receive the exposure treatment documented in Amber Pass.
+Packed ARM maps were split into AO/roughness without changing channel bytes.
+No original .blend files, source archives, HDRIs or rider textures are included.
+
+Reproduction source: tools/demo-art/amber_pass/environment_assets.py and
+foliage_assets.py. Original source integrity records and detailed conversion
+notes remain in examples/amber_pass_3d/assets/environment/downloads.json and
+CREDITS.txt. This package contains only the selected derived runtime artwork.
+
+Layered understory added in 1.1.0, original CC0 Poly Haven plants:
+Grass Medium 01 — Rico Cilliers / Rob Tuytel:
+https://polyhaven.com/a/grass_medium_01
+Shrub 03 — Rico Cilliers:
+https://polyhaven.com/a/shrub_03
+Shrub Sorrel 01 — Rico Cilliers:
+https://polyhaven.com/a/shrub_sorrel_01
+Flower Gazania — James Ray Cock / Jenelle van Heerden:
+https://polyhaven.com/a/flower_gazania
+
+Original source meshes are recentered and scaled to documented metre heights;
+complete source variants provide near/medium/far shapes. Distant lush grass
+combines three intact photographed plants, retaining each original UV mapping.
+Understory RGB is original source photography, with official alpha combined;
+there is no autumn recoloring or brightening in these four new materials.
+Only 1K maps and selected exported GLBs ship. Original .blend collections and
+large source downloads are not copied into the package. Official file records
+and verified MD5 hashes are in sources-understory.json.
+
+Version 1.2.0 grass distant coverage LOD: five transparent orthographic renders
+of the actual original-mesh grass_lush near patch, four side angles and one top
+view, assigned to four crossed cards and a top coverage quad. The 2K atlas keeps
+the original 1K photograph pixels in a separate region for near/medium geometry.
+No synthetic blades, external generated photos or baked scene illumination are
+introduced. Near/medium UVs are remapped into that original-image atlas region.
+Reproduction and preview scripts are in tools/; bake metadata is recorded in
+grass-impostor-bake.json. This changes the derived runtime LOD, not the original
+Poly Haven CC0 source attribution or license.

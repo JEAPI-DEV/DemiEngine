@@ -11,6 +11,13 @@
 
 namespace demi::runtime::render {
 
+struct MeshSurfacePassPrograms3D {
+  ProgramHandle pbrMesh;
+  ProgramHandle pbrInstanced;
+  bool depthOnly = false;
+  bool overdraw = false;
+};
+
 class MeshInstanceBatch3D {
 public:
   std::size_t add(const GpuMesh3D &mesh, TextureHandle texture,
@@ -22,9 +29,10 @@ public:
   std::size_t addSurface(const GpuMesh3D &mesh, TextureHandle texture,
                          const MeshRendererComponent &source,
                          const MaterialBinding *material,
-                         const PreparedMeshDraw3D &prepared,
-                         ProgramHandle instancedProgram,
-                         const std::array<float, 16> &transform);
+                         const MeshDrawSurface3D &surface, bool usesPbrSurface,
+                         const std::array<float, 16> &transform,
+                         std::uint32_t firstIndex = 0,
+                         std::uint32_t indexCount = UINT32_MAX);
   // Tokens are local to this view's batch collector. Repeated immutable source
   // copies can append without resolving or hashing their surface again.
   void appendTransform(std::size_t group,
@@ -35,7 +43,10 @@ public:
              const std::array<DrawUniformValue, 8> &lightingUniforms,
              std::uint32_t &draws, std::uint32_t &triangles, std::string &error,
              MeshPbrBindings3D *surfaces = nullptr,
-             TextureHandle whiteTexture = {}) const;
+             TextureHandle whiteTexture = {},
+             const MeshSurfacePassPrograms3D &pass = {}) const;
+  void reset();
+  [[nodiscard]] std::size_t groupCount() const noexcept { return usedGroups_; }
 
 private:
   struct InstanceGroup {
@@ -46,8 +57,10 @@ private:
     bool unlit = false;
     const MeshRendererComponent *source = nullptr;
     const MaterialBinding *material = nullptr;
-    std::optional<PreparedMeshDraw3D> prepared;
-    ProgramHandle instancedProgram;
+    std::optional<MeshDrawSurface3D> surface;
+    bool usesPbrSurface = false;
+    std::uint32_t firstIndex = 0;
+    std::uint32_t indexCount = UINT32_MAX;
     std::vector<std::array<float, 16>> transforms;
   };
   struct Key {
@@ -58,13 +71,18 @@ private:
     const MeshRendererComponent *source = nullptr;
     const MaterialBinding *material = nullptr;
     bool surface = false;
+    bool usesPbrSurface = false;
+    std::uint32_t firstIndex = 0;
+    std::uint32_t indexCount = UINT32_MAX;
     bool operator==(const Key &) const = default;
   };
   struct KeyHash {
     std::size_t operator()(const Key &key) const;
   };
-  // Programs and raster state are common to a flush. Mesh addresses are used
-  // only during this view, while renderer caches retain their GPU resources.
+  // Pass programs/state are adapted at flush. Borrowed source and resource
+  // addresses remain valid only inside the owning view/preparation operation.
+  void appendGroup(InstanceGroup group);
+  std::size_t usedGroups_ = 0;
   std::unordered_map<Key, std::size_t, KeyHash> groupLookup_;
   std::vector<InstanceGroup> groups_;
 };

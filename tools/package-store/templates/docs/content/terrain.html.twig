@@ -1,6 +1,7 @@
 <h1>Terrain assets and editing</h1>
 <p>A Terrain asset owns its generation graph, biome settings and manual edits. Scenes reference it through <code>Terrain3D.asset</code> and place it with Transform 3D. The editor generates and edits its preview; shipped games load prepared terrain data. This is an experimental finite-heightfield workflow; large-world streaming and volumetric caves are not yet available.</p>
 
+<p><code>examples/terrain_3d</code> is Silvermere, a 768 m landscape showcase with a native terrain graph, lake and package-backed woodland. Its startup scene shows preparation progress before a seven-chapter camera tour. Space pauses, R restarts and N advances to the next view. Open <code>scenes/main.scene.json</code> in the editor to edit the landscape. Its 149,125 batched placements include trees and rocks visible across the valley, plus grass with authored near/medium geometry and baked distant coverage through the camera range. Only showcase grass disables shadow casting; other vegetation retains it. Smooth LOD fades, automatic model LOD generation and sustained native 4K60 remain unfinished.</p>
 <h2>Generate a terrain</h2>
 <ol>
   <li>Choose <strong>Assets → Create → Terrain...</strong> to create a Terrain asset. Double-click its source or manifest to open its own terrain stage, independently of the scene.</li>

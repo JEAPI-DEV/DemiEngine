@@ -1,0 +1,154 @@
+[
+  {
+    "asset": "grass_medium_01",
+    "author": "Rico Cilliers and Rob Tuytel",
+    "license": "CC0-1.0",
+    "source": "https://polyhaven.com/a/grass_medium_01",
+    "inputs": {
+      "grass_medium_01_1k.gltf": {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/grass_medium_01/grass_medium_01_1k.gltf",
+        "md5": "28dd8247f3faa749bf87a0b84be01e7e",
+        "size": 27110
+      },
+      "textures/grass_medium_01_nor_gl_1k.jpg": {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/grass_medium_01/grass_medium_01_nor_gl_1k.jpg",
+        "md5": "fcf43dd1253f56e4c361079f34155c37",
+        "size": 956166
+      },
+      "textures/grass_medium_01_diff_1k.jpg": {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/grass_medium_01/grass_medium_01_diff_1k.jpg",
+        "md5": "6b18ed50d776fd20c1304d9994bd764e",
+        "size": 395673
+      },
+      "textures/grass_medium_01_arm_1k.jpg": {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/grass_medium_01/grass_medium_01_arm_1k.jpg",
+        "md5": "37ed2730a507b681af2e9f9f7ef3ae5e",
+        "size": 679518
+      },
+      "grass_medium_01.bin": {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/8k/grass_medium_01/grass_medium_01.bin",
+        "md5": "e0527a0561c2dae5b7b5c1b478d8c6bf",
+        "size": 1006632
+      },
+      "textures/grass_medium_01_alpha_1k.png": {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/png/1k/grass_medium_01/grass_medium_01_alpha_1k.png",
+        "md5": "6b5b251ef1ca9a69ab9f49def66d758a",
+        "size": 648718
+      }
+    }
+  },
+  {
+    "asset": "shrub_03",
+    "author": "Rico Cilliers",
+    "license": "CC0-1.0",
+    "source": "https://polyhaven.com/a/shrub_03",
+    "inputs": {
+      "shrub_03_1k.gltf": {
+        "size": 7296,
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/shrub_03/shrub_03_1k.gltf",
+        "md5": "2c1ef10ff17e23f81d29c851d1409c9a"
+      },
+      "shrub_03.bin": {
+        "size": 238684,
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/4k/shrub_03/shrub_03.bin",
+        "md5": "c26c6ed23b0034664eab5a0e3ee00f6a"
+      },
+      "textures/shrub_03_arm_1k.jpg": {
+        "size": 396238,
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/shrub_03/shrub_03_arm_1k.jpg",
+        "md5": "67faf4c5c213589b41a3bd18d378fa7d"
+      },
+      "textures/shrub_03_diff_1k.jpg": {
+        "size": 481841,
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/shrub_03/shrub_03_diff_1k.jpg",
+        "md5": "5da9190b7c2837a9e209a3fe774dba3c"
+      },
+      "textures/shrub_03_nor_gl_1k.jpg": {
+        "size": 504734,
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/shrub_03/shrub_03_nor_gl_1k.jpg",
+        "md5": "38956b2171644cfefda2ef542e055100"
+      },
+      "textures/shrub_03_alpha_1k.png": {
+        "size": 79069,
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/png/1k/shrub_03/shrub_03_alpha_1k.png",
+        "md5": "57a2d0fd7ea02ebeb8de321652f9f58a"
+      }
+    }
+  },
+  {
+    "asset": "shrub_sorrel_01",
+    "author": "Rico Cilliers",
+    "license": "CC0-1.0",
+    "source": "https://polyhaven.com/a/shrub_sorrel_01",
+    "inputs": {
+      "shrub_sorrel_01_1k.gltf": {
+        "size": 17428,
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/shrub_sorrel_01/shrub_sorrel_01_1k.gltf",
+        "md5": "d56d50a8492bd7d7c7a0a571f42239c6"
+      },
+      "textures/shrub_sorrel_01_nor_gl_1k.jpg": {
+        "size": 470891,
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/shrub_sorrel_01/shrub_sorrel_01_nor_gl_1k.jpg",
+        "md5": "71c6c432b91a8d64f2c480366fd61dfb"
+      },
+      "shrub_sorrel_01.bin": {
+        "size": 110936,
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/8k/shrub_sorrel_01/shrub_sorrel_01.bin",
+        "md5": "5b6481fc43f4dc36ab4e80d79a19119f"
+      },
+      "textures/shrub_sorrel_01_arm_1k.jpg": {
+        "size": 201949,
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/shrub_sorrel_01/shrub_sorrel_01_arm_1k.jpg",
+        "md5": "6230445a48867ef8196ee1ab052d346d"
+      },
+      "textures/shrub_sorrel_01_diff_1k.jpg": {
+        "size": 385129,
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/shrub_sorrel_01/shrub_sorrel_01_diff_1k.jpg",
+        "md5": "bef299def81bd55c2b378d53dad803b5"
+      },
+      "textures/shrub_sorrel_01_alpha_1k.png": {
+        "size": 64408,
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/png/1k/shrub_sorrel_01/shrub_sorrel_01_alpha_1k.png",
+        "md5": "d73e433a4b041bb19e4dfb4266598e9a"
+      }
+    }
+  },
+  {
+    "asset": "flower_gazania",
+    "author": "James Ray Cock and Jenelle van Heerden",
+    "license": "CC0-1.0",
+    "source": "https://polyhaven.com/a/flower_gazania",
+    "inputs": {
+      "flower_gazania_1k.gltf": {
+        "size": 19686,
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/flower_gazania/flower_gazania_1k.gltf",
+        "md5": "78053547581103a0630049ab073e93bd"
+      },
+      "flower_gazania.bin": {
+        "size": 848136,
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/8k/flower_gazania/flower_gazania.bin",
+        "md5": "2ce0f3360d107e2567f8ff47d8fe0d1d"
+      },
+      "textures/flower_gazania_nor_gl_1k.jpg": {
+        "size": 874324,
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/flower_gazania/flower_gazania_nor_gl_1k.jpg",
+        "md5": "072dc75b84857662454cdcac932e4732"
+      },
+      "textures/flower_gazania_diff_1k.jpg": {
+        "size": 435784,
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/flower_gazania/flower_gazania_diff_1k.jpg",
+        "md5": "617b04076469b00d231225d565f520f4"
+      },
+      "textures/flower_gazania_arm_1k.jpg": {
+        "size": 670914,
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/flower_gazania/flower_gazania_arm_1k.jpg",
+        "md5": "7ccebc1c751aa6a012867583e5380f0c"
+      },
+      "textures/flower_gazania_alpha_1k.png": {
+        "size": 110222,
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/png/1k/flower_gazania/flower_gazania_alpha_1k.png",
+        "md5": "72a02f7f5a2c73e5d61e8f0b22fb3473"
+      }
+    }
+  }
+]
