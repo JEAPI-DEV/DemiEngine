@@ -4,6 +4,7 @@
 
 #include "demi/assets/AssetGroup.h"
 #include "demi/assets/AssetRegistry.h"
+#include "demi/assets/ModelLodGenerator.h"
 #include "demi/assets/ColliderShapeAsset.h"
 #include "demi/assets/SceneBudget3D.h"
 #include "demi/assets/TerrainAsset.h"
@@ -106,6 +107,19 @@ void validateReferences(Diagnostics &diagnostics,
   for (const std::string &reference : extractAssetReferences(text)) {
     const AssetManifest *asset = findAsset(registry, reference);
     if (asset == nullptr) {
+      if (const auto *source = assets::modelLodSource(registry, reference)) {
+        diagnostics.push_back(
+            {.severity = Severity::Error,
+             .code = "MODEL_LOD_GENERATION_REQUIRED",
+             .message =
+                 "Referenced model LOD has a declared generation recipe: " +
+                 reference,
+             .path = path.string(),
+             .suggestion =
+                 "Run demi asset reimport " + source->manifestPath.string() +
+                 " or build/cook the project to generate its LOD assets."});
+        continue;
+      }
       diagnostics.push_back(Diagnostic{
           .severity = Severity::Error,
           .code = "ASSET_REFERENCE_NOT_FOUND",
@@ -121,6 +135,18 @@ void validateReferences(Diagnostics &diagnostics,
 
     for (const std::filesystem::path &sourcePath : asset->sourcePaths) {
       if (!std::filesystem::exists(sourcePath)) {
+        if (const auto *source = assets::modelLodSource(registry, reference)) {
+          diagnostics.push_back(
+              {.severity = Severity::Error,
+               .code = "MODEL_LOD_GENERATION_REQUIRED",
+               .message =
+                   "Generated model LOD source is missing for " + reference,
+               .path = path.string(),
+               .suggestion = "Run demi asset reimport " +
+                             source->manifestPath.string() +
+                             " or build/cook the project."});
+          continue;
+        }
         diagnostics.push_back(Diagnostic{
             .severity = Severity::Error,
             .code = "ASSET_SOURCE_NOT_FOUND",

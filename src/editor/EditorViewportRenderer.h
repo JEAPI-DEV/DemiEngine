@@ -1,5 +1,6 @@
 #pragma once
 
+#include "editor/EditorTerrainViewDemand.h"
 #include "editor/EditorUiHost.h"
 
 #include <cstdint>
@@ -38,6 +39,9 @@ public:
                                std::string &error);
   void release();
   void maintainTerrainResidency();
+  void observeViewVisibility(bool visible) {
+    terrainDemand_.observeVisibility(visible);
+  }
   void maintainIdleTerrain();
   [[nodiscard]] bool terrainNeedsFrame() const;
   [[nodiscard]] std::string takeTerrainDiagnostic();
@@ -66,8 +70,7 @@ private:
   runtime::render::RenderCommands &commands_;
   const std::uint16_t firstView_;
   std::unique_ptr<runtime::render::BgfxRenderer3D> renderer3D_;
-  bool terrainPresentedThisFrame_ = false;
-  bool terrainWasVisible_ = false;
+  EditorTerrainViewDemand terrainDemand_;
   std::unique_ptr<runtime::render::BgfxRenderer2D> renderer2D_;
   std::unique_ptr<runtime::render::RenderTargetHandles> target_;
   std::uint16_t targetWidth_ = 0;

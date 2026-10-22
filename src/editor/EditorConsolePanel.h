@@ -4,6 +4,7 @@
 #include "editor/EditorDiagnosticsModel.h"
 #include "editor/EditorDockingState.h"
 #include "editor/EditorProfilerModel.h"
+#include "editor/EditorProfilerCapture.h"
 #include "editor/EditorProjectOperations.h"
 
 #include <array>
@@ -47,6 +48,7 @@ private:
   EditorProfilerCategory profilerCategory_ = EditorProfilerCategory::Frame;
   std::optional<std::filesystem::path> openRequest_;
   EditorDebugPanel debugPanel_;
+  EditorProfilerCapture profilerCapture_;
 };
 
 } // namespace demi::editor

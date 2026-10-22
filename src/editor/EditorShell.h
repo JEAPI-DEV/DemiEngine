@@ -59,6 +59,7 @@ public:
   }
   [[nodiscard]] bool showingGameView() const { return showGameView_; }
   [[nodiscard]] bool showingHudView() const { return showHudView_; }
+  [[nodiscard]] bool startEmbeddedPlay(std::string &error);
   [[nodiscard]] EditorPlaySession &playSession() { return playSession_; }
   [[nodiscard]] bool takeStepRequest() {
     const bool requested = stepRequested_;

@@ -4,6 +4,7 @@
 
 #include "demi/assets/AssetCooker.h"
 #include "demi/assets/AssetHash.h"
+#include "demi/assets/ModelLodGenerator.h"
 #include "demi/core/Version.h"
 #include "demi/runtime/scene/ProjectBuildSettings.h"
 #include "demi/runtime/scene/ProjectBuildValidation.h"
@@ -542,9 +543,25 @@ bool runAndroidGradle(const ProjectOperationRequest &request,
 ProjectOperationResult
 runProjectOperation(const ProjectOperationRequest &request) {
   ProjectOperationResult result;
+  if (request.operation != ProjectOperation::Validate &&
+      std::filesystem::is_regular_file(request.projectFile)) {
+    if (cancelled(request)) {
+      result.stage = ProjectOperationStage::Cancelled;
+      return result;
+    }
+    report(request, ProjectOperationStage::Validate, 0.02F,
+           "Preparing generated model LODs");
+    result.diagnostics = assets::ensureModelLods(
+        std::filesystem::absolute(request.projectFile).parent_path());
+    if (hasErrors(result.diagnostics)) {
+      return result;
+    }
+  }
   report(request, ProjectOperationStage::Validate, 0.05F, "Validating project");
   const ValidationSummary validation = validateProjectPath(request.projectFile);
-  result.diagnostics = validation.diagnostics;
+  result.diagnostics.insert(result.diagnostics.end(),
+                            validation.diagnostics.begin(),
+                            validation.diagnostics.end());
   if (!hasErrors(result.diagnostics)) {
     std::optional<capabilities::TargetPlatform> target;
     switch (request.operation) {

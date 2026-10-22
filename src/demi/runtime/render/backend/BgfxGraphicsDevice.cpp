@@ -2,6 +2,7 @@
 #include "demi/runtime/render/backend/BgfxFrameSerial.h"
 
 #include "demi/runtime/diagnostics/DeviceLog.h"
+#include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/render/PerformanceDebug.h"
 #include "demi/runtime/render/backend/BgfxProfileCallback.h"
 
@@ -280,13 +281,17 @@ std::uint32_t BgfxGraphicsDevice::endFrame() {
   }
   surfaceSkipLogged = false;
 #endif
+  const auto advanceFrame = [] {
+    ProfileScope scope("Backend.frame_advance_wait");
+    return bgfx::frame();
+  };
   if (!profile_) {
-    const auto frame = bgfx::frame();
+    const auto frame = advanceFrame();
     advanceBgfxSubmissionSerial();
     return frame;
   }
   const auto start = std::chrono::steady_clock::now();
-  const auto frame = bgfx::frame();
+  const auto frame = advanceFrame();
   advanceBgfxSubmissionSerial();
   timings_.advanceMilliseconds = std::chrono::duration<double, std::milli>(
                                      std::chrono::steady_clock::now() - start)
@@ -324,7 +329,8 @@ std::uint32_t BgfxGraphicsDevice::endFrame() {
           const auto &view = stats->viewStats[index];
           auto timing = makeGraphicsGpuViewTiming(
               view.view, view.name, view.gpuFrameNum, stats->gpuFrameNum,
-              view.gpuTimeBegin, view.gpuTimeEnd, stats->gpuTimerFreq);
+              view.gpuTimeBegin, view.gpuTimeEnd, stats->gpuTimerFreq,
+              stats->gpuTimeBegin);
           if (timing) {
             timings_.gpuViews.push_back(std::move(*timing));
           }

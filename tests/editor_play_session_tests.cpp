@@ -336,6 +336,34 @@ int main() {
   assert(hasMessage("Wave completed: 1"));
   isometric.stop();
 
+  {
+    // Runtime failure releases the global profiler even after embedded_ is
+    // destroyed. A later session must start with no previous trace history.
+    demi::editor::EditorPlaySession failingSession;
+    std::string failureError;
+    assert(failingSession.startEmbedded(project, failureError));
+    failingSession.beginProfilerFrame();
+    demi::runtime::RuntimeProfiler::record("Before.failure", 1.0);
+    failingSession.beginProfilerFrame();
+    assert(!demi::runtime::RuntimeProfiler::captures().empty());
+    failingSession.reportFailure("Injected runtime failure");
+    assert(failingSession.state() == demi::editor::EditorPlayState::Failed);
+    assert(!demi::runtime::RuntimeProfiler::enabled());
+    assert(demi::runtime::RuntimeProfiler::captures().empty());
+    demi::runtime::RuntimeProfiler::record("After.failure", 2.0);
+    assert(demi::runtime::RuntimeProfiler::frameEntries().empty());
+    failingSession.stop();
+    assert(!demi::runtime::RuntimeProfiler::enabled());
+    assert(failingSession.startEmbedded(project, failureError));
+    assert(demi::runtime::RuntimeProfiler::enabled());
+    assert(demi::runtime::RuntimeProfiler::captures().empty());
+    failingSession.beginProfilerFrame();
+    failingSession.beginProfilerFrame();
+    assert(demi::runtime::RuntimeProfiler::captures().size() == 1);
+    failingSession.stop();
+    assert(!demi::runtime::RuntimeProfiler::enabled());
+  }
+
   demi::editor::EditorPlaySession failed;
   std::string error;
   assert(!failed.startEmbedded(source / "missing.project.json", error));

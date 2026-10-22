@@ -24,6 +24,7 @@ struct EditorOptions {
   std::filesystem::path profileFrames;
   int maximumSeconds = 0;
   bool showHelp = false;
+  bool startPlay = false;
   bool terrainGraph = false;
   std::optional<std::string> terrainSettingsNode;
   std::string optionError;
@@ -56,6 +57,8 @@ EditorOptions parseOptions(const int argc, char **argv) {
       options.profileFrames = argv[++index];
     } else if (argument == "--open" && index + 1 < argc) {
       options.openSource = argv[++index];
+    } else if (argument == "--play") {
+      options.startPlay = true;
     } else if (argument == "--terrain-graph") {
       options.terrainGraph = true;
     } else if (argument == "--terrain-settings-node") {
@@ -81,7 +84,7 @@ void printHelp() {
                "                   [--open <authored-source>]\n"
                "                   [--terrain-graph]\n"
                "                   [--terrain-settings-node <stable-node-id>]\n"
-               "                   [--max-frames <count>]\n"
+               "                   [--play] [--max-frames <count>]\n"
                "                   [--profile-frames <csv>] [--max-seconds "
                "<seconds>]\n\n"
                "Without --project, the nearest parent demi.project.json is "
@@ -172,6 +175,12 @@ int main(const int argc, char **argv) {
             view, workspace.project().project.projectDirectory, error))
       shell.setNotice("Authored view unavailable: " + error);
   shell.playSession().setHostServices(ui->embeddedHostServices());
+  if (options.startPlay && !shell.startEmbeddedPlay(error)) {
+    std::cerr << "Could not start embedded Play: " << error << '\n';
+    shell.releaseUiResources();
+    ui->shutdown();
+    return 1;
+  }
   bool gameRendererReady = false;
   int frame = 0;
   bool profileFailed = false;
@@ -182,7 +191,9 @@ int main(const int argc, char **argv) {
         std::chrono::steady_clock::now() - loopStarted >=
             std::chrono::seconds(options.maximumSeconds))
       break;
+    const auto backgroundStarted = std::chrono::steady_clock::now();
     const bool changed = shell.pollBackgroundChanges();
+    const auto awaitStarted = std::chrono::steady_clock::now();
     if (!ui->awaitFrame(changed || shell.needsContinuousFrames() ||
                         ui->shouldClose()))
       continue;
@@ -198,6 +209,12 @@ int main(const int argc, char **argv) {
       demi::runtime::RuntimeProfiler::setEnabled(true);
       demi::runtime::RuntimeProfiler::beginFrame();
     }
+    demi::runtime::RuntimeProfiler::record(
+        "Editor.background_poll", std::chrono::duration<double, std::milli>(
+            awaitStarted - backgroundStarted).count());
+    demi::runtime::RuntimeProfiler::record(
+        "Editor.await_frame", std::chrono::duration<double, std::milli>(
+            frameStarted - awaitStarted).count());
     ui->setUiScale(shell.uiScale());
     if (!ui->beginFrame(error)) {
       std::cerr << "Editor frame failed: " << error << '\n';
@@ -323,7 +340,10 @@ int main(const int argc, char **argv) {
       if (!rendered)
         shell.setNotice("Authored view unavailable: " + error);
     }
-    ui->endFrame();
+    {
+      demi::runtime::ProfileScope scope("Editor.present");
+      ui->endFrame();
+    }
     if (auto diagnostic = ui->takeWorkspaceDiagnostic(); !diagnostic.empty()) {
       shell.setNotice(std::move(diagnostic));
     }

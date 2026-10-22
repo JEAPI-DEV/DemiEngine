@@ -333,3 +333,50 @@ although CPU preparation falls 33.488→23.650 ms. Sustained native 4K60 remains
 unqualified. Smooth LOD fading, automatic model LOD generation and stronger art
 composition also remain open. This checkpoint is not a claim of reference-engine
 feature parity or completed runtime optimization.
+
+
+## Skipped editor view and material texture lifetime
+
+A 35-second Minimal3D editor trace recorded approximately 543 ms in
+`Renderer3D.submit_collect` on frames 1994, 2149 and 2151. Each spike immediately
+followed a UI frame with no Game draw. Source addresses, entity order, component
+storage revision and visible mesh count stayed unchanged; GPU and simulation
+work did not explain the CPU collection interval.
+
+`EditorGameRenderer::maintainTerrainResidency` invokes inactive terrain
+maintenance when a view is clipped, hidden or skips drawing. That maintenance
+incorrectly destroyed every ordinary material texture and reset its usage
+serials, including imported/prepared images. The next draw synchronously
+prepared those images again inside collection. Inactive terrain maintenance now
+retires only terrain-owned geometry, demand and material arrays. Uploaded
+model/material assets intentionally remain resident through hidden/skipped views,
+under their asset publication/reset/unload owner and normal presentation role
+retention. Asset replacement and renderer shutdown still release them.
+
+The renderer regression checks three skip/resume cycles, unchanged upload count
+and the same live texture binding, followed by explicit asset replacement and a
+new upload. Existing hidden-terrain geometry retirement coverage is retained.
+The focused renderer regression passed in the coordinated Linux Release
+nine-suite gate. The repeated native trace is separate; no post-fix timing result
+is claimed here yet.
+
+
+## Active terrain views with skipped draws
+
+Editor terrain ownership now follows explicit view/warmup demand, rather than
+successful draw completion. Game View records a 3D request before a resize can
+skip submission. Authoring view visibility retains an already active 3D demand
+while its target is being prepared. Switching to 2D/HUD explicitly retires that
+demand. Closing/hiding a view, replacing its owner or unloading still releases
+terrain fields, material arrays and geometry through the existing budget owners.
+No elapsed-time grace period or additional resource cache is introduced.
+
+`EditorTerrainViewDemand` supplies the shared event policy for Game and authoring
+renderers. Focused coverage includes visible skipped draws, pending targets,
+2D/HUD changes, explicit hidden warmup, inactivity and release/reset. The combined
+renderer fixture uses four GPU terrain patches plus an ordinary shared material:
+active skipped/resumed frames keep texture and mesh upload counts unchanged;
+actual inactivity releases the terrain field, normal warmup restores it, and the
+ordinary material remains asset-owned. The new terrain-specific regression awaits
+the coordinated build and native follow-up; ordinary material correction and LOD
+formatting had already passed the parent's nine-suite focused run.

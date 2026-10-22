@@ -1,4 +1,5 @@
 #include "demi/assets/AssetSourceFiles.h"
+#include "demi/assets/GltfDocument.h"
 
 #include <nlohmann/json.hpp>
 
@@ -16,10 +17,15 @@ void collectUris(const nlohmann::json &value, const std::filesystem::path &base,
       if ((key == "uri" || key == "vertex" || key == "fragment" ||
            key == "varying") &&
           child.is_string() &&
-          !child.get<std::string>().starts_with("data:"))
-        files.insert(base / child.get<std::string>());
-      else
+          !child.get<std::string>().starts_with("data:")) {
+        auto relative = child.get<std::string>();
+        if (key == "uri") {
+          relative.resize(cgltf_decode_uri(relative.data()));
+        }
+        files.insert(base / relative);
+      } else {
         collectUris(child, base, files);
+      }
     }
   } else if (value.is_array()) {
     for (const auto &child : value)

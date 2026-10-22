@@ -7,6 +7,7 @@
 #include "demi/assets/AssetImporter.h"
 #include "demi/assets/TerrainAsset.h"
 #include "demi/assets/ColliderAssetGenerator.h"
+#include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
 #include "demi/runtime/scene/ProjectParser.h"
 
 #include <algorithm>
@@ -202,6 +203,66 @@ bool EditorWorkspace::reimportAsset(const std::filesystem::path &manifest,
   }
   refreshAssetMetadata();
   return true;
+}
+
+assets::ModelLodGenerationResult EditorWorkspace::generateModelLods(
+    assets::ModelLodGenerationRequest request) {
+  if (!project_) {
+    assets::ModelLodGenerationResult result;
+    result.diagnostics.push_back({Severity::Error, "EDITOR_LOD_PROJECT_REQUIRED",
+                                  "Open a project before generating model LODs."});
+    return result;
+  }
+  request.projectDirectory = project_->project.projectDirectory;
+  auto result = assets::generateModelLods(request);
+  if (!hasErrors(result.diagnostics)) {
+    refreshAssetMetadata();
+  }
+  diagnostics_.insert(diagnostics_.end(), result.diagnostics.begin(),
+                      result.diagnostics.end());
+  return result;
+}
+
+bool EditorWorkspace::applyModelLods(const std::string_view sourceModelId,
+                                     const std::string_view mediumModelId,
+                                     const std::string_view lowModelId,
+                                     std::string &error) {
+  error.clear();
+  if (!project_ || activeDocument() != EditorWorkspaceDocument::Scene) {
+    error = "Open a scene and select a matching model entity before applying LODs.";
+    return false;
+  }
+  const auto *entity = selectedEntity();
+  const auto *mesh = entity
+      ? entity->component<runtime::MeshRendererComponent>() : nullptr;
+  if (!mesh || mesh->model != sourceModelId) {
+    error = "The selected entity must use the source model in MeshRenderer.model.";
+    return false;
+  }
+  for (const std::string_view id : {mediumModelId, lowModelId}) {
+    const bool isModel = std::ranges::any_of(
+        assetIndex_.assets(), [id](const EditorAssetRecord &record) {
+          return record.manifest.id == id && record.manifest.type == "Model3D";
+        });
+    if (!isModel) {
+      error = "Both LOD references must resolve to Model3D assets in this project.";
+      return false;
+    }
+  }
+  std::vector<EditorFieldEdit> edits;
+  edits.push_back({authoredTarget({.entityId = entity->id,
+                                  .component = "MeshRenderer",
+                                  .field = "medium_lod_model"}),
+                   std::string(mediumModelId)});
+  edits.push_back({authoredTarget({.entityId = entity->id,
+                                  .component = "MeshRenderer",
+                                  .field = "low_lod_model"}),
+                   std::string(lowModelId)});
+  return mutateAndRebuild(
+      [edits = std::move(edits)](EditorSceneDocument &document,
+                                 std::string &mutationError) mutable {
+        return document.setFieldValues(std::move(edits), mutationError);
+      }, error);
 }
 
 std::optional<assets::ColliderRecommendation>

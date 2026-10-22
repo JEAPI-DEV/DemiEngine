@@ -6,6 +6,7 @@
 #include "demi/assets/ColliderShapeAsset.h"
 #include "demi/assets/DataAssetContent.h"
 #include "demi/assets/DataDocument.h"
+#include "demi/assets/ModelLodGenerator.h"
 #include "demi/assets/RenderAsset.h"
 #include "demi/filesystem/AtomicTextFile.h"
 
@@ -507,6 +508,27 @@ Diagnostics reimportAsset(const std::filesystem::path &manifestPath) {
     return diagnostics;
   }
   try {
+    const auto settings = nlohmann::json::parse(manifest->settingsJson);
+    if (manifest->type == "Model3D" && settings.contains("model_lods")) {
+      const auto recipeDiagnostics =
+          validateModelLodSettings(settings, manifestPath);
+      if (hasErrors(recipeDiagnostics)) {
+        return recipeDiagnostics;
+      }
+      const auto project = projectDirectoryFor(manifestPath);
+      if (!project) {
+        throw std::runtime_error(
+            "Model LOD reimport requires its source project.");
+      }
+      const auto &recipe = settings.at("model_lods");
+      return generateModelLods(
+                 {.projectDirectory = *project,
+                  .modelManifestPath = manifestPath,
+                  .mediumRatio = recipe.at("medium_ratio").get<float>(),
+                  .lowRatio = recipe.at("low_ratio").get<float>(),
+                  .maxError = recipe.at("max_error").get<float>()})
+          .diagnostics;
+    }
     std::vector<std::string> terrainDependencies;
     if (descriptor->name == "terrain_heightfield") {
       const auto importer = builtinImporterRegistry().create(descriptor->name);

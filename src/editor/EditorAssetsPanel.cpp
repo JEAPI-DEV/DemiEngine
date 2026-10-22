@@ -268,6 +268,11 @@ void drawAssetDetails(EditorWorkspace &workspace,
   }
   if (record->manifest.type == "Model3D") {
     ImGui::SameLine();
+    if (ImGui::SmallButton("Generate LODs")) {
+      dialogs.openGenerateModelLods(record->manifest.manifestPath,
+                                   record->manifest.id);
+    }
+    ImGui::SameLine();
     if (ImGui::SmallButton("Generate collider"))
       dialogs.openGenerateCollider(record->manifest.manifestPath,
                                    record->manifest.id);
@@ -521,6 +526,11 @@ void EditorAssetsPanel::draw(EditorWorkspace &workspace, const ImVec2 position,
           notice = workspace.reimportAsset(record->manifest.manifestPath, error)
                        ? "Asset reimported"
                        : error;
+        }
+        if (record != nullptr && record->manifest.type == "Model3D" &&
+            ImGui::MenuItem("Generate Model LODs...")) {
+          dialogs_.openGenerateModelLods(record->manifest.manifestPath,
+                                         record->manifest.id);
         }
         if (record != nullptr && record->manifest.type == "Model3D" &&
             ImGui::MenuItem("Generate Collider Asset..."))

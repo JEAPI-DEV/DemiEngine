@@ -7,6 +7,12 @@ are registered in `tools/package-store/src/Docs.php`.
 
 This directory keeps material that has a different job:
 
+- [Static model LOD generation](static-model-lod-generation.md) records the shared
+  generator, material/UV preservation, recipes and transactional publication.
+
+- [Editor profiler qualification](editor-profiler-qualification.md) records game CPU
+  timelines, delayed GPU samples, automatic scale behavior and skipped-view fixes.
+
 - [Static shadow model LOD policy](shadow-model-lod-policy.md) explains the
   cascade sampling heuristic, exclusions and pending visual qualification.
 

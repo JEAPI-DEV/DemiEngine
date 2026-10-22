@@ -56,6 +56,82 @@ int main() {
     std::cerr << "profiler percentile window or CSV columns incorrect\n";
     return 1;
   }
+  RuntimeProfiler::resetSession();
+  RuntimeProfiler::setCaptureEnabled(true);
+  RuntimeProfiler::beginFrame();
+  {
+    demi::runtime::ProfileScope outer("Trace.outer");
+    {
+      demi::runtime::ProfileScope inner("Trace.inner");
+    }
+  }
+  RuntimeProfiler::setGauge("Trace.draws", 17);
+  RuntimeProfiler::recordGpuScope(
+      {.name = "shadow", .startMilliseconds = 2, .durationMilliseconds = 3});
+  RuntimeProfiler::beginFrame();
+  const auto &captured = RuntimeProfiler::captures();
+  if (captured.size() != 1 || captured.front()->number != 1 ||
+      captured.front()->scopes.size() != 2 ||
+      captured.front()->scopes[0].depth != 1 ||
+      captured.front()->scopes[1].depth != 0 ||
+      captured.front()->scopes[0].startMilliseconds <
+          captured.front()->scopes[1].startMilliseconds ||
+      captured.front()->gpuScopes.size() != 1 ||
+      captured.front()->gpuScopes[0].startMilliseconds != 2 ||
+      !std::ranges::any_of(
+          captured.front()->entries,
+          [](const auto &entry) {
+            return entry.name == "Trace.draws" && entry.gauge == 17;
+          })) {
+    std::cerr << "completed frame lost nested scopes, GPU timing or counters\n";
+    return 1;
+  }
+  for (int index = 0; index < 4100; ++index) {
+    demi::runtime::ProfileScope event("Trace.bounded");
+  }
+  RuntimeProfiler::beginFrame();
+  if (captured.back()->scopes.size() != 4096 ||
+      captured.back()->droppedScopes != 4) {
+    std::cerr << "scope capture was not bounded\n";
+    return 1;
+  }
+  for (int index = 0; index < 250; ++index) {
+    RuntimeProfiler::beginFrame();
+  }
+  if (captured.size() != 240 || captured.back()->number != 252) {
+    std::cerr << "frame history was not bounded and ordered\n";
+    return 1;
+  }
+  {
+    demi::runtime::ProfileScope aggregate("Trace.toggle");
+    RuntimeProfiler::setCaptureEnabled(false);
+    RuntimeProfiler::setCaptureEnabled(true);
+  }
+  if (!std::ranges::any_of(
+          RuntimeProfiler::frameEntries(), [](const auto &entry) {
+            return entry.name == "Trace.toggle" && entry.calls == 1;
+          })) {
+    std::cerr << "trace toggling discarded aggregate scope timing\n";
+    return 1;
+  }
+  const auto previousGeneration = RuntimeProfiler::sessionGeneration();
+  {
+    demi::runtime::ProfileScope stale("Trace.stale");
+    RuntimeProfiler::resetSession();
+    RuntimeProfiler::beginFrame();
+  }
+  RuntimeProfiler::beginFrame();
+  if (RuntimeProfiler::sessionGeneration() == previousGeneration ||
+      captured.size() != 1 || !captured.front()->scopes.empty()) {
+    std::cerr << "session reset retained stale trace events\n";
+    return 1;
+  }
+  RuntimeProfiler::setCaptureEnabled(false);
+  RuntimeProfiler::beginFrame();
+  if (!captured.empty()) {
+    std::cerr << "disabled capture retained history\n";
+    return 1;
+  }
   RuntimeProfiler::setEnabled(false);
 
   demi::runtime::RuntimeLogBuffer logs(2);

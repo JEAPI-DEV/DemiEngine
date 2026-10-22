@@ -348,8 +348,13 @@ public:
 
   void observeViewportTarget(const EditorAuthoringView view,
                              const EditorViewportArea area) override {
-    viewports_.at(static_cast<std::size_t>(view)).targetDemand.observe(
-        area.width, area.height);
+    auto &viewport = viewports_.at(static_cast<std::size_t>(view));
+    viewport.targetDemand.observe(area.width, area.height);
+    if (viewport.renderer) {
+      viewport.renderer->observeViewVisibility(
+          area.width != 0 && area.height != 0 &&
+          !platform_->frameState().minimized);
+    }
   }
 
   std::uint16_t
@@ -516,8 +521,8 @@ public:
         static_cast<std::uint16_t>(std::clamp(frame.width, 1, 65535)),
         static_cast<std::uint16_t>(std::clamp(frame.height, 1, 65535)));
     (void)graphics_.endFrame();
+    const auto timings = graphics_.frameTimings();
     if (runtime::RuntimeProfiler::enabled()) {
-      const auto timings = graphics_.frameTimings();
       runtime::RuntimeProfiler::setGauge("Graphics.performance_debug",
                                          DEMI_PERFORMANCE_DEBUG);
       runtime::RuntimeProfiler::setGauge(
@@ -544,20 +549,7 @@ public:
       runtime::RuntimeProfiler::setGauge(
           "Editor.refresh_hz", platform_->frameState().displayRefreshHz);
     }
-    const bgfx::Stats *stats = bgfx::getStats();
-    std::vector<EditorGpuViewCounters> views;
-    if (stats != nullptr && stats->viewStats != nullptr) {
-      views.reserve(stats->numViews);
-      for (std::uint16_t index = 0; index < stats->numViews; ++index) {
-        const bgfx::ViewStats &view = stats->viewStats[index];
-        views.push_back({.viewId = view.view,
-                         .name = view.name,
-                         .begin = view.gpuTimeBegin,
-                         .end = view.gpuTimeEnd});
-      }
-    }
-    gpuTimingSample_ = buildEditorGpuTimingSample(
-        stats != nullptr ? stats->gpuTimerFreq : 0, views);
+    gpuTimingSample_ = buildEditorGpuTimingSample(timings);
   }
 
   bool shouldClose() const override {

@@ -391,6 +391,19 @@ bool EditorShell::openTerrainNodeSettings(std::string_view nodeId,
   return terrainGraphPanel_.openNodeSettings(workspace(), nodeId, error);
 }
 
+bool EditorShell::startEmbeddedPlay(std::string &error) {
+  if (!workspace().terrainReady(error) ||
+      !playSession_.startEmbedded(workspace().projectPath(), error,
+          workspace().isPrefabDocument() ? std::string{} :
+          workspace().sceneDocument().json().value("id", std::string{}))) {
+    return false;
+  }
+  showGameView_ = true;
+  dockingWorkspace_.visibility().game = true;
+  focusWindow_ = "Game View";
+  return true;
+}
+
 bool EditorShell::pollBackgroundChanges() {
   bool changed = false;
   for (auto session :

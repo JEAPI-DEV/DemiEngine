@@ -131,11 +131,9 @@ void BgfxRenderer3D::tickInactiveTerrain() {
   if (presentationActive_) {
     return;
   }
-  textures_.retainVariants(
-      [](std::string_view, ImageMipSemantic) { return false; });
-  materialTextureUse_.clear();
-  texturePresentationSerial_ = 0;
-  successfulTexturePresentation_ = 0;
+  // A hidden/skipped view retires terrain demand, not resident model/material
+  // assets. Those textures are owned by asset publication and normal material
+  // presentation; discarding them here causes synchronous decode on resumption.
   terrainPatches_.clear();
   terrainGpuFields_.clear();
   terrainMaterials_.clear();

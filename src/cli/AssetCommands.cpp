@@ -9,14 +9,17 @@
 #include "demi/assets/ColliderShapeAsset.h"
 #include "demi/assets/ModelImportProfile.h"
 #include "demi/assets/ModelInspector.h"
+#include "demi/assets/ModelLodGenerator.h"
 #include "demi/assets/SceneBudget3D.h"
 #include "demi/runtime/scene/composition/PrefabResolver.h"
 
 #include <algorithm>
+#include <array>
 #include <filesystem>
 #include <iostream>
 #include <optional>
 #include <set>
+#include <utility>
 
 namespace demi::cli {
 namespace {
@@ -217,6 +220,56 @@ int runAssetCommand(const std::vector<std::string> &args, std::ostream &output,
       output << "Registered generated asset: " << result.manifestPath.string()
              << '\n';
     return status;
+  }
+  if (command == "lod") {
+    if (args.size() < 3) {
+      error << "Usage: demi asset lod <model.asset.json> [--project <project>] "
+               "[--medium-ratio 0.5] [--low-ratio 0.2] [--max-error 0.01] "
+               "[--format json]\n";
+      return ExitUsageError;
+    }
+    assets::ModelLodGenerationRequest request{
+        .projectDirectory = projectDirectoryForManifest(args, args[2]),
+        .modelManifestPath = args[2]};
+    for (const auto &[flag, value] :
+         std::array{std::pair{"--medium-ratio", &request.mediumRatio},
+                    std::pair{"--low-ratio", &request.lowRatio},
+                    std::pair{"--max-error", &request.maxError}}) {
+      if (hasArg(args, flag)) {
+        const auto parsed = floatAfter(args, flag);
+        if (!parsed) {
+          error << "asset lod " << flag << " requires a number.\n";
+          return ExitUsageError;
+        }
+        *value = *parsed;
+      }
+    }
+    const auto result = assets::generateModelLods(request);
+    if (valueAfter(args, "--format") == "json") {
+      auto variants = nlohmann::json::array();
+      for (const auto &variant : result.variants) {
+        variants.push_back({{"level", variant.level},
+                            {"id", variant.id},
+                            {"manifest", variant.manifestPath.string()},
+                            {"source_triangles", variant.sourceTriangles},
+                            {"triangles", variant.triangles},
+                            {"achieved_error", variant.achievedError}});
+      }
+      output << nlohmann::json{{"source_model", result.sourceModelId},
+                               {"recipe", result.recipePath.string()},
+                               {"variants", variants},
+                               {"diagnostics",
+                                diagnosticsJson(result.diagnostics)}}
+                    .dump(2)
+             << '\n';
+    } else {
+      for (const auto &variant : result.variants) {
+        output << variant.level << ": " << variant.id << " ("
+               << variant.sourceTriangles << " -> " << variant.triangles
+               << " triangles, error " << variant.achievedError << ")\n";
+      }
+    }
+    return printDiagnostics(result.diagnostics, error);
   }
   if (command == "collider") {
     if (args.size() < 3 ||

@@ -30,6 +30,27 @@ std::unordered_map<std::string, ProfileEntry> sessionData;
 std::size_t sessionFrames = 0;
 constexpr std::size_t MaximumSamples = 600;
 ProcessResourceSampler processResources;
+bool captureEnabled = false;
+RuntimeProfiler::CaptureHistory frameCaptures;
+std::vector<RuntimeProfiler::ScopeEvent> scopeEvents;
+std::vector<RuntimeProfiler::ScopeEvent> gpuEvents;
+std::size_t droppedScopes = 0;
+std::size_t scopeDepth = 0;
+std::uint64_t generation = 0;
+std::uint64_t captureGeneration = 0;
+auto frameStarted = std::chrono::steady_clock::now();
+constexpr std::size_t MaximumCapturedFrames = 240;
+constexpr std::size_t MaximumScopeEvents = 4096;
+
+void clearCaptures() {
+  frameCaptures.clear();
+  scopeEvents.clear();
+  gpuEvents.clear();
+  droppedScopes = 0;
+  scopeDepth = 0;
+  ++generation;
+  ++captureGeneration;
+}
 
 template <typename Value>
 void recordResourceGauge(const std::string &name,
@@ -68,11 +89,10 @@ void updateEntry(ProfileEntry &entry, const double milliseconds) {
     entry.samples.pop_front();
 }
 
-double percentile(const ProfileEntry &entry, double quantile) {
-  if (entry.samples.empty())
+double percentile(const std::vector<double> &sorted, double quantile) {
+  if (sorted.empty()) {
     return 0.0;
-  std::vector<double> sorted(entry.samples.begin(), entry.samples.end());
-  std::ranges::sort(sorted);
+  }
   const std::size_t index = static_cast<std::size_t>(
       std::ceil(quantile * static_cast<double>(sorted.size())) - 1.0);
   return sorted[std::min(index, sorted.size() - 1)];
@@ -80,27 +100,54 @@ double percentile(const ProfileEntry &entry, double quantile) {
 
 RuntimeProfiler::Entry publicEntry(const std::string &name,
                                    const ProfileEntry &entry) {
+  std::vector<double> sorted(entry.samples.begin(), entry.samples.end());
+  std::ranges::sort(sorted);
   return {.name = name,
           .totalMilliseconds = entry.totalMilliseconds,
           .latestMilliseconds = entry.latestMilliseconds,
           .maxMilliseconds = entry.maxMilliseconds,
-          .p95Milliseconds = percentile(entry, 0.95),
+          .p95Milliseconds = percentile(sorted, 0.95),
           .calls = entry.calls,
           .bytes = entry.bytes,
           .gauge = entry.gauge,
           .hasGauge = entry.hasGauge,
-          .p50Milliseconds = percentile(entry, 0.50),
-          .p99Milliseconds = percentile(entry, 0.99),
+          .p50Milliseconds = percentile(sorted, 0.50),
+          .p99Milliseconds = percentile(sorted, 0.99),
           .sampleCount = entry.samples.size()};
 }
 
 } // namespace
+
+void RuntimeProfiler::setCaptureEnabled(const bool enabled) {
+  if (captureEnabled != enabled) {
+    frameCaptures.clear();
+    scopeEvents.clear();
+    gpuEvents.clear();
+    droppedScopes = 0;
+    ++captureGeneration;
+    captureEnabled = enabled;
+  }
+}
+
+void RuntimeProfiler::recordGpuScope(ScopeEvent event) {
+  if (profilerEnabled && captureEnabled &&
+      gpuEvents.size() < MaximumScopeEvents) {
+    gpuEvents.push_back(std::move(event));
+  }
+}
+
+const RuntimeProfiler::CaptureHistory &RuntimeProfiler::captures() {
+  return frameCaptures;
+}
+
+std::uint64_t RuntimeProfiler::sessionGeneration() { return generation; }
 
 void RuntimeProfiler::setEnabled(const bool enabled) {
   if (enabled != profilerEnabled)
     processResources.reset();
   profilerEnabled = enabled;
   if (!profilerEnabled) {
+    clearCaptures();
     currentFrameData.clear();
     sessionData.clear();
     sessionFrames = 0;
@@ -110,6 +157,7 @@ void RuntimeProfiler::setEnabled(const bool enabled) {
 bool RuntimeProfiler::enabled() { return profilerEnabled; }
 
 void RuntimeProfiler::resetSession() {
+  clearCaptures();
   processResources.reset();
   currentFrameData.clear();
   sessionData.clear();
@@ -124,6 +172,26 @@ void RuntimeProfiler::resetSession() {
 
 void RuntimeProfiler::beginFrame() {
   if (profilerEnabled) {
+    const auto now = std::chrono::steady_clock::now();
+    if (captureEnabled && sessionFrames > 0) {
+      frameCaptures.push_back(std::make_shared<const FrameCapture>(FrameCapture{
+          .number = sessionFrames,
+          .durationMilliseconds =
+              std::chrono::duration<double, std::milli>(now - frameStarted)
+                  .count(),
+          .entries = frameEntries(),
+          .scopes = std::move(scopeEvents),
+          .gpuScopes = std::move(gpuEvents),
+          .droppedScopes = droppedScopes}));
+      if (frameCaptures.size() > MaximumCapturedFrames) {
+        frameCaptures.pop_front();
+      }
+    }
+    scopeEvents.clear();
+    gpuEvents.clear();
+    droppedScopes = 0;
+    scopeDepth = 0;
+    frameStarted = now;
     currentFrameData.clear();
     ++sessionFrames;
     recordProcessResources();
@@ -259,15 +327,38 @@ std::string RuntimeProfiler::frameSummary(const double minimumMilliseconds) {
 
 ProfileScope::ProfileScope(std::string name)
     : name_(std::move(name)), start_(std::chrono::steady_clock::now()),
-      enabled_(RuntimeProfiler::enabled()) {}
+      enabled_(RuntimeProfiler::enabled()), frame_(sessionFrames),
+      depth_(scopeDepth), generation_(generation),
+      captureGeneration_(captureGeneration) {
+  if (enabled_) {
+    ++scopeDepth;
+  }
+}
 
 ProfileScope::~ProfileScope() {
-  if (!enabled_) {
+  if (!enabled_ || !RuntimeProfiler::enabled() || generation_ != generation) {
     return;
+  }
+  if (frame_ == sessionFrames && scopeDepth > 0) {
+    --scopeDepth;
   }
   const double milliseconds = std::chrono::duration<double, std::milli>(
                                   std::chrono::steady_clock::now() - start_)
                                   .count();
+  if (captureEnabled && sessionFrames > 0 && frame_ == sessionFrames &&
+      captureGeneration_ == captureGeneration) {
+    if (scopeEvents.size() < MaximumScopeEvents) {
+      scopeEvents.push_back(
+          {.name = name_,
+           .startMilliseconds =
+               std::chrono::duration<double, std::milli>(start_ - frameStarted)
+                   .count(),
+           .durationMilliseconds = milliseconds,
+           .depth = depth_});
+    } else {
+      ++droppedScopes;
+    }
+  }
   RuntimeProfiler::record(std::move(name_), milliseconds);
 }
 

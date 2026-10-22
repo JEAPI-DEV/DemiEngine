@@ -171,7 +171,7 @@ bool EditorGameRenderer::prepareScenePresentation(const runtime::World &world,
                                                {0, frame.camera.upAxis, 0});
     }
   }
-  terrainPresentedThisFrame_ = true;
+  terrainDemand_.request3D();
   return renderer3D_->prepareScenePresentation(world, frame, complete, error);
 }
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/concurrency/JobSystem.h"
+#include "editor/EditorTerrainViewDemand.h"
 #include "editor/EditorUiHost.h"
 
 #include <cstdint>
@@ -68,8 +69,7 @@ private:
   std::unique_ptr<runtime::render::BgfxRenderer3D> preparingRenderer3D_;
   runtime::JobSystem assetPreparationJobs_{1};
   std::filesystem::path projectDirectory_;
-  bool terrainPresentedThisFrame_ = false;
-  bool terrainWasVisible_ = false;
+  EditorTerrainViewDemand terrainDemand_;
   std::unique_ptr<runtime::render::BgfxRenderer2D> renderer2D_;
   std::unique_ptr<runtime::render::RenderTargetHandles> target_;
   std::uint16_t targetWidth_ = 0;

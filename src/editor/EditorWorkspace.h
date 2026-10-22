@@ -19,6 +19,7 @@
 
 #include "demi/assets/AssetImporter.h"
 #include "demi/assets/ColliderAssetGenerator.h"
+#include "demi/assets/ModelLodGenerator.h"
 #include "demi/diagnostics/Diagnostic.h"
 #include "demi/runtime/scene/SceneLoader.h"
 #include "demi/runtime/scene/RuntimePrefabService.h"
@@ -182,6 +183,13 @@ public:
                                  std::string &error);
   [[nodiscard]] bool reimportAsset(const std::filesystem::path &manifest,
                                    std::string &error);
+  [[nodiscard]] assets::ModelLodGenerationResult
+  generateModelLods(assets::ModelLodGenerationRequest request);
+  // Apply both model references as one authored command; distance thresholds stay authored.
+  [[nodiscard]] bool applyModelLods(std::string_view sourceModelId,
+                                    std::string_view mediumModelId,
+                                    std::string_view lowModelId,
+                                    std::string &error);
   [[nodiscard]] std::optional<assets::ColliderRecommendation>
   recommendCollider(const std::filesystem::path &modelManifest,
                     std::string_view body, std::string &error);

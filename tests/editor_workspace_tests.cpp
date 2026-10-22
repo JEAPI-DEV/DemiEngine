@@ -330,6 +330,65 @@ int main() {
     assert(placements.sceneDocument().json().dump()==authored);
   }
 
+  // LOD reference application is one authored transaction, including preview
+  // rebuild and undo. It never invents switching distances or replaces the mesh.
+  {
+    demi::editor::EditorWorkspace lodWorkspace;
+    assert(lodWorkspace.open(root / "examples/minimal_3d", error));
+    lodWorkspace.selectEntity("ent_hyena_model");
+    const auto before = lodWorkspace.sceneDocument().json();
+    const auto *originalMesh = lodWorkspace.sceneDocument().component(
+        "ent_hyena_model", "MeshRenderer");
+    assert(originalMesh != nullptr);
+    const auto originalFields = *originalMesh;
+    assert(!lodWorkspace.applyModelLods("asset://models/other",
+                                        "asset://models/hyena",
+                                        "asset://models/hyena", error));
+    assert(lodWorkspace.sceneDocument().json() == before);
+    assert(!lodWorkspace.applyModelLods("asset://models/hyena",
+                                        "asset://textures/checker",
+                                        "asset://models/hyena", error));
+    assert(lodWorkspace.sceneDocument().json() == before);
+    assert(lodWorkspace.applyModelLods("asset://models/hyena",
+                                       "asset://models/hyena",
+                                       "asset://models/hyena", error));
+    auto expectedFields = originalFields;
+    expectedFields["medium_lod_model"] = "asset://models/hyena";
+    expectedFields["low_lod_model"] = "asset://models/hyena";
+    assert(*lodWorkspace.sceneDocument().component(
+               "ent_hyena_model", "MeshRenderer") == expectedFields);
+    const auto *liveMesh = lodWorkspace.selectedEntity()
+        ->component<demi::runtime::MeshRendererComponent>();
+    assert(liveMesh != nullptr);
+    assert(liveMesh->mediumLodModel == "asset://models/hyena");
+    assert(liveMesh->lowLodModel == "asset://models/hyena");
+    assert(lodWorkspace.undo(error));
+    assert(lodWorkspace.sceneDocument().json() == before);
+    assert(lodWorkspace.redo(error));
+    assert(*lodWorkspace.sceneDocument().component(
+               "ent_hyena_model", "MeshRenderer") == expectedFields);
+    assert(lodWorkspace.undo(error));
+
+    // A rejected preview must restore both references and command history.
+    const bool couldUndo = lodWorkspace.sceneDocument().canUndo();
+    const bool couldRedo = lodWorkspace.sceneDocument().canRedo();
+    lodWorkspace.project().project.scenes.clear();
+    assert(!lodWorkspace.applyModelLods("asset://models/hyena",
+                                        "asset://models/hyena",
+                                        "asset://models/hyena", error));
+    assert(lodWorkspace.sceneDocument().json() == before);
+    assert(lodWorkspace.sceneDocument().canUndo() == couldUndo);
+    assert(lodWorkspace.sceneDocument().canRedo() == couldRedo);
+  }
+  {
+    demi::editor::EditorWorkspace unopened;
+    const auto result = unopened.generateModelLods({});
+    assert(demi::hasErrors(result.diagnostics));
+    assert(result.variants.empty());
+    assert(!unopened.applyModelLods("asset://source", "asset://medium",
+                                    "asset://low", error));
+  }
+
   const std::string documentBeforeFailure =
       workspace.sceneDocument().json().dump();
   const bool couldUndoBeforeFailure = workspace.sceneDocument().canUndo();
