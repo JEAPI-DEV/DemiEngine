@@ -88,9 +88,11 @@ void followingBedNormalRespectsNonuniformTransform() {
   addOwner(world, "river", {10, 2, 20},
            std::make_shared<const HeightField>(std::move(*field)));
   auto *owner = findEntity(world, "river");
-  auto *component = owner->component<Transform3DComponent>();
-  component->scale = {2, 3, 4};
-  component->rotation = {0.3F, 0.2F, 0.1F};
+  owner->updateComponent<Transform3DComponent>(
+      [](Transform3DComponent &transform) {
+        transform.scale = {2, 3, 4};
+        transform.rotation = {0.3F, 0.2F, 0.1F};
+      });
   const auto transform = resolveWorldTransform3D(world, *owner);
   const auto position = transformPoint3D(*transform, {4, 6, 4});
   TerrainWaterRuntime water;
@@ -170,7 +172,8 @@ void tests() {
   check(tracker.update(std::nullopt).empty(), "Repeated exit emitted");
 
   auto *owner = findEntity(world, "first");
-  owner->component<Transform3DComponent>()->rotation = {.5F, .8F, .2F};
+  owner->updateComponent<Transform3DComponent>(
+      [](Transform3DComponent &updated) { updated.rotation = {.5F, .8F, .2F}; });
   const auto transform = *resolveWorldTransform3D(world, *owner);
   const auto worldPoint = transformPoint3D(transform, {2, 1, 2});
   const auto rotated = runtime.sample(world, worldPoint, "first");
@@ -184,7 +187,8 @@ void tests() {
                    rotated->surface.y - expected.y,
                    rotated->surface.z - expected.z) < 1e-4F,
         "Rotated surface point incorrect");
-  owner->component<Transform3DComponent>()->scale.y = -3.F;
+  owner->updateComponent<Transform3DComponent>(
+      [](Transform3DComponent &updated) { updated.scale.y = -3.F; });
   const auto mirroredTransform = *resolveWorldTransform3D(world, *owner);
   const auto mirrored = runtime.sample(
       world, transformPoint3D(mirroredTransform, {2, 1, 2}), "first");
@@ -193,15 +197,21 @@ void tests() {
                                mirrored->columnUp.y - mirroredUp.y,
                                mirrored->columnUp.z - mirroredUp.z) < 1e-4F,
         "Mirrored terrain column axis did not follow its local Y scale");
-  owner->component<Transform3DComponent>()->position = {};
-  owner->component<Transform3DComponent>()->rotation = {};
-  owner->component<Transform3DComponent>()->scale = {1e-7F, 1e-7F, 1e-7F};
+  owner->updateComponent<Transform3DComponent>(
+      [](Transform3DComponent &updated) {
+        updated.position = {};
+        updated.rotation = {};
+        updated.scale = {1e-7F, 1e-7F, 1e-7F};
+      });
   const auto tiny = runtime.sample(world, {2e-7F, 1e-7F, 2e-7F}, "first");
   check(tiny && tiny->underwater && std::abs(tiny->surface.x - 2e-7F) < 1e-10F,
         "Nonzero tiny scales were collapsed by inverse transform");
-  owner->component<Transform3DComponent>()->position = transform.position;
-  owner->component<Transform3DComponent>()->rotation = transform.rotation;
-  owner->component<Transform3DComponent>()->scale = transform.scale;
+  owner->updateComponent<Transform3DComponent>(
+      [&](Transform3DComponent &updated) {
+        updated.position = transform.position;
+        updated.rotation = transform.rotation;
+        updated.scale = transform.scale;
+      });
   tracker.update(rotated);
   owner->component<Terrain3DComponent>()->generated = makeField(0);
   events = tracker.update(runtime.sample(world, worldPoint, "first"));

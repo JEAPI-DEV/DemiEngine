@@ -36,7 +36,7 @@ private:
     int versionCode = 1;
     int windowWidth = 1280;
     int windowHeight = 720;
-    int minimumSdk = 26;
+    int minimumSdk = 24;
     std::string windowMode = "windowed";
     std::string orientation = "unspecified";
     std::vector<std::string> permissions;

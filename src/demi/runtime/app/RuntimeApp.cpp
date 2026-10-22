@@ -57,6 +57,26 @@ namespace {
 
 constexpr int RuntimeFailure = 3;
 
+std::string runtimeWindowTitle(const LoadedProject &loaded) {
+  return std::string(EngineName) + " - " + loaded.project.name + " - " +
+         loaded.world.name;
+}
+
+template <typename AppHost>
+void refreshWindowTitle(AppHost &host, const LoadedProject &loaded,
+                        std::string &currentSceneName) {
+  if (currentSceneName == loaded.world.name) {
+    return;
+  }
+  std::string error;
+  if (host.setWindowTitle(runtimeWindowTitle(loaded), error)) {
+    currentSceneName = loaded.world.name;
+  } else {
+    deviceLogError(deviceLogMessage(
+        "runtime", "Window title update failed: " + error));
+  }
+}
+
 float fixedStepInterpolationAlpha(const double accumulator,
                                   const float fixedStep) {
   if (fixedStep <= 0.0F)
@@ -522,6 +542,8 @@ int runProject(const RuntimeOptions &options) {
   std::string luaError;
   bool luaScriptsLoaded = false;
   if (luaHost.initialize(loaded.world, input, &audioSystem, luaError)) {
+    luaHost.setWindowMode(loaded.project.build.window.mode);
+    luaHost.clearWindowModeDirty();
     luaHost.setAssetRegistry(&assetRegistry);
     luaHost.seedRandom(loaded.project.simulation.randomSeed);
     if (!luaHost.loadWorldScripts(loaded.project, loaded.world, luaError)) {
@@ -712,16 +734,20 @@ int runProject(const RuntimeOptions &options) {
   if (!use3D) {
     Bgfx2DAppHost appHost;
     std::vector<std::string> renderDiagnostics;
-    const std::string title = std::string(EngineName) + " - " +
-                              loaded.project.name + " - " + loaded.world.name;
+    const std::string title = runtimeWindowTitle(loaded);
     if (!appHost.initialize(
             Bgfx2DAppHostConfig{
                 .title = title,
-                .width = options.windowWidth > 0 ? options.windowWidth : 960,
-                .height = options.windowHeight > 0 ? options.windowHeight : 540,
+                .width = options.windowWidth > 0
+                             ? options.windowWidth
+                             : loaded.project.build.window.width,
+                .height = options.windowHeight > 0
+                              ? options.windowHeight
+                              : loaded.project.build.window.height,
                 .graphicsApi = configuredGraphicsApi(),
                 .vsync = loaded.project.display.vsync,
                 .debugGraphics = false,
+                .windowMode = loaded.project.build.window.mode,
             },
             AssetRegistry{.projectDirectory = assetRegistry.projectDirectory,
                           .assets = {},
@@ -810,6 +836,7 @@ int runProject(const RuntimeOptions &options) {
     int requestedFrameRate = -1;
     bool platformPacesRequestedRate = false;
     int frameCount = 0;
+    std::string windowSceneName = loaded.world.name;
     while (running) {
       appHost.poll(input);
       const platform::PlatformFrameState &frameState = appHost.frameState();
@@ -880,6 +907,7 @@ int runProject(const RuntimeOptions &options) {
                      networkSystem, assetRegistry, dt,
                      static_cast<float>(fixedStep), fixedAccumulator, running,
                      accessibility);
+      refreshWindowTitle(appHost, loaded, windowSceneName);
       if (frameCount == 0 || frameCount == 60)
         deviceLog(deviceLogMessage("runtime",
                                    "Frame " + std::to_string(frameCount + 1) +
@@ -994,16 +1022,20 @@ int runProject(const RuntimeOptions &options) {
   {
     Bgfx3DAppHost appHost;
     std::vector<std::string> renderDiagnostics;
-    const std::string title = std::string(EngineName) + " - " +
-                              loaded.project.name + " - " + loaded.world.name;
+    const std::string title = runtimeWindowTitle(loaded);
     if (!appHost.initialize(
             Bgfx3DAppHostConfig{
                 .title = title,
-                .width = options.windowWidth > 0 ? options.windowWidth : 960,
-                .height = options.windowHeight > 0 ? options.windowHeight : 540,
+                .width = options.windowWidth > 0
+                             ? options.windowWidth
+                             : loaded.project.build.window.width,
+                .height = options.windowHeight > 0
+                              ? options.windowHeight
+                              : loaded.project.build.window.height,
                 .graphicsApi = configuredGraphicsApi(),
                 .vsync = loaded.project.display.vsync,
-                .debugGraphics = false},
+                .debugGraphics = false,
+                .windowMode = loaded.project.build.window.mode},
             AssetRegistry{.projectDirectory = assetRegistry.projectDirectory,
                           .assets = {},
                           .diagnostics = {}},
@@ -1095,6 +1127,7 @@ int runProject(const RuntimeOptions &options) {
     int requestedFrameRate = -1;
     bool platformPacesRequestedRate = false;
     int frameCount = 0;
+    std::string windowSceneName = loaded.world.name;
     while (running) {
       appHost.poll(input);
       const platform::PlatformFrameState &frameState = appHost.frameState();
@@ -1165,6 +1198,7 @@ int runProject(const RuntimeOptions &options) {
                      networkSystem, assetRegistry, dt,
                      static_cast<float>(fixedStep), fixedAccumulator, running,
                      accessibility);
+      refreshWindowTitle(appHost, loaded, windowSceneName);
       if (frameCount == 0 || frameCount == 60)
         deviceLog(deviceLogMessage("runtime",
                                    "Frame " + std::to_string(frameCount + 1) +

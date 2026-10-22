@@ -1,0 +1,25 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://demi/woodland/models/grass_patch",
+  "importer": "gltf-model",
+  "importer_version": 1,
+  "settings": {
+    "filter": "trilinear",
+    "mipmaps": true,
+    "model_import": {
+      "format_version": 1,
+      "import_animations": false,
+      "material_policy": "import",
+      "meters_per_unit": 1,
+      "optimize_meshes": true,
+      "preset": "static_prop",
+      "root_node": "preserve",
+      "source_forward": "+z",
+      "source_up": "+y"
+    }
+  },
+  "source": "grass_patch.glb",
+  "source_hash": "fnv1a64:cfabd47a396aecf0",
+  "type": "Model3D"
+}

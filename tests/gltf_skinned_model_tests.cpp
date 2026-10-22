@@ -1,9 +1,16 @@
 #include "demi/assets/GltfSkinnedModel.h"
+#include "demi/assets/GltfGeometry.h"
+
+#include <nlohmann/json.hpp>
 
 #include <algorithm>
 #include <array>
 #include <cassert>
 #include <cmath>
+#include <chrono>
+#include <cstring>
+#include <fstream>
+#include <iterator>
 #include <filesystem>
 #include <iostream>
 #include <ranges>
@@ -41,9 +48,171 @@ float largestExtent(const std::vector<demi::runtime::Vec3> &positions) {
                    maximum.z - minimum.z});
 }
 
+void staticGeometryUsesSelectedSceneAndAccessorLayout() {
+  using Json = nlohmann::json;
+  const auto suffix =
+      std::chrono::steady_clock::now().time_since_epoch().count();
+  const auto directory = std::filesystem::temp_directory_path() /
+                         ("demi-gltf-geometry-" + std::to_string(suffix));
+  std::filesystem::create_directories(directory);
+  const auto source = directory / "mesh.gltf";
+  const auto buffer = directory / "mesh.bin";
+  // One leading word, then interleaved POSITION/UV records with an extra word.
+  const float vertices[]{99.0F, 0.0F, 0.0F,  0.0F,  0.25F, 0.5F,  99.0F,
+                         1.0F,  0.0F, 0.0F,  0.75F, 0.5F,  99.0F, 0.0F,
+                         1.0F,  0.0F, 0.25F, 1.0F,  99.0F};
+  Json document = {
+      {"asset", {{"version", "2.0"}}},
+      {"scene", 1},
+      {"scenes", Json::array({{{"nodes", {2}}}, {{"nodes", {0}}}})},
+      {"nodes", Json::array({{{"translation", {2, 3, 0}}, {"children", {1}}},
+                             {{"mesh", 0}, {"scale", {-2, 1, 1}}},
+                             {{"mesh", 0}, {"translation", {100, 0, 0}}}})},
+      {"meshes",
+       Json::array({{{"primitives",
+                      Json::array({{{"attributes",
+                                     {{"POSITION", 0}, {"TEXCOORD_0", 1}}},
+                                    {"indices", 2}}})}}})},
+      {"buffers", Json::array({{{"uri", "mesh.bin"}, {"byteLength", 0}}})},
+      {"bufferViews", Json::array({{{"buffer", 0},
+                                    {"byteOffset", 0},
+                                    {"byteLength", sizeof(vertices)},
+                                    {"byteStride", 6 * sizeof(float)}},
+                                   {{"buffer", 0},
+                                    {"byteOffset", sizeof(vertices)},
+                                    {"byteLength", 0}}})},
+      {"accessors", Json::array({{{"bufferView", 0},
+                                  {"byteOffset", sizeof(float)},
+                                  {"componentType", 5126},
+                                  {"count", 3},
+                                  {"type", "VEC3"},
+                                  {"min", {0, 0, 0}},
+                                  {"max", {1, 1, 0}}},
+                                 {{"bufferView", 0},
+                                  {"byteOffset", 4 * sizeof(float)},
+                                  {"componentType", 5126},
+                                  {"count", 3},
+                                  {"type", "VEC2"}},
+                                 {{"bufferView", 1},
+                                  {"componentType", 5121},
+                                  {"count", 3},
+                                  {"type", "SCALAR"}}})}};
+
+  const auto writeDocument = [&] {
+    std::ofstream output(source);
+    output << document.dump();
+    assert(output.good());
+  };
+  const auto writeBuffer = [&](std::size_t indexWidth, bool invalidIndex) {
+    std::vector<unsigned char> bytes(sizeof(vertices) + 3 * indexWidth);
+    std::memcpy(bytes.data(), vertices, sizeof(vertices));
+    for (std::size_t index = 0; index < 3; ++index) {
+      bytes[sizeof(vertices) + index * indexWidth] =
+          static_cast<unsigned char>(invalidIndex && index == 2 ? 9 : index);
+    }
+    std::ofstream output(buffer, std::ios::binary);
+    output.write(reinterpret_cast<const char *>(bytes.data()), bytes.size());
+    assert(output.good());
+    document["buffers"][0]["byteLength"] = bytes.size();
+    document["bufferViews"][1]["byteLength"] = 3 * indexWidth;
+  };
+  std::string error;
+  for (const std::size_t width : {1U, 2U, 4U}) {
+    writeBuffer(width, false);
+    document["accessors"][2]["componentType"] = width == 1   ? 5121
+                                                : width == 2 ? 5123
+                                                             : 5125;
+    writeDocument();
+    error.clear();
+    const auto geometry = demi::assets::loadGltfGeometry(source, error);
+    assert(geometry && error.empty());
+    assert(geometry->triangles.size() == 1);
+    const auto &triangle = geometry->triangles.front();
+    assert(triangle.a.x == 2.0F && triangle.a.y == 3.0F);
+    assert(triangle.b.x == 0.0F && triangle.b.y == 3.0F);
+    assert(triangle.c.x == 2.0F && triangle.c.y == 4.0F);
+    assert(triangle.uvA.x == 0.25F && triangle.uvA.y == 0.5F);
+    assert(triangle.uvB.x == 0.75F && triangle.uvC.y == 1.0F);
+    assert(geometry->minimum.x == 0.0F && geometry->maximum.x == 2.0F);
+    const auto skinned = demi::assets::loadGltfSkinnedModel3D(source, error);
+    assert(skinned && skinned->vertices.size() == 6);
+  }
+
+  writeBuffer(4, true);
+  writeDocument();
+  assert(!demi::assets::loadGltfGeometry(source, error));
+  assert(!error.empty());
+
+  writeBuffer(4, false);
+  auto &primitive = document["meshes"][0]["primitives"][0];
+  primitive.erase("indices");
+  primitive["attributes"].erase("TEXCOORD_0");
+  writeDocument();
+  error.clear();
+  const auto nonindexed = demi::assets::loadGltfGeometry(source, error);
+  assert(nonindexed && nonindexed->triangles.size() == 1);
+  assert(nonindexed->triangles[0].uvA.x == 0.0F);
+  assert(nonindexed->triangles[0].uvA.y == 0.0F);
+
+  demi::assets::ModelImportProfile profile;
+  profile.metersPerUnit = 0.5F;
+  const auto converted = demi::assets::loadGltfGeometry(source, profile, error);
+  assert(converted && converted->triangles[0].a.x == 1.0F);
+  assert(converted->triangles[0].c.y == 2.0F);
+
+  // Exercise the same selected scene using an embedded GLB buffer rather than
+  // relying on the separate animated GLB fixtures used below.
+  Json embeddedDocument = document;
+  embeddedDocument["buffers"][0].erase("uri");
+  embeddedDocument["meshes"][0]["primitives"][0]["indices"] = 2;
+  embeddedDocument["meshes"][0]["primitives"][0]["attributes"]["TEXCOORD_0"] = 1;
+  std::string jsonChunk = embeddedDocument.dump();
+  while (jsonChunk.size() % 4 != 0) {
+    jsonChunk.push_back(' ');
+  }
+  std::ifstream binaryInput(buffer, std::ios::binary);
+  std::vector<char> binaryChunk((std::istreambuf_iterator<char>(binaryInput)), {});
+  while (binaryChunk.size() % 4 != 0) {
+    binaryChunk.push_back(0);
+  }
+  const auto embeddedSource = directory / "mesh.glb";
+  {
+    std::ofstream output(embeddedSource, std::ios::binary);
+    const auto writeWord = [&](std::uint32_t value) {
+      for (unsigned int shift = 0; shift < 32; shift += 8) {
+        output.put(static_cast<char>((value >> shift) & 0xffU));
+      }
+    };
+    writeWord(0x46546c67U);
+    writeWord(2);
+    writeWord(static_cast<std::uint32_t>(28 + jsonChunk.size() + binaryChunk.size()));
+    writeWord(static_cast<std::uint32_t>(jsonChunk.size()));
+    writeWord(0x4e4f534aU);
+    output.write(jsonChunk.data(), jsonChunk.size());
+    writeWord(static_cast<std::uint32_t>(binaryChunk.size()));
+    writeWord(0x004e4942U);
+    output.write(binaryChunk.data(), binaryChunk.size());
+    assert(output.good());
+  }
+  const auto embedded = demi::assets::loadGltfGeometry(embeddedSource, error);
+  assert(embedded && embedded->triangles.size() == 1);
+  assert(embedded->triangles[0].a.x == 2.0F);
+  assert(embedded->triangles[0].b.x == 0.0F);
+  assert(embedded->triangles[0].c.y == 4.0F);
+  assert(embedded->triangles[0].uvB.x == 0.75F);
+
+  std::filesystem::resize_file(buffer, sizeof(float));
+  assert(!demi::assets::loadGltfGeometry(source, error));
+  assert(!error.empty());
+  std::filesystem::remove(buffer);
+  assert(!demi::assets::loadGltfGeometry(source, error));
+  std::filesystem::remove_all(directory);
+}
+
 } // namespace
 
 int main() {
+  staticGeometryUsesSelectedSceneAndAccessorLayout();
   const std::filesystem::path asset = std::filesystem::path(DEMI_SOURCE_DIR) /
                                       "examples/animation_3d/assets" /
                                       "AnimationLib/UAL1_Standard.glb";

@@ -4,10 +4,12 @@
 #include "demi/runtime/scene/RuntimeObjectModel.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
+#include "demi/runtime/scene/composition/PrefabResolutionContext.h"
 #include "demi/runtime/scene/composition/PrefabResolver.h"
 
 #include <algorithm>
 #include <unordered_set>
+#include <utility>
 
 namespace demi::runtime {
 namespace {
@@ -38,9 +40,11 @@ void applyRootPosition(Entity &entity, const Vec3 &position,
                         {"scale", {transform->scale.x, transform->scale.y}}})
             .dump();
   }
-  if (auto *transform = entity.component<Transform3DComponent>();
+  if (const auto *transform = entity.component<Transform3DComponent>();
       transform != nullptr && !isInstanceChild(transform->parent)) {
-    transform->position = position;
+    entity.updateComponent<Transform3DComponent>(
+        [&](Transform3DComponent &value) { value.position = position; });
+    transform = entity.component<Transform3DComponent>();
     entity.serializedComponents[std::string(Transform3DComponent::typeName)] =
         nlohmann::json(
             {{"parent", transform->parent},
@@ -56,10 +60,53 @@ void applyRootPosition(Entity &entity, const Vec3 &position,
 
 } // namespace
 
+RuntimePrefabService::PreparationBatch::PreparationBatch(
+    RuntimePrefabService &owner,
+    std::shared_ptr<composition::PrefabResolutionContext> previous)
+    : owner_(&owner), previous_(std::move(previous)),
+      context_(owner.resolution_) {}
+
+RuntimePrefabService::PreparationBatch::PreparationBatch(
+    PreparationBatch &&other) noexcept
+    : owner_(std::exchange(other.owner_, nullptr)),
+      previous_(std::move(other.previous_)),
+      context_(std::move(other.context_)) {}
+
+RuntimePrefabService::PreparationBatch::~PreparationBatch() {
+  if (owner_ != nullptr) {
+    owner_->resolution_ = std::move(previous_);
+  }
+}
+
+std::size_t RuntimePrefabService::PreparationBatch::packageVerificationCount()
+    const noexcept {
+  return context_ ? context_->packageVerificationCount() : 0;
+}
+
+composition::PrefabResolutionContext &
+RuntimePrefabService::PreparationBatch::resolutionContext() const noexcept {
+  return *context_;
+}
+
+RuntimePrefabService::PreparationBatch
+RuntimePrefabService::beginPreparationBatch(
+    const AssetRegistry *verifiedRegistry) {
+  auto previous = resolution_;
+  if (!resolution_) {
+    resolution_ = verifiedRegistry
+                      ? std::make_shared<composition::PrefabResolutionContext>(
+                            *verifiedRegistry)
+                      : std::make_shared<composition::PrefabResolutionContext>(
+                            projectDirectory_);
+  }
+  return PreparationBatch(*this, std::move(previous));
+}
+
 void RuntimePrefabService::configure(std::filesystem::path projectDirectory) {
   projectDirectory_ = std::move(projectDirectory);
   instances_.clear();
   templates_.configure(projectDirectory_);
+  resolution_.reset();
 }
 
 PrefabInstanceResult
@@ -73,29 +120,43 @@ RuntimePrefabService::build(const std::string_view prefab,
         "Runtime prefab instantiate requires a configured project and id."));
     return result;
   }
+  std::optional<PreparationBatch> preparationBatch;
+  if (resolution_ && resolution_->packageFiles(projectDirectory_) == nullptr) {
+    result.diagnostics = resolution_->diagnostics();
+    return result;
+  }
   const std::string reference(prefab);
   constexpr std::string_view TemplateId = "template";
   if (const auto *cached = templates_.find(reference, options.overrides)) {
     expanded =
         composition::rebasePrefabEntities(*cached, TemplateId, options.id);
   } else {
+    preparationBatch.emplace(beginPreparationBatch());
+    if (resolution_->packageFiles(projectDirectory_) == nullptr) {
+      result.diagnostics = resolution_->diagnostics();
+      return result;
+    }
     ProfileScope preparation("Prefab.prepare_template");
-    const auto dependencies =
-        templates_.dependencies(reference, options.overrides);
+    const auto dependencies = templates_.dependencies(
+        reference, options.overrides, resolution_.get());
     const nlohmann::json instance = {{"id", TemplateId},
                                      {"prefab", reference},
                                      {"overrides", options.overrides}};
     const auto expansion = composition::expandPrefabInstance(
-        projectDirectory_ / "demi.project.json", instance);
+        projectDirectory_ / "demi.project.json", instance, resolution_.get());
     result.diagnostics = expansion.diagnostics;
     if (!expansion.document) {
       return result;
     }
     templates_.store(reference, options.overrides, *expansion.document,
-                     dependencies);
+                     dependencies, resolution_.get());
     expanded = composition::rebasePrefabEntities(*expansion.document,
                                                  TemplateId, options.id);
   }
+  RuntimeProfiler::setGauge(
+      "Prefab.package_verifications",
+      resolution_ ? static_cast<double>(resolution_->packageVerificationCount())
+                  : 0.0);
   const auto cache = templates_.statistics();
   RuntimeProfiler::setGauge("Prefab.template_cache_entries",
                             double(cache.entries));

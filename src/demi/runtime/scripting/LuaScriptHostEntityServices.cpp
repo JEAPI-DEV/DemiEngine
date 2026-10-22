@@ -154,9 +154,12 @@ bool LuaScriptHost::addEntityPosition3D(const std::string &entityId,
   if (entity == nullptr || !entity->hasComponent<Transform3DComponent>()) {
     return false;
   }
-  auto &position = entity->component<Transform3DComponent>()->position;
-  position = {position.x + dx, position.y + dy, position.z + dz};
-  return true;
+  return entity->updateComponent<Transform3DComponent>(
+      [&](Transform3DComponent &transform) {
+        transform.position = {transform.position.x + dx,
+                              transform.position.y + dy,
+                              transform.position.z + dz};
+      });
 }
 
 bool LuaScriptHost::setEntityPosition3D(const std::string &entityId,
@@ -169,8 +172,8 @@ bool LuaScriptHost::setEntityPosition3D(const std::string &entityId,
   if (entity == nullptr || !entity->hasComponent<Transform3DComponent>()) {
     return false;
   }
-  entity->component<Transform3DComponent>()->position = {x, y, z};
-  return true;
+  return entity->updateComponent<Transform3DComponent>(
+      [&](Transform3DComponent &transform) { transform.position = {x, y, z}; });
 }
 
 std::optional<Vec3>
@@ -207,9 +210,10 @@ bool LuaScriptHost::setEntityRotation3D(const std::string &entityId,
   if (entity == nullptr || !entity->hasComponent<Transform3DComponent>()) {
     return false;
   }
-  entity->component<Transform3DComponent>()->rotation =
-      Vec3{.x = x, .y = y, .z = z};
-  return true;
+  return entity->updateComponent<Transform3DComponent>(
+      [&](Transform3DComponent &transform) {
+        transform.rotation = {.x = x, .y = y, .z = z};
+      });
 }
 
 std::optional<Vec3>
@@ -241,9 +245,10 @@ bool LuaScriptHost::setEntityScale3D(const std::string &entityId, const float x,
   if (entity == nullptr || !entity->hasComponent<Transform3DComponent>()) {
     return false;
   }
-  entity->component<Transform3DComponent>()->scale =
-      Vec3{.x = x, .y = y, .z = z};
-  return true;
+  return entity->updateComponent<Transform3DComponent>(
+      [&](Transform3DComponent &transform) {
+        transform.scale = {.x = x, .y = y, .z = z};
+      });
 }
 
 std::optional<Vec3>
@@ -293,8 +298,10 @@ bool LuaScriptHost::lookAtEntity3D(const std::string &entityId, const float x,
       worldToLocalTransform3D(*world_, *entity, *worldTransform);
   if (!localTransform)
     return false;
-  transform->rotation = localTransform->rotation;
-  return true;
+  return entity->updateComponent<Transform3DComponent>(
+      [&](Transform3DComponent &updated) {
+        updated.rotation = localTransform->rotation;
+      });
 }
 
 std::optional<CameraRay3D>

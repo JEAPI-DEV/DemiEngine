@@ -57,7 +57,10 @@ float dragAtDistance(float distance, float meshSize,
   using namespace demi;
   runtime::World world;
   auto camera = cameraEntity();
-  camera.component<runtime::Transform3DComponent>()->position.z = -distance;
+  camera.updateComponent<runtime::Transform3DComponent>(
+      [&](runtime::Transform3DComponent &transform) {
+        transform.position.z = -distance;
+      });
   world.entities.push_back(std::move(camera));
   auto object = cube("cube", 0);
   object.component<runtime::MeshRendererComponent>()->size = {
@@ -135,16 +138,19 @@ int main() {
     closeWorld.entities.back()
         .component<runtime::MeshRendererComponent>()
         ->size = {.02F, .02F, .02F};
-    closeWorld.entities.back()
-        .component<runtime::Transform3DComponent>()
-        ->position.z = -.48F;
+    closeWorld.entities.back().updateComponent<runtime::Transform3DComponent>(
+        [](runtime::Transform3DComponent &transform) {
+          transform.position.z = -.48F;
+        });
     assert(!editor::pickSceneEntity3D(closeWorld, closeCamera, {400, 300},
                                       viewport));
     closeCamera.position.z = -.45F;
-    closeWorld.entities.back() = cube("close-cube", 0);
-    closeWorld.entities.front()
-        .component<runtime::Transform3DComponent>()
-        ->position = closeCamera.position;
+    closeWorld.entities.replace(closeWorld.entities.size() - 1,
+                                cube("close-cube", 0));
+    closeWorld.entities.front().updateComponent<runtime::Transform3DComponent>(
+        [&](runtime::Transform3DComponent &transform) {
+          transform.position = closeCamera.position;
+        });
     assert(editor::pickSceneEntity3D(closeWorld, closeCamera, {400, 300},
                                      viewport) == "close-cube");
     editor::EditorSceneViewState view;
@@ -202,7 +208,7 @@ int main() {
              .x < 0.0F);
   assert(editor::pickSceneEntity3D(world, sceneView.camera(), *duplicateScreen,
                                    viewport) == "duplicate");
-  std::erase_if(world.entities,
+  world.entities.eraseIf(
                 [](const auto &entity) { return entity.id == "cube"; });
   assert(!editor::pickSceneEntity3D(world, sceneView.camera(), {400.0F, 300.0F},
                                     viewport));
@@ -438,7 +444,7 @@ int main() {
                         .leftPressed = true,
                         .leftDown = true});
   assert(tool.isDragging());
-  std::erase_if(world.entities, [](const auto &entity) {
+  world.entities.eraseIf( [](const auto &entity) {
     return entity.id == "reloaded-cube";
   });
   action = tool.update(world, "reloaded-cube", sceneView,

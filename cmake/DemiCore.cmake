@@ -81,8 +81,10 @@ add_library(demi-core STATIC
   src/demi/assets/ModelImportProfile.cpp
   src/demi/assets/ModelInspector.cpp
   src/demi/assets/SceneBudget3D.cpp
+  src/demi/assets/GltfDocument.cpp
   src/demi/assets/GltfGeometry.cpp
   src/demi/assets/GltfSkinnedModel.cpp
+  src/demi/assets/GltfMaterials.cpp
   src/demi/assets/AssetSourceFiles.cpp
   src/demi/assets/DataValueRead.cpp
   src/demi/assets/MaterialSurface.cpp
@@ -182,7 +184,7 @@ target_include_directories(demi-core PRIVATE
 
 target_compile_features(demi-core PUBLIC cxx_std_20)
 target_link_libraries(demi-core PRIVATE demi-fastnoise)
-target_link_libraries(demi-core PUBLIC demi-terrain-water nlohmann_json::nlohmann_json box2d
+target_link_libraries(demi-core PUBLIC EnTT::EnTT demi-terrain-water nlohmann_json::nlohmann_json box2d
   utf8proc harfbuzz freetype SheenBidi::SheenBidi mbedcrypto bimg_decode bimg
   yaml-cpp::yaml-cpp)
 if(WIN32)

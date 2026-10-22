@@ -22,6 +22,7 @@ struct BgfxAppContextConfig {
   render::GraphicsApi graphicsApi = render::GraphicsApi::Automatic;
   bool vsync = true;
   bool debugGraphics = false;
+  std::string windowMode = "windowed";
 };
 
 // Shared SDL/bgfx composition root. Visible renderers own only their renderer
@@ -42,6 +43,7 @@ public:
 
   void poll(InputState &input);
   [[nodiscard]] const platform::PlatformFrameState &frameState() const;
+  [[nodiscard]] bool setWindowTitle(const std::string &title, std::string &error);
   [[nodiscard]] bool setWindowMode(std::string_view mode, std::string &error);
   [[nodiscard]] bool setMouseCaptured(bool captured, std::string &error);
   [[nodiscard]] bool setMouseVisible(bool visible, std::string &error);

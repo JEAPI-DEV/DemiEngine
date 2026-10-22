@@ -1,0 +1,23 @@
+{
+  "format_version": 1,
+  "id": "prefab://demi/woodland/rock",
+  "name": "Rock",
+  "entities": [
+    {
+      "id": "rock",
+      "name": "Mossy rock",
+      "components": {
+        "Transform3D": {},
+        "MeshRenderer": {
+          "model": "asset://demi/woodland/models/rock_01",
+          "medium_lod_model": "asset://demi/woodland/models/rock_01_mid",
+          "medium_lod_distance": 50,
+          "low_lod_model": "asset://demi/woodland/models/rock_01_mid",
+          "low_lod_distance": 150,
+          "cull_distance": 0,
+          "material": "asset://demi/woodland/materials/rock_moss_set_01"
+        }
+      }
+    }
+  ]
+}

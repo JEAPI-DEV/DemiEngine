@@ -1,6 +1,26 @@
 {
   "format_version": 1,
-  "name": "Terrain Authoring",
-  "main_scene": "scene://terrain_3d/main",
-  "scenes": [{"id": "scene://terrain_3d/main"}]
+  "name": "Silvermere Terrain Showcase",
+  "main_scene": "scene://terrain_3d/loading",
+  "scenes": [
+    {
+      "id": "scene://terrain_3d/loading"
+    },
+    {
+      "id": "scene://terrain_3d/main"
+    }
+  ],
+  "package_registry": "../../packages",
+  "packages": {
+    "polyhaven.materials.terrain": "^1.2.0",
+    "demi.terrain.vegetation": "^1.0.0",
+    "demi.camera.paths": "^0.1.0",
+    "demi.environment.woodland": "^1.2.0"
+  },
+  "build": {
+    "window": {
+      "mode": "fullscreen"
+    },
+    "application_id": "dev.jeapi.demi.silvermere"
+  }
 }

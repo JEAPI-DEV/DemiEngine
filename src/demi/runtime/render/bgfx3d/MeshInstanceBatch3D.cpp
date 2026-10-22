@@ -2,6 +2,8 @@
 
 #include <bit>
 #include <functional>
+#include <stdexcept>
+#include <utility>
 
 namespace demi::runtime::render {
 
@@ -20,6 +22,9 @@ std::size_t MeshInstanceBatch3D::KeyHash::operator()(const Key &key) const {
   hash ^= std::hash<const MeshRendererComponent *>{}(key.source);
   hash ^= std::hash<const MaterialBinding *>{}(key.material);
   combine(key.surface ? 1U : 0U);
+  combine(key.usesPbrSurface ? 1U : 0U);
+  combine(key.firstIndex);
+  combine(key.indexCount);
   return hash;
 }
 
@@ -35,13 +40,13 @@ std::size_t MeshInstanceBatch3D::add(const GpuMesh3D &mesh,
     key.uniformBits[index + 4] =
         std::bit_cast<std::uint32_t>(metalRough[index]);
   }
-  const auto [found, inserted] = groupLookup_.try_emplace(key, groups_.size());
+  const auto [found, inserted] = groupLookup_.try_emplace(key, usedGroups_);
   if (inserted) {
-    groups_.push_back({.mesh = &mesh,
-                       .texture = texture,
-                       .tint = tint,
-                       .metalRough = metalRough,
-                       .unlit = unlit});
+    appendGroup({.mesh = &mesh,
+                 .texture = texture,
+                 .tint = tint,
+                 .metalRough = metalRough,
+                 .unlit = unlit});
   }
   appendTransform(found->second, transform);
   return found->second;
@@ -50,43 +55,74 @@ std::size_t MeshInstanceBatch3D::add(const GpuMesh3D &mesh,
 std::size_t MeshInstanceBatch3D::addSurface(
     const GpuMesh3D &mesh, TextureHandle texture,
     const MeshRendererComponent &source, const MaterialBinding *material,
-    const PreparedMeshDraw3D &prepared, ProgramHandle instancedProgram,
-    const std::array<float, 16> &transform) {
+    const MeshDrawSurface3D &surface, bool usesPbrSurface,
+    const std::array<float, 16> &transform, std::uint32_t firstIndex,
+    std::uint32_t indexCount) {
   const bool ownerOverrides =
       !source.materialNumbers.empty() || !source.materialColors.empty() ||
       source.metallic || source.roughness || source.opacity ||
       source.surfaceMode || source.wireframe;
   Key key{.mesh = &mesh,
           .texture = texture,
-          .unlit = prepared.unlit,
+          .unlit = surface.unlit,
           .source = ownerOverrides ? &source : nullptr,
           .material = material,
-          .surface = true};
+          .surface = true,
+          .usesPbrSurface = usesPbrSurface,
+          .firstIndex = firstIndex,
+          .indexCount = indexCount};
   // Transform/size are instance data. Distinct entities using the same plain
   // material and geometry must not become separate draw calls merely because
   // their Mesh Renderer components have different addresses.
   for (std::size_t index = 0; index < 4; ++index) {
     key.uniformBits[index] =
-        std::bit_cast<std::uint32_t>(prepared.builtinSurfaceTint[index]);
+        std::bit_cast<std::uint32_t>(surface.builtinSurfaceTint[index]);
     key.uniformBits[index + 4] =
-        std::bit_cast<std::uint32_t>(prepared.metalRough[index]);
+        std::bit_cast<std::uint32_t>(surface.metalRough[index]);
   }
-  const auto [found, inserted] = groupLookup_.try_emplace(key, groups_.size());
+  const auto [found, inserted] = groupLookup_.try_emplace(key, usedGroups_);
   if (inserted) {
-    groups_.push_back({.mesh = &mesh,
-                       .texture = texture,
-                       .source = &source,
-                       .material = material,
-                       .prepared = prepared,
-                       .instancedProgram = instancedProgram});
+    appendGroup({.mesh = &mesh,
+                 .texture = texture,
+                 .source = &source,
+                 .material = material,
+                 .surface = surface,
+                 .usesPbrSurface = usesPbrSurface,
+                 .firstIndex = firstIndex,
+                 .indexCount = indexCount});
   }
   appendTransform(found->second, transform);
   return found->second;
 }
 
+void MeshInstanceBatch3D::appendGroup(InstanceGroup group) {
+  if (usedGroups_ == groups_.size()) {
+    groups_.push_back(std::move(group));
+  } else {
+    group.transforms.swap(groups_[usedGroups_].transforms);
+    group.transforms.clear();
+    groups_[usedGroups_] = std::move(group);
+  }
+  ++usedGroups_;
+}
+
+void MeshInstanceBatch3D::reset() {
+  groupLookup_.clear();
+  for (auto &group : groups_) {
+    auto transforms = std::move(group.transforms);
+    transforms.clear();
+    group = InstanceGroup{.transforms = std::move(transforms)};
+  }
+  usedGroups_ = 0;
+}
+
 void MeshInstanceBatch3D::appendTransform(
     std::size_t group, const std::array<float, 16> &transform) {
-  groups_.at(group).transforms.push_back(transform);
+  if (group >= usedGroups_) {
+    throw std::out_of_range(
+        "Instance group token is outside this collector operation.");
+  }
+  groups_[group].transforms.push_back(transform);
 }
 
 bool MeshInstanceBatch3D::flush(
@@ -95,10 +131,13 @@ bool MeshInstanceBatch3D::flush(
     const DrawState &state,
     const std::array<DrawUniformValue, 8> &lightingUniforms,
     std::uint32_t &draws, std::uint32_t &triangles, std::string &error,
-    MeshPbrBindings3D *surfaces, TextureHandle whiteTexture) const {
+    MeshPbrBindings3D *surfaces, TextureHandle whiteTexture,
+    const MeshSurfacePassPrograms3D &pass) const {
   const std::array<float, 4> debugMode{lightingUniforms[2].values[0], 0, 0, 0};
-  for (const auto &group : groups_) {
+  for (std::size_t index = 0; index < usedGroups_; ++index) {
+    const auto &group = groups_[index];
     std::vector<DrawUniformValue> uniforms;
+    std::optional<PreparedMeshDraw3D> preparedSurface;
     ProgramHandle individualProgram = meshProgram;
     ProgramHandle groupedProgram = instancedProgram;
     DrawState drawState = state;
@@ -107,7 +146,7 @@ bool MeshInstanceBatch3D::flush(
     auto metalRough = group.metalRough;
     const std::array<float, 4> groupingMode{
         debugMode[0], group.transforms.size() > 1U ? 1.F : 0.F, 0.F, 0.F};
-    if (group.prepared) {
+    if (group.surface) {
       if (!surfaces) {
         error = "Mesh surface batches require a material binding adapter.";
         return false;
@@ -116,10 +155,20 @@ bool MeshInstanceBatch3D::flush(
                              error)) {
         return false;
       }
-      group.prepared->fillUniforms(lightingUniforms, group.material, uniforms);
-      individualProgram = group.prepared->program;
-      groupedProgram = group.instancedProgram;
-      drawState = group.prepared->state;
+      if (group.usesPbrSurface) {
+        individualProgram = pass.pbrMesh;
+        groupedProgram = pass.pbrInstanced;
+        if (!individualProgram ||
+            (group.transforms.size() > 1 && !groupedProgram)) {
+          error = "PBR instance programs are unavailable for this pass.";
+          return false;
+        }
+      }
+      preparedSurface.emplace(*group.surface, group.material, pass.depthOnly,
+                              pass.overdraw, individualProgram);
+      preparedSurface->fillUniforms(lightingUniforms, group.material, uniforms);
+      individualProgram = preparedSurface->program;
+      drawState = preparedSurface->state;
     } else {
       if (surfaces) {
         surfaces->reset();
@@ -144,16 +193,21 @@ bool MeshInstanceBatch3D::flush(
         group.transforms.size() == 1U
             ? group.mesh->draw(bindings, view, individualProgram, group.texture,
                                sampler, group.transforms.front(), drawState,
-                               error, uniforms)
+                               error, uniforms, group.firstIndex,
+                               group.indexCount)
             : group.mesh->drawInstanced(
                   bindings, view, groupedProgram, group.texture, sampler,
-                  group.transforms, drawState, error, uniforms);
+                  group.transforms, drawState, error, uniforms,
+                  group.firstIndex, group.indexCount);
     if (!queued) {
       return false;
     }
     ++draws;
-    triangles += group.mesh->indexCount() / 3U *
-                 static_cast<std::uint32_t>(group.transforms.size());
+    const auto indexCount = group.indexCount == UINT32_MAX
+                                ? group.mesh->indexCount() - group.firstIndex
+                                : group.indexCount;
+    triangles +=
+        indexCount / 3U * static_cast<std::uint32_t>(group.transforms.size());
   }
   return true;
 }

@@ -42,26 +42,28 @@ public:
                             std::span<const Vec3> normals = {},
                             std::span<const std::uint32_t> colors = {},
                             bool dynamicVertices = false);
-  // Consumes CPU-prepared vertices; graphics resources remain render-thread owned.
-  // Dynamic updates preserve topology; clear() before replacing that topology.
+  // Consumes CPU-prepared vertices; graphics resources remain render-thread
+  // owned. Dynamic updates preserve topology; clear() before replacing that
+  // topology.
   [[nodiscard]] bool uploadPrepared(std::span<const GpuMeshVertex3D> vertices,
                                     std::span<const std::uint32_t> indices,
                                     std::string &error,
                                     bool dynamicVertices = false);
-  [[nodiscard]] bool
-  draw(RenderCommands &commands, std::uint16_t viewId, ProgramHandle program,
-       TextureHandle texture, SamplerHandle sampler,
-       const std::array<float, 16> &transform, const DrawState &state,
-       std::string &error,
-       std::span<const DrawUniformValue> uniforms = {},
-       std::uint32_t firstIndex = 0, std::uint32_t indexCount = UINT32_MAX) const;
-  [[nodiscard]] bool
-  drawInstanced(RenderCommands &commands, std::uint16_t viewId,
-                ProgramHandle program, TextureHandle texture,
-                SamplerHandle sampler,
-                std::span<const std::array<float, 16>> transforms,
-                const DrawState &state, std::string &error,
-                std::span<const DrawUniformValue> uniforms = {}) const;
+  [[nodiscard]] bool draw(RenderCommands &commands, std::uint16_t viewId,
+                          ProgramHandle program, TextureHandle texture,
+                          SamplerHandle sampler,
+                          const std::array<float, 16> &transform,
+                          const DrawState &state, std::string &error,
+                          std::span<const DrawUniformValue> uniforms = {},
+                          std::uint32_t firstIndex = 0,
+                          std::uint32_t indexCount = UINT32_MAX) const;
+  [[nodiscard]] bool drawInstanced(
+      RenderCommands &commands, std::uint16_t viewId, ProgramHandle program,
+      TextureHandle texture, SamplerHandle sampler,
+      std::span<const std::array<float, 16>> transforms, const DrawState &state,
+      std::string &error, std::span<const DrawUniformValue> uniforms = {},
+      std::uint32_t firstIndex = 0,
+      std::uint32_t indexCount = UINT32_MAX) const;
   void clear();
 
   [[nodiscard]] bool valid() const {

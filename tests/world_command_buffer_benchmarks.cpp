@@ -63,7 +63,10 @@ void measure(std::size_t count) {
     require(commands.create(world, std::move(entity)), "Create was rejected");
     Entity *pending = commands.pendingEntity(idFor(index));
     require(pending != nullptr, "Pending entity was not found");
-    pending->component<Transform3DComponent>()->position.x = float(index);
+    pending->updateComponent<Transform3DComponent>(
+        [&](Transform3DComponent &transform) {
+          transform.position.x = static_cast<float>(index);
+        });
   }
   const auto queueEnd = Clock::now();
   const auto mutations = commands.flush(world);

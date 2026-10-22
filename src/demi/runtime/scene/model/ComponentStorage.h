@@ -1,147 +1,218 @@
 #pragma once
 
-#include <any>
-#include <atomic>
+#include "demi/runtime/scene/model/ComponentRegistry.h"
+
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
+#include <memory>
 #include <type_traits>
-#include <typeindex>
-#include <unordered_map>
 #include <utility>
 
 namespace demi::runtime {
+
+// Components opt into explicit mutation without depending on a domain header.
+template <typename ComponentType>
+inline constexpr bool componentTracksMutation = [] {
+  using StoredType = std::remove_cvref_t<ComponentType>;
+  if constexpr (requires { StoredType::trackedMutation; }) {
+    return static_cast<bool>(StoredType::trackedMutation);
+  } else {
+    return false;
+  }
+}();
+
+template <typename ComponentType>
+using ComponentAccessType =
+    std::conditional_t<componentTracksMutation<ComponentType>,
+                       const std::remove_cvref_t<ComponentType>,
+                       std::remove_reference_t<ComponentType>>;
 
 class ComponentStorage {
 public:
   ComponentStorage() = default;
 
-  ~ComponentStorage() {
-    // Even an empty observed slot may be reconstructed in the same allocation.
-    invalidateMembership();
-  }
+  ~ComponentStorage() { release(); }
 
-  ComponentStorage(const ComponentStorage &other)
-      : components_(other.components_) {}
+  ComponentStorage(const ComponentStorage &other) {
+    if (other.owner_ != nullptr) {
+      detached_ = std::make_unique<DetachedComponents>();
+      other.owner_->snapshotComponents(other.handle_, *detached_);
+    } else if (other.detached_ != nullptr) {
+      detached_ = std::make_unique<DetachedComponents>(*other.detached_);
+    }
+  }
 
   ComponentStorage(ComponentStorage &&other) noexcept
-      : components_(std::move(other.components_)) {
-    other.invalidateMembership();
-  }
+      : owner_(std::move(other.owner_)),
+        handle_(std::exchange(other.handle_, entt::null)),
+        detached_(std::move(other.detached_)) {}
 
   ComponentStorage &operator=(const ComponentStorage &other) {
     if (this != &other) {
-      invalidateMembership();
-      components_ = other.components_;
+      ComponentStorage copy(other);
+      if (owner_ != nullptr) {
+        copy.bind(owner_);
+      }
+      *this = std::move(copy);
     }
     return *this;
   }
 
   ComponentStorage &operator=(ComponentStorage &&other) noexcept {
     if (this != &other) {
-      invalidateMembership();
-      other.invalidateMembership();
-      components_ = std::move(other.components_);
+      release();
+      owner_ = std::move(other.owner_);
+      handle_ = std::exchange(other.handle_, entt::null);
+      detached_ = std::move(other.detached_);
     }
     return *this;
   }
 
-  [[nodiscard]] static std::uint64_t membershipEpoch() noexcept {
-    return membershipEpoch_.load(std::memory_order_relaxed);
+  [[nodiscard]] const std::shared_ptr<ComponentRegistry> &
+  owner() const noexcept {
+    return owner_;
   }
 
-  // Query scans observe every slot, including entities with no matching type.
-  // Standalone parser/default-value temporaries do not invalidate live queries.
-  void observeMembership() const noexcept { membershipObserved_ = true; }
+  [[nodiscard]] entt::entity handle() const noexcept { return handle_; }
+
+  // Build the destination row before releasing the source, so failed copies
+  // cannot publish a partially migrated entity or lose its original values.
+  void bind(std::shared_ptr<ComponentRegistry> destination) {
+    if (destination == owner_) {
+      return;
+    }
+    if (destination == nullptr) {
+      ComponentStorage snapshot(*this);
+      *this = std::move(snapshot);
+      return;
+    }
+    const auto target = destination->native().create();
+    try {
+      if (owner_ != nullptr) {
+        owner_->copyComponents(handle_, *destination, target);
+      } else if (detached_ != nullptr) {
+        detached_->publishTo(*destination, target);
+      }
+    } catch (...) {
+      destination->native().destroy(target);
+      throw;
+    }
+    release();
+    owner_ = std::move(destination);
+    handle_ = target;
+  }
 
   template <typename ComponentType> [[nodiscard]] bool contains() const {
-    return components_.contains(typeKey<ComponentType>());
-  }
-
-  template <typename ComponentType> [[nodiscard]] ComponentType *get() {
-    const auto iterator = components_.find(typeKey<ComponentType>());
-    return iterator == components_.end()
-               ? nullptr
-               : std::any_cast<ComponentType>(&iterator->second);
+    using StoredType = std::remove_cvref_t<ComponentType>;
+    return owner_ != nullptr
+               ? owner_->native().all_of<StoredType>(handle_)
+               : detached_ != nullptr && detached_->contains<StoredType>();
   }
 
   template <typename ComponentType>
-  [[nodiscard]] const ComponentType *get() const {
-    const auto iterator = components_.find(typeKey<ComponentType>());
-    return iterator == components_.end()
-               ? nullptr
-               : std::any_cast<ComponentType>(&iterator->second);
+  [[nodiscard]] ComponentAccessType<ComponentType> *get() {
+    using StoredType = std::remove_cvref_t<ComponentType>;
+    if (owner_ != nullptr) {
+      return owner_->native().try_get<StoredType>(handle_);
+    }
+    return detached_ == nullptr ? nullptr : detached_->get<StoredType>();
+  }
+
+  template <typename ComponentType>
+  [[nodiscard]] const std::remove_cvref_t<ComponentType> *get() const {
+    using StoredType = std::remove_cvref_t<ComponentType>;
+    if (owner_ != nullptr) {
+      return std::as_const(owner_->native()).try_get<StoredType>(handle_);
+    }
+    return detached_ == nullptr ? nullptr
+                                : std::as_const(*detached_).get<StoredType>();
   }
 
   template <typename ComponentType>
     requires std::copy_constructible<std::remove_cvref_t<ComponentType>>
-  std::remove_cvref_t<ComponentType> &set(ComponentType &&component) {
+  ComponentAccessType<std::remove_cvref_t<ComponentType>> &
+  set(ComponentType &&component) {
     using StoredType = std::remove_cvref_t<ComponentType>;
-    auto [iterator, inserted] = components_.insert_or_assign(
-        typeKey<StoredType>(),
-        StoredType(std::forward<ComponentType>(component)));
-    if (inserted) {
-      invalidateMembership();
+    // Capture first: callers may replace a component using its current value.
+    StoredType replacement(std::forward<ComponentType>(component));
+    if constexpr (componentTracksMutation<StoredType> &&
+                  std::equality_comparable<StoredType>) {
+      if (const auto *existing = get<StoredType>();
+          existing != nullptr && *existing == replacement) {
+        return *existing;
+      }
     }
-    return *std::any_cast<StoredType>(&iterator->second);
+    if (owner_ == nullptr) {
+      if (detached_ == nullptr) {
+        detached_ = std::make_unique<DetachedComponents>();
+      }
+      return detached_->set(std::move(replacement));
+    }
+    owner_->registerType<StoredType>();
+    const bool inserted = !contains<StoredType>();
+    if (!inserted) {
+      if constexpr (std::is_move_assignable_v<StoredType>) {
+        return owner_->native().patch<StoredType>(
+            handle_,
+            [&](StoredType &existing) { existing = std::move(replacement); });
+      } else {
+        owner_->native().remove<StoredType>(handle_);
+      }
+    }
+    return owner_->native().emplace<StoredType>(handle_,
+                                                std::move(replacement));
+  }
+
+  // Stage callbacks outside live storage. A failed callback cannot publish a
+  // partial value or signal an update to other runtime systems.
+  template <typename ComponentType, typename Function>
+    requires std::copy_constructible<std::remove_cvref_t<ComponentType>> &&
+             std::invocable<Function, std::remove_cvref_t<ComponentType> &>
+  bool update(Function &&function) {
+    using StoredType = std::remove_cvref_t<ComponentType>;
+    const auto *current = get<StoredType>();
+    if (current == nullptr) {
+      return false;
+    }
+    StoredType replacement(*current);
+    std::invoke(std::forward<Function>(function), replacement);
+    set(std::move(replacement));
+    return true;
   }
 
   template <typename ComponentType> bool remove() {
-    const bool removed = components_.erase(typeKey<ComponentType>()) != 0;
-    if (removed) {
-      invalidateMembership();
-    }
-    return removed;
+    using StoredType = std::remove_cvref_t<ComponentType>;
+    return owner_ != nullptr
+               ? owner_->native().remove<StoredType>(handle_) != 0
+               : detached_ != nullptr && detached_->remove<StoredType>();
   }
 
   void clear() {
-    if (!components_.empty()) {
-      components_.clear();
-      invalidateMembership();
+    if (owner_ == nullptr) {
+      detached_.reset();
+      return;
+    }
+    // Keep the row identity: collection indexes and registry views share it.
+    for (auto &&[type, pool] : owner_->native().storage()) {
+      pool.remove(handle_);
     }
   }
 
 private:
-  // Membership can change through public entity storage, vector replacement or
-  // reordering. A shared epoch makes those mutations visible to world queries.
-  void invalidateMembership() const noexcept {
-    if (membershipObserved_) {
-      membershipEpoch_.fetch_add(1, std::memory_order_relaxed);
+  void release() noexcept {
+    if (owner_ != nullptr && handle_ != entt::null) {
+      owner_->native().destroy(handle_);
     }
+    handle_ = entt::null;
+    owner_.reset();
+    detached_.reset();
   }
 
-  mutable bool membershipObserved_ = false;
-  inline static std::atomic<std::uint64_t> membershipEpoch_{1};
-
-  struct TypeKey {
-    explicit TypeKey(std::type_index componentType)
-        : type(componentType), hash(componentType.hash_code()) {}
-
-    bool operator==(const TypeKey &other) const noexcept {
-      return type == other.type;
-    }
-
-    std::type_index type;
-    std::size_t hash;
-  };
-
-  struct TypeKeyHash {
-    std::size_t operator()(const TypeKey &key) const noexcept {
-      return key.hash;
-    }
-  };
-
-  template <typename ComponentType>
-  [[nodiscard]] static const TypeKey &typeKey() {
-    using StoredType = std::remove_cvref_t<ComponentType>;
-    // RTTI hash_code may hash the full type name on every call. Retain the
-    // hash with the key while keeping type_index equality for collisions and
-    // std::any_cast for checked value access.
-    static const TypeKey key{std::type_index(typeid(StoredType))};
-    return key;
-  }
-
-  std::unordered_map<TypeKey, std::any, TypeKeyHash> components_;
+  std::shared_ptr<ComponentRegistry> owner_;
+  entt::entity handle_ = entt::null;
+  std::unique_ptr<DetachedComponents> detached_;
 };
 
 } // namespace demi::runtime

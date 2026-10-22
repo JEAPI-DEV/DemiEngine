@@ -35,7 +35,8 @@ bool Bgfx2DAppHost::initialize(const Bgfx2DAppHostConfig &config,
                             .height = config.height,
                             .graphicsApi = config.graphicsApi,
                             .vsync = config.vsync,
-                            .debugGraphics = config.debugGraphics},
+                            .debugGraphics = config.debugGraphics,
+                            .windowMode = config.windowMode},
                            error))
     return false;
   renderer_ = std::make_unique<RendererOwner>(*context_.resources(),
@@ -99,6 +100,10 @@ void Bgfx2DAppHost::poll(InputState &input) { context_.poll(input); }
 
 const platform::PlatformFrameState &Bgfx2DAppHost::frameState() const {
   return context_.frameState();
+}
+
+bool Bgfx2DAppHost::setWindowTitle(const std::string &title, std::string &error) {
+  return context_.setWindowTitle(title, error);
 }
 
 bool Bgfx2DAppHost::setWindowMode(const std::string_view mode,

@@ -1,9 +1,31 @@
 {
   "format_version": 1,
   "shader": "builtin://lit",
-  "fallback": "builtin://unlit",
+  "mapping": "triplanar",
+  "normal_map_convention": "opengl",
+  "textures": {
+    "albedo": "asset://polyhaven/terrain/textures/rock_face_03/albedo",
+    "normal": "asset://polyhaven/terrain/textures/rock_face_03/normal",
+    "roughness": "asset://polyhaven/terrain/textures/rock_face_03/roughness",
+    "ambient_occlusion": "asset://polyhaven/terrain/textures/rock_face_03/ambient_occlusion",
+    "height": "asset://polyhaven/terrain/textures/rock_face_03/height"
+  },
   "parameters": {
-    "base_color": [0.44, 0.42, 0.4, 1],
-    "roughness": 0.85
+    "base_color": [
+      0.66,
+      0.72,
+      0.62,
+      1
+    ],
+    "roughness": 1,
+    "metallic": 0,
+    "normal_strength": 0.7,
+    "tiling": 0.14,
+    "macro_variation_strength": 0.12,
+    "macro_variation_scale": 0.02
+  },
+  "render_state": {
+    "blend": "opaque",
+    "cull": "none"
   }
 }

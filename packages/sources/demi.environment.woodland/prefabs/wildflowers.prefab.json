@@ -1,0 +1,23 @@
+{
+  "format_version": 1,
+  "id": "prefab://demi/woodland/wildflowers",
+  "name": "Wildflowers",
+  "entities": [
+    {
+      "id": "plant",
+      "name": "Wildflowers",
+      "components": {
+        "Transform3D": {},
+        "MeshRenderer": {
+          "model": "asset://demi/woodland/understory/wildflowers",
+          "medium_lod_model": "asset://demi/woodland/understory/wildflowers_medium",
+          "medium_lod_distance": 35,
+          "low_lod_model": "asset://demi/woodland/understory/wildflowers_low",
+          "low_lod_distance": 90,
+          "cull_distance": 220,
+          "material": "asset://demi/woodland/understory/wildflowers/material"
+        }
+      }
+    }
+  ]
+}

@@ -12,7 +12,9 @@ namespace demi::runtime {
 
 void Camera2DSystem::update(World &world, const float deltaTime,
                             const float physicsInterpolationAlpha) const {
-  for (Entity &entity : world.entities) {
+  for (const auto entityIndex :
+       world.componentQueries.queryAny<Camera2DComponent>(world.entities)) {
+    Entity &entity = world.entities[entityIndex];
     if (!entity.enabled) {
       continue;
     }

@@ -7,6 +7,7 @@
 #include "demi/runtime/render/backend/BgfxGraphicsDevice.h"
 #include "demi/runtime/render/bgfx2d/ColorPacking2D.h"
 #include "demi/runtime/render/bgfx3d/MeshDrawOrder3D.h"
+#include "demi/runtime/render/bgfx3d/PreparedInstanceView3D.h"
 #include "demi/runtime/render/bgfx3d/MeshInstanceBatch3D.h"
 #include "demi/runtime/render/bgfx3d/MeshInstancePreparation3D.h"
 #include "demi/runtime/render/bgfx3d/PreparedMeshDraw3D.h"
@@ -461,6 +462,12 @@ int main() {
       std::filesystem::path path;
       ~RemoveSurfaceFixture() { std::filesystem::remove(path); }
     } cleanup{materialPath};
+    const auto cutoutPath = std::filesystem::path(materialPath.string() + ".cutout.json");
+    RemoveSurfaceFixture cutoutCleanup{cutoutPath};
+    {
+      std::ofstream output(cutoutPath);
+      output << R"({"format_version":1,"render_state":{"blend":"opaque","alpha_cutoff":0.5}})";
+    }
     {
       std::ofstream output(materialPath);
       output << R"({"format_version":1,"render_state":{"blend":"alpha"}})";
@@ -468,9 +475,70 @@ int main() {
     demi::AssetRegistry registry;
     registry.assets.push_back({.id = "asset://order/glass", .type = "Material",
                                 .sourcePath = materialPath});
+    registry.assets.push_back({.id = "asset://order/cutout", .type = "Material",
+                                .sourcePath = cutoutPath});
     MaterialLibrary materials(*resources);
     std::vector<std::string> diagnostics;
     assert(materials.load(registry, diagnostics));
+    assert(materials.find("asset://order/cutout")->alphaCutoff == 0.5F);
+    auto foliage = shape("cutout-foliage", "cube", {});
+    foliage.component<MeshRendererComponent>()->material = "asset://order/cutout";
+    auto water = shape("blended-water", "cube", {});
+    water.component<MeshRendererComponent>()->material = "asset://order/glass";
+    const std::vector<VisibleMesh3D> mixedSurfaces{
+        {.entity = &foliage, .transform = {.position = {0, 0, 9}}},
+        {.entity = &water, .transform = {.position = {0, 0, 2}}},
+        {.entity = &foliage, .transform = {.position = {0, 0, 1}}},
+        {.entity = &water, .transform = {.position = {1, 0, 8}}},
+        {.entity = &water, .transform = {.position = {-1, 0, 8}}}};
+    auto colorSurfaces = mixedSurfaces;
+    assert(orderMeshSurfaces3D(colorSurfaces, materials, {}, {0, 0, 1}) == 2);
+    // Alpha-cutout foliage writes depth and keeps source order. Blended water
+    // sorts back-to-front, retaining source order for equal-depth surfaces.
+    assert(colorSurfaces[0].transform.position.z == 9);
+    assert(colorSurfaces[1].transform.position.z == 1);
+    assert(colorSurfaces[2].transform.position.x == 1);
+    assert(colorSurfaces[3].transform.position.x == -1);
+    assert(colorSurfaces[4].transform.position.z == 2);
+    auto depthSurfaces = mixedSurfaces;
+    assert(orderMeshSurfaces3D(depthSurfaces, materials, {}, {0, 0, 1},
+                               MeshSurfacePass3D::OpaqueDepth) == 2);
+    assert(depthSurfaces.size() == 2);
+    assert(depthSurfaces[0].entity == &foliage);
+    assert(depthSurfaces[1].entity == &foliage);
+    assert(depthSurfaces[0].transform.position.z == 9);
+    assert(depthSurfaces[1].transform.position.z == 1);
+
+    World pairedWorld;
+    MeshInstances3DComponent oneCopy;
+    oneCopy.setTransform("copy", {.position = {0, 0, 5}});
+    foliage.setComponent(oneCopy);
+    water.setComponent(oneCopy);
+    pairedWorld.entities.push_back(foliage);
+    pairedWorld.entities.push_back(water);
+    MeshInstancePreparation3D pairedPreparation;
+    PreparedInstanceView3D pairedView;
+    BgfxCameraFrame3D pairedCamera;
+    pairedCamera.viewportWidth = 320;
+    pairedCamera.viewportHeight = 180;
+    const auto extractPaired = [&] {
+      return extractVisibleMeshes3D(pairedWorld, pairedCamera, nullptr, nullptr,
+                                    nullptr, nullptr, nullptr, nullptr,
+                                    &materials, {}, &pairedPreparation, &pairedView);
+    };
+    pairedCamera.pass = BgfxCameraPass3D::OpaqueDepth;
+    auto pairedDepth = extractPaired();
+    assert(orderMeshSurfaces3D(pairedDepth.meshes, materials, {}, {0, 0, 1},
+                               MeshSurfacePass3D::OpaqueDepth) == 1);
+    assert(pairedDepth.meshes.size() == 1);
+    pairedCamera.pass = BgfxCameraPass3D::Color;
+    auto pairedColor = extractPaired();
+    assert(pairedColor.instanceSourcesReused == 2);
+    assert(pairedColor.meshes.size() == 2);
+    assert(orderMeshSurfaces3D(pairedColor.meshes, materials, {}, {0, 0, 1}) == 1);
+    assert(pairedColor.meshes[0].entity->id == "cutout-foliage");
+    assert(pairedColor.meshes[1].entity->id == "blended-water");
+
     auto source = shape("surface-source", "cube", {});
     MeshMaterialSections3D sections;
     sections.sections = {{.id = "opaque"},
@@ -499,7 +567,10 @@ int main() {
     // invalidate the previous source decision without a world revision signal.
     source.component<MeshRendererComponent>()->surfaceMode = "opaque";
     meshes = copies();
+    std::ranges::reverse(meshes);
     assert(orderMeshSurfaces3D(meshes, materials, {}, {0, 0, 1}) == meshes.size());
+    assert(meshes.front().transform.position.z == 31);
+    assert(meshes.back().transform.position.z == 0);
     source.setComponent(FragmentOpacity3D{.value = .5F});
     meshes = copies();
     assert(orderMeshSurfaces3D(meshes, materials, {}, {0, 0, 1}) == 0);
@@ -532,12 +603,20 @@ int main() {
     assert(forwardDraws[0].transform.position.z == 0);
     assert(forwardDraws[2].transform.position.z == 2);
     assert(forwardDraws[3].transform.position.z == 2);
-    // A second camera shares classification, but computes its own depth order.
+    // Opaque source order is camera-independent; transparency reverses depth.
     auto reverseDraws = preparedCopies();
     assert(orderMeshSurfaces3D(reverseDraws, materials, {}, {0, 0, -1}) == 3);
-    assert(reverseDraws[0].transform.position.z == 2);
-    assert(reverseDraws[2].transform.position.z == 0);
+    assert(reverseDraws[0].transform.position.z == 0);
+    assert(reverseDraws[2].transform.position.z == 2);
     assert(reverseDraws[3].transform.position.z == 0);
+    auto preparedDepth = preparedCopies();
+    std::ranges::reverse(preparedDepth);
+    assert(orderMeshSurfaces3D(preparedDepth, materials, {}, {0, 0, 1},
+                               MeshSurfacePass3D::OpaqueDepth) == 3);
+    assert(preparedDepth.size() == 3);
+    assert(preparedDepth[0].materialSection == 0);
+    assert(preparedDepth[0].transform.position.z == 2);
+    assert(preparedDepth[2].transform.position.z == 0);
 
     MeshMaterialSections3D terrainSections;
     terrainSections.sections = {
@@ -565,6 +644,9 @@ int main() {
     auto fadedDraws = preparedCopies();
     assert(orderMeshSurfaces3D(fadedDraws, materials, {}, {0, 0, 1}) == 0);
     assert(fadedDraws.front().transform.position.z == 2);
+    assert(orderMeshSurfaces3D(fadedDraws, materials, {}, {0, 0, 1},
+                               MeshSurfacePass3D::OpaqueDepth) == 0);
+    assert(fadedDraws.empty());
 
     orderedEntity.removeComponent<FragmentOpacity3D>();
     preparation.reset();
@@ -647,7 +729,7 @@ int main() {
     World cachedWorld;
     auto parent = shape("cached-parent", "cube", {1, 0, 5});
     auto child = shape("cached-child", "cube", {2, 0, 0});
-    child.component<Transform3DComponent>()->parent = "cached-parent";
+    child.updateComponent<Transform3DComponent>([&](auto &transform) { transform.parent = "cached-parent"; });
     child.component<MeshRendererComponent>()->model = "asset://cache/model";
     cachedWorld.entities.push_back(std::move(parent));
     cachedWorld.entities.push_back(std::move(child));
@@ -682,17 +764,17 @@ int main() {
     otherView.position.x = 100;
     assert(extract(otherView).meshes.empty());
     assert(boundsQueries == 1);
-    cachedWorld.entities[0].component<Transform3DComponent>()->position.x = 4;
+    cachedWorld.entities[0].updateComponent<Transform3DComponent>([&](auto &transform) { transform.position.x = 4; });
     preparation.reset();
     const auto edited = extract(cachedFrame);
     assert(edited.meshes.size() == 2 && boundsQueries == 2);
     assert(edited.meshes[1].transform.position.x == 6);
     assert((*edited.meshes[1].preparedModelMatrix)[12] == 6);
-    cachedWorld.entities[0].component<Transform3DComponent>()->parent = "cached-child";
+    cachedWorld.entities[0].updateComponent<Transform3DComponent>([&](auto &transform) { transform.parent = "cached-child"; });
     preparation.reset();
     assert(extract(cachedFrame).meshes.empty());
-    cachedWorld.entities[0].component<Transform3DComponent>()->parent.clear();
-    cachedWorld.entities[1].component<Transform3DComponent>()->parent = "missing";
+    cachedWorld.entities[0].updateComponent<Transform3DComponent>([](auto &transform) { transform.parent.clear(); });
+    cachedWorld.entities[1].updateComponent<Transform3DComponent>([&](auto &transform) { transform.parent = "missing"; });
     preparation.reset();
     assert(extract(cachedFrame).meshes.size() == 1);
   }
@@ -921,12 +1003,12 @@ int main() {
                                          0, 0, 1, 0, 0, 0, 0, 1};
     MeshInstanceBatch3D batches;
     const auto surfaceGroup = batches.addSurface(
-        geometry, {}, source, &material, prepared, {}, transform);
+        geometry, {}, source, &material, prepared, true, transform);
     MeshRendererComponent anotherOwner = source;
     PreparedMeshDraw3D anotherPrepared(anotherOwner, &material, std::nullopt,
                                        false, false, false, {});
     assert(batches.addSurface(geometry, {}, anotherOwner, &material,
-                              anotherPrepared, {}, transform) == surfaceGroup);
+                              anotherPrepared, true, transform) == surfaceGroup);
     batches.appendTransform(surfaceGroup, transform);
     std::array<std::array<float, 4>, 8> values{};
     std::array<DrawUniformValue, 8> lighting;
@@ -936,7 +1018,9 @@ int main() {
     std::uint32_t draws = 0;
     std::uint32_t triangles = 0;
     assert(batches.flush(surfaceCapture, 0, {}, {}, {}, {}, lighting, draws,
-                         triangles, error, &surfaceBindings));
+                         triangles, error, &surfaceBindings, {},
+                         {.pbrMesh = {.index = 11, .generation = 1},
+                          .pbrInstanced = {.index = 12, .generation = 1}}));
     assert(draws == 1 && triangles == 3);
     assert(resolvedSurfaceMaps == 1);
     assert(surfaceCapture.instanceDrawCalls == 1);
@@ -946,7 +1030,7 @@ int main() {
 
     MeshInstanceBatch3D distinctSurfaces;
     const auto baseGroup = distinctSurfaces.addSurface(
-        geometry, {}, source, &material, prepared, {}, transform);
+        geometry, {}, source, &material, prepared, true, transform);
     MeshRendererComponent tintedOwner = source;
     tintedOwner.color = {1, 0, 0, 1};
     PreparedMeshDraw3D tinted(tintedOwner, &material, std::nullopt, false,
@@ -1049,7 +1133,7 @@ int main() {
   Entity parent = shape("parent", "cube", {0.0F, 0.0F, 0.0F});
   world.entities.push_back(std::move(parent));
   Entity child = shape("child", "sphere", {1.0F, 0.0F, 0.0F});
-  child.component<Transform3DComponent>()->parent = "parent";
+  child.updateComponent<Transform3DComponent>([&](auto &transform) { transform.parent = "parent"; });
   world.entities.push_back(std::move(child));
   world.entities.push_back(shape("plane", "plane", {0.0F, -1.0F, 0.0F}));
   world.entities.push_back(shape("cylinder", "cylinder", {-1.0F, 0.0F, 0.0F}));
@@ -1381,13 +1465,11 @@ int main() {
     static_cast<void>(graphics.endFrame());
 
     // Camera visibility must not control GPU resource ownership.
-    auto *transform =
-        retentionWorld.entities.front().component<Transform3DComponent>();
-    transform->position = {10000, 0, 0};
+    retentionWorld.entities.front().updateComponent<Transform3DComponent>([&](auto &value) { value.position = {10000, 0, 0}; });
     assert(extractVisibleMeshes3D(retentionWorld, frame).meshes.empty());
     assert(retentionRenderer.renderFrame(retentionWorld, frame, 0.016F, error));
     static_cast<void>(graphics.endFrame());
-    transform->position = {};
+    retentionWorld.entities.front().updateComponent<Transform3DComponent>([&](auto &value) { value.position = {}; });
     assert(retentionRenderer.renderFrame(retentionWorld, frame, 0.016F, error));
     assert(uploads.meshUploads.size() == 1);
     static_cast<void>(graphics.endFrame());
@@ -1777,12 +1859,12 @@ int main() {
   assert(resources->destroy(secondTarget.frameBuffer));
   assert(resources->destroy(secondTarget.depth));
   assert(resources->destroy(secondTarget.color));
-  world.entities.front().component<Transform3DComponent>()->position.x += .5F;
+  world.entities.front().updateComponent<Transform3DComponent>([&](auto &transform) { transform.position.x += .5F; });
   capture.transformsByView.clear();
   assert(renderer.renderFrame(world, frame, .016F, error));
   assert(capture.transformsByView[frame.viewId] != previousShadow);
   static_cast<void>(graphics.endFrame());
-  world.entities.front().component<Transform3DComponent>()->position.x -= .5F;
+  world.entities.front().updateComponent<Transform3DComponent>([&](auto &transform) { transform.position.x -= .5F; });
   Entity shadowSettings;
   shadowSettings.id = "shadow-settings";
   shadowSettings.setComponent(Environment3DComponent{.maxShadowLights = 0});
@@ -1931,7 +2013,7 @@ int main() {
   proceduralEntity->component<MeshRendererComponent>()->revision = 2;
   assert(renderer.renderFrame(world, frame, 0.016F, error));
   static_cast<void>(graphics.endFrame());
-  std::erase_if(world.entities,
+  world.entities.eraseIf(
                 [](const Entity &entity) { return entity.id == "procedural"; });
   assert(renderer.renderFrame(world, frame, 0.016F, error));
   static_cast<void>(graphics.endFrame());
@@ -2276,7 +2358,7 @@ int main() {
     MaterialLibrary windMaterials(*resources);
     std::vector<std::string> windDiagnostics;
     assert(windMaterials.load(windRegistry, windDiagnostics));
-    primitiveWorld.entities.front().component<Transform3DComponent>()->position.x = 3.F;
+    primitiveWorld.entities.front().updateComponent<Transform3DComponent>([&](auto &transform) { transform.position.x = 3.F; });
     primitiveWorld.entities.front().component<MeshRendererComponent>()->material = "asset://bounds/wind";
     assert(extractVisibleMeshes3D(primitiveWorld, boundsFrame).meshes.empty());
     assert(extractVisibleMeshes3D(

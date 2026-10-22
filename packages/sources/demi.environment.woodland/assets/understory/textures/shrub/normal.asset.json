@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "id": "asset://demi/woodland/understory/shrub/normal",
+  "type": "Texture2D",
+  "importer": "image",
+  "importer_version": 1,
+  "source": "normal.jpg",
+  "source_hash": "fnv1a64:075d0d7961a9f98b",
+  "settings": {
+    "filter": "trilinear",
+    "mipmaps": true,
+    "wrap": "clamp"
+  },
+  "dependencies": []
+}

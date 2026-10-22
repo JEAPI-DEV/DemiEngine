@@ -104,8 +104,80 @@ void verifyAssetEdits(const std::filesystem::path &root) {
 
   retain(cache, "prefab://model", overrides, prepared);
   write(root / "assets/new.asset.json", "{}");
+  require(cache.find("prefab://model", overrides),
+          "Unrelated manifest addition invalidated a template");
+
+  const auto unrelatedSource = root / "unrelated.txt";
+  write(unrelatedSource, "unrelated initial contents");
+  const auto unrelated = assets::importAsset({.projectDirectory = root,
+                                              .source = unrelatedSource,
+                                              .id = "asset://unrelated"});
+  require(!hasErrors(unrelated.diagnostics), "Unrelated fixture import failed");
+  require(cache.find("prefab://model", overrides),
+          "Unrelated asset import invalidated a template");
+  const auto unrelatedManifest = loadAssetManifest(unrelated.manifestPath);
+  require(unrelatedManifest.has_value(), "Unrelated asset manifest missing");
+  write(unrelatedManifest->sourcePath, "unrelated edited contents");
+  require(cache.find("prefab://model", overrides),
+          "Unrelated source edit invalidated a template");
+  std::ifstream unrelatedInput(unrelated.manifestPath);
+  auto unrelatedDocument = Json::parse(unrelatedInput);
+  unrelatedDocument["attribution"] = "unrelated metadata edit";
+  write(unrelated.manifestPath, unrelatedDocument.dump());
+  require(cache.find("prefab://model", overrides),
+          "Unrelated manifest edit invalidated a template");
+
+  std::ifstream manifestInput(imported.manifestPath);
+  auto manifestDocument = Json::parse(manifestInput);
+  manifestDocument["attribution"] = "referenced metadata edit";
+  write(imported.manifestPath, manifestDocument.dump());
   require(!cache.find("prefab://model", overrides),
-          "Asset registry membership change was missed");
+          "Referenced manifest edit reused a stale template");
+}
+
+void verifyTransitiveAssetEdits(const std::filesystem::path &root) {
+  const auto detailSource = root / "detail.txt";
+  write(detailSource, "first dependency value");
+  const auto detail = assets::importAsset({.projectDirectory = root,
+                                           .source = detailSource,
+                                           .id = "asset://detail"});
+  require(!hasErrors(detail.diagnostics), "Dependency fixture import failed");
+  const auto detailManifest = loadAssetManifest(detail.manifestPath);
+  require(detailManifest.has_value(), "Dependency asset manifest missing");
+  const auto importedDetailSource = detailManifest->sourcePath;
+  const auto modelDependencies = [&] {
+    const auto registry = loadAuthoredAssetRegistry(root);
+    const auto *model = findAsset(registry, "asset://mesh");
+    require(model != nullptr, "Model dependency fixture missing");
+    return model->manifestPath;
+  }();
+  std::ifstream input(modelDependencies);
+  auto modelDocument = Json::parse(input);
+  modelDocument["dependencies"] = Json::array({"asset://detail"});
+  write(modelDependencies, modelDocument.dump());
+  write(
+      root / "prefabs/transitive.prefab.json",
+      R"({"format_version":1,"id":"prefab://transitive","entities":[{"id":"nested","prefab":"prefab://model"}]})");
+
+  PrefabTemplateCache cache;
+  cache.configure(root);
+  const Json overrides = Json::object();
+  const Json prepared = Json::array();
+  retain(cache, "prefab://transitive", overrides, prepared);
+  const auto tracked = cache.dependencies("prefab://transitive", overrides);
+  require(tracked && tracked->assetResolutions.size() == 2 &&
+              tracked->files.contains(importedDetailSource),
+          "Nested prefab did not track transitive asset dependencies");
+  require(!tracked->files.contains(root / "assets/unrelated/unrelated.txt"),
+          "Unrelated asset source entered template dependency graph");
+  write(importedDetailSource, "second dependency value");
+  require(!cache.find("prefab://transitive", overrides),
+          "Transitive asset source edit reused a stale template");
+
+  retain(cache, "prefab://transitive", overrides, prepared);
+  write(root / "assets/conflict.asset.json", modelDocument.dump());
+  require(!cache.find("prefab://transitive", overrides),
+          "New conflicting stable asset ID reused a template");
 }
 
 void verifyEviction(const std::filesystem::path &root) {
@@ -145,6 +217,7 @@ int main() {
     verifyNestedEdits(root);
     verifyEviction(root);
     verifyAssetEdits(root);
+    verifyTransitiveAssetEdits(root);
     std::filesystem::remove_all(root);
     std::cout
         << "Prefab dependency tracking, overrides, races and eviction passed\n";

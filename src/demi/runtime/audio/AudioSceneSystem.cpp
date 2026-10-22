@@ -48,7 +48,11 @@ AudioPlaybackRequest requestFor(const World &world, const Entity &entity,
 
 void AudioSceneSystem::update(World &world, AudioSystem &audio) const {
   bool listenerSet = false;
-  for (Entity &entity : world.entities) {
+  for (const auto entityIndex :
+       world.componentQueries
+           .queryAny<AudioSourceComponent, AudioListenerComponent>(
+               world.entities)) {
+    Entity &entity = world.entities[entityIndex];
     if (!entity.enabled)
       continue;
     if (!listenerSet) {

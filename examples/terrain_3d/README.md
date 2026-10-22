@@ -1,48 +1,68 @@
-# Terrain authoring
+# Silvermere terrain showcase
+
+A 768 × 768 metre native terrain landscape with a lake, wooded meadows,
+rocky ridges, a textured ruined lakeside cathedral and a continuous 70-second camera round trip.
+The loading scene prepares the landscape before activating the tour.
+The standalone demo opens fullscreen at the selected display's desktop resolution.
 
 From the repository root:
 
 ```sh
-demi editor --project examples/terrain_3d
+demi package install --project examples/terrain_3d
 demi run --project examples/terrain_3d
+demi editor --project examples/terrain_3d
 ```
 
-Select **Paint and sculpt this terrain** in the hierarchy. Its Terrain 3D
-Inspector provides brush tools and opens the Terrain Graph, which contains
-draft generation settings and Generate/Regenerate. Change
-the seed, regenerate, and compare the landscape: the flattened building site
-stays flat, and the independent building is not moved or removed.
-Press **F** over the viewport to frame the selected terrain. Generated chunks
-stay out of the authored hierarchy; select and edit the terrain owner.
+Space pauses/resumes, R restarts, N advances to the next chapter, and Escape
+closes the standalone demo. The same
+controls are available in the HUD. Seven named chapters make it possible to
+revisit the same view when evaluating changes. Camera movement uses the reusable
+`demi.camera.paths` package, with authored positions and aim points in
+`scripts/terrain_route.lua`; chapter duration is an Inspector-visible script
+property. This is runtime spline playback, not a native editor timeline.
 
-Choose a viewport brush to raise/lower, flatten, smooth, paint a biome or protect
-an area, or paint scatter exclusions. Release a stroke to apply it; Esc cancels.
-Use normal Undo/Redo, then **Apply changes to asset** to save the shared source.
-Generate or discard pending settings before painting. Protection snapshots keep
-their original grid; changing size/resolution requires an explicit edit decision.
+In the editor, open `scenes/main.scene.json`, select **Silvermere landscape**,
+and open Terrain Graph. Ridge noise, meadow/basin masks, water, biome rules and
+scatter remain editable native terrain nodes. The scene places that terrain at
+[-384, 0, -384]; graph coordinates are terrain-local. The separate loading scene
+is the project's startup scene. Cooked builds load prepared terrain data.
 
-The scene stores a Terrain asset reference. The asset source contains the
-recipe, region strokes and manual edits.
-Generated mesh/collider chunks are native runtime data, not authored assets.
-Biome tints are discrete triangle groups; heights blend. Local strokes update
-dirty chunks, and cooked builds load prepared terrain without regenerating it.
-The sample now binds ordinary Material assets to its biomes. Choose a render
-material and texture scale in Terrain Graph biome properties; a scale of 0.5
-repeats albedo every two terrain-local units. Use Repeat wrapping on its texture.
-Material and scale changes preserve heights and collision. These prototype
-materials are not production landscape art or blended terrain PBR layers.
-Blended materials, advanced water shading, production foliage, integrated LOD and
-large-world streaming remain follow-up work. This example uses a conventional
-recipe (no connected graph) and prototype geometry for its scattered palette.
+The deterministic palette produces 149,125 placements: 120,825 grass patches,
+4,525 reeds, 16,426 sorrel plants, 3,488 wildflower patches, 2,820 shrubs,
+56 clustered rocks and 985 trees. These are batched visual placements, not
+149,125 independently simulated entities. Scatter collision is disabled for this
+camera showcase; native terrain collision remains available. Placement counts
+are not counts of objects visible in every frame.
 
-See the maintained [terrain guide](https://demiengine.de/docs/terrain) and
-[implementation plan](../../terrain-plan.md).
+`demi.environment.woodland` provides textured CC0 tree, grass and moss-rock art
+extracted from Amber Pass into a reusable package. `demi.terrain.vegetation`
+provides reeds; Poly Haven terrain materials supply mapped ground surfaces.
+Trees and rocks have no distance cutoff before the camera far plane (1800 m).
+Grass uses full source geometry within 12 m, medium geometry to 38 m, then a
+10-triangle baked coverage model through the camera range. The distant model
+contains four side views and a top view of the actual source patch. Reeds
+retain a 90 m cutoff; shrubs and flowering ground cover use 220 m.
+Directional shadows cover 180 m. Only the showcase grass disables
+`MeshRenderer.casts_shadows`; trees, reeds, sorrel, flowers, shrubs and rocks
+retain casting. Grass still receives shadows and participates in camera/water
+depth. Shadow distance does not remove the visible tree mesh.
 
-The meadow palette uses format 2: `material_set` holds ground bindings and
-`placements` contains six independently named vegetation/prop rules. Surface
-bindings create no objects. The set is ready for the later automatic surface
-assignment stage; explicit biome materials remain the rendered surface today.
-Object rules preserve the original weights and spacing, but the new object-only
-weight normalizer and stable named-rule random streams change placement counts.
-Full-density output remains heavy (323,984 placements in the migration probe);
-this is not a vegetation performance or production-art qualification.
+Grass now has baked distant coverage, but LOD changes have no smooth fade.
+Trees use authored reduced meshes, not impostors or automatically generated LODs.
+Art composition and sustained native 4K60 remain unfinished; the final Linux
+Release tour measured 21.39 ms median / 27.43 ms p95 frame work at 3840 × 2160.
+These moving-tour measurements do not certify every view or device.
+See [qualification and next work](../../docs/silvermere-showcase.md).
+
+Run the real HUD/camera checks:
+
+```sh
+demi package test packages/sources/demi.camera.paths
+demi test linux --project examples/terrain_3d --timeout 120
+```
+
+The test exercises automatic scene activation, moving/paused camera poses,
+restart, chapter seeking and the final-to-first wrap through real HUD input.
+
+The [3D showcase plan](../../3d-showcase-plan.md) inventories the supplied Flax
+feature references, marks current support, and defines phased acceptance checks.

@@ -10,6 +10,9 @@
 #include <vector>
 
 namespace demi::runtime {
+namespace composition {
+class PrefabResolutionContext;
+}
 
 struct PrefabTemplateCacheStats {
   std::size_t hits = 0;
@@ -20,8 +23,7 @@ struct PrefabTemplateCacheStats {
 
 struct PrefabTemplateDependencies {
   std::map<std::filesystem::path, std::optional<std::string>> files;
-  std::vector<std::filesystem::path> assetManifests;
-  bool usesAssets = false;
+  std::map<std::string, std::filesystem::path> assetResolutions;
   bool operator==(const PrefabTemplateDependencies &) const = default;
 };
 
@@ -32,13 +34,13 @@ public:
   void setCapacity(std::size_t entries);
   const nlohmann::json *find(const std::string &prefab,
                              const nlohmann::json &overrides);
-  std::optional<PrefabTemplateDependencies>
-  dependencies(const std::string &prefab,
-               const nlohmann::json &overrides) const;
-  void
-  store(const std::string &prefab, const nlohmann::json &overrides,
-        const nlohmann::json &document,
-        const std::optional<PrefabTemplateDependencies> &beforePreparation);
+  std::optional<PrefabTemplateDependencies> dependencies(
+      const std::string &prefab, const nlohmann::json &overrides,
+      composition::PrefabResolutionContext *resolution = nullptr) const;
+  void store(const std::string &prefab, const nlohmann::json &overrides,
+             const nlohmann::json &document,
+             const std::optional<PrefabTemplateDependencies> &beforePreparation,
+             composition::PrefabResolutionContext *resolution = nullptr);
   PrefabTemplateCacheStats statistics() const;
 
 private:

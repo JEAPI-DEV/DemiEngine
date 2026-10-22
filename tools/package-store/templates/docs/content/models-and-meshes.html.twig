@@ -17,6 +17,17 @@
   <li>The importer writes <code>settings.model_import</code>. Runtime clip names come from animation names in the glTF/GLB; the optional <code>settings.animations.clips</code> list is manifest metadata and does not enable import or rename glTF clips.</li>
   <li>Validate the project with <code>demi validate games/skyforge</code> to check its references.</li>
 </ul>
+<h3>Shadow casting</h3>
+<p><code>MeshRenderer.casts_shadows</code> defaults to <code>true</code>. Set it to <code>false</code> for dense grass or another mesh that should remain visible and receive lighting/shadows without casting its own directional shadow. This source-level policy also applies to every copy in <code>MeshInstances3D</code>; excluded sources do not enter shadow instance expansion or culling. Ordinary camera depth, water's opaque depth capture, terrain collision and main rendering remain enabled. Trees and other vegetation continue casting unless their own Mesh Renderer opts out.</p>
+<pre><code class="language-json">"MeshRenderer": {
+  "model": "asset://plants/grass",
+  "casts_shadows": false
+}</code></pre>
+<p>The shared Inspector exposes <strong>Cast shadows</strong>. Runtime changes use the same reflected field, for example <code>Entity.set_field("grass", "MeshRenderer", "casts_shadows", false)</code>. Omit the field to retain the normal casting default.</p>
+<h3>Imported materials and texture sampling</h3>
+<p>With <code>material_policy: "import"</code>, glTF triangle primitives retain their material assignments as native model sections. Core metallic-roughness materials import base color, normal maps, packed roughness/metallic channels, occlusion, emissive color, alpha mode, and double-sided state. These sections belong to the model resource; one model does not need to become several prefab entities. An explicit <code>MeshRenderer.material</code> replaces the imported materials across that model.</p>
+<p>Source textures use their glTF sampler, including independent U/V wrapping and the glTF default of repeat. UVs outside 0–1 remain valid for tiling. Explicit model asset <code>settings.wrap</code>, <code>settings.filter</code>, or <code>settings.mipmaps</code> override the corresponding imported sampling choice. Omitted settings preserve the source sampler.</p>
+<p>The current imported surface uses UV set 0. Additional UV sets and texture transforms report an unsupported-material error. Optional shading extensions beyond the core surface produce diagnostics; HDR emissive factors above 1 are not supported. <code>material_policy: "ignore"</code> deliberately skips source materials; <code>"unlit"</code> keeps their appearance without lighting.</p>
 <p>An animated asset can also record clip metadata in its manifest:</p>
 <pre><code>{
   "settings": {

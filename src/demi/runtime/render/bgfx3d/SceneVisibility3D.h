@@ -44,6 +44,8 @@ struct VisibleMesh3D {
   std::shared_ptr<const MeshRendererComponent> terrainGeometry;
   std::shared_ptr<const PreparedTerrainLodLevel> terrainPreparedLevel;
   const MeshMaterialSections3D *terrainSections = nullptr;
+  // Imported model appearance belongs to its resource, not the authored entity.
+  const MeshMaterialSections3D *modelSections = nullptr;
   std::size_t terrainLevel = 0;
   bool terrainSurface = false;
   const GpuMesh3D *terrainGpuMesh = nullptr;
@@ -53,29 +55,44 @@ struct VisibleMesh3D {
   const MeshInstancePreparation3D::EntitySource *preparedSource = nullptr;
 };
 
+using ModelSectionsResolver3D =
+    std::function<const MeshMaterialSections3D *(const VisibleMesh3D &, Vec3)>;
+
+class PreparedInstanceView3D;
+
 struct SceneVisibility3D {
   std::vector<VisibleMesh3D> meshes;
   std::size_t considered = 0;
   std::size_t culled = 0;
   std::size_t instanceNodesTested = 0;
+  std::size_t shadowHullSourcesRejected = 0;
+  std::size_t shadowHullCopiesRejectedByIndex = 0;
+  std::size_t shadowHullCopiesRejected = 0;
   std::size_t instanceCopiesExamined = 0;
   std::size_t instanceCopiesRejectedByIndex = 0;
+  std::size_t instanceSourcesReused = 0;
+  std::size_t instanceCopiesReused = 0;
+  std::size_t sectionSourcesExamined = 0;
+  std::size_t sectionCopiesExamined = 0;
+  std::size_t sectionDrawsEmitted = 0;
 };
 
 // Extracts immutable draw inputs in World order. Bounds tests may run on the
 // engine worker pool, while resource uploads and GPU commands remain on the
 // render thread.
-[[nodiscard]] SceneVisibility3D extractVisibleMeshes3D(
-    const World &world, const BgfxCameraFrame3D &frame,
-    JobSystem *jobs = nullptr,
-    TerrainDrawSelection3D *terrainSelection = nullptr,
-    const BgfxCameraFrame3D *lodCamera = nullptr,
-    TerrainLodResidency *terrainResidency = nullptr,
-    TerrainCameraDemand3D *terrainDemand = nullptr,
-    const TerrainPatchBatch3D *terrainPatches = nullptr,
-    const MaterialLibrary *materials = nullptr,
-    const ModelBoundsResolver3D &modelBounds = {},
-    MeshInstancePreparation3D *instancePreparation = nullptr);
+[[nodiscard]] SceneVisibility3D
+extractVisibleMeshes3D(const World &world, const BgfxCameraFrame3D &frame,
+                       JobSystem *jobs = nullptr,
+                       TerrainDrawSelection3D *terrainSelection = nullptr,
+                       const BgfxCameraFrame3D *lodCamera = nullptr,
+                       TerrainLodResidency *terrainResidency = nullptr,
+                       TerrainCameraDemand3D *terrainDemand = nullptr,
+                       const TerrainPatchBatch3D *terrainPatches = nullptr,
+                       const MaterialLibrary *materials = nullptr,
+                       const ModelBoundsResolver3D &modelBounds = {},
+                       MeshInstancePreparation3D *instancePreparation = nullptr,
+                       PreparedInstanceView3D *preparedInstances = nullptr,
+                       const ModelSectionsResolver3D &modelSections = {});
 
 [[nodiscard]] bool terrainChunkVisible3D(const PreparedTerrainChunkLod &chunk,
                                          const WorldTransform3D &transform,

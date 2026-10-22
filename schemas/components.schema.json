@@ -2644,6 +2644,15 @@
         ]
       },
       "properties": {
+        "casts_shadows": {
+          "default": true,
+          "type": "boolean",
+          "x-demi-editor-help": "Cast directional shadows. Disable for dense ground cover; receiving shadows and camera depth remain enabled.",
+          "x-demi-editor-label": "Cast shadows",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
         "color": {
           "default": [
             0.8,

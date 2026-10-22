@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "id": "asset://demi/woodland/understory/sorrel/ambient_occlusion",
+  "type": "Texture2D",
+  "importer": "image",
+  "importer_version": 1,
+  "source": "ambient_occlusion.png",
+  "source_hash": "fnv1a64:dd1c7c6a22c78630",
+  "settings": {
+    "filter": "trilinear",
+    "mipmaps": true,
+    "wrap": "clamp"
+  },
+  "dependencies": []
+}

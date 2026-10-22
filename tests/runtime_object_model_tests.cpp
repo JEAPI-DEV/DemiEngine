@@ -697,6 +697,7 @@ int main() {
       defaultsFor("AnimationStateMachine").at("pause_policy") != "pause" ||
       defaultsFor("LuaScript").at("properties") != nlohmann::json::object() ||
       defaultsFor("GameplayData").at("values") != nlohmann::json::object() ||
+      defaultsFor("MeshRenderer").at("casts_shadows") != true ||
       defaultsFor("MeshRenderer").at("material_properties") !=
           nlohmann::json::object() ||
       defaultsFor("Sprite").at("nine_slice") !=

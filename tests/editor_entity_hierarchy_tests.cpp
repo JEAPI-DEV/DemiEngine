@@ -146,13 +146,14 @@ void retainedProjectionInvalidatesByRevisionAndClosesRows() {
   projection.refresh(world, document, 2, 1, "renamed");
   assert(projection.indexBuildCount() == 2);
   assert(projection.rows().size() == 2);
-  world.entities[1].component<Transform3DComponent>()->parent = "other";
+  world.entities[1].updateComponent<Transform3DComponent>(
+      [](Transform3DComponent &transform) { transform.parent = "other"; });
   projection.refresh(world, document, 3, 1, "renamed");
   assert(projection.rows().size() == 2);
   assert(projection.index()
              .node(*projection.index().find("child")->parent)
              .entity->id == "other");
-  std::swap(world.entities[0], world.entities[2]);
+  world.entities.swapElements(0, 2);
   projection.refresh(world, document, 3, 2, "");
   assert(projection.index().find("other")->entity == &world.entities[0]);
   assert(projection.indexBuildCount() == 4);

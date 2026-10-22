@@ -1,4 +1,5 @@
 #include "demi/runtime/scene/ComponentRegistry.h"
+#include "demi/runtime/scene/model/EntityCollection.h"
 #include "demi/runtime/scene/components/3dcomponents/Environment3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
 #include "demi/runtime/terrain/TerrainGenerator.h"
@@ -13,6 +14,85 @@
 
 namespace {
 
+void testMeshShadowCastingContract() {
+  using namespace demi::runtime;
+  const auto *descriptor =
+      scene_loading::findComponentDescriptor("MeshRenderer");
+  if (descriptor == nullptr) {
+    throw std::runtime_error("MeshRenderer reflection is missing");
+  }
+  Entity entity;
+  descriptor->parse(nlohmann::json::object(), entity);
+  if (!MeshRendererComponent{}.castsShadows ||
+      !entity.component<MeshRendererComponent>()->castsShadows ||
+      descriptor->serialize(entity).contains("casts_shadows")) {
+    throw std::runtime_error(
+        "Omitted mesh shadow policy changed its true default");
+  }
+  const auto schema = scene_loading::componentSchema(*descriptor);
+  const auto &field = schema.at("properties").at("casts_shadows");
+  if (field.at("type") != "boolean" || field.at("default") != true) {
+    throw std::runtime_error(
+        "Mesh shadow schema differs from its native default");
+  }
+  const nlohmann::json authored{{"casts_shadows", false}};
+  descriptor->parse(authored, entity);
+  auto *mesh = entity.component<MeshRendererComponent>();
+  if (mesh->castsShadows ||
+      descriptor->serialize(entity).at("casts_shadows") != false) {
+    throw std::runtime_error("Explicit mesh shadow opt-out did not round trip");
+  }
+  mesh->revision = 77;
+  mesh->color = {0.2F, 0.3F, 0.4F, 1};
+  const auto *sameStorage = mesh;
+  if (!descriptor->patch(entity, "casts_shadows", {{"casts_shadows", true}})) {
+    throw std::runtime_error("Mesh shadow field lacks native runtime binding");
+  }
+  mesh = entity.component<MeshRendererComponent>();
+  if (mesh != sameStorage || !mesh->castsShadows || mesh->revision != 77 ||
+      mesh->color.r != 0.2F ||
+      descriptor->serialize(entity) !=
+          nlohmann::json{{"casts_shadows", true}}) {
+    throw std::runtime_error("Shadow-policy mutation changed native state or "
+                             "lost explicit authored true");
+  }
+  // Serialization preserves explicit source values, including canonical true.
+  // Exercise the same native-state guarantees on a world-owned EnTT row.
+  EntityCollection live;
+  live.push_back(entity);
+  auto &boundEntity = live.front();
+  auto *boundMesh = boundEntity.component<MeshRendererComponent>();
+  const auto *boundStorage = boundMesh;
+  const auto handle = boundEntity.components.handle();
+  if (!descriptor->patch(boundEntity, "casts_shadows", authored)) {
+    throw std::runtime_error("Bound mesh shadow field patch failed");
+  }
+  boundMesh = boundEntity.component<MeshRendererComponent>();
+  if (boundMesh != boundStorage || boundEntity.components.handle() != handle ||
+      boundMesh->castsShadows || boundMesh->revision != 77 ||
+      boundMesh->color.r != 0.2F ||
+      descriptor->serialize(boundEntity) != authored) {
+    throw std::runtime_error(
+        "Bound shadow-policy patch changed unrelated native state");
+  }
+  Entity restored;
+  descriptor->parse(descriptor->serialize(entity), restored);
+  if (!restored.component<MeshRendererComponent>()->castsShadows ||
+      descriptor->serialize(restored) !=
+          nlohmann::json{{"casts_shadows", true}}) {
+    throw std::runtime_error(
+        "Explicit authored true did not survive source round trip");
+  }
+  if (scene_loading::validateComponent(*descriptor, {{"casts_shadows", 0}})
+          .empty()) {
+    throw std::runtime_error("Nonboolean mesh shadow policy passed validation");
+  }
+  std::string error;
+  if (MeshRendererComponent::validateAuthored({{"casts_shadows", "false"}},
+                                              error)) {
+    throw std::runtime_error("Mesh parser accepted a string shadow policy");
+  }
+}
 void testTerrainTextureQuality() {
   using namespace demi::runtime;
   const auto *descriptor =
@@ -375,6 +455,7 @@ void testTerrainLodQualityContract() {
 int main() {
   try {
     testTerrainPreparationBudgets();
+    testMeshShadowCastingContract();
     testTerrainTextureQuality();
     testTerrainLodQualityContract();
     testTerrainScatterExclusionsContract();
@@ -387,7 +468,8 @@ int main() {
     transform->parse({{"position", {1, 2, 3}}}, entity);
     body->parse(nlohmann::json::object(), entity);
     const auto authored = entity.serializedComponents;
-    entity.component<Transform3DComponent>()->position = {7, 8, 9};
+    entity.updateComponent<Transform3DComponent>(
+        [](Transform3DComponent &value) { value.position = {7, 8, 9}; });
     entity.component<Rigidbody3DComponent>()->velocity = {4, 5, 6};
     if (transform->inspect(entity).at("position") !=
             nlohmann::json({7, 8, 9}) ||
@@ -399,7 +481,8 @@ int main() {
             nlohmann::json({1, 2, 3}))
       throw std::runtime_error("Runtime inspection must read native values "
                                "without changing authored serialization");
-    entity.component<Transform3DComponent>()->position.x = 12;
+    entity.updateComponent<Transform3DComponent>(
+        [](Transform3DComponent &value) { value.position.x = 12; });
     if (transform->inspect(entity).at("position")[0] != 12)
       throw std::runtime_error("Runtime inspection cached an earlier snapshot");
     Entity absent;

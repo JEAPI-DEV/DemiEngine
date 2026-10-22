@@ -292,12 +292,48 @@ public:
     std::uint16_t clearFlags = BGFX_CLEAR_NONE;
     bgfx::setViewMode(view.id, view.sequential ? bgfx::ViewMode::Sequential
                                                : bgfx::ViewMode::Default);
-    if (view.clearColor)
+    if (view.clearColor && view.attachmentClearColors.empty())
       clearFlags |= BGFX_CLEAR_COLOR;
     if (view.clearDepth)
       clearFlags |= BGFX_CLEAR_DEPTH;
-    bgfx::setViewClear(view.id, clearFlags, view.clearRgba, 1.0F, 0);
-
+    if (!view.attachmentClearColors.empty()) {
+      if (view.attachmentClearColors.size() > 8) {
+        error = "A view cannot clear more than eight color attachments.";
+        return false;
+      }
+      std::size_t colorsNeeded = 0;
+      for (std::size_t index = 0; index < view.attachmentClearColors.size();
+           ++index) {
+        colorsNeeded +=
+            (view.attachmentClearMask & (1U << index)) != 0 ? 1U : 0U;
+      }
+      const auto firstPalette = reserveBgfxClearPalette(colorsNeeded);
+      if (!firstPalette) {
+        error = "Per-attachment clears exceeded the native frame's color "
+                "palette capacity.";
+        return false;
+      }
+      auto nextPalette = *firstPalette;
+      std::array<std::uint8_t, 8> indices;
+      indices.fill(UINT8_MAX);
+      for (std::size_t index = 0; index < view.attachmentClearColors.size();
+           ++index) {
+        if ((view.attachmentClearMask & (1U << index)) == 0) {
+          continue;
+        }
+        const auto slot = nextPalette++;
+        bgfx::setPaletteColor(slot, view.attachmentClearColors[index].data());
+        indices[index] = slot;
+      }
+      if (colorsNeeded != 0) {
+        clearFlags |= BGFX_CLEAR_COLOR;
+      }
+      bgfx::setViewClear(view.id, clearFlags, 1.0F, 0, indices[0], indices[1],
+                         indices[2], indices[3], indices[4], indices[5],
+                         indices[6], indices[7]);
+    } else {
+      bgfx::setViewClear(view.id, clearFlags, view.clearRgba, 1.0F, 0);
+    }
     const auto viewMatrix = bgfxViewMatrix3D(view);
     float projection[16];
     const bgfx::Caps *caps = bgfx::getCaps();

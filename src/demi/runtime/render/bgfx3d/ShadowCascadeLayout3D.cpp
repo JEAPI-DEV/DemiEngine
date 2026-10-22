@@ -22,7 +22,8 @@ makeShadowCascadeLayout3D(const SceneLighting3D &light,
   const Vec3 forward = normalized(camera.forward);
   if (!finite(direction) || !finite(forward) || !finite(camera.position) ||
       length(direction) < 0.5F || length(forward) < 0.5F ||
-      (light.shadowCascades < 1 || light.shadowCascades > int(MaxShadowCascades3D)) ||
+      (light.shadowCascades < 1 ||
+       light.shadowCascades > int(MaxShadowCascades3D)) ||
       light.shadowResolution < 1 || !std::isfinite(light.shadowDistance) ||
       !std::isfinite(light.shadowSplitLambda) || light.shadowSplitLambda < 0 ||
       light.shadowSplitLambda > 1 || !std::isfinite(light.shadowBlend) ||
@@ -102,6 +103,9 @@ makeShadowCascadeLayout3D(const SceneLighting3D &light,
     cascade.up = up;
     cascade.receiverNear = start;
     cascade.receiverFar = split;
+    cascade.casterHull = makeShadowCasterHull3D(camera, start, split, right, up,
+                                                texel, cascade.depthRange,
+                                                light.shadowFilter == "hard");
     cascade.x = {right.x / (2 * radius), right.y / (2 * radius),
                  right.z / (2 * radius),
                  0.5F - dot(right, cascade.eye) / (2 * radius)};

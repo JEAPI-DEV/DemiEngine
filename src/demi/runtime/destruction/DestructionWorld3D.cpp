@@ -194,7 +194,7 @@ struct DestructionWorld3D::Impl {
       if (removed.size() == before)
         break;
     }
-    std::erase_if(candidate.entities, [&](const Entity &entity) {
+    candidate.entities.eraseIf( [&](const Entity &entity) {
       return removed.contains(entity.id);
     });
     std::string error;
@@ -345,7 +345,7 @@ struct DestructionWorld3D::Impl {
           require(collider != nullptr, "Fracture body lost its collider");
           candidate.colliderAssets3D.erase(collider->asset);
           privateAssets.erase(collider->asset);
-          std::erase_if(candidate.entities, [&](const Entity &value) {
+          candidate.entities.eraseIf( [&](const Entity &value) {
             return value.id == old.body;
           });
         }
@@ -374,7 +374,7 @@ struct DestructionWorld3D::Impl {
           nextGroups.push_back({group,{},true});
           for (const auto &part:group.chunks) {
             const auto visual=assembly.visuals.at(part);
-            std::erase_if(candidate.entities,[&](const Entity &entity) {
+            candidate.entities.eraseIf([&](const Entity &entity) {
               const auto *t=entity.component<Transform3DComponent>();
               return entity.id==visual || (t && t->parent==visual);
             });
@@ -445,8 +445,11 @@ struct DestructionWorld3D::Impl {
         body.mass *= massWeight / sourceMassWeight;
         body.bodyEnabled = body.awake = true;
         if (saved) {
-          auto *transform=fragment.component<Transform3DComponent>();
-          transform->position=saved->position; transform->rotation=saved->rotation;
+          fragment.updateComponent<Transform3DComponent>(
+              [&](Transform3DComponent &transform) {
+                transform.position = saved->position;
+                transform.rotation = saved->rotation;
+              });
           body.velocity=saved->velocity; body.angularVelocity=saved->angularVelocity;
         }
         fragment.setComponent(std::move(body));
@@ -462,9 +465,12 @@ struct DestructionWorld3D::Impl {
         for(const auto &part:group.group.chunks)
           visualOwners[assembly.visuals.at(part)]=group.retired?std::string{}:group.body;
       auto refined=assembly.deferred.prepare(candidate,visualOwners);
-      for (const auto &[part, parent] : parentForPart)
-        if(auto *visual=findEntity(candidate,assembly.visuals.at(part)))
-          visual->component<Transform3DComponent>()->parent = parent;
+      for (const auto &[part, parent] : parentForPart) {
+        if (auto *visual = findEntity(candidate, assembly.visuals.at(part))) {
+          visual->updateComponent<Transform3DComponent>(
+              [&](Transform3DComponent &transform) { transform.parent = parent; });
+        }
+      }
       std::string error;
       require(
           physics.replaceBodies(world, candidate, sources, replacements, error),
@@ -509,7 +515,7 @@ void DestructionWorld3D::prune(World &world) {
       if (owned.size() == before)
         break;
     }
-    std::erase_if(world.entities, [&](const Entity &entity) {
+    world.entities.eraseIf( [&](const Entity &entity) {
       if (owned.contains(entity.id))
         return true;
       const auto *transform = entity.component<Transform3DComponent>();

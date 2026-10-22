@@ -1,5 +1,9 @@
 # Dense-terrain Game View performance
 
+Later storage and typed-query changes are qualified in
+[runtime ECS migration](runtime-ecs-migration.md). The sections below retain
+the measurements and architecture of their stated dates.
+
 This follows the [viewport qualification](editor-viewport-navigation-qualification.md).
 The reported problem is still excessive CPU time in `examples/terrain_3d`, with
 embedded Play slower than the authored viewport. Scene density, materials,
@@ -148,3 +152,130 @@ Evidence files from this session:
 - `/tmp/terrain-runtime-qualified.png` (separate visual check after frame 30).
 
 These temporary files are local qualification evidence, not packaged game assets.
+
+## October 19 follow-up: submission remains CPU-bound
+
+A native Release embedded run reproduced the reported high submission cost.
+The GPU Game scope averaged 3.44 ms while Render.submit averaged 19.39 ms.
+Render.submit wraps source preparation, visibility and command submission for
+main and shadow views; the editor's swapchain advance is outside that scope.
+This capture does not support blaming a 16.6 ms presentation wait or texture
+quality for the dominant cost.
+
+Normal editor startup had configured graphics profiling from the initial
+RuntimeProfiler state, which is normally disabled until Play starts. Therefore
+GPU timestamps were absent unless the editor was launched with a profiling flag.
+The native editor now enables timestamp support at graphics initialization.
+Idle event scheduling is unchanged; this does not request continuous redraws.
+
+The CPU changes retain validated native component addresses in the world-transform
+snapshot and render-source preparation. ComponentStorage now has a separate
+storage epoch: replacing a value of the same type invalidates addresses without
+invalidating membership-only queries. Existing observed-storage destruction,
+assignment, removal and reordering also invalidate addresses. Collection identity
+and size are checked before any borrowed address is dereferenced. Direct field
+edits still work: transform values, IDs, material classification, dents and derived
+geometry are refreshed every presentation. Queries and world mutation remain
+serialized; the epoch is not a concurrent-access guarantee.
+
+The user clicked Play in each bounded editor run. One native instance ran at a
+time, with no concurrent build. The following uses 1,000 frames after skipping
+180 embedded startup frames. Traces are `/tmp/terrain-submit-live.csv` and
+`/tmp/terrain-submit-final.csv` (baseline frames 285–1284, final 244–1243).
+
+| Scope | Before mean / p95 ms | After mean / p95 ms |
+| --- | ---: | ---: |
+| Render submission | 19.385 / 20.941 | 17.691 / 22.014 |
+| Source preparation | 6.518 / 7.684 | 4.147 / 5.539 |
+| World transform snapshot | 3.210 / 3.987 | 2.473 / 3.425 |
+| Directional shadow CPU scope | 8.831 / 9.794 | 9.542 / 12.222 |
+| Runtime update | 3.720 / 5.591 | 4.280 / 6.301 |
+| GPU Game | 3.437 / 4.124 | 2.952 / 3.225 |
+
+The initial native window dimensions differed before maximization. No controlled
+GPU speedup is claimed; this change targets CPU address lookup. Both captures
+retained 5,193 visible mesh records, 119,578 main triangles and 591,696 shadow
+triangles. No density, material, shadow or simulation settings were reduced.
+The preparation scopes improved, but tail latency and other CPU scopes varied:
+this is a modest improvement, not resolution of the submission bottleneck.
+Repeated visibility/shadow traversal and draw preparation remain next targets.
+
+Release transform-hierarchy, scene-visibility and bgfx-renderer3d tests passed.
+Regression coverage includes same-type component replacement, removal/re-add,
+world replacement, reordering, direct transform/mesh edits, invalid parents and
+cycles. `git diff --check` passed. This is focused validation, not a full-suite
+qualification; online docs were not deployed.
+
+## October 21: compact visibility and parallel source preparation
+
+The October 19 changes were still present and form this round's baseline.
+No example settings, geometry, materials, shadow cascades or draw distance were
+reduced. Three further shared changes address measured CPU work:
+
+- Visibility extraction stores one classification byte per entity instead of
+  default-constructing an optional full draw record for every entity per view.
+  Accepted records are constructed in authored order after workers finish.
+  Ignored, missing-transform, culled and visible cases retain their counters;
+  instance sources still expand and account for copies through the same path.
+- Object matrices reuse unchanged transform and mesh-size inputs. Plain primitive
+  world spheres reuse checked transform, size and local bounds. Asset-dependent,
+  animated, deformed, wind-affected and terrain bounds retain their existing
+  preparation path. Direct field edits remain observable next presentation.
+- Large transform-content and source-classification scans use the renderer's
+  existing worker pool. Each worker writes independent entries; ID-map updates,
+  hierarchy resolution, source publication and GPU commands remain on the
+  calling thread. Small workloads keep serial execution. No worker writes to
+  RuntimeProfiler and no simulation runs concurrently with extraction.
+
+### Same-day standalone comparison
+
+Linux Release, Vulkan through SDL3/X11, 2560 × 1440, one runtime at a time.
+The same camera and scene were run for 900 frames. Samples 180–899 exclude
+startup. The final before/after measurements ran without concurrent builds.
+The intermediate static-cache probe overlapped the tail of a build and is not
+used as final performance evidence.
+
+| Scope | Before median / p95 ms | After median / p95 ms |
+| --- | ---: | ---: |
+| CPU render preparation | 13.827 / 15.349 | 9.460 / 10.629 |
+| Source preparation | 4.406 / 5.264 | 2.267 / 2.856 |
+| Transform snapshot | 2.451 / 3.304 | 0.610 / 0.984 |
+| Directional shadow CPU work | 6.636 / 7.628 | 4.711 / 5.326 |
+| Frame total | 16.838 / 18.544 | 12.419 / 14.004 |
+| Update | 2.695 / 3.488 | 2.568 / 3.556 |
+
+Median CPU rendering preparation improved by about 32%. Both traces contain
+116,888 main triangles, 423,124 shadow triangles and three main mesh batches
+throughout the selected interval. GPU timing varied and is not the basis for
+this CPU improvement claim. Scopes are nested; do not add them together.
+
+Reproduction:
+
+```sh
+SDL_VIDEODRIVER=x11 ./build/linux-release/demi run linux \
+  --project examples/terrain_3d --window-size 2560x1440 \
+  --max-frames 900 --profile-frames /tmp/terrain-cpu.csv
+```
+
+Evidence: `/tmp/terrain-cpu-before.csv`, `/tmp/terrain-cpu-parallel.csv`.
+The intermediate compact-record run is `/tmp/terrain-cpu-compact.csv`.
+
+### Embedded Play check
+
+The user started Play in the rebuilt native editor. Frames 312–1311 from
+`/tmp/terrain-editor-oct21.csv` give Render.submit mean **12.506 ms**, median
+**12.193 ms**, p95 **15.575 ms**. This is below the preceding session's
+17.691 ms mean, but that cross-day comparison is less controlled than the
+standalone comparison above. The user's screenshot independently showed about
+12.4 ms average submission.
+
+Remaining median costs include 6.632 ms directional shadow CPU work, 4.230 ms
+editor UI and 4.457 ms simulation update. GPU Game was 2.738 ms. The CPU renderer
+still has substantial traversal/submission work; this is not a declaration that
+terrain performance is solved or that every editor camera meets a frame budget.
+
+Release transform-hierarchy, scene-visibility and bgfx-renderer3d suites passed.
+Added checks exercise retained primitive bounds after size/bounds/transform edits,
+and parallel snapshots after live position edits, renaming, component removal
+and a parent cycle in a 2,048-entity fixture. Existing serial/parallel visibility,
+ordering, counters, material changes and invalidation regressions remain green.

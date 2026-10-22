@@ -54,6 +54,7 @@ public:
   [[nodiscard]] bool load(const AssetRegistry &registry,
                           std::vector<std::string> &diagnostics);
   void clear();
+  void publishImported(std::string id, MaterialBinding binding);
   [[nodiscard]] const MaterialBinding *find(std::string_view assetId) const;
 
 private:

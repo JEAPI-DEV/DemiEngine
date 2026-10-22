@@ -12,13 +12,15 @@ public:
       : resources_(resources), mesh_(resources) {}
   ~SkyRenderer3D() { clear(); }
   bool draw(RenderCommands &commands, std::uint16_t view, TextureHandle texture,
-            Vec3 cameraPosition, std::string &error);
+            Vec3 cameraPosition, std::string &error,
+            bool outputAnalyticDepth = false);
   void clear();
 
 private:
   GpuResources &resources_;
   GpuMesh3D mesh_;
   ProgramHandle program_;
+  ProgramHandle analyticProgram_;
   SamplerHandle sampler_;
 };
 

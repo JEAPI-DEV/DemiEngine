@@ -225,8 +225,8 @@ void pipeline(const std::filesystem::path &root) {
   expect(partAt(physics, {-1.5F, 1, 5}) == "left", "Single-part identity lost");
   expect(!physics.raycast({1.5F, 1, 5}, {0, 0, -1}, 10),
          "Removed part still collides");
-  auto *transform = world.entities.front().component<Transform3DComponent>();
-  transform->scale = {-1, 2, 1};
+  world.entities.front().updateComponent<Transform3DComponent>(
+      [](Transform3DComponent &transform) { transform.scale = {-1, 2, 1}; });
   physics.step(world, 1.0F / 60);
   expect(partAt(physics, {1.5F, 2, 5}) == "left",
          "Signed/nonuniform compound scale incorrect");

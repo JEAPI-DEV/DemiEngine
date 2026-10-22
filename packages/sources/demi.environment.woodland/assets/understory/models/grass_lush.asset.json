@@ -1,0 +1,23 @@
+{
+  "format_version": 1,
+  "id": "asset://demi/woodland/understory/grass_lush",
+  "type": "Model3D",
+  "importer": "gltf-model",
+  "importer_version": 1,
+  "source": "grass_lush.glb",
+  "source_hash": "fnv1a64:b11ac1c83bddcb84",
+  "settings": {
+    "model_import": {
+      "format_version": 1,
+      "preset": "static_prop",
+      "source_up": "+y",
+      "source_forward": "+z",
+      "meters_per_unit": 1,
+      "root_node": "preserve",
+      "material_policy": "import",
+      "import_animations": false,
+      "optimize_meshes": true
+    }
+  },
+  "dependencies": []
+}

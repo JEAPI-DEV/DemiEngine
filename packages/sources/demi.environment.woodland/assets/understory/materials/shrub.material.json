@@ -1,0 +1,24 @@
+{
+  "format_version": 1,
+  "shader": "builtin://lit",
+  "mapping": "uv",
+  "normal_map_convention": "opengl",
+  "textures": {
+    "albedo": "asset://demi/woodland/understory/shrub/albedo",
+    "normal": "asset://demi/woodland/understory/shrub/normal",
+    "ambient_occlusion": "asset://demi/woodland/understory/shrub/ambient_occlusion",
+    "roughness": "asset://demi/woodland/understory/shrub/roughness"
+  },
+  "parameters": {
+    "roughness": 0.9,
+    "normal_strength": 0.65,
+    "wind_strength": 0.025,
+    "wind_height": 0.9,
+    "wind_frequency": 1.1
+  },
+  "render_state": {
+    "cull": "none",
+    "blend": "opaque",
+    "alpha_cutoff": 0.35
+  }
+}

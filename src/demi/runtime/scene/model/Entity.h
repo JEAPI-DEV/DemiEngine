@@ -30,7 +30,8 @@ struct Entity {
     return components.contains<ComponentType>();
   }
 
-  template <typename ComponentType> [[nodiscard]] ComponentType *component() {
+  template <typename ComponentType>
+  [[nodiscard]] ComponentAccessType<ComponentType> *component() {
     return components.get<ComponentType>();
   }
 
@@ -40,8 +41,14 @@ struct Entity {
   }
 
   template <typename ComponentType>
-  std::remove_cvref_t<ComponentType> &setComponent(ComponentType &&component) {
+  ComponentAccessType<std::remove_cvref_t<ComponentType>> &
+  setComponent(ComponentType &&component) {
     return components.set(std::forward<ComponentType>(component));
+  }
+
+  template <typename ComponentType, typename Function>
+  bool updateComponent(Function &&function) {
+    return components.update<ComponentType>(std::forward<Function>(function));
   }
 
   template <typename ComponentType> bool removeComponent() {

@@ -9,6 +9,7 @@
 #include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
 
 #include <bit>
+#include <unordered_set>
 
 namespace demi::runtime::render {
 namespace {
@@ -66,7 +67,9 @@ bool BgfxRenderer3D::prepareAnimatedMeshes(
   constexpr std::size_t MaximumBatch = 16;
   constexpr std::size_t MaximumPaletteBatch = 128;
   std::vector<Work> batch;
-  batch.reserve(MaximumPaletteBatch);
+  if (!visible.empty()) {
+    batch.reserve(MaximumPaletteBatch);
+  }
   std::size_t verticesInBatch = 0;
   bool batchHasCpu = false;
   std::size_t peakVertices = 0;
@@ -177,6 +180,8 @@ bool BgfxRenderer3D::prepareAnimatedMeshes(
     return true;
   };
 
+  // Material sections share one pose and one dynamic geometry resource.
+  std::unordered_set<const Entity *> preparedEntities;
   for (const auto &item : visible) {
     const auto *preparedSource = item.preparedSource;
     const auto *mesh = preparedSource
@@ -208,6 +213,9 @@ bool BgfxRenderer3D::prepareAnimatedMeshes(
     const auto lod = selectModelLod(*mesh, player, item.transform.position,
                                     lodPosition, !dents.empty());
     if (lod.isCulled) continue;
+    if (!preparedEntities.insert(item.entity).second) {
+      continue;
+    }
     const auto &selectedModel=*lod.model;
     const auto source = animatedModels_.find(selectedModel);
     const auto rest = modelMeshes_.find(selectedModel);

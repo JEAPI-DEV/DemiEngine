@@ -1,12 +1,10 @@
 {
   "dependencies": [
+    "asset://polyhaven/terrain/materials/sand_02",
+    "asset://polyhaven/terrain/materials/wet_gravel",
     "asset://terrain/palettes/meadow",
-    "asset://terrain/presets/river_valley",
     "asset://terrain/surfaces/exposed_rock",
-    "asset://terrain/surfaces/grass",
-    "asset://terrain/surfaces/sand",
-    "asset://terrain/surfaces/soil",
-    "asset://terrain/surfaces/wet_ground"
+    "asset://terrain/surfaces/grass"
   ],
   "format_version": 1,
   "id": "asset://terrain/landscape",
@@ -14,6 +12,6 @@
   "importer_version": 1,
   "settings": {},
   "source": "landscape.terrain.json",
-  "source_hash": "fnv1a64:6be124b851815865",
+  "source_hash": "fnv1a64:43f20ebcf74d994b",
   "type": "Terrain"
 }

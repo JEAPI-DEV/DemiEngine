@@ -186,20 +186,26 @@ ReplicatedStateResult applyReplicatedState(Entity &entity,
   }
   if (const auto found = state.find("Transform3D");
       found != state.end() && entity.hasComponent<Transform3DComponent>()) {
-    auto &transform = *entity.component<Transform3DComponent>();
-    if (found->contains("position"))
-      transform.position = {.x = (*found)["position"][0].get<float>(),
-                            .y = (*found)["position"][1].get<float>(),
-                            .z = (*found)["position"][2].get<float>()};
-    if (found->contains("rotation"))
-      transform.rotation = {.x = (*found)["rotation"][0].get<float>(),
-                            .y = (*found)["rotation"][1].get<float>(),
-                            .z = (*found)["rotation"][2].get<float>()};
-    if (found->contains("scale"))
-      transform.scale = {.x = (*found)["scale"][0].get<float>(),
-                         .y = (*found)["scale"][1].get<float>(),
-                         .z = (*found)["scale"][2].get<float>()};
+    entity.updateComponent<Transform3DComponent>(
+        [&](Transform3DComponent &transform) {
+          if (found->contains("position")) {
+            transform.position = {.x = (*found)["position"][0].get<float>(),
+                                  .y = (*found)["position"][1].get<float>(),
+                                  .z = (*found)["position"][2].get<float>()};
+          }
+          if (found->contains("rotation")) {
+            transform.rotation = {.x = (*found)["rotation"][0].get<float>(),
+                                  .y = (*found)["rotation"][1].get<float>(),
+                                  .z = (*found)["rotation"][2].get<float>()};
+          }
+          if (found->contains("scale")) {
+            transform.scale = {.x = (*found)["scale"][0].get<float>(),
+                               .y = (*found)["scale"][1].get<float>(),
+                               .z = (*found)["scale"][2].get<float>()};
+          }
+        });
   }
+
   if (const auto found = state.find("Rigidbody2D");
       found != state.end() && entity.hasComponent<Rigidbody2DComponent>() &&
       found->contains("velocity")) {

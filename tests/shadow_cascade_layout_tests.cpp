@@ -1,5 +1,6 @@
 #include "demi/runtime/math/VectorMath.h"
 #include "demi/runtime/render/bgfx3d/ShadowCascadeLayout3D.h"
+#include "demi/runtime/render/bgfx3d/ModelLodSampling3D.h"
 
 #include <cmath>
 #include <iostream>
@@ -34,8 +35,15 @@ int main() {
             "Near/detail split or far coverage incorrect");
     require(2 * layout->cascades[0].radius / 1024 < .01F,
             "Near cascade wastes close-up precision");
+    float previousLodFloor = 0;
     for (int index = 0; index < layout->count; ++index) {
       const auto &cascade = layout->cascades[index];
+      const auto floor = shadowModelLodDistanceFloor3D(
+          2.F * cascade.radius / lighting.shadowResolution, camera,
+          effectiveModelLodPixelHeight3D(camera));
+      require(floor >= previousLodFloor && floor > 0,
+              "Coarser shadow texels must not request a finer model LOD floor");
+      previousLodFloor = floor;
       const auto center =
           math::add(cascade.eye,
                     math::scale(cascade.direction, cascade.depthRange * .5F));

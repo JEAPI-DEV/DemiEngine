@@ -616,7 +616,7 @@ void missingBiomeGroupKeepsTheRemainingNativeFallback(GpuResources &resources) {
   auto world = worldWithField(field, recipe);
   std::string error;
   assert(world.entities.size() == 3);
-  std::erase_if(world.entities, [](const Entity &entity) {
+  world.entities.eraseIf( [](const Entity &entity) {
     const auto *surface = entity.component<TerrainRenderLod>();
     return surface && surface->biome == "other";
   });

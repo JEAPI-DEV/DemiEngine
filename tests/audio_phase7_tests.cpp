@@ -1,6 +1,10 @@
 #include "demi/runtime/audio/AudioBackend.h"
 #include "demi/runtime/audio/AudioMixer.h"
+#include "demi/runtime/audio/AudioSceneSystem.h"
 #include "demi/runtime/audio/AudioSystem.h"
+#include "demi/runtime/scene/components/2dcomponents/Transform2DComponent.h"
+#include "demi/runtime/scene/components/media/AudioListenerComponent.h"
+#include "demi/runtime/scene/model/World.h"
 
 #include <cmath>
 #include <iostream>
@@ -181,6 +185,26 @@ int main() {
   audio.update(0.25F);
   if (audio.isPlaying(scheduled)) {
     std::cerr << "Faded voice was not released.\n";
+    return 1;
+  }
+  World listenerWorld;
+  Entity listenerEntity;
+  listenerEntity.id = "disabled";
+  listenerEntity.enabled = false;
+  listenerEntity.setComponent(AudioListenerComponent{});
+  listenerEntity.setComponent(Transform2DComponent{.position = {1.0F, 0.0F}});
+  listenerWorld.entities.push_back(listenerEntity);
+  listenerEntity.id = "first";
+  listenerEntity.enabled = true;
+  listenerEntity.component<Transform2DComponent>()->position.x = 2.0F;
+  listenerWorld.entities.push_back(listenerEntity);
+  listenerEntity.id = "last";
+  listenerEntity.component<Transform2DComponent>()->position.x = 3.0F;
+  listenerWorld.entities.push_back(std::move(listenerEntity));
+  AudioSceneSystem{}.update(listenerWorld, audio);
+  if (!near(recording->listener.position.x, 2.0F)) {
+    std::cerr << "Audio listener selection lost authored order or enabled "
+                 "filtering.\n";
     return 1;
   }
   return 0;

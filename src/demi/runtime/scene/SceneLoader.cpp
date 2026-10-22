@@ -7,10 +7,12 @@
 #include "demi/runtime/physics/ColliderAsset3D.h"
 #include "demi/runtime/scene/HudParser.h"
 #include "demi/runtime/scene/ProjectParser.h"
+#include "demi/runtime/scene/RuntimePrefabService.h"
 #include "demi/runtime/scene/SceneEntityParser.h"
 #include "demi/runtime/scene/SceneJson.h"
 #include "demi/runtime/scene/Transform3DHierarchy.h"
 #include "demi/runtime/scene/components/3dcomponents/ModelCollider3DComponent.h"
+#include "demi/runtime/scene/composition/PrefabResolutionContext.h"
 #include "demi/runtime/scene/composition/PrefabResolver.h"
 #include "demi/runtime/terrain/TerrainWorld.h"
 #include "demi/schema/Validation.h"
@@ -51,8 +53,21 @@ buildSceneWorld(const ProjectData &project, const std::string &sceneId,
                 bool compileFractures = true,
                 RuntimePrefabService *prefabs = nullptr,
                 const AssetRegistry *registry = nullptr) {
-  const composition::ExpansionResult expansion =
-      composition::expandScene(scenePath, sceneJson, compileFractures);
+  std::optional<RuntimePrefabService::PreparationBatch> preparation;
+  std::unique_ptr<composition::PrefabResolutionContext> ownedResolution;
+  composition::PrefabResolutionContext *resolution = nullptr;
+  if (prefabs != nullptr) {
+    preparation.emplace(prefabs->beginPreparationBatch(registry));
+    resolution = &preparation->resolutionContext();
+  } else {
+    ownedResolution =
+        registry != nullptr
+            ? std::make_unique<composition::PrefabResolutionContext>(*registry)
+            : std::make_unique<composition::PrefabResolutionContext>();
+    resolution = ownedResolution.get();
+  }
+  const composition::ExpansionResult expansion = composition::expandScene(
+      scenePath, sceneJson, compileFractures, resolution);
   if (!expansion.document.has_value()) {
     error = expansion.diagnostics.empty()
                 ? "Scene prefab expansion failed: " + scenePath.string()

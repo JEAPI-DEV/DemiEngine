@@ -112,8 +112,8 @@ void tests() {
   host.fixedUpdate(1.F / 60);
   run(host,
       "assert(sensor_events[1] == 'enter' and sensor_events[2] == 'stay')");
-  findEntity(world, "observer")->component<Transform3DComponent>()->position.y =
-      100;
+  findEntity(world, "observer")->updateComponent<Transform3DComponent>(
+      [](Transform3DComponent &transform) { transform.position.y = 100; });
   host.fixedUpdate(1.F / 60);
   run(host, "assert(sensor_events[3] == 'exit' and #sensor_events == 3)");
   world.entities.front().enabled = false;

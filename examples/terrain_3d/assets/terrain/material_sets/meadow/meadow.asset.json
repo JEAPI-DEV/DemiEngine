@@ -1,10 +1,11 @@
 {
   "dependencies": [
+    "asset://polyhaven/terrain/materials/rocky_gravel",
+    "asset://polyhaven/terrain/materials/sand_02",
+    "asset://polyhaven/terrain/materials/snow_02",
+    "asset://polyhaven/terrain/materials/wet_gravel",
     "asset://terrain/surfaces/exposed_rock",
-    "asset://terrain/surfaces/sand",
-    "asset://terrain/surfaces/snow",
-    "asset://terrain/surfaces/soil",
-    "asset://terrain/surfaces/wet_ground"
+    "asset://terrain/surfaces/grass"
   ],
   "format_version": 1,
   "id": "asset://terrain/material_sets/meadow",
@@ -14,6 +15,6 @@
     "content_type": "terrain_material_set"
   },
   "source": "meadow.json",
-  "source_hash": "fnv1a64:edf53912139126ce",
+  "source_hash": "fnv1a64:521231b4fe472824",
   "type": "DataAsset"
 }

@@ -1,0 +1,23 @@
+{
+  "format_version": 1,
+  "id": "prefab://demi/woodland/shrub",
+  "name": "Shrub",
+  "entities": [
+    {
+      "id": "plant",
+      "name": "Shrub",
+      "components": {
+        "Transform3D": {},
+        "MeshRenderer": {
+          "model": "asset://demi/woodland/understory/shrub",
+          "medium_lod_model": "asset://demi/woodland/understory/shrub_medium",
+          "medium_lod_distance": 35,
+          "low_lod_model": "asset://demi/woodland/understory/shrub_low",
+          "low_lod_distance": 90,
+          "cull_distance": 220,
+          "material": "asset://demi/woodland/understory/shrub/material"
+        }
+      }
+    }
+  ]
+}

@@ -11,6 +11,7 @@
 #include <vector>
 
 namespace demi::runtime {
+class JobSystem;
 struct Entity;
 struct World;
 struct MeshInstances3DComponent;
@@ -20,14 +21,16 @@ struct TerrainRenderLod;
 struct AnimationPlayer3DComponent;
 struct FragmentOpacity3D;
 struct SurfaceRelief3DComponent;
+struct Dentable3DComponent;
 } // namespace demi::runtime
 
 namespace demi::runtime::render {
 
 // Renderer-owned, presentation-local preparation. Worlds are immutable while
 // their camera/shadow/depth views render; reset before the next presentation.
-// Borrowed source state expires at reset. The owned transform snapshot checks
-// actual IDs and local values before reusing results across presentations.
+// Component addresses are retained behind registry-revision validation.
+// Matrices and plain primitive bounds reuse checked inputs; asset-dependent
+// geometry and live surface classification are refreshed each presentation.
 class MeshInstancePreparation3D {
 public:
   struct Sphere {
@@ -73,9 +76,13 @@ public:
     const AnimationPlayer3DComponent *animation = nullptr;
     const FragmentOpacity3D *fade = nullptr;
     const SurfaceRelief3DComponent *relief = nullptr;
+    const Dentable3DComponent *dentable = nullptr;
     std::span<const MeshDent3D> dents;
     bool plainPrimitive = false;
     std::optional<WorldTransform3D> transform;
+    bool transformUnchanged = false;
+    Vec3 preparedMeshSize;
+    MeshBounds3D primitiveBounds;
     bool geometryPrepared = false;
     bool bounded = false;
     Sphere bounds;
@@ -88,7 +95,8 @@ public:
 
   // Immutable source preparation is shared by camera, shadow and depth views.
   // The renderer resets it before the next presentation, including live edits.
-  std::vector<EntitySource> &worldSources(const World &world);
+  std::vector<EntitySource> &worldSources(const World &world,
+                                          JobSystem *jobs = nullptr);
   bool hasAnimations(const World &world);
 
   void reset();
@@ -97,12 +105,20 @@ public:
                  const MeshInstances3DComponent &instances);
 
 private:
+  struct WorldSources {
+    std::vector<EntitySource> entries;
+    const Entity *entityData = nullptr;
+    std::uint64_t registryIdentity = 0;
+    std::uint64_t orderRevision = 0;
+    std::uint64_t storageRevision = 0;
+    bool prepared = false;
+    bool visited = false;
+  };
   WorldTransformSnapshot3D transformSnapshot_;
   EntityComponentQuery sourceMembership_;
-  // Reset invalidates all values, but keeps the previous presentation's vector
-  // storage for reuse. These empty vectors contain no borrowed world pointers.
-  std::vector<std::vector<EntitySource>> spareWorldSources_;
-  std::unordered_map<const World *, std::vector<EntitySource>> worldSources_;
+  // Addresses survive only unchanged storage. Live values and derived geometry
+  // are refreshed each presentation, including edits through native pointers.
+  std::unordered_map<const World *, WorldSources> worldSources_;
   std::unordered_map<const World *, bool> animations_;
   std::unordered_map<const World *, std::unordered_map<const Entity *, Source>>
       sources_;

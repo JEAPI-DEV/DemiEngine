@@ -7,22 +7,17 @@
 
 namespace demi::runtime::render {
 
-// Owns all per-surface uniform backing values through synchronous submission.
-// Fill descriptors after construction so returning/moving this value cannot
-// leave spans pointing into an earlier address.
-struct PreparedMeshDraw3D {
-  PreparedMeshDraw3D(const MeshRendererComponent &mesh,
-                     const MaterialBinding *material, std::optional<float> fade,
-                     bool unlit, bool shadowPass, bool overdraw,
-                     ProgramHandle defaultProgram);
-
+// Pass-neutral, immutable surface values. Uniform spans are assembled only
+// during submission, after this value has reached its final owning address.
+struct MeshDrawSurface3D {
+  MeshDrawSurface3D(const MeshRendererComponent &mesh,
+                    const MaterialBinding *material, std::optional<float> fade,
+                    bool unlit);
   void fillUniforms(const std::array<DrawUniformValue, 8> &lighting,
                     const MaterialBinding *material,
                     std::vector<DrawUniformValue> &scratch) const;
 
   MeshSurface3D surface;
-  DrawState state;
-  ProgramHandle program;
   std::array<float, 4> surfaceTint;
   std::array<float, 4> builtinSurfaceTint;
   std::array<float, 4> metalRough;
@@ -30,8 +25,22 @@ struct PreparedMeshDraw3D {
   bool unlit = false;
 
 private:
-  const std::array<float, 4> unlitAmbient_{1, 1, 1, 1};
-  const std::array<float, 4> noLight_{};
+  std::array<float, 4> unlitAmbient_{1, 1, 1, 1};
+  std::array<float, 4> noLight_{};
+};
+
+// Adds only the current pass's program and raster-state decisions.
+struct PreparedMeshDraw3D : MeshDrawSurface3D {
+  PreparedMeshDraw3D(const MeshRendererComponent &mesh,
+                     const MaterialBinding *material, std::optional<float> fade,
+                     bool unlit, bool shadowPass, bool overdraw,
+                     ProgramHandle defaultProgram);
+  PreparedMeshDraw3D(const MeshDrawSurface3D &surface,
+                     const MaterialBinding *material, bool depthOnly,
+                     bool overdraw, ProgramHandle defaultProgram);
+
+  DrawState state;
+  ProgramHandle program;
 };
 
 } // namespace demi::runtime::render

@@ -2,6 +2,9 @@
 add_executable(demi-component-storage-tests tests/component_storage_tests.cpp)
 target_include_directories(demi-component-storage-tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
 target_compile_features(demi-component-storage-tests PRIVATE cxx_std_20)
+target_link_libraries(demi-component-storage-tests PRIVATE demi-core)
+add_executable(demi-entity-collection-tests tests/entity_collection_tests.cpp)
+target_link_libraries(demi-entity-collection-tests PRIVATE demi-core)
   # Explicitly requested generation probe; not part of the default test build.
   add_executable(demi-terrain-generation-benchmark EXCLUDE_FROM_ALL
     scripts/benchmark_terrain_generation.cpp)
@@ -531,6 +534,8 @@ target_compile_features(demi-component-storage-tests PRIVATE cxx_std_20)
     tests/shadow_receiver_gradient_tests.cpp)
   target_compile_features(demi-shadow-receiver-gradient-tests PRIVATE cxx_std_20)
   target_include_directories(demi-shadow-receiver-gradient-tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
+  add_executable(demi-shadow-caster-hull-tests tests/shadow_caster_hull_tests.cpp)
+  target_link_libraries(demi-shadow-caster-hull-tests PRIVATE demi-render3d-bgfx)
   add_executable(demi-shadow-cascade-layout-tests tests/shadow_cascade_layout_tests.cpp)
   target_link_libraries(demi-shadow-cascade-layout-tests PRIVATE demi-render3d-bgfx demi-runtime-lib)
   target_link_libraries(demi-bgfx-renderer3d-tests PRIVATE demi-render3d-bgfx demi-runtime-lib)
@@ -890,3 +895,9 @@ if(TARGET demi-runtime-lib)
   add_executable(demi-managed-process-tests tests/managed_process_tests.cpp)
   target_link_libraries(demi-managed-process-tests PRIVATE demi-runtime-lib)
 endif()
+
+add_executable(demi-gltf-materials-tests tests/gltf_materials_tests.cpp)
+target_link_libraries(demi-gltf-materials-tests PRIVATE demi-render3d-bgfx)
+
+add_executable(demi-opaque-instance-plan-tests tests/opaque_instance_plan_tests.cpp)
+target_link_libraries(demi-opaque-instance-plan-tests PRIVATE demi-render3d-bgfx)

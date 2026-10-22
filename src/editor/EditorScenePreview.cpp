@@ -118,8 +118,9 @@ bool applyEditorPreviewValue(runtime::World &world,
   replacement.prefabInstance = current->prefabInstance;
   replacement.prefabLocalId = current->prefabLocalId;
 
-  runtime::Entity previous = std::move(*current);
-  *current = std::move(replacement);
+  const auto index = static_cast<std::size_t>(current - world.entities.data());
+  runtime::Entity previous = *current;
+  world.entities.replace(index, std::move(replacement));
   if (const auto issues = runtime::validateTransform3DHierarchy(world);
       !issues.empty()) {
     const auto &issue = issues.front();
@@ -128,7 +129,7 @@ bool applyEditorPreviewValue(runtime::World &world,
             ? "Transform3D hierarchy cycle includes entity: " + issue.entityId
             : "Transform3D parent was not found for " + issue.entityId + ": " +
                   issue.parentId;
-    *current = std::move(previous);
+    world.entities.replace(index, std::move(previous));
     return false;
   }
   return true;

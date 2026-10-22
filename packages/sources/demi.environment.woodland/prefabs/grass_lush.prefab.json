@@ -1,0 +1,23 @@
+{
+  "format_version": 1,
+  "id": "prefab://demi/woodland/grass_lush",
+  "name": "Grass Lush",
+  "entities": [
+    {
+      "id": "plant",
+      "name": "Grass Lush",
+      "components": {
+        "Transform3D": {},
+        "MeshRenderer": {
+          "model": "asset://demi/woodland/understory/grass_lush",
+          "medium_lod_model": "asset://demi/woodland/understory/grass_lush_medium",
+          "medium_lod_distance": 35,
+          "low_lod_model": "asset://demi/woodland/understory/grass_lush_low",
+          "low_lod_distance": 90,
+          "cull_distance": 220,
+          "material": "asset://demi/woodland/understory/grass_lush/material"
+        }
+      }
+    }
+  ]
+}

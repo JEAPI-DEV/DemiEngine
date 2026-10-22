@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "id": "asset://demi/woodland/understory/shrub/ambient_occlusion",
+  "type": "Texture2D",
+  "importer": "image",
+  "importer_version": 1,
+  "source": "ambient_occlusion.png",
+  "source_hash": "fnv1a64:00c22cd4d27f3227",
+  "settings": {
+    "filter": "trilinear",
+    "mipmaps": true,
+    "wrap": "clamp"
+  },
+  "dependencies": []
+}

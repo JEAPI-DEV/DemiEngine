@@ -1,0 +1,15 @@
+{
+  "dependencies": [
+    "asset://demi/woodland/textures/rock_moss_set_01/albedo",
+    "asset://demi/woodland/textures/rock_moss_set_01/normal",
+    "asset://demi/woodland/textures/rock_moss_set_01/roughness"
+  ],
+  "format_version": 1,
+  "id": "asset://demi/woodland/materials/rock_moss_set_01",
+  "importer": "material",
+  "importer_version": 1,
+  "settings": {},
+  "source": "rock_moss_set_01.material.json",
+  "source_hash": "fnv1a64:a31a02971716757c",
+  "type": "Material"
+}

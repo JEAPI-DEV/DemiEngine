@@ -126,7 +126,7 @@ std::vector<WorldMutation> WorldCommandBuffer::flush(World &world) {
     } else if (auto *destroy = std::get_if<Destroy>(&command)) {
       if (!worldIndex.contains(destroy->id))
         continue;
-      std::erase_if(world.entities, [&](const Entity &entity) {
+      world.entities.eraseIf( [&](const Entity &entity) {
         return entity.id == destroy->id;
       });
       // Erase compacts the vector. Rebuild only on this path, preserving the

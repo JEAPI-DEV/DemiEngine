@@ -164,6 +164,10 @@ const platform::PlatformFrameState &Bgfx3DAppHost::frameState() const {
   return context_.frameState();
 }
 
+bool Bgfx3DAppHost::setWindowTitle(const std::string &title, std::string &error) {
+  return context_.setWindowTitle(title, error);
+}
+
 bool Bgfx3DAppHost::setWindowMode(const std::string_view mode,
                                   std::string &error) {
   return context_.setWindowMode(mode, error);

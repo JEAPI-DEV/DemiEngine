@@ -1,0 +1,138 @@
+{
+  "format_version": 1,
+  "asset_id": "asset://terrain/landmarks/cathedral",
+  "title": "CathedralRuins_01 from the 3TD Fantasy Ruins Pack",
+  "author": "Ron Kapaun / 3TD Studios",
+  "license": "CC0-1.0",
+  "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "source_page": "https://opengameart.org/content/3td-fantasy-ruins-pack",
+  "source_archive": "https://opengameart.org/sites/default/files/Fantasy%20Ruins%20Pack.zip",
+  "source_archive_sha256": "12dad8708181bef31ac5e688fb61dc3232138206a6f004407044215f5fd64dfd",
+  "retrieved": "2026-10-21",
+  "source_geometry": "FantasyRuins_Ready/game/art/shapes/Ruins/CathedralRuins_01/CathedralRuins_01.dae",
+  "source_geometry_sha256": "b8b0cc1ec863c786d54cbdc6c5c4e871b4abe98c04ddb5ad2f62d922754f756f",
+  "output_sha256": "3deeae0be4801542ead8a27f3b2b7833e86ee908065f3481b0202e806952ea6a",
+  "output_bytes": 6313148,
+  "triangle_count": 2656,
+  "render_primitives": 6,
+  "material_count": 6,
+  "bounds_y_up_meters": {
+    "min": [
+      -9.592205,
+      0,
+      -14.730126
+    ],
+    "max": [
+      9.592205,
+      12.991171,
+      14.730126
+    ]
+  },
+  "conversion_recipe": "tools/demo-art/silvermere/convert_cathedral.py",
+  "adaptation": [
+    "Visual mesh only; Torque collision meshes and bookkeeping nodes excluded.",
+    "Source feet and object scale converted to meters.",
+    "Horizontal bounds centered and lowest vertex grounded at Y=0.",
+    "Six original UV/material assignments and vertex normals preserved.",
+    "Six source diffuse and six source normal maps embedded without resampling.",
+    "Nonmetallic roughness 0.86 replaces legacy Blinn shininess. No PBR roughness scan is claimed."
+  ],
+  "textures": [
+    {
+      "file": "2td_FloorBrick_color_02A.jpg",
+      "size": [
+        512,
+        512
+      ],
+      "sha256": "c26a13661a22161786ff1e8a515d09429ec14dfee235b0456d7f3a59d5ba1205"
+    },
+    {
+      "file": "2td_FloorBrick_color_02_NRM.png",
+      "size": [
+        512,
+        512
+      ],
+      "sha256": "7b69750f2116e0075e58f219e4f84014117fb1ea2cb7e627f7e2f9ecd2a1d06a"
+    },
+    {
+      "file": "3td_BrickDebris_01.jpg",
+      "size": [
+        512,
+        512
+      ],
+      "sha256": "e7a8a7baa3f59aa1ade9c080a98e48f4ea7746d9fc022f010ec64962b9d5636c"
+    },
+    {
+      "file": "3td_BrickDebris_01_NRM.png",
+      "size": [
+        512,
+        512
+      ],
+      "sha256": "a5522696fcff8db3345368d91121a76d5984a95c430bf31ca82dd8fc88a108df"
+    },
+    {
+      "file": "3td_BrickOldColor_34.jpg",
+      "size": [
+        512,
+        512
+      ],
+      "sha256": "a65f50d17fdb48d459c063241079857a9eb212597c89b64b241bf425932f4ffd"
+    },
+    {
+      "file": "3td_BrickOldColor_34_NRM.png",
+      "size": [
+        512,
+        512
+      ],
+      "sha256": "0ba358a3a5f1614d01d5723746aef84fb0b9fa22d77f5da81e13e45d15584eea"
+    },
+    {
+      "file": "3td_BrickOldRound_03.jpg",
+      "size": [
+        512,
+        512
+      ],
+      "sha256": "9e277b3d78628a20cf76105be0b79fe53e7243a8df9fd0eb741d7b5ccfd02ae6"
+    },
+    {
+      "file": "3td_BrickOldRound_03_NRM.png",
+      "size": [
+        512,
+        512
+      ],
+      "sha256": "d453d6a01682b69afd51d268db5e212e3465e7f2ceaea2324a7ec5c5a5dbb77e"
+    },
+    {
+      "file": "3td_ConcreteDirty_01.jpg",
+      "size": [
+        512,
+        512
+      ],
+      "sha256": "41565fdbb1c0522c45de275ff7283c005af90e1177e3669d74d6b5951a18887f"
+    },
+    {
+      "file": "3td_ConcreteDirty_01_NRM.png",
+      "size": [
+        512,
+        512
+      ],
+      "sha256": "5b330dac487efd8ccd7731ea3126b75b5cdfc750f5203df580c746fbb96914fa"
+    },
+    {
+      "file": "3td_WoodDebris_17.jpg",
+      "size": [
+        512,
+        512
+      ],
+      "sha256": "30df68c3f7946118f44cf1f72a7b57a6632c1e2143e4299dbf1713c59143e6a0"
+    },
+    {
+      "file": "3td_WoodDebris_17_NRM.png",
+      "size": [
+        512,
+        512
+      ],
+      "sha256": "d7ad6f9acd96d24404adc1063743d14dc9d51df7fd978d775994a46579db8690"
+    }
+  ]
+}

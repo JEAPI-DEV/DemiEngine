@@ -1,0 +1,16 @@
+{
+  "format_version": 1,
+  "id": "asset://demi/woodland/understory/grass_lush/material",
+  "type": "Material",
+  "importer": "material",
+  "importer_version": 1,
+  "source": "grass_lush.material.json",
+  "source_hash": "fnv1a64:204c05925d262c12",
+  "settings": {},
+  "dependencies": [
+    "asset://demi/woodland/understory/grass_lush/albedo",
+    "asset://demi/woodland/understory/grass_lush/ambient_occlusion",
+    "asset://demi/woodland/understory/grass_lush/normal",
+    "asset://demi/woodland/understory/grass_lush/roughness"
+  ]
+}

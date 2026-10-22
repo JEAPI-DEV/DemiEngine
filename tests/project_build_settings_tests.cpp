@@ -67,6 +67,7 @@ int main() {
       nlohmann::json{{"name", "My Game"}}, "demi.project.json");
   if (demi::hasErrors(defaults.diagnostics) || defaults.settings.authored ||
       defaults.settings.displayName != "My Game" ||
+      defaults.settings.android.minimumSdk != 24 ||
       defaults.settings.executableName != "my_game") {
     std::cerr << "Unauthored build settings defaults are incorrect.\n";
     return 1;
@@ -286,6 +287,21 @@ local handled = Network.is_host()
     return 1;
   }
 
+  for (const int minimumSdk : {23, 24, 36, 37}) {
+    auto sdkProject = legacyProject;
+    sdkProject["build"]["android"]["min_sdk"] = minimumSdk;
+    const auto sdkParsed = demi::runtime::parseProjectBuildSettings(
+        sdkProject, fixtureRoot / "demi.project.json");
+    const bool supported = minimumSdk >= 24 && minimumSdk <= 36;
+    const bool rejected = containsCode(sdkParsed.diagnostics,
+                                       "PROJECT_BUILD_MIN_SDK_INVALID");
+    if (rejected == supported ||
+        sdkParsed.settings.android.minimumSdk != minimumSdk) {
+      std::cerr << "Android minimum SDK boundary validation failed.\n";
+      return 1;
+    }
+  }
+
   const nlohmann::json partialBlock = nlohmann::json::parse(R"({
     "format_version": 1,
     "name": "Partial Fixture",
@@ -299,7 +315,7 @@ local handled = Network.is_host()
       partialParsed.settings.versionCode != 1 ||
       partialParsed.settings.window.width != 1280 ||
       partialParsed.settings.window.mode != "windowed" ||
-      partialParsed.settings.android.minimumSdk != 26 ||
+      partialParsed.settings.android.minimumSdk != 24 ||
       partialParsed.settings.android.orientation != "unspecified" ||
       partialParsed.settings.android.abis.size() != 1 ||
       partialParsed.settings.android.abis.front() != "arm64-v8a" ||

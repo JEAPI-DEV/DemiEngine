@@ -1,7 +1,8 @@
 # Isolated component-storage benchmark
 
-`component_storage_benchmark.cpp` compares the current native `ComponentStorage`
-with the historical uncached RTTI-key map. Both retain `std::type_index` equality
+`component_storage_benchmark.cpp` compares the former cached-map `ComponentStorage`
+with the historical uncached RTTI-key map. The map control is now preserved
+only for historical comparisons; see `ecs/` for the EnTT migration evaluation. Both retain `std::type_index` equality
 and `std::any_cast`; the historical implementation exists only as this benchmark's
 control. No engine library, renderer, GPU, dependency installation or project data
 is needed.

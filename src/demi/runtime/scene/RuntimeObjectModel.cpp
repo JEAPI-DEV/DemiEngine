@@ -127,7 +127,8 @@ ObjectModelResult RuntimeObjectModel::insertEntity(World &world, Entity entity,
     if (!replace) {
       return failure("entity already exists: " + entity.id);
     }
-    *existing = std::move(entity);
+    const auto index = static_cast<std::size_t>(existing - world.entities.data());
+    world.entities.replace(index, std::move(entity));
     return success();
   }
   world.entities.push_back(std::move(entity));
@@ -289,7 +290,8 @@ ObjectModelResult RuntimeObjectModel::setComponentField(
     const bool invalid3D = componentName == "Transform3D" &&
                            !validateTransform3DHierarchy(world).empty();
     if (invalid2D || invalid3D) {
-      *entity = *before;
+      const auto index = static_cast<std::size_t>(entity - world.entities.data());
+      world.entities.replace(index, *before);
       return failure("parent would create a cycle or reference an invalid "
                      "parent");
     }

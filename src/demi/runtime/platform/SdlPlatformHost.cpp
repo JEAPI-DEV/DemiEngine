@@ -326,6 +326,11 @@ public:
     SDL_WindowFlags flags = SDL_WINDOW_HIGH_PIXEL_DENSITY |
                             (config.resizable ? SDL_WINDOW_RESIZABLE : 0) |
                             (config.maximized ? SDL_WINDOW_MAXIMIZED : 0);
+    if (config.mode == WindowMode::Fullscreen) {
+      flags |= SDL_WINDOW_FULLSCREEN;
+    } else if (config.mode == WindowMode::Borderless) {
+      flags |= SDL_WINDOW_BORDERLESS;
+    }
     window_ = SDL_CreateWindow(config.title.c_str(), config.width,
                                config.height, flags);
     if (window_ == nullptr) {
@@ -533,6 +538,14 @@ public:
 
   render::NativeWindowHandle nativeWindow() const override {
     return sdlNativeWindowHandle(window_);
+  }
+
+  bool setWindowTitle(const std::string &title, std::string &error) override {
+    if (SDL_SetWindowTitle(window_, title.c_str())) {
+      return true;
+    }
+    error = SDL_GetError();
+    return false;
   }
 
   bool setWindowMode(const WindowMode mode, std::string &error) override {

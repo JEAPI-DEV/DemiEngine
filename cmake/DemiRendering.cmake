@@ -342,6 +342,90 @@ foreach(water_variant glsl essl spv)
   endforeach()
 endforeach()
 
+# Analytic optical depth shares the opaque material evaluation and coverage.
+# Only the multisample resolve requires GLES 3.1; MRT materials use GLES 3.0.
+foreach(variant glsl essl spv)
+  if(variant STREQUAL "glsl")
+    set(mrt_profile 150)
+    set(resolve_profile 150)
+    set(mrt_platform linux)
+  elseif(variant STREQUAL "essl")
+    set(mrt_profile 300_es)
+    set(resolve_profile 310_es)
+    set(mrt_platform android)
+  else()
+    set(mrt_profile spirv)
+    set(resolve_profile spirv)
+    set(mrt_platform linux)
+  endif()
+  # GLES requires matching language versions across vertex/fragment stages.
+  foreach(program lit lit_instanced skinned sky)
+    set(symbol "vs_demi_${program}_mrt_${variant}")
+    set(header "${DEMI_BGFX_BUILTIN_SHADER_DIR}/${symbol}.h")
+    add_custom_command(OUTPUT "${header}"
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${DEMI_BGFX_BUILTIN_SHADER_DIR}"
+      COMMAND "${DEMI_SHADERC_EXECUTABLE}"
+        -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_${program}.sc"
+        -o "${header}" --type vertex --platform ${mrt_platform} -p ${mrt_profile}
+        --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
+        -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" -i "${DEMI_PERFORMANCE_DEBUG_GENERATED_DIR}"
+        -i "${DEMI_BGFX_SHADER_SOURCE_DIR}" --bin2c ${symbol}
+      DEPENDS ${DEMI_SHADERC_DEPENDENCY} "${DEMI_PERFORMANCE_DEBUG_SHADER_HEADER}"
+        "${DEMI_BGFX_SHADER_SOURCE_DIR}/vs_demi_${program}.sc"
+        "${DEMI_BGFX_SHADER_SOURCE_DIR}/mesh_wind.sh"
+        "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
+      VERBATIM)
+    list(APPEND DEMI_BGFX_BUILTIN_SHADER_HEADERS "${header}")
+  endforeach()
+  foreach(program lit directional pbr pbr_directional terrain terrain_directional
+      terrain_mapped terrain_mapped_directional terrain_mapped_opaque
+      terrain_mapped_opaque_directional sky linear_depth_resolve)
+    set(source "fs_demi_${program}.sc")
+    set(defines DEMI_ANALYTIC_DEPTH_OUTPUT=1)
+    set(profile "${mrt_profile}")
+    set(symbol "fs_demi_${program}_mrt_${variant}")
+    if(program STREQUAL "directional")
+      set(source fs_demi_lit.sc)
+      string(APPEND defines ";DEMI_DIRECTIONAL_ONLY=1")
+    elseif(program STREQUAL "pbr_directional")
+      set(source fs_demi_pbr.sc)
+      string(APPEND defines ";DEMI_DIRECTIONAL_ONLY=1")
+    elseif(program STREQUAL "terrain_directional")
+      set(source fs_demi_terrain.sc)
+      string(APPEND defines ";DEMI_DIRECTIONAL_ONLY=1")
+    elseif(program STREQUAL "terrain_mapped_directional")
+      set(source fs_demi_terrain_mapped.sc)
+      string(APPEND defines ";DEMI_DIRECTIONAL_ONLY=1")
+    elseif(program STREQUAL "linear_depth_resolve")
+      set(defines DEMI_LINEAR_DEPTH_RESOLVE=1)
+      set(profile "${resolve_profile}")
+      set(symbol "fs_demi_linear_depth_resolve_${variant}")
+    endif()
+    set(header "${DEMI_BGFX_BUILTIN_SHADER_DIR}/${symbol}.h")
+    add_custom_command(OUTPUT "${header}"
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${DEMI_BGFX_BUILTIN_SHADER_DIR}"
+      COMMAND "${DEMI_SHADERC_EXECUTABLE}"
+        -f "${DEMI_BGFX_SHADER_SOURCE_DIR}/${source}"
+        -o "${header}" --type fragment --platform ${mrt_platform} -p ${profile}
+        --define "${defines}"
+        --varyingdef "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
+        -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" -i "${DEMI_PERFORMANCE_DEBUG_GENERATED_DIR}"
+        -i "${DEMI_BGFX_SHADER_SOURCE_DIR}" --bin2c ${symbol}
+      DEPENDS ${DEMI_SHADERC_DEPENDENCY} "${DEMI_PERFORMANCE_DEBUG_SHADER_HEADER}"
+        "${DEMI_BGFX_SHADER_SOURCE_DIR}/${source}"
+        "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_surface_lighting.sh"
+        "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_shadow_receiver.sh"
+        "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_pbr_material.sh"
+        "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_terrain_material.sh"
+        "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_terrain_mapped.sh"
+        "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_terrain_blending.sh"
+        "${DEMI_BGFX_SHADER_SOURCE_DIR}/demi_terrain_normal_frame.sh"
+        "${DEMI_BGFX_SHADER_SOURCE_DIR}/varying.def.sc"
+      VERBATIM)
+    list(APPEND DEMI_BGFX_BUILTIN_SHADER_HEADERS "${header}")
+  endforeach()
+endforeach()
+
 add_library(demi-graphics-bgfx STATIC
   ${DEMI_BGFX_BUILTIN_SHADER_HEADERS}
   "${DEMI_RENDER_GENERATED_INCLUDE_DIR}/demi/runtime/render/InterFontData.h"
@@ -425,6 +509,8 @@ add_library(demi-render3d-bgfx STATIC
   src/demi/runtime/render/bgfx3d/DeformedMeshCache3D.cpp
   src/demi/runtime/render/BgfxRenderer3D.cpp
   src/demi/runtime/render/BgfxRenderer3DMeshes.cpp
+  src/demi/runtime/render/BgfxRenderer3DOpaqueInstances.cpp
+  src/demi/runtime/render/BgfxRenderer3DAnalyticDepth.cpp
   src/demi/runtime/render/BgfxRenderer3DTerrain.cpp
   src/demi/runtime/render/BgfxRenderer3DPreparation.cpp
   src/demi/runtime/render/bgfx3d/TerrainDrawSelection3D.cpp
@@ -445,6 +531,7 @@ add_library(demi-render3d-bgfx STATIC
   src/demi/runtime/render/bgfx3d/PrimitiveSurfacePreparation3D.cpp
   src/demi/runtime/render/bgfx3d/MeshShadowSections3D.cpp
   src/demi/runtime/render/BgfxRenderer3DAssets.cpp
+  src/demi/runtime/render/bgfx3d/ImportedModelMaterials3D.cpp
   src/demi/runtime/render/BgfxRenderer3DAnimation.cpp
   src/demi/runtime/render/BgfxRenderer3DDebris.cpp
   src/demi/runtime/render/BgfxRenderer3DModelLod.cpp
@@ -465,6 +552,7 @@ add_library(demi-render3d-bgfx STATIC
   src/demi/runtime/render/bgfx3d/PostProcessRenderer3D.cpp
   src/demi/runtime/render/bgfx3d/DirectionalShadow3D.cpp
   src/demi/runtime/render/bgfx3d/ShadowCascadeLayout3D.cpp
+  src/demi/runtime/render/bgfx3d/ShadowCasterHull3D.cpp
   src/demi/runtime/render/bgfx3d/ParticleBillboardRenderer3D.cpp
   src/demi/runtime/render/bgfx3d/SceneLightBuffer3D.cpp
   src/demi/runtime/render/bgfx3d/SceneLighting3D.cpp

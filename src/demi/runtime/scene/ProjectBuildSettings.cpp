@@ -134,7 +134,7 @@ namespace demi::runtime
                 unknown(*a, {"orientation", "min_sdk", "abis", "permissions"}, "build.android", r.diagnostics, path);
                 r.settings.android.orientation = valueOr(*a, "orientation", std::string{"unspecified"},
                                                          r.diagnostics, path);
-                r.settings.android.minimumSdk = valueOr(*a, "min_sdk", 26,
+                r.settings.android.minimumSdk = valueOr(*a, "min_sdk", 24,
                                                         r.diagnostics, path);
                 r.settings.android.abis = valueOr(*a, "abis", std::vector<std::string>{"arm64-v8a"},
                                                   r.diagnostics, path);
@@ -143,8 +143,9 @@ namespace demi::runtime
                 const std::set<std::string> orientations{"unspecified", "portrait", "landscape", "portrait_sensor", "landscape_sensor"}, abis{"arm64-v8a", "x86_64"};
                 if (!orientations.contains(r.settings.android.orientation))
                     issue(r.diagnostics, "PROJECT_BUILD_ORIENTATION_INVALID", "Android orientation is invalid.", path);
-                if (r.settings.android.minimumSdk < 26 || r.settings.android.minimumSdk > 36)
-                    issue(r.diagnostics, "PROJECT_BUILD_MIN_SDK_INVALID", "min_sdk must be 26..36.", path);
+                if (r.settings.android.minimumSdk < 24 || r.settings.android.minimumSdk > 36) {
+                    issue(r.diagnostics, "PROJECT_BUILD_MIN_SDK_INVALID", "min_sdk must be 24..36.", path);
+                }
                 if (r.settings.android.abis.empty() || std::ranges::any_of(r.settings.android.abis, [&](const auto &v)
                                                                            { return !abis.contains(v); }))
                     issue(r.diagnostics, "PROJECT_BUILD_ABI_INVALID", "abis support arm64-v8a and x86_64.", path);

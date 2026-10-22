@@ -56,6 +56,17 @@ zero clears and disables retention. This does not cap live instances, parts or
 models. Profiler gauges report cache entries, hits, misses and bypasses. Source
 dependency checks themselves consume time; large-project preparation performance
 still needs qualification. Repeated instantiation no longer expands twice.
+Scene/prefab preparation now shares a verified package-source inventory for
+one explicit preparation batch. Terrain scatter's multiple templates and their
+nested references reuse that inventory across dependency capture and expansion;
+source documents and dependency hashes are still read normally. An existing
+verified scene registry can seed the same context. The outer scope retires it,
+so the next explicit batch validates installed package content afresh. Standalone
+template-cache hits retain their existing dependency checks; a standalone miss
+gets its own operation-local verification. `Prefab.package_verifications` reports
+the actual verification calls in the current preparation context. No inventory
+survives as a global or session cache.
+
 The editor uses the same cell mesh, atlas UV and height-relief descriptors as
 runtime. Preview cells have no fracture component and are not saved into source.
 Picking one selects its authored masonry region; Inspector edits and Undo/Redo

@@ -4,6 +4,29 @@
 
 #include <cstdint>
 
+#include "fs_demi_directional_mrt_spv.h"
+#include "fs_demi_linear_depth_resolve_spv.h"
+#include "fs_demi_lit_mrt_spv.h"
+#include "fs_demi_pbr_directional_mrt_spv.h"
+#include "fs_demi_pbr_mrt_spv.h"
+#include "fs_demi_sky_mrt_spv.h"
+#include "fs_demi_terrain_directional_mrt_spv.h"
+#include "fs_demi_terrain_mapped_directional_mrt_spv.h"
+#include "fs_demi_terrain_mapped_mrt_spv.h"
+#include "fs_demi_terrain_mapped_opaque_directional_mrt_spv.h"
+#include "fs_demi_terrain_mapped_opaque_mrt_spv.h"
+#include "fs_demi_terrain_mrt_spv.h"
+#include "vs_demi_lit_instanced_mrt_spv.h"
+#include "vs_demi_lit_mrt_spv.h"
+#include "vs_demi_post_process_spv.h"
+#include "vs_demi_skinned_mrt_spv.h"
+#include "vs_demi_sky_mrt_spv.h"
+
+#include "fs_demi_pbr_directional_mrt_essl.h"
+#include "fs_demi_pbr_directional_mrt_glsl.h"
+#include "fs_demi_pbr_mrt_essl.h"
+#include "fs_demi_pbr_mrt_glsl.h"
+
 #include "fs_demi_directional_spv.h"
 #include "fs_demi_lit_spv.h"
 #include "fs_demi_pbr_directional_essl.h"
@@ -259,6 +282,31 @@ void requireOpaqueCoverage(const Shader &shader) {
   }
 }
 
+void requireAllocatedSampleQuery(const Shader &shader) {
+  const auto compiled = readCompiledShaderInterface(shader);
+  const auto word = [&](std::size_t index) {
+    std::uint32_t value = 0;
+    for (unsigned byte = 0; byte < 4; ++byte) {
+      value |= std::to_integer<std::uint32_t>(compiled.code[index * 4 + byte])
+               << (byte * 8);
+    }
+    return value;
+  };
+  assert(compiled.code.size() >= 20 && compiled.code.size() % 4 == 0);
+  assert(word(0) == 0x07230203U);
+  bool queriesAllocatedSamples = false;
+  for (std::size_t cursor = 5; cursor < compiled.code.size() / 4;) {
+    const auto instruction = word(cursor);
+    const auto length = instruction >> 16;
+    assert(length > 0 && length <= compiled.code.size() / 4 - cursor);
+    // SPIR-V OpImageQuerySamples: never trust the requested CPU MSAA count
+    // after the backend has selected the actual image allocation mode.
+    queriesAllocatedSamples |= (instruction & 0xffffU) == 107;
+    cursor += length;
+  }
+  assert(queriesAllocatedSamples);
+}
+
 } // namespace
 
 int main() {
@@ -268,6 +316,12 @@ int main() {
         shader("pbr_directional_glsl", fs_demi_pbr_directional_glsl,
                ShaderCode::Glsl),
         shader("pbr_directional_essl", fs_demi_pbr_directional_essl,
+               ShaderCode::Glsl),
+        shader("MRT pbr_glsl", fs_demi_pbr_mrt_glsl, ShaderCode::Glsl),
+        shader("MRT pbr_essl", fs_demi_pbr_mrt_essl, ShaderCode::Glsl),
+        shader("MRT pbr_directional_glsl", fs_demi_pbr_directional_mrt_glsl,
+               ShaderCode::Glsl),
+        shader("MRT pbr_directional_essl", fs_demi_pbr_directional_mrt_essl,
                ShaderCode::Glsl)}) {
     requireEarlyPbrCoverage(fragment);
   }
@@ -331,6 +385,10 @@ int main() {
       {.api = GraphicsApi::Noop, .width = 64, .height = 64, .vsync = false},
       error));
   auto resources = createBgfxGpuResources();
+  // bgfx retires destroyed uniform handles asynchronously at frame boundaries.
+  // Keep the entire link matrix alive together so shared uniform names remain
+  // referenced, rather than exhausting the retired-handle pool without frames.
+  std::vector<ProgramHandle> linkedPrograms;
   const std::array vertices{shader("lit", vs_demi_lit_spv),
                             shader("instanced", vs_demi_lit_instanced_spv),
                             shader("skinned", vs_demi_skinned_spv)};
@@ -356,7 +414,7 @@ int main() {
         std::cerr << name << ": " << error << '\n';
       }
       assert(program);
-      resources->destroy(program);
+      linkedPrograms.push_back(program);
       ++linked;
     }
   }
@@ -380,7 +438,7 @@ int main() {
       std::cerr << fragment.name << ": " << error << '\n';
     }
     assert(program);
-    resources->destroy(program);
+    linkedPrograms.push_back(program);
     ++linked;
   }
   assert(linked == 18);
@@ -392,11 +450,62 @@ int main() {
                                 .debugName = "water surface"},
                                error);
   assert(waterProgram);
-  resources->destroy(waterProgram);
+  linkedPrograms.push_back(waterProgram);
   ++linked;
+  // Real generated MRT interfaces must link across every supported geometry
+  // family. Noop builtin placeholders cannot validate varying contracts.
+  const std::array mrtVertices{
+      shader("MRT lit", vs_demi_lit_mrt_spv),
+      shader("MRT instanced", vs_demi_lit_instanced_mrt_spv),
+      shader("MRT skinned", vs_demi_skinned_mrt_spv)};
+  const std::array mrtFragments{
+      shader("MRT lit", fs_demi_lit_mrt_spv),
+      shader("MRT directional", fs_demi_directional_mrt_spv),
+      shader("MRT PBR", fs_demi_pbr_mrt_spv),
+      shader("MRT PBR directional", fs_demi_pbr_directional_mrt_spv)};
+  const auto link = [&](const Shader &vertex, const Shader &fragment) {
+    const auto program =
+        resources->createProgram({.vertexShader = vertex.bytes,
+                                  .fragmentShader = fragment.bytes,
+                                  .debugName = fragment.name},
+                                 error);
+    if (!program) {
+      std::cerr << fragment.name << ": " << error << '\n';
+    }
+    assert(program);
+    linkedPrograms.push_back(program);
+  };
+  for (const auto &vertex : mrtVertices) {
+    for (const auto &fragment : mrtFragments) {
+      link(vertex, fragment);
+    }
+  }
+  for (const auto &fragment :
+       {shader("MRT terrain", fs_demi_terrain_mrt_spv),
+        shader("MRT directional terrain", fs_demi_terrain_directional_mrt_spv),
+        shader("MRT mapped terrain", fs_demi_terrain_mapped_mrt_spv),
+        shader("MRT directional mapped terrain",
+               fs_demi_terrain_mapped_directional_mrt_spv),
+        shader("MRT opaque mapped terrain",
+               fs_demi_terrain_mapped_opaque_mrt_spv),
+        shader("MRT directional opaque mapped terrain",
+               fs_demi_terrain_mapped_opaque_directional_mrt_spv)}) {
+    link(terrainVertex, fragment);
+  }
+  link(shader("MRT sky", vs_demi_sky_mrt_spv),
+       shader("MRT sky", fs_demi_sky_mrt_spv));
+  const auto resolveFragment =
+      shader("nearest MSAA depth", fs_demi_linear_depth_resolve_spv);
+  requireAllocatedSampleQuery(resolveFragment);
+  const auto resolveInterface = readCompiledShaderInterface(resolveFragment);
+  assert(std::ranges::find(resolveInterface.samplers, "s_opaqueDepthMsaa") !=
+         resolveInterface.samplers.end());
+  link(shader("depth resolve quad", vs_demi_post_process_spv), resolveFragment);
+  for (const auto program : linkedPrograms) {
+    resources->destroy(program);
+  }
   resources.reset();
   graphics.shutdown();
   assert(linked == 19);
-  std::cout
-      << "All 19 generated mesh, terrain and water shader interfaces link\n";
+  std::cout << "All 19 ordinary and 20 MRT/resolve shader interfaces link\n";
 }

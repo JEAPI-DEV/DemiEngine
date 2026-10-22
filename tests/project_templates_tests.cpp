@@ -95,6 +95,8 @@ int main() {
       dryDestination / "scenes/main.scene.json",
       dryDestination / "scripts/main.lua",
       dryDestination / "tests/smoke.replay.json",
+      dryDestination / "ui/health_bar.ui.prefab.json",
+      dryDestination / "ui/panel_button_row.ui.prefab.json",
       dryDestination / ".demi/lua/demi/_components.lua"};
   const fs::path stubRoot = sourceRoot / "scripts/stubs";
   assert(fs::is_directory(stubRoot));

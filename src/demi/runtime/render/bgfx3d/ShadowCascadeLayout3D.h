@@ -19,6 +19,7 @@ struct ShadowCascade3D {
   float receiverNear = 0;
   float receiverFar = 0;
   std::array<float, 4> x{}, y{}, z{};
+  ShadowCasterHull3D casterHull;
 };
 
 struct ShadowCascadeLayout3D {

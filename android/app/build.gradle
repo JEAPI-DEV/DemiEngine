@@ -22,7 +22,10 @@ def demiProjectDisplayName = demiBuild.display_name ?: demiProjectJson.name ?: d
 def demiApplicationId = demiBuild.application_id ?: "dev.jeapi.demi.android"
 def demiVersionName = demiBuild.version_name ?: "0.1.0"
 def demiVersionCode = (demiBuild.version_code ?: 1) as int
-def demiMinimumSdk = (demiAndroid.min_sdk ?: 23) as int
+def demiMinimumSdk = (demiAndroid.min_sdk ?: 24) as int
+if (demiMinimumSdk < 24 || demiMinimumSdk > 36) {
+    throw new GradleException("Android min_sdk must be 24..36.")
+}
 def demiAndroidAbis = (demiAndroid.abis ?: ["arm64-v8a"]) as List<String>
 def demiPermissions = (demiAndroid.permissions ?:
     (demiBuild.isEmpty() ? ["android.permission.INTERNET"] : [])) as List<String>

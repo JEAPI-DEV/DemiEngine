@@ -13,6 +13,8 @@
 
 namespace demi::runtime::composition {
 
+class PrefabResolutionContext;
+
 struct ExpansionResult {
   std::optional<nlohmann::json> document;
   Diagnostics diagnostics;
@@ -44,7 +46,8 @@ prefabEntityOrigin(const nlohmann::json &ownerDocument,
 
 [[nodiscard]] std::optional<std::filesystem::path>
 resolvePrefabReference(const std::filesystem::path &sourcePath,
-                       std::string_view reference);
+                       std::string_view reference,
+                       PrefabResolutionContext *resolution = nullptr);
 
 // Objects merge recursively, arrays replace, and null removes inherited data.
 [[nodiscard]] nlohmann::json mergeOverride(nlohmann::json inherited,
@@ -52,7 +55,8 @@ resolvePrefabReference(const std::filesystem::path &sourcePath,
 
 [[nodiscard]] ExpansionResult
 expandScene(const std::filesystem::path &scenePath,
-            const nlohmann::json &sceneDocument, bool compileFractures = true);
+            const nlohmann::json &sceneDocument, bool compileFractures = true,
+            PrefabResolutionContext *resolution = nullptr);
 
 [[nodiscard]] ExpansionResult
 expandSceneForAuthoring(const std::filesystem::path &scenePath,
@@ -60,7 +64,8 @@ expandSceneForAuthoring(const std::filesystem::path &scenePath,
 
 [[nodiscard]] ExpansionResult
 expandPrefabInstance(const std::filesystem::path &ownerPath,
-                     const nlohmann::json &instance);
+                     const nlohmann::json &instance,
+                     PrefabResolutionContext *resolution = nullptr);
 // Rebase a prepared template through the same component-reference remapper.
 [[nodiscard]] nlohmann::json rebasePrefabEntities(nlohmann::json entities,
     std::string_view oldPrefix, std::string_view newPrefix);

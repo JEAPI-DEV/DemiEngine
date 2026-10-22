@@ -1,0 +1,178 @@
+{
+  "format_version": 1,
+  "canvas_size": [
+    1280,
+    720
+  ],
+  "children": [
+    {
+      "id": "tour_heading",
+      "at": [
+        30,
+        26
+      ],
+      "size": [
+        460,
+        74
+      ],
+      "stack": "column",
+      "gap": 6,
+      "children": [
+        {
+          "id": "tour_title",
+          "type": "label",
+          "text": "SILVERMERE",
+          "size": [
+            460,
+            34
+          ],
+          "font_size": 28,
+          "color": "#F2E9D7FF"
+        },
+        {
+          "id": "tour_status",
+          "type": "label",
+          "text": "CAMERA TOUR / LOOPING",
+          "size": [
+            460,
+            22
+          ],
+          "font_size": 12,
+          "color": "#C6D6CAFF"
+        }
+      ]
+    },
+    {
+      "id": "tour_panel",
+      "type": "panel",
+      "size": [
+        660,
+        126
+      ],
+      "pad": 12,
+      "background_color": "#101A20D9",
+      "corner_radius": 8,
+      "children": [
+        {
+          "id": "tour_chapter",
+          "type": "label",
+          "text": "01 / 07   THE VALLEY OPENS",
+          "size": [
+            620,
+            24
+          ],
+          "font_size": 18,
+          "color": "#F2E9D7FF"
+        },
+        {
+          "id": "tour_description",
+          "type": "label",
+          "text": "An alpine basin, shaped by ridges, water and open meadow.",
+          "at": [
+            0,
+            30
+          ],
+          "size": [
+            620,
+            24
+          ],
+          "font_size": 13,
+          "color": "#BECAC5FF"
+        },
+        {
+          "id": "tour_progress",
+          "type": "progress",
+          "at": [
+            0,
+            62
+          ],
+          "size": [
+            620,
+            4
+          ],
+          "value": 0,
+          "color": "#B4C989FF",
+          "background_color": "#FFFFFF22"
+        },
+        {
+          "id": "tour_controls",
+          "at": [
+            0,
+            78
+          ],
+          "size": [
+            620,
+            28
+          ],
+          "stack": "row",
+          "gap": 10,
+          "children": [
+            {
+              "id": "tour_pause",
+              "type": "button",
+              "text": "Pause tour",
+              "action": "tour_pause",
+              "size": [
+                130,
+                28
+              ],
+              "font_size": 12,
+              "background_color": "#334A4EFF",
+              "color": "#F2E9D7FF"
+            },
+            {
+              "id": "tour_restart",
+              "type": "button",
+              "text": "Restart",
+              "action": "tour_restart",
+              "size": [
+                100,
+                28
+              ],
+              "font_size": 12,
+              "background_color": "#25363EFF",
+              "color": "#F2E9D7FF"
+            },
+            {
+              "id": "tour_next",
+              "type": "button",
+              "text": "Next view",
+              "action": "tour_next",
+              "size": [
+                110,
+                28
+              ],
+              "font_size": 12,
+              "background_color": "#25363EFF",
+              "color": "#F2E9D7FF"
+            },
+            {
+              "id": "tour_shortcuts",
+              "type": "label",
+              "text": "SPACE pause  /  R restart  /  N next",
+              "size": [
+                248,
+                28
+              ],
+              "font_size": 10,
+              "color": "#A9BDB7FF",
+              "text_vertical_alignment": "center"
+            }
+          ]
+        }
+      ],
+      "anchor_min": [
+        0,
+        1
+      ],
+      "anchor_max": [
+        0,
+        1
+      ],
+      "position": [
+        24,
+        -150
+      ]
+    }
+  ]
+}

@@ -7,6 +7,21 @@ are registered in `tools/package-store/src/Docs.php`.
 
 This directory keeps material that has a different job:
 
+- [Static shadow model LOD policy](shadow-model-lod-policy.md) explains the
+  cascade sampling heuristic, exclusions and pending visual qualification.
+
+- [3D showcase and authoring plan](../3d-showcase-plan.md) inventories verified
+  capabilities and phases the requested landscape, cinematic and editor work.
+
+- [Silvermere terrain showcase](silvermere-showcase.md) records the camera tour,
+  real placement counts, visual qualification and prioritized feature gaps.
+- [Runtime ECS migration](runtime-ecs-migration.md) records typed world storage,
+  ownership contracts, the controlled prototype and integrated measurements.
+- [Shared glTF import qualification](gltf-import-consolidation.md) records the
+  parser consolidation, preserved scene policies and collider fast path.
+- [Library and fallback audit](library-and-fallback-audit.md) distinguishes
+  concrete code-replacement opportunities from capability and failure paths.
+
 - [Amber Pass loading and performance](amber-pass-loading-performance.md) records
   asynchronous preparation, riding regressions, visibility costs and separate
   main/shadow geometry measurements.
@@ -67,6 +82,9 @@ This directory keeps material that has a different job:
 - [Terrain LOD qualification](terrain-lod-qualification.md) records error bounds,
   shared chunk boundaries, live camera selection, GPU residency and moving-camera
   measurements, with CPU streaming still pending.
+- [libuv Android minimum API qualification](libuv-android-qualification.md) records
+  the adoption of API 24 to match the pinned dependency and the previous
+  barrier/interface-enumeration compile failures.
 - [Shared runtime efficiency qualification](runtime-efficiency-qualification.md)
   records readable renderer/physics rewrites, same-build measurements, native
   editor verification and mutation/lifetime regression coverage.

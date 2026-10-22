@@ -1,6 +1,10 @@
 #include "bgfx_shader.sh"
 #include "demi_performance_debug.sh"
 
+#ifdef DEMI_ANALYTIC_DEPTH_OUTPUT
+#define gl_FragColor gl_FragData[0]
+#endif
+
 #if BGFX_SHADER_LANGUAGE_ESSL == 100
 // GLES 2 fragment floats need explicit highp for narrow GGX peaks.
 precision highp float;
@@ -188,7 +192,7 @@ vec4 encodedShadowDepth(vec4 worldPosition)
 
 vec4 capturedLinearDepth(vec3 worldPosition)
 {
-    // Internal opaque capture phase: YZW is the camera forward direction,
+    // Internal optical capture: YZW is the camera forward direction,
     // viewPosition.W is inverse far clip. Public debug modes remain 0..7.
     // Authored target offsets encode a direction and may have any length.
     // Optical consumers reconstruct eye-space metres with a unit forward.
@@ -199,6 +203,10 @@ vec4 capturedLinearDepth(vec3 worldPosition)
 
 void main()
 {
+#ifdef DEMI_ANALYTIC_DEPTH_OUTPUT
+    // The same discard paths below control color and analytic depth coverage.
+    gl_FragData[1] = capturedLinearDepth(v_worldPos);
+#endif
     // Receiver-plane derivatives require the complete fragment quad. Capture
     // them before per-pixel material culling or alpha cutout discards lanes.
     vec4 worldPosition = vec4(v_worldPos, 1.0);

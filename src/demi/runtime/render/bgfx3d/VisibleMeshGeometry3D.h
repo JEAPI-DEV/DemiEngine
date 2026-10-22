@@ -16,8 +16,9 @@ visibleMeshGeometry3D(const VisibleMesh3D &draw) {
 
 inline const MeshMaterialSections3D *
 visibleMeshSections3D(const VisibleMesh3D &draw) {
-  return draw.terrainSections
-             ? draw.terrainSections
+  return draw.terrainSections ? draw.terrainSections
+         : draw.modelSections
+             ? draw.modelSections
              : draw.entity->component<MeshMaterialSections3D>();
 }
 

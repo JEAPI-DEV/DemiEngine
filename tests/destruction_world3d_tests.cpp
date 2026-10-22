@@ -124,10 +124,13 @@ void spatialImpacts() {
          "NaN impact accepted");
 
   auto rotated = fixture();
-  auto *transform =
-      findEntity(rotated, "root")->component<Transform3DComponent>();
-  transform->rotation.y = 1.5707963F;
-  transform->scale = {2, 1, 1};
+  auto *root = findEntity(rotated, "root");
+  root->updateComponent<Transform3DComponent>(
+      [](Transform3DComponent &updated) {
+        updated.rotation.y = 1.5707963F;
+        updated.scale = {2, 1, 1};
+      });
+  const auto *transform = root->component<Transform3DComponent>();
   impact.position = transformPoint3D(
       {transform->position, transform->rotation, transform->scale},
       {1.45F, 0, 0});
@@ -376,12 +379,14 @@ void impactAcrossAssemblies() {
     if (entity.id == "floor")
       continue;
     entity.id = "other_" + entity.id;
-    if (auto *t = entity.component<Transform3DComponent>()) {
-      if (!t->parent.empty())
-        t->parent = "other_" + t->parent;
-      else
-        t->position.x += 6;
-    }
+    entity.updateComponent<Transform3DComponent>(
+        [](Transform3DComponent &transform) {
+          if (!transform.parent.empty()) {
+            transform.parent = "other_" + transform.parent;
+          } else {
+            transform.position.x += 6;
+          }
+        });
     if (auto *d = entity.component<Destructible3DComponent>())
       for (auto &[part, visual] : d->parts)
         visual = "other_" + visual;
@@ -497,12 +502,14 @@ void manyImpactAssemblies() {
       if (entity.id == "floor")
         continue;
       entity.id = prefix + entity.id;
-      if (auto *transform = entity.component<Transform3DComponent>()) {
-        if (transform->parent.empty())
-          transform->position.x += index * 4.0F;
-        else
-          transform->parent = prefix + transform->parent;
-      }
+      entity.updateComponent<Transform3DComponent>(
+          [&](Transform3DComponent &transform) {
+            if (transform.parent.empty()) {
+              transform.position.x += index * 4.0F;
+            } else {
+              transform.parent = prefix + transform.parent;
+            }
+          });
       if (auto *config = entity.component<Destructible3DComponent>())
         for (auto &[part, visual] : config->parts)
           visual = prefix + visual;
@@ -608,7 +615,7 @@ void localized() {
           ->position;
   expect(resting.y > 0.4F && resting.y < 0.7F,
          "Detached fragment did not collide with and settle on the floor");
-  std::erase_if(world.entities,
+  world.entities.eraseIf(
                 [](const Entity &entity) { return entity.id == "root"; });
   physics.step(world, 1.0F / 60);
   expect(world.destruction3D->state("root").status == "unattached",

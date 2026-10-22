@@ -1,5 +1,6 @@
 #include "demi/runtime/destruction/DetachedFragmentFade3D.h"
 #include "demi/runtime/geometry/MeshDeformation3D.h"
+#include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/render/BgfxRenderer3D.h"
 #include "demi/runtime/render/bgfx2d/ColorPacking2D.h"
 #include "demi/runtime/render/bgfx3d/MeshInstanceBatch3D.h"
@@ -14,6 +15,7 @@
 #include "demi/runtime/terrain/TerrainRenderLod.h"
 
 #include <algorithm>
+#include <map>
 
 namespace demi::runtime::render {
 namespace {
@@ -75,8 +77,40 @@ bool BgfxRenderer3D::submitVisibleMeshes(
     const std::array<DrawUniformValue, 8> &lightingUniforms,
     ProgramHandle defaultMeshProgram, ProgramHandle defaultInstancedProgram,
     ProgramHandle defaultSkinnedProgram, MeshSubmissionStatistics &statistics,
-    std::string &error, int selectedSurfacePass) {
+    std::string &error, int selectedSurfacePass,
+    PreparedInstanceView3D *preparedInstances) {
   meshPbr_.setFrameTime(waterTime_);
+  const std::size_t pbrFamily =
+      defaultMeshProgram == analyticDepthProgram(directionalMeshProgram_,
+                                                 frame.outputAnalyticDepth)
+          ? 3
+          : 0;
+  const auto pbrMeshProgram =
+      analyticDepthProgram(pbrPrograms_[pbrFamily], frame.outputAnalyticDepth);
+  const auto pbrInstanceProgram = analyticDepthProgram(
+      pbrPrograms_[pbrFamily + 1], frame.outputAnalyticDepth);
+  const auto pbrSkinProgram = analyticDepthProgram(pbrPrograms_[pbrFamily + 2],
+                                                   frame.outputAnalyticDepth);
+  const MeshSurfacePassPrograms3D passPrograms{
+      .pbrMesh = pbrMeshProgram,
+      .pbrInstanced = pbrInstanceProgram,
+      .depthOnly = shadowPass || (frame.pass == BgfxCameraPass3D::OpaqueDepth),
+      .overdraw = frame.camera.debugMode == "overdraw"};
+  auto *opaquePlan =
+      preparedInstances ? &preparedInstances->opaquePlan() : nullptr;
+  const bool replayOpaquePlan = opaquePlan && opaquePlan->ready() &&
+                                opaquePlan->groups().groupCount() != 0;
+  if (selectedSurfacePass != 1) {
+    RuntimeProfiler::setGauge("Renderer3D.opaque_plan_replayed",
+                              replayOpaquePlan ? 1.0 : 0.0);
+    RuntimeProfiler::setGauge("Renderer3D.opaque_plan_groups",
+                              opaquePlan ? opaquePlan->groups().groupCount()
+                                         : 0);
+    RuntimeProfiler::setGauge(
+        "Renderer3D.opaque_plan_copies",
+        opaquePlan ? opaquePlan->statistics().visibleCopies : 0);
+  }
+
   const bool hasTransparentMeshes = firstTransparent < visibility.meshes.size();
   auto &bufferedDraws = statistics.draws;
   auto &bufferedTriangles = statistics.triangles;
@@ -96,15 +130,38 @@ bool BgfxRenderer3D::submitVisibleMeshes(
         (surfacePass == 0 ? firstTransparent : visibility.meshes.size());
     // A source and selected model have one immutable resolved surface in this
     // pass. Cache the collector token, not duplicate Material/PBR ownership.
-    std::unordered_map<const Entity *,
-                       std::unordered_map<const std::string *, std::size_t>>
+    using ModelSectionKey =
+        std::pair<const std::string *, std::optional<std::size_t>>;
+    std::unordered_map<const Entity *, std::map<ModelSectionKey, std::size_t>>
         preparedGroups;
     std::unordered_map<std::size_t, std::size_t> primitiveGroups;
     if (frame.updateContent) {
+      ProfileScope collectScope("Renderer3D.submit_collect");
       for (auto visibleIt = passBegin; visibleIt != passEnd; ++visibleIt) {
         const VisibleMesh3D &visible = *visibleIt;
         const Entity &entity = *visible.entity;
         const auto *source = visible.preparedSource;
+        if (surfacePass == 0 && opaquePlan && source && source->instances) {
+          auto eligibility = opaquePlan->sourceEligibility(entity);
+          if (!eligibility && !opaquePlan->ready()) {
+            auto &raw = preparedInstances->source(entity);
+            const bool eligible =
+                raw.ready && opaqueInstanceSourceEligible(*source);
+            if (eligible) {
+              ProfileScope compileScope("Renderer3D.opaque_plan_compile");
+              if (!compileOpaqueInstanceSource(*source, raw.visibility, frame,
+                                               *opaquePlan, error)) {
+                return false;
+              }
+            }
+            opaquePlan->classifySource(entity, eligible);
+            eligibility = eligible;
+          }
+          if (eligibility.value_or(false)) {
+            continue;
+          }
+        }
+
         const auto *fade =
             source ? source->fade : entity.component<FragmentOpacity3D>();
         if (fade && shadowPass) {
@@ -119,14 +176,23 @@ bool BgfxRenderer3D::submitVisibleMeshes(
                    : entity.component<AnimationPlayer3DComponent>();
         const ModelLodSelection lod = selectModelLod(
             *mesh, player, transform.position,
-            frame.lodPosition.value_or(frame.position), !dents.empty());
+            frame.lodPosition.value_or(frame.position), !dents.empty(),
+            staticShadowModelLodFloor3D(visible, frame, shadowPass));
+        // Sections are draw ranges of one source copy, not additional models.
+        // Extraction emits section zero once for each ordinary/instanced copy.
+        const bool countSource =
+            !visible.materialSection || *visible.materialSection == 0;
         if (lod.isCulled) {
-          ++distanceCulled;
+          if (countSource) {
+            ++distanceCulled;
+          }
           continue;
         }
         const std::string &selectedModel = *lod.model;
-        mediumLodMeshes += lod.level == 1 ? 1U : 0U;
-        lowLodMeshes += lod.level == 2 ? 1U : 0U;
+        if (countSource) {
+          mediumLodMeshes += lod.level == 1 ? 1U : 0U;
+          lowLodMeshes += lod.level == 2 ? 1U : 0U;
+        }
         std::array<float, 16> uncachedModelMatrix;
         const auto *modelMatrix = visible.preparedModelMatrix;
         if (!modelMatrix) {
@@ -164,15 +230,18 @@ bool BgfxRenderer3D::submitVisibleMeshes(
             continue;
           }
         }
+        const ModelSectionKey surfaceKey{lod.model, visible.materialSection};
         const auto preparedSource = preparedGroups.find(&entity);
         if (preparedSource != preparedGroups.end()) {
-          const auto preparedLod = preparedSource->second.find(lod.model);
+          const auto preparedLod = preparedSource->second.find(surfaceKey);
           if (preparedLod != preparedSource->second.end()) {
             instanceGroups.appendTransform(preparedLod->second, *modelMatrix);
             continue;
           }
         }
-        const auto *sections = visible.terrainSections ? visible.terrainSections
+        const auto *sections = visible.modelSections ? visible.modelSections
+                               : visible.terrainSections
+                                   ? visible.terrainSections
                                : source ? source->sections
                                         : visibleMeshSections3D(visible);
         const MeshMaterialSection3D *section = nullptr;
@@ -181,7 +250,7 @@ bool BgfxRenderer3D::submitVisibleMeshes(
         }
         const auto &materialId = section ? section->material : mesh->material;
         const MaterialBinding *material = materials_.find(materialId);
-        if (frame.captureLinearDepth && material && material->program) {
+        if ((frame.pass == BgfxCameraPass3D::OpaqueDepth) && material && material->program) {
           error = "Water depth capture does not support custom material "
                   "programs: " +
                   materialId;
@@ -192,12 +261,8 @@ bool BgfxRenderer3D::submitVisibleMeshes(
             (modelLighting != modelUnlit_.end() && modelLighting->second) ||
             (material != nullptr && material->unlit);
         const bool pbr = usesMeshPbrSurface3D(material, *mesh);
-        const std::size_t pbrFamily =
-            defaultMeshProgram == directionalMeshProgram_ ? 3 : 0;
-        const auto meshProgram =
-            pbr ? pbrPrograms_[pbrFamily] : defaultMeshProgram;
-        const auto skinProgram =
-            pbr ? pbrPrograms_[pbrFamily + 2] : defaultSkinnedProgram;
+        const auto meshProgram = pbr ? pbrMeshProgram : defaultMeshProgram;
+        const auto skinProgram = pbr ? pbrSkinProgram : defaultSkinnedProgram;
         if (pbr && !meshProgram) {
           error = pbrProgramError_.empty()
                       ? "PBR shader is unavailable on this device"
@@ -225,7 +290,7 @@ bool BgfxRenderer3D::submitVisibleMeshes(
         PreparedMeshDraw3D prepared(
             *mesh, material,
             fade ? std::optional<float>(fade->value) : std::nullopt, modelUnlit,
-            shadowPass || frame.captureLinearDepth,
+            shadowPass || (frame.pass == BgfxCameraPass3D::OpaqueDepth),
             frame.camera.debugMode == "overdraw", meshProgram);
         const auto &surface = prepared.surface;
         const auto &state = prepared.state;
@@ -252,16 +317,16 @@ bool BgfxRenderer3D::submitVisibleMeshes(
               (source ? source->instances != nullptr
                       : entity.hasComponent<MeshInstances3DComponent>()) &&
               !player && dents.empty() && !fade && !surface.transparent() &&
-              !(material && material->program) && !visible.materialSection;
+              !(material && material->program);
           if (!sharedStaticInstances) {
             return false;
           }
-          const auto instancedProgram =
-              pbr ? pbrPrograms_[pbrFamily + 1] : defaultInstancedProgram;
-          const auto group =
-              instanceGroups.addSurface(gpu, texture, *mesh, material, prepared,
-                                        instancedProgram, *modelMatrix);
-          preparedGroups[&entity].emplace(lod.model, group);
+          const auto group = instanceGroups.addSurface(
+              gpu, texture, *mesh, material, prepared, pbr, *modelMatrix,
+              section && !visible.drawAllSections ? section->firstIndex : 0,
+              section && !visible.drawAllSections ? section->indexCount
+                                                  : UINT32_MAX);
+          preparedGroups[&entity].emplace(surfaceKey, group);
           return true;
         };
         bool queued = false;
@@ -454,15 +519,15 @@ bool BgfxRenderer3D::submitVisibleMeshes(
               return false;
             }
           }
-          const auto modelTexture = modelTextures_.find(selectedModel);
+          const bool drawSectionRange = section && !visible.drawAllSections;
+          const auto firstIndex = drawSectionRange ? section->firstIndex : 0;
+          const auto indexCount =
+              drawSectionRange ? section->indexCount : UINT32_MAX;
           // Match primitive meshes: an entity texture overrides material and
           // embedded model albedo. Keep it in the instancing key below as well.
           std::string textureId = mesh->texture;
           if (textureId.empty() && material != nullptr) {
             textureId = material->albedoTexture;
-          }
-          if (textureId.empty() && modelTexture != modelTextures_.end()) {
-            textureId = modelTexture->second;
           }
           const TextureView2D texture = resolveColorTexture(textureId);
           if (!textureId.empty() && !texture.handle) {
@@ -489,10 +554,12 @@ bool BgfxRenderer3D::submitVisibleMeshes(
                  .values = animatedModels_.at(selectedModel).importTransform});
             queued = gpuSkin->draw(meshPbr_, frame.viewId, skinProgram,
                                    resolvedTexture, meshSampler_, *modelMatrix,
-                                   state, drawUniforms, error);
+                                   state, drawUniforms, error, firstIndex,
+                                   indexCount);
             if (queued) {
               ++bufferedDraws;
-              bufferedTriangles += gpuSkin->indexCount() / 3;
+              bufferedTriangles +=
+                  (drawSectionRange ? indexCount : gpuSkin->indexCount()) / 3;
             }
           } else if (queueSurfaceInstances(*drawGpu, resolvedTexture)) {
             queued = true;
@@ -503,12 +570,14 @@ bool BgfxRenderer3D::submitVisibleMeshes(
             queued = true;
           } else {
             prepared.fillUniforms(lightingUniforms, material, drawUniforms);
-            queued = drawGpu->draw(meshPbr_, frame.viewId, program,
-                                   resolvedTexture, meshSampler_, *modelMatrix,
-                                   state, error, drawUniforms);
+            queued =
+                drawGpu->draw(meshPbr_, frame.viewId, program, resolvedTexture,
+                              meshSampler_, *modelMatrix, state, error,
+                              drawUniforms, firstIndex, indexCount);
             if (queued) {
               ++bufferedDraws;
-              bufferedTriangles += drawGpu->indexCount() / 3U;
+              bufferedTriangles +=
+                  (drawSectionRange ? indexCount : drawGpu->indexCount()) / 3U;
             }
           }
         } else {
@@ -552,6 +621,7 @@ bool BgfxRenderer3D::submitVisibleMeshes(
       }
     }
     if (frame.updateContent && surfacePass == 0) {
+      ProfileScope flushScope("Renderer3D.submit_flush");
       DrawState state{.blend = BlendMode::Opaque,
                       .depthTest = DepthTest::Less,
                       .cull = CullMode::None,
@@ -566,8 +636,28 @@ bool BgfxRenderer3D::submitVisibleMeshes(
                                 defaultInstancedProgram, meshSampler_, state,
                                 lightingUniforms, bufferedDraws,
                                 bufferedTriangles, error, &meshPbr_,
-                                whiteTexture_)) {
+                                whiteTexture_, passPrograms)) {
         return false;
+      }
+      if (opaquePlan) {
+        if (!opaquePlan->groups().flush(
+                commands_, frame.viewId, defaultMeshProgram,
+                defaultInstancedProgram, meshSampler_, state, lightingUniforms,
+                bufferedDraws, bufferedTriangles, error, &meshPbr_,
+                whiteTexture_, passPrograms)) {
+          return false;
+        }
+        const auto &planned = opaquePlan->statistics();
+        distanceCulled += planned.distanceCulled;
+        mediumLodMeshes += planned.mediumLodMeshes;
+        lowLodMeshes += planned.lowLodMeshes;
+        opaquePlan->finish();
+        RuntimeProfiler::setGauge("Renderer3D.opaque_plan_replayed",
+                                  replayOpaquePlan ? 1.0 : 0.0);
+        RuntimeProfiler::setGauge("Renderer3D.opaque_plan_groups",
+                                  opaquePlan->groups().groupCount());
+        RuntimeProfiler::setGauge("Renderer3D.opaque_plan_copies",
+                                  planned.visibleCopies);
       }
     }
   }

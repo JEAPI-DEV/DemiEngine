@@ -181,8 +181,7 @@ template <typename ComponentClass>
 template <typename ComponentClass>
 bool patchComponentField(Entity &entity, std::string_view field,
                          const nlohmann::json &values) {
-  auto *destination = entity.component<ComponentClass>();
-  if (destination == nullptr) {
+  if (!entity.hasComponent<ComponentClass>()) {
     return false;
   }
   for (const auto &binding : ComponentClass::runtimeFields) {
@@ -191,9 +190,18 @@ bool patchComponentField(Entity &entity, std::string_view field,
     }
     Entity parsed;
     ComponentClass::parse(values, parsed);
-    binding.copy(*destination, *parsed.component<ComponentClass>());
-    if constexpr (requires { ComponentClass::afterRuntimeFieldChange(*destination, field); }) {
-      ComponentClass::afterRuntimeFieldChange(*destination, field);
+    const bool updated = entity.updateComponent<ComponentClass>(
+        [&](ComponentClass &destination) {
+          binding.copy(destination, *parsed.component<ComponentClass>());
+          if constexpr (requires {
+                          ComponentClass::afterRuntimeFieldChange(destination,
+                                                                  field);
+                        }) {
+            ComponentClass::afterRuntimeFieldChange(destination, field);
+          }
+        });
+    if (!updated) {
+      return false;
     }
     entity.serializedComponents.insert_or_assign(
         std::string(ComponentClass::typeName), values.dump());

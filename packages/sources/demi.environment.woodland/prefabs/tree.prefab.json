@@ -1,0 +1,57 @@
+{
+  "format_version": 1,
+  "id": "prefab://demi/woodland/tree",
+  "name": "Tree",
+  "entities": [
+    {
+      "id": "trunk",
+      "name": "Textured woodland tree",
+      "components": {
+        "Transform3D": {},
+        "MeshRenderer": {
+          "model": "asset://demi/woodland/models/tree_trunk",
+          "medium_lod_model": "asset://demi/woodland/models/tree_trunk_mid",
+          "medium_lod_distance": 50,
+          "low_lod_model": "asset://demi/woodland/models/tree_trunk_mid",
+          "low_lod_distance": 150,
+          "cull_distance": 0,
+          "material": "asset://demi/woodland/materials/trunk"
+        }
+      },
+      "children": [
+        {
+          "id": "branches",
+          "name": "Branches",
+          "components": {
+            "Transform3D": {},
+            "MeshRenderer": {
+              "model": "asset://demi/woodland/models/tree_branches",
+              "medium_lod_model": "asset://demi/woodland/models/tree_branches_mid",
+              "medium_lod_distance": 50,
+              "low_lod_model": "asset://demi/woodland/models/tree_branches_mid",
+              "low_lod_distance": 150,
+              "cull_distance": 0,
+              "material": "asset://demi/woodland/materials/branches"
+            }
+          }
+        },
+        {
+          "id": "leaves",
+          "name": "Autumn leaf cards",
+          "components": {
+            "Transform3D": {},
+            "MeshRenderer": {
+              "model": "asset://demi/woodland/models/tree_leaves",
+              "medium_lod_model": "asset://demi/woodland/models/tree_leaves_mid",
+              "medium_lod_distance": 50,
+              "low_lod_model": "asset://demi/woodland/models/tree_leaves_mid",
+              "low_lod_distance": 150,
+              "cull_distance": 0,
+              "material": "asset://demi/woodland/materials/leaves"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

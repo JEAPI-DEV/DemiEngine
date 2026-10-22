@@ -33,6 +33,10 @@ struct TextureSampling2D {
   TextureWrap wrap = TextureWrap::Clamp;
   bool mipmaps = false;
   ImageMipSemantic mipSemantic = ImageMipSemantic::Linear;
+  std::optional<TextureWrap> wrapV;
+  std::optional<TextureFilter> minFilter;
+  std::optional<TextureFilter> magFilter;
+  std::optional<TextureFilter> mipFilter;
 };
 
 // Immutable-by-convention CPU payload. RGBA8 base pixels and optional mip

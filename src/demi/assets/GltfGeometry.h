@@ -36,8 +36,8 @@ struct GltfGeometry {
 };
 
 // Decodes the default glTF scene into transformed triangle geometry. Supports
-// external binary buffers and POSITION/TEXCOORD_0/index accessors used by
-// static meshes.
+// cgltf container/buffer decoding and POSITION/TEXCOORD_0/index accessors used
+// by static meshes. Skin deformation is intentionally not applied.
 [[nodiscard]] std::optional<GltfGeometry>
 loadGltfGeometry(const std::filesystem::path &path, std::string &error);
 [[nodiscard]] std::optional<GltfGeometry>

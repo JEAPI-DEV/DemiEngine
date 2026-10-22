@@ -193,6 +193,113 @@ int main() {
     return 1;
   }
 
+  // Metadata bounds deliberately exceed the vertices, and the binary payload
+  // is truncated. Detail zero must use accessor bounds without decoding it.
+  auto metadataSource = readJson(source / "model.gltf");
+  metadataSource["buffers"][0]["uri"] = "metadata.bin";
+  metadataSource["scene"] = 1;
+  metadataSource["scenes"] = {{{"nodes", {2}}}, {{"nodes", {0}}}};
+  metadataSource["nodes"] = {
+      {{"translation", {10, 20, 30}},
+       {"rotation", {0, 0, 0.70710678118, 0.70710678118}},
+       {"children", {1}}},
+      {{"mesh", 0},
+       {"matrix", {-2, 0, 0, 0, 0, 3, 0, 0, 0, 0, 4, 0, 1, 2, 3, 1}}},
+      {{"mesh", 0}, {"translation", {10000, 10000, 10000}}}};
+  metadataSource["accessors"][0]["min"] = {-2, -3, -4};
+  metadataSource["accessors"][0]["max"] = {2, 3, 4};
+  writeText(source / "metadata.gltf", metadataSource.dump());
+  writeBytes(source / "metadata.bin", {0});
+  auto metadataManifest = importedDocument;
+  metadataManifest["id"] = "asset://models/metadata";
+  const auto metadataManifestPath = project / "assets/metadata.asset.json";
+  metadataManifest["source"] =
+      std::filesystem::relative(source / "metadata.gltf",
+                                metadataManifestPath.parent_path())
+          .generic_string();
+  writeText(metadataManifestPath, metadataManifest.dump());
+  const auto metadataCollider =
+      generateColliderAsset({.projectDirectory = project,
+                             .modelManifestPath = metadataManifestPath,
+                             .id = "asset://colliders/metadata",
+                             .detail = 0.0F});
+  if (hasErrors(metadataCollider.diagnostics)) {
+    std::cerr << "Accessor-only collider bounds decoded a truncated buffer.\n";
+    return 1;
+  }
+  const auto metadataBox = readJson(metadataCollider.manifestPath);
+  const auto metadataSize = metadataBox["size"].get<std::array<float, 3>>();
+  const auto metadataOffset = metadataBox["offset"].get<std::array<float, 3>>();
+  if (!close(metadataSize[0], 0.18F) || !close(metadataSize[1], 0.32F) ||
+      !close(metadataSize[2], 0.08F) || !close(metadataOffset[0], -0.08F) ||
+      !close(metadataOffset[1], 0.33F) || !close(metadataOffset[2], 0.21F)) {
+    std::cerr << "Metadata bounds lost selected scene, nested transforms, or "
+                 "import axes.\n";
+    return 1;
+  }
+  const auto rejectedDetail =
+      generateColliderAsset({.projectDirectory = project,
+                             .modelManifestPath = metadataManifestPath,
+                             .id = "asset://colliders/metadata_detail",
+                             .detail = 1.0F});
+  if (!hasCode(rejectedDetail.diagnostics, "COLLIDER_GLTF_GEOMETRY_INVALID") ||
+      std::filesystem::exists(rejectedDetail.manifestPath)) {
+    std::cerr << "Positive-detail collider accepted truncated geometry.\n";
+    return 1;
+  }
+  metadataSource.erase("scene");
+  metadataSource["scenes"][0]["nodes"] = {0};
+  writeText(source / "metadata.gltf", metadataSource.dump());
+  const auto implicitScene = generateColliderAsset(
+      {.projectDirectory = project,
+       .modelManifestPath = metadataManifestPath,
+       .id = "asset://colliders/implicit_scene",
+       .detail = 0.0F});
+  if (hasErrors(implicitScene.diagnostics) ||
+      readJson(implicitScene.manifestPath)["offset"] != metadataBox["offset"]) {
+    std::cerr << "Omitted default scene did not select the first scene.\n";
+    return 1;
+  }
+  auto missingSceneSource = metadataSource;
+  missingSceneSource.erase("scenes");
+  writeText(source / "metadata.gltf", missingSceneSource.dump());
+  const auto missingScene = generateColliderAsset(
+      {.projectDirectory = project,
+       .modelManifestPath = metadataManifestPath,
+       .id = "asset://colliders/missing_scene",
+       .detail = 0.0F});
+  if (!hasCode(missingScene.diagnostics, "COLLIDER_GLTF_SCENE_INVALID")) {
+    std::cerr << "Missing default scene lost its specific diagnostic.\n";
+    return 1;
+  }
+  auto invalidReferenceSource = metadataSource;
+  invalidReferenceSource["nodes"][1]["mesh"] = 99;
+  writeText(source / "metadata.gltf", invalidReferenceSource.dump());
+  const auto invalidReference = generateColliderAsset(
+      {.projectDirectory = project,
+       .modelManifestPath = metadataManifestPath,
+       .id = "asset://colliders/invalid_reference",
+       .detail = 0.0F});
+  if (!hasCode(invalidReference.diagnostics, "COLLIDER_GLTF_STRUCTURE_INVALID") ||
+      std::filesystem::path(invalidReference.diagnostics.front().path)
+              .lexically_normal() != (source / "metadata.gltf").lexically_normal()) {
+    std::cerr << "Invalid reference lost its upstream validation diagnostic.\n";
+    return 1;
+  }
+  metadataSource["accessors"][0].erase("min");
+  writeText(source / "metadata.gltf", metadataSource.dump());
+  const auto missingBounds =
+      generateColliderAsset({.projectDirectory = project,
+                             .modelManifestPath = metadataManifestPath,
+                             .id = "asset://colliders/missing_bounds",
+                             .detail = 0.0F});
+  if (!hasCode(missingBounds.diagnostics,
+               "COLLIDER_GLTF_POSITION_BOUNDS_MISSING") ||
+      std::filesystem::exists(missingBounds.manifestPath)) {
+    std::cerr << "Missing accessor bounds did not retain its diagnostic.\n";
+    return 1;
+  }
+
   for (const auto &[body, shape] :
        std::array<std::pair<const char *, const char *>, 4>{
            {{"static", "triangle_mesh"},

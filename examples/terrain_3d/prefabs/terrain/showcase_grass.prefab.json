@@ -1,0 +1,23 @@
+{
+  "format_version": 1,
+  "id": "prefab://terrain/showcase_grass",
+  "name": "Meadow grass with baked distant coverage",
+  "entities": [
+    {
+      "id": "tuft",
+      "prefab": "prefab://demi/woodland/grass_lush",
+      "overrides": {
+        "plant": {
+          "components": {
+            "MeshRenderer": {
+              "medium_lod_distance": 12,
+              "low_lod_distance": 38,
+              "cull_distance": 0,
+              "casts_shadows": false
+            }
+          }
+        }
+      }
+    }
+  ]
+}

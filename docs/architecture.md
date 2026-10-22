@@ -67,6 +67,8 @@ The current source layout reflects those boundaries:
   window handles for 2D scenes.
 - **bgfx:** active Vulkan-first Linux and Android 2D/3D renderer. Its lifecycle
   is isolated behind `GraphicsDevice`.
+- **EnTT 3.15.0:** world-owned typed component pools and runtime membership views.
+  Native handles stay internal; authored identity remains stable string IDs.
 - **Lua 5.4 + sol2:** gameplay VM and C++ bindings.
 - **Box2D 2.4.1:** 2D rigid bodies and collision.
 - **miniaudio 0.11.22:** audio playback.
@@ -81,7 +83,7 @@ The current source layout reflects those boundaries:
   because it matches bgfx's 1.92.8 dynamic-texture adapter. It remains isolated
   behind `EditorUiHost`; game/runtime targets do not compile it.
 
-There is no EnTT or ImGuizmo dependency in the current implementation. Runtime
+There is no ImGuizmo dependency in the current implementation. Runtime
 data, component metadata, validation, and commands do not depend on Dear ImGui.
 `EditorViewportRenderer` and `EditorGameRenderer` are the only editor owners of
 offscreen scene targets; dock panels consume their texture handles without
@@ -94,8 +96,33 @@ URI-style references are preferred over positional references. Generated data
 is kept outside authored source directories.
 
 Scene component classes own their stable JSON name, defaults, parser, Lua
-exposure metadata, and dimensional domain. `ComponentRegistry` is the runtime
-lookup path. `Entity` stores components in type-keyed `ComponentStorage`.
+exposure metadata, and dimensional domain. Scene-loading component descriptors
+remain the metadata/parser boundary. Live components reside in typed EnTT pools
+owned by `EntityCollection`; `Entity` holds metadata and a component-row facade.
+`EntityComponentQuery` reads those pools and returns authored-order indices,
+without global epochs or scanning every entity's type map.
+
+Detached construction and rollback snapshots hold temporary `entt::any` values.
+Collection insertion publishes them into its registry and releases the temporary
+values. This is a construction boundary, not an alternative live runtime. Copying
+an entity/world preserves independent snapshot semantics. Collection replacement,
+removal and swapping use explicit operations to maintain handle/order ownership.
+Fallible component adoption is completed before transactional terrain publication.
+
+EnTT construction/destruction signals publish structural pool revisions; in-place
+updates do not invalidate every component address. Collection ordering has its
+own revision. Transform3D reads through the native entity/storage facade are
+const. Native writers use `updateComponent<Transform3DComponent>(callback)` or
+replace the complete value with `setComponent`. Updates stage a value copy,
+commit only after the callback succeeds, suppress identical poses, and publish
+EnTT update events. Lua and JSON contracts are unchanged.
+
+World-pose snapshots consume independent EnTT reactive change sets and recompose
+affected descendants. Parent/topology changes rebuild the dependency graph;
+cyclic or missing parents still yield invalid poses. Entity-ID rename detection
+still scans mutable metadata. Other components with mutable native references
+retain their existing value-sensitive preparation until their own writer
+boundaries are migrated. See [ECS migration evidence](runtime-ecs-migration.md).
 
 Runtime composition keeps three narrow owners: `RuntimePrefabService` expands
 and pools authored prefabs, `SceneFlow` prepares and applies scene transitions,

@@ -113,7 +113,8 @@ bool testStaticHierarchyPoseSynchronization() {
   parent.id = "parent";
   parent.setComponent<Transform3DComponent>(Transform3DComponent{});
   Entity child = box("child", {2, 0, 0}, {1, 1, 1}, "static");
-  child.component<Transform3DComponent>()->parent = parent.id;
+  child.updateComponent<Transform3DComponent>(
+      [&](Transform3DComponent &transform) { transform.parent = parent.id; });
   world.entities.push_back(parent);
   world.entities.push_back(child);
   auto &physics = ensurePhysicsWorld3D(world);
@@ -128,23 +129,27 @@ bool testStaticHierarchyPoseSynchronization() {
     return false;
   }
 
-  auto *parentTransform =
-      findEntity(world, "parent")->component<Transform3DComponent>();
-  parentTransform->position = {4, 0, 0};
+  auto *parentEntity = findEntity(world, "parent");
+  parentEntity->updateComponent<Transform3DComponent>(
+      [](Transform3DComponent &transform) { transform.position = {4, 0, 0}; });
   physics.step(world, 1.0F / 60.0F, {});
   if (!containsChild({6, 0, 0}) || containsChild({2, 0, 0})) {
     std::cerr << "Parent-only translation did not move static collision\n";
     return false;
   }
 
-  parentTransform->rotation = {0, 1.57079632679F, 0};
+  parentEntity->updateComponent<Transform3DComponent>(
+      [](Transform3DComponent &transform) {
+        transform.rotation = {0, 1.57079632679F, 0};
+      });
   physics.step(world, 1.0F / 60.0F, {});
   if (!containsChild({4, 0, -2}) || containsChild({6, 0, 0})) {
     std::cerr << "Parent-only rotation did not move static collision\n";
     return false;
   }
 
-  parentTransform->scale = {2, 2, 2};
+  parentEntity->updateComponent<Transform3DComponent>(
+      [](Transform3DComponent &transform) { transform.scale = {2, 2, 2}; });
   physics.step(world, 1.0F / 60.0F, {});
   if (!containsChild({4, 0, -4}) || containsChild({4, 0, -2})) {
     std::cerr << "Parent scaling did not rebuild static collision\n";
@@ -158,8 +163,8 @@ bool testStaticHierarchyPoseSynchronization() {
   // Growth invalidates borrowed entity pointers; synchronization must resolve
   // the new addresses and parent identity on the next step.
   world.entities.push_back(otherParent);
-  findEntity(world, "child")->component<Transform3DComponent>()->parent =
-      "other_parent";
+  findEntity(world, "child")->updateComponent<Transform3DComponent>(
+      [](Transform3DComponent &transform) { transform.parent = "other_parent"; });
   physics.step(world, 1.0F / 60.0F, {});
   if (!containsChild({12, 0, 0}) || containsChild({4, 0, -4})) {
     std::cerr << "Reparenting did not move static collision\n";
@@ -174,7 +179,8 @@ bool testParentedDynamicPoseOwnership() {
   parent.id = "parent";
   parent.setComponent<Transform3DComponent>(Transform3DComponent{});
   Entity child = box("child", {2, 0, 0}, {1, 1, 1}, "dynamic", {3, 0, 0});
-  child.component<Transform3DComponent>()->parent = parent.id;
+  child.updateComponent<Transform3DComponent>(
+      [&](Transform3DComponent &transform) { transform.parent = parent.id; });
   child.component<Rigidbody3DComponent>()->linearDamping = 0.0F;
   child.component<Rigidbody3DComponent>()->allowSleep = false;
   world.entities.push_back(parent);
@@ -199,8 +205,8 @@ bool testParentedDynamicPoseOwnership() {
 
   // A changed authored hierarchy deliberately resets the native pose before
   // simulation; unchanged following steps must retain native motion ownership.
-  findEntity(world, "parent")->component<Transform3DComponent>()->position = {
-      4, 0, 0};
+  findEntity(world, "parent")->updateComponent<Transform3DComponent>(
+      [](Transform3DComponent &transform) { transform.position = {4, 0, 0}; });
   for (int step = 1; step <= 4; ++step) {
     physics.step(world, fixedDt, {});
     if (!hasNativePosition(6.0F + step * displacementPerStep)) {
@@ -325,10 +331,10 @@ bool testSleepingSupportChanges() {
       world.entities.erase(world.entities.begin());
     if (change == 1 && !setRigidbodyEnabled3D(world, "support", false))
       return false;
-    if (change == 2)
-      findEntity(world, "support")
-          ->component<Transform3DComponent>()
-          ->position.x = 20;
+    if (change == 2) {
+      findEntity(world, "support")->updateComponent<Transform3DComponent>(
+          [](Transform3DComponent &transform) { transform.position.x = 20; });
+    }
     if (change == 3)
       findEntity(world, "support")
           ->component<BoxCollider3DComponent>()
@@ -990,9 +996,12 @@ bool testShapeQueriesAndColliderKinds() {
 bool testSolidOnlySphereCast() {
   World world;
   auto trigger = makeStaticBox(); trigger.id = "sensor";
-  trigger.component<Transform3DComponent>()->position.x = 1;
+  trigger.updateComponent<Transform3DComponent>(
+      [](Transform3DComponent &transform) { transform.position.x = 1; });
   trigger.component<BoxCollider3DComponent>()->isTrigger = true;
-  auto wall = makeStaticBox(); wall.component<Transform3DComponent>()->position.x = 3;
+  auto wall = makeStaticBox();
+  wall.updateComponent<Transform3DComponent>(
+      [](Transform3DComponent &transform) { transform.position.x = 3; });
   world.entities.push_back(std::move(trigger)); world.entities.push_back(std::move(wall));
   const auto verify = [&] {
     const auto any = sphereCast3D(world, {0,0.5F,0}, 0.1F, {1,0,0}, 5);
@@ -1226,8 +1235,8 @@ bool testPreparedShapesAndScaledModelReuse() {
                  "collision bounds.\n";
     return false;
   }
-  findEntity(world, "plane_2")->component<Transform3DComponent>()->scale.x =
-      0.75F;
+  findEntity(world, "plane_2")->updateComponent<Transform3DComponent>(
+      [](Transform3DComponent &transform) { transform.scale.x = 0.75F; });
   stepPhysics3D(world, 1.0F / 60.0F, {});
   if (physicsProfileCalls("Physics3D.create_shape") != 1) {
     std::cerr << "A live scale change must invalidate exactly its native body "
@@ -1501,8 +1510,11 @@ int main() {
 
   runtime::Entity triggerWall = makeStaticBox();
   triggerWall.id = "trigger_wall";
-  triggerWall.component<Transform3DComponent>()->position.x = 0.0F;
-  triggerWall.component<Transform3DComponent>()->position.z = 1.25F;
+  triggerWall.updateComponent<Transform3DComponent>(
+      [](Transform3DComponent &transform) {
+        transform.position.x = 0.0F;
+        transform.position.z = 1.25F;
+      });
   triggerWall.component<BoxCollider3DComponent>()->isTrigger = true;
   world.entities.push_back(triggerWall);
   mover = runtime::findEntity(world, "mover");

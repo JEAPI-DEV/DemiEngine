@@ -1,0 +1,16 @@
+{
+  "dependencies": [
+    "asset://demi/woodland/textures/grass_photo/albedo",
+    "asset://demi/woodland/textures/grass_photo/ambient_occlusion",
+    "asset://demi/woodland/textures/grass_photo/normal",
+    "asset://demi/woodland/textures/grass_photo/roughness"
+  ],
+  "format_version": 1,
+  "id": "asset://demi/woodland/materials/grass_photo",
+  "importer": "material",
+  "importer_version": 1,
+  "settings": {},
+  "source": "grass_photo.material.json",
+  "source_hash": "fnv1a64:8c4f883546b02e2a",
+  "type": "Material"
+}

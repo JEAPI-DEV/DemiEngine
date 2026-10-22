@@ -1,5 +1,7 @@
 #include "demi/runtime/render/BgfxRenderer3D.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
+#include "demi/runtime/scene/model/Entity.h"
+#include "demi/runtime/scene/model/MeshMaterialSections3D.h"
 #include "demi/runtime/scene/model/World.h"
 #include "demi/runtime/terrain/TerrainWaterMesh.h"
 
@@ -12,13 +14,15 @@ Point3D point(Vec3 value) { return {.x = value.x, .y = value.y, .z = value.z}; }
 } // namespace
 
 OpaqueSceneCapture3D::Target *BgfxRenderer3D::prepareWaterCapture(
-    const World &world, const BgfxCameraFrame3D &frame, std::string &error) {
+    const World &world, const BgfxCameraFrame3D &frame,
+    const SceneLighting3D &sceneLighting, std::string &error) {
   if (!frame.updateContent || resources_.shaderBackend() == "noop" ||
       frame.camera.debugMode != "shaded") {
     return nullptr;
   }
-  const auto &waterSurfaces = entityQueries_.queryAny<
-      terrain_detail::TerrainGeneratedWaterSurface>(world.entities);
+  const auto &waterSurfaces =
+      entityQueries_.queryAny<terrain_detail::TerrainGeneratedWaterSurface>(
+          world.entities);
   const bool hasWater =
       std::ranges::any_of(waterSurfaces, [&](std::size_t index) {
         const Entity &entity = world.entities[index];
@@ -53,7 +57,42 @@ OpaqueSceneCapture3D::Target *BgfxRenderer3D::prepareWaterCapture(
   if (!waterRenderer_.initialize(error)) {
     return nullptr;
   }
-  return opaqueCapture_.prepare(frame.viewId, width, height, error);
+  // Custom fragments have no declared analytic-depth output. Keep their
+  // existing explicit depth-capture diagnostic instead of binding them to
+  // an MRT attachment whose value they cannot define.
+  bool customDepthOutputUnsupported = false;
+  for (const auto &source :
+       instancePreparation_.worldSources(world, &extractionJobs_)) {
+    if (!source.entity->enabled || !source.mesh ||
+        (!frame.camera.renderMask.empty() &&
+         !source.mesh->renderLayer.empty() &&
+         frame.camera.renderMask != source.mesh->renderLayer)) {
+      continue;
+    }
+    const auto requiresCustomDepth = [&](std::string_view id) {
+      const auto *material = materials_.find(id);
+      return material && material->program &&
+             !resolveMeshSurface3D(*source.mesh, material).transparent();
+    };
+    customDepthOutputUnsupported = requiresCustomDepth(source.mesh->material);
+    if (source.sections && !customDepthOutputUnsupported) {
+      for (const auto &section : source.sections->sections) {
+        if (requiresCustomDepth(section.material)) {
+          customDepthOutputUnsupported = true;
+          break;
+        }
+      }
+    }
+    if (customDepthOutputUnsupported) {
+      break;
+    }
+  }
+  const auto &lighting =
+      frame.lightingOverride ? *frame.lightingOverride : sceneLighting;
+  return opaqueCapture_.prepare(
+      frame.viewId, width, height, error, std::max(lighting.msaaSamples, 1),
+      customDepthOutputUnsupported,
+      OpaqueSceneCapture3D::requiresPreservedAuthoredColor(frame.camera));
 }
 
 bool BgfxRenderer3D::renderWaterAndTransparent(
@@ -84,12 +123,15 @@ bool BgfxRenderer3D::renderWaterAndTransparent(
       .debugName = "OpaqueColorCapture"};
   if (!primitives_.flush(error) ||
       !commands_.configureView2D(captureView, error) ||
+      (capture.usesMrt() && !opaqueCapture_.resolveDepth(
+                                capture, commands_, frame.viewId + 1, error)) ||
       !commands_.copyTexture(frame.viewId + 1, sourceTarget.color,
                              capture.color, capture.width, capture.height,
                              error)) {
     return false;
   }
   frame.viewId += 2;
+  frame.outputAnalyticDepth = false;
   const View3DConfig waterView{.id = frame.viewId,
                                .width = capture.width,
                                .height = capture.height,

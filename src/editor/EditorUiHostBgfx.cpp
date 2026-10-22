@@ -84,7 +84,9 @@ public:
              .height = static_cast<std::uint32_t>(frame.height),
              .vsync = true,
              .debug = false,
-             .profile = runtime::RuntimeProfiler::enabled()},
+             // Play can start profiling after graphics initialization. Keep GPU
+             // timestamps available for those sessions as well as CLI traces.
+             .profile = true},
             error)) {
       platform_->shutdown();
       return false;

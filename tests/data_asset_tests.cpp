@@ -468,6 +468,41 @@ count: 3
     return 1;
   }
 
+  // Without an explicit array type, items applies only to array values.
+  if (!write(root / "schema.json", R"({
+        "format_version": 1,
+        "type": "object",
+        "properties": {
+          "level": {"items": {"type": "integer"}}
+        }
+      })") ||
+      !write(root / "character.json", R"({"format_version":1,"level":4})")) {
+    return 1;
+  }
+  if (hasErrors(validateDataAssets(schemaRegistry))) {
+    std::cerr << "Array items validation rejected a scalar value.\n";
+    return 1;
+  }
+
+  if (!write(root / "character.json",
+             R"({"format_version":1,"level":[1,2]})")) {
+    return 1;
+  }
+  if (hasErrors(validateDataAssets(schemaRegistry))) {
+    std::cerr << "Array items validation rejected valid integer items.\n";
+    return 1;
+  }
+
+  if (!write(root / "character.json",
+             R"({"format_version":1,"level":[1,"bad"]})")) {
+    return 1;
+  }
+  if (!containsCodeAt(validateDataAssets(schemaRegistry),
+                      "DATA_SCHEMA_TYPE_MISMATCH", "#/level/1")) {
+    std::cerr << "Array items validation missed an invalid item.\n";
+    return 1;
+  }
+
   write(root / "schema.json", R"({"format_version":2,"type":"object"})");
   if (!containsCodeAt(validateDataAssets(schemaRegistry),
                       "DATA_SCHEMA_VERSION_UNSUPPORTED", "#/format_version")) {

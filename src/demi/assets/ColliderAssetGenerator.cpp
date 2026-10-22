@@ -2,6 +2,7 @@
 
 #include "demi/assets/AssetHash.h"
 #include "demi/assets/AssetRegistry.h"
+#include "demi/assets/GltfDocument.h"
 #include "demi/assets/GltfGeometry.h"
 #include "demi/assets/GltfSkinnedModel.h"
 #include "demi/assets/ModelImportProfile.h"
@@ -50,66 +51,6 @@ std::string idPath(std::string id) {
   return id;
 }
 
-Matrix identityMatrix() {
-  return {1.0F, 0.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.0F, 0.0F,
-          0.0F, 0.0F, 1.0F, 0.0F, 0.0F, 0.0F, 0.0F, 1.0F};
-}
-
-Matrix multiply(const Matrix &left, const Matrix &right) {
-  Matrix result{};
-  for (int column = 0; column < 4; ++column)
-    for (int row = 0; row < 4; ++row)
-      for (int index = 0; index < 4; ++index)
-        result[column * 4 + row] +=
-            left[index * 4 + row] * right[column * 4 + index];
-  return result;
-}
-
-Matrix nodeMatrix(const Json &node) {
-  if (const auto matrix = node.find("matrix");
-      matrix != node.end() && matrix->is_array() && matrix->size() == 16) {
-    Matrix result{};
-    for (std::size_t index = 0; index < result.size(); ++index)
-      result[index] = (*matrix)[index].get<float>();
-    return result;
-  }
-  const auto value = [&node](const char *name, const std::size_t index,
-                             const float fallback) {
-    const auto field = node.find(name);
-    return field != node.end() && field->is_array() && field->size() > index
-               ? (*field)[index].get<float>()
-               : fallback;
-  };
-  const float x = value("rotation", 0, 0.0F);
-  const float y = value("rotation", 1, 0.0F);
-  const float z = value("rotation", 2, 0.0F);
-  const float w = value("rotation", 3, 1.0F);
-  const float sx = value("scale", 0, 1.0F);
-  const float sy = value("scale", 1, 1.0F);
-  const float sz = value("scale", 2, 1.0F);
-  const float tx = value("translation", 0, 0.0F);
-  const float ty = value("translation", 1, 0.0F);
-  const float tz = value("translation", 2, 0.0F);
-  return {
-      (1.0F - 2.0F * (y * y + z * z)) * sx,
-      (2.0F * (x * y + z * w)) * sx,
-      (2.0F * (x * z - y * w)) * sx,
-      0.0F,
-      (2.0F * (x * y - z * w)) * sy,
-      (1.0F - 2.0F * (x * x + z * z)) * sy,
-      (2.0F * (y * z + x * w)) * sy,
-      0.0F,
-      (2.0F * (x * z + y * w)) * sz,
-      (2.0F * (y * z - x * w)) * sz,
-      (1.0F - 2.0F * (x * x + y * y)) * sz,
-      0.0F,
-      tx,
-      ty,
-      tz,
-      1.0F,
-  };
-}
-
 std::array<float, 3> transformPoint(const Matrix &matrix,
                                     const std::array<float, 3> point) {
   return {
@@ -129,32 +70,18 @@ void expand(Bounds &bounds, const std::array<float, 3> point) {
   }
 }
 
-bool validBounds(const Json &accessor) {
-  return accessor.value("type", "") == "VEC3" && accessor.contains("min") &&
-         accessor["min"].is_array() && accessor["min"].size() == 3 &&
-         accessor.contains("max") && accessor["max"].is_array() &&
-         accessor["max"].size() == 3;
-}
-
-void addPrimitiveBounds(const Json &document, const int meshIndex,
-                        const Matrix &transform, Bounds &bounds,
-                        bool &foundBounds, Diagnostics &diagnostics,
+void addPrimitiveBounds(const cgltf_mesh &mesh, const Matrix &transform,
+                        Bounds &bounds, bool &foundBounds,
+                        Diagnostics &diagnostics,
                         const std::filesystem::path &path) {
-  const auto &meshes = document["meshes"];
-  if (meshIndex < 0 || static_cast<std::size_t>(meshIndex) >= meshes.size()) {
-    addDiagnostic(diagnostics, "COLLIDER_GLTF_MESH_INVALID",
-                  "A glTF node references a missing mesh.", path);
-    return;
-  }
-  for (const Json &primitive : meshes[meshIndex].value("primitives", Json{})) {
-    const auto attributes = primitive.find("attributes");
-    if (attributes == primitive.end() || !attributes->contains("POSITION"))
+  for (cgltf_size index = 0; index < mesh.primitives_count; ++index) {
+    const auto *accessor =
+        gltf::attribute(mesh.primitives[index], cgltf_attribute_type_position);
+    if (accessor == nullptr) {
       continue;
-    const int accessorIndex = (*attributes)["POSITION"].get<int>();
-    const auto &accessors = document["accessors"];
-    if (accessorIndex < 0 ||
-        static_cast<std::size_t>(accessorIndex) >= accessors.size() ||
-        !validBounds(accessors[accessorIndex])) {
+    }
+    if (accessor->type != cgltf_type_vec3 || !accessor->has_min ||
+        !accessor->has_max) {
       addDiagnostic(
           diagnostics, "COLLIDER_GLTF_POSITION_BOUNDS_MISSING",
           "Every glTF POSITION accessor used for collider generation must "
@@ -162,85 +89,64 @@ void addPrimitiveBounds(const Json &document, const int meshIndex,
           path);
       return;
     }
-    const Json &accessor = accessors[accessorIndex];
-    std::array<float, 3> minimum{};
-    std::array<float, 3> maximum{};
-    for (std::size_t axis = 0; axis < minimum.size(); ++axis) {
-      minimum[axis] = accessor["min"][axis].get<float>();
-      maximum[axis] = accessor["max"][axis].get<float>();
-    }
-    for (const float x : {minimum[0], maximum[0]})
-      for (const float y : {minimum[1], maximum[1]})
-        for (const float z : {minimum[2], maximum[2]})
+    // An accessor box transformed through a rotated/mirrored node needs all
+    // eight corners; transforming just its min and max can reverse extents.
+    for (const float x : {accessor->min[0], accessor->max[0]}) {
+      for (const float y : {accessor->min[1], accessor->max[1]}) {
+        for (const float z : {accessor->min[2], accessor->max[2]}) {
           expand(bounds, transformPoint(transform, {x, y, z}));
+        }
+      }
+    }
     foundBounds = true;
   }
 }
 
-void visitNode(const Json &document, const int nodeIndex,
-               const Matrix &parentTransform, Bounds &bounds, bool &foundBounds,
+void visitNode(const cgltf_node &node, Bounds &bounds, bool &foundBounds,
                Diagnostics &diagnostics, const std::filesystem::path &path) {
-  const auto &nodes = document["nodes"];
-  if (nodeIndex < 0 || static_cast<std::size_t>(nodeIndex) >= nodes.size()) {
-    addDiagnostic(diagnostics, "COLLIDER_GLTF_NODE_INVALID",
-                  "A glTF scene references a missing node.", path);
-    return;
+  if (node.mesh != nullptr) {
+    Matrix transform{};
+    cgltf_node_transform_world(&node, transform.data());
+    addPrimitiveBounds(*node.mesh, transform, bounds, foundBounds, diagnostics,
+                       path);
   }
-  const Json &node = nodes[nodeIndex];
-  const Matrix transform = multiply(parentTransform, nodeMatrix(node));
-  if (const auto mesh = node.find("mesh"); mesh != node.end())
-    addPrimitiveBounds(document, mesh->get<int>(), transform, bounds,
-                       foundBounds, diagnostics, path);
-  if (const auto children = node.find("children");
-      children != node.end() && children->is_array())
-    for (const Json &child : *children)
-      visitNode(document, child.get<int>(), transform, bounds, foundBounds,
-                diagnostics, path);
+  for (cgltf_size index = 0; index < node.children_count; ++index) {
+    visitNode(*node.children[index], bounds, foundBounds, diagnostics, path);
+  }
 }
 
 std::optional<Bounds> gltfBounds(const std::filesystem::path &path,
                                  Diagnostics &diagnostics) {
-  Json document;
-  try {
-    std::ifstream input(path);
-    document = Json::parse(input);
-  } catch (const Json::exception &error) {
-    addDiagnostic(diagnostics, "COLLIDER_GLTF_INVALID", error.what(), path);
+  std::string error;
+  cgltf_result status = cgltf_result_success;
+  const auto document = gltf::parseDocument(path, error, &status);
+  if (!document) {
+    const auto *code = status == cgltf_result_invalid_json
+                           ? "COLLIDER_GLTF_INVALID"
+                           : "COLLIDER_GLTF_STRUCTURE_INVALID";
+    addDiagnostic(diagnostics, code, error, path);
     return std::nullopt;
   }
-  if (!document.contains("nodes") || !document["nodes"].is_array() ||
-      !document.contains("meshes") || !document["meshes"].is_array() ||
-      !document.contains("accessors") || !document["accessors"].is_array() ||
-      !document.contains("scenes") || !document["scenes"].is_array()) {
-    addDiagnostic(diagnostics, "COLLIDER_GLTF_STRUCTURE_INVALID",
-                  "glTF collider generation requires nodes, meshes, accessors, "
-                  "and scenes arrays.",
-                  path);
-    return std::nullopt;
+  const cgltf_scene *scene = document->scene;
+  if (scene == nullptr && document->scenes_count != 0) {
+    scene = &document->scenes[0];
   }
-  const int sceneIndex = document.value("scene", 0);
-  if (sceneIndex < 0 ||
-      static_cast<std::size_t>(sceneIndex) >= document["scenes"].size()) {
+  if (scene == nullptr) {
     addDiagnostic(diagnostics, "COLLIDER_GLTF_SCENE_INVALID",
                   "The default glTF scene is missing.", path);
     return std::nullopt;
   }
-  const Json &scene = document["scenes"][sceneIndex];
-  if (!scene.contains("nodes") || !scene["nodes"].is_array()) {
-    addDiagnostic(diagnostics, "COLLIDER_GLTF_SCENE_INVALID",
-                  "The default glTF scene has no root nodes.", path);
-    return std::nullopt;
-  }
   Bounds result;
   bool foundBounds = false;
-  for (const Json &root : scene["nodes"])
-    visitNode(document, root.get<int>(), identityMatrix(), result, foundBounds,
-              diagnostics, path);
+  for (cgltf_size index = 0; index < scene->nodes_count; ++index) {
+    visitNode(*scene->nodes[index], result, foundBounds, diagnostics, path);
+  }
   if (!diagnostics.empty() || !foundBounds) {
-    if (diagnostics.empty())
+    if (diagnostics.empty()) {
       addDiagnostic(diagnostics, "COLLIDER_GLTF_GEOMETRY_MISSING",
                     "The glTF default scene contains no POSITION geometry.",
                     path);
+    }
     return std::nullopt;
   }
   return result;
