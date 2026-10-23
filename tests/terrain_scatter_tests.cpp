@@ -416,6 +416,7 @@ void physicalSitesSurviveResolutionChangesAndLocalExclusions() {
   auto field = *TerrainGenerator::generate(recipe);
   TerrainPalette palette;
   palette.placements.emplace("tree", entry("tree", "asset://tree", 0.8F, 4));
+  palette.placements.at("tree").positionJitter = 1.F;
   const auto baseline = scatterTerrain(field, recipe, palette);
   assert(!baseline.placements.empty());
   const auto removedCell = baseline.placements.front().cell;
@@ -438,6 +439,80 @@ void physicalSitesSurviveResolutionChangesAndLocalExclusions() {
     assert(before.position.x == after.position.x &&
            before.position.z == after.position.z);
     assert(before.yaw == after.yaw && before.scale == after.scale);
+  }
+}
+
+void jitterRemovesRowsAndPreservesPhysicalSpacing() {
+  auto recipe = flatRecipe();
+  recipe.size = {16, 16};
+  recipe.cellsX = recipe.cellsZ = 8;
+  const auto field = *TerrainGenerator::generate(recipe);
+  TerrainPalette palette;
+  auto grass = entry("grass", "asset://grass", 1, 0);
+  palette.placements.emplace("grass", grass);
+  const auto grid = scatterTerrain(field, recipe, palette);
+  for (const auto &placement : grid.placements) {
+    assert(placement.position.x == float(placement.candidateX));
+    assert(placement.position.z == float(placement.candidateZ));
+  }
+  palette.placements.at("grass").positionJitter = 1.F;
+  const auto irregular = scatterTerrain(field, recipe, palette);
+  const auto repeated = scatterTerrain(field, recipe, palette);
+  assert(irregular.placements.size() > 200);
+  assert(irregular.placements.size() == repeated.placements.size());
+  std::size_t displacedOnBothAxes = 0;
+  for (std::size_t index = 0; index < irregular.placements.size(); ++index) {
+    const auto &placement = irregular.placements[index];
+    const auto &again = repeated.placements[index];
+    const float offsetX = placement.position.x - float(placement.candidateX);
+    const float offsetZ = placement.position.z - float(placement.candidateZ);
+    assert(std::abs(offsetX) <= 0.5F && std::abs(offsetZ) <= 0.5F);
+    assert(placement.position.x >= 0 && placement.position.x <= 16);
+    assert(placement.position.z >= 0 && placement.position.z <= 16);
+    assert(placement.position.x == again.position.x);
+    assert(placement.position.z == again.position.z);
+    assert(placement.yaw == again.yaw && placement.scale == again.scale);
+    if (std::abs(offsetX) > 0.05F && std::abs(offsetZ) > 0.05F) {
+      ++displacedOnBothAxes;
+    }
+  }
+  assert(displacedOnBothAxes > irregular.placements.size() / 2);
+  // Independent variation streams survive changing only distribution.
+  for (const auto &placement : irregular.placements) {
+    const auto sameSite = std::ranges::find_if(grid.placements, [&](const auto &other) {
+      return other.candidateX == placement.candidateX &&
+             other.candidateZ == placement.candidateZ;
+    });
+    assert(sameSite != grid.placements.end());
+    assert(sameSite->yaw == placement.yaw && sameSite->scale == placement.scale);
+  }
+  palette.placements.emplace("a_unrelated", entry("a_unrelated", "asset://rock", 0.2F, 0));
+  palette.placements.at("grass").density = 0.5F;
+  const auto thinned = scatterTerrain(field, recipe, palette);
+  for (const auto &placement : thinned.placements) {
+    if (placement.ruleId != "grass") {
+      continue;
+    }
+    const auto survivor = std::ranges::find_if(irregular.placements, [&](const auto &other) {
+      return other.candidateX == placement.candidateX &&
+             other.candidateZ == placement.candidateZ;
+    });
+    assert(survivor != irregular.placements.end());
+    assert(survivor->position.x == placement.position.x);
+    assert(survivor->position.z == placement.position.z);
+    assert(survivor->yaw == placement.yaw && survivor->scale == placement.scale);
+  }
+  palette.placements.erase("a_unrelated");
+  palette.placements.at("grass").density = 1.F;
+  palette.placements.at("grass").spacing = 1.5F;
+  const auto separated = scatterTerrain(field, recipe, palette);
+  assert(!separated.placements.empty());
+  for (std::size_t first = 0; first < separated.placements.size(); ++first) {
+    for (std::size_t second = first + 1; second < separated.placements.size(); ++second) {
+      const auto &a = separated.placements[first].position;
+      const auto &b = separated.placements[second].position;
+      assert(std::hypot(a.x - b.x, a.z - b.z) >= 1.5F);
+    }
   }
 }
 
@@ -626,6 +701,7 @@ int main() {
   finalSurfaceRefilterRechecksRulesAndRestoresCandidates();
   densityControlsAreIndependentAndMonotonic();
   physicalSitesSurviveResolutionChangesAndLocalExclusions();
+  jitterRemovesRowsAndPreservesPhysicalSpacing();
   denseGrassDoesNotDependOnTerrainSamples();
   rulesUseSharedEnvironmentAndSpatialConstraints();
   clustersAndCancellationKeepStableSites();

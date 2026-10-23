@@ -15,6 +15,7 @@
 #include "demi/runtime/render/bgfx3d/PrimitiveSurfacePreparation3D.h"
 #include "demi/runtime/render/bgfx3d/SceneVisibility3D.h"
 #include "demi/runtime/scene/SceneLoader.h"
+#include "demi/runtime/scene/SceneFlow.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/3dcomponents/AnimationPlayer3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/BoxCollider3DComponent.h"
@@ -2972,6 +2973,112 @@ int main() {
     assert(uploads.textureHandles.size() > textureUploads);
     assert(std::ranges::find(uploads.retiredTextures, sharedColor) ==
            uploads.retiredTextures.end());
+
+    // Separate finite owners retire their whole-field textures on traversal.
+    // This deliberately exercises scene lifetime, not distance-paged collision.
+    {
+      World traversal;
+      const std::string sceneId = "scene://test/terrain-traversal";
+      traversal.activeSceneId = sceneId;
+      traversal.loadedSceneIds.insert(sceneId);
+      for (unsigned index = 0; index < 2; ++index) {
+        Entity terrainOwner;
+        terrainOwner.id = "traversal-owner-" + std::to_string(index);
+        terrainOwner.sceneOwner = sceneId;
+        Transform3DComponent placement;
+        placement.position.x = static_cast<float>(index) * 1000.F;
+        terrainOwner.setComponent(placement);
+        Terrain3DComponent terrainComponent;
+        terrainComponent.asset = "asset://test/traversal-" +
+                                 std::to_string(index);
+        terrainComponent.lodErrorPixels = 2.F;
+        terrainOwner.setComponent(terrainComponent);
+        traversal.entities.push_back(std::move(terrainOwner));
+      }
+      const TerrainFieldResolver traversalResolver =
+          [&](std::string_view assetId, nlohmann::json &outRecipe) {
+            outRecipe = recipe.toJson();
+            auto field = std::make_shared<HeightField>(*generated);
+            // HeightField copies share immutable sample pages. Give each owner
+            // genuinely different height data so channel reuse cannot make a
+            // correctly shared texture look like a failed owner retirement.
+            const float elevation = assetId.ends_with("/traversal-0") ? 2.F : 4.F;
+            for (std::size_t sample = 0; sample < field->heights.size();
+                 ++sample) {
+              field->heights.set(sample, field->heights[sample] + elevation);
+            }
+            return std::shared_ptr<const HeightField>(std::move(field));
+          };
+      assert(materializeTerrains(traversal, error, nullptr, {},
+                                 traversalResolver));
+      auto traversalCamera = camera;
+      traversalCamera.cameraId = "finite-terrain-traversal";
+      const auto visit = [&](float x) {
+        traversalCamera.position.x = x;
+        const auto visitDeadline = std::chrono::steady_clock::now() +
+                                   std::chrono::seconds(2);
+        do {
+          assert(gpuTerrain.renderFrame(traversal, traversalCamera, .016F,
+                                        error));
+          static_cast<void>(graphics.endFrame());
+          if (gpuTerrain.terrainStatistics().gpuPatchInstances == 4) {
+            break;
+          }
+          std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        } while (std::chrono::steady_clock::now() < visitDeadline);
+        const auto &statistics = gpuTerrain.terrainStatistics();
+        assert(statistics.gpuPatchInstances == 4);
+        assert(statistics.gpuPatchFallbacks == 0);
+        assert(statistics.gpuFallbackReason.empty());
+        // A planar field has zero geometric error at reduced levels, even
+        // nearby. A positive pixel budget must therefore choose reduced LOD.
+        assert(statistics.gpuSelectedLevels[0] == 0);
+      };
+      const auto latestHeight = [&]() {
+        for (std::size_t index = uploads.textureNames.size(); index > 0;
+             --index) {
+          if (uploads.textureNames[index - 1] == "Terrain GPU heights") {
+            return uploads.textureHandles[index - 1];
+          }
+        }
+        return TextureHandle{};
+      };
+      visit(8.F);
+      const auto firstOwnerHeight = latestHeight();
+      assert(firstOwnerHeight);
+      visit(1008.F);
+      const auto secondOwnerHeight = latestHeight();
+      assert(secondOwnerHeight && secondOwnerHeight != firstOwnerHeight);
+      assert(std::ranges::find(uploads.retiredTextures, firstOwnerHeight) !=
+             uploads.retiredTextures.end());
+      visit(8.F);
+      const auto returningHeight = latestHeight();
+      assert(returningHeight && returningHeight != firstOwnerHeight);
+      assert(std::ranges::find(uploads.retiredTextures, secondOwnerHeight) !=
+             uploads.retiredTextures.end());
+
+      auto *returningOwner = findEntity(traversal, "traversal-owner-0");
+      assert(returningOwner);
+      returningOwner->component<Terrain3DComponent>()->lodErrorPixels = 0.F;
+      assert(gpuTerrain.renderFrame(traversal, traversalCamera, .016F, error));
+      static_cast<void>(graphics.endFrame());
+      assert(gpuTerrain.terrainStatistics().gpuSelectedLevels[0] == 4);
+      assert(gpuTerrain.terrainStatistics().gpuPatchFallbacks == 0);
+
+      SceneFlow flow;
+      ResourceLifetimeRegistry lifetime;
+      lifetime.capture(sceneId, traversal.entities);
+      const auto unloaded = flow.unload(traversal, sceneId, lifetime);
+      assert(unloaded && !unloaded->unloadingEntities.empty());
+      assert(traversal.entities.empty());
+      assert(traversal.terrainOwners.empty());
+      assert(lifetime.groupCount() == 0);
+      assert(gpuTerrain.renderFrame(traversal, traversalCamera, .016F, error));
+      static_cast<void>(graphics.endFrame());
+      assert(gpuTerrain.terrainStatistics().gpuPatchInstances == 0);
+      assert(std::ranges::find(uploads.retiredTextures, returningHeight) !=
+             uploads.retiredTextures.end());
+    }
 
     // The deliberate compatibility switch returns to complete native Full
     // geometry without changing the field, picking/collision or authored data.

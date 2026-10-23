@@ -2,6 +2,8 @@ local Test = require("demi.test")
 local Hud = require("demi.hud")
 local Transform3D = require("demi.transform3d")
 local Route = require("terrain_route")
+local Scene = require("demi.scene")
+local MountainRoute = require("mountain_route")
 
 local function camera_position()
   local x, y, z = Transform3D.get_position("camera")
@@ -51,5 +53,26 @@ return {tests = {
     Test.expect(Hud.get_text("tour_chapter"):find("01 /", 1, true) == 1, "Final chapter must wrap to the opening")
     Test.expect(distance(camera_position(), Route[1].position) < 0.001, "Loop must return to its authored opening")
     Test.touch("tour_restart")
+  end},
+  {name = "large mountain scene prepares traverses and unloads", func = function()
+    Test.expect(Scene.load("scene://terrain_3d/mountain_loading"), "Open highland loading scene")
+    Test.expect_scene("scene://terrain_3d/mountain_range", 120)
+    Test.wait(2)
+    Test.expect(Hud.get_text("tour_title") == "SILVERMERE HIGHLANDS", "Highlands use their own tour")
+    Test.touch("tour_restart")
+    Test.touch("tour_pause")
+    for chapter = 2, #MountainRoute do
+      Test.touch("tour_next")
+      Test.wait(0.25)
+      local position = camera_position()
+      local expected = MountainRoute[chapter].position
+      Test.expect(math.abs(position[1] - expected[1]) < 0.01 and math.abs(position[3] - expected[3]) < 0.01,
+                  string.format("Highland chapter %d expected %.1f, %.1f; got %.3f, %.3f (%s)", chapter, expected[1], expected[3], position[1], position[3], Hud.get_text("tour_status")))
+      Test.expect(position[2] >= expected[2], "Ground clearance may raise but must not lower the camera")
+    end
+    Test.expect(Scene.load("scene://terrain_3d/loading"), "Unload highlands and return")
+    Test.expect_scene("scene://terrain_3d/main", 90)
+    Test.wait(0.3)
+    Test.expect(Hud.get_text("tour_title") == "SILVERMERE", "Return restores the original scene")
   end},
 }}

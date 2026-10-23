@@ -22,7 +22,7 @@ struct TerrainGraphArtifacts;
 // 9: adaptive hydraulic descent, open-edge export and bounded deposition.
 // 12: wet material masks exclude dry corners retained for water triangulation.
 // 14: physical scatter candidate lattices and independent palette density.
-inline constexpr int terrainGeneratorVersion = 14;
+inline constexpr int terrainGeneratorVersion = 15;
 
 class TerrainGenerator {
 public:

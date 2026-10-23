@@ -3,7 +3,8 @@ local Transform3D = require("demi.transform3d")
 local Input = require("demi.input")
 local Application = require("demi.application")
 local Hud = require("demi.hud")
-local Route = require("terrain_route")
+local Scene = require("demi.scene")
+local Physics3D = require("demi.physics.query3d")
 
 ---@demi_component
 ---@display_name Terrain camera tour
@@ -14,15 +15,31 @@ local TerrainTour = {}
 ---@range 2 30
 TerrainTour.chapter_seconds = 10.0
 
+---@demi_property
+TerrainTour.route_module = "terrain_route"
+---@demi_property
+TerrainTour.title = "SILVERMERE"
+---@demi_property
+TerrainTour.next_scene = "scene://terrain_3d/mountain_loading"
+---@demi_property
+TerrainTour.ground_clearance = 0
+
 function TerrainTour:apply_pose(pose)
   local position = pose.position
   local target = pose.target
-  Transform3D.set_position("camera", position[1], position[2], position[3])
+  local height = position[2]
+  if self.ground_clearance > 0 then
+    local hit = Physics3D.raycast(position[1], 2000, position[3], 0, -1, 0, 4000)
+    if hit then
+      height = math.max(height, hit.point[2] + self.ground_clearance)
+    end
+  end
+  Transform3D.set_position("camera", position[1], height, position[3])
   Transform3D.look_at("camera", target[1], target[2], target[3])
   if self.chapter ~= pose.segment then
     self.chapter = pose.segment
-    local chapter = Route[pose.segment]
-    Hud.set_text("tour_chapter", string.format("%02d / %02d   %s", pose.segment, #Route, chapter.name))
+    local chapter = self.route[pose.segment]
+    Hud.set_text("tour_chapter", string.format("%02d / %02d   %s", pose.segment, #self.route, chapter.name))
     Hud.set_text("tour_description", chapter.description)
   end
   Hud.set_value("tour_progress", pose.progress)
@@ -34,7 +51,9 @@ function TerrainTour:refresh_controls()
 end
 
 function TerrainTour:on_start()
-  self.path = Path.new(Route, {duration = self.chapter_seconds * #Route, loop = true})
+  self.route = require(self.route_module)
+  Hud.set_text("tour_title", self.title)
+  self.path = Path.new(self.route, {duration = self.chapter_seconds * #self.route, loop = true})
   self.chapter = nil
   self:apply_pose(self.path:sample(0))
   self:refresh_controls()
@@ -59,13 +78,17 @@ end
 -- @HandleAction("tour_next")
 function TerrainTour:on_next()
   local chapter = math.floor(self.path.elapsed / self.chapter_seconds) + 1
-  local elapsed = (chapter % #Route) * self.chapter_seconds
+  local elapsed = (chapter % #self.route) * self.chapter_seconds
   self:apply_pose(self.path:seek(elapsed))
 end
 
 function TerrainTour:on_update(dt)
   if Input.key_pressed("escape") then
     Application.quit()
+    return
+  end
+  if Input.key_pressed("m") then
+    Scene.load(self.next_scene)
     return
   end
   if Input.key_pressed("space") then

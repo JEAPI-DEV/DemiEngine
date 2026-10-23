@@ -19,6 +19,10 @@ This directory keeps material that has a different job:
 - [3D showcase and authoring plan](../3d-showcase-plan.md) inventories verified
   capabilities and phases the requested landscape, cinematic and editor work.
 
+- [Highland memory investigation](highlands-memory-investigation.md) separates
+  live allocations from retained allocator pages and identifies terrain JSON churn.
+- [Highland terrain qualification](highlands-terrain-qualification.md) covers organic
+  scatter, the 2 km landscape, scene budgets and measured residency boundaries.
 - [Silvermere terrain showcase](silvermere-showcase.md) records the camera tour,
   real placement counts, visual qualification and prioritized feature gaps.
 - [Runtime ECS migration](runtime-ecs-migration.md) records typed world storage,

@@ -8,6 +8,12 @@
     },
     {
       "id": "scene://terrain_3d/main"
+    },
+    {
+      "id": "scene://terrain_3d/mountain_loading"
+    },
+    {
+      "id": "scene://terrain_3d/mountain_range"
     }
   ],
   "package_registry": "../../packages",

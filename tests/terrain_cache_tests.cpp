@@ -323,10 +323,12 @@ void paletteInputsAreResolvedBeforeGeneration() {
       changedRegistry.assets, recipe.paletteId, &demi::AssetManifest::id);
   std::ifstream source(manifest->sourcePath);
   auto edited = nlohmann::json::parse(source);
-  edited["placements"]["grass"]["spacing"] = 7;
-  // Keep the candidate pool fixed while changing the independent minimum
-  // spacing. Auto-derived spacing would lower its capacity below this density.
-  edited["placements"]["grass"]["candidate_spacing"] = 0.25;
+  check(!inputs.palette->placements.empty(), "Palette fixture has no placement rules");
+  const auto &[ruleId, originalRule] = *inputs.palette->placements.begin();
+  // Mutate an existing complete rule. Indexing a stale example-specific name
+  // would create an invalid rule with neither a model nor a prefab reference.
+  auto &editedRule = edited.at("placements").at(ruleId);
+  editedRule["position_jitter"] = originalRule.positionJitter == 0.F ? 1.F : 0.F;
   const auto temporary = std::filesystem::temp_directory_path() /
                          "demi-terrain-cache-palette.json";
   {
@@ -337,7 +339,7 @@ void paletteInputsAreResolvedBeforeGeneration() {
   const auto changed = resolveTerrainGenerationInputs(recipe, changedRegistry);
   std::filesystem::remove(temporary);
   check(changed.fingerprint != inputs.fingerprint,
-        "Placement edits did not invalidate the palette fingerprint");
+        "Position jitter did not invalidate the palette fingerprint");
   check(!findTerrain(recipe.toJson(), changed.fingerprint),
         "Cache served a field from stale placement rules");
 }

@@ -34,7 +34,8 @@ public:
   [[nodiscard]] assets::AssetGroupRequestHandle
   load(std::string_view uri, Diagnostics *diagnostics = nullptr);
   // Scenes are implicit groups. This keeps scene data as the source of truth
-  // while still giving transitions an explicit prepare/activate lifetime.
+  // while still giving transitions an explicit prepare/activate lifetime. An
+  // authored group with sceneGroupId(sceneId) supplies budgets, never roots.
   [[nodiscard]] assets::AssetGroupRequestHandle
   prepareScene(std::string_view sceneId, Diagnostics *diagnostics = nullptr);
   // Collect references from an already expanded/prepared world without loading
@@ -67,6 +68,8 @@ public:
   [[nodiscard]] assets::AssetMemoryReport memoryReport() const;
 
 private:
+  [[nodiscard]] assets::AssetGroupDescriptor
+  sceneGroup(std::string_view sceneId, std::vector<std::string> roots) const;
   [[nodiscard]] bool isFallbackAsset(const AssetManifest &asset) const;
   [[nodiscard]] std::vector<std::string>
   resolveRoot(std::string_view root, Diagnostics *diagnostics) const;

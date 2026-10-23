@@ -247,11 +247,22 @@ RuntimeAssetService::prepareScene(const std::string_view sceneId,
 
   // Discovery already loaded and expanded the scene, including terrain and
   // prefab scenery. Reuse its roots rather than materializing that world again.
-  assets::AssetGroupDescriptor group{.id = sceneGroupId(sceneId),
-                                     .roots = std::move(referencedAssets),
-                                     .budget = {},
-                                     .sourcePath = {}};
+  auto group = sceneGroup(sceneId, std::move(referencedAssets));
   return service_->prepare(group, diagnostics);
+}
+
+assets::AssetGroupDescriptor RuntimeAssetService::sceneGroup(
+    const std::string_view sceneId, std::vector<std::string> roots) const {
+  assets::AssetGroupDescriptor descriptor{.id = sceneGroupId(sceneId),
+                                          .roots = std::move(roots),
+                                          .budget = {},
+                                          .sourcePath = {}};
+  const auto authored = groups_.find(descriptor.id);
+  if (authored != groups_.end()) {
+    descriptor.budget = authored->second.budget;
+    descriptor.sourcePath = authored->second.sourcePath;
+  }
+  return descriptor;
 }
 
 std::string RuntimeAssetService::sceneGroupId(const std::string_view sceneId) {
@@ -276,10 +287,7 @@ RuntimeAssetService::prepareScene(const std::string_view sceneId,
   if (referencedAssets.empty()) {
     return 0;
   }
-  assets::AssetGroupDescriptor group{.id = sceneGroupId(sceneId),
-                                     .roots = std::move(referencedAssets),
-                                     .budget = {},
-                                     .sourcePath = {}};
+  auto group = sceneGroup(sceneId, std::move(referencedAssets));
   return service_->prepare(group, diagnostics);
 }
 

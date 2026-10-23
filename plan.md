@@ -1,5 +1,9 @@
 # DemiEngine Roadmap
 
+The 2 km [highland test](docs/highlands-terrain-qualification.md) adds natural
+scatter jitter and camera traversal with render-residency/scene-unload checks.
+It does not complete camera-driven terrain or collision streaming.
+
 The [3D showcase and authoring plan](3d-showcase-plan.md) tracks Silvermere
 and the requested terrain, foliage, cinematic, animation and editor workflows,
 with verified implemented/partial/missing boundaries and phased acceptance gates.

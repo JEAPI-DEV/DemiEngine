@@ -179,6 +179,7 @@ void completePayloadRoundTrip() {
   ruleId.category = TerrainScatterCategory::Tree;
   ruleId.density = 0.03F;
   ruleId.candidateSpacing = 2;
+  ruleId.positionJitter = 0.85F;
   ruleId.slope = {5, 45};
   ruleId.moisture = {0.2F, 0.8F};
   ruleId.waterDistance = {2, 30};
@@ -251,6 +252,7 @@ void completePayloadRoundTrip() {
          restoredRule.waterDistance.maximum == 30);
   assert(restoredRule.yawDegrees.minimum == -30 &&
          restoredRule.yawDegrees.maximum == 50);
+  assert(restoredRule.positionJitter == 0.85F);
   assert(restoredRule.clusterSize == 12 &&
          restoredRule.clusterStrength == 0.7F);
   assert(restored->resolvedPalette->artDensity == 0.8F &&
@@ -332,8 +334,8 @@ void waterCoverageRoundTrip() {
   assert(encoded["body"][0] == 0 && encoded["body"][1] == 2 &&
          encoded["body"][2] == -1);
   const auto payload = serializeTerrainAssetPayload(field, "recipe", "inputs");
-  assert(terrainAssetPayloadVersion == 11 && payload[7] == std::byte{'1'} &&
-         payload[8] == std::byte{'1'});
+  assert(terrainAssetPayloadVersion == 12 && payload[7] == std::byte{'1'} &&
+         payload[8] == std::byte{'2'});
   const auto restored = deserializeTerrainAssetPayload(payload);
   assert(restored->surfaceSedimentBalance);
   assert(*restored->surfaceSedimentBalance == *selectedBalance);

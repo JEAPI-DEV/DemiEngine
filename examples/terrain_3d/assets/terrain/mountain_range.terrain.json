@@ -1,0 +1,718 @@
+{
+  "format_version": 1,
+  "id": "asset://terrain/mountain_range",
+  "name": "Silvermere highlands - two kilometre residency test",
+  "recipe": {
+    "format_version": 1,
+    "size": [
+      2048,
+      2048
+    ],
+    "resolution": [
+      1024,
+      1024
+    ],
+    "chunk_cells": 32,
+    "seed": 1706,
+    "default_biome": "meadow",
+    "default_landform": "meadow",
+    "landforms": {
+      "meadow": {
+        "base_height": 29,
+        "height_variation": 4,
+        "feature_size": 78
+      }
+    },
+    "biomes": {
+      "meadow": {
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "material": "asset://terrain/surfaces/grass",
+        "allow_snow": false
+      },
+      "foothills": {
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "material": "asset://terrain/surfaces/grass",
+        "allow_snow": false
+      },
+      "rock": {
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "material": "asset://terrain/surfaces/exposed_rock",
+        "allow_snow": false
+      },
+      "shore": {
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "material": "asset://polyhaven/terrain/materials/sand_02",
+        "allow_snow": false
+      },
+      "lakebed": {
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "material": "asset://polyhaven/terrain/materials/wet_gravel",
+        "allow_snow": false
+      },
+      "talus": {
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "material": "asset://terrain/surfaces/exposed_rock",
+        "allow_snow": false
+      }
+    },
+    "rules": [
+      {
+        "id": "exposed_slopes",
+        "biome": "rock",
+        "priority": 90,
+        "slope": [
+          32,
+          90
+        ],
+        "blend": 4
+      },
+      {
+        "id": "rocky_summits",
+        "biome": "rock",
+        "priority": 80,
+        "elevation": [
+          190,
+          1100
+        ],
+        "blend": 8
+      },
+      {
+        "id": "lakebed",
+        "biome": "lakebed",
+        "priority": 75,
+        "elevation": [
+          -50,
+          22
+        ],
+        "water_distance": [
+          0,
+          0.1
+        ],
+        "blend": 1
+      },
+      {
+        "id": "shoreline",
+        "biome": "shore",
+        "priority": 70,
+        "elevation": [
+          22,
+          25
+        ],
+        "water_distance": [
+          0,
+          6
+        ],
+        "blend": 2
+      },
+      {
+        "id": "foothills",
+        "biome": "foothills",
+        "priority": 50,
+        "elevation": [
+          60,
+          190
+        ],
+        "blend": 8
+      },
+      {
+        "id": "rocky_woodland_margins",
+        "biome": "talus",
+        "priority": 95,
+        "elevation": [
+          70,
+          210
+        ],
+        "slope": [
+          18,
+          45
+        ],
+        "blend": 3
+      }
+    ],
+    "regions": [],
+    "edits": [],
+    "palette": "asset://terrain/palettes/highlands",
+    "graph": {
+      "format_version": 1,
+      "output": "output",
+      "nodes": [
+        {
+          "id": "ridge_fractures",
+          "type": "noise",
+          "position": [
+            0,
+            -300
+          ],
+          "parameters": {
+            "profile": "ridged",
+            "base_height": 0,
+            "height_variation": 1,
+            "feature_size": 115,
+            "roughness": 0.38,
+            "octaves": 3,
+            "warp_amplitude": 14,
+            "warp_feature_size": 170,
+            "stretch": 1.6,
+            "heading": -24,
+            "seed_offset": 47
+          }
+        },
+        {
+          "id": "fracture_cuts",
+          "type": "elevation_mask",
+          "position": [
+            260,
+            -300
+          ],
+          "parameters": {
+            "minimum": 0.05,
+            "maximum": 1.2,
+            "falloff": 0.35
+          }
+        },
+        {
+          "id": "cut_ridges",
+          "type": "offset",
+          "position": [
+            520,
+            -160
+          ],
+          "parameters": {
+            "amount": -32
+          }
+        },
+        {
+          "id": "ridges",
+          "type": "noise",
+          "position": [
+            0,
+            0
+          ],
+          "parameters": {
+            "profile": "ridged",
+            "base_height": 260,
+            "height_variation": 240,
+            "feature_size": 320,
+            "roughness": 0.5,
+            "octaves": 5,
+            "warp_amplitude": 95,
+            "warp_feature_size": 650,
+            "stretch": 1.7,
+            "heading": 32
+          }
+        },
+        {
+          "id": "meadow",
+          "type": "noise",
+          "position": [
+            0,
+            260
+          ],
+          "parameters": {
+            "base_height": 49,
+            "height_variation": 18,
+            "feature_size": 150,
+            "roughness": 0.55,
+            "octaves": 5,
+            "seed_offset": 13
+          }
+        },
+        {
+          "id": "valley_mask",
+          "type": "polygon_mask",
+          "position": [
+            260,
+            0
+          ],
+          "parameters": {
+            "points": [
+              [
+                -200,
+                680
+              ],
+              [
+                500,
+                610
+              ],
+              [
+                940,
+                550
+              ],
+              [
+                1290,
+                500
+              ],
+              [
+                2250,
+                300
+              ],
+              [
+                2250,
+                1000
+              ],
+              [
+                1500,
+                1250
+              ],
+              [
+                1230,
+                1500
+              ],
+              [
+                960,
+                1600
+              ],
+              [
+                680,
+                1510
+              ],
+              [
+                -200,
+                1600
+              ]
+            ],
+            "falloff": 520
+          }
+        },
+        {
+          "id": "valley",
+          "type": "height_blend",
+          "position": [
+            540,
+            120
+          ],
+          "parameters": {
+            "amount": 1
+          }
+        },
+        {
+          "id": "lake_bed",
+          "type": "noise",
+          "position": [
+            540,
+            400
+          ],
+          "parameters": {
+            "base_height": 17,
+            "height_variation": 2,
+            "feature_size": 90,
+            "roughness": 0.3,
+            "octaves": 3,
+            "seed_offset": 29
+          }
+        },
+        {
+          "id": "basin_mask",
+          "type": "polygon_mask",
+          "position": [
+            800,
+            400
+          ],
+          "parameters": {
+            "points": [
+              [
+                786.67,
+                866.67
+              ],
+              [
+                965.33,
+                760.0
+              ],
+              [
+                1146.67,
+                800.0
+              ],
+              [
+                1266.67,
+                946.67
+              ],
+              [
+                1218.67,
+                1120.0
+              ],
+              [
+                1066.67,
+                1216.0
+              ],
+              [
+                880.0,
+                1173.33
+              ],
+              [
+                760.0,
+                1018.67
+              ]
+            ],
+            "falloff": 85.33333333333333
+          }
+        },
+        {
+          "id": "basin",
+          "type": "height_blend",
+          "position": [
+            1060,
+            120
+          ],
+          "parameters": {
+            "amount": 1
+          }
+        },
+        {
+          "id": "lake",
+          "type": "water",
+          "position": [
+            1320,
+            120
+          ],
+          "parameters": {
+            "kind": "lake",
+            "level": 22,
+            "center_x": 1024,
+            "center_z": 997,
+            "radius": 450,
+            "shallow_color": [
+              0.13,
+              0.43,
+              0.39,
+              0.48
+            ],
+            "deep_color": [
+              0.025,
+              0.12,
+              0.18,
+              0.92
+            ],
+            "absorption_distance": 5,
+            "roughness": 0.13,
+            "wave_amplitude": 0.035,
+            "wave_length": 3.2,
+            "wave_speed": 0.4,
+            "foam_width": 0.5,
+            "foam_strength": 0.2
+          }
+        },
+        {
+          "id": "biomes",
+          "type": "biomes",
+          "position": [
+            1580,
+            120
+          ]
+        },
+        {
+          "id": "vegetation",
+          "type": "scatter",
+          "position": [
+            1840,
+            120
+          ]
+        },
+        {
+          "id": "output",
+          "type": "output",
+          "position": [
+            2100,
+            120
+          ]
+        },
+        {
+          "id": "highland_drainage",
+          "type": "drainage",
+          "position": [
+            780,
+            -160
+          ],
+          "parameters": {
+            "sea_level": 22
+          }
+        },
+        {
+          "id": "highland_erosion",
+          "type": "erosion",
+          "position": [
+            1010,
+            -160
+          ],
+          "parameters": {
+            "iterations": 6,
+            "thermal_strength": 0.2
+          }
+        }
+      ],
+      "links": [
+        {
+          "id": "ridge_fractures_field_fracture_cuts_field",
+          "from": {
+            "node": "ridge_fractures",
+            "port": "field"
+          },
+          "to": {
+            "node": "fracture_cuts",
+            "port": "field"
+          }
+        },
+        {
+          "id": "ridges_field_cut_ridges_field",
+          "from": {
+            "node": "ridges",
+            "port": "field"
+          },
+          "to": {
+            "node": "cut_ridges",
+            "port": "field"
+          }
+        },
+        {
+          "id": "fracture_cuts_mask_cut_ridges_mask",
+          "from": {
+            "node": "fracture_cuts",
+            "port": "mask"
+          },
+          "to": {
+            "node": "cut_ridges",
+            "port": "mask"
+          }
+        },
+        {
+          "id": "ridges_field_valley_mask_field",
+          "from": {
+            "node": "ridges",
+            "port": "field"
+          },
+          "to": {
+            "node": "valley_mask",
+            "port": "field"
+          }
+        },
+        {
+          "id": "ridges_field_valley_a",
+          "from": {
+            "node": "cut_ridges",
+            "port": "field"
+          },
+          "to": {
+            "node": "valley",
+            "port": "a"
+          }
+        },
+        {
+          "id": "meadow_field_valley_b",
+          "from": {
+            "node": "meadow",
+            "port": "field"
+          },
+          "to": {
+            "node": "valley",
+            "port": "b"
+          }
+        },
+        {
+          "id": "valley_mask_mask_valley_mask",
+          "from": {
+            "node": "valley_mask",
+            "port": "mask"
+          },
+          "to": {
+            "node": "valley",
+            "port": "mask"
+          }
+        },
+        {
+          "id": "valley_field_basin_mask_field",
+          "from": {
+            "node": "highland_erosion",
+            "port": "field"
+          },
+          "to": {
+            "node": "basin_mask",
+            "port": "field"
+          }
+        },
+        {
+          "id": "valley_field_basin_a",
+          "from": {
+            "node": "highland_erosion",
+            "port": "field"
+          },
+          "to": {
+            "node": "basin",
+            "port": "a"
+          }
+        },
+        {
+          "id": "lake_bed_field_basin_b",
+          "from": {
+            "node": "lake_bed",
+            "port": "field"
+          },
+          "to": {
+            "node": "basin",
+            "port": "b"
+          }
+        },
+        {
+          "id": "basin_mask_mask_basin_mask",
+          "from": {
+            "node": "basin_mask",
+            "port": "mask"
+          },
+          "to": {
+            "node": "basin",
+            "port": "mask"
+          }
+        },
+        {
+          "id": "basin_field_lake_field",
+          "from": {
+            "node": "basin",
+            "port": "field"
+          },
+          "to": {
+            "node": "lake",
+            "port": "field"
+          }
+        },
+        {
+          "id": "lake_field_biomes_field",
+          "from": {
+            "node": "lake",
+            "port": "field"
+          },
+          "to": {
+            "node": "biomes",
+            "port": "field"
+          }
+        },
+        {
+          "id": "lake_water_biomes_water",
+          "from": {
+            "node": "lake",
+            "port": "water"
+          },
+          "to": {
+            "node": "biomes",
+            "port": "water"
+          }
+        },
+        {
+          "id": "biomes_field_vegetation_field",
+          "from": {
+            "node": "biomes",
+            "port": "field"
+          },
+          "to": {
+            "node": "vegetation",
+            "port": "field"
+          }
+        },
+        {
+          "id": "lake_water_vegetation_water",
+          "from": {
+            "node": "lake",
+            "port": "water"
+          },
+          "to": {
+            "node": "vegetation",
+            "port": "water"
+          }
+        },
+        {
+          "id": "biomes_field_output_field",
+          "from": {
+            "node": "biomes",
+            "port": "field"
+          },
+          "to": {
+            "node": "output",
+            "port": "field"
+          }
+        },
+        {
+          "id": "lake_water_output_water",
+          "from": {
+            "node": "lake",
+            "port": "water"
+          },
+          "to": {
+            "node": "output",
+            "port": "water"
+          }
+        },
+        {
+          "id": "vegetation_instances_output_instances",
+          "from": {
+            "node": "vegetation",
+            "port": "instances"
+          },
+          "to": {
+            "node": "output",
+            "port": "instances"
+          }
+        },
+        {
+          "id": "valley_drainage",
+          "from": {
+            "node": "valley",
+            "port": "field"
+          },
+          "to": {
+            "node": "highland_drainage",
+            "port": "field"
+          }
+        },
+        {
+          "id": "valley_erosion",
+          "from": {
+            "node": "valley",
+            "port": "field"
+          },
+          "to": {
+            "node": "highland_erosion",
+            "port": "field"
+          }
+        },
+        {
+          "id": "drainage_erosion",
+          "from": {
+            "node": "highland_drainage",
+            "port": "drainage"
+          },
+          "to": {
+            "node": "highland_erosion",
+            "port": "drainage"
+          }
+        }
+      ]
+    }
+  }
+}

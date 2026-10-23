@@ -127,7 +127,7 @@ void readEntry(const DataValue &value, const std::string_view roleName,
   checkFields(value, where,
               {"model", "prefab", "scale", "spacing", "collision", "biomes",
                "density", "category", "slope", "moisture", "water_distance",
-               "yaw", "cluster", "candidate_spacing"});
+               "yaw", "cluster", "candidate_spacing", "position_jitter"});
   const auto *model = value.find("model");
   const auto *prefab = value.find("prefab");
   require((model != nullptr) != (prefab != nullptr),
@@ -151,6 +151,11 @@ void readEntry(const DataValue &value, const std::string_view roleName,
     entry.candidateSpacing = number(*spacing, where + "/candidate_spacing");
     require(entry.candidateSpacing > 0,
             at(where + "/candidate_spacing") + "must be positive.");
+  }
+  if (const auto *jitter = value.find("position_jitter")) {
+    entry.positionJitter = number(*jitter, where + "/position_jitter");
+    require(entry.positionJitter >= 0 && entry.positionJitter <= 1,
+            at(where + "/position_jitter") + "must be between 0 and 1.");
   }
   if (const auto *category = value.find("category")) {
     const auto name =

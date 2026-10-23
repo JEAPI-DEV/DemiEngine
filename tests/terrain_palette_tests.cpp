@@ -86,6 +86,7 @@ int main() {
   mixed["tree_density"] = 1.2;
   mixed["rock_density"] = 0.7;
   auto &pine = mixed["placements"]["pine_sparse"];
+  pine["position_jitter"] = 0.85;
   pine["category"] = "tree";
   pine["slope"] = {5, 30};
   pine["moisture"] = {0.2, 0.8};
@@ -94,6 +95,8 @@ int main() {
   pine["cluster"] = {{"size", 24}, {"strength", 0.6}};
   const auto palette = parse(mixed);
   const auto &parsedPine = palette.placements.at("pine_sparse");
+  assert(parsedPine.positionJitter == 0.85F);
+  assert(palette.placements.at("pine_dense").positionJitter == 0.F);
   assert(parsedPine.category == TerrainScatterCategory::Tree);
   assert(parsedPine.slope.minimum == 5 && parsedPine.slope.maximum == 30);
   assert(parsedPine.waterDistance.minimum == 3 &&
@@ -141,6 +144,7 @@ int main() {
   const Json invalidFields{{"weight", 1},
                            {"density", -1},
                            {"candidate_spacing", 0},
+                           {"position_jitter", 1.1},
                            {"category", "forest"},
                            {"slope", {-1, 20}},
                            {"moisture", {0.8, 0.2}},
@@ -157,6 +161,17 @@ int main() {
     rejects(invalid, key);
   }
   invalid = mixed;
+  for (const auto invalidJitter : {-0.1, 1.1}) {
+    auto invalidJitterDocument = mixed;
+    invalidJitterDocument["placements"]["pine_sparse"]["position_jitter"] = invalidJitter;
+    bool rejectedJitter = false;
+    try {
+      (void)parse(invalidJitterDocument);
+    } catch (const std::invalid_argument &) {
+      rejectedJitter = true;
+    }
+    assert(rejectedJitter);
+  }
   invalid["placements"]["pine_sparse"]["candidate_spacing"] = 100;
   rejects(invalid, "candidate capacity");
   invalid = mixed;

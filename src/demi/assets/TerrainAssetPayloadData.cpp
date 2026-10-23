@@ -179,6 +179,7 @@ Json palette(const TerrainPalette &value) {
         {"prefab", entry.prefab},
         {"density", entry.density},
         {"candidate_spacing", entry.candidateSpacing},
+        {"position_jitter", entry.positionJitter},
         {"category", terrainScatterCategoryName(entry.category)},
         {"slope", {entry.slope.minimum, entry.slope.maximum}},
         {"moisture", {entry.moisture.minimum, entry.moisture.maximum}},
@@ -240,6 +241,8 @@ TerrainPalette readPalette(const Json &value) {
     entry.density = finiteFloat(item.at("density"), "palette density");
     entry.candidateSpacing =
         finiteFloat(item.at("candidate_spacing"), "palette candidate spacing");
+    entry.positionJitter =
+        finiteFloat(item.at("position_jitter"), "palette position jitter");
     const auto category = item.at("category").get<std::string>();
     bool categoryFound = false;
     for (const auto candidate :
@@ -282,6 +285,7 @@ TerrainPalette readPalette(const Json &value) {
             "authored prefab collider");
     entry.biomes = item.at("biomes").get<std::vector<std::string>>();
     require(entry.density >= 0 && entry.candidateSpacing >= 0 &&
+                entry.positionJitter >= 0 && entry.positionJitter <= 1 &&
                 entry.scaleMin > 0 && entry.scaleMin <= entry.scaleMax &&
                 entry.spacing >= 0 && entry.clusterSize > 0 &&
                 entry.clusterStrength >= 0 && entry.clusterStrength <= 1,

@@ -167,6 +167,51 @@
       "output": "output",
       "nodes": [
         {
+          "id": "ridge_fractures",
+          "type": "noise",
+          "position": [
+            0,
+            -300
+          ],
+          "parameters": {
+            "profile": "ridged",
+            "base_height": 0,
+            "height_variation": 1,
+            "feature_size": 42,
+            "roughness": 0.38,
+            "octaves": 3,
+            "warp_amplitude": 7,
+            "warp_feature_size": 65,
+            "stretch": 1.6,
+            "heading": -24,
+            "seed_offset": 47
+          }
+        },
+        {
+          "id": "fracture_cuts",
+          "type": "elevation_mask",
+          "position": [
+            260,
+            -300
+          ],
+          "parameters": {
+            "minimum": 0.05,
+            "maximum": 1.2,
+            "falloff": 0.35
+          }
+        },
+        {
+          "id": "cut_ridges",
+          "type": "offset",
+          "position": [
+            520,
+            -160
+          ],
+          "parameters": {
+            "amount": -8
+          }
+        },
+        {
           "id": "ridges",
           "type": "noise",
           "position": [
@@ -395,6 +440,39 @@
       ],
       "links": [
         {
+          "id": "ridge_fractures_field_fracture_cuts_field",
+          "from": {
+            "node": "ridge_fractures",
+            "port": "field"
+          },
+          "to": {
+            "node": "fracture_cuts",
+            "port": "field"
+          }
+        },
+        {
+          "id": "ridges_field_cut_ridges_field",
+          "from": {
+            "node": "ridges",
+            "port": "field"
+          },
+          "to": {
+            "node": "cut_ridges",
+            "port": "field"
+          }
+        },
+        {
+          "id": "fracture_cuts_mask_cut_ridges_mask",
+          "from": {
+            "node": "fracture_cuts",
+            "port": "mask"
+          },
+          "to": {
+            "node": "cut_ridges",
+            "port": "mask"
+          }
+        },
+        {
           "id": "ridges_field_valley_mask_field",
           "from": {
             "node": "ridges",
@@ -408,7 +486,7 @@
         {
           "id": "ridges_field_valley_a",
           "from": {
-            "node": "ridges",
+            "node": "cut_ridges",
             "port": "field"
           },
           "to": {

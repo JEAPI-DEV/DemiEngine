@@ -30,19 +30,39 @@ bool roleAllowsBiome(const TerrainPaletteEntry &entry,
              entry.biomes.end();
 }
 
+Vec3 candidatePosition(const TerrainRecipe &recipe, std::string_view ruleId,
+                       int x, int z, float step, float jitter) {
+  Vec3 position{float(x) * step, 0, float(z) * step};
+  if (jitter > 0.F) {
+    // A separate stream leaves selection, priority, yaw and scale independent.
+    auto random = cellRandom(recipe.seed, terrainScatterCandidateKey(x, z),
+                             ruleId, 4);
+    const float radius = 0.5F * step * jitter;
+    position.x += random.range(-radius, radius);
+    position.z += random.range(-radius, radius);
+  }
+  return position;
+}
+
+bool insideTerrain(Vec3 position, Vec2 size) {
+  return position.x >= 0.F && position.z >= 0.F &&
+         position.x <= size.x && position.z <= size.y;
+}
+
 // Compete against immutable potential sites rather than accepted placements.
 // Filtering one site can therefore never refill a chain of distant neighbours.
 bool winsSpacing(const TerrainRecipe &recipe, std::string_view ruleId, int x,
-                 int z, float step, float spacing, int maximumX, int maximumZ,
-                 std::stop_token stop, std::size_t &spacingChecks,
-                 std::size_t maximumSpacingChecks) {
+                 int z, float step, float spacing, float jitter, Vec2 size,
+                 int maximumX, int maximumZ, std::stop_token stop,
+                 std::size_t &spacingChecks, std::size_t maximumSpacingChecks) {
   if (spacing <= 0.F) {
     return true;
   }
   const int reach = static_cast<int>(std::min(
-      double(std::max(maximumX, maximumZ)), std::ceil(double(spacing) / step)));
+      double(std::max(maximumX, maximumZ)), std::ceil(double(spacing) / step + jitter)));
   const auto candidate = terrainScatterCandidateKey(x, z);
   const float priority = cellRandom(recipe.seed, candidate, ruleId, 2).value();
+  const Vec3 position = candidatePosition(recipe, ruleId, x, z, step, jitter);
   for (int otherZ = std::max(0, z - reach);
        otherZ <= z + std::min(maximumZ - z, reach); ++otherZ) {
     if (stop.stop_requested()) {
@@ -60,8 +80,15 @@ bool winsSpacing(const TerrainRecipe &recipe, std::string_view ruleId, int x,
       if (other == candidate) {
         continue;
       }
-      const float distance =
-          std::hypot(float(otherX - x) * step, float(otherZ - z) * step);
+      const Vec3 otherPosition =
+          candidatePosition(recipe, ruleId, otherX, otherZ, step, jitter);
+      if (!insideTerrain(otherPosition, size)) {
+        continue;
+      }
+      const float distance = jitter == 0.F
+          ? std::hypot(float(otherX - x) * step, float(otherZ - z) * step)
+          : std::hypot(otherPosition.x - position.x,
+                       otherPosition.z - position.z);
       if (distance >= spacing) {
         continue;
       }
@@ -273,10 +300,11 @@ TerrainScatterResult scatterTerrain(
     }
     const float step = entry.candidateStep();
     if (!std::isfinite(step) || step <= 0.F || !std::isfinite(entry.spacing) ||
-        entry.spacing < 0.F) {
+        entry.spacing < 0.F || !std::isfinite(entry.positionJitter) ||
+        entry.positionJitter < 0.F || entry.positionJitter > 1.F) {
       throw std::invalid_argument(
-          "Terrain scatter candidate_spacing must be positive and finite, and "
-          "spacing nonnegative.");
+          "Terrain scatter candidate_spacing must be positive and finite, "
+          "spacing nonnegative, and position_jitter between 0 and 1.");
     }
     const double probability = density * double(step) * step;
     if (!std::isfinite(probability) || probability > 1.000001) {
@@ -310,7 +338,11 @@ TerrainScatterResult scatterTerrain(
           return {};
         }
         const auto candidateKey = terrainScatterCandidateKey(x, z);
-        Vec3 position{float(x) * step, 0, float(z) * step};
+        Vec3 position = candidatePosition(recipe, ruleId, x, z, step,
+                                           entry.positionJitter);
+        if (!insideTerrain(position, field.size)) {
+          continue;
+        }
         auto random = cellRandom(recipe.seed, candidateKey, ruleId, 0);
         const float selection = random.value();
         const float clusteredProbability =
@@ -336,9 +368,9 @@ TerrainScatterResult scatterTerrain(
           continue;
         }
         if (!winsSpacing(recipe, ruleId, x, z, step,
-                         entry.spacing * settings.spacingScale, maximumX,
-                         maximumZ, stop, spacingChecks,
-                         settings.maximumSpacingChecks)) {
+                         entry.spacing * settings.spacingScale,
+                         entry.positionJitter, field.size, maximumX, maximumZ,
+                         stop, spacingChecks, settings.maximumSpacingChecks)) {
           continue;
         }
         const auto height =

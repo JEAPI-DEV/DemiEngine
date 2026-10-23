@@ -40,6 +40,9 @@ struct TerrainPaletteEntry {
   // Expected instances per square terrain-local unit before spacing/clustering.
   float density = 1;
   float candidateSpacing = 0;
+  // Fraction of half a candidate cell used for independent X/Z displacement.
+  // Zero preserves intentional grid placement.
+  float positionJitter = 0;
   [[nodiscard]] float candidateStep() const noexcept {
     if (candidateSpacing > 0.F) {
       return candidateSpacing;

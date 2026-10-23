@@ -1,12 +1,13 @@
 # Silvermere showcase qualification
 
-Current checkpoint, 2026-10-22. Silvermere is a repeatable lightweight-3D
+Historical performance checkpoint, 2026-10-22. For the revised scatter and
+2 km highland test added on 2026-10-23, see [highland qualification](highlands-terrain-qualification.md). Silvermere is a repeatable lightweight-3D
 landscape tour, not feature parity with the supplied Flax screenshots.
 
 ## Current workload and behavior
 
 The native 768 × 768 m terrain graph provides ridged highlands, meadow/basin
-masks, lake carving, biomes and deterministic scatter. Its prepared output has
+masks, lake carving, biomes and deterministic scatter. Before the 2026-10-23 scatter revision, its prepared output had
 149,125 untruncated placements: 120,825 grass, 4,525 reeds, 16,426 sorrel,
 3,488 flower patches, 2,820 shrubs, 985 trees and 56 rocks. These are batched
 visual placements, not independently simulated entities or simultaneous visible

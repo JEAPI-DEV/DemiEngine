@@ -1,0 +1,21 @@
+{
+  "dependencies": [
+    "asset://schemas/terrain_palette",
+    "asset://terrain/material_sets/meadow"
+  ],
+  "format_version": 1,
+  "id": "asset://terrain/palettes/highlands",
+  "importer": "json_data",
+  "importer_version": 1,
+  "settings": {
+    "content_type": "terrain_palette",
+    "schema": "asset://schemas/terrain_palette",
+    "tags": [
+      "biome:meadow",
+      "terrain:surface"
+    ]
+  },
+  "source": "highlands.json",
+  "source_hash": "fnv1a64:caad07ca74cd76c0",
+  "type": "DataAsset"
+}
