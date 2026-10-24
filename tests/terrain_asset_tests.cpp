@@ -1,6 +1,7 @@
 #include "demi/assets/AssetHash.h"
 #include "demi/assets/TerrainAsset.h"
 #include "demi/assets/TerrainAssetPayloadData.h"
+#include "demi/assets/TerrainPlacementCodec.h"
 #include "demi/assets/TerrainSurfaceReferences.h"
 #include "demi/runtime/terrain/TerrainCook.h"
 #include "demi/runtime/terrain/TerrainGraph.h"
@@ -149,6 +150,150 @@ void sourceAndPersistentCache(const std::filesystem::path &root) {
   assert(std::filesystem::is_regular_file(regeneratedPath));
   assert(loadTerrainAsset(registry, id)->heights.size() ==
          recipe.sampleCount());
+}
+
+void compactPlacementPayload() {
+  auto generated = TerrainGenerator::generate(smallRecipe());
+  assert(generated);
+  auto field = *generated;
+  TerrainScatterPlacement placement;
+  placement.ruleId = "woodland_tree";
+  placement.model = "asset://woodland/shared-tree";
+  placement.biomeName = field.biomeIds.front();
+  placement.position = {1.25F, -0.0F, 2.5F};
+  placement.yaw = -17.5F;
+  placement.scale = .75F;
+  placement.collision = TerrainCollisionPolicy::None;
+  constexpr std::size_t count = 20000;
+  for (std::size_t index = 0; index < count; ++index) {
+    placement.candidateX = static_cast<int>(index);
+    placement.candidateZ = static_cast<int>(count - index);
+    placement.cell = index % field.heights.size();
+    field.scatterPlacements.push_back(placement);
+  }
+  auto artifacts = std::make_shared<TerrainGraphArtifacts>();
+  artifacts->baseField = std::make_shared<const HeightField>(*generated);
+  artifacts->basePlacements =
+      std::make_shared<const std::vector<TerrainScatterPlacement>>(
+          field.scatterPlacements);
+  field.graphArtifacts = artifacts;
+  const auto packed = terrain_payload::encodePlacements(field);
+  // One shared definition serves both final placements and editing candidates.
+  assert(std::to_integer<unsigned>(packed.front()) == 1);
+  assert(packed.size() < count * 2 * 40 + 256);
+  assert(packed == terrain_payload::encodePlacements(field));
+  const auto derived = terrain_payload::encodeDerived(field);
+  assert(!derived.contains("scatter"));
+  assert(!derived.at("graph").contains("candidates"));
+  const auto payload = serializeTerrainAssetPayload(field, "recipe", "inputs");
+  assert(payload == serializeTerrainAssetPayload(field, "recipe", "inputs"));
+  const auto restored = deserializeTerrainAssetPayload(payload);
+  assert(restored->scatterPlacements.size() == count);
+  assert(restored->graphArtifacts->basePlacements->size() == count);
+  const auto &last = restored->scatterPlacements.back();
+  assert(last.ruleId == placement.ruleId && last.model == placement.model);
+  assert(last.biomeName == placement.biomeName && last.cell == placement.cell);
+  assert(last.candidateX == placement.candidateX &&
+         last.candidateZ == placement.candidateZ);
+  assert(last.yaw == placement.yaw && last.scale == placement.scale);
+  assert(std::signbit(last.position.y));
+  assert(last.collision == TerrainCollisionPolicy::None);
+
+  // Definition bytes follow the 21-byte section header, then 40-byte rows.
+  const auto firstRecord = packed.size() - count * 2 * 40;
+  auto target = *generated;
+  target.graphArtifacts = artifacts;
+  target.scatterPlacements = {placement};
+  const auto originalArtifacts = target.graphArtifacts;
+  const auto originalCandidates = target.graphArtifacts->basePlacements;
+  const auto malformed = [&](std::vector<std::byte> bytes,
+                              std::string_view message) {
+    expectFailure([&] { terrain_payload::decodePlacements(bytes, target); },
+                  std::string(message));
+    assert(target.scatterPlacements.size() == 1);
+    assert(target.scatterPlacements.front().candidateX == placement.candidateX);
+    assert(target.graphArtifacts == originalArtifacts);
+    assert(target.graphArtifacts->basePlacements == originalCandidates);
+  };
+  const auto writeInteger = [](auto &bytes, std::size_t offset,
+                               std::uint64_t value, unsigned width) {
+    for (unsigned index = 0; index < width; ++index) {
+      bytes[offset + index] = std::byte((value >> (index * 8)) & 255U);
+    }
+  };
+  auto damaged = packed;
+  writeInteger(damaged, 21, 0xffffffffU, 4);
+  malformed(std::move(damaged), "truncated definition string");
+  damaged = packed;
+  const auto modelBegin = 21 + 4 + placement.ruleId.size() + 4;
+  damaged[modelBegin] = std::byte{255};
+  malformed(std::move(damaged), "UTF-8");
+  damaged = packed;
+  damaged[firstRecord - 1] = std::byte{255};
+  malformed(std::move(damaged), "collision policy");
+  damaged = packed;
+  writeInteger(damaged, firstRecord - 9, field.biomeIds.size(), 8);
+  malformed(std::move(damaged), "biome outside field");
+  damaged = packed;
+  writeInteger(damaged, firstRecord + 4, field.heights.size(), 8);
+  malformed(std::move(damaged), "sample cell outside field");
+  damaged = packed;
+  writeInteger(damaged, firstRecord + 36, 0, 4);
+  malformed(std::move(damaged), "positive scale");
+  damaged = packed;
+  writeInteger(damaged, firstRecord + 36, 0xbf800000U, 4);
+  malformed(std::move(damaged), "positive scale");
+  damaged = packed;
+  writeInteger(damaged, firstRecord + 20, 0x7fc00000U, 4);
+  malformed(std::move(damaged), "finite");
+  damaged = packed;
+  // Corrupt the second checkpoint candidate after every final scatter record
+  // has decoded. Neither list nor its graph owner may commit partially.
+  writeInteger(damaged, firstRecord + (count + 1) * 40, 255, 4);
+  malformed(std::move(damaged), "definition index");
+  damaged = packed;
+  damaged[firstRecord] = std::byte{255};
+  malformed(std::move(damaged), "definition index");
+  damaged = packed;
+  damaged[4] = std::byte{255};
+  damaged[11] = std::byte{127};
+  malformed(std::move(damaged), "record count");
+  damaged = packed;
+  damaged[firstRecord + 18] = std::byte{255};
+  damaged[firstRecord + 19] = std::byte{255};
+  malformed(std::move(damaged), "candidate coordinates");
+  damaged = packed;
+  // Positive infinity in position.x, little-endian IEEE754.
+  damaged[firstRecord + 22] = std::byte{128};
+  damaged[firstRecord + 23] = std::byte{127};
+  malformed(std::move(damaged), "finite");
+  damaged = packed;
+  damaged.push_back(std::byte{0});
+  malformed(std::move(damaged), "length mismatch");
+  damaged = packed;
+  damaged.pop_back();
+  malformed(std::move(damaged), "length mismatch");
+  auto invalidText = field;
+  invalidText.scatterPlacements.front().model.push_back(static_cast<char>(255));
+  expectFailure([&] { (void)terrain_payload::encodePlacements(invalidText); },
+                "UTF-8");
+  field.scatterPlacements.front().scale = 0;
+  expectFailure([&] { (void)terrain_payload::encodePlacements(field); },
+                "positive scale");
+
+  // Missing versus explicitly empty graph candidates are different editor
+  // checkpoints and must remain distinguishable after binary round trips.
+  artifacts->basePlacements =
+      std::make_shared<const std::vector<TerrainScatterPlacement>>();
+  field.scatterPlacements.clear();
+  terrain_payload::decodePlacements(terrain_payload::encodePlacements(field),
+                                    target);
+  assert(target.graphArtifacts->basePlacements);
+  assert(target.graphArtifacts->basePlacements->empty());
+  artifacts->basePlacements.reset();
+  terrain_payload::decodePlacements(terrain_payload::encodePlacements(field),
+                                    target);
+  assert(!target.graphArtifacts->basePlacements);
 }
 
 void completePayloadRoundTrip() {
@@ -334,8 +479,8 @@ void waterCoverageRoundTrip() {
   assert(encoded["body"][0] == 0 && encoded["body"][1] == 2 &&
          encoded["body"][2] == -1);
   const auto payload = serializeTerrainAssetPayload(field, "recipe", "inputs");
-  assert(terrainAssetPayloadVersion == 12 && payload[7] == std::byte{'1'} &&
-         payload[8] == std::byte{'2'});
+  assert(terrainAssetPayloadVersion == 13 && payload[7] == std::byte{'1'} &&
+         payload[8] == std::byte{'3'});
   const auto restored = deserializeTerrainAssetPayload(payload);
   assert(restored->surfaceSedimentBalance);
   assert(*restored->surfaceSedimentBalance == *selectedBalance);
@@ -634,6 +779,7 @@ int main() {
   const auto cache = root / "cache";
   assert(setenv("XDG_CACHE_HOME", cache.c_str(), 1) == 0);
   try {
+    compactPlacementPayload();
     completePayloadRoundTrip();
     waterCoverageRoundTrip();
     followingBedWaterPayloadRoundTrip();

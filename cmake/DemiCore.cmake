@@ -108,6 +108,7 @@ add_library(demi-core STATIC
   src/demi/assets/TerrainAssetStorage.cpp
   src/demi/assets/TerrainAssetPayload.cpp
   src/demi/assets/TerrainAssetPayloadData.cpp
+  src/demi/assets/TerrainPlacementCodec.cpp
   src/demi/assets/AssetImporter.cpp
   src/demi/assets/AssetImporterRegistry.cpp
   src/demi/assets/AssetCookGraph.cpp

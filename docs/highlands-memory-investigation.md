@@ -99,3 +99,42 @@ monitored.log (timestamped scene transitions), monitored-malloc.csv,
 monitored-maps.jsonl, baseline-malloc.csv, baseline-maps.jsonl and heap-report.txt.
 The temporary sampler/monitor source is in the same folder. These are local
 investigation artifacts, not shipped assets or persistent engine configuration.
+
+## Compact placement result (2026-10-23; checks refreshed 2026-10-24)
+
+Prepared terrain payload 13 stores one shared placement-definition dictionary
+and exact 40-byte binary records, covering final placements and the graph's
+unedited candidates. It no longer constructs per-placement JSON objects or
+copies the complete JSON metadata section before parsing. Generator version 15
+is unchanged: this changes storage, not the authored landscape or scatter seed.
+Existing prepared caches regenerate and shipped terrain needs recooking.
+
+The first matched warm-cache Release/Vulkan run used the same native
+Silvermere -> highlands -> Silvermere E2E sequence, one-second mallinfo2 and
+smaps sampling, and twelve seconds of post-return observation. It did not use
+Heaptrack, allocator trimming or increased scene budgets.
+
+| Measurement | Payload 12 | Payload 13 |
+| --- | ---: | ---: |
+| Sampled peak process RSS | 4639.28 MiB | 1968.84 MiB |
+| RSS shortly after return, before any diagnostic trim | 4589.27 MiB | 1634.18 MiB |
+| Live glibc allocations at that return checkpoint | about 320 MiB | about 342 MiB |
+| Free arena storage at that checkpoint | about 3790 MiB | about 911 MiB |
+| Prepared highland file | 298.74 MiB | 119.25 MiB |
+| JSON section | 234.59 MiB | 27.50 MiB |
+
+Peak RSS fell about 58%; post-return RSS fell about 64%. Similar live heap at
+return, with much less retained free arena space, supports the allocation-churn
+diagnosis. The packed placement section is 27.59 MiB; final and checkpoint
+heightfields remain 32.08 MiB each. Native placement structs still own strings,
+and water/classification arrays still use JSON: this is not complete runtime
+placement compaction or full terrain streaming.
+
+All three native E2E tests passed in that measurement. Asset, cache and cook
+suites passed and were rerun successfully on 2026-10-24. Codec regressions cover
+stable identities/order, exact floats, deterministic bytes, shared definitions,
+UTF-8, bounded counts/indices/strings, invalid poses and transactional rejection
+of corrupt checkpoint data. A repeated memory run was started, but no retained
+result was available after the interruption; the figures above are one matched
+run, not a multi-run average. Its temporary profiling artifacts are no longer
+available. No persistent test-timeout or allocator setting changes remain.

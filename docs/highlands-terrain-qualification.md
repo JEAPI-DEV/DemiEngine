@@ -42,7 +42,7 @@ large fixture uses lower physical densities to keep finite-world placement work
 bounded. Grass still does not cast shadows; trees and other vegetation retain
 their authored casting. Ground material tint is less saturated. Old placement
 counts and old performance tables in the Silvermere record are historical.
-Generator/payload versions are 15/12: source caches regenerate and cooked terrain
+Generator/payload versions are 15/13: source caches regenerate and cooked terrain
 must be recooked, rather than interpreting old bytes with the new palette layout.
 
 ## Memory admission
@@ -75,7 +75,10 @@ instances with zero patch fallbacks. This transition/chapter-seek capture is a
 functional stress check, not a fixed-camera performance benchmark. Process RSS
 peaked around 5.1 GB and remained around 4.7 GB after the return; scene removal
 is not a claim that every preparation cache or allocator allocation returns to
-the OS. Whole-scene CPU preparation and retained memory remain scaling limits.
+the OS. Those are pre-compaction measurements. The subsequent compact-placement run
+reduced sampled peak RSS to about 1.92 GiB and post-return RSS to 1.60 GiB; see
+the memory investigation for method and remaining limits. Whole-scene CPU
+preparation and retained memory still remain scaling limits.
 
 A renderer regression uses two independently populated planar fields with camera
 A -> B -> A. It checks reduced and Full LOD, texture retirement/rebuilding,
