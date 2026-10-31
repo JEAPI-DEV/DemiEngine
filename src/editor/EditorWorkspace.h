@@ -37,6 +37,7 @@
 #include <utility>
 #include <vector>
 
+namespace demi::runtime { class RegionalTerrainSystem; }
 namespace demi::editor {
 
 struct EditorModule;
@@ -50,6 +51,9 @@ struct EditorTerrainAuthoringTarget {
 
 class EditorWorkspace {
 public:
+  [[nodiscard]] bool updateRegionalPreview(std::string &error, float deltaSeconds = 1.F / 60.F);
+  [[nodiscard]] bool regionalPreviewPending() const;
+  [[nodiscard]] bool regionalPreviewPreparing() const;
   [[nodiscard]] bool open(std::filesystem::path projectPath,
                           std::string &error);
   // Initializes project services without loading the main scene or preparing
@@ -546,6 +550,7 @@ private:
 
   std::filesystem::path projectPath_;
   std::optional<runtime::LoadedProject> project_;
+  std::shared_ptr<runtime::RegionalTerrainSystem> regionalPreview_;
   EditorSceneDocument sceneDocument_;
   EditorProjectDocument projectDocument_;
   std::optional<EditorHudDocument> hudDocument_;

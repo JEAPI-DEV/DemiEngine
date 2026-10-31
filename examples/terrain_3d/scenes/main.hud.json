@@ -149,7 +149,7 @@
             {
               "id": "tour_shortcuts",
               "type": "label",
-              "text": "SPACE pause  /  R restart  /  N next",
+              "text": "SPACE pause / R restart / N next / M landscape",
               "size": [
                 248,
                 28

@@ -289,7 +289,8 @@ void editPaletteRole(EditorWorkspace &workspace, EditorJsonDocument &document,
     const float spacing = entry.value("spacing", 0.F);
     const float automaticCandidateSpacing =
         spacing > 0.F ? spacing * 0.5F : 0.25F;
-    if (floatEntry("density", 1.F, 0.F, std::numeric_limits<float>::max()) ||
+    if (floatEntry("position_jitter", 0.F, 0.F, 1.F) ||
+        floatEntry("density", 1.F, 0.F, std::numeric_limits<float>::max()) ||
         floatEntry("candidate_spacing", automaticCandidateSpacing,
                    std::numeric_limits<float>::min(),
                    std::numeric_limits<float>::max()) ||

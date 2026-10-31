@@ -1,0 +1,12 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "generated_output": "../../../generated/assets/schemas/terrain_region/region.schema.json",
+  "id": "asset://schemas/terrain_region",
+  "importer": "json_schema",
+  "importer_version": 1,
+  "settings": {},
+  "source": "region.schema.json",
+  "source_hash": "fnv1a64:82aa212eb7450207",
+  "type": "DataSchema"
+}

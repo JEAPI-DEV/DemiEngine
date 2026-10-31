@@ -435,6 +435,16 @@ void collisionFreePlacementsShareRenderOwners() {
   instances = world.entities.back().component<MeshInstances3DComponent>();
   assert(instances && instances->transforms().size() == 99);
   assert(!instances->transforms().contains(excluded));
+  auto *terrain = world.entities.front().component<Terrain3DComponent>();
+  terrain->scatterExclusions.clear();
+  for (const auto &placement : field.scatterPlacements) {
+    terrain->scatterExclusions.push_back(terrainScatterInstanceId(
+        OwnerId, PaletteId, placement.ruleId, placement.candidateX, placement.candidateZ));
+  }
+  const auto fullyExcluded = syncTerrainScatter(world, commands, OwnerId, field, nullptr, error);
+  assert(error.empty() && fullyExcluded.removed == 99);
+  flush(commands, world);
+  assert(world.entities.size() == 1);
 }
 
 void visualPrefabBatchesPreserveHierarchyAndMaterials() {

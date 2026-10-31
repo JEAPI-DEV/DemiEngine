@@ -1,3 +1,5 @@
+#include "demi/runtime/terrain/RegionalTerrainPresentation.h"
+#include "demi/runtime/terrain/RegionalTerrainSampler.h"
 #include "demi/runtime/destruction/DestructionWorld3D.h"
 #include "demi/runtime/destruction/DetachedFragmentFade3D.h"
 #include "demi/runtime/geometry/MeshDeformation3D.h"
@@ -15,6 +17,7 @@
 #include "demi/runtime/render/bgfx3d/PrimitiveSurfacePreparation3D.h"
 #include "demi/runtime/render/bgfx3d/SceneVisibility3D.h"
 #include "demi/runtime/scene/SceneLoader.h"
+#include "demi/runtime/scene/SceneFlow.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/3dcomponents/AnimationPlayer3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/BoxCollider3DComponent.h"
@@ -830,6 +833,8 @@ int main() {
         {demi::assets::MaterialMapSlot::Emissive, "emissive"}};
     MeshRendererComponent mesh;
     mesh.size = {12, 8, 4};
+    mesh.materialNumbers["projection_origin_x"] = 128.015625F;
+    mesh.materialNumbers["projection_origin_z"] = 256.03125F;
     assert(bindings.prepare(&material, mesh, {}, 3, error));
     assert(bindings.submit(BufferedDraw{}, error));
     assert(capture.lastTextureBindings.size() == 6);
@@ -839,7 +844,18 @@ int main() {
     assert(capture.lastUniformValues[1] == std::vector<float>({0, 1, 1, 0}));
     assert(capture.lastUniformValues[2][3] == -1);
     assert(capture.lastUniformValues[3] == std::vector<float>({12, 8, 4, 3}));
-    assert(capture.lastUniformValues.size() == 5);
+    assert(capture.lastUniformValues.size() == 7);
+    assert(capture.lastUniformValues[4] == std::vector<float>({.125F, 0, .75F, 0}));
+    assert(capture.lastUniformValues[5] == std::vector<float>({0, 1, 0, 0}));
+    mesh.materialNumbers["foliage_transmission"] = .7F;
+    mesh.materialNumbers["ambient_occlusion_strength"] = .4F;
+    assert(bindings.prepare(&material, mesh, {}, 3, error));
+    assert(bindings.submit(BufferedDraw{}, error));
+    assert(capture.lastUniformValues[5] == std::vector<float>({.7F, .4F, 0, 0}));
+    mesh.materialNumbers["foliage_transmission"] = 2;
+    assert(!bindings.prepare(&material, mesh, {}, 3, error));
+    mesh.materialNumbers.erase("foliage_transmission");
+    mesh.materialNumbers.erase("ambient_occlusion_strength");
     assert(capture.lastUniformValues.back() == std::vector<float>({0, 1, 1, 0}));
     assert(resolvedMaps[0].second == ImageMipSemantic::Normal);
     assert(resolvedMaps[1].second == ImageMipSemantic::Linear);
@@ -1672,13 +1688,19 @@ int main() {
     Entity environment;
     Environment3DComponent::parse({{"terrain_texture_max_size", 512},
                                    {"terrain_texture_cache_mb", 24},
-                                   {"terrain_detail_distance", 75}},
+                                   {"terrain_detail_distance", 75},
+                                   {"fog_enabled", true}, {"fog_start", 500},
+                                   {"fog_end", 10500}, {"fog_color", {.4, .5, .6, 1.0}}},
                                   environment);
     qualityWorld.entities.push_back(std::move(environment));
     const auto lighting = collectSceneLighting3D(qualityWorld, {});
     assert(lighting.terrainTextureMaxSize == 512);
     assert(lighting.terrainTextureCacheBytes == 24U * 1024U * 1024U);
     assert(lighting.terrainDetailDistance == 75);
+    assert(lighting.fogRange[0] == 500 && lighting.fogRange[2] == 1);
+    assert(std::abs(lighting.fogRange[1] - .0001F) < 1e-8F);
+    assert(lighting.fogColor[0] == .4F);
+    assert(Environment3DComponent::defaults()["fog_enabled"] == false);
   }
   assert(collectSceneLighting3D(world, {}).msaaSamples == 4);
   assert(capture.views3D.back().frameBuffer);
@@ -2437,6 +2459,22 @@ int main() {
     assert(capture.instanceDrawCalls == 1);
     (void)graphics.endFrame();
 
+    Entity regionalOwner;
+    regionalOwner.id = "initial-region";
+    Terrain3DComponent regionalTerrain;
+    regionalTerrain.region = std::make_shared<const TerrainRegionConfig>();
+    regionalOwner.setComponent(regionalTerrain);
+    instanceWorld.entities.push_back(std::move(regionalOwner));
+    capture.instanceDrawCalls = 0;
+    assert(renderer.renderFrame(instanceWorld, frame, 0.016F, error));
+    assert(capture.instanceDrawCalls == 0);
+    (void)graphics.endFrame();
+    instanceWorld.entities.back().setComponent(RegionalTerrainPresentation{true});
+    assert(renderer.renderFrame(instanceWorld, frame, 0.016F, error));
+    assert(capture.instanceDrawCalls == 1);
+    (void)graphics.endFrame();
+    instanceWorld.entities.pop_back();
+
     auto *inlineMesh = instanceWorld.entities.front()
                            .component<MeshRendererComponent>();
     inlineMesh->vertices = {{-0.5F, 0, 0}, {0.5F, 0, 0}, {0, 1, 0}};
@@ -2844,6 +2882,47 @@ int main() {
     const auto generated = TerrainGenerator::generate(recipe);
     assert(generated);
     const auto source = std::make_shared<const HeightField>(*generated);
+    {
+      MeshUploadCapture preparationUploads(*resources);
+      TextureCapture preparationCommands(*commands);
+      BgfxRenderer3D preparingRenderer(preparationUploads, preparationCommands);
+      assert(preparingRenderer.initialize(error));
+      assert(preparingRenderer.loadAssets(mappedRegistry, diagnostics));
+      // Replacement fields prepare before any patch entities are published.
+      // Loading presentation must drive that work without drawing CPU terrain.
+      World preparingWorld;
+      Entity root;
+      root.id = "preparing-region";
+      root.setComponent(Transform3DComponent{});
+      Terrain3DComponent region;
+      region.region = std::make_shared<TerrainRegionConfig>();
+      root.setComponent(region);
+      auto preparation = std::make_shared<RegionalTerrainRenderPreparation>();
+      preparation->pending.push_back({source, {0, 0, 0}, {16, 0, 16}});
+      root.setComponent(RegionalTerrainPresentation{false, preparation});
+      preparingWorld.entities.push_back(std::move(root));
+      auto preparingCamera = frame;
+      preparingCamera.camera.perspective = false;
+      preparingCamera.camera.orthographicSize = 20;
+      preparingCamera.position = {8, 100, 8};
+      preparingCamera.forward = {0, -1, 0};
+      preparingCamera.up = {0, 0, -1};
+      preparingCamera.camera.renderHud = false;
+      const auto preparationDeadline =
+          std::chrono::steady_clock::now() + std::chrono::seconds(2);
+      do {
+        assert(preparingRenderer.renderFrame(preparingWorld, preparingCamera, .016F, error));
+        static_cast<void>(graphics.endFrame());
+        assert(preparingRenderer.terrainStatistics().gpuPatchInstances == 0);
+        assert(preparingRenderer.terrainStatistics().gpuPatchFallbacks == 0);
+        assert(!preparation->renderer.expired());
+        assert(std::chrono::steady_clock::now() < preparationDeadline);
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      } while (!preparation->prepared);
+      preparingRenderer.tickInactiveTerrain();
+      preparation->prepared = false;
+      assert(!preparation->waiting());
+    }
     World terrain;
     Entity owner;
     owner.id = "gpu-terrain-owner";
@@ -2972,6 +3051,112 @@ int main() {
     assert(uploads.textureHandles.size() > textureUploads);
     assert(std::ranges::find(uploads.retiredTextures, sharedColor) ==
            uploads.retiredTextures.end());
+
+    // Separate finite owners retire their whole-field textures on traversal.
+    // This deliberately exercises scene lifetime, not distance-paged collision.
+    {
+      World traversal;
+      const std::string sceneId = "scene://test/terrain-traversal";
+      traversal.activeSceneId = sceneId;
+      traversal.loadedSceneIds.insert(sceneId);
+      for (unsigned index = 0; index < 2; ++index) {
+        Entity terrainOwner;
+        terrainOwner.id = "traversal-owner-" + std::to_string(index);
+        terrainOwner.sceneOwner = sceneId;
+        Transform3DComponent placement;
+        placement.position.x = static_cast<float>(index) * 1000.F;
+        terrainOwner.setComponent(placement);
+        Terrain3DComponent terrainComponent;
+        terrainComponent.asset = "asset://test/traversal-" +
+                                 std::to_string(index);
+        terrainComponent.lodErrorPixels = 2.F;
+        terrainOwner.setComponent(terrainComponent);
+        traversal.entities.push_back(std::move(terrainOwner));
+      }
+      const TerrainFieldResolver traversalResolver =
+          [&](std::string_view assetId, nlohmann::json &outRecipe) {
+            outRecipe = recipe.toJson();
+            auto field = std::make_shared<HeightField>(*generated);
+            // HeightField copies share immutable sample pages. Give each owner
+            // genuinely different height data so channel reuse cannot make a
+            // correctly shared texture look like a failed owner retirement.
+            const float elevation = assetId.ends_with("/traversal-0") ? 2.F : 4.F;
+            for (std::size_t sample = 0; sample < field->heights.size();
+                 ++sample) {
+              field->heights.set(sample, field->heights[sample] + elevation);
+            }
+            return std::shared_ptr<const HeightField>(std::move(field));
+          };
+      assert(materializeTerrains(traversal, error, nullptr, {},
+                                 traversalResolver));
+      auto traversalCamera = camera;
+      traversalCamera.cameraId = "finite-terrain-traversal";
+      const auto visit = [&](float x) {
+        traversalCamera.position.x = x;
+        const auto visitDeadline = std::chrono::steady_clock::now() +
+                                   std::chrono::seconds(2);
+        do {
+          assert(gpuTerrain.renderFrame(traversal, traversalCamera, .016F,
+                                        error));
+          static_cast<void>(graphics.endFrame());
+          if (gpuTerrain.terrainStatistics().gpuPatchInstances == 4) {
+            break;
+          }
+          std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        } while (std::chrono::steady_clock::now() < visitDeadline);
+        const auto &statistics = gpuTerrain.terrainStatistics();
+        assert(statistics.gpuPatchInstances == 4);
+        assert(statistics.gpuPatchFallbacks == 0);
+        assert(statistics.gpuFallbackReason.empty());
+        // A planar field has zero geometric error at reduced levels, even
+        // nearby. A positive pixel budget must therefore choose reduced LOD.
+        assert(statistics.gpuSelectedLevels[0] == 0);
+      };
+      const auto latestHeight = [&]() {
+        for (std::size_t index = uploads.textureNames.size(); index > 0;
+             --index) {
+          if (uploads.textureNames[index - 1] == "Terrain GPU heights") {
+            return uploads.textureHandles[index - 1];
+          }
+        }
+        return TextureHandle{};
+      };
+      visit(8.F);
+      const auto firstOwnerHeight = latestHeight();
+      assert(firstOwnerHeight);
+      visit(1008.F);
+      const auto secondOwnerHeight = latestHeight();
+      assert(secondOwnerHeight && secondOwnerHeight != firstOwnerHeight);
+      assert(std::ranges::find(uploads.retiredTextures, firstOwnerHeight) !=
+             uploads.retiredTextures.end());
+      visit(8.F);
+      const auto returningHeight = latestHeight();
+      assert(returningHeight && returningHeight != firstOwnerHeight);
+      assert(std::ranges::find(uploads.retiredTextures, secondOwnerHeight) !=
+             uploads.retiredTextures.end());
+
+      auto *returningOwner = findEntity(traversal, "traversal-owner-0");
+      assert(returningOwner);
+      returningOwner->component<Terrain3DComponent>()->lodErrorPixels = 0.F;
+      assert(gpuTerrain.renderFrame(traversal, traversalCamera, .016F, error));
+      static_cast<void>(graphics.endFrame());
+      assert(gpuTerrain.terrainStatistics().gpuSelectedLevels[0] == 4);
+      assert(gpuTerrain.terrainStatistics().gpuPatchFallbacks == 0);
+
+      SceneFlow flow;
+      ResourceLifetimeRegistry lifetime;
+      lifetime.capture(sceneId, traversal.entities);
+      const auto unloaded = flow.unload(traversal, sceneId, lifetime);
+      assert(unloaded && !unloaded->unloadingEntities.empty());
+      assert(traversal.entities.empty());
+      assert(traversal.terrainOwners.empty());
+      assert(lifetime.groupCount() == 0);
+      assert(gpuTerrain.renderFrame(traversal, traversalCamera, .016F, error));
+      static_cast<void>(graphics.endFrame());
+      assert(gpuTerrain.terrainStatistics().gpuPatchInstances == 0);
+      assert(std::ranges::find(uploads.retiredTextures, returningHeight) !=
+             uploads.retiredTextures.end());
+    }
 
     // The deliberate compatibility switch returns to complete native Full
     // geometry without changing the field, picking/collision or authored data.

@@ -14,7 +14,8 @@ void main()
 {
     vec2 gridSample = a_position.xz + i_data4.xy;
     vec2 sampleUv = (gridSample + vec2(0.5)) / u_terrainField.xy;
-    float height = texture2DLod(s_terrainHeight, sampleUv, 0.0).r;
+    vec2 heights = texture2DLod(s_terrainHeight, sampleUv, 0.0).rg;
+    float height = mix(heights.y, heights.x, i_data4.w);
     vec3 position = vec3(gridSample.x * u_terrainField.z, height,
                          gridSample.y * u_terrainField.w);
     vec3 normal = texture2DLod(s_terrainNormal, sampleUv, 0.0).xyz;

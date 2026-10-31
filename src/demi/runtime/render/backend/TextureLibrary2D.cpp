@@ -69,7 +69,7 @@ bool prepareTexture2D(const ImageData2D &image,
       .height = image.height,
       .sampling = sampling,
       .rgbaMipBytes = sampling.mipmaps
-                          ? imageMipChain2D(image, sampling.mipSemantic, stop)
+                          ? imageMipChain2D(image, sampling.mipSemantic, stop, sampling.alphaCoverageCutoff)
                           : image.rgba};
   if (stop.stop_requested()) {
     error = "Texture preparation was cancelled.";

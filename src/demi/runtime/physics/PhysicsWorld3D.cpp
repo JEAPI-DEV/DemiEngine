@@ -13,6 +13,7 @@
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/scene/Transform3DHierarchy.h"
 #include "demi/runtime/scene/WorldQueries.h"
+#include "demi/runtime/scene/WorldTransformSnapshot3D.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
 #include "demi/runtime/scene/model/World.h"
 
@@ -352,6 +353,7 @@ struct PhysicsWorld3D::Impl final : JPH::ContactListener {
                                 physicsWorkerCount()};
   JPH::PhysicsSystem physics;
   World *world = nullptr;
+  WorldTransformSnapshot3D bodyTransforms;
   bool replacementPhase = false;
   std::unordered_map<std::string, BodyRecord> bodies;
   std::unordered_map<std::string, CharacterRecord> characters;
@@ -578,6 +580,23 @@ void adoptPreparedPhysicsShapes3D(World &destination, World &incoming) {
   prepared.reset();
 }
 
+void PhysicsWorld3D::removeEntities(std::span<const std::string> entityIds) {
+  auto &interface = impl_->physics.GetBodyInterface();
+  for (const auto &id : entityIds) {
+    const auto found = impl_->bodies.find(id);
+    if (found != impl_->bodies.end()) {
+      impl_->wakeNearBody(found->second.body);
+      if (interface.IsAdded(found->second.body)) { interface.RemoveBody(found->second.body); }
+      interface.DestroyBody(found->second.body);
+      impl_->ids.erase(found->second.body.GetIndexAndSequenceNumber());
+      impl_->bodies.erase(found);
+    }
+    impl_->characters.erase(id);
+    impl_->preparedShapes.erase(id);
+    impl_->modelShapes.eraseInline(id);
+  }
+}
+
 PhysicsWorld3D::PhysicsWorld3D() : impl_(std::make_unique<Impl>()) {}
 PhysicsWorld3D::~PhysicsWorld3D() = default;
 bool PhysicsWorld3D::available() const { return impl_ != nullptr; }
@@ -796,6 +815,9 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
 
   {
     ProfileScope scope("Physics3D.sync_bodies");
+    // Resolve the hierarchy once per fixed step. Per-body parent lookup scans
+    // the whole entity list and becomes quadratic for streamed terrain chunks.
+    const auto &transforms = impl_->bodyTransforms.refresh(world);
     for (const auto entityIndex : world.componentQueries.queryAny<
              BoxCollider3DComponent, SphereCollider3DComponent,
              CapsuleCollider3DComponent, ConvexCollider3DComponent,
@@ -825,8 +847,7 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
           asset->second.lastUsedEpoch = impl_->frameEpoch;
       }
       // Shape scaling and body placement use the same hierarchy snapshot.
-      const auto resolved =
-          resolveWorldTransform3D(world, entity, *inputs.transform);
+      const auto &resolved = transforms[entityIndex];
       if (!resolved) {
         continue;
       }

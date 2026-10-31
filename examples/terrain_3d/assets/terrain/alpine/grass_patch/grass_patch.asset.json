@@ -1,0 +1,26 @@
+{
+  "attribution": "Derived from Grass Medium 01 by Rob Tuytel and Rico Cilliers / Poly Haven, CC0-1.0. https://polyhaven.com/a/grass_medium_01",
+  "dependencies": [],
+  "format_version": 1,
+  "generated_output": "../../../../generated/assets/terrain/alpine/grass_patch/grass_patch.gltf",
+  "id": "asset://terrain/alpine/grass_patch",
+  "importer": "gltf-model",
+  "importer_version": 1,
+  "license": "LICENSE.txt",
+  "settings": {
+    "model_import": {
+      "format_version": 1,
+      "import_animations": false,
+      "material_policy": "import",
+      "meters_per_unit": 1.0,
+      "optimize_meshes": true,
+      "preset": "environment",
+      "root_node": "flatten",
+      "source_forward": "+z",
+      "source_up": "+y"
+    }
+  },
+  "source": "grass_patch.gltf",
+  "source_hash": "fnv1a64:2a7a2d4cb8fa9edc",
+  "type": "Model3D"
+}

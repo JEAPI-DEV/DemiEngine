@@ -88,22 +88,6 @@ Vec3 readVec3(const Json &value, std::string_view name) {
           finiteFloat(value[2], name)};
 }
 
-Json placement(const TerrainScatterPlacement &value) {
-  return {
-      {"rule_id", std::string(value.ruleId)},
-      {"model", value.model},
-      {"prefab", value.prefab},
-      {"biome", value.biome},
-      {"biome_name", value.biomeName},
-      {"cell", value.cell},
-      {"candidate_x", value.candidateX},
-      {"candidate_z", value.candidateZ},
-      {"position", vec3(value.position)},
-      {"yaw", value.yaw},
-      {"scale", value.scale},
-      {"collision", std::string(terrainCollisionPolicyName(value.collision))}};
-}
-
 TerrainCollisionPolicy readCollision(const Json &value) {
   require(value.is_string(), "collision must be a string");
   const auto name = value.get<std::string>();
@@ -117,60 +101,6 @@ TerrainCollisionPolicy readCollision(const Json &value) {
                               name);
 }
 
-TerrainScatterPlacement readPlacement(const Json &value,
-                                      const HeightField &field) {
-  require(value.is_object(), "placement must be an object");
-  TerrainScatterPlacement result;
-  require(value.at("rule_id").is_string(), "placement ruleId must be a string");
-  result.ruleId = value.at("rule_id").get<std::string>();
-  require(validTerrainPlacementRuleId(result.ruleId),
-          "placement has an invalid rule ID");
-  result.model = value.at("model").get<std::string>();
-  result.prefab = value.at("prefab").get<std::string>();
-  require(result.model.empty() != result.prefab.empty(),
-          "placement requires exactly one model or prefab");
-  result.biome = checkedSize(value.at("biome"), "placement biome");
-  result.biomeName = value.at("biome_name").get<std::string>();
-  result.cell = checkedSize(value.at("cell"), "placement cell");
-  const auto candidateX =
-      checkedSize(value.at("candidate_x"), "placement candidate X");
-  const auto candidateZ =
-      checkedSize(value.at("candidate_z"), "placement candidate Z");
-  require(candidateX <= std::size_t(std::numeric_limits<int>::max()) &&
-              candidateZ <= std::size_t(std::numeric_limits<int>::max()),
-          "placement candidate coordinates are out of range");
-  result.candidateX = static_cast<int>(candidateX);
-  result.candidateZ = static_cast<int>(candidateZ);
-  result.position = readVec3(value.at("position"), "placement position");
-  result.yaw = finiteFloat(value.at("yaw"), "placement yaw");
-  result.scale = finiteFloat(value.at("scale"), "placement scale");
-  result.collision = readCollision(value.at("collision"));
-  require(result.biome < field.biomeIds.size() &&
-              result.biomeName == field.biomeIds[result.biome],
-          "placement biome does not match the field");
-  require(result.cell < field.heights.size(),
-          "placement cell lies outside the field");
-  require(result.scale > 0, "placement scale must be positive");
-  return result;
-}
-
-Json placements(const std::vector<TerrainScatterPlacement> &values) {
-  Json result = Json::array();
-  for (const auto &value : values)
-    result.push_back(placement(value));
-  return result;
-}
-
-std::vector<TerrainScatterPlacement> readPlacements(const Json &value,
-                                                    const HeightField &field) {
-  require(value.is_array(), "placements must be an array");
-  std::vector<TerrainScatterPlacement> result;
-  result.reserve(value.size());
-  for (const auto &entry : value)
-    result.push_back(readPlacement(entry, field));
-  return result;
-}
-
 Json palette(const TerrainPalette &value) {
   Json rules = Json::object();
   for (const auto &[name, entry] : value.placements) {
@@ -179,6 +109,7 @@ Json palette(const TerrainPalette &value) {
         {"prefab", entry.prefab},
         {"density", entry.density},
         {"candidate_spacing", entry.candidateSpacing},
+        {"position_jitter", entry.positionJitter},
         {"category", terrainScatterCategoryName(entry.category)},
         {"slope", {entry.slope.minimum, entry.slope.maximum}},
         {"moisture", {entry.moisture.minimum, entry.moisture.maximum}},
@@ -240,6 +171,8 @@ TerrainPalette readPalette(const Json &value) {
     entry.density = finiteFloat(item.at("density"), "palette density");
     entry.candidateSpacing =
         finiteFloat(item.at("candidate_spacing"), "palette candidate spacing");
+    entry.positionJitter =
+        finiteFloat(item.at("position_jitter"), "palette position jitter");
     const auto category = item.at("category").get<std::string>();
     bool categoryFound = false;
     for (const auto candidate :
@@ -282,6 +215,7 @@ TerrainPalette readPalette(const Json &value) {
             "authored prefab collider");
     entry.biomes = item.at("biomes").get<std::vector<std::string>>();
     require(entry.density >= 0 && entry.candidateSpacing >= 0 &&
+                entry.positionJitter >= 0 && entry.positionJitter <= 1 &&
                 entry.scaleMin > 0 && entry.scaleMin <= entry.scaleMax &&
                 entry.spacing >= 0 && entry.clusterSize > 0 &&
                 entry.clusterStrength >= 0 && entry.clusterStrength <= 1,
@@ -706,8 +640,7 @@ decodeSurfaceMaterials(const Json &stored, const HeightField &field) {
 } // namespace
 
 Json encodeDerived(const HeightField &field) {
-  Json result{{"format_version", 1},
-              {"scatter", placements(field.scatterPlacements)},
+  Json result{{"format_version", 2},
               {"scatter_truncated", field.scatterTruncated},
               {"palette", field.resolvedPalette
                               ? palette(*field.resolvedPalette)
@@ -727,9 +660,6 @@ Json encodeDerived(const HeightField &field) {
       runs.push_back(std::move(encoded));
     }
     result["graph"] = {
-        {"candidates", artifacts.basePlacements
-                           ? placements(*artifacts.basePlacements)
-                           : Json(nullptr)},
         {"water_authoring", waterAuthoring(artifacts.water)},
         {"water_result", artifacts.waterResult
                              ? waterResult(*artifacts.waterResult, field,
@@ -749,9 +679,8 @@ Json encodeDerived(const HeightField &field) {
 }
 
 void decodeDerived(const Json &document, HeightField &field) {
-  require(document.is_object() && document.at("format_version") == 1,
+  require(document.is_object() && document.at("format_version") == 2,
           "unsupported derived-data format");
-  field.scatterPlacements = readPlacements(document.at("scatter"), field);
   field.scatterTruncated = document.at("scatter_truncated").get<bool>();
   if (!document.at("palette").is_null()) {
     auto resolved = readPalette(document.at("palette"));
@@ -767,10 +696,6 @@ void decodeDerived(const Json &document, HeightField &field) {
   const auto &graph = document.at("graph");
   if (!graph.is_null()) {
     auto artifacts = std::make_shared<TerrainGraphArtifacts>();
-    if (!graph.at("candidates").is_null())
-      artifacts->basePlacements =
-          std::make_shared<const std::vector<TerrainScatterPlacement>>(
-              readPlacements(graph.at("candidates"), field));
     artifacts->water = readWaterAuthoring(graph.at("water_authoring"));
     if (!graph.at("water_result").is_null())
       artifacts->waterResult =

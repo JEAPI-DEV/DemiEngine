@@ -159,8 +159,15 @@ bool prepareMap(const AssetManifest &asset,
       image.rgba[index + 3] = std::byte{255};
     }
   }
-  return prepareTexture2D(image, samplingFor(asset, source, semantic), output,
-                          error, stop);
+  auto sampling = samplingFor(asset, source, semantic);
+  if (slot == Slot::Albedo && material.alphaMode == assets::GltfAlphaMode::Mask &&
+      material.alphaCutoff > 0 && material.baseColor.a > 0) {
+    const float cutoff = material.alphaCutoff / material.baseColor.a;
+    if (cutoff <= 1) {
+      sampling.alphaCoverageCutoff = cutoff;
+    }
+  }
+  return prepareTexture2D(image, sampling, output, error, stop);
 }
 
 } // namespace

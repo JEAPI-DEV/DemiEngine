@@ -969,11 +969,11 @@ void summaryNamesEveryFinding() {
 }
 
 // The checked-in example is the content this validator has to stay honest
-// about: placeholder materials and no licence declarations anywhere, which is
-// advice rather than a shipping blocker.
+// about: mapped materials reference package textures. Resolve the same package
+// closure as the runtime; project-local material licence omissions are advisory.
 void exampleProjectIsAdvisoryOnly() {
   const AssetRegistry example =
-      loadAuthoredAssetRegistry(DEMI_SOURCE_DIR "/examples/terrain_3d");
+      loadAssetRegistry(DEMI_SOURCE_DIR "/examples/terrain_3d");
   TerrainAssetValidationRequest exampleRequest;
   exampleRequest.registry = &example;
   exampleRequest.paletteId = "asset://terrain/palettes/meadow";
@@ -984,15 +984,14 @@ void exampleProjectIsAdvisoryOnly() {
     std::cerr << report.summary() << "\n";
   assert(report.shippable());
   assert(report.checked >= 8);
-  // Every art asset in the example is unlicensed, so every finding is advice.
+  // Licence omissions are advisory, including dependencies without asset-level declarations.
   for (const TerrainAssetFinding &finding : report.findings) {
     assert(finding.kind == TerrainAssetFindingKind::UndeclaredLicence);
-    assert(contains(finding.assetId, "asset://terrain/surfaces/"));
+    assert(findAsset(example, finding.assetId) != nullptr);
     assert(!report.blocking(finding));
   }
-  // Scalar materials are valid for shipping, but intentionally fail the
-  // optional textured-material quality requirement. There is no longer a
-  // separate material type that bypasses these map checks.
+  // Grass and exposed rock now resolve package textures. Other surfaces remain
+  // scalar materials: valid for shipping, but below the optional map-quality gate.
   exampleRequest.requireFullMaterialMaps = true;
   const TerrainAssetValidationReport strict =
       validateTerrainAssets(exampleRequest);

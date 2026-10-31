@@ -1,0 +1,111 @@
+{
+  "format_version": 1,
+  "id": "scene://terrain_3d/mountain_range",
+  "name": "Silvermere Highlands - 2 km terrain LOD traversal",
+  "hud": "main.hud.json",
+  "entities": [
+    {
+      "id": "terrain",
+      "name": "2048 m highlands",
+      "components": {
+        "Transform3D": {
+          "position": [
+            -1024,
+            0,
+            -1024
+          ]
+        },
+        "Terrain3D": {
+          "asset": "asset://terrain/mountain_range",
+          "lod_error_pixels": 2,
+          "surface_blending": true
+        }
+      }
+    },
+    {
+      "id": "camera",
+      "name": "Animated tour camera",
+      "components": {
+        "Transform3D": {
+          "position": [
+            -550,
+            180,
+            -550
+          ]
+        },
+        "Camera3D": {
+          "target_offset": [
+            0,
+            0,
+            1
+          ],
+          "far_clip": 6000,
+          "fov": 58,
+          "clear_color": [
+            0.3,
+            0.42,
+            0.53,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "id": "sun",
+      "name": "Late afternoon sun",
+      "components": {
+        "DirectionalLight": {
+          "direction": [
+            -0.45,
+            -0.8,
+            0.3
+          ],
+          "color": [
+            1,
+            0.94,
+            0.82,
+            1
+          ],
+          "intensity": 1.6,
+          "casts_shadows": true
+        }
+      }
+    },
+    {
+      "id": "environment",
+      "components": {
+        "Environment3D": {
+          "sky_texture": "asset://terrain/sky",
+          "ambient_color": [
+            0.8,
+            0.88,
+            1,
+            1
+          ],
+          "ambient_intensity": 0.65,
+          "shadow_cascades": 4,
+          "shadow_distance": 180,
+          "shadow_resolution": 2048,
+          "shadow_bias": 0.015,
+          "msaa_samples": 4
+        }
+      }
+    },
+    {
+      "id": "terrain_tour",
+      "name": "Camera tour \u2014 pause, restart, next chapter",
+      "components": {
+        "LuaScript": {
+          "module": "script://scripts/terrain_tour.lua",
+          "properties": {
+            "route_module": "mountain_route",
+            "chapter_seconds": 14,
+            "title": "SILVERMERE HIGHLANDS",
+            "next_scene": "scene://terrain_3d/loading",
+            "ground_clearance": 25
+          }
+        }
+      }
+    }
+  ]
+}

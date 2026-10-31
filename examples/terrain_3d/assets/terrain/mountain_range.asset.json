@@ -1,0 +1,17 @@
+{
+  "dependencies": [
+    "asset://polyhaven/terrain/materials/sand_02",
+    "asset://polyhaven/terrain/materials/wet_gravel",
+    "asset://terrain/palettes/highlands",
+    "asset://terrain/surfaces/exposed_rock",
+    "asset://terrain/surfaces/grass"
+  ],
+  "format_version": 1,
+  "id": "asset://terrain/mountain_range",
+  "importer": "terrain_heightfield",
+  "importer_version": 1,
+  "settings": {},
+  "source": "mountain_range.terrain.json",
+  "source_hash": "fnv1a64:c4721214759515c4",
+  "type": "Terrain"
+}

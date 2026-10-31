@@ -1,3 +1,4 @@
+#include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "editor/EditorConsolePanel.h"
 
 #include "editor/EditorPanelStyle.h"
@@ -115,6 +116,7 @@ void EditorConsolePanel::draw(EditorWorkspace &workspace,
                               const EditorProjectOperationSnapshot &operation,
                               std::string &notice,
                               EditorPanelVisibility &visibility) {
+  runtime::ProfileScope profile("Editor.console");
   if (visibility.console) {
     if (beginEditorPanel("Console", position, size, &visibility.console))
       drawDiagnostics(workspace, playSession, operation, notice);

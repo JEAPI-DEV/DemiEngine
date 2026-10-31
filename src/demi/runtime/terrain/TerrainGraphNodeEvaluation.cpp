@@ -1,6 +1,7 @@
 #include "demi/runtime/terrain/TerrainGraphNodeEvaluation.h"
 #include "demi/runtime/terrain/TerrainGraphSedimentMasks.h"
 #include "demi/runtime/terrain/TerrainGraphSpatialMasks.h"
+#include "demi/runtime/terrain/TerrainGraphPointMath.h"
 #include "demi/runtime/terrain/TerrainGraphWater.h"
 #include "demi/runtime/terrain/TerrainGraphWaterAuthoring.h"
 #include "demi/runtime/terrain/TerrainSurfaceSediment.h"
@@ -39,26 +40,6 @@ void requireSameGrid(const HeightField &a, const HeightField &b) {
       a.size.y != b.size.y)
     throw std::invalid_argument(
         "Connected terrain data must use the same sample grid");
-}
-
-float checkedHeight(double value) {
-  const float converted = static_cast<float>(value);
-  if (!std::isfinite(converted))
-    throw std::invalid_argument("Terrain graph produced a nonfinite height");
-  return converted;
-}
-
-float band(float value, float minimum, float maximum, float falloff) {
-  if (minimum > maximum || falloff < 0)
-    throw std::invalid_argument(
-        "Mask band requires minimum <= maximum and nonnegative falloff");
-  if (value >= minimum && value <= maximum)
-    return 1;
-  if (falloff == 0)
-    return 0;
-  return std::clamp(value < minimum ? (value - minimum + falloff) / falloff
-                                    : (maximum + falloff - value) / falloff,
-                    0.0F, 1.0F);
 }
 
 std::optional<GraphNodeResult> evaluateSource(const TerrainGraphNode &node,
@@ -119,7 +100,7 @@ std::optional<GraphNodeResult> evaluateMask(const TerrainGraphNode &node,
             : float(std::acos(std::clamp(mask->source->normals[index].y, -1.0F,
                                          1.0F)) *
                     180 / 3.141592653589793);
-    mask->samples.set(index, band(value, values.at("minimum"),
+    mask->samples.set(index, terrainGraphBandWeight(value, values.at("minimum"),
                                   values.at("maximum"), values.at("falloff")));
   }
   GraphNodeResult result;
@@ -150,11 +131,9 @@ evaluateHeightModifier(const TerrainGraphNode &node,
   for (std::size_t index = 0; index < a->heights.size(); ++index) {
     if ((index & 255) == 0 && stop.stop_requested())
       return std::nullopt;
-    const double weight = amount * (mask ? mask->samples[index] : 1);
-    field->heights.set(index,
-                       checkedHeight(b ? a->heights[index] * (1 - weight) +
-                                             b->heights[index] * weight
-                                       : a->heights[index] + weight));
+    field->heights.set(index, terrainGraphModifiedHeight(
+        a->heights[index], b ? b->heights[index] : 0, amount,
+        mask ? mask->samples[index] : 1, b != nullptr));
   }
   if (b) {
     const auto sediment = blendTerrainSurfaceSediment(

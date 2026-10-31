@@ -248,8 +248,10 @@ prepareTerrainMaterialArrayData3D(const TerrainMaterialArraySource3D &source,
     const bool validMetallic = std::isfinite(layer.surface.metallic) &&
                                layer.surface.metallic >= 0 &&
                                layer.surface.metallic <= 1;
-    if (!validRoughness || !validMetallic) {
-      error = "Terrain Material scalar roughness and metallic must be finite "
+    const bool validOcclusion = std::isfinite(layer.surface.ambientOcclusionStrength) &&
+        layer.surface.ambientOcclusionStrength >= 0 && layer.surface.ambientOcclusionStrength <= 1;
+    if (!validRoughness || !validMetallic || !validOcclusion) {
+      error = "Terrain Material roughness, metallic and occlusion strength must be finite "
               "in [0,1]: " +
               layer.materialId;
       return std::nullopt;
@@ -288,7 +290,8 @@ prepareTerrainMaterialArrayData3D(const TerrainMaterialArraySource3D &source,
       if ((offset & 1023) == 0 && stop.stop_requested()) {
         return std::nullopt;
       }
-      orm.rgba[offset] = maps.at(MapSlot::AmbientOcclusion).rgba[offset];
+      const auto sourceOcclusion = std::to_integer<unsigned>(maps.at(MapSlot::AmbientOcclusion).rgba[offset]);
+      orm.rgba[offset] = std::byte(std::lround(255.F + layer.surface.ambientOcclusionStrength * (float(sourceOcclusion) - 255.F)));
       orm.rgba[offset + 1] = maps.at(MapSlot::Roughness).rgba[offset];
       orm.rgba[offset + 2] = maps.at(MapSlot::Metallic).rgba[offset];
       orm.rgba[offset + 3] = maps.at(MapSlot::Height).rgba[offset];

@@ -3,9 +3,15 @@ local Scene = require("demi.scene")
 local Input = require("demi.input")
 local Application = require("demi.application")
 
+---@demi_component
 local Loading = {}
+---@demi_property
+Loading.target_scene = "scene://terrain_3d/main"
+---@demi_property
+Loading.title = "SILVERMERE"
 
 function Loading:on_create()
+  Hud.set_text("loading_title", self.title)
   self.activity = 0
   self.started = false
   self.failed = false
@@ -29,7 +35,7 @@ function Loading:on_update(dt)
   end
   if not self.started then
     self.started = true
-    if not Scene.prepare("scene://terrain_3d/main") then
+    if not Scene.prepare(self.target_scene) then
       self:show_error(Scene.error())
     end
     return

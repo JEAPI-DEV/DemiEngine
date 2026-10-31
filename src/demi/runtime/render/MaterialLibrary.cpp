@@ -68,7 +68,8 @@ bool MaterialLibrary::load(const AssetRegistry &registry,
     if (builtinSurface) {
       binding.usesPbrSurface =
           binding.surface.mapping == assets::MaterialMapping::Triplanar ||
-          binding.surface.tiling != 1;
+          binding.surface.tiling != 1 || binding.surface.foliageTransmission != 0 ||
+          binding.surface.ambientOcclusionStrength != 1;
       for (const auto &[slot, unused] : binding.surface.maps) {
         if (slot != assets::MaterialMapSlot::Albedo &&
             slot != assets::MaterialMapSlot::Height) {
@@ -139,7 +140,8 @@ bool MaterialLibrary::load(const AssetRegistry &registry,
            name == "detail_strength" || name == "height_blend_strength" ||
            name == "macro_variation_strength" ||
            name == "macro_variation_scale" || name == "wind_strength" ||
-           name == "wind_frequency" || name == "wind_height");
+           name == "wind_frequency" || name == "wind_height" ||
+           name == "foliage_transmission" || name == "ambient_occlusion_strength");
       if (builtinIntrinsic) {
         continue;
       }

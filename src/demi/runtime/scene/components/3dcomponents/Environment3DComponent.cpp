@@ -70,6 +70,7 @@ nlohmann::json Environment3DComponent::defaults() {
        {c.ambientColor.r, c.ambientColor.g, c.ambientColor.b,
         c.ambientColor.a}},
       {"ambient_intensity", c.ambientIntensity},
+      {"fog_enabled", c.fogEnabled},
       {"fog_color", {c.fogColor.r, c.fogColor.g, c.fogColor.b, c.fogColor.a}},
       {"fog_start", c.fogStart},
       {"fog_end", c.fogEnd},
@@ -150,6 +151,7 @@ void Environment3DComponent::parse(const nlohmann::json &json, Entity &entity) {
   component.ambientIntensity = std::max(
       scene_loading::numberField(json, "ambient_intensity").value_or(0.5F),
       0.0F);
+  component.fogEnabled = json.value("fog_enabled", false);
   if (auto value = scene_loading::colorField(json, "fog_color"))
     component.fogColor = *value;
   component.fogStart = std::max(

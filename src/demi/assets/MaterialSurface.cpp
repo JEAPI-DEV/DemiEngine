@@ -56,6 +56,8 @@ MaterialSurface materialSurface(const MaterialAsset &material) {
   surface.normalStrength = number("normal_strength", surface.normalStrength);
   surface.tiling = number("tiling", surface.tiling);
   surface.detailStrength = number("detail_strength", surface.detailStrength);
+  surface.foliageTransmission = number("foliage_transmission", surface.foliageTransmission);
+  surface.ambientOcclusionStrength = number("ambient_occlusion_strength", surface.ambientOcclusionStrength);
   surface.windStrength = number("wind_strength", surface.windStrength);
   surface.windFrequency = number("wind_frequency", surface.windFrequency);
   surface.windHeight = number("wind_height", surface.windHeight);
@@ -125,7 +127,8 @@ Diagnostics validateMaterialSurface(const MaterialAsset &material,
   for (const auto &[name, number] : material.numbers) {
     const bool normalized =
         name == "roughness" || name == "metallic" || name == "opacity" ||
-        name == "height_blend_strength" || name == "macro_variation_strength";
+        name == "height_blend_strength" || name == "macro_variation_strength" ||
+        name == "foliage_transmission" || name == "ambient_occlusion_strength";
     const bool nonnegative =
         name == "normal_strength" || name == "detail_strength" ||
         name == "wind_strength" || name == "wind_frequency";
@@ -147,7 +150,8 @@ Diagnostics validateMaterialSurface(const MaterialAsset &material,
         name == "detail_strength" || name == "height_blend_strength" ||
         name == "macro_variation_strength" || name == "macro_variation_scale" ||
         name == "wind_strength" || name == "wind_frequency" ||
-        name == "wind_height";
+        name == "wind_height" || name == "foliage_transmission" ||
+        name == "ambient_occlusion_strength";
     const bool normalized = name == "base_color";
     const std::array channels{color.r, color.g, color.b, color.a};
     const bool validChannels =

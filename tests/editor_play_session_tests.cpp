@@ -51,6 +51,8 @@ void hostedPreparationKeepsLoadingWorldUntilGpuReady() {
   write(directory / "demi.project.json",
         {{"format_version", 1},
          {"name", "Embedded visible-host gate"},
+         {"simulation", {{"fixed_timestep", 0.01},
+                          {"maximum_fixed_steps_per_frame", 2}}},
          {"main_scene", "scene://hosted/loading"},
          {"scenes",
           nlohmann::json::array({{{"id", "scene://hosted/loading"}},
@@ -103,6 +105,14 @@ void hostedPreparationKeepsLoadingWorldUntilGpuReady() {
       demi::runtime::EmbeddedRuntimeSession::liveSessionCount();
   assert(session.startEmbedded(directory / "demi.project.json", error));
   assert(loaderFactories == 1);
+  const auto initialTicks = session.fixedTickCount();
+  assert(session.update({}, .055F, 640, 360, error));
+  assert(session.fixedTickCount() == initialTicks + 2);
+  // Excess whole ticks are dropped, while the fractional remainder survives.
+  assert(session.update({}, 0.F, 640, 360, error));
+  assert(session.fixedTickCount() == initialTicks + 2);
+  assert(session.update({}, .006F, 640, 360, error));
+  assert(session.fixedTickCount() == initialTicks + 3);
   assert(demi::runtime::EmbeddedRuntimeSession::liveSessionCount() ==
          baseline + 1);
   const auto console = [&](const std::string &code) {

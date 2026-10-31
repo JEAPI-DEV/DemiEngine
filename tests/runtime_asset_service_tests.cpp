@@ -4,6 +4,7 @@
 #include "demi/runtime/assets/RegistryAssetResourceLoader.h"
 #include "demi/runtime/assets/RuntimeAssetReload.h"
 #include "demi/runtime/assets/RuntimeAssetService.h"
+#include "demi/runtime/assets/RuntimeAssetBootstrap.h"
 #include "demi/runtime/scene/GenericComponent.h"
 #include "demi/runtime/scene/ResourceLifetimeRegistry.h"
 #include "demi/runtime/scene/SceneAssetReferences.h"
@@ -458,9 +459,138 @@ void registryGroupReleaseBatchesAndRetainsSharedResources() {
   assert(resident.empty());
 }
 
+// Account a large decoded resource without allocating a large test payload.
+class SceneBudgetProbeLoader final : public demi::assets::AssetResourceLoader {
+public:
+  bool supports(const demi::AssetManifest &) const override { return true; }
+  std::optional<demi::assets::DecodedAsset>
+  readAndDecode(const demi::AssetManifest &, const std::atomic_bool &,
+                std::string &) override {
+    return demi::assets::DecodedAsset{.decodedBytes = 65U * 1024U * 1024U,
+                                      .residentBytes = 1};
+  }
+  bool upload(const demi::AssetManifest &, const demi::assets::DecodedAsset &,
+              std::string &) override {
+    return true;
+  }
+  void unload(std::string_view) override {}
+  std::string_view backendName() const override { return "scene-budget-probe"; }
+};
+
+void implicitSceneBudgets(const std::filesystem::path &root,
+                          const demi::runtime::ProjectData &project,
+                          const demi::AssetRegistry &registry) {
+  const auto policyPath = root / "groups/main-budget.asset-group.json";
+  const auto run = [&](std::string_view sceneId,
+                       const demi::runtime::World *prepared,
+                       bool shouldSucceed, unsigned limitMiB = 64) {
+    demi::runtime::RuntimeAssetService service;
+    service.registerLoader(std::make_shared<SceneBudgetProbeLoader>());
+    demi::Diagnostics diagnostics;
+    assert(service.configure(project, registry, &diagnostics));
+    const auto request = prepared
+                             ? service.prepareScene(sceneId, *prepared,
+                                                    &diagnostics)
+                             : service.prepareScene(sceneId, &diagnostics);
+    assert(request != 0 && !demi::hasErrors(diagnostics));
+    const auto deadline = std::chrono::steady_clock::now() +
+                          std::chrono::seconds(2);
+    auto progress = service.progress(request);
+    while (progress.stage != demi::assets::AssetGroupStage::Ready &&
+           progress.stage != demi::assets::AssetGroupStage::Failed &&
+           std::chrono::steady_clock::now() < deadline) {
+      service.update();
+      std::this_thread::yield();
+      progress = service.progress(request);
+    }
+    if (shouldSucceed) {
+      assert(progress.stage == demi::assets::AssetGroupStage::Ready);
+      assert(progress.totalAssets == 1);
+      assert(service.activate(request, &diagnostics));
+      assert(service.releaseScene(sceneId, &diagnostics));
+      assert(service.memoryReport().residentBytes == 0);
+    } else {
+      assert(progress.stage == demi::assets::AssetGroupStage::Failed);
+      assert(progress.error.find("asset://fixture") != std::string::npos);
+      assert(progress.error.find("68157440 bytes decoded") != std::string::npos);
+      const auto expectedLimit =
+          std::to_string(std::size_t{limitMiB} * 1024U * 1024U) + " bytes";
+      assert(progress.error.find(expectedLimit) != std::string::npos);
+    }
+  };
+  run("scene://main", nullptr, false);
+  write(policyPath,
+        R"({"format_version":1,"id":"asset-group://implicit-scene/main","roots":["scene://main"],"budget":{"decoded_mb":128,"resident_mb":1,"upload_ms_per_frame":2}})");
+  run("scene://main", nullptr, true);
+  run("scene://next", nullptr, false);
+  demi::runtime::World prepared;
+  demi::runtime::Entity entity;
+  entity.id = "prepared-budget-reference";
+  entity.sceneOwner = "scene://main";
+  entity.serializedComponents["Sprite"] =
+      R"({"texture":"asset://fixture"})";
+  prepared.entities.push_back(std::move(entity));
+  run("scene://main", &prepared, true);
+  write(policyPath,
+        R"({"format_version":1,"id":"asset-group://implicit-scene/main","roots":["scene://main"],"budget":{"decoded_mb":32}})");
+  run("scene://main", nullptr, false, 32);
+  run("scene://main", &prepared, false, 32);
+  // The reserved namespace cannot silently replace scene discovery with
+  // hand-maintained asset roots or another scene's roots.
+  write(policyPath,
+        R"({"format_version":1,"id":"asset-group://implicit-scene/main","roots":["asset://fixture"]})");
+  demi::Diagnostics invalid;
+  assert(!demi::assets::loadAssetGroup(policyPath, &invalid));
+  assert(demi::hasErrors(invalid));
+  std::filesystem::remove(policyPath);
+}
+
 } // namespace
 
+void startupPumpsAndReusesPreparedWorld() {
+  using namespace demi;
+  using namespace demi::runtime;
+  const auto root = std::filesystem::temp_directory_path() /
+      ("demi-bootstrap-pump-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+  write(root / "data.json", R"({"format_version":1,"value":42})");
+  AssetRegistry registry;
+  registry.projectDirectory = root;
+  registry.assets.push_back({.id = "asset://bootstrap/data", .type = "DataAsset",
+      .settingsJson = "{}", .sourcePath = root / "data.json", .sourcePaths = {root / "data.json"}});
+  ProjectData project;
+  project.projectDirectory = root;
+  // No authored scene is registered. Startup must use the supplied world,
+  // rather than trying to expand its source again on the platform thread.
+  World world;
+  world.activeSceneId = "scene://bootstrap/ready";
+  Entity entity;
+  entity.id = "owner";
+  entity.sceneOwner = world.activeSceneId;
+  entity.serializedComponents["GameplayData"] = R"({"values":{"resource":"asset://bootstrap/data"}})";
+  world.entities.push_back(std::move(entity));
+  RuntimeAssetService service;
+  Diagnostics diagnostics;
+  assert(service.configure(project, registry, &diagnostics));
+  int pumps = 0;
+  const auto result = prepareInitialSceneAssets(service, world.activeSceneId, {},
+      &diagnostics, &world, [&](const auto &) { ++pumps; return true; });
+  assert(result.success && result.hasResidentGroup && pumps > 0);
+  assert(!hasErrors(diagnostics));
+  assert(service.releaseScene(world.activeSceneId));
+  diagnostics.clear();
+  const auto cancelled = prepareInitialSceneAssets(service, world.activeSceneId, {},
+      &diagnostics, &world, [](const auto &) { return false; });
+  assert(!cancelled.success);
+  assert(std::ranges::any_of(diagnostics, [](const auto &issue) {
+    return issue.code == "ASSET_STARTUP_CANCELLED";
+  }));
+  assert(service.memoryReport().assets.empty());
+  service.shutdown();
+  std::filesystem::remove_all(root);
+}
+
 int main() {
+  startupPumpsAndReusesPreparedWorld();
   headlessVisualPreparationDoesNotRetainSourceCopies();
   referenceCollectionSkipsInstancePayloadsAndRetainsDynamicResources();
   registryVerificationRetainsOnlyMetadata();
@@ -551,6 +681,7 @@ int main() {
       {.id = "scene://next", .path = "scenes/next.scene.json"});
   demi::AssetRegistry registry = demi::loadAssetRegistry(root);
   assert(!demi::hasErrors(registry.diagnostics));
+  implicitSceneBudgets(root, project, registry);
 
   demi::runtime::RuntimeAssetService assets;
   int backendApplications = 0;

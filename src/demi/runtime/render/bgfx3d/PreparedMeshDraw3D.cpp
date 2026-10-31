@@ -1,3 +1,4 @@
+#include <span>
 #include "demi/runtime/render/bgfx3d/PreparedMeshDraw3D.h"
 
 namespace demi::runtime::render {
@@ -43,7 +44,7 @@ PreparedMeshDraw3D::PreparedMeshDraw3D(const MeshDrawSurface3D &inputs,
 }
 
 void MeshDrawSurface3D::fillUniforms(
-    const std::array<DrawUniformValue, 8> &lighting,
+    std::span<const DrawUniformValue> lighting,
     const MaterialBinding *material,
     std::vector<DrawUniformValue> &scratch) const {
   scratch.assign(lighting.begin(), lighting.end());

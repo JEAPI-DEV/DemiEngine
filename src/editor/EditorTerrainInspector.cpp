@@ -1,22 +1,24 @@
 #include "editor/EditorTerrainInspector.h"
+#include "demi/assets/DataAsset.h"
 #include "demi/assets/TerrainAsset.h"
+#include "demi/assets/TerrainRegionAsset.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/3dcomponents/Transform3DComponent.h"
 
 #include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
 #include "demi/runtime/scene/model/Entity.h"
-#include "demi/runtime/terrain/TerrainRecipe.h"
 #include "demi/runtime/terrain/TerrainGenerator.h"
-#include "demi/runtime/terrain/TerrainScatterRuntime.h"
+#include "demi/runtime/terrain/TerrainRecipe.h"
 #include "demi/runtime/terrain/TerrainScatterBatches.h"
+#include "demi/runtime/terrain/TerrainScatterRuntime.h"
 #include "editor/EditorWorkspace.h"
 
 #include <algorithm>
 #include <array>
 #include <imgui.h>
 #include <string_view>
-#include <utility>
 #include <unordered_set>
+#include <utility>
 
 namespace demi::editor {
 namespace {
@@ -136,8 +138,10 @@ void chooseTerrainAsset(EditorWorkspace &workspace, std::string_view entityId,
   if (!ImGui::BeginCombo(label, "Choose Terrain asset"))
     return;
   for (const auto &record : workspace.assetIndex().assets()) {
-    if (record.manifest.type != "Terrain")
+    if (record.manifest.type != "Terrain" &&
+        !assets::isTerrainRegionAsset(record.manifest)) {
       continue;
+    }
     if (ImGui::Selectable(record.manifest.id.c_str()))
       workspace.requestTerrainAssetAssign(std::string(entityId),
                                           record.manifest.id);
@@ -149,6 +153,14 @@ void drawSceneAssetActions(EditorWorkspace &workspace,
                            const runtime::Entity &entity,
                            const runtime::Terrain3DComponent &terrain,
                            std::string &notice) {
+  if (terrain.region) {
+    ImGui::TextDisabled("REGIONAL TERRAIN");
+    ImGui::TextWrapped("%s", terrain.asset.c_str());
+    ImGui::TextWrapped("The referenced Terrain asset owns the graph. Streaming "
+                       "settings are stored in this region definition.");
+    chooseTerrainAsset(workspace, entity.id, "Replace terrain asset");
+    return;
+  }
   if (!terrain.asset.empty()) {
     ImGui::TextDisabled("SHARED TERRAIN ASSET");
     ImGui::TextWrapped("%s", terrain.asset.c_str());
@@ -275,7 +287,8 @@ bool drawGeneratedTerrainDetailInspector(EditorWorkspace &workspace,
   const std::string placementId = selected->prefabInstance.empty()
                                       ? selected->id
                                       : selected->prefabInstance;
-  const bool individual = !selected->hasComponent<runtime::TerrainScatterBatch>();
+  const bool individual =
+      !selected->hasComponent<runtime::TerrainScatterBatch>();
   ImGui::TextWrapped("Generated terrain detail");
   ImGui::TextWrapped(
       "Convert this placement before editing it. Regeneration owns "
@@ -306,6 +319,37 @@ void drawEditorTerrainInspector(EditorWorkspace &workspace,
         entity ? entity->component<runtime::Terrain3DComponent>() : nullptr;
     if (entity && terrain) {
       drawSceneAssetActions(workspace, *entity, *terrain, notice);
+      if (terrain->region) {
+        ImGui::TextWrapped(
+            "Regional terrain streams in the viewport and during Play. Open its referenced "
+            "Terrain asset to edit the shared graph. Regional LOD uses the "
+                           "region asset streaming settings.");
+        if (ImGui::Button("Open regional Terrain graph")) {
+          try {
+            const auto *region =
+                findAsset(workspace.assetIndex().registry(), terrain->asset);
+            if (!region) {
+              throw std::runtime_error("Terrain region asset is missing");
+            }
+            const auto loaded = assets::loadDataAsset(*region);
+            if (!loaded) {
+              throw std::runtime_error(
+                  "Terrain region source could not be loaded");
+            }
+            const auto definition =
+                assets::parseTerrainRegionAsset(*loaded->document);
+            const auto *source = findAsset(workspace.assetIndex().registry(),
+                                           definition.terrain);
+            if (!source) {
+              throw std::runtime_error("Referenced Terrain asset is missing");
+            }
+            workspace.requestTerrainAssetOpen(source->sourcePath);
+          } catch (const std::exception &failure) {
+            notice = failure.what();
+          }
+        }
+        return;
+      }
       // Promotion rebuilds the preview and invalidates the selected pointers.
       if (drawScatterPlacements(workspace, *entity, *terrain, notice)) {
         return;
@@ -364,7 +408,14 @@ void drawEditorTerrainInspector(EditorWorkspace &workspace,
     ImGui::TextWrapped(
         "Preview quality: generate Final before editing, Apply, Save or Play.");
   }
-  drawBrush(authoring);
+  const auto *selected = workspace.selectedEntity();
+  const auto *regional = selected ? selected->component<runtime::Terrain3DComponent>() : nullptr;
+  if (regional && regional->region) {
+    ImGui::TextWrapped("Regional preview streams detail around the editor camera. "
+                       "Edit its shared graph; regional sculpt/paint persistence is not implemented yet.");
+  } else {
+    drawBrush(authoring);
+  }
 }
 
 } // namespace demi::editor

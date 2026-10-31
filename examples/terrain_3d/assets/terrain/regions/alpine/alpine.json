@@ -1,0 +1,20 @@
+{
+  "format_version": 1,
+  "name": "Alpine region - asynchronous terrain traversal",
+  "terrain": "asset://terrain/regions/alpine_terrain",
+  "origin": [
+    -120000,
+    -110000
+  ],
+  "sampling": {
+    "base_spacing": 2,
+    "normal_spacing": 2
+  },
+  "streaming": {
+    "resident_mib": 512,
+    "lod_distance_ratio": 4,
+    "vegetation_radius": 768,
+    "vegetation_canopy_radius": 3072,
+    "vegetation_canopy_cell_samples": 512
+  }
+}

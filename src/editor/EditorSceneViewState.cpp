@@ -5,7 +5,9 @@
 #include "demi/runtime/scene/Transform3DHierarchy.h"
 #include "demi/runtime/scene/components/3dcomponents/Transform3DComponent.h"
 #include "demi/runtime/scene/model/World.h"
+#include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/terrain/TerrainWorld.h"
+#include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
 
 #include <algorithm>
 #include <cmath>
@@ -40,6 +42,8 @@ runtime::Vec3 multiply(const runtime::Vec3 value, const float scalar) {
 
 void EditorSceneViewState::reset(const runtime::World &world) {
   studioLighting = false;
+  navigationExtent_ = 100.F;
+  flySpeed_ = 5.0F;
   cameraSettings_ = {};
   cameraSettings_.clearColor = {0.055F, 0.07F, 0.09F, 1.0F};
   cameraSettings_.renderHud = false;
@@ -53,7 +57,15 @@ void EditorSceneViewState::reset(const runtime::World &world) {
   transformSpace_ = EditorTransformSpace::Local;
   capturesPointer_ = false;
   updateOrientation();
-  (void)frameScene(world);
+  const bool hasRegion = std::ranges::any_of(world.entities, [](const auto &entity) {
+    const auto *terrain = entity.template component<runtime::Terrain3DComponent>();
+    return entity.enabled && terrain && terrain->region;
+  });
+  // A continental overview hides the working area behind distance fog. Start
+  // regional scenes at their authored viewpoint; Frame Scene remains explicit.
+  if (!hasRegion || !alignToFirstCamera(world)) {
+    (void)frameScene(world);
+  }
 }
 
 bool EditorSceneViewState::alignToFirstCamera(const runtime::World &world) {
@@ -125,20 +137,25 @@ void EditorSceneViewState::update(const EditorViewportInput &input) {
   }
 
   if (input.wheel != 0.0F) {
-    if (projection_ == EditorProjection::Perspective) {
+    if (input.flyButton) {
+      flySpeed_ = std::clamp(flySpeed_ * std::exp(input.wheel * 0.4F), 0.1F, 10000.F);
+    } else if (projection_ == EditorProjection::Perspective) {
       distance_ = std::clamp(distance_ * std::exp(-input.wheel * 0.16F), 0.05F,
-                             10000.0F);
+                             std::max(10000.F, navigationExtent_ * 100.F));
       position_ = add(focus_, multiply(forward_, -distance_));
     } else {
       cameraSettings_.orthographicSize = std::clamp(
           cameraSettings_.orthographicSize * std::exp(-input.wheel * 0.16F),
-          0.01F, 10000.0F);
+          0.01F, std::max(10000.F, navigationExtent_ * 100.F));
     }
   }
 
+  cameraSettings_.farClip = std::max(cameraSettings_.farClip, distance_ + navigationExtent_ * 2.F);
+  cameraSettings_.nearClip = std::clamp(distance_ * .0001F, .05F, 1000.F);
+
   if (input.flyButton) {
     const float dt = std::clamp(input.deltaSeconds, 0.0F, 0.1F);
-    const float speed = (input.fast ? 20.0F : 5.0F) * dt;
+    const float speed = flySpeed_ * (input.fast ? 4.0F : 1.0F) * dt;
     runtime::Vec3 movement{};
     if (input.moveForward)
       movement = add(movement, forward_);
@@ -171,8 +188,14 @@ bool EditorSceneViewState::frameEntity(const runtime::World &world,
   // the small transform-only placeholder at the terrain corner.
   std::optional<EditorBounds3D> terrainBounds;
   for (const auto &entity : world.entities) {
-    if (runtime::terrainSurfaceOwner(entity) != entityId)
+    auto owner = runtime::terrainSurfaceOwner(entity);
+    if (owner && *owner != entityId) {
+      const auto *tile = runtime::findEntity(world, std::string(*owner));
+      owner = tile ? runtime::terrainSurfaceOwner(*tile) : std::nullopt;
+    }
+    if (owner != entityId) {
       continue;
+    }
     const auto local = editorEntityBounds3D(world, entity);
     const auto bounds = local ? editorWorldBounds3D(*local) : std::nullopt;
     if (!bounds)
@@ -241,6 +264,7 @@ void EditorSceneViewState::ensureDepthRangeCovers(const EditorBounds3D &bounds) 
                              bounds.maximum.y - centre.y,
                              bounds.maximum.z - centre.z};
   const float radius = std::max(length(extent), 0.5F);
+  navigationExtent_ = std::max(navigationExtent_, radius);
   // The furthest authored point from the eye, plus the bounds radius for a
   // sphere that reaches the corners, plus a margin.
   const runtime::Vec3 offset{position_.x - centre.x, position_.y - centre.y,
@@ -250,8 +274,8 @@ void EditorSceneViewState::ensureDepthRangeCovers(const EditorBounds3D &bounds) 
   // A near plane pinned near zero gives a near:far ratio in the tens of
   // thousands once the camera orbits out, and distant geometry starts to
   // quantise. It tracks the orbit distance so the ratio stays bounded.
-  cameraSettings_.nearClip =
-      std::max(cameraSettings_.nearClip, std::min(distance_ * 0.01F, 1.0F));
+  cameraSettings_.nearClip = std::max(cameraSettings_.farClip / 90000.F,
+      std::clamp(distance_ * .0001F, .05F, 1000.F));
 }
 
 void EditorSceneViewState::frameBounds(const EditorBounds3D &bounds) {
@@ -262,6 +286,7 @@ void EditorSceneViewState::frameBounds(const EditorBounds3D &bounds) {
                              bounds.maximum.y - focus_.y,
                              bounds.maximum.z - focus_.z};
   const float radius = std::max(length(extent), 0.5F);
+  navigationExtent_ = std::max(navigationExtent_, radius);
   constexpr float DegreesToRadians = 0.01745329251994329577F;
   constexpr float FramePadding = 1.15F;
   const float halfFov =

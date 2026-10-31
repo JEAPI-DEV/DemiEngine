@@ -51,6 +51,8 @@ public:
   static void recordGpuScope(ScopeEvent event);
   [[nodiscard]] static const CaptureHistory &captures();
   [[nodiscard]] static std::uint64_t sessionGeneration();
+  // Control/capture methods belong to the frame thread. Scopes and metric
+  // writes from other threads are ignored; background jobs own their telemetry.
   static void setEnabled(bool enabled);
   [[nodiscard]] static bool enabled();
   static void resetSession();
@@ -65,6 +67,21 @@ public:
   [[nodiscard]] static std::size_t frameCount();
   [[nodiscard]] static std::string sessionReport();
   [[nodiscard]] static bool writeFrame(std::ostream &output, std::size_t frame);
+};
+
+// Background preparation may reuse code with main-thread profiling scopes.
+// Suppress scopes and counter writes locally; never toggle the process-wide
+// profiler from a worker. Worker timings belong to the owning job's telemetry.
+class ScopedProfileSuppression {
+public:
+  ScopedProfileSuppression();
+  ~ScopedProfileSuppression();
+  ScopedProfileSuppression(const ScopedProfileSuppression &) = delete;
+  ScopedProfileSuppression &
+  operator=(const ScopedProfileSuppression &) = delete;
+
+private:
+  bool previous_ = false;
 };
 
 class ProfileScope {

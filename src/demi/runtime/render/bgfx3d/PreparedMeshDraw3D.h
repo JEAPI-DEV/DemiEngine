@@ -1,4 +1,5 @@
 #pragma once
+#include <span>
 
 #include "demi/runtime/render/bgfx3d/MeshSurface3D.h"
 
@@ -13,7 +14,7 @@ struct MeshDrawSurface3D {
   MeshDrawSurface3D(const MeshRendererComponent &mesh,
                     const MaterialBinding *material, std::optional<float> fade,
                     bool unlit);
-  void fillUniforms(const std::array<DrawUniformValue, 8> &lighting,
+  void fillUniforms(std::span<const DrawUniformValue> lighting,
                     const MaterialBinding *material,
                     std::vector<DrawUniformValue> &scratch) const;
 

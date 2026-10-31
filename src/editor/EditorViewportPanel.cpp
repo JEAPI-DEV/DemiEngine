@@ -1,3 +1,4 @@
+#include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "editor/EditorViewportPanel.h"
 #include "demi/runtime/scene/Transform3DHierarchy.h"
 #include "demi/runtime/scene/components/3dcomponents/DirectionalLightComponent.h"
@@ -69,6 +70,7 @@ bool drawEditorViewport(EditorWorkspace &workspace, const ImVec2 position,
                         EditorViewportArea &viewportArea,
                         EditorHudViewportState &hudState, const bool hudOnly,
                         std::string &notice, const bool embedded) {
+  runtime::ProfileScope profile("Editor.viewport_ui");
   if (!embedded &&
       !beginEditorPanel(hudOnly ? "HUD" : "Viewport", position, size, nullptr,
                         ImGuiWindowFlags_NoScrollbar |

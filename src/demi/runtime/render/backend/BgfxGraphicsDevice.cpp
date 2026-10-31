@@ -94,7 +94,10 @@ bool BgfxGraphicsDevice::initialize(const GraphicsDeviceConfig &config,
   init.type = rendererType(config.api);
   init.resolution.width = config.width;
   init.resolution.height = config.height;
-  init.resolution.reset = config.vsync ? BGFX_RESET_VSYNC : BGFX_RESET_NONE;
+  // The device ceiling only affects textures that explicitly request
+  // anisotropic sampling; ordinary linear/nearest samplers retain their policy.
+  init.resolution.reset = BGFX_RESET_MAXANISOTROPY |
+                          (config.vsync ? BGFX_RESET_VSYNC : BGFX_RESET_NONE);
 #if defined(__ANDROID__)
   // Android 15 Mali drivers reject BGRA8 swapchains when they validate
   // AHardwareBuffer-backed allocations, which surfaces as
@@ -355,7 +358,8 @@ bool BgfxGraphicsDevice::setMsaaSamples(int samples,std::string &error) {
 }
 
 std::uint32_t BgfxGraphicsDevice::resetFlags() const {
-  auto flags=vsync_ ? BGFX_RESET_VSYNC : BGFX_RESET_NONE;
+  auto flags = BGFX_RESET_MAXANISOTROPY |
+               (vsync_ ? BGFX_RESET_VSYNC : BGFX_RESET_NONE);
   switch(msaaSamples_) {
   case 2: flags|=BGFX_RESET_MSAA_X2;break;
   case 4: flags|=BGFX_RESET_MSAA_X4;break;

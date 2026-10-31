@@ -79,6 +79,8 @@ bool EditorWorkspace::openProjectContext(const EditorWorkspace &source,
   terrainPreviewPrefabs_.configure(project_->project.projectDirectory);
   sourceIndex_ = source.sourceIndex_;
   assetIndex_ = source.assetIndex_;
+  diagnostics_ = source.diagnostics_;
+  syncEditorDiagnostic();
   tilemaps2D_ = source.tilemaps2D_;
   configureTerrainInputResolver();
   refreshTerrainPresets();
@@ -1434,7 +1436,8 @@ void EditorWorkspace::syncTerrainAuthoring() {
         activeDocument_ != EditorWorkspaceDocument::TerrainAsset)) ||
       (!terrainAuthoringTarget_ &&
        viewDimension_ != EditorSceneViewDimension::ThreeDimensional) ||
-      !terrain || (terrain->asset.empty() && terrain->recipe.is_null())) {
+      !terrain || (terrain->region && activeDocument_ == EditorWorkspaceDocument::Scene) ||
+      (terrain->asset.empty() && terrain->recipe.is_null())) {
     std::string error;
     if (!restoreTerrainPreview(error)) {
       workspaceOperationError_ = std::move(error);

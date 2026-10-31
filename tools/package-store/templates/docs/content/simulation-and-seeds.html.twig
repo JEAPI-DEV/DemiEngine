@@ -22,6 +22,7 @@
 <h2>Catch-up limit</h2>
 <pre><code>"maximum_fixed_steps_per_frame": 4</code></pre>
 <p>This is that safety valve (default 4, maximum 16). At 60 Hz, one frame should consume one step. If a hitch eats 200 ms, the engine would want 12 steps to catch up — it runs at most 4, then lets game time lag behind wall-clock time.</p>
+<p>Standalone runs and embedded editor Play honor the same limit. The Profiler shows the fixed-step count and dropped catch-up time for the selected frame. At 60 simulation Hz, a 50 ms rendered frame normally needs three steps; multiple <code>Frame.fixed_update</code> scopes are expected. Excess whole steps beyond the cap are discarded, while the fractional remainder is kept for the next frame. Paused single-step advances exactly one tick.</p>
 <p>Why cap it? Without a cap, a debugger breakpoint can trigger thousands of steps and lock the game in physics for minutes. Raise the cap only if you need strict wall-clock alignment and accept the hitch cost.</p>
 
 <h2>Why a fixed step matters</h2>

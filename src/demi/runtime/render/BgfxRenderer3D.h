@@ -1,4 +1,5 @@
 #pragma once
+#include <span>
 #include "demi/runtime/destruction/CosmeticDebris3D.h"
 #include <stop_token>
 
@@ -144,6 +145,10 @@ private:
   void configureTerrainPresentation(const World &world,
                                     const BgfxCameraFrame3D &frame,
                                     const SceneLighting3D &lighting);
+  void prepareRegionalTerrain(const World &world,
+                              const BgfxCameraFrame3D &frame);
+  std::shared_ptr<void> regionalTerrainLease_;
+  std::uint64_t regionalTerrainPresentation_ = 0;
   struct AssetPreparation;
   std::shared_ptr<AssetPreparation> assetPreparation_;
   struct TextureVariantPreparation;
@@ -182,14 +187,14 @@ private:
                                  const RenderTargetHandles &,
                                  OpaqueSceneCapture3D::Target &,
                                  const SceneLighting3D &,
-                                 const std::array<DrawUniformValue, 8> &,
+                                 std::span<const DrawUniformValue> ,
                                  std::size_t firstTransparent,
                                  MeshSubmissionStatistics &,
                                  std::string &error);
   const GpuMesh3D *primitiveMesh(const std::string &shape, std::string &error);
   bool submitVisibleMeshes(const SceneVisibility3D &, const BgfxCameraFrame3D &,
                            bool shadowPass, std::size_t firstTransparent,
-                           const std::array<DrawUniformValue, 8> &,
+                           std::span<const DrawUniformValue> ,
                            ProgramHandle defaultMeshProgram,
                            ProgramHandle defaultInstancedProgram,
                            ProgramHandle defaultSkinnedProgram,
@@ -289,6 +294,7 @@ private:
   UniformHandle debugModeUniform_;
   MeshInstancePreparation3D instancePreparation_;
   PreparedInstanceView3D cameraInstances_;
+  std::array<PreparedInstanceView3D, 4> shadowInstances_;
   EntityComponentQuery entityQueries_;
   PrimitiveSurfacePreparation3D primitiveSurfaces_;
   UniformHandle viewPositionUniform_;
@@ -296,6 +302,8 @@ private:
   UniformHandle lightDirectionUniform_;
   UniformHandle lightColorUniform_;
   UniformHandle ambientColorUniform_;
+  UniformHandle fogColorUniform_;
+  UniformHandle fogRangeUniform_;
   TextureHandle whiteTexture_;
   std::unordered_map<std::string, std::unique_ptr<CachedMesh>> dynamicMeshes_;
   std::unordered_map<std::string, std::unique_ptr<CachedMesh>> primitiveMeshes_;

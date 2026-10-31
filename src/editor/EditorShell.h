@@ -35,6 +35,7 @@ struct EditorAuthoringViewState {
   EditorViewportArea area;
   EditorHudViewportState hud;
   std::uint16_t texture = UINT16_MAX;
+  bool preparing = false;
 };
 
 class EditorShell {
@@ -50,6 +51,7 @@ public:
   [[nodiscard]] float uiScale() const { return uiScale_; }
   [[nodiscard]] bool pollBackgroundChanges();
   [[nodiscard]] bool needsContinuousFrames() const;
+  [[nodiscard]] bool authoringViewOpen(EditorAuthoringView view) const;
   [[nodiscard]] bool wantsExit() const { return wantsExit_; }
   void requestExit() { exitRequested_ = true; }
   [[nodiscard]] const auto &authoringViews() const { return authoringViews_; }
@@ -67,6 +69,9 @@ public:
     return requested;
   }
   void setGameTextureIndex(std::uint16_t value) { gameTextureIndex_ = value; }
+  void setViewportPreparing(EditorAuthoringView view, bool value) {
+    authoringViews_[static_cast<std::size_t>(view)].preparing = value;
+  }
   void setViewportTextureIndex(EditorAuthoringView view, std::uint16_t value) {
     authoringViews_[static_cast<std::size_t>(view)].texture = value;
   }

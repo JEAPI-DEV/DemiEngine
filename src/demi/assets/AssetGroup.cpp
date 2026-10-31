@@ -94,6 +94,19 @@ loadAssetGroup(const std::filesystem::path &path, Diagnostics *diagnostics) {
              path.string());
       return std::nullopt;
     }
+    constexpr std::string_view scenePrefix = "asset-group://implicit-scene/";
+    if (group.id.starts_with(scenePrefix)) {
+      const std::string sceneId =
+          "scene://" + group.id.substr(scenePrefix.size());
+      if (sceneId == "scene://" ||
+          group.roots != std::vector<std::string>{sceneId}) {
+        report(diagnostics, "ASSET_GROUP_SCENE_POLICY_INVALID",
+               "Implicit scene budget groups require exactly their matching "
+               "scene:// root; scene assets are discovered automatically.",
+               path.string());
+        return std::nullopt;
+      }
+    }
     return group;
   } catch (const nlohmann::json::exception &exception) {
     report(diagnostics, "ASSET_GROUP_INVALID", exception.what(), path.string());
@@ -432,13 +445,19 @@ void AssetGroupService::update(double uploadBudgetMilliseconds) {
       request.progress.decodedBytes += decoded->decodedBytes;
       if (request.progress.decodedBytes >
           request.group.budget.maximumDecodedBytes) {
+        const std::string budgetError =
+            "Decoded asset memory exceeds group budget: asset " +
+            work.asset->id + ", group " + request.group.id + ", " +
+            std::to_string(request.progress.decodedBytes) +
+            " bytes decoded, limit " +
+            std::to_string(request.group.budget.maximumDecodedBytes) + " bytes.";
         if (const auto resource = resources_.find(work.asset->id);
             resource != resources_.end()) {
           resource->second.failed = true;
-          resource->second.error = "Decoded asset memory exceeds group budget.";
+          resource->second.error = budgetError;
         }
         request.progress.stage = AssetGroupStage::Failed;
-        request.progress.error = "Decoded asset memory exceeds group budget.";
+        request.progress.error = budgetError;
         rollback(handle, request);
         break;
       }

@@ -48,8 +48,8 @@ TerrainRuleContextBuilder &TerrainRuleContextBuilder::operator=(
 
 float TerrainRuleContextBuilder::seaLevel(const TerrainRecipe &recipe) {
   // A quarter of the authored relief band: low enough that basins fill, high
-  // enough that ordinary rolling terrain stays dry. Sea level follows the ground
-  // shape, so it reads landforms rather than biome appearance.
+  // enough that ordinary rolling terrain stays dry. Sea level follows the
+  // ground shape, so it reads landforms rather than biome appearance.
   float highest = 0;
   for (const auto &[id, shape] : recipe.landforms)
     highest = std::max(highest, shape.baseHeight + shape.heightVariation);
@@ -203,9 +203,48 @@ float ruleWeight(const TerrainBiomeRule &rule,
 }
 } // namespace
 
-std::vector<TerrainRuleDecision> assignTerrainBiomes(
-    const TerrainRecipe &recipe, const std::vector<TerrainRuleContext> &contexts,
-    int cellsX, int cellsZ, Vec2 size) {
+TerrainBiomeRuleEvaluator::TerrainBiomeRuleEvaluator(
+    const TerrainRecipe &recipe) {
+  std::map<std::string, std::size_t> indices;
+  for (const auto &[id, biome] : recipe.biomes) {
+    indices.emplace(id, indices.size());
+  }
+  defaultBiome_ = indices.at(recipe.defaultBiome);
+  for (const auto &layer : recipe.layers) {
+    if (!layer.enabled || layer.kind != TerrainLayerKind::Biome) {
+      continue;
+    }
+    for (const auto &rule : recipe.rules) {
+      if (rule.layer == layer.id) {
+        active_.push_back({&rule, indices.at(rule.biome)});
+      }
+    }
+  }
+}
+
+TerrainRuleDecision
+TerrainBiomeRuleEvaluator::evaluate(const TerrainRuleContext &context) const {
+  const Entry *best = nullptr;
+  float bestWeight = 0;
+  for (const auto &entry : active_) {
+    const float weight = ruleWeight(*entry.rule, context);
+    if (weight <= 0.F) {
+      continue;
+    }
+    if (!best || entry.rule->priority > best->rule->priority ||
+        (entry.rule->priority == best->rule->priority && weight > bestWeight)) {
+      best = &entry;
+      bestWeight = weight;
+    }
+  }
+  return {best ? best->biome : defaultBiome_,
+          best ? best->rule->id : std::string{}, false};
+}
+
+std::vector<TerrainRuleDecision>
+assignTerrainBiomes(const TerrainRecipe &recipe,
+                    const std::vector<TerrainRuleContext> &contexts, int cellsX,
+                    int cellsZ, Vec2 size) {
   const auto count = recipe.sampleCount();
   if (contexts.size() != count)
     throw std::invalid_argument(
@@ -214,18 +253,7 @@ std::vector<TerrainRuleDecision> assignTerrainBiomes(
   std::map<std::string, std::size_t> biomeIndices;
   for (const auto &[id, biome] : recipe.biomes)
     biomeIndices.emplace(id, biomeIndices.size());
-  const auto defaultBiome = biomeIndices.at(recipe.defaultBiome);
-
-  // Only rules on an enabled biome layer participate. Ordering is by authored
-  // layer order, then stroke order, matching the rest of the evaluator.
-  std::vector<const TerrainBiomeRule *> active;
-  for (const auto &layer : recipe.layers) {
-    if (!layer.enabled || layer.kind != TerrainLayerKind::Biome)
-      continue;
-    for (const auto &rule : recipe.rules)
-      if (rule.layer == layer.id)
-        active.push_back(&rule);
-  }
+  const TerrainBiomeRuleEvaluator rules(recipe);
 
   TerrainEvaluation evaluation(recipe);
   std::vector<TerrainRuleDecision> decisions(count);
@@ -235,23 +263,7 @@ std::vector<TerrainRuleDecision> assignTerrainBiomes(
       const auto &context = contexts[cell];
       const auto position = positionOf(x, z, size, cellsX, cellsZ);
 
-      // Highest priority wins. An equal priority is broken by blend weight, so
-      // a stronger transition outranks a weaker one; a full tie keeps the
-      // earlier rule, which makes the result independent of iteration order.
-      const TerrainBiomeRule *best = nullptr;
-      float bestWeight = 0;
-      for (const auto *rule : active) {
-        const float weight = ruleWeight(*rule, context);
-        if (weight <= 0.F)
-          continue;
-        if (!best || rule->priority > best->priority ||
-            (rule->priority == best->priority && weight > bestWeight)) {
-          best = rule;
-          bestWeight = weight;
-        }
-      }
-      decisions[cell].biome = best ? biomeIndices.at(best->biome) : defaultBiome;
-      decisions[cell].ruleId = best ? best->id : std::string{};
+      decisions[cell] = rules.evaluate(context);
 
       // Painted regions are applied after rules and always win, which keeps
       // manual override authoritative. Regions are evaluated per cell, but the
@@ -260,9 +272,9 @@ std::vector<TerrainRuleDecision> assignTerrainBiomes(
       std::size_t dominant = decisions[cell].biome;
       double strongest = 0.0;
       for (const auto *region : evaluation.regions()) {
-        const double alpha = terrainBrushWeight(
-            position, region->center, region->radius, region->strength,
-            region->falloff);
+        const double alpha =
+            terrainBrushWeight(position, region->center, region->radius,
+                               region->strength, region->falloff);
         if (alpha <= strongest)
           continue;
         strongest = alpha;

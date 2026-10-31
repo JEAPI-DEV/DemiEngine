@@ -4,6 +4,7 @@
 
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -30,6 +31,8 @@ public:
   PhysicsWorld3D &operator=(const PhysicsWorld3D &) = delete;
 
   [[nodiscard]] bool available() const;
+  // Main-thread retirement independent of stepping, including paused worlds.
+  void removeEntities(std::span<const std::string> entityIds);
   void step(World &world, float fixedDt, Vec3 gravity = {0.0F, -9.81F, 0.0F});
   // Internal fixed-step transaction: candidate owns prepared entity/asset data.
   // Source remains live on failure. Not callable from scripts during simulation.

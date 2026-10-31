@@ -7,6 +7,29 @@ are registered in `tools/package-store/src/Docs.php`.
 
 This directory keeps material that has a different job:
 
+- [Ground-level terrain flight performance](terrain-ground-flight-performance.md)
+  records a vegetation-resident route, whole-view terrain ordering and render
+  request publication costs.
+- [Terrain streaming stability](terrain-streaming-stability.md) records GPU-ready
+  cover publication, unsuitable cliff scatter, intermediate grass, physics
+  hierarchy synchronization and embedded fixed-step catch-up qualification.
+- [Regional streaming plan](world-terrain-streaming-plan.md) records shared prefab
+  prepare/adopt, frame-paced publication measurements, and unified graph
+  authoring, cell lifecycle gates and stored-versus-procedural vegetation measurements.
+- [Terrain visual quality](terrain-visual-quality.md) records the missing-opacity
+  diagnosis, material/mip changes, source-art repair and matched visual/performance checks.
+- [Regional morphing and performance](regional-terrain-morphing.md) records
+  shared transition endpoints, seam/collision tests, constant-time GPU accounting
+  and unattended rendered traversal.
+- [Regional range and startup qualification](regional-terrain-range.md) records
+  primary-source research, initial cover preparation, layered vegetation,
+  impostor content, renderer/UI costs and full-size desktop qualification.
+- [Regional editor usability](regional-editor-usability.md) records preview
+  vegetation, navigation, material filtering, native traversal and remaining
+  performance/headless qualification limits.
+- [Regional terrain sampling](regional-terrain-sampling.md) records the native
+  global lattice, analytic relief, fixed-footprint normals and streaming boundaries.
+
 - [Static model LOD generation](static-model-lod-generation.md) records the shared
   generator, material/UV preservation, recipes and transactional publication.
 
@@ -19,6 +42,10 @@ This directory keeps material that has a different job:
 - [3D showcase and authoring plan](../3d-showcase-plan.md) inventories verified
   capabilities and phases the requested landscape, cinematic and editor work.
 
+- [Highland memory investigation](highlands-memory-investigation.md) separates
+  live allocations from retained allocator pages and identifies terrain JSON churn.
+- [Highland terrain qualification](highlands-terrain-qualification.md) covers organic
+  scatter, the 2 km landscape, scene budgets and measured residency boundaries.
 - [Silvermere terrain showcase](silvermere-showcase.md) records the camera tour,
   real placement counts, visual qualification and prioritized feature gaps.
 - [Runtime ECS migration](runtime-ecs-migration.md) records typed world storage,

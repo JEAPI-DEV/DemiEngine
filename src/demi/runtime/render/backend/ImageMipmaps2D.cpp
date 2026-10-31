@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <span>
 
 namespace demi::runtime::render {
 namespace {
@@ -17,7 +18,8 @@ std::byte encodeChannel(double value) {
 std::array<std::byte, 4> filteredTexel(const std::vector<std::byte> &source,
                                        std::size_t offset, unsigned width,
                                        unsigned x0, unsigned x1, unsigned y0,
-                                       unsigned y1, ImageMipSemantic semantic) {
+                                       unsigned y1, ImageMipSemantic semantic,
+                                       bool associatedAlpha) {
   std::array<double, 4> sum{};
   for (unsigned y = y0; y < y1; ++y) {
     for (unsigned x = x0; x < x1; ++x) {
@@ -27,6 +29,9 @@ std::array<std::byte, 4> filteredTexel(const std::vector<std::byte> &source,
             std::to_integer<unsigned>(source[pixel + channel]) / 255.0;
         if (channel < 3 && semantic == ImageMipSemantic::Color) {
           value = decodeSrgbChannel(value);
+          if (associatedAlpha) {
+            value *= std::to_integer<unsigned>(source[pixel + 3]) / 255.0;
+          }
         } else if (channel < 3 && semantic == ImageMipSemantic::Normal) {
           value = 2.0 * value - 1.0;
         }
@@ -57,6 +62,9 @@ std::array<std::byte, 4> filteredTexel(const std::vector<std::byte> &source,
     }
   } else if (semantic == ImageMipSemantic::Color) {
     for (std::size_t channel = 0; channel < 3; ++channel) {
+      if (associatedAlpha) {
+        sum[channel] = sum[3] > 0 ? sum[channel] / sum[3] : 0;
+      }
       sum[channel] = encodeSrgbChannel(sum[channel]);
     }
   }
@@ -64,12 +72,56 @@ std::array<std::byte, 4> filteredTexel(const std::vector<std::byte> &source,
           encodeChannel(sum[3])};
 }
 
+using AlphaHistogram = std::array<std::size_t, 256>;
+AlphaHistogram alphaHistogram(std::span<const std::byte> pixels) {
+  AlphaHistogram histogram{};
+  for (std::size_t i = 3; i < pixels.size(); i += 4) {
+    ++histogram[std::to_integer<unsigned>(pixels[i])];
+  }
+  return histogram;
+}
+void preserveCoverage(std::span<std::byte> pixels, double coverage,
+                      unsigned cutoff) {
+  const auto histogram = alphaHistogram(pixels);
+  const double target = coverage * (pixels.size() / 4);
+  std::size_t current = 0;
+  for (unsigned alpha = cutoff; alpha < 256; ++alpha) {
+    current += histogram[alpha];
+  }
+  double bestError = std::abs(double(current) - target);
+  double bestScale = 1;
+  std::size_t covered = 0;
+  for (unsigned alpha = 255; alpha > 0; --alpha) {
+    covered += histogram[alpha];
+    // Account for byte rounding: this bin passes, the preceding bin does not.
+    const double scale = (cutoff - .499) / alpha;
+    const double error = std::abs(double(covered) - target);
+    if (error < bestError ||
+        (error == bestError && std::abs(scale - 1) < std::abs(bestScale - 1))) {
+      bestError = error;
+      bestScale = scale;
+    }
+  }
+  if (bestScale == 1) {
+    return;
+  }
+  for (std::size_t i = 3; i < pixels.size(); i += 4) {
+    pixels[i] = std::byte(std::lround(
+        std::min(255.0, std::to_integer<unsigned>(pixels[i]) * bestScale)));
+  }
+}
+
 } // namespace
 
-std::vector<std::byte> imageMipChain2D(const ImageData2D &image,
-                                       ImageMipSemantic semantic,
-                                       std::stop_token stop) {
-  if (stop.stop_requested()) {
+std::vector<std::byte>
+imageMipChain2D(const ImageData2D &image, ImageMipSemantic semantic,
+                std::stop_token stop,
+                std::optional<float> alphaCoverageCutoff) {
+  if (stop.stop_requested() ||
+      (alphaCoverageCutoff &&
+       (semantic != ImageMipSemantic::Color ||
+        !std::isfinite(*alphaCoverageCutoff) || *alphaCoverageCutoff <= 0 ||
+        *alphaCoverageCutoff > 1))) {
     return {};
   }
   const auto expectedBytes = std::size_t(image.width) * image.height * 4;
@@ -96,7 +148,8 @@ std::vector<std::byte> imageMipChain2D(const ImageData2D &image,
         const unsigned y0 = y * height / nextHeight;
         const unsigned y1 = (y + 1) * height / nextHeight;
         const auto pixel =
-            filteredTexel(packed, offset, width, x0, x1, y0, y1, semantic);
+            filteredTexel(packed, offset, width, x0, x1, y0, y1, semantic,
+                          alphaCoverageCutoff.has_value());
         const auto destination =
             nextOffset + (std::size_t(y) * nextWidth + x) * 4;
         std::copy(pixel.begin(), pixel.end(), packed.begin() + destination);
@@ -105,6 +158,33 @@ std::vector<std::byte> imageMipChain2D(const ImageData2D &image,
     offset = nextOffset;
     width = nextWidth;
     height = nextHeight;
+  }
+  if (alphaCoverageCutoff) {
+    const unsigned threshold =
+        unsigned(std::ceil(*alphaCoverageCutoff * 255.F));
+    const auto histogram = alphaHistogram(image.rgba);
+    std::size_t covered = 0;
+    for (unsigned alpha = threshold; alpha < 256; ++alpha) {
+      covered += histogram[alpha];
+    }
+    const double coverage =
+        double(covered) / (std::size_t(image.width) * image.height);
+    width = image.width;
+    height = image.height;
+    offset = expectedBytes;
+    // Apply after building the entire raw chain so alpha boosts do not
+    // compound.
+    while (width > 1 || height > 1) {
+      if (stop.stop_requested()) {
+        return {};
+      }
+      width = std::max(1U, width / 2);
+      height = std::max(1U, height / 2);
+      const auto bytes = std::size_t(width) * height * 4;
+      preserveCoverage(std::span(packed).subspan(offset, bytes), coverage,
+                       threshold);
+      offset += bytes;
+    }
   }
   return stop.stop_requested() ? std::vector<std::byte>{} : packed;
 }

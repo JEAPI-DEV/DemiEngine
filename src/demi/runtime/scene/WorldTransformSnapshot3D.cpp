@@ -45,7 +45,7 @@ WorldTransformSnapshot3D &WorldTransformSnapshot3D::operator=(
 
 const std::vector<std::optional<WorldTransform3D>> &
 WorldTransformSnapshot3D::refresh(const World &world) {
-  ProfileScope scope("Renderer3D.world_transforms");
+  ProfileScope scope("Scene.world_transforms");
   const auto &registry = world.entities.componentRegistry();
   const auto count = world.entities.size();
   const bool newRegistry =
@@ -109,8 +109,8 @@ WorldTransformSnapshot3D::refresh(const World &world) {
   changes_->pending.clear();
   registryIdentity_ = registry.identity();
   orderRevision_ = world.entities.orderRevision();
-  RuntimeProfiler::setGauge("Renderer3D.transform_updates", dirty_.size());
-  RuntimeProfiler::setGauge("Renderer3D.transforms_recomputed",
+  RuntimeProfiler::setGauge("Scene.transform_updates", dirty_.size());
+  RuntimeProfiler::setGauge("Scene.transforms_recomputed",
                             affected_.size());
   return results_;
 }

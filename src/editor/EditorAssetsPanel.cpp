@@ -1,3 +1,4 @@
+#include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "editor/EditorAssetsPanel.h"
 
 #include "editor/EditorChrome.h"
@@ -6,6 +7,8 @@
 #include "editor/EditorWorkspace.h"
 
 #include "demi/filesystem/ProjectPaths.h"
+#include "demi/assets/DataAsset.h"
+#include "demi/assets/TerrainRegionAsset.h"
 
 #include <SDL3/SDL.h>
 #include <imgui.h>
@@ -256,6 +259,30 @@ void drawAssetDetails(EditorWorkspace &workspace,
     }
     ImGui::EndDisabled();
   }
+  if (record && record->manifest.type == "DataAsset") {
+    const auto metadata = assets::dataAssetMetadata(record->manifest);
+    if (metadata && metadata->contentType == "terrain_region") {
+      ImGui::Spacing();
+      if (ImGui::Button("Open referenced terrain", {-1.0F, 0.0F})) {
+        try {
+          const auto loaded = assets::loadDataAsset(record->manifest);
+          if (!loaded) {
+            notice = "Could not read the terrain region definition.";
+          } else {
+            const auto definition = assets::parseTerrainRegionAsset(*loaded->document);
+            const auto *terrain = findAsset(workspace.assetIndex().registry(), definition.terrain);
+            if (terrain && terrain->type == "Terrain") {
+              workspace.requestTerrainAssetOpen(terrain->sourcePath);
+            } else {
+              notice = "The region's Terrain asset could not be found.";
+            }
+          }
+        } catch (const std::exception &error) {
+          notice = error.what();
+        }
+      }
+    }
+  }
   if (record == nullptr)
     return;
   ImGui::SameLine();
@@ -335,6 +362,7 @@ void drawAssetDetails(EditorWorkspace &workspace,
 void EditorAssetsPanel::draw(EditorWorkspace &workspace, const ImVec2 position,
                              const ImVec2 size, std::string &notice,
                              bool *open) {
+  runtime::ProfileScope profile("Editor.assets");
   if (!beginEditorPanel("Assets", position, size, open)) {
     ImGui::End();
     return;
@@ -461,16 +489,17 @@ void EditorAssetsPanel::draw(EditorWorkspace &workspace, const ImVec2 position,
     for (const std::filesystem::path &source : workspace.sources()) {
       const std::filesystem::path relative = relativeSource(workspace, source);
       const std::string display = relative.generic_string();
-      const EditorAssetRecord *record =
-          workspace.assetIndex().findByManifest(source)
-              ? workspace.assetIndex().findByManifest(source)
-              : workspace.assetIndex().findBySource(source);
+      if (filter_[0] == '\0' && relative.parent_path() != directory_) {
+        continue;
+      }
+      const EditorAssetRecord *record = workspace.assetIndex().findByManifest(source);
+      if (!record) {
+        record = workspace.assetIndex().findBySource(source);
+      }
       if (!typeFilter_.empty() &&
           (record == nullptr || record->manifest.type != typeFilter_))
         continue;
       if (!containsCaseInsensitive(display, filter_.data()))
-        continue;
-      if (filter_[0] == '\0' && relative.parent_path() != directory_)
         continue;
       hasEntries = true;
       ImGui::TableNextColumn();

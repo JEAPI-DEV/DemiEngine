@@ -548,6 +548,9 @@ std::uint64_t textureFlags(const TextureCreateInfo &info) {
   if (info.mipFilter.value_or(info.filter) == TextureFilter::Nearest) {
     flags |= BGFX_SAMPLER_MIP_POINT;
   }
+  if (info.anisotropic) {
+    flags |= BGFX_SAMPLER_MIN_ANISOTROPIC | BGFX_SAMPLER_MAG_ANISOTROPIC;
+  }
   const auto wrapFlags = [](TextureWrap mode, std::uint64_t clamp,
                             std::uint64_t mirror) {
     return mode == TextureWrap::Clamp    ? clamp

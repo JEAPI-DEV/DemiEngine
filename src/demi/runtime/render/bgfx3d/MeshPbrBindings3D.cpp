@@ -1,4 +1,5 @@
 #include "demi/runtime/render/bgfx3d/MeshPbrBindings3D.h"
+#include "demi/runtime/render/bgfx3d/TextureProjectionPhase3D.h"
 
 #include <cmath>
 #include <utility>
@@ -12,13 +13,26 @@ constexpr std::array slots{Slot::Normal,       Slot::Roughness,
 constexpr std::array samplerNames{"s_pbrNormal",       "s_pbrRoughness",
                                   "s_pbrMetallic",     "s_pbrOcclusion",
                                   "s_pbrDetailNormal", "s_pbrEmissive"};
-constexpr std::array uniformNames{"u_pbrMapFlags", "u_pbrMapFlags2",
-                                  "u_pbrSurface", "u_pbrLocalScale"};
+constexpr std::array uniformNames{"u_pbrMapFlags",         "u_pbrMapFlags2",
+                                  "u_pbrSurface",          "u_pbrLocalScale",
+                                  "u_pbrProjectionOrigin", "u_pbrFoliage"};
 } // namespace
 
 bool usesMeshPbrSurface3D(const MaterialBinding *material,
                           const MeshRendererComponent &mesh) {
-  if (!material || material->program) {
+  if (material && material->program) {
+    return false;
+  }
+  for (const auto &[name, neutral] :
+       {std::pair{"foliage_transmission", 0.F},
+        std::pair{"ambient_occlusion_strength", 1.F}}) {
+    const auto value = mesh.materialNumbers.find(name);
+    if ((value != mesh.materialNumbers.end() && value->second != neutral) ||
+        mesh.materialColors.contains(name)) {
+      return true;
+    }
+  }
+  if (!material) {
     return false;
   }
   const auto tiling = mesh.materialNumbers.find("tiling");
@@ -103,11 +117,25 @@ bool MeshPbrBindings3D::prepare(const MaterialBinding *material,
   if (!initialize(error)) {
     return false;
   }
-  const auto &surface = material->surface;
+  const assets::MaterialSurface neutralSurface;
+  const auto &surface = material ? material->surface : neutralSurface;
   const auto scalarOverride = [&](std::string_view name, float fallback) {
     const auto value = mesh.materialNumbers.find(std::string(name));
     return value == mesh.materialNumbers.end() ? fallback : value->second;
   };
+  const float transmission =
+      scalarOverride("foliage_transmission", surface.foliageTransmission);
+  const float occlusionStrength = scalarOverride(
+      "ambient_occlusion_strength", surface.ambientOcclusionStrength);
+  if (mesh.materialColors.contains("foliage_transmission") ||
+      mesh.materialColors.contains("ambient_occlusion_strength") ||
+      !std::isfinite(transmission) || transmission < 0 || transmission > 1 ||
+      !std::isfinite(occlusionStrength) || occlusionStrength < 0 ||
+      occlusionStrength > 1) {
+    error = "Foliage transmission and ambient occlusion strength must be "
+            "numbers in [0, 1]";
+    return false;
+  }
   const float materialTiling = scalarOverride("tiling", surface.tiling);
   const float normalStrength =
       scalarOverride("normal_strength", surface.normalStrength);
@@ -126,11 +154,33 @@ bool MeshPbrBindings3D::prepare(const MaterialBinding *material,
     return false;
   }
   values_ = {};
+  values_[5] = {transmission, occlusionStrength, 0, 0};
   values_[1][2] =
       surface.mapping == assets::MaterialMapping::Triplanar ? 1.F : 0.F;
   values_[2] = {normalStrength, materialTiling, detailStrength,
                 surface.normalMapYDown ? -1.F : 1.F};
   values_[3] = {mesh.size.x, mesh.size.y, mesh.size.z, terrainTextureScale};
+  const auto projectionScale =
+      surface.mapping == assets::MaterialMapping::Triplanar ? mesh.size
+                                                            : Vec3{1, 1, 1};
+  try {
+    values_[4] = {textureProjectionPhase3D(
+                      scalarOverride("projection_origin_x", 0),
+                      double(tiling) * projectionScale.x,
+                      (material ? material->terrainWrap : TextureWrap::Repeat)),
+                  textureProjectionPhase3D(
+                      scalarOverride("projection_origin_y", 0),
+                      double(tiling) * projectionScale.y,
+                      (material ? material->terrainWrap : TextureWrap::Repeat)),
+                  textureProjectionPhase3D(
+                      scalarOverride("projection_origin_z", 0),
+                      double(tiling) * projectionScale.z,
+                      (material ? material->terrainWrap : TextureWrap::Repeat)),
+                  0};
+  } catch (const std::exception &failure) {
+    error = failure.what();
+    return false;
+  }
   for (std::size_t index = 0; index < slots.size(); ++index) {
     TextureHandle texture = white;
     const auto map = surface.maps.find(slots[index]);

@@ -243,5 +243,17 @@ int main() {
   assert(workspace.reimportAsset(manifest.manifestPath, error));
   assert(!demi::hasErrors(demi::validatePath(root / "project").diagnostics));
 
+  // Lookup indices belong to the snapshot, not to the source vector's addresses.
+  auto copiedIndex = workspace.assetIndex();
+  const auto *copied = copiedIndex.findByManifest(manifest.manifestPath);
+  assert(copied != nullptr);
+  assert(copied != workspace.assetIndex().findByManifest(manifest.manifestPath));
+  assert(copiedIndex.findBySource(manifest.sourcePath) == copied);
+  const auto emptyProject = root / "empty-index";
+  fs::create_directories(emptyProject);
+  copiedIndex.refresh(emptyProject, {});
+  assert(copiedIndex.findByManifest(manifest.manifestPath) == nullptr);
+  assert(copiedIndex.findBySource(manifest.sourcePath) == nullptr);
+
   fs::remove_all(root, ignored);
 }

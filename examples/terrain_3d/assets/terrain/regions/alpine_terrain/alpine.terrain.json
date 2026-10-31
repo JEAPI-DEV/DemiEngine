@@ -1,0 +1,410 @@
+{
+  "format_version": 1,
+  "id": "asset://terrain/regions/alpine_terrain",
+  "name": "Alpine regional terrain graph",
+  "recipe": {
+    "format_version": 1,
+    "size": [
+      240000,
+      220000
+    ],
+    "resolution": [
+      240,
+      220
+    ],
+    "chunk_cells": 32,
+    "seed": 74201,
+    "default_biome": "meadow",
+    "default_landform": "ground",
+    "landforms": {
+      "ground": {
+        "base_height": 180,
+        "height_variation": 70,
+        "feature_size": 16000
+      }
+    },
+    "biomes": {
+      "meadow": {
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "material": "asset://terrain/surfaces/grass",
+        "allow_snow": false
+      },
+      "rock": {
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "material": "asset://terrain/surfaces/exposed_rock",
+        "allow_snow": false
+      },
+      "snow": {
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "material": "asset://terrain/surfaces/snow",
+        "allow_snow": false
+      }
+    },
+    "graph": {
+      "format_version": 1,
+      "output": "output",
+      "nodes": [
+        {
+          "id": "lowlands",
+          "type": "noise",
+          "position": [
+            0,
+            0
+          ],
+          "parameters": {
+            "base_height": 180,
+            "height_variation": 70,
+            "feature_size": 16000,
+            "roughness": 0.45,
+            "octaves": 4
+          }
+        },
+        {
+          "id": "ranges",
+          "type": "noise",
+          "position": [
+            0,
+            240
+          ],
+          "parameters": {
+            "profile": "ridged",
+            "base_height": 1800,
+            "height_variation": 1400,
+            "feature_size": 7000,
+            "roughness": 0.55,
+            "octaves": 8,
+            "warp_amplitude": 900,
+            "warp_feature_size": 16000,
+            "stretch": 1.8,
+            "heading": 25,
+            "seed_offset": 23
+          }
+        },
+        {
+          "id": "range_band",
+          "type": "path_distance_mask",
+          "position": [
+            260,
+            240
+          ],
+          "parameters": {
+            "points": [
+              [
+                0,
+                75000
+              ],
+              [
+                55000,
+                92000
+              ],
+              [
+                110000,
+                115000
+              ],
+              [
+                170000,
+                98000
+              ],
+              [
+                240000,
+                85000
+              ]
+            ],
+            "width": 12000,
+            "falloff": 33000
+          }
+        },
+        {
+          "id": "mountains",
+          "type": "height_blend",
+          "position": [
+            520,
+            0
+          ],
+          "parameters": {
+            "amount": 1
+          }
+        },
+        {
+          "id": "valley_floor",
+          "type": "noise",
+          "position": [
+            520,
+            240
+          ],
+          "parameters": {
+            "base_height": 280,
+            "height_variation": 80,
+            "feature_size": 4000,
+            "roughness": 0.4,
+            "octaves": 4,
+            "seed_offset": 41
+          }
+        },
+        {
+          "id": "valley_corridor",
+          "type": "path_distance_mask",
+          "position": [
+            780,
+            240
+          ],
+          "parameters": {
+            "points": [
+              [
+                20000,
+                85000
+              ],
+              [
+                60000,
+                100000
+              ],
+              [
+                100000,
+                102000
+              ],
+              [
+                130000,
+                115000
+              ],
+              [
+                165000,
+                145000
+              ],
+              [
+                210000,
+                170000
+              ],
+              [
+                240000,
+                190000
+              ]
+            ],
+            "width": 1200,
+            "falloff": 5300
+          }
+        },
+        {
+          "id": "valleys",
+          "type": "height_blend",
+          "position": [
+            1040,
+            0
+          ],
+          "parameters": {
+            "amount": 1
+          }
+        },
+        {
+          "id": "output",
+          "type": "output",
+          "position": [
+            1300,
+            0
+          ],
+          "parameters": {}
+        },
+        {
+          "id": "biomes",
+          "type": "biomes",
+          "position": [
+            1200,
+            0
+          ],
+          "parameters": {}
+        },
+        {
+          "id": "scatter",
+          "type": "scatter",
+          "position": [
+            1450,
+            250
+          ],
+          "parameters": {}
+        }
+      ],
+      "links": [
+        {
+          "id": "ranges_field_range_band_field",
+          "from": {
+            "node": "ranges",
+            "port": "field"
+          },
+          "to": {
+            "node": "range_band",
+            "port": "field"
+          }
+        },
+        {
+          "id": "lowlands_field_mountains_a",
+          "from": {
+            "node": "lowlands",
+            "port": "field"
+          },
+          "to": {
+            "node": "mountains",
+            "port": "a"
+          }
+        },
+        {
+          "id": "ranges_field_mountains_b",
+          "from": {
+            "node": "ranges",
+            "port": "field"
+          },
+          "to": {
+            "node": "mountains",
+            "port": "b"
+          }
+        },
+        {
+          "id": "range_band_mask_mountains_mask",
+          "from": {
+            "node": "range_band",
+            "port": "mask"
+          },
+          "to": {
+            "node": "mountains",
+            "port": "mask"
+          }
+        },
+        {
+          "id": "mountains_field_valley_corridor_field",
+          "from": {
+            "node": "mountains",
+            "port": "field"
+          },
+          "to": {
+            "node": "valley_corridor",
+            "port": "field"
+          }
+        },
+        {
+          "id": "mountains_field_valleys_a",
+          "from": {
+            "node": "mountains",
+            "port": "field"
+          },
+          "to": {
+            "node": "valleys",
+            "port": "a"
+          }
+        },
+        {
+          "id": "valley_floor_field_valleys_b",
+          "from": {
+            "node": "valley_floor",
+            "port": "field"
+          },
+          "to": {
+            "node": "valleys",
+            "port": "b"
+          }
+        },
+        {
+          "id": "valley_corridor_mask_valleys_mask",
+          "from": {
+            "node": "valley_corridor",
+            "port": "mask"
+          },
+          "to": {
+            "node": "valleys",
+            "port": "mask"
+          }
+        },
+        {
+          "id": "valleys_field_output_field",
+          "from": {
+            "node": "valleys",
+            "port": "field"
+          },
+          "to": {
+            "node": "biomes",
+            "port": "field"
+          }
+        },
+        {
+          "id": "biomes_output",
+          "from": {
+            "node": "biomes",
+            "port": "field"
+          },
+          "to": {
+            "node": "output",
+            "port": "field"
+          }
+        },
+        {
+          "id": "biomes_scatter",
+          "from": {
+            "node": "biomes",
+            "port": "field"
+          },
+          "to": {
+            "node": "scatter",
+            "port": "field"
+          }
+        },
+        {
+          "id": "scatter_output",
+          "from": {
+            "node": "scatter",
+            "port": "instances"
+          },
+          "to": {
+            "node": "output",
+            "port": "instances"
+          }
+        }
+      ]
+    },
+    "palette": "asset://terrain/palettes/alpine",
+    "rules": [
+      {
+        "id": "steep_rock",
+        "biome": "rock",
+        "priority": 100,
+        "slope": [
+          36,
+          90
+        ]
+      },
+      {
+        "id": "snowline",
+        "biome": "snow",
+        "priority": 90,
+        "elevation": [
+          2400,
+          10000
+        ],
+        "slope": [
+          0,
+          36
+        ]
+      },
+      {
+        "id": "alpine_rock",
+        "biome": "rock",
+        "priority": 80,
+        "elevation": [
+          1750,
+          10000
+        ]
+      }
+    ]
+  }
+}

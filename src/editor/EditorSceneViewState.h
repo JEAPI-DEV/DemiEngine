@@ -61,6 +61,7 @@ public:
 
   [[nodiscard]] EditorSceneViewCamera camera() const;
   [[nodiscard]] bool capturesPointer() const { return capturesPointer_; }
+  [[nodiscard]] float flySpeed() const { return flySpeed_; }
 
   [[nodiscard]] EditorProjection projection() const { return projection_; }
   void setProjection(EditorProjection projection);
@@ -98,6 +99,8 @@ private:
   float yaw_ = -2.35619449F;
   float pitch_ = -0.33983691F;
   float distance_ = 9.0F;
+  float flySpeed_ = 5.0F;
+  float navigationExtent_ = 100.F;
   EditorProjection projection_ = EditorProjection::Perspective;
   EditorTransformSpace transformSpace_ = EditorTransformSpace::Local;
   bool capturesPointer_ = false;

@@ -1,4 +1,5 @@
 #include "demi/runtime/render/bgfx3d/MeshInstanceBatch3D.h"
+#include <span>
 
 #include <bit>
 #include <functional>
@@ -6,6 +7,73 @@
 #include <utility>
 
 namespace demi::runtime::render {
+
+namespace {
+bool sameOverrides(const MeshRendererComponent *a,
+                   const MeshRendererComponent *b) {
+  if (a == b) {
+    return true;
+  }
+  if (!a || !b || a->materialNumbers != b->materialNumbers ||
+      a->materialColors.size() != b->materialColors.size() ||
+      a->metallic != b->metallic || a->roughness != b->roughness ||
+      a->opacity != b->opacity || a->surfaceMode != b->surfaceMode ||
+      a->wireframe != b->wireframe || a->size.x != b->size.x ||
+      a->size.y != b->size.y || a->size.z != b->size.z) {
+    return false;
+  }
+  for (const auto &[name, color] : a->materialColors) {
+    const auto found = b->materialColors.find(name);
+    if (found == b->materialColors.end()) {
+      return false;
+    }
+    const auto value = found->second;
+    if (color.r != value.r || color.g != value.g || color.b != value.b ||
+        color.a != value.a) {
+      return false;
+    }
+  }
+  return true;
+}
+std::size_t overrideHash(const MeshRendererComponent *source) {
+  if (!source) {
+    return 0;
+  }
+  const auto number = [](float value) { return std::hash<float>{}(value); };
+  std::size_t result = 1;
+  // Unordered map insertion order must not change batching identity. Equality
+  // still compares complete values, so hash collisions cannot merge materials.
+  for (const auto &[name, value] : source->materialNumbers) {
+    result += std::hash<std::string>{}(name) ^ (number(value) * 31);
+  }
+  for (const auto &[name, color] : source->materialColors) {
+    result += std::hash<std::string>{}(name) ^
+              (number(color.r) * 31 + number(color.g) * 131 +
+               number(color.b) * 521 + number(color.a) * 2053);
+  }
+  for (const auto value :
+       {source->metallic, source->roughness, source->opacity}) {
+    result = result * 31 + (value ? number(*value) + 1 : 0);
+  }
+  result = result * 31 + (source->surfaceMode
+                              ? std::hash<std::string>{}(*source->surfaceMode)
+                              : 0);
+  result = result * 31 + source->wireframe;
+  for (float value : {source->size.x, source->size.y, source->size.z}) {
+    result = result * 31 + number(value);
+  }
+  return result;
+}
+} // namespace
+
+bool MeshInstanceBatch3D::Key::operator==(const Key &other) const {
+  return mesh == other.mesh && texture == other.texture &&
+         uniformBits == other.uniformBits && unlit == other.unlit &&
+         material == other.material && surface == other.surface &&
+         usesPbrSurface == other.usesPbrSurface &&
+         firstIndex == other.firstIndex && indexCount == other.indexCount &&
+         sameOverrides(source, other.source);
+}
 
 std::size_t MeshInstanceBatch3D::KeyHash::operator()(const Key &key) const {
   std::size_t hash = std::hash<const GpuMesh3D *>{}(key.mesh);
@@ -19,7 +87,7 @@ std::size_t MeshInstanceBatch3D::KeyHash::operator()(const Key &key) const {
     combine(value);
   }
   combine(key.unlit ? 1U : 0U);
-  hash ^= std::hash<const MeshRendererComponent *>{}(key.source);
+  hash ^= overrideHash(key.source);
   hash ^= std::hash<const MaterialBinding *>{}(key.material);
   combine(key.surface ? 1U : 0U);
   combine(key.usesPbrSurface ? 1U : 0U);
@@ -128,8 +196,7 @@ void MeshInstanceBatch3D::appendTransform(
 bool MeshInstanceBatch3D::flush(
     RenderCommands &commands, std::uint16_t view, ProgramHandle meshProgram,
     ProgramHandle instancedProgram, SamplerHandle sampler,
-    const DrawState &state,
-    const std::array<DrawUniformValue, 8> &lightingUniforms,
+    const DrawState &state, std::span<const DrawUniformValue> lightingUniforms,
     std::uint32_t &draws, std::uint32_t &triangles, std::string &error,
     MeshPbrBindings3D *surfaces, TextureHandle whiteTexture,
     const MeshSurfacePassPrograms3D &pass) const {

@@ -2,11 +2,18 @@
 #include "demi/runtime/terrain/TerrainGenerator.h"
 #include "demi/runtime/terrain/TerrainScatter.h"
 #include "demi/runtime/terrain/TerrainScatterConstraints.h"
+#include "demi/runtime/terrain/TerrainScatterLayout.h"
 #include "demi/runtime/terrain/TerrainWater.h"
 #include <algorithm>
+#include <bit>
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <cassert>
 #include <cmath>
 #include <iostream>
+#include <limits>
+#include <map>
 #include <set>
 #include <stdexcept>
 #include <string>
@@ -416,6 +423,7 @@ void physicalSitesSurviveResolutionChangesAndLocalExclusions() {
   auto field = *TerrainGenerator::generate(recipe);
   TerrainPalette palette;
   palette.placements.emplace("tree", entry("tree", "asset://tree", 0.8F, 4));
+  palette.placements.at("tree").positionJitter = 1.F;
   const auto baseline = scatterTerrain(field, recipe, palette);
   assert(!baseline.placements.empty());
   const auto removedCell = baseline.placements.front().cell;
@@ -438,6 +446,261 @@ void physicalSitesSurviveResolutionChangesAndLocalExclusions() {
     assert(before.position.x == after.position.x &&
            before.position.z == after.position.z);
     assert(before.yaw == after.yaw && before.scale == after.scale);
+  }
+}
+
+void jitterRemovesRowsAndPreservesPhysicalSpacing() {
+  auto recipe = flatRecipe();
+  recipe.size = {16, 16};
+  recipe.cellsX = recipe.cellsZ = 8;
+  const auto field = *TerrainGenerator::generate(recipe);
+  TerrainPalette palette;
+  auto grass = entry("grass", "asset://grass", 1, 0);
+  palette.placements.emplace("grass", grass);
+  const auto grid = scatterTerrain(field, recipe, palette);
+  for (const auto &placement : grid.placements) {
+    assert(placement.position.x == float(placement.candidateX));
+    assert(placement.position.z == float(placement.candidateZ));
+  }
+  palette.placements.at("grass").positionJitter = 1.F;
+  const auto irregular = scatterTerrain(field, recipe, palette);
+  const auto repeated = scatterTerrain(field, recipe, palette);
+  assert(irregular.placements.size() > 200);
+  assert(irregular.placements.size() == repeated.placements.size());
+  std::size_t displacedOnBothAxes = 0;
+  for (std::size_t index = 0; index < irregular.placements.size(); ++index) {
+    const auto &placement = irregular.placements[index];
+    const auto &again = repeated.placements[index];
+    const float offsetX = placement.position.x - float(placement.candidateX);
+    const float offsetZ = placement.position.z - float(placement.candidateZ);
+    assert(std::abs(offsetX) <= 0.5F && std::abs(offsetZ) <= 0.5F);
+    assert(placement.position.x >= 0 && placement.position.x <= 16);
+    assert(placement.position.z >= 0 && placement.position.z <= 16);
+    assert(placement.position.x == again.position.x);
+    assert(placement.position.z == again.position.z);
+    assert(placement.yaw == again.yaw && placement.scale == again.scale);
+    if (std::abs(offsetX) > 0.05F && std::abs(offsetZ) > 0.05F) {
+      ++displacedOnBothAxes;
+    }
+  }
+  assert(displacedOnBothAxes > irregular.placements.size() / 2);
+  // Independent variation streams survive changing only distribution.
+  for (const auto &placement : irregular.placements) {
+    const auto sameSite =
+        std::ranges::find_if(grid.placements, [&](const auto &other) {
+          return other.candidateX == placement.candidateX &&
+                 other.candidateZ == placement.candidateZ;
+        });
+    assert(sameSite != grid.placements.end());
+    assert(sameSite->yaw == placement.yaw &&
+           sameSite->scale == placement.scale);
+  }
+  palette.placements.emplace("a_unrelated",
+                             entry("a_unrelated", "asset://rock", 0.2F, 0));
+  palette.placements.at("grass").density = 0.5F;
+  const auto thinned = scatterTerrain(field, recipe, palette);
+  for (const auto &placement : thinned.placements) {
+    if (placement.ruleId != "grass") {
+      continue;
+    }
+    const auto survivor =
+        std::ranges::find_if(irregular.placements, [&](const auto &other) {
+          return other.candidateX == placement.candidateX &&
+                 other.candidateZ == placement.candidateZ;
+        });
+    assert(survivor != irregular.placements.end());
+    assert(survivor->position.x == placement.position.x);
+    assert(survivor->position.z == placement.position.z);
+    assert(survivor->yaw == placement.yaw &&
+           survivor->scale == placement.scale);
+  }
+  palette.placements.erase("a_unrelated");
+  palette.placements.at("grass").density = 1.F;
+  palette.placements.at("grass").spacing = 1.5F;
+  const auto separated = scatterTerrain(field, recipe, palette);
+  assert(!separated.placements.empty());
+  for (std::size_t first = 0; first < separated.placements.size(); ++first) {
+    for (std::size_t second = first + 1; second < separated.placements.size();
+         ++second) {
+      const auto &a = separated.placements[first].position;
+      const auto &b = separated.placements[second].position;
+      assert(std::hypot(a.x - b.x, a.z - b.z) >= 1.5F);
+    }
+  }
+}
+
+void globalCandidateWindowsMatchWholeField() {
+  auto recipe = flatRecipe();
+  recipe.cellsX = recipe.cellsZ = 64;
+  auto whole = *TerrainGenerator::generate(recipe);
+  TerrainMasks masks;
+  masks.slope.resize(whole.heights.size());
+  masks.moisture.resize(whole.heights.size());
+  masks.waterDistance.resize(whole.heights.size());
+  std::vector<std::uint8_t> wet(whole.heights.size());
+  for (int z = 0; z <= 64; ++z) {
+    for (int x = 0; x <= 64; ++x) {
+      const auto index = whole.index(x, z);
+      const float distance =
+          std::max(0.F, std::hypot(float(x - 30), float(z - 30)) - 5.F);
+      masks.slope.set(index, 8.F + 4.F * std::sin(float(x) * .1F));
+      masks.moisture.set(index, .5F + .2F * std::cos(float(z) * .1F));
+      masks.waterDistance.set(index, distance);
+      wet[index] = distance == 0;
+      whole.exclusions.set(index, x > 47 && z < 20 ? 1.F : 0.F);
+    }
+  }
+  TerrainPalette palette;
+  palette.id = "asset://test/shared-domain";
+  auto plants = entry("plants", "asset://plants", .6F, 0);
+  plants.clusterSize = 12;
+  plants.clusterStrength = .45F;
+  plants.moisture = {.3F, .8F};
+  plants.waterDistance = {2, 1000};
+  auto trees = entry("trees", "asset://trees", .12F, 3);
+  trees.candidateSpacing = 2;
+  trees.positionJitter = 1;
+  trees.waterDistance = {4, 1000};
+  palette.placements.emplace("plants", plants);
+  palette.placements.emplace("trees", trees);
+  const TerrainScatterWindow worldBounds{1000, -2000, 1064, -1936};
+  const auto constraintsFor = [&](const HeightField &field,
+                                  const TerrainMasks &localMasks, float firstX,
+                                  float firstZ) {
+    auto localRecipe = recipe;
+    localRecipe.size = field.size;
+    localRecipe.cellsX = field.cellsX;
+    localRecipe.cellsZ = field.cellsZ;
+    auto constraints = TerrainScatterConstraints::build(
+        field, localRecipe, &localMasks,
+        {.seaLevel = std::numeric_limits<float>::lowest(), .authored = true});
+    constraints.addProtectedArea({40 - firstX, 40 - firstZ}, 4);
+    constraints.addRoad(
+        {{5 - firstX, 0, 50 - firstZ}, {58 - firstX, 0, 12 - firstZ}}, 2);
+    return constraints;
+  };
+  const auto wholeConstraints = constraintsFor(whole, masks, 0, 0);
+  for (const float jitter : {0.F, 1.F}) {
+    palette.placements.at("plants").positionJitter = jitter;
+    TerrainScatterSettings settings;
+    settings.domain =
+        TerrainScatterDomain{worldBounds, {1000, -2000}, worldBounds};
+    const auto baseline = scatterTerrain(whole, recipe, palette, settings,
+                                         &wholeConstraints, wet);
+    assert(!baseline.placements.empty());
+    std::map<std::string, TerrainScatterPlacement> expected;
+    for (const auto &placement : baseline.placements) {
+      expected.emplace(terrainScatterInstanceKey(palette.id, placement.ruleId,
+                                                 placement.candidateX,
+                                                 placement.candidateZ),
+                       placement);
+    }
+    // Reverse load order as well as compare two passes. Every field has a 2m
+    // halo where available, while ownership remains half-open and
+    // nonoverlapping.
+    for (const bool reverse : {false, true}) {
+      std::map<std::string, TerrainScatterPlacement> merged;
+      for (int visit = 0; visit < 4; ++visit) {
+        const int quadrant = reverse ? 3 - visit : visit;
+        const int ownX = (quadrant % 2) * 32;
+        const int ownZ = (quadrant / 2) * 32;
+        const int firstX = std::max(0, ownX - 2);
+        const int firstZ = std::max(0, ownZ - 2);
+        const int lastX = std::min(64, ownX + 34);
+        const int lastZ = std::min(64, ownZ + 34);
+        HeightField tile;
+        tile.cellsX = lastX - firstX;
+        tile.cellsZ = lastZ - firstZ;
+        tile.size = {float(tile.cellsX), float(tile.cellsZ)};
+        tile.biomeIds = whole.biomeIds;
+        const auto count = std::size_t(tile.cellsX + 1) * (tile.cellsZ + 1);
+        tile.heights.resize(count);
+        tile.biomeIndices.resize(count);
+        tile.exclusions.resize(count);
+        TerrainMasks localMasks;
+        localMasks.slope.resize(count);
+        localMasks.moisture.resize(count);
+        localMasks.waterDistance.resize(count);
+        std::vector<std::uint8_t> localWet(count);
+        for (int z = 0; z <= tile.cellsZ; ++z) {
+          for (int x = 0; x <= tile.cellsX; ++x) {
+            const auto from = whole.index(x + firstX, z + firstZ);
+            const auto to = tile.index(x, z);
+            tile.heights.set(to, whole.heights[from]);
+            tile.biomeIndices.set(to, whole.biomeIndices[from]);
+            tile.exclusions.set(to, whole.exclusions[from]);
+            localMasks.slope.set(to, masks.slope[from]);
+            localMasks.moisture.set(to, masks.moisture[from]);
+            localMasks.waterDistance.set(to, masks.waterDistance[from]);
+            localWet[to] = wet[from];
+          }
+        }
+        const auto constraints =
+            constraintsFor(tile, localMasks, float(firstX), float(firstZ));
+        settings.domain = TerrainScatterDomain{
+            worldBounds,
+            {1000.0 + firstX, -2000.0 + firstZ},
+            {1000.0 + ownX, -2000.0 + ownZ, 1032.0 + ownX, -1968.0 + ownZ}};
+        const auto result = scatterTerrain(tile, recipe, palette, settings,
+                                           &constraints, localWet);
+        for (auto placement : result.placements) {
+          const auto id = terrainScatterInstanceKey(
+              palette.id, placement.ruleId, placement.candidateX,
+              placement.candidateZ);
+          const auto &original = expected.at(id);
+          const double globalX =
+              settings.domain->fieldOrigin.x + placement.position.x;
+          const double globalZ =
+              settings.domain->fieldOrigin.z + placement.position.z;
+          assert(globalX == worldBounds.minX + original.position.x);
+          assert(globalZ == worldBounds.minZ + original.position.z);
+          assert(std::bit_cast<std::uint32_t>(placement.position.y) ==
+                 std::bit_cast<std::uint32_t>(original.position.y));
+          assert(placement.yaw == original.yaw &&
+                 placement.scale == original.scale);
+          assert(placement.biomeName == original.biomeName);
+          placement.position.x += float(firstX);
+          placement.position.z += float(firstZ);
+          assert(merged.emplace(id, std::move(placement)).second);
+        }
+      }
+      assert(merged.size() == expected.size());
+      for (auto first = merged.begin(); first != merged.end(); ++first) {
+        if (first->second.ruleId != "trees") {
+          continue;
+        }
+        for (auto second = std::next(first); second != merged.end(); ++second) {
+          if (second->second.ruleId == "trees") {
+            const auto &a = first->second.position;
+            const auto &b = second->second.position;
+            assert(std::hypot(a.x - b.x, a.z - b.z) >= 3.F);
+          }
+        }
+      }
+    }
+    settings.domain =
+        TerrainScatterDomain{worldBounds, {1000, -2000}, worldBounds};
+    bool rejected = false;
+    try {
+      (void)scatterTerrain(whole, recipe, palette, settings, nullptr, wet);
+    } catch (const std::invalid_argument &) {
+      rejected = true;
+    }
+    assert(rejected);
+    rejected = false;
+    try {
+      (void)scatterTerrain(whole, recipe, palette, settings, &wholeConstraints);
+    } catch (const std::invalid_argument &) {
+      rejected = true;
+    }
+    assert(rejected);
+    // Work is bounded by ownership, not the total procedural world area.
+    settings.domain->worldBounds.maxX = 1001000;
+    settings.domain->worldBounds.maxZ = 998000;
+    settings.maximumCandidates = 20000;
+    assert(!scatterTerrain(whole, recipe, palette, settings, &wholeConstraints,
+                           wet)
+                .placements.empty());
   }
 }
 
@@ -626,6 +889,8 @@ int main() {
   finalSurfaceRefilterRechecksRulesAndRestoresCandidates();
   densityControlsAreIndependentAndMonotonic();
   physicalSitesSurviveResolutionChangesAndLocalExclusions();
+  jitterRemovesRowsAndPreservesPhysicalSpacing();
+  globalCandidateWindowsMatchWholeField();
   denseGrassDoesNotDependOnTerrainSamples();
   rulesUseSharedEnvironmentAndSpatialConstraints();
   clustersAndCancellationKeepStableSites();

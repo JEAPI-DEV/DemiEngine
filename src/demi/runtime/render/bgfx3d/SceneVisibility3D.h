@@ -57,6 +57,9 @@ struct VisibleMesh3D {
 
 using ModelSectionsResolver3D =
     std::function<const MeshMaterialSections3D *(const VisibleMesh3D &, Vec3)>;
+// Eligible instance sources resolve their LOD/material groups once during
+// compiled submission, rather than expanding sections for every visible copy.
+using CompiledInstanceSource3D = std::function<bool(const VisibleMesh3D &)>;
 
 class PreparedInstanceView3D;
 
@@ -92,7 +95,8 @@ extractVisibleMeshes3D(const World &world, const BgfxCameraFrame3D &frame,
                        const ModelBoundsResolver3D &modelBounds = {},
                        MeshInstancePreparation3D *instancePreparation = nullptr,
                        PreparedInstanceView3D *preparedInstances = nullptr,
-                       const ModelSectionsResolver3D &modelSections = {});
+                       const ModelSectionsResolver3D &modelSections = {},
+                       const CompiledInstanceSource3D &compiledInstances = {});
 
 [[nodiscard]] bool terrainChunkVisible3D(const PreparedTerrainChunkLod &chunk,
                                          const WorldTransform3D &transform,

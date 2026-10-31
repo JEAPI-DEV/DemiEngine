@@ -1,0 +1,41 @@
+{
+  "format_version": 1,
+  "asset": "Mountainside",
+  "source_url": "https://polyhaven.com/a/mountainside",
+  "license": "CC0-1.0",
+  "license_url": "https://polyhaven.com/license",
+  "authors": [
+    "Dario Barresi (photography)",
+    "Rico Cilliers (processing)"
+  ],
+  "retrieved": "2026-10-25",
+  "source_resolution": "2k",
+  "api_credit": "Powered by Poly Haven",
+  "files": [
+    {
+      "path": "mountainside.gltf",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/2k/mountainside/mountainside_2k.gltf",
+      "sha256": "ccdbbb75744b764b19c8868e5f47b6a85e62961fa2f7fe3dc9b73b219c89834d"
+    },
+    {
+      "path": "textures/mountainside_nor_gl_2k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/mountainside/mountainside_nor_gl_2k.jpg",
+      "sha256": "dbfd022b4dad44a2d6fb30b7bd68d44a7349a22c06a9701bcfbedc8e73400a87"
+    },
+    {
+      "path": "textures/mountainside_diff_2k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/mountainside/mountainside_diff_2k.jpg",
+      "sha256": "3fe1a61dc38423b07a757fc74e1dce5d02a5ea0b4fbab52b5bcddece052df811"
+    },
+    {
+      "path": "mountainside.bin",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/8k/mountainside/mountainside.bin",
+      "sha256": "08e4ca60e050045de8224d12d23af84f9406bc558943038114d81e184158d953"
+    },
+    {
+      "path": "textures/mountainside_arm_2k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/2k/mountainside/mountainside_arm_2k.jpg",
+      "sha256": "a494e404df96eb43df11ae7b4c14901461d129af0ae6b3ecc8f75390c3b41c35"
+    }
+  ]
+}

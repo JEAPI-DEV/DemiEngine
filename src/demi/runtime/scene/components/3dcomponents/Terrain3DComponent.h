@@ -9,6 +9,7 @@
 
 namespace demi::runtime {
 struct HeightField;
+struct TerrainRegionConfig;
 struct Terrain3DComponent {
   static constexpr std::string_view typeName = "Terrain3D";
   static constexpr bool exposedToLua = false;
@@ -50,6 +51,8 @@ struct Terrain3DComponent {
   // resolved by the asset loader. Resolved recipes never serialize into scenes.
   nlohmann::json recipe;
   std::shared_ptr<const HeightField> generated;
+  // Resolved regional source, never serialized into the scene.
+  std::shared_ptr<const TerrainRegionConfig> region;
   static void parse(const nlohmann::json &, Entity &);
   static bool validateAuthored(const nlohmann::json &, std::string &error);
   static nlohmann::json schemaConstraints();

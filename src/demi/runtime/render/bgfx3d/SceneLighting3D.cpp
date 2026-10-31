@@ -58,6 +58,11 @@ SceneLighting3D collectSceneLighting3D(const World &world,
       lighting.shadowFilter = environment->shadowFilter;
       lighting.shadowBias = environment->shadowBias;
       lighting.shadowBudget = environment->maxShadowLights;
+      lighting.fogColor = {environment->fogColor.r, environment->fogColor.g,
+                            environment->fogColor.b, 1.F};
+      lighting.fogRange = {environment->fogStart,
+          1.F / std::max(environment->fogEnd - environment->fogStart, .001F),
+          environment->fogEnabled ? 1.F : 0.F, 0.F};
       lighting.ambient = {
           environment->ambientColor.r * environment->ambientIntensity,
           environment->ambientColor.g * environment->ambientIntensity,

@@ -1,9 +1,32 @@
 {
   "format_version": 1,
   "shader": "builtin://lit",
-  "fallback": "builtin://unlit",
+  "mapping": "triplanar",
+  "normal_map_convention": "opengl",
+  "textures": {
+    "albedo": "asset://polyhaven/terrain/textures/snow_02/albedo",
+    "normal": "asset://polyhaven/terrain/textures/snow_02/normal",
+    "roughness": "asset://polyhaven/terrain/textures/snow_02/roughness",
+    "ambient_occlusion": "asset://polyhaven/terrain/textures/snow_02/ambient_occlusion",
+    "height": "asset://polyhaven/terrain/textures/snow_02/height"
+  },
   "parameters": {
-    "base_color": [0.88, 0.9, 0.93, 1],
-    "roughness": 0.55
+    "base_color": [
+      1,
+      1,
+      1,
+      1
+    ],
+    "roughness": 1,
+    "metallic": 0,
+    "normal_strength": 0.45,
+    "ambient_occlusion_strength": 0.6,
+    "tiling": 0.5,
+    "macro_variation_strength": 0.08,
+    "macro_variation_scale": 0.02
+  },
+  "render_state": {
+    "blend": "opaque",
+    "cull": "none"
   }
 }

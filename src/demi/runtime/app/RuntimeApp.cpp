@@ -1,4 +1,7 @@
+#include "demi/runtime/terrain/RegionalTerrainPresentation.h"
+#include "demi/runtime/terrain/RegionalTerrainSystem.h"
 #include "demi/runtime/app/RuntimeApp.h"
+#include "demi/runtime/app/StartupPresentation.h"
 
 #include "demi/runtime/app/FramePacing.h"
 
@@ -97,7 +100,7 @@ struct RuntimeProfile {
   std::vector<double> frameSamples;
 };
 
-void stepSimulation(LoadedProject &loaded, LuaScriptHost &luaHost,
+void stepSimulation(LoadedProject &loaded, RegionalTerrainSystem &regions, RuntimePrefabService &prefabs, LuaScriptHost &luaHost,
                     InputState &input, AudioSystem &audioSystem,
                     MediaSystem &mediaSystem, NetworkSystem &networkSystem,
                     const AssetRegistry &assetRegistry, const float dt,
@@ -118,6 +121,14 @@ void stepSimulation(LoadedProject &loaded, LuaScriptHost &luaHost,
     {
       ProfileScope scope("Lua.fixed_update");
       luaHost.fixedUpdate(static_cast<float>(fixedStep));
+    }
+    // Publish collision replacements only at a fixed-step boundary. Removing
+    // old bodies after physics leaves a query gap on render-only frames.
+    std::string regionError;
+    if (!regions.update(loaded.world, regionError, &prefabs, fixedStep)) {
+      std::cerr << "Regional terrain streaming failed: " << regionError << '\n';
+      running = false;
+      return;
     }
     synchronizeTerrainVisibility(loaded.world);
     if (luaHost.physicsEnabled()) {
@@ -517,6 +528,7 @@ int runProject(const RuntimeOptions &options) {
   // One prefab service for the whole application, shared with terrain scatter so
   // a prefab spawned from Lua and one spawned from the terrain use one pool
   // rather than two.
+  RegionalTerrainSystem regionStreaming;
   RuntimePrefabService prefabService;
   prefabService.configure(loaded.project.projectDirectory);
   {
@@ -557,11 +569,11 @@ int runProject(const RuntimeOptions &options) {
   if (options.e2eTests)
     luaHost.startE2ETests("tests.e2e");
 
-  const auto prepareStartupAssets = [&] {
+  const auto prepareStartupAssets = [&](const AssetBootstrapPump &pump = AssetBootstrapPump{}) {
     Diagnostics diagnostics;
     const SceneAssetBootstrapResult result =
         prepareInitialSceneAssets(runtimeAssets, loaded.world.activeSceneId,
-                                  loaded.project.preloadedAssets, &diagnostics);
+                                  loaded.project.preloadedAssets, &diagnostics, &loaded.world, pump);
     if (!result.success) {
       std::cerr << "Initial scene asset preparation failed.\n";
       printDiagnosticsText(std::cerr, diagnostics);
@@ -663,7 +675,7 @@ int runProject(const RuntimeOptions &options) {
         luaHost.drainSyntheticTouches(input, fixedStep);
         luaHost.updateE2ETests(fixedStep);
       }
-      stepSimulation(loaded, luaHost, input, audioSystem, mediaSystem,
+      stepSimulation(loaded, regionStreaming, prefabService, luaHost, input, audioSystem, mediaSystem,
                      networkSystem, assetRegistry,
                      static_cast<float>(fixedStep),
                      static_cast<float>(fixedStep), fixedAccumulator, running,
@@ -765,7 +777,10 @@ int runProject(const RuntimeOptions &options) {
     for (const std::string &diagnostic : renderDiagnostics)
       std::cerr << "2D asset load failed: " << diagnostic << '\n';
     runtimeAssets.registerLoader(appHost.createAssetLoader(assetRegistry));
-    if (!prepareStartupAssets()) {
+    StartupPresentation startup(loaded.project.name);
+    if (!prepareStartupAssets([&](const auto &progress) {
+          return startup.pump(appHost, input, progress, error);
+        })) {
       luaHost.destroy();
       runtimeAssets.shutdown();
       networkSystem.shutdown();
@@ -903,7 +918,7 @@ int runProject(const RuntimeOptions &options) {
       }
       double updateMs = 0.0;
       const auto updateStart = std::chrono::steady_clock::now();
-      stepSimulation(loaded, luaHost, input, audioSystem, mediaSystem,
+      stepSimulation(loaded, regionStreaming, prefabService, luaHost, input, audioSystem, mediaSystem,
                      networkSystem, assetRegistry, dt,
                      static_cast<float>(fixedStep), fixedAccumulator, running,
                      accessibility);
@@ -1060,7 +1075,10 @@ int runProject(const RuntimeOptions &options) {
         },
         [&appHost] { appHost.cancelScenePresentationPreparation(); });
 
-    if (!prepareStartupAssets()) {
+    StartupPresentation startup(loaded.project.name);
+    if (!prepareStartupAssets([&](const auto &progress) {
+          return startup.pump(appHost, input, progress, error);
+        })) {
       luaHost.destroy();
       runtimeAssets.shutdown();
       networkSystem.shutdown();
@@ -1194,7 +1212,7 @@ int runProject(const RuntimeOptions &options) {
       }
       double updateMs = 0.0;
       const auto updateStart = std::chrono::steady_clock::now();
-      stepSimulation(loaded, luaHost, input, audioSystem, mediaSystem,
+      stepSimulation(loaded, regionStreaming, prefabService, luaHost, input, audioSystem, mediaSystem,
                      networkSystem, assetRegistry, dt,
                      static_cast<float>(fixedStep), fixedAccumulator, running,
                      accessibility);
@@ -1286,8 +1304,10 @@ int runProject(const RuntimeOptions &options) {
       std::string renderError;
       {
         ProfileScope renderScope("Render.frame");
-        if (!appHost.renderFrames(loaded.world, cameraFrames, dt,
-                                  renderError)) {
+        const bool rendered = regionalTerrainPreparing(loaded.world)
+            ? startup.renderStatus(appHost, "Preparing landscape…", renderError)
+            : appHost.renderFrames(loaded.world, cameraFrames, dt, renderError);
+        if (!rendered) {
           std::cerr << "3D rendering failed: " << renderError << '\n';
           deviceLogError(deviceLogMessage("runtime", "3D rendering failed: " +
                                                          renderError));

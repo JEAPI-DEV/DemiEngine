@@ -20,13 +20,19 @@ void report(Diagnostics *diagnostics, std::string code, std::string message,
 
 bool prepareAndActivate(RuntimeAssetService &service,
                         const assets::AssetGroupRequestHandle request,
-                        const std::string_view owner,
-                        Diagnostics *diagnostics) {
+                        const std::string_view owner, Diagnostics *diagnostics,
+                        const AssetBootstrapPump &pump) {
   if (request == 0)
     return false;
   const auto deadline =
       std::chrono::steady_clock::now() + std::chrono::seconds(30);
   while (std::chrono::steady_clock::now() < deadline) {
+    if (pump && !pump(service.progress(request))) {
+      (void)service.cancel(request);
+      report(diagnostics, "ASSET_STARTUP_CANCELLED",
+             "Startup loading was cancelled.", std::string(owner));
+      return false;
+    }
     service.update();
     const auto progress = service.progress(request);
     if (progress.stage == assets::AssetGroupStage::Ready)
@@ -58,7 +64,8 @@ SceneAssetBootstrapResult
 prepareInitialSceneAssets(RuntimeAssetService &service,
                           const std::string_view sceneId,
                           const std::span<const std::string> preloadedAssets,
-                          Diagnostics *diagnostics) {
+                          Diagnostics *diagnostics, const World *preparedWorld,
+                          const AssetBootstrapPump &pump) {
   for (const std::string &uri : preloadedAssets) {
     Diagnostics prepareDiagnostics;
     const auto request = service.prepare(uri, &prepareDiagnostics);
@@ -68,12 +75,15 @@ prepareInitialSceneAssets(RuntimeAssetService &service,
                             prepareDiagnostics.end());
       return {};
     }
-    if (!prepareAndActivate(service, request, uri, diagnostics))
+    if (!prepareAndActivate(service, request, uri, diagnostics, pump))
       return {};
   }
 
   Diagnostics prepareDiagnostics;
-  const auto request = service.prepareScene(sceneId, &prepareDiagnostics);
+  const auto request =
+      preparedWorld
+          ? service.prepareScene(sceneId, *preparedWorld, &prepareDiagnostics)
+          : service.prepareScene(sceneId, &prepareDiagnostics);
   if (hasErrors(prepareDiagnostics)) {
     if (diagnostics != nullptr)
       diagnostics->insert(diagnostics->end(), prepareDiagnostics.begin(),
@@ -82,7 +92,8 @@ prepareInitialSceneAssets(RuntimeAssetService &service,
   }
   if (request == 0)
     return {.success = true, .hasResidentGroup = false};
-  return {.success = prepareAndActivate(service, request, sceneId, diagnostics),
+  return {.success =
+              prepareAndActivate(service, request, sceneId, diagnostics, pump),
           .hasResidentGroup = true};
 }
 

@@ -55,6 +55,21 @@
 }</code></pre>
 <p><code>budget</code> records resident and decoded memory limits and the per-frame upload budget. Measure the loaded group's actual memory use with <code>Assets.memory_report()</code> when tuning these values.</p>
 
+<h2>Scene preparation budgets</h2>
+<p>Scenes automatically prepare their referenced assets before activation. The default group limits are 256 MiB resident and 64 MiB decoded, with a 3 ms upload budget per frame. For a larger scene, author a <code>*.asset-group.json</code> source anywhere in the project using the reserved <code>asset-group://implicit-scene/</code> namespace:</p>
+<pre><code>{
+  "format_version": 1,
+  "id": "asset-group://implicit-scene/game/landscape",
+  "roots": ["scene://game/landscape"],
+  "budget": {
+    "resident_mb": 256,
+    "decoded_mb": 192,
+    "upload_ms_per_frame": 3
+  }
+}</code></pre>
+<p>The suffix must exactly match the scene ID after <code>scene://</code>, and the only root must be that scene. This manifest supplies the budget for both source-scene and prepared-world transitions; referenced assets still come from the actual scene, including expanded prefabs and terrain. It does not preload assets globally, alter scene ownership, or require a Lua load call. Ordinary asset groups keep their own independent budgets. Missing scene budget manifests retain the defaults.</p>
+<p>Budget failures identify the asset, group, accounted decoded bytes and limit. Increase a budget only after measuring the intended content, or reduce that content. These limits account asset-service payloads; they do not cap total process memory or replace renderer terrain texture and geometry budgets.</p>
+
 <h2>Loading from Lua</h2>
 <pre><code>local Assets = require("demi.assets")
 local Audio = require("demi.audio")

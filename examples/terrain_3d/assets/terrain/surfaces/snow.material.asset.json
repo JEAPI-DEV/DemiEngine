@@ -1,11 +1,17 @@
 {
-  "dependencies": [],
+  "dependencies": [
+    "asset://polyhaven/terrain/textures/snow_02/albedo",
+    "asset://polyhaven/terrain/textures/snow_02/ambient_occlusion",
+    "asset://polyhaven/terrain/textures/snow_02/height",
+    "asset://polyhaven/terrain/textures/snow_02/normal",
+    "asset://polyhaven/terrain/textures/snow_02/roughness"
+  ],
   "format_version": 1,
   "id": "asset://terrain/surfaces/snow",
   "importer": "material",
   "importer_version": 1,
   "settings": {},
   "source": "snow.material.json",
-  "source_hash": "fnv1a64:672597de3ec0b173",
+  "source_hash": "fnv1a64:f2d929963ce18dba",
   "type": "Material"
 }

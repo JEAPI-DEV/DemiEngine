@@ -1,0 +1,13 @@
+{
+  "format_version": 1,
+  "source_url": "https://polyhaven.com/a/grass_medium_01",
+  "license": "CC0-1.0",
+  "license_url": "https://polyhaven.com/license",
+  "authors": [
+    "Rob Tuytel (photography)",
+    "Rico Cilliers (modeling)"
+  ],
+  "derivation": "Alpha-preserving 1024px albedo card baked from the repaired grass_patch model using scripts/art/bake_albedo_impostor.py; original grass_medium_01 opacity map from Poly Haven.",
+  "retrieved": "2026-10-25",
+  "api_credit": "Powered by Poly Haven"
+}

@@ -4,6 +4,25 @@
 
 namespace demi::runtime::terrain_graph_detail {
 
+struct TerrainSpatialMaskPoint {
+  double x = 0;
+  double z = 0;
+};
+
+struct TerrainSpatialMask {
+  std::vector<TerrainSpatialMaskPoint> points;
+  bool polygon = false;
+  double width = 0;
+  double falloff = 0;
+};
+
+[[nodiscard]] std::optional<TerrainSpatialMask>
+parseTerrainSpatialMask(const nlohmann::json &parameters, bool polygon,
+                        std::stop_token stop = {});
+[[nodiscard]] std::optional<float>
+sampleTerrainSpatialMask(const TerrainSpatialMask &mask, double x, double z,
+                         std::stop_token stop = {});
+
 // Shared authored-point validation; throws an actionable invalid_argument.
 void validateTerrainSpatialMaskPoints(const nlohmann::json &points,
                                       bool polygon);

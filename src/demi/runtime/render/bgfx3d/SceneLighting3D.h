@@ -47,6 +47,8 @@ struct SceneLighting3D {
   float terrainDetailDistance = 200;
   std::array<float, 4> direction{-0.4F, -1.0F, -0.3F, 0.0F};
   std::array<float, 4> directionalColor{1.0F, 1.0F, 1.0F, 1.0F};
+  std::array<float, 4> fogColor{};
+  std::array<float, 4> fogRange{};
   std::array<float, 4> ambient{1.0F, 1.0F, 1.0F, 1.0F};
   // The primary directional light remains separate for cascaded shadows.
   std::vector<SceneLight3D> lights;

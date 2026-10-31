@@ -1,0 +1,21 @@
+{
+  "format_version": 1,
+  "id": "prefab://terrain/alpine_cliff",
+  "name": "Scanned layered cliff / Poly Haven CC0",
+  "entities": [
+    {
+      "id": "cliff",
+      "components": {
+        "Transform3D": {},
+        "MeshRenderer": {
+          "model": "asset://terrain/alpine/mountainside",
+          "medium_lod_model": "asset://terrain/alpine/mountainside/lod/medium",
+          "low_lod_model": "asset://terrain/alpine/mountainside/lod/low",
+          "medium_lod_distance": 160,
+          "low_lod_distance": 600,
+          "casts_shadows": true
+        }
+      }
+    }
+  ]
+}

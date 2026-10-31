@@ -1,4 +1,5 @@
 #pragma once
+#include <span>
 
 #include "demi/runtime/render/bgfx3d/GpuMesh3D.h"
 #include "demi/runtime/render/bgfx3d/MeshPbrBindings3D.h"
@@ -40,7 +41,7 @@ public:
   bool flush(RenderCommands &commands, std::uint16_t view,
              ProgramHandle meshProgram, ProgramHandle instancedProgram,
              SamplerHandle sampler, const DrawState &state,
-             const std::array<DrawUniformValue, 8> &lightingUniforms,
+             std::span<const DrawUniformValue> lightingUniforms,
              std::uint32_t &draws, std::uint32_t &triangles, std::string &error,
              MeshPbrBindings3D *surfaces = nullptr,
              TextureHandle whiteTexture = {},
@@ -74,13 +75,15 @@ private:
     bool usesPbrSurface = false;
     std::uint32_t firstIndex = 0;
     std::uint32_t indexCount = UINT32_MAX;
-    bool operator==(const Key &) const = default;
+    bool operator==(const Key &other) const;
   };
   struct KeyHash {
     std::size_t operator()(const Key &key) const;
   };
   // Pass programs/state are adapted at flush. Borrowed source and resource
   // addresses remain valid only inside the owning view/preparation operation.
+  // Override values are immutable during that operation: keys compare/hash
+  // them by value, allowing equivalent entities to share a batch.
   void appendGroup(InstanceGroup group);
   std::size_t usedGroups_ = 0;
   std::unordered_map<Key, std::size_t, KeyHash> groupLookup_;

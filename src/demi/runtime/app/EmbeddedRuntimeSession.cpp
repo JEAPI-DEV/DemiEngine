@@ -1,3 +1,4 @@
+#include "demi/runtime/terrain/RegionalTerrainSystem.h"
 #include "demi/runtime/app/EmbeddedRuntimeSession.h"
 
 #include "demi/assets/AssetRegistry.h"
@@ -60,6 +61,7 @@ public:
   ui::UiAccessibilityBridgeController accessibility{accessibilityBridge};
   // Shared with terrain scatter, so editor Play uses the same pool the game does.
   RuntimePrefabService prefabs;
+  RegionalTerrainSystem regionStreaming;
   // Borrowed services must outlive the Lua host, including failed startup.
   LuaScriptHost lua;
   double fixedAccumulator = 0.0;
@@ -190,7 +192,7 @@ bool EmbeddedRuntimeSession::start(const std::filesystem::path &projectPath,
     return false;
   const SceneAssetBootstrapResult prepared = prepareInitialSceneAssets(
       state->assets, state->loaded.world.activeSceneId,
-      state->loaded.project.preloadedAssets, &assetDiagnostics);
+      state->loaded.project.preloadedAssets, &assetDiagnostics, &state->loaded.world);
   if (!prepared.success) {
     error = firstError(assetDiagnostics,
                        "The initial runtime scene assets could not load.");
@@ -269,6 +271,9 @@ bool EmbeddedRuntimeSession::advance(State &state, InputState input,
   const auto fixedUpdate = [&] {
     ProfileScope fixedScope("Frame.fixed_update");
     state.lua.fixedUpdate(fixedStep);
+    if (!state.regionStreaming.update(state.loaded.world, error, &state.prefabs, fixedStep)) {
+      return false;
+    }
     synchronizeTerrainVisibility(state.loaded.world);
     if (state.lua.physicsEnabled()) {
       {
@@ -282,16 +287,42 @@ bool EmbeddedRuntimeSession::advance(State &state, InputState input,
     }
     state.lua.advanceFixedTime(fixedStep);
     ++state.fixedTicks;
+    return true;
   };
+  int fixedSteps = 0;
+  const int maximumFixedSteps =
+      state.loaded.project.simulation.maximumFixedStepsPerFrame;
+  RuntimeProfiler::setGauge("Simulation.scaled_input_ms", scaledDelta * 1000.0);
+  RuntimeProfiler::setGauge("Simulation.backlog_before_steps_ms",
+                            state.fixedAccumulator * 1000.0);
   if (oneFixedTick) {
-    fixedUpdate();
+    if (!fixedUpdate()) {
+      return false;
+    }
     state.fixedAccumulator = 0.0;
+    fixedSteps = 1;
   } else {
-    while (state.fixedAccumulator >= fixedStep) {
-      fixedUpdate();
+    while (state.fixedAccumulator >= fixedStep &&
+           fixedSteps < maximumFixedSteps) {
+      if (!fixedUpdate()) {
+        return false;
+      }
       state.fixedAccumulator -= fixedStep;
+      ++fixedSteps;
     }
   }
+  RuntimeProfiler::setGauge("Simulation.backlog_before_drop_ms",
+                            state.fixedAccumulator * 1000.0);
+  double droppedSeconds = 0;
+  if (state.fixedAccumulator >= fixedStep) {
+    const double retained = std::fmod(state.fixedAccumulator, fixedStep);
+    droppedSeconds = state.fixedAccumulator - retained;
+    state.fixedAccumulator = retained;
+  }
+  RuntimeProfiler::setGauge("Simulation.fixed_steps", fixedSteps);
+  RuntimeProfiler::setGauge("Simulation.advanced_ms",
+                            fixedSteps * fixedStep * 1000.0);
+  RuntimeProfiler::setGauge("Simulation.dropped_fixed_ms", droppedSeconds * 1000.0);
   {
     ProfileScope networkScope("Network.update");
     state.network.update();

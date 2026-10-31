@@ -3,10 +3,41 @@
 
 #include <algorithm>
 #include <iostream>
+#include <thread>
 
 int main() {
   using demi::runtime::RuntimeProfiler;
   RuntimeProfiler::setEnabled(true);
+  RuntimeProfiler::resetSession();
+  RuntimeProfiler::beginFrame();
+  std::thread worker([] {
+    {
+      demi::runtime::ProfileScope scope("Background.unowned_scope");
+      RuntimeProfiler::setGauge("Background.unowned_gauge", 1);
+      RuntimeProfiler::record("Background.unowned_record", 1);
+    }
+    demi::runtime::ScopedProfileSuppression suppression;
+    for (int index = 0; index < 1000; ++index) {
+      demi::runtime::ProfileScope scope("Background.must_not_enter_frame");
+      RuntimeProfiler::setGauge("Background.gauge", 1);
+      RuntimeProfiler::addBytes("Background.bytes", 10);
+      RuntimeProfiler::record("Background.direct", 2);
+      RuntimeProfiler::recordGpuScope({.name = "Background.gpu"});
+      demi::runtime::ScopedProfileSuppression nested;
+      demi::runtime::ProfileScope inner("Background.nested");
+    }
+  });
+  for (int index = 0; index < 100; ++index) {
+    RuntimeProfiler::beginFrame();
+  }
+  worker.join();
+  if (std::ranges::any_of(RuntimeProfiler::sessionEntries(),
+                          [](const auto &entry) {
+                            return entry.name.starts_with("Background.");
+                          })) {
+    std::cerr << "Suppressed worker scopes entered main-thread profiler\n";
+    return 1;
+  }
   RuntimeProfiler::resetSession();
   RuntimeProfiler::beginFrame();
   RuntimeProfiler::record("Lua.update", 1.25);

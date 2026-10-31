@@ -1,3 +1,4 @@
+#include "demi/runtime/terrain/RegionalTerrainMorph.h"
 #include "demi/runtime/concurrency/JobSystem.h"
 #include "demi/runtime/render/backend/BgfxGraphicsDevice.h"
 #include "demi/runtime/render/backend/RenderCommands.h"
@@ -39,6 +40,7 @@ public:
     DrawState state;
     std::array<TextureHandle, 4> textures{};
     std::vector<std::array<float, 20>> instances;
+    std::vector<std::array<float, 4>> uniforms;
   };
   std::uint32_t recordsPerDraw = 100;
   std::uint32_t remainingRecords = 100;
@@ -76,6 +78,13 @@ public:
                submission.textures.size() + terrainMaterialArrayCount3D);
     for (std::size_t index = 0; index < submission.textures.size(); ++index) {
       submission.textures[index] = draw.textures[index].texture;
+    }
+    for (const auto &uniform : draw.uniforms) {
+      std::array<float, 4> values{};
+      std::copy_n(uniform.values.begin(),
+                  std::min<std::size_t>(4, uniform.values.size()),
+                  values.begin());
+      submission.uniforms.push_back(values);
     }
     submission.instances.resize(count);
     std::memcpy(submission.instances.data(), draw.instances.data.data(),
@@ -150,14 +159,18 @@ TerrainPatchInstance3D instance(float translationX, float originX = 0) {
   return result;
 }
 
-std::array<DrawUniformValue, 8> lighting() {
+std::array<DrawUniformValue, 10> lighting() {
   static constexpr std::array<float, 4> zero{};
   static constexpr std::array<float, 4> white{1, 1, 1, 1};
-  std::array<DrawUniformValue, 8> result;
+  std::array<DrawUniformValue, 10> result;
   for (auto &uniform : result) {
     uniform.values = zero;
   }
   result.front().values = white;
+  static constexpr std::array<float, 4> fogColor{.4F, .5F, .6F, 1};
+  static constexpr std::array<float, 4> fogRange{700, .001F, 1, 0};
+  result[8].values = fogColor;
+  result[9].values = fogRange;
   return result;
 }
 
@@ -170,7 +183,9 @@ ProgramHandle terrainProgram(GpuResources &resources, std::string &error) {
 
 void sharedTopologyCombinesIndependentOwnerTransforms(GpuResources &resources) {
   TerrainPatchBatch3D batch(resources);
-  const auto field = readyField(resources, flatField());
+  auto source = std::make_shared<HeightField>(*flatField());
+  source->projectionOrigin = {128, 256};
+  const auto field = readyField(resources, source);
   const TerrainPatchTopologyKey3D topology{8, 8};
   assert(topology.level == TerrainLod::Full);
   const auto left = instance(-100);
@@ -189,6 +204,9 @@ void sharedTopologyCombinesIndependentOwnerTransforms(GpuResources &resources) {
   assert(commands.submissions.size() == 1);
   const auto &submission = commands.submissions.front();
   assert(submission.view == 7 && submission.instances.size() == 2);
+  assert(submission.uniforms[8][0] == .4F && submission.uniforms[9][0] == 700);
+  assert(submission.uniforms.back()[2] == 128 &&
+         submission.uniforms.back()[3] == 256);
   assert(submission.indices.count == 8 * 8 * 6);
   assert(std::equal(left.transform.begin(), left.transform.end(),
                     submission.instances[0].begin()));
@@ -198,6 +216,37 @@ void sharedTopologyCombinesIndependentOwnerTransforms(GpuResources &resources) {
   assert(batch.statistics().instances == 2);
   assert(batch.statistics().triangles == 8 * 8 * 2 * 2);
   assert(batch.topologyBytes() > 0);
+}
+
+void independentFieldsSubmitNearToFar(GpuResources &resources) {
+  TerrainPatchBatch3D batch(resources);
+  const auto farField = readyField(resources, flatField());
+  const auto nearField = readyField(resources, flatField());
+  const auto middleField = readyField(resources, flatField());
+  std::string error;
+  batch.beginPresentation();
+  batch.beginView();
+  // Publication order deliberately disagrees with camera depth. Equal-depth
+  // patches retain their order, including within a shared field's batch.
+  assert(batch.addPatch(farField, {8, 8}, instance(100), {}, GpuBudget,
+                        error, {}, 200, 100));
+  assert(batch.addPatch(nearField, {8, 8}, instance(10), {}, GpuBudget,
+                        error, {}, 200, 10));
+  assert(batch.addPatch(middleField, {8, 8}, instance(50), {}, GpuBudget,
+                        error, {}, 200, 50));
+  assert(batch.addPatch(nearField, {8, 8}, instance(11), {}, GpuBudget,
+                        error, {}, 200, 10));
+  CapturingCommands commands;
+  assert(batch.flush(commands, 0, terrainProgram(resources, error), lighting(),
+                     false, error).empty());
+  assert(commands.submissions.size() == 3);
+  assert(commands.submissions[0].textures[0] == nearField->height);
+  assert(commands.submissions[1].textures[0] == middleField->height);
+  assert(commands.submissions[2].textures[0] == farField->height);
+  assert(commands.submissions[0].instances.size() == 2);
+  assert(commands.submissions[0].instances[0][12] == 10);
+  assert(commands.submissions[0].instances[1][12] == 11);
+  assert(batch.statistics().instances == 4);
 }
 
 void oppositeSurfaceBlendingFlagsShareOneBatch(GpuResources &resources) {
@@ -269,8 +318,11 @@ void publishedSurfaceBlendingToggleKeepsGpuResources(GpuResources &resources) {
   recipe.landforms.at("default").heightVariation = 0;
   const auto generated = TerrainGenerator::generate(recipe);
   assert(generated);
-  const auto field = std::make_shared<const HeightField>(*generated);
+  auto endpoints = std::make_shared<HeightField>(*generated);
+  endpoints->morphFromHeights = std::make_shared<const TerrainSamples<float>>(endpoints->heights);
+  const std::shared_ptr<const HeightField> field = endpoints;
   auto world = worldWithField(field, recipe);
+  world.entities.front().setComponent(TerrainVisualMorph{});
   auto *owner = world.entities.front().component<Terrain3DComponent>();
   assert(owner && owner->surfaceBlending);
   JobSystem jobs(1);
@@ -310,6 +362,10 @@ void publishedSurfaceBlendingToggleKeepsGpuResources(GpuResources &resources) {
   std::size_t topologyBytes = 0;
   for (const bool blend : {true, false, true}) {
     owner->surfaceBlending = blend;
+    const float morphAmount = blend ? .25F : .75F;
+    world.entities.front().updateComponent<TerrainVisualMorph>([&](auto &morph) {
+      morph.amount = morphAmount;
+    });
     fields.beginPresentation();
     selection.beginPresentation();
     demand.beginPresentation();
@@ -328,6 +384,7 @@ void publishedSurfaceBlendingToggleKeepsGpuResources(GpuResources &resources) {
       const auto &draw = commands.submissions.front();
       assert(draw.instances.size() == 1);
       assert(draw.instances.front()[18] == (blend ? 1.0F : 0.0F));
+      assert(draw.instances.front()[19] == morphAmount);
       assert(
           (draw.textures == std::array{ready->height, ready->normal,
                                        ready->classification, ready->palette}));
@@ -616,7 +673,7 @@ void missingBiomeGroupKeepsTheRemainingNativeFallback(GpuResources &resources) {
   auto world = worldWithField(field, recipe);
   std::string error;
   assert(world.entities.size() == 3);
-  world.entities.eraseIf( [](const Entity &entity) {
+  world.entities.eraseIf([](const Entity &entity) {
     const auto *surface = entity.component<TerrainRenderLod>();
     return surface && surface->biome == "other";
   });
@@ -755,6 +812,7 @@ int main() {
     auto resources = createBgfxGpuResources();
     sharedTopologyCombinesIndependentOwnerTransforms(*resources);
     oppositeSurfaceBlendingFlagsShareOneBatch(*resources);
+    independentFieldsSubmitNearToFar(*resources);
     mappedProgramsPreserveMixedCullCoverage(*resources);
     publishedSurfaceBlendingToggleKeepsGpuResources(*resources);
     opaquePatchOrderUsesViewDepthWithStableTies(*resources);

@@ -1,0 +1,16 @@
+{
+  "dependencies": [
+    "asset://terrain/palettes/alpine",
+    "asset://terrain/surfaces/exposed_rock",
+    "asset://terrain/surfaces/grass",
+    "asset://terrain/surfaces/snow"
+  ],
+  "format_version": 1,
+  "id": "asset://terrain/regions/alpine_terrain",
+  "importer": "terrain_heightfield",
+  "importer_version": 1,
+  "settings": {},
+  "source": "alpine.terrain.json",
+  "source_hash": "fnv1a64:a97e3db7c6870d17",
+  "type": "Terrain"
+}

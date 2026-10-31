@@ -55,16 +55,19 @@ std::uint64_t terrainScatterCandidateKey(int x, int z) noexcept {
   return (std::uint64_t(std::uint32_t(x)) << 32) | std::uint32_t(z);
 }
 
+TerrainScatterRuleSeed::TerrainScatterRuleSeed(
+    int worldSeed, std::uint64_t ruleHash) noexcept {
+  const auto channel =
+      deriveTerrainSubSeed(worldSeed, TerrainSeedChannel::Scatter);
+  prefix_ = std::uint64_t(std::uint32_t(channel)) ^
+            (ruleHash * 0xC2B2AE3D27D4EB4Full);
+}
+
 std::uint64_t deriveTerrainScatterSeed(int worldSeed, std::uint64_t ruleHash,
                                        std::uint64_t candidateKey,
                                        std::uint32_t sample) noexcept {
-  const auto channel =
-      deriveTerrainSubSeed(worldSeed, TerrainSeedChannel::Scatter);
-  std::uint64_t state = static_cast<std::uint64_t>(std::uint32_t(channel));
-  state ^= candidateKey * 0x9E3779B97F4A7C15ull;
-  state ^= ruleHash * 0xC2B2AE3D27D4EB4Full;
-  state ^= std::uint64_t(sample) * 0x165667B19E3779F9ull;
-  return state;
+  return TerrainScatterRuleSeed(worldSeed, ruleHash)
+      .candidate(candidateKey, sample);
 }
 
 } // namespace demi::runtime

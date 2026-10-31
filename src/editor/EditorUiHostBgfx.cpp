@@ -363,6 +363,11 @@ public:
     return viewport.renderer ? viewport.renderer->textureIndex() : UINT16_MAX;
   }
 
+  bool viewportPreparing(const EditorAuthoringView view) const override {
+    const auto &viewport = viewports_.at(static_cast<std::size_t>(view));
+    return viewport.renderer && viewport.renderer->preparingResources();
+  }
+
   void releaseViewport(const EditorAuthoringView view) override {
     auto &viewport = viewports_.at(static_cast<std::size_t>(view));
     viewport.renderer.reset();

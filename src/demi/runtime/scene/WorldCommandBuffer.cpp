@@ -4,6 +4,7 @@
 #include "demi/runtime/scene/WorldQueries.h"
 
 #include <algorithm>
+#include <unordered_set>
 
 namespace demi::runtime {
 
@@ -106,7 +107,9 @@ std::vector<WorldMutation> WorldCommandBuffer::flush(World &world) {
       worldIndex.try_emplace(world.entities[index].id, index);
   };
   rebuildIndex();
-  for (Command &command : commands_) {
+  for (std::size_t commandIndex = 0; commandIndex < commands_.size();
+       ++commandIndex) {
+    Command &command = commands_[commandIndex];
     if (auto *create = std::get_if<Create>(&command)) {
       const std::string id = create->entity.id;
       const auto existing = worldIndex.find(id);
@@ -123,20 +126,30 @@ std::vector<WorldMutation> WorldCommandBuffer::flush(World &world) {
                                              : WorldMutationKind::Created,
                            .entityId = id,
                            .component = {}});
-    } else if (auto *destroy = std::get_if<Destroy>(&command)) {
-      if (!worldIndex.contains(destroy->id))
-        continue;
-      world.entities.eraseIf( [&](const Entity &entity) {
-        return entity.id == destroy->id;
-      });
-      // Erase compacts the vector. Rebuild only on this path, preserving the
-      // first matching ID if malformed input contained duplicate world IDs.
-      // Repeated destroys still scan/compact the world; this index targets the
-      // bulk-create path, not bulk deletion.
-      rebuildIndex();
-      mutations.push_back({.kind = WorldMutationKind::Destroyed,
-                           .entityId = destroy->id,
-                           .component = {}});
+    } else if (std::holds_alternative<Destroy>(command)) {
+      // A contiguous destroy run has no intervening reads or writes. Compact
+      // once, but retain command-order mutation events and duplicate semantics.
+      std::unordered_set<std::string_view> removed;
+      std::size_t end = commandIndex;
+      while (end < commands_.size()) {
+        const auto *destroy = std::get_if<Destroy>(&commands_[end]);
+        if (!destroy) {
+          break;
+        }
+        if (worldIndex.contains(destroy->id) && removed.insert(destroy->id).second) {
+          mutations.push_back({.kind = WorldMutationKind::Destroyed,
+                               .entityId = destroy->id,
+                               .component = {}});
+        }
+        ++end;
+      }
+      if (!removed.empty()) {
+        world.entities.eraseIf([&](const Entity &entity) {
+          return removed.contains(entity.id);
+        });
+        rebuildIndex();
+      }
+      commandIndex = end - 1;
     } else if (auto *add = std::get_if<AddComponent>(&command)) {
       const auto found = worldIndex.find(add->id);
       if (found != worldIndex.end() &&

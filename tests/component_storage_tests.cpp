@@ -1,4 +1,5 @@
 #include "demi/runtime/scene/EntityComponentQuery.h"
+#include "demi/runtime/scene/components/3dcomponents/MeshInstances3DComponent.h"
 #include "demi/runtime/scene/model/ComponentStorage.h"
 
 #ifdef NDEBUG
@@ -446,6 +447,41 @@ void registryRowsFollowStorageLifetimeAndMoves() {
   assert(destination.get<Position>()->value == 14);
 }
 
+void instanceSnapshotsDetachOnMutation() {
+  using demi::runtime::MeshInstances3DComponent;
+  MeshInstances3DComponent original;
+  original.setTransform("tree", {.position = {1, 2, 3}});
+  auto copy = original;
+  assert(copy.contentRevision() == original.contentRevision());
+  assert(&copy.transforms() == &original.transforms());
+  copy.setTransform("tree", {.position = {1, 2, 3}});
+  assert(&copy.transforms() == &original.transforms());
+  assert(!copy.eraseTransform("missing"));
+  assert(copy.contentRevision() == original.contentRevision());
+  copy.setTransform("tree", {.position = {9, 2, 3}});
+  assert(original.transforms().at("tree").position.x == 1);
+  assert(copy.transforms().at("tree").position.x == 9);
+  assert(copy.contentRevision() != original.contentRevision());
+  auto snapshot = copy;
+  assert(copy.eraseTransform("tree"));
+  assert(snapshot.transforms().size() == 1);
+  auto moved = std::move(snapshot);
+  assert(snapshot.transforms().empty());
+  snapshot.setTransform("new", {});
+  assert(moved.transforms().contains("tree"));
+  assert(!moved.transforms().contains("new"));
+  auto shared = original;
+  original.clearTransforms();
+  assert(shared.transforms().size() == 1 && original.transforms().empty());
+  ComponentStorage storage;
+  storage.set(shared);
+  storage.bind(std::make_shared<demi::runtime::ComponentRegistry>());
+  auto detached = storage;
+  detached.get<MeshInstances3DComponent>()->setTransform("other", {});
+  assert(
+      !storage.get<MeshInstances3DComponent>()->transforms().contains("other"));
+}
+
 } // namespace
 
 int main() {
@@ -459,4 +495,5 @@ int main() {
   distinctTypesAndReplacementRemainChecked();
   cvrefKeysAndConstAccessKeepExistingSemantics();
   copyAndMovePreserveIndependentValues();
+  instanceSnapshotsDetachOnMutation();
 }

@@ -8,6 +8,10 @@
 #include "demi/runtime/terrain/TerrainGenerationCache.h"
 
 #include <stdexcept>
+#include <fstream>
+#include <set>
+#include "demi/assets/TerrainRegionAsset.h"
+#include "demi/assets/DataAsset.h"
 
 namespace demi::assets {
 namespace {
@@ -72,6 +76,9 @@ std::vector<std::byte>
 serializeTerrainAssetPayload(const runtime::HeightField &field,
                              std::string_view recipeDigest,
                              std::string_view inputFingerprint) {
+  if (field.projectionOrigin.x != 0 || field.projectionOrigin.y != 0) {
+    throw std::invalid_argument("Regional tile fields cannot be stored as finite Terrain asset payloads");
+  }
   return terrain_payload::encode(field, recipeDigest, inputFingerprint);
 }
 
@@ -197,10 +204,38 @@ storeTerrainAssetPreview(const AssetRegistry &registry,
 }
 
 void prepareTerrainAssets(const AssetRegistry &registry) {
-  for (const auto &manifest : registry.assets)
+  auto regionalSources = terrainRegionSourceIds(registry);
+  // A graph can serve both a regional program and an explicitly authored finite
+  // terrain. Preserve finite preparation for scene/prefab references. Merely
+  // referencing it from a region must never scatter its entire world extent.
+  if (!regionalSources.empty()) {
+    const auto visit = [&](const auto &self, const nlohmann::json &value) -> void {
+      if (value.is_string()) {
+        regionalSources.erase(value.get<std::string>());
+      } else if (value.is_structured()) {
+        for (const auto &child : value) {
+          self(self, child);
+        }
+      }
+    };
+    for (const auto &path : collectProjectSourceFiles(registry)) {
+      const auto name = path.filename().string();
+      if (!name.ends_with(".scene.json") && !name.ends_with(".prefab.json")) {
+        continue;
+      }
+      std::ifstream source(path);
+      const auto document = nlohmann::json::parse(source);
+      visit(visit, document);
+    }
+  }
+  for (const auto &manifest : registry.assets) {
     if (manifest.type == "Terrain" &&
-        manifest.importer == "terrain_heightfield" && !isPreparedTerrainAsset(manifest))
+        manifest.importer == "terrain_heightfield" &&
+        !isPreparedTerrainAsset(manifest) &&
+        !regionalSources.contains(manifest.id)) {
       (void)prepareTerrainAsset(registry, manifest.id);
+    }
+  }
 }
 
 } // namespace demi::assets

@@ -250,6 +250,18 @@ const runtime::RuntimeProfiler::FrameCapture *EditorProfilerCapture::draw() {
   } else {
     ImGui::TextDisabled("Game GPU timing unavailable for this capture.");
   }
+  const auto fixedSteps = std::ranges::find(
+      frame.entries, "Simulation.fixed_steps", &Profiler::Entry::name);
+  const auto droppedTime = std::ranges::find(
+      frame.entries, "Simulation.dropped_fixed_ms", &Profiler::Entry::name);
+  if (fixedSteps != frame.entries.end() && droppedTime != frame.entries.end()) {
+    ImGui::Text("Simulation: %.0f fixed steps | %.3f ms catch-up time dropped",
+                fixedSteps->gauge, droppedTime->gauge);
+    if (ImGui::IsItemHovered()) {
+      ImGui::SetTooltip("At 60 Hz, a 50 ms frame needs about three simulation steps. "
+                       "The project catch-up limit bounds work after a long stall.");
+    }
+  }
   if (ImGui::RadioButton("Game CPU scopes", !gpu_)) {
     gpu_ = false;
   }

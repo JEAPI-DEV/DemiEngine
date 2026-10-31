@@ -2,7 +2,8 @@
 
 #include "demi/runtime/scene/Transform3DHierarchy.h"
 #include "demi/runtime/terrain/TerrainScatterRuntime.h"
-#include <unordered_set>
+#include <stop_token>
+#include <vector>
 
 namespace demi::runtime {
 
@@ -11,7 +12,8 @@ namespace demi::runtime {
 struct TerrainScatterBatch {};
 
 struct TerrainScatterBatchResult {
-  std::unordered_set<std::string> placements;
+  // Indexed by the borrowed input span, avoiding a second owned ID set.
+  std::vector<std::uint8_t> handled;
   TerrainScatterSyncStats statistics;
 };
 
@@ -20,8 +22,8 @@ struct TerrainScatterBatchResult {
 // and flow through ordinary prefab instantiation.
 [[nodiscard]] TerrainScatterBatchResult
 syncTerrainScatterBatches(World &world, WorldCommandBuffer &commands,
-                          std::string_view ownerId, const HeightField &field,
+                          std::string_view ownerId, TerrainScatterView view,
                           const TerrainPrefabServiceProvider &prefabs,
-                          std::string &error);
+                          std::string &error, std::stop_token stop = {});
 
 } // namespace demi::runtime

@@ -1,4 +1,5 @@
 #include "editor/EditorWorkspace.h"
+#include "editor/EditorTerrainRuntime.h"
 #include "demi/runtime/terrain/TerrainGenerationCache.h"
 
 #include "editor/EditorDocumentStore.h"
@@ -57,8 +58,9 @@ void EditorWorkspace::configureTerrainInputResolver() {
       std::make_shared<const AssetRegistry>(assetIndex_.registry());
   if (terrainAssetBinding_) {
     terrainAuthoring_->setInputResolver(
-        [registry](const runtime::TerrainRecipe &recipe) {
-          return assets::resolveTerrainAssetGenerationInputs(*registry, recipe);
+        [registry, id = terrainAssetDocument_ ? terrainAssetDocument_->id()
+                                            : std::string{}](const runtime::TerrainRecipe &recipe) {
+          return resolveEditorTerrainAssetInputs(*registry, id, recipe);
         });
   } else {
     terrainAuthoring_->setInputResolver(

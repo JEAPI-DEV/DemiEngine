@@ -5,6 +5,7 @@
 #include "demi/runtime/scene/components/3dcomponents/Transform3DComponent.h"
 #include "demi/runtime/scene/model/World.h"
 #include "demi/runtime/terrain/TerrainWorld.h"
+#include "demi/runtime/terrain/TerrainVegetationWorld.h"
 #include "editor/EditorIsoGridCell.h"
 #include <algorithm>
 #include <cctype>
@@ -120,6 +121,9 @@ EditorHierarchyIndex::EditorHierarchyIndex(const runtime::World &world,
       owners[index] = entity.id;
     } else {
       owners[index] = runtime::terrainSurfaceOwner(entity).value_or("");
+      if (const auto *cell = entity.component<runtime::TerrainVegetationCellOwner>()) {
+        owners[index] = cell->regionOwner;
+      }
       if (const auto *transform =
               entity.component<runtime::Transform3DComponent>()) {
         if (entity.id.starts_with(transform->parent + "/__masonry_preview/")) {

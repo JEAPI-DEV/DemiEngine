@@ -738,7 +738,77 @@ void meshShadowOptOutSkipsSourcesBeforeInstanceWork() {
   assert(fallbackDepth.meshes.size() == 4);
   assert(extract(BgfxCameraPass3D::Shadow).instanceCopiesExamined == 0);
 }
+void retainedInstancesSurviveUnrelatedEntityCompaction() {
+  World world;
+  world.entities.push_back(mesh("retiring_terrain", {}, {}, {}));
+  auto batch = mesh("vegetation", {}, {}, {});
+  MeshInstances3DComponent instances;
+  instances.setTransform("tree", {.position = {5, 0, 10}});
+  batch.setComponent(instances);
+  world.entities.push_back(std::move(batch));
+  MeshInstancePreparation3D preparation;
+  const WorldTransform3D owner;
+  const auto prepare = [&]() -> auto & {
+    const auto &entity = world.entities.back();
+    return preparation.source(world, entity, owner,
+        *entity.component<MeshInstances3DComponent>());
+  };
+  const auto *retained = prepare().copies.data();
+  world.entities.eraseIf([](const auto &entity) { return entity.id == "retiring_terrain"; });
+  preparation.reset();
+  auto &after = prepare();
+  assert(after.copies.data() == retained);
+  assert(after.copies.front().position.x == 5);
+  world.entities.back().updateComponent<MeshInstances3DComponent>([](auto &value) {
+    value.setTransform("tree", {.position = {9, 0, 10}});
+  });
+  preparation.reset();
+  assert(prepare().copies.front().position.x == 9);
+  // Replacing the world at the same address must still refresh its data.
+  World replacement;
+  auto changed = mesh("vegetation", {}, {}, {});
+  instances.setTransform("tree", {.position = {20, 0, 10}});
+  changed.setComponent(instances);
+  replacement.entities.push_back(std::move(changed));
+  world.entities = std::move(replacement.entities);
+  preparation.reset();
+  assert(prepare().copies.front().position.x == 20);
+}
+
+void compiledInstancesRetainCopiesWithoutExpandingSections() {
+  World world;
+  auto owner = mesh("compiled", {}, {-0.5F, -0.5F, -0.5F}, {0.5F, 0.5F, 0.5F});
+  owner.component<MeshRendererComponent>()->model = "asset://compiled/model";
+  MeshInstances3DComponent instances;
+  instances.setTransform("left", {.position = {-1, 0, 8}});
+  instances.setTransform("right", {.position = {1, 0, 8}});
+  instances.setTransform("outside", {.position = {100, 0, 8}});
+  owner.setComponent(instances);
+  world.entities.push_back(std::move(owner));
+  BgfxCameraFrame3D frame;
+  MeshInstancePreparation3D preparation;
+  PreparedInstanceView3D view;
+  int sectionQueries = 0;
+  const ModelSectionsResolver3D sections = [&](const VisibleMesh3D &, Vec3) {
+    ++sectionQueries;
+    return static_cast<const MeshMaterialSections3D *>(nullptr);
+  };
+  const auto compiled = extractVisibleMeshes3D(
+      world, frame, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+      nullptr, {}, &preparation, &view, sections,
+      [](const VisibleMesh3D &) { return true; });
+  assert(compiled.considered == 3 && compiled.culled == 1);
+  assert(compiled.meshes.size() == 1 && sectionQueries == 0);
+  assert(view.source(world.entities.front()).visibility.meshes.size() == 2);
+  const auto ordinary = extractVisibleMeshes3D(
+      world, frame, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+      nullptr, {}, &preparation, &view, sections);
+  assert(ordinary.meshes.size() == 2 && sectionQueries == 2);
+}
+
 int main() {
+  compiledInstancesRetainCopiesWithoutExpandingSections();
+  retainedInstancesSurviveUnrelatedEntityCompaction();
   meshShadowOptOutSkipsSourcesBeforeInstanceWork();
   shadowHullPrunesInstancesConservativelyInAuthoredOrder();
   shadowSamplingFloorPreservesDistanceCullingAndDynamicSources();

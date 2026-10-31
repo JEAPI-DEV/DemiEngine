@@ -249,7 +249,7 @@ bool checkReactiveSnapshotLifetime() {
       return false;
     }
     for (const auto &entry : RuntimeProfiler::frameEntries()) {
-      if (entry.name == "Renderer3D.transforms_recomputed") {
+      if (entry.name == "Scene.transforms_recomputed") {
         return entry.gauge == double(recomputed);
       }
     }

@@ -485,7 +485,8 @@ SceneVisibility3D extractVisibleMeshes3D(
     const ModelBoundsResolver3D &modelBounds,
     MeshInstancePreparation3D *instancePreparation,
     PreparedInstanceView3D *preparedInstances,
-    const ModelSectionsResolver3D &modelSections) {
+    const ModelSectionsResolver3D &modelSections,
+    const CompiledInstanceSource3D &compiledInstances) {
   const ViewFrustum frustum(frame);
   const Vec3 instanceLodPosition = frame.lodPosition.value_or(
       lodCamera ? lodCamera->position : frame.position);
@@ -750,10 +751,12 @@ SceneVisibility3D extractVisibleMeshes3D(
       const bool hasInlineSections = metadata.sections &&
                                      !metadata.sections->sections.empty() &&
                                      !metadata.mesh->vertices.empty();
-      const bool needsSectionSelection =
-          metadata.terrain || hasInlineSections ||
-          (modelSections && !metadata.mesh->model.empty() &&
-           metadata.mesh->material.empty());
+      const bool compiledSource = metadata.instances && preparedInstances &&
+                                  compiledInstances && compiledInstances(draw);
+      const bool needsSectionSelection = !compiledSource &&
+          (metadata.terrain || hasInlineSections ||
+           (modelSections && !metadata.mesh->model.empty() &&
+            metadata.mesh->material.empty()));
       if (metadata.instances) {
         auto *shared =
             preparedInstances != nullptr && metadata.terrain == nullptr
@@ -768,7 +771,16 @@ SceneVisibility3D extractVisibleMeshes3D(
             shared->ready = true;
           }
           const auto &prepared = shared->visibility;
-          appendSourceDraws(prepared.meshes, metadata, needsSectionSelection);
+          if (compiledSource) {
+            // One representative dispatches the retained source batch. The
+            // compiler consumes all raw copies; copying them into the ordinary
+            // section/sort/submission list repeats work and allocation per blade.
+            if (!prepared.meshes.empty()) {
+              result.meshes.push_back(prepared.meshes.front());
+            }
+          } else {
+            appendSourceDraws(prepared.meshes, metadata, needsSectionSelection);
+          }
           appendInstanceCounters(prepared);
           if (reused) {
             ++result.instanceSourcesReused;

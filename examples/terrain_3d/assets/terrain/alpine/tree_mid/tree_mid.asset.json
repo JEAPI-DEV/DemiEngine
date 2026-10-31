@@ -1,0 +1,30 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "generated_output": "../../../../generated/assets/terrain/alpine/tree_mid/tree_mid.gltf",
+  "id": "asset://terrain/alpine/tree_mid",
+  "importer": "gltf-model",
+  "importer_version": 1,
+  "settings": {
+    "model_import": {
+      "format_version": 1,
+      "import_animations": false,
+      "material_policy": "import",
+      "meters_per_unit": 1.0,
+      "optimize_meshes": true,
+      "preset": "environment",
+      "root_node": "flatten",
+      "source_forward": "+z",
+      "source_up": "+y"
+    },
+    "licence": {
+      "spdx": "CC0-1.0",
+      "redistributable": true
+    }
+  },
+  "source": "tree_mid.gltf",
+  "source_hash": "fnv1a64:b236ecd14ca2645b",
+  "type": "Model3D",
+  "license": "LICENSE.txt",
+  "attribution": "Derived from the CC0 Poly Haven tree art in demi.environment.woodland."
+}

@@ -113,6 +113,8 @@ struct TextureCreateInfo {
   std::optional<TextureFilter> mipFilter;
   // Preserve multisample storage for explicit shader resolution.
   bool sampleMultisample = false;
+  // Preserve directional footprints for mapped surfaces viewed at grazing angles.
+  bool anisotropic = false;
 };
 
 struct TextureUpdateInfo {

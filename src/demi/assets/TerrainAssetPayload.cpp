@@ -3,6 +3,7 @@
 #include "demi/assets/AssetHash.h"
 #include "demi/assets/TerrainAsset.h"
 #include "demi/assets/TerrainAssetPayloadData.h"
+#include "demi/assets/TerrainPlacementCodec.h"
 #include "demi/runtime/terrain/TerrainCook.h"
 #include "demi/runtime/terrain/TerrainGraphExecutor.h"
 
@@ -17,13 +18,13 @@ namespace demi::assets::terrain_payload {
 namespace {
 
 constexpr std::array<char, 9> Magic{'D', 'M', 'T', 'R', 'A',
-                                    'S', 'T', '1', '1'};
-static_assert(terrainAssetPayloadVersion == 11,
+                                    'S', 'T', '1', '3'};
+static_assert(terrainAssetPayloadVersion == 13,
               "Update terrain payload magic when changing its format");
 static_assert(Version >= 10 && Version < 100);
 static_assert(Magic[7] == static_cast<char>('0' + Version / 10) &&
               Magic[8] == static_cast<char>('0' + Version % 10));
-constexpr std::size_t HeaderSize = Magic.size() + 3 * sizeof(std::uint64_t);
+constexpr std::size_t HeaderSize = Magic.size() + 4 * sizeof(std::uint64_t);
 constexpr std::size_t DigestSize = sizeof("fnv1a64:0000000000000000") - 1;
 
 void appendLength(std::vector<std::byte> &output, std::size_t length) {
@@ -109,28 +110,38 @@ std::vector<std::byte> encode(const runtime::HeightField &field,
   const auto derived = encodeDerived(field);
   // JSON writes non-finite numbers as null. Check the structured data through
   // its own reader before it can replace a known-good prepared cache.
-  auto checked = field;
+  runtime::HeightField checked;
+  checked.size = field.size;
+  checked.cellsX = field.cellsX;
+  checked.cellsZ = field.cellsZ;
+  checked.heights = field.heights;
+  checked.paletteId = field.paletteId;
   decodeDerived(derived, checked);
+  const auto placements = encodePlacements(field);
   const std::string metadata = derived.dump();
   const auto maximum = std::numeric_limits<std::size_t>::max();
   if (main.size() > maximum - HeaderSize - DigestSize ||
       base.size() > maximum - HeaderSize - DigestSize - main.size() ||
       metadata.size() >
-          maximum - HeaderSize - DigestSize - main.size() - base.size())
+          maximum - HeaderSize - DigestSize - main.size() - base.size() ||
+      placements.size() > maximum - HeaderSize - DigestSize - main.size() -
+                              base.size() - metadata.size())
     throw std::length_error("Terrain payload is too large for this host");
 
   std::vector<std::byte> output;
   output.reserve(HeaderSize + main.size() + base.size() + metadata.size() +
-                 DigestSize);
+                 placements.size() + DigestSize);
   for (char character : Magic)
     output.push_back(std::byte(static_cast<unsigned char>(character)));
   appendLength(output, main.size());
   appendLength(output, base.size());
   appendLength(output, metadata.size());
+  appendLength(output, placements.size());
   output.insert(output.end(), main.begin(), main.end());
   output.insert(output.end(), base.begin(), base.end());
   for (char character : metadata)
     output.push_back(std::byte(static_cast<unsigned char>(character)));
+  output.insert(output.end(), placements.begin(), placements.end());
   const std::string checksum = digest(output);
   for (char character : checksum)
     output.push_back(std::byte(static_cast<unsigned char>(character)));
@@ -148,6 +159,7 @@ decode(std::span<const std::byte> bytes, std::string *recipeDigest,
   const auto mainLength = readLength(bytes, Magic.size());
   const auto baseLength = readLength(bytes, Magic.size() + 8);
   const auto metadataLength = readLength(bytes, Magic.size() + 16);
+  const auto placementsLength = readLength(bytes, Magic.size() + 24);
   std::size_t remaining = bytes.size() - HeaderSize - DigestSize;
   if (mainLength == 0 || mainLength > remaining)
     throw std::invalid_argument("Terrain payload main field is truncated");
@@ -156,8 +168,11 @@ decode(std::span<const std::byte> bytes, std::string *recipeDigest,
     throw std::invalid_argument(
         "Terrain payload graph checkpoint is truncated");
   remaining -= baseLength;
-  if (metadataLength != remaining)
+  if (metadataLength > remaining)
     throw std::invalid_argument("Terrain payload metadata length is invalid");
+  remaining -= metadataLength;
+  if (placementsLength != remaining)
+    throw std::invalid_argument("Terrain payload placement length is invalid");
   const auto data = bytes.first(bytes.size() - DigestSize);
   const auto checksum = bytes.last(DigestSize);
   const std::string expected = digest(data);
@@ -176,11 +191,13 @@ decode(std::span<const std::byte> bytes, std::string *recipeDigest,
   if (inputFingerprint)
     *inputFingerprint = main.inputFingerprint;
   const auto metadataOffset = HeaderSize + mainLength + baseLength;
-  const std::string metadata(
-      reinterpret_cast<const char *>(bytes.data() + metadataOffset),
-      metadataLength);
-  const auto derived = nlohmann::json::parse(metadata);
+  const auto metadata = bytes.subspan(metadataOffset, metadataLength);
+  const auto *metadataBegin = reinterpret_cast<const char *>(metadata.data());
+  const auto derived =
+      nlohmann::json::parse(metadataBegin, metadataBegin + metadata.size());
   decodeDerived(derived, *loaded);
+  decodePlacements(bytes.subspan(metadataOffset + metadataLength,
+                                 placementsLength), *loaded);
 
   if (baseLength != 0) {
     if (!loaded->graphArtifacts)

@@ -168,6 +168,29 @@ void groupsRemainNeutralAcrossPasses(GpuResources &resources) {
   assert(!plan.ready() && plan.groups().groupCount() == 0);
 }
 
+void identicalSurfaceOverridesShareBatches(GpuResources &resources) {
+  std::string error;
+  GpuMesh3D mesh(resources);
+  const std::array<Vec3, 3> vertices{{{0, 0, 0}, {1, 0, 0}, {0, 1, 0}}};
+  const std::array<std::uint32_t, 3> indices{0, 1, 2};
+  assert(mesh.upload(vertices, {}, indices, 0xffffffffU, error));
+  MeshRendererComponent a;
+  a.materialNumbers = {{"foliage_transmission", .7F}, {"ambient_occlusion_strength", .4F}};
+  MeshRendererComponent b;
+  b.materialNumbers = {{"ambient_occlusion_strength", .4F}, {"foliage_transmission", .7F}};
+  MaterialBinding material;
+  MeshDrawSurface3D first(a, &material, {}, false);
+  MeshDrawSurface3D second(b, &material, {}, false);
+  const std::array<float, 16> identity{1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1};
+  MeshInstanceBatch3D batch;
+  const auto one = batch.addSurface(mesh, {}, a, &material, first, true, identity, 0, 3);
+  const auto two = batch.addSurface(mesh, {}, b, &material, second, true, identity, 0, 3);
+  assert(one == two && batch.groupCount() == 1);
+  b.materialNumbers["foliage_transmission"] = .2F;
+  const auto different = batch.addSurface(mesh, {}, b, &material, second, true, identity, 0, 3);
+  assert(different != one && batch.groupCount() == 2);
+}
+
 } // namespace
 
 int main() {
@@ -177,4 +200,5 @@ int main() {
       {.api = GraphicsApi::Noop, .width = 32, .height = 32}, error));
   auto resources = createBgfxGpuResources();
   groupsRemainNeutralAcrossPasses(*resources);
+  identicalSurfaceOverridesShareBatches(*resources);
 }

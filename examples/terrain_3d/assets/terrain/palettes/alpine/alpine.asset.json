@@ -1,0 +1,16 @@
+{
+  "dependencies": [
+    "asset://terrain/material_sets/meadow"
+  ],
+  "format_version": 1,
+  "generated_output": "../../../../generated/assets/terrain/palettes/alpine/alpine.json",
+  "id": "asset://terrain/palettes/alpine",
+  "importer": "json_data",
+  "importer_version": 1,
+  "settings": {
+    "content_type": "terrain_palette"
+  },
+  "source": "alpine.json",
+  "source_hash": "fnv1a64:897ec932916bab36",
+  "type": "DataAsset"
+}

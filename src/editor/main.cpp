@@ -236,10 +236,13 @@ int main(const int argc, char **argv) {
             ui->prepareViewportTarget(view, state.area, error);
         if (!viewportTargetsReady[static_cast<std::size_t>(view)])
           shell.setNotice("Authored view target unavailable: " + error);
+      } else if (shell.authoringViewOpen(view)) {
+        ui->observeViewportTarget(view, {});
       } else {
         ui->releaseViewport(view);
       }
       shell.setViewportTextureIndex(view, ui->viewportTextureIndex(view));
+      shell.setViewportPreparing(view, ui->viewportPreparing(view));
     }
     if (gameRendererReady && !ui->prepareGameTarget(shell.gameArea(), error)) {
       shell.playSession().reportFailure(error);
@@ -322,7 +325,11 @@ int main(const int argc, char **argv) {
       if (!viewportTargetsReady[static_cast<std::size_t>(view)] ||
           ui->viewportTextureIndex(view) == UINT16_MAX)
         continue;
-      const auto &document = *state.workspace;
+      auto &document = *state.workspace;
+      if (view != demi::editor::EditorAuthoringView::Hud &&
+          !document.updateRegionalPreview(error, ui->deltaSeconds())) {
+        shell.setNotice("Terrain preview preparation failed: " + error);
+      }
       bool rendered = false;
       if (view == demi::editor::EditorAuthoringView::Hud)
         rendered =

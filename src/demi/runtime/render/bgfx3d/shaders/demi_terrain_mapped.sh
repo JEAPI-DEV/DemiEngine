@@ -4,7 +4,7 @@ SAMPLER2DARRAY(s_terrainNormals, 8);
 SAMPLER2DARRAY(s_terrainOrmHeight, 9);
 SAMPLER2DARRAY(s_terrainDetail, 10);
 SAMPLER2DARRAY(s_terrainEmissive, 11);
-// Resident array edge and world-space distance where detail normals fade out.
+// Array edge, detail fade distance, source-local projection origin X/Z.
 uniform vec4 u_terrainSurface;
 
 #include "demi_terrain_normal_frame.sh"
@@ -63,6 +63,24 @@ vec2 terrainWrap(vec2 uv, float mode, float mip)
     return uv;
 }
 
+// bgfx exposes array SampleLevel but not an array-gradient wrapper. Keep
+// explicit derivatives: biome/projection branches are not quad-uniform.
+vec4 terrainArraySample(sampler2DArray source, vec3 coordinate,
+    vec2 uvDx, vec2 uvDy, float wrapMode, float mip)
+{
+    // Per-layer clamp uses the guarded isotropic footprint above because the
+    // physical array repeats. An anisotropic tap could cross that guard.
+    if (wrapMode > 0.5 && wrapMode < 1.5)
+    {
+        return texture2DArrayLod(source, coordinate, mip);
+    }
+#if BGFX_SHADER_LANGUAGE_GLSL
+    return textureGrad(source, coordinate, uvDx, uvDy);
+#else
+    return source.m_texture.SampleGrad(source.m_sampler, coordinate, uvDx, uvDy);
+#endif
+}
+
 struct TerrainMappedSurface
 {
     vec3 color;
@@ -76,7 +94,7 @@ struct TerrainMappedSurface
 };
 
 void accumulateTerrainProjection(int axis, float weight,
-    vec4 mapping, vec4 strengths, vec4 detail, float detailFade,
+    vec4 mapping, vec4 strengths, vec4 detail, vec3 phase, float detailFade,
     vec3 localPosition, vec3 localNormal, vec3 localDx, vec3 localDy,
     TerrainNormalBasis normalBasis, vec3 receiverNormal,
     inout TerrainMappedSurface result)
@@ -85,27 +103,33 @@ void accumulateTerrainProjection(int axis, float weight,
     {
         return;
     }
-    vec2 uv = terrainProject(localPosition, axis, localNormal) * mapping.y;
+    vec2 uv = terrainProject(localPosition * mapping.y + phase, axis, localNormal);
     vec2 uvDx = terrainProject(localDx, axis, localNormal) * mapping.y;
     vec2 uvDy = terrainProject(localDy, axis, localNormal) * mapping.y;
     float footprintSquared = max(dot(uvDx, uvDx), dot(uvDy, uvDy)) *
                              (u_terrainSurface.x * u_terrainSurface.x);
     float mip = 0.5 * log2(max(footprintSquared, 1.0));
     vec3 coordinate = vec3(terrainWrap(uv, detail.y, mip), mapping.x);
-    vec4 albedo = texture2DArrayLod(s_terrainAlbedo, coordinate, mip);
-    vec4 ormHeight = texture2DArrayLod(s_terrainOrmHeight, coordinate, mip);
+    if (detail.y > 1.5)
+    {
+        vec2 direction = mix(vec2(1.0), vec2(-1.0), step(vec2(1.0), mod(uv, 2.0)));
+        uvDx *= direction;
+        uvDy *= direction;
+    }
+    vec4 albedo = terrainArraySample(s_terrainAlbedo, coordinate, uvDx, uvDy, detail.y, mip);
+    vec4 ormHeight = terrainArraySample(s_terrainOrmHeight, coordinate, uvDx, uvDy, detail.y, mip);
 #if !(DEMI_PERFORMANCE_DEBUG && DEMI_PERFORMANCE_DEBUG_DISABLE_TERRAIN_NORMALS)
     vec3 mapped = vec3(0.0, 0.0, 1.0);
     if (strengths.x > 0.0)
     {
-        mapped = texture2DArrayLod(s_terrainNormals, coordinate, mip).xyz * 2.0 - 1.0;
+        mapped = terrainArraySample(s_terrainNormals, coordinate, uvDx, uvDy, detail.y, mip).xyz * 2.0 - 1.0;
     }
     mapped.y *= mapping.w;
     mapped.xy *= strengths.x;
     mapped.z = mix(1.0, mapped.z, min(strengths.x, 1.0));
     if (strengths.y * detailFade > 0.0)
     {
-        vec3 fine = texture2DArrayLod(s_terrainDetail, coordinate, mip).xyz * 2.0 - 1.0;
+        vec3 fine = terrainArraySample(s_terrainDetail, coordinate, uvDx, uvDy, detail.y, mip).xyz * 2.0 - 1.0;
         fine.y *= mapping.w;
         float detailStrength = strengths.y * detailFade;
         fine.xy *= detailStrength;
@@ -130,7 +154,7 @@ void accumulateTerrainProjection(int axis, float weight,
 #endif
     if (detail.z > 0.5)
     {
-        result.emissive += texture2DArrayLod(s_terrainEmissive, coordinate, mip).rgb * weight;
+        result.emissive += terrainArraySample(s_terrainEmissive, coordinate, uvDx, uvDy, detail.y, mip).rgb * weight;
     }
     result.occlusion += ormHeight.r * weight;
     result.properties.xy += ormHeight.bg * weight;
@@ -141,11 +165,12 @@ TerrainMappedSurface terrainMappedLayer(uint index, bool clockwiseFacing,
     vec3 localDx, vec3 localDy, TerrainNormalBasis normalBasis, vec3 receiverNormal,
     vec3 localPosition, vec3 localNormal, vec3 projectionWeights, float detailFade)
 {
-    vec4 tint = terrainPaletteTexel(index * 5u);
-    vec4 parameters = terrainPaletteTexel(index * 5u + 1u);
-    vec4 mapping = terrainPaletteTexel(index * 5u + 2u);
-    vec4 strengths = terrainPaletteTexel(index * 5u + 3u);
-    vec4 detail = terrainPaletteTexel(index * 5u + 4u);
+    vec4 tint = terrainPaletteTexel(index * 6u);
+    vec4 parameters = terrainPaletteTexel(index * 6u + 1u);
+    vec4 mapping = terrainPaletteTexel(index * 6u + 2u);
+    vec4 strengths = terrainPaletteTexel(index * 6u + 3u);
+    vec4 detail = terrainPaletteTexel(index * 6u + 4u);
+    vec3 phase = terrainPaletteTexel(index * 6u + 5u).xyz;
     TerrainMappedSurface result;
     result.color = vec3(0.0);
     result.normal = vec3(0.0);
@@ -181,20 +206,20 @@ TerrainMappedSurface terrainMappedLayer(uint index, bool clockwiseFacing,
 #endif
     // Literal axes let the compiler specialize projection orientation and
     // remove dynamic-axis indexing while retaining all triplanar contributors.
-    accumulateTerrainProjection(0, projectionWeights.x, mapping, strengths, detail,
+    accumulateTerrainProjection(0, projectionWeights.x, mapping, strengths, detail, phase,
         detailFade, localPosition, localNormal, localDx, localDy,
         normalBasis, receiverNormal, result);
-    accumulateTerrainProjection(1, projectionWeights.y, mapping, strengths, detail,
+    accumulateTerrainProjection(1, projectionWeights.y, mapping, strengths, detail, phase,
         detailFade, localPosition, localNormal, localDx, localDy,
         normalBasis, receiverNormal, result);
-    accumulateTerrainProjection(2, projectionWeights.z, mapping, strengths, detail,
+    accumulateTerrainProjection(2, projectionWeights.z, mapping, strengths, detail, phase,
         detailFade, localPosition, localNormal, localDx, localDy,
         normalBasis, receiverNormal, result);
     result.color *= tint.rgb;
 #if !(DEMI_PERFORMANCE_DEBUG && DEMI_PERFORMANCE_DEBUG_DISABLE_TERRAIN_MACRO)
     if (strengths.w > 0.0)
     {
-        result.color *= 1.0 - strengths.w * terrainMacroNoise(localPosition * detail.x);
+        result.color *= 1.0 - strengths.w * terrainMacroNoise((localPosition + vec3(u_terrainSurface.z, 0.0, u_terrainSurface.w)) * detail.x);
     }
 #endif
     return result;
@@ -217,7 +242,7 @@ vec4 terrainMappedSurface(uvec4 indices, vec4 weights, bool clockwiseFacing,
         {
             if (weights[slot] > 0.0)
             {
-                vec4 properties = terrainPaletteTexel(indices[slot] * 5u + 1u);
+                vec4 properties = terrainPaletteTexel(indices[slot] * 6u + 1u);
                 if (!(properties.w > 0.5 && clockwiseFacing))
                 {
                     visibleWeight += weights[slot];

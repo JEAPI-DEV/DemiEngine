@@ -7,6 +7,7 @@
 #include "demi/runtime/scene/WorldTransformSnapshot3D.h"
 #include <array>
 #include <optional>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -50,6 +51,7 @@ public:
     WorldTransform3D owner;
     const MeshInstances3DComponent *component = nullptr;
     std::uint64_t contentRevision = 0;
+    std::uint64_t registryIdentity = 0;
     std::vector<Copy> copies;
     InstanceSpatialIndex3D spatialIndex;
     std::vector<std::size_t> visibleCandidates;
@@ -120,7 +122,10 @@ private:
   // are refreshed each presentation, including edits through native pointers.
   std::unordered_map<const World *, WorldSources> worldSources_;
   std::unordered_map<const World *, bool> animations_;
-  std::unordered_map<const World *, std::unordered_map<const Entity *, Source>>
+  // Entity storage moves when unrelated streamed terrain is inserted/removed.
+  // Persistent instance data follows stable IDs, with registry/content tokens
+  // preventing reuse across replaced worlds or changed component values.
+  std::unordered_map<const World *, std::unordered_map<std::string, Source>>
       sources_;
 };
 } // namespace demi::runtime::render

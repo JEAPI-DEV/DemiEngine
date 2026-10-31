@@ -1,9 +1,22 @@
+#include "demi/runtime/terrain/RegionalTerrainPresentation.h"
 #include "editor/EditorPanelStyle.h"
 #include "editor/EditorShell.h"
 
 #include <imgui.h>
+#include <cstdio>
 
 namespace demi::editor {
+
+bool EditorShell::authoringViewOpen(EditorAuthoringView view) const {
+  const auto &panels = dockingWorkspace_.visibility();
+  switch (view) {
+  case EditorAuthoringView::Viewport: return panels.viewport;
+  case EditorAuthoringView::Prefab: return panels.prefab && documents_.workspace(EditorDocumentSession::Prefab);
+  case EditorAuthoringView::Hud: return panels.hud && documents_.workspace(EditorDocumentSession::Hud);
+  case EditorAuthoringView::TerrainAsset: return panels.terrainAsset && documents_.workspace(EditorDocumentSession::TerrainAsset);
+  }
+  return false;
+}
 
 void EditorShell::applyViewportPreferences(EditorWorkspace &document) {
   document.sceneView().translationSnap = preferences_.translationSnap;
@@ -115,6 +128,23 @@ void EditorShell::drawDocumentViews(ImVec2 position, ImVec2 size) {
       if (drawEditorViewport(*document, {}, {}, view.texture, view.area,
                              view.hud, hud, notice_, true))
         focusAuthoring(session, hud);
+      if (!hud && document->sceneView().capturesPointer()) {
+        char label[96];
+        std::snprintf(label, sizeof(label),
+                      "Fly %.1f m/s | RMB + wheel: speed | Shift: boost",
+                      document->sceneView().flySpeed());
+        ImGui::GetWindowDrawList()->AddText(
+            {float(view.area.x) + 16, float(view.area.y) + 40},
+            IM_COL32(255, 255, 255, 240), label);
+      }
+      if (view.preparing || document->regionalPreviewPending()) {
+        ImGui::GetWindowDrawList()->AddText(
+            {float(view.area.x) + 16, float(view.area.y) + 16},
+            IM_COL32(255, 255, 255, 240),
+            view.preparing ? "Loading preview…"
+                : document->regionalPreviewPreparing() ? "Preparing landscape…"
+                                                      : "Streaming landscape…");
+      }
     }
     ImGui::End();
   };
@@ -157,6 +187,12 @@ void EditorShell::drawDocumentViews(ImVec2 position, ImVec2 size) {
     if (visible) {
       drawEditorGameView({}, {}, gameTextureIndex_, gameArea_, gameViewFocused_,
                          true);
+      const auto *runtimeWorld = playSession_.runtimeWorld();
+      if (runtimeWorld && runtime::regionalTerrainPreparing(*runtimeWorld)) {
+        ImGui::GetWindowDrawList()->AddText(
+            {float(gameArea_.x) + 16, float(gameArea_.y) + 16},
+            IM_COL32(255, 255, 255, 240), "Preparing landscape…");
+      }
       if (gameViewFocused_)
         showGameView_ = true;
       if (gameViewFocused_ && ImGui::IsMouseClicked(ImGuiMouseButton_Left) &&

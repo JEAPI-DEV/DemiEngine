@@ -1,4 +1,5 @@
 #include "demi/runtime/scene/SceneFlow.h"
+#include "demi/runtime/profiling/RuntimeProfiler.h"
 
 #include "demi/runtime/physics/PhysicsWorld3D.h"
 #include "demi/runtime/scene/SceneLoader.h"
@@ -31,6 +32,7 @@ bool SceneFlow::prepare(std::string sceneId, const bool additive) {
   const ProjectData project = project_;
   future_ = std::async(
       std::launch::async, [project, sceneId = std::move(sceneId), additive] {
+        ScopedProfileSuppression suppressMainThreadProfiler;
         Prepared result{.sceneId = sceneId,
                         .additive = additive,
                         .world = std::nullopt,
@@ -107,6 +109,7 @@ void SceneFlow::poll() {
   prepared_.reset();
   future_ = std::async(
       std::launch::async, [incoming = std::move(incoming)]() mutable {
+        ScopedProfileSuppression suppressMainThreadProfiler;
         incoming.physicsShapesPrepared = true;
         if (!preparePhysicsShapes3D(*incoming.world, incoming.error)) {
           incoming.world.reset();
@@ -258,7 +261,7 @@ SceneFlow::unload(World &world, const std::string_view sceneId,
                              .unloadingUiNodes = {},
                              .loadedUiNodes = {},
                              .additive = true};
-  world.entities.eraseIf( [&](const Entity &entity) {
+  world.entities.eraseIf([&](const Entity &entity) {
     if (entity.sceneOwner != sceneId || entity.persistent)
       return false;
     transition.unloadingEntities.push_back(entity.id);
