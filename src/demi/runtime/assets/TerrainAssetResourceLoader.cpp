@@ -1,5 +1,6 @@
 #include "demi/runtime/assets/TerrainAssetResourceLoader.h"
 #include "demi/assets/TerrainAsset.h"
+#include "demi/assets/TerrainRegionAsset.h"
 
 #include <map>
 
@@ -7,12 +8,14 @@ namespace demi::runtime {
 namespace {
 struct TerrainResource {
   std::shared_ptr<const HeightField> field;
+  std::string program;
 };
 
 class TerrainAssetResourceLoader final : public assets::AssetResourceLoader {
 public:
   explicit TerrainAssetResourceLoader(const AssetRegistry &registry)
-      : registry_(registry) {}
+      : registry_(registry),
+        regionalSources_(assets::terrainRegionSourceIds(registry)) {}
 
   bool supports(const AssetManifest &asset) const override {
     return asset.type == "Terrain";
@@ -27,6 +30,19 @@ public:
     }
     try {
       auto resource = std::make_shared<TerrainResource>();
+      // A region dependency is a generation program, not a request to decode
+      // a finite world-sized field. Tiles own their generated payloads.
+      if (regionalSources_.contains(asset.id)) {
+        resource->program = assets::terrainAssetSourceJson(
+                                assets::loadTerrainAssetSource(asset))
+                                .dump();
+        const auto bytes =
+            sizeof(TerrainResource) + resource->program.capacity() + 1;
+        error.clear();
+        return assets::DecodedAsset{.payload = std::move(resource),
+                                    .decodedBytes = bytes,
+                                    .residentBytes = bytes};
+      }
       resource->field = assets::loadTerrainAsset(registry_, asset.id);
       if (cancelled.load()) {
         error = "Terrain asset loading cancelled.";
@@ -68,6 +84,7 @@ public:
 
 private:
   const AssetRegistry &registry_;
+  std::set<std::string> regionalSources_;
   std::map<std::string, std::shared_ptr<TerrainResource>> resident_;
 };
 } // namespace

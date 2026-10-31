@@ -1662,6 +1662,14 @@
           "x-demi-lua-readable": true,
           "x-demi-lua-writable": true
         },
+        "fog_enabled": {
+          "default": false,
+          "type": "boolean",
+          "x-demi-editor-label": "Fog Enabled",
+          "x-demi-editor-step": 0.05,
+          "x-demi-lua-readable": true,
+          "x-demi-lua-writable": true
+        },
         "fog_end": {
           "default": 220.0,
           "minimum": 0.001,

@@ -206,6 +206,7 @@ add_test(NAME demi-component-schema-tests COMMAND demi-component-schema-tests)
 add_test(NAME demi-atomic-text-file-tests COMMAND demi-atomic-text-file-tests)
 add_test(NAME demi-voxel-mesh-builder-tests COMMAND demi-voxel-mesh-builder-tests)
 add_test(NAME demi-entity-lookup-tests COMMAND demi-entity-lookup-tests)
+add_test(NAME demi-prefab-preparation-tests COMMAND demi-prefab-preparation-tests)
 add_test(NAME demi-runtime-scene-prefab-tests
   COMMAND demi-runtime-scene-prefab-tests)
 add_test(NAME demi-runtime-lifetime-failure-tests
@@ -347,7 +348,7 @@ add_test(NAME demi-simulation-tests COMMAND demi-simulation-tests)
   set_tests_properties(demi-terrain-water-mesh-tests demi-terrain-water-world-tests
     demi-terrain-water-runtime-tests demi-lua-terrain-water-tests
     PROPERTIES TIMEOUT 30)
-  foreach(async_test IN ITEMS terrain-patch terrain-locality terrain-seed terrain-rule terrain-preset terrain-palette terrain-scatter terrain-scatter-runtime terrain-lod terrain-lod-biomes terrain-streaming terrain-scatter-constraints terrain-material-layers terrain-scatter-layout terrain-drainage terrain-erosion terrain-water terrain-water-queries terrain-cook terrain-cook-node terrain-pipeline terrain-graph material-asset material-set terrain-asset-validation terrain-cli terrain-update terrain-layers terrain-world-update editor-terrain-history editor-terrain-graph-document editor-terrain-workspace editor-terrain-authoring terrain-cache terrain-generator terrain-surface terrain-world lua-worker-tasks lua-worker-context lua-main-thread-calls lua-transfer lua-shared-map lua-task-host async-work-queue async-work-strand tcp-client database-service lua-tcp lua-database)
+  foreach(async_test IN ITEMS terrain-vegetation-world terrain-vegetation-residency terrain-patch terrain-locality terrain-seed terrain-rule terrain-preset terrain-palette terrain-scatter terrain-scatter-runtime terrain-lod terrain-lod-biomes terrain-streaming terrain-scatter-constraints terrain-material-layers terrain-scatter-layout terrain-drainage terrain-erosion terrain-water terrain-water-queries terrain-cook terrain-cook-node terrain-pipeline terrain-graph material-asset material-set terrain-asset-validation terrain-cli terrain-update terrain-layers terrain-world-update editor-terrain-history editor-terrain-graph-document editor-terrain-workspace editor-terrain-authoring terrain-cache terrain-generator terrain-surface terrain-world lua-worker-tasks lua-worker-context lua-main-thread-calls lua-transfer lua-shared-map lua-task-host async-work-queue async-work-strand tcp-client database-service lua-tcp lua-database)
     add_test(NAME demi-${async_test}-tests COMMAND demi-${async_test}-tests)
     set_tests_properties(demi-${async_test}-tests PROPERTIES TIMEOUT 30)
   endforeach()
@@ -446,3 +447,10 @@ add_test(NAME demi-gltf-materials-tests COMMAND demi-gltf-materials-tests)
 add_test(NAME demi-opaque-instance-plan-tests COMMAND demi-opaque-instance-plan-tests)
 
 add_test(NAME demi-model-lod-generation-tests COMMAND demi-model-lod-generation-tests)
+
+add_test(NAME demi-terrain-region-tests COMMAND demi-terrain-region-tests)
+
+add_test(NAME demi-terrain-region-asset-tests COMMAND demi-terrain-region-asset-tests)
+
+add_test(NAME demi-regional-terrain-morph-tests COMMAND demi-regional-terrain-morph-tests)
+add_test(NAME demi-regional-terrain-streaming-tests COMMAND demi-regional-terrain-streaming-tests)

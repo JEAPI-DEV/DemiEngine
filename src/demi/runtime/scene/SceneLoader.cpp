@@ -1,3 +1,5 @@
+#include "demi/assets/TerrainRegionAsset.h"
+#include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
 #include "demi/runtime/scene/SceneLoader.h"
 
 #include "demi/assets/AssetRegistry.h"
@@ -84,6 +86,22 @@ buildSceneWorld(const ProjectData &project, const std::string &sceneId,
     if (const auto origin = prefabOrigins.find(entity.id)) {
       entity.prefabInstance = origin->instanceId;
       entity.prefabLocalId = origin->localEntityId;
+    }
+  }
+  if (registry) {
+    for (auto &entity : world.entities) {
+      auto *terrain = entity.component<Terrain3DComponent>();
+      if (!terrain || terrain->asset.empty()) { continue; }
+      const auto *asset = findAsset(*registry, terrain->asset);
+      if (asset && assets::isTerrainRegionAsset(*asset)) {
+        try {
+          terrain->region = std::make_shared<const TerrainRegionConfig>(
+              assets::loadTerrainRegionSource(*registry, terrain->asset));
+        } catch (const std::exception &failure) {
+          error = "Terrain region " + terrain->asset + ": " + failure.what();
+          return std::nullopt;
+        }
+      }
     }
   }
   TerrainInputResolver resolveInputs;

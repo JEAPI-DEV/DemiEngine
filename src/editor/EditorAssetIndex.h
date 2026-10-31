@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 namespace demi::editor {
 
@@ -46,6 +47,9 @@ private:
   std::vector<assets::AssetGroupDescriptor> groups_;
   Diagnostics diagnostics_;
   AssetRegistry registry_;
+  // Indices survive vector relocation and copying this read-only snapshot.
+  std::unordered_map<std::filesystem::path, std::size_t> byManifest_;
+  std::unordered_map<std::filesystem::path, std::size_t> bySource_;
 };
 
 [[nodiscard]] const char *editorAssetCookStateName(EditorAssetCookState state);

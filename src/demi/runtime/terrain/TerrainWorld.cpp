@@ -905,6 +905,9 @@ bool updateTerrainWorld(World &world, std::string_view ownerId,
 }
 
 std::optional<std::string_view> terrainSurfaceOwner(const Entity &entity) {
+  if (const auto *patch = entity.component<terrain_detail::TerrainGeneratedRegionPatch>()) {
+    return patch->owner;
+  }
   if (const auto *water = entity.component<TerrainGeneratedWaterSurface>())
     return water->owner;
   const auto *surface = entity.component<TerrainGeneratedSurface>();
@@ -939,7 +942,7 @@ bool materializeTerrains(World &world, std::string &error,
          ++ownerIndex) {
       const Entity &owner = world.entities[ownerIndex];
       const auto *terrain = owner.component<Terrain3DComponent>();
-      if (!terrain)
+      if (!terrain || terrain->region)
         continue;
       ownerId = owner.id;
       if (!owner.hasComponent<Transform3DComponent>()) {

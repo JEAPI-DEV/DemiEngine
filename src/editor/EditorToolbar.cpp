@@ -1,3 +1,4 @@
+#include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "editor/EditorToolbar.h"
 #include "editor/EditorKeyBindings.h"
 #include "editor/EditorRunPanel.h"
@@ -260,6 +261,7 @@ void drawEditorToolbar(const ImVec2 position, const ImVec2 size,
                        std::string &notice, const EditorKeyBindings &bindings,
                        EditorCommandContext context,
                        const std::function<void(EditorCommand)> &execute) {
+  runtime::ProfileScope profile("Editor.toolbar");
   beginEditorShellPanel("Toolbar", position, size,
                         ImGuiWindowFlags_NoScrollbar);
   ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {4.0F, 4.0F});

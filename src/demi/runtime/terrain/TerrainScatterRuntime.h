@@ -6,6 +6,7 @@
 #include "demi/runtime/terrain/TerrainScatterPlacement.h"
 #include <cstddef>
 #include <functional>
+#include <span>
 #include <string>
 #include <string_view>
 
@@ -13,6 +14,16 @@ namespace demi::runtime {
 
 struct World;
 struct HeightField;
+struct PreparedTerrainCell;
+
+// A borrowed publication view avoids copying a whole field (or its placements)
+// when a streaming cell already owns the generated records.
+struct TerrainScatterView {
+  std::string_view paletteId;
+  std::span<const TerrainScatterPlacement> placements;
+  std::span<const std::string> exclusions;
+  const PreparedTerrainCell *prepared = nullptr;
+};
 
 // The stable identity of one scattered instance.
 //
@@ -81,6 +92,20 @@ syncTerrainScatter(World &world, WorldCommandBuffer &commands,
                    std::string_view ownerId, const HeightField &field,
                    const TerrainPrefabServiceProvider &prefabs,
                    std::string &error);
+
+[[nodiscard]] TerrainScatterSyncStats
+syncTerrainScatter(World &world, WorldCommandBuffer &commands,
+                   std::string_view ownerId, TerrainScatterView view,
+                   const TerrainPrefabServiceProvider &prefabs,
+                   std::string &error);
+
+// Publishes only the interactive/unbatched records after visual preparation.
+// Render-batch ownership is managed by the caller's prepared page publication.
+[[nodiscard]] TerrainScatterSyncStats
+syncTerrainScatterEntities(World &world, WorldCommandBuffer &commands,
+                           std::string_view ownerId, TerrainScatterView view,
+                           const TerrainPrefabServiceProvider &prefabs,
+                           std::string &error);
 
 // Removes every scattered instance belonging to an owner, used when a terrain
 // is disabled, unloaded, or loses its palette.

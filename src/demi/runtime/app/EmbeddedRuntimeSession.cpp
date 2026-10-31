@@ -1,3 +1,4 @@
+#include "demi/runtime/terrain/RegionalTerrainSystem.h"
 #include "demi/runtime/app/EmbeddedRuntimeSession.h"
 
 #include "demi/assets/AssetRegistry.h"
@@ -60,6 +61,7 @@ public:
   ui::UiAccessibilityBridgeController accessibility{accessibilityBridge};
   // Shared with terrain scatter, so editor Play uses the same pool the game does.
   RuntimePrefabService prefabs;
+  RegionalTerrainSystem regionStreaming;
   // Borrowed services must outlive the Lua host, including failed startup.
   LuaScriptHost lua;
   double fixedAccumulator = 0.0;
@@ -190,7 +192,7 @@ bool EmbeddedRuntimeSession::start(const std::filesystem::path &projectPath,
     return false;
   const SceneAssetBootstrapResult prepared = prepareInitialSceneAssets(
       state->assets, state->loaded.world.activeSceneId,
-      state->loaded.project.preloadedAssets, &assetDiagnostics);
+      state->loaded.project.preloadedAssets, &assetDiagnostics, &state->loaded.world);
   if (!prepared.success) {
     error = firstError(assetDiagnostics,
                        "The initial runtime scene assets could not load.");
@@ -269,6 +271,9 @@ bool EmbeddedRuntimeSession::advance(State &state, InputState input,
   const auto fixedUpdate = [&] {
     ProfileScope fixedScope("Frame.fixed_update");
     state.lua.fixedUpdate(fixedStep);
+    if (!state.regionStreaming.update(state.loaded.world, error, &state.prefabs, fixedStep)) {
+      return false;
+    }
     synchronizeTerrainVisibility(state.loaded.world);
     if (state.lua.physicsEnabled()) {
       {
@@ -282,13 +287,18 @@ bool EmbeddedRuntimeSession::advance(State &state, InputState input,
     }
     state.lua.advanceFixedTime(fixedStep);
     ++state.fixedTicks;
+    return true;
   };
   if (oneFixedTick) {
-    fixedUpdate();
+    if (!fixedUpdate()) {
+      return false;
+    }
     state.fixedAccumulator = 0.0;
   } else {
     while (state.fixedAccumulator >= fixedStep) {
-      fixedUpdate();
+      if (!fixedUpdate()) {
+        return false;
+      }
       state.fixedAccumulator -= fixedStep;
     }
   }

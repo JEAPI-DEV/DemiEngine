@@ -1,0 +1,32 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "generated_output": "../../../../generated/assets/terrain/alpine/mountainside/mountainside.gltf",
+  "id": "asset://terrain/alpine/mountainside",
+  "importer": "gltf-model",
+  "importer_version": 1,
+  "settings": {
+    "model_import": {
+      "format_version": 1,
+      "import_animations": false,
+      "material_policy": "import",
+      "meters_per_unit": 1.0,
+      "optimize_meshes": true,
+      "preset": "environment",
+      "root_node": "flatten",
+      "source_forward": "+z",
+      "source_up": "+y"
+    },
+    "model_lods": {
+      "format_version": 1,
+      "low_ratio": 0.07999999821186066,
+      "max_error": 0.009999999776482582,
+      "medium_ratio": 0.3499999940395355
+    }
+  },
+  "source": "mountainside.gltf",
+  "source_hash": "fnv1a64:6bf19f04f86f9696",
+  "type": "Model3D",
+  "license": "LICENSE.txt",
+  "attribution": "Mountainside by Dario Barresi and Rico Cilliers / Poly Haven, CC0-1.0. https://polyhaven.com/a/mountainside"
+}

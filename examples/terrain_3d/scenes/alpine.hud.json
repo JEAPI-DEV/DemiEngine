@@ -1,0 +1,57 @@
+{
+  "format_version": 1,
+  "canvas_size": [
+    1280,
+    720
+  ],
+  "children": [
+    {
+      "id": "flight_heading",
+      "at": [
+        24,
+        24
+      ],
+      "size": [
+        950,
+        90
+      ],
+      "stack": "column",
+      "gap": 6,
+      "children": [
+        {
+          "id": "flight_title",
+          "type": "label",
+          "text": "ALPINE REGION  /  240 × 220 KM",
+          "size": [
+            950,
+            30
+          ],
+          "font_size": 24,
+          "color": "#F2E9D7FF"
+        },
+        {
+          "id": "flight_controls",
+          "type": "label",
+          "text": "WASD fly · Q/E descend/ascend · RMB/Arrows look · Shift fast · R reset · Esc quit",
+          "size": [
+            950,
+            22
+          ],
+          "font_size": 14,
+          "color": "#FFFFFFFF"
+        },
+        {
+          "id": "flight_position",
+          "type": "label",
+          "text": "Preparing terrain…",
+          "size": [
+            950,
+            22
+          ],
+          "font_size": 14,
+          "color": "#FFFFFFFF"
+        }
+      ]
+    }
+  ]
+}

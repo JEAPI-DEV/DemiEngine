@@ -1,3 +1,4 @@
+#include <span>
 #include "demi/runtime/render/BgfxRenderer3D.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
 #include "demi/runtime/scene/model/Entity.h"
@@ -99,7 +100,7 @@ bool BgfxRenderer3D::renderWaterAndTransparent(
     const SceneVisibility3D &visibility, BgfxCameraFrame3D &frame,
     const RenderTargetHandles &sourceTarget,
     OpaqueSceneCapture3D::Target &capture, const SceneLighting3D &sceneLighting,
-    const std::array<DrawUniformValue, 8> &lightingUniforms,
+    std::span<const DrawUniformValue> lightingUniforms,
     std::size_t firstTransparent, MeshSubmissionStatistics &meshStatistics,
     std::string &error) {
   const auto &lighting =

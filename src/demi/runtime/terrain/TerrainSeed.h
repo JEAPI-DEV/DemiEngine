@@ -32,6 +32,23 @@ int deriveTerrainSubSeed(int worldSeed, TerrainSeedChannel channel) noexcept;
 // existing channel's sub-seed, so the name is hashed instead of the ordinal.
 std::string_view terrainSeedChannelName(TerrainSeedChannel channel) noexcept;
 
+// Immutable per-rule prefix of the canonical scatter seed. Construct once per
+// rule, then derive independent candidate/sample streams without rehashing the
+// world channel or stable rule ID. Integer mixing matches the legacy API
+// exactly.
+class TerrainScatterRuleSeed {
+public:
+  TerrainScatterRuleSeed(int worldSeed, std::uint64_t ruleHash) noexcept;
+  [[nodiscard]] std::uint64_t candidate(std::uint64_t key,
+                                        std::uint32_t sample) const noexcept {
+    return prefix_ ^ (key * 0x9E3779B97F4A7C15ull) ^
+           (std::uint64_t(sample) * 0x165667B19E3779F9ull);
+  }
+
+private:
+  std::uint64_t prefix_ = 0;
+};
+
 // Shared physical-site stream for selection, spacing, variation and rendering.
 [[nodiscard]] std::uint64_t terrainScatterCandidateKey(int x, int z) noexcept;
 [[nodiscard]] std::uint64_t

@@ -578,6 +578,23 @@ void adoptPreparedPhysicsShapes3D(World &destination, World &incoming) {
   prepared.reset();
 }
 
+void PhysicsWorld3D::removeEntities(std::span<const std::string> entityIds) {
+  auto &interface = impl_->physics.GetBodyInterface();
+  for (const auto &id : entityIds) {
+    const auto found = impl_->bodies.find(id);
+    if (found != impl_->bodies.end()) {
+      impl_->wakeNearBody(found->second.body);
+      if (interface.IsAdded(found->second.body)) { interface.RemoveBody(found->second.body); }
+      interface.DestroyBody(found->second.body);
+      impl_->ids.erase(found->second.body.GetIndexAndSequenceNumber());
+      impl_->bodies.erase(found);
+    }
+    impl_->characters.erase(id);
+    impl_->preparedShapes.erase(id);
+    impl_->modelShapes.eraseInline(id);
+  }
+}
+
 PhysicsWorld3D::PhysicsWorld3D() : impl_(std::make_unique<Impl>()) {}
 PhysicsWorld3D::~PhysicsWorld3D() = default;
 bool PhysicsWorld3D::available() const { return impl_ != nullptr; }

@@ -4,6 +4,7 @@
 #include "demi/runtime/scene/components/RuntimeFieldBinding.h"
 #include <cstdint>
 #include <map>
+#include <memory>
 namespace demi::runtime {
 // Render-only copies of the entity's shared static mesh. No per-copy entities.
 struct MeshInstances3DComponent {
@@ -28,7 +29,8 @@ struct MeshInstances3DComponent {
   operator=(MeshInstances3DComponent &&other) noexcept;
 
   const std::map<std::string, WorldTransform3D> &transforms() const {
-    return transforms_;
+    static const std::map<std::string, WorldTransform3D> empty;
+    return transforms_ ? *transforms_ : empty;
   }
   std::uint64_t contentRevision() const { return contentRevision_; }
   void setTransform(std::string label, const WorldTransform3D &transform);
@@ -46,7 +48,11 @@ struct MeshInstances3DComponent {
 private:
   // Equal tokens guarantee equal owned values, even across world copies and
   // component replacement. Mutable map access would break renderer reuse.
-  std::map<std::string, WorldTransform3D> transforms_;
+  // Component migration and world snapshots share unchanged instance data.
+  // Every mutator detaches before writing; callers only receive a const view.
+  using Transforms = std::map<std::string, WorldTransform3D>;
+  Transforms &mutableTransforms();
+  std::shared_ptr<Transforms> transforms_;
   std::uint64_t contentRevision_;
 };
 } // namespace demi::runtime

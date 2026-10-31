@@ -65,6 +65,7 @@ public:
                                       EditorViewportArea area) = 0;
   [[nodiscard]] virtual std::uint16_t
   viewportTextureIndex(EditorAuthoringView view) const = 0;
+  [[nodiscard]] virtual bool viewportPreparing(EditorAuthoringView) const { return false; }
   // Release closed views before queuing images; retain their project
   // registration so reopening can prepare them without reconfiguration.
   virtual void releaseViewport(EditorAuthoringView view) = 0;

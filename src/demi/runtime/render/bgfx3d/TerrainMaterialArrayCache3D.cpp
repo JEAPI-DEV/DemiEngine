@@ -111,7 +111,8 @@ struct TerrainMaterialArrayCache3D::Impl {
                                    .wrap = TextureWrap::Repeat,
                                    .debugName = "terrain-material-array-" +
                                                 std::to_string(index),
-                                   .layers = data.physicalLayers};
+                                   .layers = data.physicalLayers,
+                                   .anisotropic = true};
       ownership->textures[index] = resources.createTexture(info, error);
       if (!ownership->textures[index]) {
         return {};

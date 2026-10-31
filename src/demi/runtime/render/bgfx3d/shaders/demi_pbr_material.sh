@@ -12,6 +12,7 @@ uniform vec4 u_pbrMapFlags2;
 uniform vec4 u_pbrSurface;
 // MeshRenderer.size, then biome repetitions per terrain-local unit.
 uniform vec4 u_pbrLocalScale;
+uniform vec4 u_pbrProjectionOrigin;
 
 vec3 pbrNormalize(vec3 value, vec3 fallback)
 {
@@ -46,7 +47,7 @@ vec3 pbrProjectionWeights(vec3 localNormal)
 vec2 pbrProjectionUv(int axis, vec3 localPosition, vec3 localNormal)
 {
     vec3 position = localPosition * u_pbrLocalScale.xyz *
-                    (u_pbrSurface.y * u_pbrLocalScale.w);
+                    (u_pbrSurface.y * u_pbrLocalScale.w) + u_pbrProjectionOrigin.xyz;
     vec3 normal = pbrLocalNormal(localNormal);
     if (axis == 0)
     {
@@ -91,7 +92,7 @@ PbrSamplingCoordinates pbrSamplingCoordinates(vec2 uv, vec3 localPosition,
     PbrSamplingCoordinates result;
     if (u_pbrMapFlags2.z < 0.5)
     {
-        result.first = pbrTextureCoordinate(uv * u_pbrSurface.y);
+        result.first = pbrTextureCoordinate(uv * u_pbrSurface.y + u_pbrProjectionOrigin.xz);
         result.second = result.first;
         result.third = result.first;
         result.weights = vec3(1.0, 0.0, 0.0);

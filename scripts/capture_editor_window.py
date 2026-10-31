@@ -133,6 +133,12 @@ def capture(arguments: argparse.Namespace) -> Path:
                 window = wait_for_window(process, binary, arguments.window_timeout)
                 checked_command(["xdotool", "windowactivate", "--sync", window])
                 if arguments.width is not None:
+                    # The native editor opens maximized. Window managers ignore
+                    # windowsize until both maximization axes are released.
+                    checked_command(["xdotool", "windowstate", "--remove",
+                                     "MAXIMIZED_VERT", window])
+                    checked_command(["xdotool", "windowstate", "--remove",
+                                     "MAXIMIZED_HORZ", window])
                     checked_command(["xdotool", "windowsize", "--sync", window,
                                      str(arguments.width), str(arguments.height)])
                 settle_editor(process, arguments.settle_seconds)

@@ -65,7 +65,9 @@ bool BgfxRenderer3D::compileOpaqueInstanceSource(
   for (const auto &copy : copies.meshes) {
     const auto lod =
         selectModelLod(mesh, nullptr, copy.transform.position,
-                       frame.lodPosition.value_or(frame.position), false);
+                       frame.lodPosition.value_or(frame.position), false,
+                       staticShadowModelLodFloor3D(copy, frame,
+                           frame.pass == BgfxCameraPass3D::Shadow));
     if (lod.isCulled) {
       ++plan.statistics().distanceCulled;
       continue;

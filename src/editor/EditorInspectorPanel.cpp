@@ -1,3 +1,4 @@
+#include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
 #include "editor/EditorInspectorPanel.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 
@@ -1277,7 +1278,10 @@ static void drawInspectorContents(EditorWorkspace &workspace,
           auto terrainDescriptor = *descriptor;
           std::vector<ComponentFieldDescriptor> scalarFields;
           for (const auto &field : descriptor->fields) {
-            if (field.name != "asset" && field.name != "recipe") {
+            const auto *selected = workspace.selectedEntity();
+            const auto *terrain = selected ? selected->component<runtime::Terrain3DComponent>() : nullptr;
+            const bool regionalLod = terrain && terrain->region && field.name == "lod_error_pixels";
+            if (field.name != "asset" && field.name != "recipe" && !regionalLod) {
               scalarFields.push_back(field);
             }
           }

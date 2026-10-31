@@ -8,6 +8,8 @@
 #include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/SphereCollider3DComponent.h"
 #include "demi/runtime/scene/model/World.h"
+#include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
+#include "demi/runtime/terrain/RegionalTerrainSampler.h"
 
 #include <algorithm>
 
@@ -59,7 +61,14 @@ editorEntityBounds3D(const runtime::World &world,
   runtime::Vec3 maximum{0.2F, 0.2F, 0.2F};
   bool isSceneGeometry = false;
   const auto *instances = entity.component<runtime::MeshInstances3DComponent>();
-  if (const auto box = runtime::resolvedBoxCollider3D(world, entity);
+  const auto *terrain = entity.component<runtime::Terrain3DComponent>();
+  if (terrain && terrain->region) {
+    const auto &region = *terrain->region;
+    minimum = {float(region.originX), 0, float(region.originZ)};
+    maximum = {float(region.originX + region.recipe.size.x), 0,
+               float(region.originZ + region.recipe.size.y)};
+    isSceneGeometry = true;
+  } else if (const auto box = runtime::resolvedBoxCollider3D(world, entity);
       instances == nullptr && box) {
     const runtime::Vec3 half{box->size.x * 0.5F, box->size.y * 0.5F,
                              box->size.z * 0.5F};

@@ -1,6 +1,8 @@
 #include "demi/assets/DataAssetContent.h"
 
 #include "demi/assets/MaterialSet.h"
+#include "demi/assets/TerrainRegionAsset.h"
+#include "demi/assets/AssetRegistry.h"
 #include "demi/runtime/terrain/TerrainPalette.h"
 
 #include <exception>
@@ -30,6 +32,16 @@ DataAssetContentResult inspectDataAssetContent(
       else
         throw std::invalid_argument(
             "terrain material set content could not be parsed.");
+    } else if (contentType == "terrain_region") {
+      const auto region = parseTerrainRegionAsset(document);
+      const auto *terrain = findAsset(registry, region.terrain);
+      if (!terrain || terrain->type != "Terrain") {
+        throw std::invalid_argument("Terrain region must reference a Terrain asset.");
+      }
+      if (terrain->sourcePath.filename().string().ends_with(".terrain.json")) {
+        (void)compileTerrainRegionSource(registry, region);
+      }
+      result.dependencies.push_back(region.terrain);
     } else if (contentType == "terrain_palette") {
       result.dependencies =
           runtime::parseTerrainPalette(document, registry, assetId)

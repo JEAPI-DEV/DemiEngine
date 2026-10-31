@@ -1,0 +1,30 @@
+{
+  "attribution": "Derived from the CC0 Poly Haven tree art in demi.environment.woodland.",
+  "dependencies": [],
+  "format_version": 1,
+  "generated_output": "../../../../generated/assets/terrain/alpine/tree_distant/tree_distant.gltf",
+  "id": "asset://terrain/alpine/tree_distant",
+  "importer": "gltf-model",
+  "importer_version": 1,
+  "license": "LICENSE.txt",
+  "settings": {
+    "licence": {
+      "redistributable": true,
+      "spdx": "CC0-1.0"
+    },
+    "model_import": {
+      "format_version": 1,
+      "import_animations": false,
+      "material_policy": "import",
+      "meters_per_unit": 1.0,
+      "optimize_meshes": false,
+      "preset": "environment",
+      "root_node": "preserve",
+      "source_forward": "+z",
+      "source_up": "+y"
+    }
+  },
+  "source": "tree_distant.gltf",
+  "source_hash": "fnv1a64:4db1ca33cd77917f",
+  "type": "Model3D"
+}

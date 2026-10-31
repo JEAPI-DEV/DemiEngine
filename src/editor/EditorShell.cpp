@@ -1,3 +1,4 @@
+#include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "editor/EditorShell.h"
 #include "demi/runtime/platform/ExternalProcess.h"
 #include "editor/EditorCodeEditor.h"
@@ -36,6 +37,7 @@ void drawMenu(EditorWorkspace &workspace, EditorDocumentSessions &documents,
               EditorCommandContext context, bool uiPaletteAvailable,
               bool terrainNodesAvailable, bool allowCameraEdit,
               const std::function<void(EditorCommand)> &execute) {
+  runtime::ProfileScope profile("Editor.menu");
   beginEditorShellPanel("MainMenu", {0.0F, 0.0F}, size,
                         ImGuiWindowFlags_MenuBar |
                             ImGuiWindowFlags_NoScrollbar);
@@ -435,6 +437,11 @@ bool EditorShell::needsContinuousFrames() const {
     if (const auto *document = documents_.workspace(session);
         document && document->terrainAuthoring().busy())
       return true;
+  for (const auto &view : authoringViews_) {
+    if (view.workspace && view.area.width && view.area.height && view.workspace->regionalPreviewPending()) {
+      return true;
+    }
+  }
   return false;
 }
 

@@ -1,3 +1,5 @@
+#include "demi/runtime/terrain/RegionalTerrainPresentation.h"
+#include "demi/runtime/terrain/RegionalTerrainSampler.h"
 #include "demi/runtime/destruction/DestructionWorld3D.h"
 #include "demi/runtime/destruction/DetachedFragmentFade3D.h"
 #include "demi/runtime/geometry/MeshDeformation3D.h"
@@ -831,6 +833,8 @@ int main() {
         {demi::assets::MaterialMapSlot::Emissive, "emissive"}};
     MeshRendererComponent mesh;
     mesh.size = {12, 8, 4};
+    mesh.materialNumbers["projection_origin_x"] = 128.015625F;
+    mesh.materialNumbers["projection_origin_z"] = 256.03125F;
     assert(bindings.prepare(&material, mesh, {}, 3, error));
     assert(bindings.submit(BufferedDraw{}, error));
     assert(capture.lastTextureBindings.size() == 6);
@@ -840,7 +844,8 @@ int main() {
     assert(capture.lastUniformValues[1] == std::vector<float>({0, 1, 1, 0}));
     assert(capture.lastUniformValues[2][3] == -1);
     assert(capture.lastUniformValues[3] == std::vector<float>({12, 8, 4, 3}));
-    assert(capture.lastUniformValues.size() == 5);
+    assert(capture.lastUniformValues.size() == 6);
+    assert(capture.lastUniformValues[4] == std::vector<float>({.125F, 0, .75F, 0}));
     assert(capture.lastUniformValues.back() == std::vector<float>({0, 1, 1, 0}));
     assert(resolvedMaps[0].second == ImageMipSemantic::Normal);
     assert(resolvedMaps[1].second == ImageMipSemantic::Linear);
@@ -1673,13 +1678,19 @@ int main() {
     Entity environment;
     Environment3DComponent::parse({{"terrain_texture_max_size", 512},
                                    {"terrain_texture_cache_mb", 24},
-                                   {"terrain_detail_distance", 75}},
+                                   {"terrain_detail_distance", 75},
+                                   {"fog_enabled", true}, {"fog_start", 500},
+                                   {"fog_end", 10500}, {"fog_color", {.4, .5, .6, 1.0}}},
                                   environment);
     qualityWorld.entities.push_back(std::move(environment));
     const auto lighting = collectSceneLighting3D(qualityWorld, {});
     assert(lighting.terrainTextureMaxSize == 512);
     assert(lighting.terrainTextureCacheBytes == 24U * 1024U * 1024U);
     assert(lighting.terrainDetailDistance == 75);
+    assert(lighting.fogRange[0] == 500 && lighting.fogRange[2] == 1);
+    assert(std::abs(lighting.fogRange[1] - .0001F) < 1e-8F);
+    assert(lighting.fogColor[0] == .4F);
+    assert(Environment3DComponent::defaults()["fog_enabled"] == false);
   }
   assert(collectSceneLighting3D(world, {}).msaaSamples == 4);
   assert(capture.views3D.back().frameBuffer);
@@ -2437,6 +2448,22 @@ int main() {
     assert(capture.transformsByView.at(frame.viewId).size() == 2);
     assert(capture.instanceDrawCalls == 1);
     (void)graphics.endFrame();
+
+    Entity regionalOwner;
+    regionalOwner.id = "initial-region";
+    Terrain3DComponent regionalTerrain;
+    regionalTerrain.region = std::make_shared<const TerrainRegionConfig>();
+    regionalOwner.setComponent(regionalTerrain);
+    instanceWorld.entities.push_back(std::move(regionalOwner));
+    capture.instanceDrawCalls = 0;
+    assert(renderer.renderFrame(instanceWorld, frame, 0.016F, error));
+    assert(capture.instanceDrawCalls == 0);
+    (void)graphics.endFrame();
+    instanceWorld.entities.back().setComponent(RegionalTerrainPresentation{true});
+    assert(renderer.renderFrame(instanceWorld, frame, 0.016F, error));
+    assert(capture.instanceDrawCalls == 1);
+    (void)graphics.endFrame();
+    instanceWorld.entities.pop_back();
 
     auto *inlineMesh = instanceWorld.entities.front()
                            .component<MeshRendererComponent>();

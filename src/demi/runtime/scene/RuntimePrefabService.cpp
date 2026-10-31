@@ -104,6 +104,10 @@ RuntimePrefabService::beginPreparationBatch(
 
 void RuntimePrefabService::configure(std::filesystem::path projectDirectory) {
   projectDirectory_ = std::move(projectDirectory);
+  projectRoot_ =
+      projectDirectory_.empty()
+          ? std::filesystem::path{}
+          : std::filesystem::absolute(projectDirectory_).lexically_normal();
   instances_.clear();
   templates_.configure(projectDirectory_);
   resolution_.reset();
@@ -241,55 +245,86 @@ RuntimePrefabService::instantiate(World &world, WorldCommandBuffer &commands,
       }
     }
 
+  return adoptPrepared(world, commands,
+                       prepareInstance(std::move(prefab), options));
+}
+
+PreparedPrefabInstance
+RuntimePrefabService::prepareInstance(std::string prefab,
+                                      const PrefabInstantiateOptions &options) {
+  ProfileScope preparation("Prefab.prepare_instance");
+  PreparedPrefabInstance prepared;
+  prepared.prefab_ = std::move(prefab);
+  prepared.projectRoot_ = projectRoot_;
+  prepared.pooled_ = options.pooled;
   nlohmann::json expansion;
-  PrefabInstanceResult result = build(prefab, options, expansion);
-  if (!result)
-    return result;
-  if (instances_.contains(options.id)) {
-    result.instanceId.clear();
-    result.diagnostics.push_back(
-        prefabError("PREFAB_RUNTIME_DUPLICATE_INSTANCE",
-                    "Prefab instance already exists: " + options.id));
-    return result;
+  prepared.result_ = build(prepared.prefab_, options, expansion);
+  if (!prepared.result_) {
+    return prepared;
   }
-  std::vector<Entity> entities;
-  std::string error;
-  for (const nlohmann::json &json : expansion) {
-    auto entity = RuntimeObjectModel::buildEntity(json, error);
-    if (!entity) {
-      result.instanceId.clear();
-      result.diagnostics.push_back(
-          prefabError("PREFAB_RUNTIME_ENTITY_INVALID", error));
-      return result;
-    }
-    if (findEntity(world, entity->id) != nullptr ||
-        commands.pendingEntity(entity->id) != nullptr) {
-      result.instanceId.clear();
-      result.diagnostics.push_back(
-          prefabError("PREFAB_RUNTIME_CREATE_FAILED",
-                      "Prefab entity id already exists: " + entity->id));
-      return result;
+  prepared.entities_.reserve(expansion.size());
+  std::unordered_set<std::string> ids;
+  for (const auto &document : expansion) {
+    std::string error;
+    auto entity = RuntimeObjectModel::buildEntity(document, error);
+    if (!entity || !ids.insert(entity->id).second) {
+      prepared.result_.instanceId.clear();
+      prepared.result_.diagnostics.push_back(prefabError(
+          "PREFAB_RUNTIME_ENTITY_INVALID",
+          entity ? "Duplicate prefab entity ID: " + entity->id : error));
+      prepared.entities_.clear();
+      return prepared;
     }
     entity->prefabInstance = options.id;
-    entity->sceneOwner = world.activeSceneId;
     entity->prefabLocalId =
         entity->id.substr(std::min(entity->id.size(), options.id.size() + 1));
-    if (options.position)
-      applyRootPosition(*entity, *options.position, result.entityIds);
-    entities.push_back(std::move(*entity));
+    if (options.position) {
+      applyRootPosition(*entity, *options.position, prepared.result_.entityIds);
+    }
+    prepared.entities_.push_back(std::move(*entity));
   }
-  for (Entity &entity : entities) {
-    if (!commands.create(world, std::move(entity))) {
-      result.instanceId.clear();
-      result.diagnostics.push_back(
-          prefabError("PREFAB_RUNTIME_CREATE_FAILED",
-                      "Could not queue prefab entity creation."));
-      return result;
+  return prepared;
+}
+
+PrefabInstanceResult
+RuntimePrefabService::adoptPrepared(World &world, WorldCommandBuffer &commands,
+                                    const PreparedPrefabInstance &prepared) {
+  ProfileScope adoption("Prefab.adopt_prepared");
+  auto result = prepared.result_;
+  if (!result) {
+    return result;
+  }
+  const auto fail = [&](std::string code, std::string message) {
+    result.instanceId.clear();
+    result.diagnostics.push_back(
+        prefabError(std::move(code), std::move(message)));
+    return result;
+  };
+  if (projectRoot_.empty() || prepared.projectRoot_ != projectRoot_) {
+    return fail("PREFAB_RUNTIME_PROJECT_MISMATCH",
+                "Prepared prefab belongs to another project");
+  }
+  if (instances_.contains(result.instanceId)) {
+    return fail("PREFAB_RUNTIME_DUPLICATE_INSTANCE",
+                "Prefab instance already exists: " + result.instanceId);
+  }
+  for (const auto &entity : prepared.entities_) {
+    if (findEntity(world, entity.id) || commands.pendingEntity(entity.id)) {
+      return fail("PREFAB_RUNTIME_CREATE_FAILED",
+                  "Prefab entity id already exists: " + entity.id);
     }
   }
-  instances_.emplace(options.id, Instance{.prefab = std::move(prefab),
-                                          .entityIds = result.entityIds,
-                                          .pooled = options.pooled});
+  for (const auto &source : prepared.entities_) {
+    Entity entity = source;
+    entity.sceneOwner = world.activeSceneId;
+    if (!commands.create(world, std::move(entity))) {
+      return fail("PREFAB_RUNTIME_CREATE_FAILED",
+                  "Could not queue prepared prefab entity creation");
+    }
+  }
+  instances_.emplace(result.instanceId, Instance{.prefab = prepared.prefab_,
+                                                 .entityIds = result.entityIds,
+                                                 .pooled = prepared.pooled_});
   return result;
 }
 

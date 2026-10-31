@@ -1,6 +1,10 @@
 #pragma once
 
 #include "editor/EditorTerrainViewDemand.h"
+#include "demi/assets/AssetRegistry.h"
+#include "demi/runtime/concurrency/JobSystem.h"
+#include <span>
+#include <set>
 #include "editor/EditorUiHost.h"
 
 #include <cstdint>
@@ -40,6 +44,7 @@ public:
   void release();
   void maintainTerrainResidency();
   void observeViewVisibility(bool visible) {
+    visible_ = visible;
     terrainDemand_.observeVisibility(visible);
   }
   void maintainIdleTerrain();
@@ -59,6 +64,7 @@ public:
                                EditorViewportArea area, float deltaSeconds,
                                std::string &error);
   [[nodiscard]] std::uint16_t textureIndex() const;
+  [[nodiscard]] bool preparingResources() const { return assetsPreparing_ && !assetsReady_; }
 
 private:
   [[nodiscard]] bool targetReady(EditorViewportArea area, std::string &error);
@@ -66,6 +72,16 @@ private:
                                   std::string &error);
   void destroyTarget();
 
+  bool prepare3DAssets(std::string &error);
+  bool prepare2DAssets(std::span<const std::string> roots, std::string &error);
+  AssetRegistry assets_;
+  runtime::JobSystem assetJobs_{1};
+  std::string assetError_;
+  bool assetsPreparing_ = false;
+  bool assetsReady_ = false;
+  bool assets2DReady_ = false;
+  std::set<std::string> loaded2DRoots_;
+  bool visible_ = false;
   runtime::render::GpuResources &resources_;
   runtime::render::RenderCommands &commands_;
   const std::uint16_t firstView_;

@@ -24,6 +24,8 @@ struct ProfileEntry {
   std::deque<double> samples;
 };
 
+thread_local bool scopesSuppressed = false;
+thread_local bool ownsFrameProfiler = false;
 bool profilerEnabled = false;
 std::unordered_map<std::string, ProfileEntry> currentFrameData;
 std::unordered_map<std::string, ProfileEntry> sessionData;
@@ -130,8 +132,7 @@ void RuntimeProfiler::setCaptureEnabled(const bool enabled) {
 }
 
 void RuntimeProfiler::recordGpuScope(ScopeEvent event) {
-  if (profilerEnabled && captureEnabled &&
-      gpuEvents.size() < MaximumScopeEvents) {
+  if (enabled() && captureEnabled && gpuEvents.size() < MaximumScopeEvents) {
     gpuEvents.push_back(std::move(event));
   }
 }
@@ -143,6 +144,7 @@ const RuntimeProfiler::CaptureHistory &RuntimeProfiler::captures() {
 std::uint64_t RuntimeProfiler::sessionGeneration() { return generation; }
 
 void RuntimeProfiler::setEnabled(const bool enabled) {
+  ownsFrameProfiler = true;
   if (enabled != profilerEnabled)
     processResources.reset();
   profilerEnabled = enabled;
@@ -154,7 +156,9 @@ void RuntimeProfiler::setEnabled(const bool enabled) {
   }
 }
 
-bool RuntimeProfiler::enabled() { return profilerEnabled; }
+bool RuntimeProfiler::enabled() {
+  return ownsFrameProfiler && !scopesSuppressed && profilerEnabled;
+}
 
 void RuntimeProfiler::resetSession() {
   clearCaptures();
@@ -199,7 +203,7 @@ void RuntimeProfiler::beginFrame() {
 }
 
 void RuntimeProfiler::record(std::string name, const double milliseconds) {
-  if (!profilerEnabled || name.empty()) {
+  if (!enabled() || name.empty()) {
     return;
   }
   updateEntry(currentFrameData[name], milliseconds);
@@ -207,7 +211,7 @@ void RuntimeProfiler::record(std::string name, const double milliseconds) {
 }
 
 void RuntimeProfiler::addBytes(std::string name, const std::size_t bytes) {
-  if (!profilerEnabled || name.empty() || bytes == 0) {
+  if (!enabled() || name.empty() || bytes == 0) {
     return;
   }
   currentFrameData[name].bytes += bytes;
@@ -215,7 +219,7 @@ void RuntimeProfiler::addBytes(std::string name, const std::size_t bytes) {
 }
 
 void RuntimeProfiler::setGauge(std::string name, const double value) {
-  if (!profilerEnabled || name.empty())
+  if (!enabled() || name.empty())
     return;
   auto set = [value](ProfileEntry &entry) {
     entry.gauge = value;
@@ -325,12 +329,27 @@ std::string RuntimeProfiler::frameSummary(const double minimumMilliseconds) {
   return output.str();
 }
 
-ProfileScope::ProfileScope(std::string name)
-    : name_(std::move(name)), start_(std::chrono::steady_clock::now()),
-      enabled_(RuntimeProfiler::enabled()), frame_(sessionFrames),
-      depth_(scopeDepth), generation_(generation),
-      captureGeneration_(captureGeneration) {
+ScopedProfileSuppression::ScopedProfileSuppression()
+    : previous_(scopesSuppressed) {
+  scopesSuppressed = true;
+}
+ScopedProfileSuppression::~ScopedProfileSuppression() {
+  scopesSuppressed = previous_;
+}
+
+ProfileScope::ProfileScope(std::string name) : name_(std::move(name)) {
+  // A suppressed worker must not read any main-thread profiler state, even
+  // when the UI toggles capture or advances frames concurrently.
+  if (scopesSuppressed) {
+    return;
+  }
+  enabled_ = RuntimeProfiler::enabled();
   if (enabled_) {
+    start_ = std::chrono::steady_clock::now();
+    frame_ = sessionFrames;
+    depth_ = scopeDepth;
+    generation_ = generation;
+    captureGeneration_ = captureGeneration;
     ++scopeDepth;
   }
 }

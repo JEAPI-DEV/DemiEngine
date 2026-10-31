@@ -77,7 +77,7 @@ MeshInstances3DComponent::MeshInstances3DComponent(
     MeshInstances3DComponent &&other) noexcept
     : transforms_(std::move(other.transforms_)),
       contentRevision_(other.contentRevision_) {
-  other.transforms_.clear();
+  other.transforms_.reset();
   other.contentRevision_ = nextContentRevision();
 }
 
@@ -86,10 +86,20 @@ MeshInstances3DComponent::operator=(MeshInstances3DComponent &&other) noexcept {
   if (this != &other) {
     transforms_ = std::move(other.transforms_);
     contentRevision_ = other.contentRevision_;
-    other.transforms_.clear();
+    other.transforms_.reset();
     other.contentRevision_ = nextContentRevision();
   }
   return *this;
+}
+
+MeshInstances3DComponent::Transforms &
+MeshInstances3DComponent::mutableTransforms() {
+  if (!transforms_) {
+    transforms_ = std::make_shared<Transforms>();
+  } else if (!transforms_.unique()) {
+    transforms_ = std::make_shared<Transforms>(*transforms_);
+  }
+  return *transforms_;
 }
 
 void MeshInstances3DComponent::setTransform(std::string label,
@@ -97,25 +107,26 @@ void MeshInstances3DComponent::setTransform(std::string label,
   if (label.empty()) {
     throw std::invalid_argument("Mesh instance requires a nonempty label");
   }
-  const auto found = transforms_.find(label);
-  if (found != transforms_.end() && sameTransform(found->second, transform)) {
+  const auto found = transforms().find(label);
+  if (found != transforms().end() && sameTransform(found->second, transform)) {
     return;
   }
-  transforms_.insert_or_assign(std::move(label), transform);
+  mutableTransforms().insert_or_assign(std::move(label), transform);
   contentRevision_ = nextContentRevision();
 }
 
 bool MeshInstances3DComponent::eraseTransform(const std::string &label) {
-  if (transforms_.erase(label) == 0) {
+  if (!transforms().contains(label)) {
     return false;
   }
+  mutableTransforms().erase(label);
   contentRevision_ = nextContentRevision();
   return true;
 }
 
 void MeshInstances3DComponent::clearTransforms() {
-  if (!transforms_.empty()) {
-    transforms_.clear();
+  if (!transforms().empty()) {
+    transforms_.reset();
     contentRevision_ = nextContentRevision();
   }
 }

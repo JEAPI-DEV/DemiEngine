@@ -1,8 +1,13 @@
 #include "demi/runtime/terrain/TerrainGenerationCache.h"
 #include "demi/runtime/terrain/TerrainSeed.h"
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
+#include <bit>
 #include <cassert>
 #include <cstdint>
 #include <iostream>
+#include <limits>
 #include <set>
 #include <string>
 #include <vector>
@@ -74,6 +79,51 @@ void derivationIsPinned() {
     assert(!terrainSeedChannelName(channel).empty());
 }
 
+void perRuleScatterSeedMatchesCanonicalStreams() {
+  constexpr std::uint64_t ruleHashes[]{
+      0, 1, 0x0123456789ABCDEFull, std::numeric_limits<std::uint64_t>::max()};
+  const std::uint64_t keys[]{
+      0,
+      1,
+      terrainScatterCandidateKey(17, 39),
+      terrainScatterCandidateKey(-1, std::numeric_limits<int>::min()),
+      std::bit_cast<std::uint64_t>(0.0),
+      std::bit_cast<std::uint64_t>(-0.0)};
+  constexpr std::uint32_t samples[]{
+      0, 1, 2, 3, 4, std::numeric_limits<std::uint32_t>::max()};
+  for (const int worldSeed : sampleSeeds) {
+    for (const auto ruleHash : ruleHashes) {
+      const TerrainScatterRuleSeed prepared(worldSeed, ruleHash);
+      for (const auto key : keys) {
+        for (const auto sample : samples) {
+          // The old canonical formula is an independent reference here. The
+          // public legacy entry point must delegate without changing any bits.
+          std::uint64_t expected = std::uint32_t(
+              deriveTerrainSubSeed(worldSeed, TerrainSeedChannel::Scatter));
+          expected ^= key * 0x9E3779B97F4A7C15ull;
+          expected ^= ruleHash * 0xC2B2AE3D27D4EB4Full;
+          expected ^= std::uint64_t(sample) * 0x165667B19E3779F9ull;
+          assert(prepared.candidate(key, sample) == expected);
+          assert(deriveTerrainScatterSeed(worldSeed, ruleHash, key, sample) ==
+                 expected);
+        }
+      }
+    }
+  }
+  // Pinned vectors protect the canonical formula itself, including overflow
+  // and the raw signed-zero keys used by cluster corner hashing.
+  assert(TerrainScatterRuleSeed(1337, 0).candidate(0, 0) == 0x216709E9ull);
+  assert(TerrainScatterRuleSeed(1337, 0x0123456789ABCDEFull)
+             .candidate(0x7FFFFFFF00000000ull, 4) == 0x858A35C07D401FCCull);
+  assert(TerrainScatterRuleSeed(1337, 0xFFFFFFFFFFFFFFFFull)
+             .candidate(0x8000000000000000ull, 3) == 0xFE4E66D623EA70B3ull);
+  assert(TerrainScatterRuleSeed(1337, 1).candidate(
+             0xFFFFFFFFFFFFFFFFull, 0xFFFFFFFFu) == 0x249B3A3CE7CEE74Aull);
+  const TerrainScatterRuleSeed prepared(1337, 1);
+  assert(prepared.candidate(std::bit_cast<std::uint64_t>(0.0), 3) !=
+         prepared.candidate(std::bit_cast<std::uint64_t>(-0.0), 3));
+}
+
 // A generator version change must move the cache key, so a heightfield produced
 // by an older engine can never be served by a newer one.
 void cacheKeyCarriesGeneratorVersion() {
@@ -141,6 +191,7 @@ int main() {
   channelsAreDistinct();
   worldSeedsDiverge();
   derivationIsPinned();
+  perRuleScatterSeedMatchesCanonicalStreams();
   cacheKeyCarriesGeneratorVersion();
   repeatedEvaluationIsStable();
   inputFingerprintMovesTheCacheKey();

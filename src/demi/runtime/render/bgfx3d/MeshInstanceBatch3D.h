@@ -1,4 +1,5 @@
 #pragma once
+#include <span>
 
 #include "demi/runtime/render/bgfx3d/GpuMesh3D.h"
 #include "demi/runtime/render/bgfx3d/MeshPbrBindings3D.h"
@@ -40,7 +41,7 @@ public:
   bool flush(RenderCommands &commands, std::uint16_t view,
              ProgramHandle meshProgram, ProgramHandle instancedProgram,
              SamplerHandle sampler, const DrawState &state,
-             const std::array<DrawUniformValue, 8> &lightingUniforms,
+             std::span<const DrawUniformValue> lightingUniforms,
              std::uint32_t &draws, std::uint32_t &triangles, std::string &error,
              MeshPbrBindings3D *surfaces = nullptr,
              TextureHandle whiteTexture = {},

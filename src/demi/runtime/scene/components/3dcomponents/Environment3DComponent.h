@@ -144,6 +144,7 @@ struct Environment3DComponent {
                                {},
                                0.0,
                                true},
+      ComponentFieldDescriptor{"fog_enabled", ComponentFieldType::Boolean},
       ComponentFieldDescriptor{"fog_color", ComponentFieldType::Color},
       ComponentFieldDescriptor{
           "fog_start", ComponentFieldType::Number, false, true, {}, 0.0, true},
@@ -268,6 +269,7 @@ struct Environment3DComponent {
   std::size_t terrainTextureCacheBytes = 128U * 1024U * 1024U;
   float terrainDetailDistance = 200;
   float ambientIntensity = 0.5F;
+  bool fogEnabled = false;
   Color fogColor{0.56F, 0.74F, 0.95F, 1.0F};
   float fogStart = 80.0F;
   float fogEnd = 220.0F;
@@ -311,6 +313,8 @@ struct Environment3DComponent {
           &Environment3DComponent::ambientColor>("ambient_color"),
       RuntimeFieldBinding<Environment3DComponent>::member<
           &Environment3DComponent::ambientIntensity>("ambient_intensity"),
+      RuntimeFieldBinding<Environment3DComponent>::member<
+          &Environment3DComponent::fogEnabled>("fog_enabled"),
       RuntimeFieldBinding<Environment3DComponent>::member<
           &Environment3DComponent::fogColor>("fog_color"),
       RuntimeFieldBinding<Environment3DComponent>::memberWithDerived<

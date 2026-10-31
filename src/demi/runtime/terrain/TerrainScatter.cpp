@@ -10,17 +10,15 @@
 #include <cmath>
 #include <limits>
 #include <stdexcept>
+#include <utility>
 
 namespace demi::runtime {
 namespace {
 
-simulation::DeterministicRandom cellRandom(int worldSeed,
+simulation::DeterministicRandom cellRandom(const TerrainScatterRuleSeed &seed,
                                            std::uint64_t candidate,
-                                           std::string_view ruleId,
-                                           int sample) {
-  return simulation::DeterministicRandom(
-      deriveTerrainScatterSeed(worldSeed, terrainPlacementRuleHash(ruleId),
-                               candidate, std::uint32_t(sample)));
+                                           std::uint32_t sample) {
+  return simulation::DeterministicRandom(seed.candidate(candidate, sample));
 }
 
 bool roleAllowsBiome(const TerrainPaletteEntry &entry,
@@ -30,13 +28,12 @@ bool roleAllowsBiome(const TerrainPaletteEntry &entry,
              entry.biomes.end();
 }
 
-Vec3 candidatePosition(const TerrainRecipe &recipe, std::string_view ruleId,
+Vec3 candidatePosition(const TerrainScatterRuleSeed &seed, std::uint64_t key,
                        int x, int z, float step, float jitter) {
   Vec3 position{float(x) * step, 0, float(z) * step};
   if (jitter > 0.F) {
     // A separate stream leaves selection, priority, yaw and scale independent.
-    auto random = cellRandom(recipe.seed, terrainScatterCandidateKey(x, z),
-                             ruleId, 4);
+    auto random = cellRandom(seed, key, 4);
     const float radius = 0.5F * step * jitter;
     position.x += random.range(-radius, radius);
     position.z += random.range(-radius, radius);
@@ -45,24 +42,72 @@ Vec3 candidatePosition(const TerrainRecipe &recipe, std::string_view ruleId,
 }
 
 bool insideTerrain(Vec3 position, Vec2 size) {
+  return position.x >= 0.F && position.z >= 0.F && position.x <= size.x &&
+         position.z <= size.y;
+}
+
+bool insidePotentialSite(Vec3 position, Vec2 size,
+                         const TerrainScatterDomain *domain) {
+  if (!domain) {
+    return insideTerrain(position, size);
+  }
   return position.x >= 0.F && position.z >= 0.F &&
-         position.x <= size.x && position.z <= size.y;
+         double(position.x) <
+             (domain->worldBounds.maxX - domain->worldBounds.minX) &&
+         double(position.z) <
+             (domain->worldBounds.maxZ - domain->worldBounds.minZ);
+}
+
+void validateDomain(const TerrainScatterDomain &domain,
+                    const HeightField &field, bool suppliedConstraints,
+                    std::size_t wetSamples) {
+  const auto &window = domain.ownership;
+  const auto &world = domain.worldBounds;
+  const double worldWidth = world.maxX - world.minX;
+  const double worldDepth = world.maxZ - world.minZ;
+  const double fieldMaxX = domain.fieldOrigin.x + field.size.x;
+  const double fieldMaxZ = domain.fieldOrigin.z + field.size.y;
+  for (const double value :
+       {world.minX, world.minZ, world.maxX, world.maxZ, worldWidth, worldDepth,
+        domain.fieldOrigin.x, domain.fieldOrigin.z, fieldMaxX, fieldMaxZ,
+        window.minX, window.minZ, window.maxX, window.maxZ}) {
+    if (!std::isfinite(value)) {
+      throw std::invalid_argument(
+          "Terrain scatter domain values must be finite");
+    }
+  }
+  if (worldWidth <= 0 || worldDepth <= 0 || fieldMaxX <= domain.fieldOrigin.x ||
+      fieldMaxZ <= domain.fieldOrigin.z || window.minX >= window.maxX ||
+      window.minZ >= window.maxZ || window.minX < world.minX ||
+      window.minZ < world.minZ || window.maxX > world.maxX ||
+      window.maxZ > world.maxZ || window.minX < domain.fieldOrigin.x ||
+      window.minZ < domain.fieldOrigin.z || window.maxX > fieldMaxX ||
+      window.maxZ > fieldMaxZ) {
+    throw std::invalid_argument("Terrain scatter ownership must be nonempty "
+                                "and inside world/local field bounds");
+  }
+  if (!suppliedConstraints || wetSamples != field.heights.size()) {
+    throw std::invalid_argument(
+        "Global terrain scatter requires explicit matching environment "
+        "constraints and wet samples");
+  }
 }
 
 // Compete against immutable potential sites rather than accepted placements.
 // Filtering one site can therefore never refill a chain of distant neighbours.
-bool winsSpacing(const TerrainRecipe &recipe, std::string_view ruleId, int x,
+bool winsSpacing(const TerrainScatterRuleSeed &seed, Vec3 position, int x,
                  int z, float step, float spacing, float jitter, Vec2 size,
                  int maximumX, int maximumZ, std::stop_token stop,
-                 std::size_t &spacingChecks, std::size_t maximumSpacingChecks) {
+                 std::size_t &spacingChecks, std::size_t maximumSpacingChecks,
+                 const TerrainScatterDomain *domain) {
   if (spacing <= 0.F) {
     return true;
   }
-  const int reach = static_cast<int>(std::min(
-      double(std::max(maximumX, maximumZ)), std::ceil(double(spacing) / step + jitter)));
+  const int reach =
+      static_cast<int>(std::min(double(std::max(maximumX, maximumZ)),
+                                std::ceil(double(spacing) / step + jitter)));
   const auto candidate = terrainScatterCandidateKey(x, z);
-  const float priority = cellRandom(recipe.seed, candidate, ruleId, 2).value();
-  const Vec3 position = candidatePosition(recipe, ruleId, x, z, step, jitter);
+  const float priority = cellRandom(seed, candidate, 2).value();
   for (int otherZ = std::max(0, z - reach);
        otherZ <= z + std::min(maximumZ - z, reach); ++otherZ) {
     if (stop.stop_requested()) {
@@ -80,49 +125,76 @@ bool winsSpacing(const TerrainRecipe &recipe, std::string_view ruleId, int x,
       if (other == candidate) {
         continue;
       }
-      const Vec3 otherPosition =
-          candidatePosition(recipe, ruleId, otherX, otherZ, step, jitter);
-      if (!insideTerrain(otherPosition, size)) {
+      // Priority is a pure site stream: a losing neighbor cannot reject this
+      // candidate. Count it above, but avoid its jitter and geometry work.
+      const float otherPriority = cellRandom(seed, other, 2).value();
+      const bool canWin = otherPriority < priority ||
+                          (otherPriority == priority && other < candidate);
+      if (!canWin) {
         continue;
       }
-      const float distance = jitter == 0.F
-          ? std::hypot(float(otherX - x) * step, float(otherZ - z) * step)
-          : std::hypot(otherPosition.x - position.x,
-                       otherPosition.z - position.z);
+      const Vec3 otherPosition =
+          candidatePosition(seed, other, otherX, otherZ, step, jitter);
+      if (!insidePotentialSite(otherPosition, size, domain)) {
+        continue;
+      }
+      const float distance =
+          jitter == 0.F
+              ? std::hypot(float(otherX - x) * step, float(otherZ - z) * step)
+              : std::hypot(otherPosition.x - position.x,
+                           otherPosition.z - position.z);
       if (distance >= spacing) {
         continue;
       }
-      const float otherPriority =
-          cellRandom(recipe.seed, other, ruleId, 2).value();
-      if (otherPriority < priority ||
-          (otherPriority == priority && other < candidate)) {
-        return false;
-      }
+      return false;
     }
   }
   return true;
 }
 
+struct ClusterCorners {
+  std::uint64_t xBits = 0;
+  std::uint64_t zBits = 0;
+  float nearLeft = 0;
+  float nearRight = 0;
+  float farLeft = 0;
+  float farRight = 0;
+  bool valid = false;
+};
+
 float clusterDensity(const TerrainPaletteEntry &entry,
-                     const TerrainRecipe &recipe, std::string_view ruleId,
-                     Vec3 position) {
+                     const TerrainScatterRuleSeed &seed, double positionX,
+                     double positionZ, ClusterCorners &corners) {
   if (entry.clusterStrength <= 0.F) {
     return 1.F;
   }
-  const double gridX = double(position.x) / entry.clusterSize;
-  const double gridZ = double(position.z) / entry.clusterSize;
+  const double gridX = positionX / entry.clusterSize;
+  const double gridZ = positionZ / entry.clusterSize;
   const double x = std::floor(gridX);
   const double z = std::floor(gridZ);
   const auto value = [&](double sampleX, double sampleZ) {
     const auto key = std::bit_cast<std::uint64_t>(sampleX) * 0x9E3779B9ULL ^
                      std::bit_cast<std::uint64_t>(sampleZ) * 0xC2B2AE35ULL;
-    return cellRandom(recipe.seed, key, ruleId, 3).value();
+    return cellRandom(seed, key, 3).value();
   };
+  // Adjacent sites often share a cluster cell. Keep only the last cell for
+  // this rule and call; bitwise keys preserve the seed's signed-zero identity.
+  const auto xBits = std::bit_cast<std::uint64_t>(x);
+  const auto zBits = std::bit_cast<std::uint64_t>(z);
+  if (!corners.valid || corners.xBits != xBits || corners.zBits != zBits) {
+    corners.xBits = xBits;
+    corners.zBits = zBits;
+    corners.nearLeft = value(x, z);
+    corners.nearRight = value(x + 1, z);
+    corners.farLeft = value(x, z + 1);
+    corners.farRight = value(x + 1, z + 1);
+    corners.valid = true;
+  }
   const auto smooth = [](float t) { return t * t * (3.F - 2.F * t); };
   const float blendX = smooth(float(gridX - x));
   const float blendZ = smooth(float(gridZ - z));
-  const float near = std::lerp(value(x, z), value(x + 1, z), blendX);
-  const float far = std::lerp(value(x, z + 1), value(x + 1, z + 1), blendX);
+  const float near = std::lerp(corners.nearLeft, corners.nearRight, blendX);
+  const float far = std::lerp(corners.farLeft, corners.farRight, blendX);
   // The smooth field creates coherent patches without moving stable sites.
   const float clustered =
       std::clamp((std::lerp(near, far, blendZ) - 0.35F) * 3.F, 0.F, 1.F);
@@ -282,6 +354,11 @@ TerrainScatterResult scatterTerrain(
     throw std::invalid_argument(
         "Terrain scatter needs a complete finite heightfield grid.");
   }
+  const auto *domain = settings.domain ? &*settings.domain : nullptr;
+  if (domain) {
+    validateDomain(*domain, field, constraints != nullptr,
+                   resolvedWetSamples.size());
+  }
   std::optional<TerrainScatterConstraints> derivedConstraints;
   if (constraints == nullptr) {
     derivedConstraints =
@@ -298,6 +375,8 @@ TerrainScatterResult scatterTerrain(
     if (density <= 0) {
       continue;
     }
+    const TerrainScatterRuleSeed seed(recipe.seed,
+                                      terrainPlacementRuleHash(ruleId));
     const float step = entry.candidateStep();
     if (!std::isfinite(step) || step <= 0.F || !std::isfinite(entry.spacing) ||
         entry.spacing < 0.F || !std::isfinite(entry.positionJitter) ||
@@ -306,14 +385,31 @@ TerrainScatterResult scatterTerrain(
           "Terrain scatter candidate_spacing must be positive and finite, "
           "spacing nonnegative, and position_jitter between 0 and 1.");
     }
+    if (domain) {
+      for (const double anchor :
+           {domain->worldBounds.minX, domain->worldBounds.maxX,
+            domain->worldBounds.minZ, domain->worldBounds.maxZ}) {
+        if (!(anchor + double(step) > anchor) ||
+            !std::isfinite(anchor + double(step))) {
+          throw std::invalid_argument("Terrain scatter candidate spacing is "
+                                      "not representable at global bounds");
+        }
+      }
+    }
     const double probability = density * double(step) * step;
     if (!std::isfinite(probability) || probability > 1.000001) {
       throw std::invalid_argument("Terrain placement " + ruleId +
                                   " density exceeds candidate capacity; reduce "
                                   "candidate_spacing or density.");
     }
-    const double latticeWidth = std::floor(double(field.size.x) / step);
-    const double latticeDepth = std::floor(double(field.size.y) / step);
+    const double latticeWidth = std::floor(
+        (domain ? (domain->worldBounds.maxX - domain->worldBounds.minX)
+                : double(field.size.x)) /
+        step);
+    const double latticeDepth = std::floor(
+        (domain ? (domain->worldBounds.maxZ - domain->worldBounds.minZ)
+                : double(field.size.y)) /
+        step);
     if (latticeWidth >= std::numeric_limits<int>::max() ||
         latticeDepth >= std::numeric_limits<int>::max()) {
       throw std::invalid_argument("Terrain scatter candidate_spacing produces "
@@ -321,7 +417,38 @@ TerrainScatterResult scatterTerrain(
     }
     const int maximumX = static_cast<int>(latticeWidth);
     const int maximumZ = static_cast<int>(latticeDepth);
-    const double requestedCandidates = (latticeWidth + 1) * (latticeDepth + 1);
+    int firstX = 0;
+    int firstZ = 0;
+    int lastX = maximumX;
+    int lastZ = maximumZ;
+    if (domain) {
+      // Include displaced sites whose lattice centres are outside ownership.
+      // The margin also covers rounding in the existing float site generator.
+      const auto range = [&](double minimum, double maximum, double origin,
+                             int limit) {
+        const double radius = 0.5 * step * entry.positionJitter;
+        const double margin =
+            4 * std::numeric_limits<float>::epsilon() *
+            (std::max(std::abs(minimum - origin), std::abs(maximum - origin)) +
+             step);
+        const double low =
+            std::floor((minimum - origin - radius - margin) / step);
+        const double high =
+            std::ceil((maximum - origin + radius + margin) / step);
+        return std::pair{int(std::clamp(low, 0.0, double(limit))),
+                         int(std::clamp(high, 0.0, double(limit)))};
+      };
+      const auto xRange = range(domain->ownership.minX, domain->ownership.maxX,
+                                domain->worldBounds.minX, maximumX);
+      const auto zRange = range(domain->ownership.minZ, domain->ownership.maxZ,
+                                domain->worldBounds.minZ, maximumZ);
+      firstX = xRange.first;
+      lastX = xRange.second;
+      firstZ = zRange.first;
+      lastZ = zRange.second;
+    }
+    const double requestedCandidates =
+        (double(lastX) - firstX + 1) * (double(lastZ) - firstZ + 1);
     if (requestedCandidates >
         double(settings.maximumCandidates - testedCandidates)) {
       throw std::invalid_argument(
@@ -329,25 +456,40 @@ TerrainScatterResult scatterTerrain(
           "candidate_spacing or the caller's maximumCandidates budget.");
     }
     testedCandidates += static_cast<std::size_t>(requestedCandidates);
-    for (int z = 0; z <= maximumZ; ++z) {
+    ClusterCorners clusterCorners;
+    for (int z = firstZ; z <= lastZ; ++z) {
       if (stop.stop_requested()) {
         return {};
       }
-      for (int x = 0; x <= maximumX; ++x) {
+      for (int x = firstX; x <= lastX; ++x) {
         if ((x & 1023) == 0 && stop.stop_requested()) {
           return {};
         }
         const auto candidateKey = terrainScatterCandidateKey(x, z);
-        Vec3 position = candidatePosition(recipe, ruleId, x, z, step,
-                                           entry.positionJitter);
-        if (!insideTerrain(position, field.size)) {
+        Vec3 position = candidatePosition(seed, candidateKey, x, z, step,
+                                          entry.positionJitter);
+        const Vec3 potentialPosition = position;
+        if (!insidePotentialSite(position, field.size, domain)) {
           continue;
         }
-        auto random = cellRandom(recipe.seed, candidateKey, ruleId, 0);
+        double clusterX = position.x;
+        double clusterZ = position.z;
+        if (domain) {
+          clusterX = domain->worldBounds.minX + position.x;
+          clusterZ = domain->worldBounds.minZ + position.z;
+          const auto &window = domain->ownership;
+          if (clusterX < window.minX || clusterX >= window.maxX ||
+              clusterZ < window.minZ || clusterZ >= window.maxZ) {
+            continue;
+          }
+          position.x = float(clusterX - domain->fieldOrigin.x);
+          position.z = float(clusterZ - domain->fieldOrigin.z);
+        }
+        auto random = cellRandom(seed, candidateKey, 0);
         const float selection = random.value();
         const float clusteredProbability =
             float(probability) *
-            clusterDensity(entry, recipe, ruleId, position);
+            clusterDensity(entry, seed, clusterX, clusterZ, clusterCorners);
         if (selection >= clusteredProbability) {
           continue;
         }
@@ -367,10 +509,11 @@ TerrainScatterResult scatterTerrain(
             !constraints->allows(cell, entry, Vec2{position.x, position.z})) {
           continue;
         }
-        if (!winsSpacing(recipe, ruleId, x, z, step,
+        if (!winsSpacing(seed, potentialPosition, x, z, step,
                          entry.spacing * settings.spacingScale,
                          entry.positionJitter, field.size, maximumX, maximumZ,
-                         stop, spacingChecks, settings.maximumSpacingChecks)) {
+                         stop, spacingChecks, settings.maximumSpacingChecks,
+                         domain)) {
           continue;
         }
         const auto height =
@@ -379,7 +522,7 @@ TerrainScatterResult scatterTerrain(
           continue;
         }
         position.y = *height;
-        auto variation = cellRandom(recipe.seed, candidateKey, ruleId, 1);
+        auto variation = cellRandom(seed, candidateKey, 1);
         TerrainScatterPlacement output;
         output.ruleId = ruleId;
         output.model = entry.model;

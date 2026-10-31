@@ -1,0 +1,20 @@
+{
+  "format_version": 1,
+  "id": "prefab://terrain/alpine_tree",
+  "name": "Woodland tree with distant impostor",
+  "entities": [
+    {
+      "id": "tree",
+      "components": {
+        "Transform3D": {},
+        "MeshRenderer": {
+          "model": "asset://terrain/alpine/tree_near",
+          "medium_lod_model": "asset://terrain/alpine/tree_mid",
+          "low_lod_model": "asset://terrain/alpine/tree_distant",
+          "medium_lod_distance": 50,
+          "low_lod_distance": 250
+        }
+      }
+    }
+  ]
+}

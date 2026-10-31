@@ -1,5 +1,42 @@
 # DemiEngine Roadmap
 
+Regional split/merge geometry now shares a timed transition across changed
+patches and stitched neighbors, with matching GPU/native fallback endpoints.
+GPU field allocation accounting is now constant-time instead of scanning every
+texture per patch/view. See [morphing and performance qualification](docs/regional-terrain-morphing.md).
+
+Regional startup now plans its opening cover off-thread and reveals it after
+preparation. Independent ground-cover/canopy ranges and a six-triangle tree
+impostor extend the Alpine example's vegetation. Shared compiled instance
+submission now covers ordinary and shadow views, and asset browser lookups use
+indexed paths. GPU-driven placement, material/vegetation LOD fades and production-scale
+regional traversal remain open work.
+
+Regional editor usability now includes authored-camera startup, adjustable fly
+speed, nearby vegetation previews and completion tracking through scene
+publication. Generated cells remain outside authored hierarchy/save data.
+Mapped terrain retains directional texture gradients for anisotropic filtering.
+These changes do not close the regional traversal/cooked-program qualification
+items below.
+
+The [regional streaming plan](docs/world-terrain-streaming-plan.md) targets a
+procedural Alpine-inspired 240 x 220 km region using the existing Terrain Graph
+and prefab palettes. Shared sampling and asynchronous vegetation-cell residency
+have focused native tests and CPU probes. The vegetation scene bridge now has
+World/batch/prefab and native physics eviction tests. Camera-driven scene
+integration now streams terrain meshes/collision and nearby vegetation through
+the shared runtime path. Regional simulation and authored stored-placement
+transport remain explicit work.
+Full vegetation publication is now measured separately from generation. Shared
+instance-data copies, scatter batching and bulk deletion reduce the dense
+512 m probe's publication from 639 to 269 ms, still too slow for one frame.
+Worker-prepared visual batches now reduce that scene-publication cost further
+to 33 ms. Shared prefab prepare/adopt now moves component construction to workers
+as well: the same cell measures about 5 ms scene publication and 7 ms including
+physics in a frame-paced CPU probe. Full rendering is not included. Camera-driven
+regional terrain streaming is implemented; full traversal, cooked-program and
+large-coordinate gameplay qualification remain open.
+
 The 2 km [highland test](docs/highlands-terrain-qualification.md) adds natural
 scatter jitter and camera traversal with render-residency/scene-unload checks.
 It does not complete camera-driven terrain or collision streaming.

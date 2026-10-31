@@ -21,6 +21,10 @@ struct TerrainChunk;
 // Internal geometry/ownership contract shared by full loading and incremental
 // publication. Authored entities never acquire this native-only marker.
 namespace terrain_detail {
+struct TerrainGeneratedRegionPatch {
+  std::string owner;
+};
+
 struct TerrainGeneratedSurface {
   std::string owner;
   int firstCellX = 0;

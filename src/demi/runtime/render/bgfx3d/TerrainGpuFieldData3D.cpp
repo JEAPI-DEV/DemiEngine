@@ -1,3 +1,4 @@
+#include "demi/runtime/render/bgfx3d/TextureProjectionPhase3D.h"
 #include "demi/runtime/render/bgfx3d/TerrainGpuFieldData3D.h"
 
 #include "demi/runtime/render/MaterialLibrary.h"
@@ -242,7 +243,10 @@ public:
         float(terrainMaterialWrapCode3D(resolved.wrap)),
         surface.maps.contains(assets::MaterialMapSlot::Emissive) ? 1.F : 0.F,
         0};
-    std::array<std::uint32_t, 20> bits{};
+    const std::array<float, 4> phase{
+        textureProjectionPhase3D(field_.projectionOrigin.x, effectiveTiling, resolved.wrap),
+        0, textureProjectionPhase3D(field_.projectionOrigin.y, effectiveTiling, resolved.wrap), 0};
+    std::array<std::uint32_t, 24> bits{};
     for (std::size_t channel = 0; channel < 4; ++channel) {
       bits[channel] = std::bit_cast<std::uint32_t>(
           linearTint[channel] == 0 ? 0.0F : linearTint[channel]);
@@ -252,6 +256,7 @@ public:
       bits[channel + 8] = std::bit_cast<std::uint32_t>(mapping[channel]);
       bits[channel + 12] = std::bit_cast<std::uint32_t>(strengths[channel]);
       bits[channel + 16] = std::bit_cast<std::uint32_t>(detail[channel]);
+      bits[channel + 20] = std::bit_cast<std::uint32_t>(phase[channel]);
     }
     if (!mapped) {
       // Mapping controls have no visible effect on a solid surface. Equal
@@ -264,7 +269,7 @@ public:
     if (found != deduplicated_.end()) {
       index = found->second;
     } else {
-      const auto count = texels_.size() / 5;
+      const auto count = texels_.size() / terrainMappedPaletteStride3D;
       if (count >= maximumEntries_ ||
           count >= std::numeric_limits<std::uint32_t>::max()) {
         throw UnsupportedField(
@@ -277,6 +282,7 @@ public:
       texels_.push_back(mapping);
       texels_.push_back(strengths);
       texels_.push_back(detail);
+      texels_.push_back(phase);
     }
     entries_.emplace(key, index);
     return index;
@@ -285,14 +291,14 @@ public:
   const DrawState &state() const { return *state_; }
   void retainUsedMaterials() {
     std::set<std::string> selected{""};
-    for (std::size_t offset = 0; offset < texels_.size(); offset += 5) {
+    for (std::size_t offset = 0; offset < texels_.size(); offset += terrainMappedPaletteStride3D) {
       const auto layer = static_cast<std::size_t>(texels_[offset + 2][0]);
       selected.insert(materialIds_.at(layer));
     }
     std::vector<std::string> used(selected.begin(), selected.end());
     // The worker resolves only selected biome/role pairs. Unused palette
     // bindings must not load image sources or consume resident array layers.
-    for (std::size_t offset = 0; offset < texels_.size(); offset += 5) {
+    for (std::size_t offset = 0; offset < texels_.size(); offset += terrainMappedPaletteStride3D) {
       auto &layer = texels_[offset + 2][0];
       const auto &id = materialIds_.at(static_cast<std::size_t>(layer));
       layer =
@@ -309,8 +315,8 @@ public:
       return std::move(texels_);
     }
     std::vector<std::array<float, 4>> solid;
-    solid.reserve(texels_.size() / 5 * 2);
-    for (std::size_t index = 0; index < texels_.size(); index += 5) {
+    solid.reserve(texels_.size() / terrainMappedPaletteStride3D * 2);
+    for (std::size_t index = 0; index < texels_.size(); index += terrainMappedPaletteStride3D) {
       solid.push_back(texels_[index]);
       solid.push_back(texels_[index + 1]);
     }
@@ -324,7 +330,7 @@ private:
   std::optional<DrawState> state_;
   std::map<std::string, ResolvedMaterial, std::less<>> materials_;
   std::map<std::pair<std::size_t, std::size_t>, std::uint32_t> entries_;
-  std::map<std::array<std::uint32_t, 20>, std::uint32_t> deduplicated_;
+  std::map<std::array<std::uint32_t, 24>, std::uint32_t> deduplicated_;
   std::vector<std::array<float, 4>> texels_;
   std::vector<std::string> materialIds_;
   bool mapped_ = false;
@@ -365,7 +371,11 @@ TerrainGpuFieldData3D prepare(const HeightField &field,
   TerrainGpuFieldData3D result;
   result.sampleWidth = static_cast<std::uint16_t>(width);
   result.sampleHeight = static_cast<std::uint16_t>(height);
-  result.heights.reserve(samples);
+  if (field.morphFromHeights && field.morphFromHeights->size() != field.heights.size()) {
+    throw UnsupportedField("Terrain morph endpoints have mismatched dimensions");
+  }
+  result.heightFormat = field.morphFromHeights ? TextureFormat::RGBA32F : TextureFormat::R32F;
+  result.heights.reserve(samples * (field.morphFromHeights ? 4 : 1));
   result.normals.reserve(samples);
   result.materialIndices.reserve(samples);
   PaletteBuilder palette(field, resolver, std::uint64_t(limit) * limit / 2);
@@ -389,6 +399,15 @@ TerrainGpuFieldData3D prepare(const HeightField &field,
           "Terrain samples contain non-finite height or normals");
     }
     result.heights.push_back(heightValue);
+    if (field.morphFromHeights) {
+      const float fromHeight = field.morphFromHeights->at(sample);
+      if (!std::isfinite(fromHeight)) {
+        throw UnsupportedField("Terrain morph endpoint is not finite");
+      }
+      result.heights.push_back(fromHeight);
+      result.heights.push_back(0);
+      result.heights.push_back(0);
+    }
     result.normals.push_back({normal.x, normal.y, normal.z, 0});
     result.materialIndices.push_back(encodeIndex(palette.entry(biome, role)));
   }
@@ -398,7 +417,7 @@ TerrainGpuFieldData3D prepare(const HeightField &field,
   result.requiresFragmentCulling = palette.requiresFragmentCulling();
   result.materialIds = palette.materialIds();
   result.palette = palette.takeTexels();
-  result.paletteEntries = result.palette.size() / (result.mapped ? 5 : 2);
+  result.paletteEntries = result.palette.size() / (result.mapped ? terrainMappedPaletteStride3D : 2);
   if (result.palette.size() > std::uint64_t(limit) * limit) {
     throw UnsupportedField(
         "Terrain mapped palette exceeds device texture addressing");

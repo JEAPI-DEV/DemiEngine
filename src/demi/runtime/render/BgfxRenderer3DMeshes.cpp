@@ -1,3 +1,4 @@
+#include <span>
 #include "demi/runtime/destruction/DetachedFragmentFade3D.h"
 #include "demi/runtime/geometry/MeshDeformation3D.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
@@ -74,7 +75,7 @@ const GpuMesh3D *BgfxRenderer3D::primitiveMesh(const std::string &shape,
 bool BgfxRenderer3D::submitVisibleMeshes(
     const SceneVisibility3D &visibility, const BgfxCameraFrame3D &frame,
     bool shadowPass, std::size_t firstTransparent,
-    const std::array<DrawUniformValue, 8> &lightingUniforms,
+    std::span<const DrawUniformValue> lightingUniforms,
     ProgramHandle defaultMeshProgram, ProgramHandle defaultInstancedProgram,
     ProgramHandle defaultSkinnedProgram, MeshSubmissionStatistics &statistics,
     std::string &error, int selectedSurfacePass,

@@ -11,6 +11,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -39,6 +40,24 @@ struct PrefabInstanceResult {
   [[nodiscard]] explicit operator bool() const {
     return !instanceId.empty() && !hasErrors(diagnostics);
   }
+};
+
+// Immutable, unpublished instance snapshot. Preparing it creates no live
+// ownership, Lua lifecycle calls or physics bodies. Adoption rechecks live IDs.
+class PreparedPrefabInstance {
+public:
+  [[nodiscard]] explicit operator bool() const { return bool(result_); }
+  [[nodiscard]] const PrefabInstanceResult &result() const { return result_; }
+  [[nodiscard]] const std::string &prefab() const { return prefab_; }
+  [[nodiscard]] std::span<const Entity> entities() const { return entities_; }
+
+private:
+  friend class RuntimePrefabService;
+  PrefabInstanceResult result_;
+  std::string prefab_;
+  std::filesystem::path projectRoot_;
+  std::vector<Entity> entities_;
+  bool pooled_ = false;
 };
 
 class RuntimePrefabService {
@@ -81,6 +100,17 @@ public:
   [[nodiscard]] std::optional<std::vector<Entity>>
   prepareEntities(std::string_view prefab, Diagnostics &diagnostics);
 
+  // Run preparation on a thread-confined service. A snapshot can be adopted by
+  // another service configured for the same project. The caller owns stale
+  // request cancellation; source files are not reread during adoption.
+  [[nodiscard]] PreparedPrefabInstance
+  prepareInstance(std::string prefab, const PrefabInstantiateOptions &options);
+  // Main-thread operation. Validation failures leave commands and ownership
+  // unchanged. Callbacks/physics retain the ordinary scene lifecycle.
+  [[nodiscard]] PrefabInstanceResult
+  adoptPrepared(World &world, WorldCommandBuffer &commands,
+                const PreparedPrefabInstance &prepared);
+
   [[nodiscard]] PrefabInstanceResult
   instantiate(World &world, WorldCommandBuffer &commands, std::string prefab,
               PrefabInstantiateOptions options);
@@ -111,6 +141,7 @@ private:
         nlohmann::json &expanded);
 
   std::filesystem::path projectDirectory_;
+  std::filesystem::path projectRoot_;
   std::unordered_map<std::string, Instance> instances_;
   PrefabTemplateCache templates_;
   std::shared_ptr<composition::PrefabResolutionContext> resolution_;

@@ -70,6 +70,9 @@ public:
 private:
   [[nodiscard]] assets::AssetGroupDescriptor
   sceneGroup(std::string_view sceneId, std::vector<std::string> roots) const;
+  [[nodiscard]] std::vector<std::string>
+  sceneReferences(const World &world, std::string_view sceneId,
+                  Diagnostics *diagnostics) const;
   [[nodiscard]] bool isFallbackAsset(const AssetManifest &asset) const;
   [[nodiscard]] std::vector<std::string>
   resolveRoot(std::string_view root, Diagnostics *diagnostics) const;

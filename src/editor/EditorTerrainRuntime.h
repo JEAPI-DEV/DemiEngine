@@ -10,13 +10,24 @@
 #include <string>
 #include <string_view>
 
+namespace demi {
+struct AssetRegistry;
+}
 namespace demi::runtime {
+struct TerrainRecipe;
 struct World;
 struct HeightField;
 struct TerrainPatch;
 struct TerrainGenerationInputs;
 } // namespace demi::runtime
 namespace demi::editor {
+
+// Regional source graphs use an overview palette with no placements. The
+// graph and materials remain unchanged; runtime cells own detailed scattering.
+runtime::TerrainGenerationInputs
+resolveEditorTerrainAssetInputs(const AssetRegistry &registry,
+                                std::string_view assetId,
+                                const runtime::TerrainRecipe &recipe);
 
 // Adapter to the shared runtime generator. Implementations own immutable core
 // results; all queries use terrain-local coordinates and the rendered surface.

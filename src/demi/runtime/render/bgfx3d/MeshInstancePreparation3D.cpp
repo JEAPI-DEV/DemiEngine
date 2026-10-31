@@ -183,16 +183,21 @@ MeshInstancePreparation3D::Source &
 MeshInstancePreparation3D::source(const World &world, const Entity &entity,
                                   const WorldTransform3D &owner,
                                   const MeshInstances3DComponent &instances) {
-  auto [entry, created] = sources_[&world].try_emplace(&entity);
+  auto [entry, created] = sources_[&world].try_emplace(entity.id);
   auto &prepared = entry->second;
-  if (!created && prepared.contentRevision == instances.contentRevision() &&
+  const auto registryIdentity = world.entities.componentRegistry().identity();
+  const bool sameRegistry = prepared.registryIdentity == registryIdentity;
+  if (!created && sameRegistry &&
+      prepared.contentRevision == instances.contentRevision() &&
       sameTransform(prepared.owner, owner)) {
     prepared.component = &instances;
     prepared.visited = true;
     return prepared;
   }
   ProfileScope scope("Renderer3D.prepare_instance_copies");
-  const bool ownerChanged = created || !sameTransform(prepared.owner, owner);
+  const bool ownerChanged =
+      created || !sameRegistry || !sameTransform(prepared.owner, owner);
+  prepared.registryIdentity = registryIdentity;
   prepared.owner = owner;
   prepared.component = &instances;
   prepared.contentRevision = instances.contentRevision();

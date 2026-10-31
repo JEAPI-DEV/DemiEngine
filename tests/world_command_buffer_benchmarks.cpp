@@ -48,8 +48,48 @@ void checkPendingContract() {
   require(mutations.size() == 1 &&
               mutations.front().kind == WorldMutationKind::Created &&
               world.entities.size() == 1 && !world.entities.front().enabled &&
-              world.entities.front().component<Transform3DComponent>() != nullptr,
+              world.entities.front().component<Transform3DComponent>() !=
+                  nullptr,
           "Pending changes did not commit with the entity");
+}
+
+void checkDestroyRuns() {
+  World world;
+  for (const auto *id : {"a", "b", "c", "d"}) {
+    Entity entity;
+    entity.id = id;
+    entity.setComponent(Transform3DComponent{});
+    world.entities.push_back(std::move(entity));
+  }
+  WorldCommandBuffer commands;
+  require(commands.destroy(world, "a"), "Cannot destroy a");
+  require(commands.destroy(world, "a"), "Cannot queue repeated destroy");
+  require(commands.destroy(world, "b"), "Cannot destroy b");
+  require(commands.setEnabled(world, "c", false), "Cannot queue enable change");
+  Entity replacement;
+  replacement.id = "a";
+  require(commands.create(world, std::move(replacement), true),
+          "Cannot recreate a");
+  require(commands.destroy(world, "c"), "Cannot destroy c");
+  require(commands.removeComponent(world, "d", "Transform3D"),
+          "Cannot remove component");
+  const auto events = commands.flush(world);
+  require(events.size() == 6, "Destroy run changed event count");
+  const std::vector<std::string> ids{"a", "b", "c", "a", "c", "d"};
+  const std::vector<WorldMutationKind> kinds{
+      WorldMutationKind::Destroyed,      WorldMutationKind::Destroyed,
+      WorldMutationKind::EnabledChanged, WorldMutationKind::Created,
+      WorldMutationKind::Destroyed,      WorldMutationKind::ComponentRemoved};
+  for (std::size_t index = 0; index < events.size(); ++index) {
+    require(events[index].entityId == ids[index] &&
+                events[index].kind == kinds[index],
+            "Destroy run reordered mutations");
+  }
+  require(world.entities.size() == 2 && world.entities[0].id == "d" &&
+              world.entities[1].id == "a",
+          "Destroy run changed retained order");
+  require(!world.entities[0].hasComponent<Transform3DComponent>(),
+          "Interleaved mutation was lost");
 }
 
 void measure(std::size_t count) {
@@ -80,8 +120,8 @@ void measure(std::size_t count) {
             "Mutation order or stable ID changed");
     require(world.entities[index].id == idFor(index) &&
                 world.entities[index]
-                        .component<Transform3DComponent>()->position.x ==
-                    float(index),
+                        .component<Transform3DComponent>()
+                        ->position.x == float(index),
             "Entity order or payload changed");
   }
   std::cout << count << ',' << milliseconds(queueEnd - queueStart) << ','
@@ -92,6 +132,7 @@ void measure(std::size_t count) {
 int main() {
   try {
     checkPendingContract();
+    checkDestroyRuns();
     std::cout << "entities,queue_ms,flush_ms\n";
     for (const std::size_t count : {1000U, 2000U, 4000U})
       measure(count);

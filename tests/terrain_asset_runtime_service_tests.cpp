@@ -1,6 +1,7 @@
 #include "demi/assets/AssetHash.h"
 #include "demi/assets/TerrainAsset.h"
 #include "demi/runtime/assets/RuntimeAssetService.h"
+#include "demi/runtime/assets/TerrainAssetResourceLoader.h"
 
 #include <chrono>
 #include <cstdlib>
@@ -109,6 +110,46 @@ int main() {
             "Could not unload Terrain asset");
     require(service.memoryReport().assets.empty(),
             "Terrain residency survived unload");
+    // Regional references retain an immutable source program. They neither
+    // require a finite cache nor populate the entire region during startup.
+    recipe.seed += 1;
+    {
+      std::ofstream source(sourcePath);
+      source << demi::assets::terrainAssetSourceJson(
+                    {.id = "asset://terrain/test", .recipe = recipe.toJson()})
+                    .dump(2);
+    }
+    registry.assets.front().sourceHash = *demi::assets::hashFiles({sourcePath});
+    const auto regionPath = fixture.root / "region.json";
+    {
+      std::ofstream source(regionPath);
+      source
+          << R"({"format_version":1,"terrain":"asset://terrain/test","origin":[0,0],"sampling":{"base_spacing":2,"normal_spacing":1}})";
+    }
+    registry.assets.push_back(
+        {.id = "asset://region",
+         .type = "DataAsset",
+         .settingsJson = R"({"content_type":"terrain_region"})",
+         .sourcePath = regionPath});
+    demi::assets::prepareTerrainAssets(registry);
+    bool hasFiniteCache = true;
+    try {
+      (void)demi::assets::loadTerrainAsset(registry, "asset://terrain/test");
+    } catch (const std::exception &) {
+      hasFiniteCache = false;
+    }
+    require(!hasFiniteCache,
+            "Region startup generated an unrequested finite world");
+    auto programLoader =
+        demi::runtime::createTerrainAssetResourceLoader(registry);
+    std::atomic_bool cancelled = false;
+    std::string programError;
+    const auto program = programLoader->readAndDecode(registry.assets.front(),
+                                                      cancelled, programError);
+    require(program.has_value() && programError.empty(),
+            "Regional program required a finite cache");
+    require(program->residentBytes < 100000,
+            "Regional program unexpectedly retained a generated field");
     std::cout << "Terrain runtime asset service tests passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n';

@@ -30,6 +30,8 @@ void EditorAssetIndex::refresh(
     const std::filesystem::path &projectDirectory,
     const std::vector<std::filesystem::path> &sources) {
   assets_.clear();
+  byManifest_.clear();
+  bySource_.clear();
   groups_.clear();
   registry_ = loadAssetRegistry(projectDirectory);
   diagnostics_ = validateAssetRegistry(registry_);
@@ -85,6 +87,9 @@ void EditorAssetIndex::refresh(
       record.cookState = EditorAssetCookState::Current;
       record.cookReason = "Included by the current Linux cook manifest.";
     }
+    const auto index = assets_.size();
+    byManifest_.try_emplace(manifest.manifestPath, index);
+    bySource_.try_emplace(manifest.sourcePath, index);
     assets_.push_back(std::move(record));
   }
 
@@ -99,20 +104,14 @@ void EditorAssetIndex::refresh(
 
 const EditorAssetRecord *
 EditorAssetIndex::findByManifest(const std::filesystem::path &path) const {
-  const auto found =
-      std::ranges::find(assets_, path, [](const EditorAssetRecord &record) {
-        return record.manifest.manifestPath;
-      });
-  return found == assets_.end() ? nullptr : &*found;
+  const auto found = byManifest_.find(path);
+  return found == byManifest_.end() ? nullptr : &assets_[found->second];
 }
 
 const EditorAssetRecord *
 EditorAssetIndex::findBySource(const std::filesystem::path &path) const {
-  const auto found =
-      std::ranges::find(assets_, path, [](const EditorAssetRecord &record) {
-        return record.manifest.sourcePath;
-      });
-  return found == assets_.end() ? nullptr : &*found;
+  const auto found = bySource_.find(path);
+  return found == bySource_.end() ? nullptr : &assets_[found->second];
 }
 
 std::vector<std::string> EditorAssetIndex::types() const {

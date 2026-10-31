@@ -57,6 +57,24 @@ struct TerrainRuleDecision {
   bool overridden = false;
 };
 
+// Compiled rule selection shared by finite grids and regional point sampling.
+// The source recipe must outlive this evaluator. Painting remains a separate
+// spatial overlay applied by the caller after automatic rule selection.
+class TerrainBiomeRuleEvaluator {
+public:
+  explicit TerrainBiomeRuleEvaluator(const TerrainRecipe &recipe);
+  [[nodiscard]] TerrainRuleDecision
+  evaluate(const TerrainRuleContext &context) const;
+
+private:
+  struct Entry {
+    const TerrainBiomeRule *rule;
+    std::size_t biome;
+  };
+  std::vector<Entry> active_;
+  std::size_t defaultBiome_ = 0;
+};
+
 // Assigns biomes for the whole field. Returns a decision per sample in the same
 // index order as the heightfield. The recipe's painted regions are applied on
 // top, so a stroke always beats a rule that also matches.

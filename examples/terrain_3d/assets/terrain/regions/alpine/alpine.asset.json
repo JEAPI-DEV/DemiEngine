@@ -1,0 +1,18 @@
+{
+  "dependencies": [
+    "asset://schemas/terrain_region",
+    "asset://terrain/regions/alpine_terrain"
+  ],
+  "format_version": 1,
+  "generated_output": "../../../../generated/assets/terrain/regions/alpine/alpine.json",
+  "id": "asset://terrain/regions/alpine",
+  "importer": "json_data",
+  "importer_version": 1,
+  "settings": {
+    "content_type": "terrain_region",
+    "schema": "asset://schemas/terrain_region"
+  },
+  "source": "alpine.json",
+  "source_hash": "fnv1a64:ecbd0874d34ba9fd",
+  "type": "DataAsset"
+}

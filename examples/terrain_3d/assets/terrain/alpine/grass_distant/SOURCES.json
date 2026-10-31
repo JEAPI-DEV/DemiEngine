@@ -1,0 +1,13 @@
+{
+  "format_version": 1,
+  "source_url": "https://polyhaven.com/a/grass_medium_01",
+  "license": "CC0-1.0",
+  "license_url": "https://polyhaven.com/license",
+  "authors": [
+    "Rob Tuytel (photography)",
+    "Rico Cilliers (modeling)"
+  ],
+  "derivation": "Clustered scanned grass; distant cards baked from that geometry with scripts/art/prepare_alpine_grass.py.",
+  "retrieved": "2026-10-25",
+  "api_credit": "Powered by Poly Haven"
+}

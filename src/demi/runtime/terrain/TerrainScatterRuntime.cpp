@@ -1,8 +1,10 @@
 #include "demi/runtime/terrain/TerrainScatterRuntime.h"
+#include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/Transform3DComponent.h"
+#include "demi/runtime/terrain/PreparedTerrainCell.h"
 #include "demi/runtime/terrain/TerrainGenerator.h"
 #include "demi/runtime/terrain/TerrainScatterBatches.h"
 #include "demi/runtime/terrain/TerrainScatterCollision.h"
@@ -64,12 +66,14 @@ void applyRenderer(Entity &entity, const TerrainScatterPlacement &placement) {
 void preparePrefabPlacement(WorldCommandBuffer &commands,
                             const PrefabInstanceResult &instance,
                             const TerrainScatterPlacement &placement,
-                            std::string_view ownerId) {
+                            std::string_view ownerId,
+                            std::string_view sceneOwner) {
   for (const auto &entityId : instance.entityIds) {
     Entity *staged = commands.pendingEntity(entityId);
     if (!staged) {
       continue;
     }
+    staged->sceneOwner = sceneOwner;
     applyTerrainScatterCollision(*staged, placement.collision);
     const auto *transform = staged->component<Transform3DComponent>();
     if (transform && transform->parent.empty()) {
@@ -116,14 +120,20 @@ std::string terrainScatterInstanceId(std::string_view ownerId,
          terrainScatterInstanceKey({}, ruleId, candidateX, candidateZ);
 }
 
-TerrainScatterSyncStats
-syncTerrainScatter(World &world, WorldCommandBuffer &commands,
-                   std::string_view ownerId, const HeightField &field,
-                   const TerrainPrefabServiceProvider &prefabProvider,
-                   std::string &error) {
+static TerrainScatterSyncStats
+syncTerrainScatterImpl(World &world, WorldCommandBuffer &commands,
+                       std::string_view ownerId, TerrainScatterView view,
+                       const TerrainPrefabServiceProvider &prefabProvider,
+                       std::string &error, bool prepareVisuals) {
   TerrainScatterSyncStats stats;
   error.clear();
-  const auto *owner = findEntity(world, std::string(ownerId));
+  const auto *pendingOwner = commands.pendingEntity(ownerId);
+  // Command creation can reallocate its storage. Never retain a borrowed
+  // pending-entity pointer across further create() calls.
+  const std::optional<Entity> ownerSnapshot =
+      pendingOwner ? std::optional<Entity>(*pendingOwner) : std::nullopt;
+  const auto *owner =
+      ownerSnapshot ? &*ownerSnapshot : findEntity(world, std::string(ownerId));
   if (owner == nullptr) {
     error = "Terrain scatter owner was not found: " + std::string(ownerId);
     return stats;
@@ -137,14 +147,20 @@ syncTerrainScatter(World &world, WorldCommandBuffer &commands,
     }
     return service;
   };
-  auto batches = syncTerrainScatterBatches(world, commands, ownerId, field,
-                                           batchProvider, error);
+  TerrainScatterBatchResult batches;
+  if (prepareVisuals) {
+    batches = syncTerrainScatterBatches(world, commands, ownerId, view,
+                                        batchProvider, error);
+  } else {
+    batches.handled.resize(view.placements.size());
+  }
   if (!error.empty()) {
     return batches.statistics;
   }
   stats = batches.statistics;
+  ProfileScope profile("Terrain.scatter_entities");
 
-  const auto prefix = instancePrefix(ownerId, field.paletteId);
+  const auto prefix = instancePrefix(ownerId, view.paletteId);
 
   // Existing instances, indexed by the stable key, so a placement that did not
   // change can be left alone and one that moved can be updated in place.
@@ -165,20 +181,24 @@ syncTerrainScatter(World &world, WorldCommandBuffer &commands,
   }
 
   std::unordered_set<std::string> wanted;
-  wanted.reserve(field.scatterPlacements.size());
-  for (const auto &placement : field.scatterPlacements) {
+  wanted.reserve(view.placements.size() - std::count(batches.handled.begin(),
+                                                     batches.handled.end(),
+                                                     std::uint8_t{1}));
+  for (std::size_t index = 0; index < view.placements.size(); ++index) {
+    if (batches.handled[index]) {
+      continue;
+    }
+    const auto &placement = view.placements[index];
     const auto id =
-        terrainScatterInstanceId(ownerId, field.paletteId, placement.ruleId,
+        terrainScatterInstanceId(ownerId, view.paletteId, placement.ruleId,
                                  placement.candidateX, placement.candidateZ);
     const auto *terrain = owner->component<Terrain3DComponent>();
-    if (terrain && std::ranges::find(terrain->scatterExclusions, id) !=
-                       terrain->scatterExclusions.end()) {
+    if (std::ranges::find(view.exclusions, id) != view.exclusions.end() ||
+        (terrain && std::ranges::find(terrain->scatterExclusions, id) !=
+                        terrain->scatterExclusions.end())) {
       continue;
     }
     wanted.insert(id);
-    if (batches.placements.contains(id)) {
-      continue;
-    }
 
     const auto found = existing.find(id);
     if (found != existing.end()) {
@@ -213,7 +233,8 @@ syncTerrainScatter(World &world, WorldCommandBuffer &commands,
             ++stats.unresolved;
             return stats;
           }
-          preparePrefabPlacement(commands, replaced, placement, ownerId);
+          preparePrefabPlacement(commands, replaced, placement, ownerId,
+                                 owner->sceneOwner);
           ++stats.updated;
           continue;
         }
@@ -259,6 +280,7 @@ syncTerrainScatter(World &world, WorldCommandBuffer &commands,
       instance.id = id;
       instance.name = "scatter_" + std::string(placement.ruleId);
       instance.layer = owner->layer;
+      instance.sceneOwner = owner->sceneOwner;
       instance.enabled = true;
       Entity staged = instance;
       staged.setComponent(Transform3DComponent{});
@@ -285,8 +307,20 @@ syncTerrainScatter(World &world, WorldCommandBuffer &commands,
     // A placement's cell ID must remain its instance ID. Generic pool reuse
     // may select an available instance with another cell's ID.
     options.pooled = false;
-    auto instance =
-        prefabs->instantiate(world, commands, placement.prefab, options);
+    PrefabInstanceResult instance;
+    if (view.prepared) {
+      const auto prepared = view.prepared->prefabInstances.find(id);
+      if (prepared == view.prepared->prefabInstances.end() ||
+          prepared->second.prefab() != placement.prefab) {
+        error = "Prepared terrain prefab does not match placement: " + id;
+        ++stats.unresolved;
+        return stats;
+      }
+      instance = prefabs->adoptPrepared(world, commands, prepared->second);
+    } else {
+      instance =
+          prefabs->instantiate(world, commands, placement.prefab, options);
+    }
     if (!instance) {
       if (error.empty())
         error = "Terrain scatter could not instantiate " + placement.prefab +
@@ -297,7 +331,8 @@ syncTerrainScatter(World &world, WorldCommandBuffer &commands,
       ++stats.unresolved;
       continue;
     }
-    preparePrefabPlacement(commands, instance, placement, ownerId);
+    preparePrefabPlacement(commands, instance, placement, ownerId,
+                           owner->sceneOwner);
     ++stats.created;
     ++stats.prefabInstances;
   }
@@ -315,8 +350,7 @@ syncTerrainScatter(World &world, WorldCommandBuffer &commands,
     // A wanted key can transfer to a render batch. Its previous individual
     // entity/prefab must still retire, including service-owned collider
     // children.
-    if ((wanted.contains(key) && !batches.placements.contains(key)) ||
-        !entity.enabled) {
+    if (wanted.contains(key) || !entity.enabled) {
       continue;
     }
     // Prefab instances are released through their service; direct mesh
@@ -344,6 +378,35 @@ syncTerrainScatter(World &world, WorldCommandBuffer &commands,
     ++stats.removed;
   }
   return stats;
+}
+
+TerrainScatterSyncStats
+syncTerrainScatter(World &world, WorldCommandBuffer &commands,
+                   std::string_view ownerId, TerrainScatterView view,
+                   const TerrainPrefabServiceProvider &prefabs,
+                   std::string &error) {
+  return syncTerrainScatterImpl(world, commands, ownerId, view, prefabs, error,
+                                true);
+}
+
+TerrainScatterSyncStats
+syncTerrainScatterEntities(World &world, WorldCommandBuffer &commands,
+                           std::string_view ownerId, TerrainScatterView view,
+                           const TerrainPrefabServiceProvider &prefabs,
+                           std::string &error) {
+  return syncTerrainScatterImpl(world, commands, ownerId, view, prefabs, error,
+                                false);
+}
+
+TerrainScatterSyncStats
+syncTerrainScatter(World &world, WorldCommandBuffer &commands,
+                   std::string_view ownerId, const HeightField &field,
+                   const TerrainPrefabServiceProvider &prefabs,
+                   std::string &error) {
+  return syncTerrainScatter(
+      world, commands, ownerId,
+      TerrainScatterView{field.paletteId, field.scatterPlacements, {}}, prefabs,
+      error);
 }
 
 TerrainScatterSyncStats

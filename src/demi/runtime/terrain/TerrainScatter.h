@@ -4,6 +4,7 @@
 #include "demi/runtime/terrain/TerrainPalette.h"
 #include "demi/runtime/terrain/TerrainScatterPlacement.h"
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <stop_token>
 #include <string>
@@ -11,6 +12,25 @@
 
 namespace demi::runtime {
 struct TerrainWaterAuthoring;
+
+struct TerrainScatterWindow {
+  double minX = 0;
+  double minZ = 0;
+  double maxX = 0;
+  double maxZ = 0;
+};
+
+struct TerrainScatterPoint {
+  double x = 0;
+  double z = 0;
+};
+
+struct TerrainScatterDomain {
+  TerrainScatterWindow worldBounds;
+  TerrainScatterPoint fieldOrigin;
+  // Absolute global half-open ownership. The local field may include a halo.
+  TerrainScatterWindow ownership;
+};
 
 // Knobs the palette cannot express, because they are per-terrain rather than
 // per-asset.
@@ -27,6 +47,9 @@ struct TerrainScatterSettings {
   // Explicit CPU work budget, checked before visiting a rule's lattice.
   std::size_t maximumCandidates = 1u << 26;
   std::size_t maximumSpacingChecks = 1u << 28;
+  // Explicit global mode requires supplied constraints and a matching wet grid.
+  // It does not infer regional hydrology from the local tile's boundaries.
+  std::optional<TerrainScatterDomain> domain;
 };
 
 struct TerrainScatterResult {
@@ -48,6 +71,10 @@ struct TerrainScatterResult {
 // fixed lattice before filtering, so exclusions cannot cause distant refills.
 // Rules use shared constraints, derived from the field when none are supplied.
 // Explicit wet samples replace inferred sea coverage and also drive distance.
+// With an explicit domain, candidate identity/spacing are world-wide while
+// output positions and cell indices remain local. Ownership is half-open;
+// supplied environment grids must already include matching boundary values.
+// This does not derive global drainage or guarantee equality after truncation.
 [[nodiscard]] TerrainScatterResult
 scatterTerrain(const HeightField &field, const TerrainRecipe &recipe,
                const TerrainPalette &palette,

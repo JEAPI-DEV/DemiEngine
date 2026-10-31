@@ -1,6 +1,7 @@
 #include "demi/runtime/render/MaterialLibrary.h"
 #include "demi/runtime/render/backend/ImageColorSpace.h"
 #include "demi/runtime/render/bgfx3d/TerrainGpuFieldData3D.h"
+#include "demi/runtime/render/bgfx3d/TextureProjectionPhase3D.h"
 #include "demi/runtime/terrain/TerrainHeightField.h"
 #include "demi/runtime/terrain/TerrainSurfaceMaterials.h"
 
@@ -256,7 +257,7 @@ void mappedPalettesRetainMaterialIdentityAndSurfaceControls() {
     const bool isEarth = sample % 2 == 0;
     const auto &material = isEarth ? earth : stone;
     const auto entry = decode(result.materialIndices[sample]);
-    const auto offset = entry * 5;
+    const auto offset = entry * terrainMappedPaletteStride3D;
     const auto tint = field.biomeColors[biome];
     assert(result.palette[offset] ==
            (std::array<float, 4>{static_cast<float>(decodeSrgbChannel(
@@ -440,6 +441,18 @@ void actualDeviceLimitsAndInvalidSamplesAreReported() {
 } // namespace
 
 int main() {
+  assert(textureProjectionPhase3D(120000.125, .5, TextureWrap::Repeat) == .0625F);
+  assert(textureProjectionPhase3D(-120000.125, .5, TextureWrap::Repeat) == .9375F);
+  assert(textureProjectionPhase3D(120002.125, .5, TextureWrap::Mirror) == 1.0625F);
+  const float large = 120000.125F;
+  const float step = .001F;
+  assert(large + step == large);
+  const float phase = textureProjectionPhase3D(large, .398406F, TextureWrap::Repeat);
+  assert(phase + step * .398406F != phase);
+  const float neighbor = textureProjectionPhase3D(double(large) + 64, .398406F, TextureWrap::Repeat);
+  const double edge = double(phase) + 64 * double(.398406F);
+  assert(std::abs((edge - std::floor(edge)) - neighbor) < 1e-6);
+
   sharpMaterialsFollowCellTrianglesWithoutInterpolatingIds();
   samplesAndPaletteRetainCanonicalValues();
   paletteDecodesCombinedSrgbTintForSolidAndMappedMaterials();

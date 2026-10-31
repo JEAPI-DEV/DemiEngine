@@ -1,4 +1,5 @@
 #include "demi/runtime/render/bgfx3d/MeshPbrBindings3D.h"
+#include "demi/runtime/render/bgfx3d/TextureProjectionPhase3D.h"
 
 #include <cmath>
 #include <utility>
@@ -13,7 +14,7 @@ constexpr std::array samplerNames{"s_pbrNormal",       "s_pbrRoughness",
                                   "s_pbrMetallic",     "s_pbrOcclusion",
                                   "s_pbrDetailNormal", "s_pbrEmissive"};
 constexpr std::array uniformNames{"u_pbrMapFlags", "u_pbrMapFlags2",
-                                  "u_pbrSurface", "u_pbrLocalScale"};
+                                  "u_pbrSurface", "u_pbrLocalScale", "u_pbrProjectionOrigin"};
 } // namespace
 
 bool usesMeshPbrSurface3D(const MaterialBinding *material,
@@ -131,6 +132,17 @@ bool MeshPbrBindings3D::prepare(const MaterialBinding *material,
   values_[2] = {normalStrength, materialTiling, detailStrength,
                 surface.normalMapYDown ? -1.F : 1.F};
   values_[3] = {mesh.size.x, mesh.size.y, mesh.size.z, terrainTextureScale};
+  const auto projectionScale = surface.mapping == assets::MaterialMapping::Triplanar
+      ? mesh.size : Vec3{1, 1, 1};
+  try {
+    values_[4] = {
+        textureProjectionPhase3D(scalarOverride("projection_origin_x", 0), double(tiling) * projectionScale.x, material->terrainWrap),
+        textureProjectionPhase3D(scalarOverride("projection_origin_y", 0), double(tiling) * projectionScale.y, material->terrainWrap),
+        textureProjectionPhase3D(scalarOverride("projection_origin_z", 0), double(tiling) * projectionScale.z, material->terrainWrap), 0};
+  } catch (const std::exception &failure) {
+    error = failure.what();
+    return false;
+  }
   for (std::size_t index = 0; index < slots.size(); ++index) {
     TextureHandle texture = white;
     const auto map = surface.maps.find(slots[index]);

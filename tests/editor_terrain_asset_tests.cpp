@@ -1,5 +1,9 @@
 #include "editor/EditorSourceCreation.h"
 #include "editor/EditorWorkspace.h"
+#include "editor/EditorHierarchyIndex.h"
+#include "editor/EditorScenePreview.h"
+#include "demi/runtime/terrain/TerrainVegetationWorld.h"
+#include "demi/runtime/scene/components/3dcomponents/Camera3DComponent.h"
 
 #include "demi/assets/AssetHash.h"
 #include "demi/assets/AssetRegistry.h"
@@ -253,8 +257,8 @@ void verifyPinnedAssetGraph() {
       workspace.assetIndex().findByManifest(manifestPath)->manifest.sourcePath;
   require(workspace.placeTerrainAsset(manifestPath, runtime::Vec3{}, error),
           error);
-  const auto firstPlaced = workspace.sceneDocument().json()["entities"][1]
-                               ["id"].get<std::string>();
+  const auto firstPlaced =
+      workspace.sceneDocument().json()["entities"][1]["id"].get<std::string>();
   require(workspace.selectedEntityId() == firstPlaced &&
               workspace.terrainAuthoring().entityId() == firstPlaced &&
               workspace.terrainAuthoringDocumentPath() == sourcePath,
@@ -262,8 +266,8 @@ void verifyPinnedAssetGraph() {
   require(workspace.placeTerrainAsset(manifestPath, runtime::Vec3{150, 0, 0},
                                       error),
           error);
-  const auto secondPlaced = workspace.sceneDocument().json()["entities"][2]
-                                ["id"].get<std::string>();
+  const auto secondPlaced =
+      workspace.sceneDocument().json()["entities"][2]["id"].get<std::string>();
   require(workspace.selectedEntityId() == secondPlaced &&
               workspace.terrainAuthoring().entityId() == secondPlaced,
           "Repeated terrain placement kept the previous selection");
@@ -566,7 +570,8 @@ void verifyPrefabScatterInScene() {
       terrainIn(workspace.project().world, "land").generated;
   const auto placement = preparedField->scatterPlacements.at(12);
   const auto instanceId = runtime::terrainScatterInstanceId(
-      "land", paletteId, placement.ruleId, placement.candidateX, placement.candidateZ);
+      "land", paletteId, placement.ruleId, placement.candidateX,
+      placement.candidateZ);
   const std::string rootId = instanceId + "/body";
   auto *root = runtime::findEntity(workspace.project().world, rootId);
   require(root && root->prefabInstance == instanceId,
@@ -625,6 +630,142 @@ void verifyPrefabScatterInScene() {
           "An isolated asset stage discarded the scene's prefab service state");
   require(workspace.sceneDocument().json() == scene,
           "Prefab scatter editing wrote terrain recipes into the scene");
+}
+
+void verifyRegionalGraphOverview() {
+  TemporaryProject temporary;
+  createProject(temporary.root);
+  writeJson(temporary.root / "prefabs/test/grass.prefab.json",
+            {{"format_version", 1},
+             {"id", "prefab://test/grass"},
+             {"entities",
+              Json::array({{{"id", "grass"},
+                            {"components",
+                             {{"Transform3D", Json::object()},
+                              {"MeshRenderer", {{"shape", "cube"}}}}}}})}});
+  writeAsset(temporary.root, "palette", "asset://test/palette", "DataAsset",
+             "json_data",
+             {{"format_version", 3},
+              {"name", "Regional overview palette"},
+              {"placements",
+               {{"grass",
+                 {{"prefab", "prefab://test/grass"},
+                  {"category", "grass"},
+                  {"density", .1},
+                  {"candidate_spacing", 1},
+                  {"collision", "none"}}}}}},
+             {{"content_type", "terrain_palette"}});
+  runtime::TerrainRecipe recipe;
+  recipe.size = {240000, 220000};
+  recipe.cellsX = recipe.cellsZ = 8;
+  recipe.chunkCells = 8;
+  recipe.paletteId = "asset://test/palette";
+  recipe.landforms.at("default").baseHeight = 100;
+  recipe.landforms.at("default").heightVariation = 0;
+  writeAsset(temporary.root, "regional", "asset://test/regional", "Terrain",
+             "terrain_heightfield",
+             assets::terrainAssetSourceJson(
+                 {.id = "asset://test/regional", .recipe = recipe.toJson()}),
+             Json::object(), {"asset://test/palette"});
+  writeAsset(temporary.root, "region", "asset://test/region", "DataAsset",
+             "json_data",
+             {{"format_version", 1},
+              {"terrain", "asset://test/regional"},
+              {"origin", {0, 0}},
+              {"sampling", {{"base_spacing", 2}, {"normal_spacing", 2}}},
+              {"streaming", {{"vegetation_cell_samples", 8}, {"vegetation_radius", 12}}}},
+             {{"content_type", "terrain_region"}}, {"asset://test/regional"});
+  auto scene = readJson(temporary.root / "scenes/main.scene.json");
+  scene["entities"].push_back({{"id", "regional_owner"}, {"components",
+      {{"Transform3D", Json::object()}, {"Terrain3D", {{"asset", "asset://test/region"}}}}}});
+  writeJson(temporary.root / "scenes/main.scene.json", scene);
+  for (const auto &issue : validateProjectPath(temporary.root).diagnostics) {
+    if (issue.severity == Severity::Error) {
+      throw std::runtime_error(issue.code + ": " + issue.message);
+    }
+  }
+  editor::EditorWorkspace workspace;
+  std::string error;
+  require(workspace.open(temporary.root, error), error);
+  const auto originalScene = workspace.sceneDocument().json();
+  auto *camera = runtime::findEntity(workspace.project().world, "camera");
+  require(camera != nullptr, "Regional preview fixture has no camera");
+  camera->updateComponent<runtime::Transform3DComponent>([](auto &transform) {
+    transform.position = {8, 103, 8};
+  });
+  require(workspace.sceneView().alignToFirstCamera(workspace.project().world),
+          "Regional vegetation test needs a nearby viewer");
+  const auto vegetationDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+  bool vegetationAppeared = false;
+  do {
+    require(workspace.updateRegionalPreview(error), error);
+    for (const auto &entity : workspace.project().world.entities) {
+      if (entity.hasComponent<runtime::TerrainVegetationCellOwner>()) {
+        vegetationAppeared = true;
+        require(editor::editorPlacementOwner(workspace.project().world, entity.id) == "regional_owner",
+                "Generated vegetation must select its authored terrain");
+      }
+    }
+    require(std::chrono::steady_clock::now() < vegetationDeadline,
+            "Editor vegetation never completed");
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  } while (workspace.regionalPreviewPending());
+  require(vegetationAppeared, "Regional editor preview omitted vegetation");
+  editor::EditorHierarchyIndex hierarchy(workspace.project().world, originalScene, "");
+  for (const auto &entity : workspace.project().world.entities) {
+    if (entity.hasComponent<runtime::TerrainVegetationCellOwner>()) {
+      const auto *row = hierarchy.find(entity.id);
+      require(row && row->hiddenPreview && !row->visible,
+              "Generated vegetation leaked into the authored hierarchy");
+    }
+  }
+  require(workspace.sceneDocument().json() == originalScene,
+          "Preview vegetation mutated authored scene data");
+  workspace.selectEntity("regional_owner");
+  workspace.syncTerrainAuthoring();
+  require(!hasErrors(workspace.diagnostics()), "A region wrapper was treated as a finite Terrain asset");
+  require(workspace.openTerrainAssetDocument(
+              temporary.root / "assets/regional.terrain.json", error),
+          error);
+  auto &authoring = workspace.terrainAuthoring();
+  require(!authoring.entityId().empty(),
+          "Regional graph did not bind the shared authoring workspace");
+  const auto *owner = runtime::findEntity(workspace.project().world, authoring.entityId());
+  require(owner && owner->component<runtime::Terrain3DComponent>()->region,
+          "Regional graph did not bind an asynchronous preview");
+  require(!owner->component<runtime::Terrain3DComponent>()->generated,
+          "Opening the graph synchronously generated a finite overview");
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+  while (workspace.project().world.entities.size() == 1) {
+    const auto order = workspace.project().world.entities.orderRevision();
+    const auto hierarchy = workspace.hierarchyPreviewRevision();
+    require(workspace.updateRegionalPreview(error), error);
+    if (workspace.project().world.entities.orderRevision() != order) {
+      require(workspace.hierarchyPreviewRevision() != hierarchy,
+              "Streaming publication retained dangling hierarchy rows");
+    }
+    require(std::chrono::steady_clock::now() < deadline, "Regional preview did not produce geometry");
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+  require(!workspace.project().world.preparedPhysicsShapes3D,
+          "Authoring preview prepared unneeded simulation shapes");
+  authoring.draft()["seed"] = 891;
+  require(authoring.generate(std::nullopt, error), error);
+  awaitTerrain(workspace);
+  require(workspace.applyTerrainAssetChanges(error), error);
+  require(
+      readJson(temporary.root /
+               "assets/regional.terrain.json")["recipe"]["seed"] == 891,
+      "Regional graph edit was not saved through the normal asset document");
+  bool hasFiniteCache = true;
+  try {
+    (void)assets::loadTerrainAsset(workspace.assetIndex().registry(),
+                                   "asset://test/regional");
+  } catch (const std::exception &) {
+    hasFiniteCache = false;
+  }
+  require(!hasFiniteCache,
+          "Regional overview polluted the final finite terrain cache");
 }
 
 void verifyTerrainAssetAuthoring() {
@@ -859,6 +1000,7 @@ int main() {
         verifySharedAssetPreviewDiscardRestoresFinal);
     run("prefab scatter in scene", verifyPrefabScatterInScene);
     run("standalone asset authoring", verifyTerrainAssetAuthoring);
+    run("regional graph overview", verifyRegionalGraphOverview);
     run("inline extraction", verifyInlineExtraction);
     run("prepared terrain read-only", verifyPreparedTerrainIsReadOnly);
     run("starter presets and comments", verifyStarterPresetAndComments);

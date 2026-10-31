@@ -1,0 +1,86 @@
+{
+  "format_version": 1,
+  "type": "object",
+  "required": [
+    "format_version",
+    "terrain",
+    "origin",
+    "sampling"
+  ],
+  "properties": {
+    "format_version": {
+      "type": "integer",
+      "enum": [
+        1
+      ]
+    },
+    "name": {
+      "type": "string"
+    },
+    "terrain": {
+      "type": "string",
+      "reference": "asset"
+    },
+    "origin": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      }
+    },
+    "sampling": {
+      "type": "object",
+      "required": [
+        "base_spacing",
+        "normal_spacing"
+      ],
+      "properties": {
+        "base_spacing": {
+          "type": "number"
+        },
+        "normal_spacing": {
+          "type": "number"
+        }
+      }
+    },
+    "streaming": {
+      "type": "object",
+      "properties": {
+        "lod_distance_ratio": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 16
+        },
+        "resident_mib": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65536
+        },
+        "pending_jobs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64
+        },
+        "vegetation_cell_samples": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1024
+        },
+        "vegetation_canopy_radius": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "vegetation_canopy_cell_samples": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1024
+        },
+        "vegetation_radius": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10000
+        }
+      }
+    }
+  }
+}

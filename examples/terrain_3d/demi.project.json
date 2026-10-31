@@ -1,8 +1,11 @@
 {
   "format_version": 1,
   "name": "Silvermere Terrain Showcase",
-  "main_scene": "scene://terrain_3d/loading",
+  "main_scene": "scene://terrain_3d/alpine",
   "scenes": [
+    {
+      "id": "scene://terrain_3d/alpine"
+    },
     {
       "id": "scene://terrain_3d/loading"
     },

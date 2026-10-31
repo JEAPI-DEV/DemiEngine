@@ -9,10 +9,7 @@
 namespace demi::runtime::terrain_graph_detail {
 namespace {
 
-struct SpatialPoint {
-  double x;
-  double z;
-};
+using SpatialPoint = TerrainSpatialMaskPoint;
 
 double segmentDistanceSquared(SpatialPoint point, SpatialPoint start,
                               SpatialPoint end) {
@@ -123,68 +120,25 @@ evaluateSpatialMask(const nlohmann::json &parameters, GraphField source,
   if (stop.stop_requested()) {
     return std::nullopt;
   }
-  const double width = polygon ? 0.0 : parameters.at("width").get<double>();
-  const double falloff = parameters.at("falloff").get<double>();
-  if (!source || !std::isfinite(width) || !std::isfinite(falloff) ||
-      width < 0.0 || falloff < 0.0) {
-    throw std::invalid_argument(
-        "Spatial mask requires a field and finite nonnegative width/falloff");
+  if (!source) {
+    throw std::invalid_argument("Spatial mask requires a field");
   }
-  auto parsed = validatedPoints(parameters.at("points"), polygon, stop);
+  const auto parsed = parseTerrainSpatialMask(parameters, polygon, stop);
   if (!parsed) {
     return std::nullopt;
   }
-  const auto &points = *parsed;
   auto mask = std::make_shared<GraphMask>();
   mask->source = std::move(source);
   mask->samples.resize(mask->source->heights.size());
-  const std::size_t segmentCount = polygon ? points.size() : points.size() - 1;
   for (int z = 0; z <= mask->source->cellsZ; ++z) {
     for (int x = 0; x <= mask->source->cellsX; ++x) {
-      if (stop.stop_requested()) {
+      const auto position = mask->source->position(x, z);
+      const auto weight =
+          sampleTerrainSpatialMask(*parsed, position.x, position.y, stop);
+      if (!weight) {
         return std::nullopt;
       }
-      const auto position = mask->source->position(x, z);
-      const SpatialPoint sample{position.x, position.y};
-      double nearestSquared = std::numeric_limits<double>::infinity();
-      bool inside = false;
-      bool onBoundary = false;
-      for (std::size_t segment = 0; segment < segmentCount; ++segment) {
-        if ((segment & 255) == 0 && stop.stop_requested()) {
-          return std::nullopt;
-        }
-        const SpatialPoint start = points[segment];
-        const SpatialPoint end = points[(segment + 1) % points.size()];
-        nearestSquared = std::min(nearestSquared,
-                                  segmentDistanceSquared(sample, start, end));
-        if (polygon) {
-          const double edgeCross = (end.x - start.x) * (sample.z - start.z) -
-                                   (end.z - start.z) * (sample.x - start.x);
-          const bool withinEdgeBounds = sample.x >= std::min(start.x, end.x) &&
-                                        sample.x <= std::max(start.x, end.x) &&
-                                        sample.z >= std::min(start.z, end.z) &&
-                                        sample.z <= std::max(start.z, end.z);
-          if (edgeCross == 0.0 && withinEdgeBounds) {
-            onBoundary = true;
-          }
-          // Half-open crossings count a shared vertex once. Horizontal and
-          // repeated edges do not cross; boundary membership is handled
-          // explicitly.
-          if ((start.z > sample.z) != (end.z > sample.z)) {
-            const double crossingX = start.x + (sample.z - start.z) *
-                                                   (end.x - start.x) /
-                                                   (end.z - start.z);
-            if (sample.x < crossingX) {
-              inside = !inside;
-            }
-          }
-        }
-      }
-      const double distance = std::sqrt(nearestSquared);
-      const double weight = (inside || onBoundary)
-                                ? 1.0
-                                : outsideWeight(distance - width, falloff);
-      mask->samples.set(mask->source->index(x, z), static_cast<float>(weight));
+      mask->samples.set(mask->source->index(x, z), *weight);
     }
   }
   GraphNodeResult result;
@@ -193,6 +147,75 @@ evaluateSpatialMask(const nlohmann::json &parameters, GraphField source,
 }
 
 } // namespace
+
+std::optional<TerrainSpatialMask>
+parseTerrainSpatialMask(const nlohmann::json &parameters, bool polygon,
+                        std::stop_token stop) {
+  TerrainSpatialMask mask;
+  mask.polygon = polygon;
+  mask.width = polygon ? 0.0 : parameters.at("width").get<double>();
+  mask.falloff = parameters.at("falloff").get<double>();
+  if (!std::isfinite(mask.width) || !std::isfinite(mask.falloff) ||
+      mask.width < 0 || mask.falloff < 0) {
+    throw std::invalid_argument(
+        "Spatial mask requires finite nonnegative width/falloff");
+  }
+  auto points = validatedPoints(parameters.at("points"), polygon, stop);
+  if (!points) {
+    return std::nullopt;
+  }
+  mask.points = std::move(*points);
+  return mask;
+}
+
+std::optional<float> sampleTerrainSpatialMask(const TerrainSpatialMask &mask,
+                                              double x, double z,
+                                              std::stop_token stop) {
+  if (stop.stop_requested()) {
+    return std::nullopt;
+  }
+  const SpatialPoint sample{x, z};
+  const auto &points = mask.points;
+  if (points.size() < (mask.polygon ? 3U : 2U)) {
+    throw std::invalid_argument("Spatial mask has too few points");
+  }
+  const auto segmentCount = mask.polygon ? points.size() : points.size() - 1;
+  double nearestSquared = std::numeric_limits<double>::infinity();
+  bool inside = false;
+  bool onBoundary = false;
+  for (std::size_t segment = 0; segment < segmentCount; ++segment) {
+    if ((segment & 255) == 0 && stop.stop_requested()) {
+      return std::nullopt;
+    }
+    const SpatialPoint start = points[segment];
+    const SpatialPoint end = points[(segment + 1) % points.size()];
+    nearestSquared =
+        std::min(nearestSquared, segmentDistanceSquared(sample, start, end));
+    if (mask.polygon) {
+      const double edgeCross = (end.x - start.x) * (sample.z - start.z) -
+                               (end.z - start.z) * (sample.x - start.x);
+      const bool withinEdgeBounds = sample.x >= std::min(start.x, end.x) &&
+                                    sample.x <= std::max(start.x, end.x) &&
+                                    sample.z >= std::min(start.z, end.z) &&
+                                    sample.z <= std::max(start.z, end.z);
+      if (edgeCross == 0 && withinEdgeBounds) {
+        onBoundary = true;
+      }
+      if ((start.z > sample.z) != (end.z > sample.z)) {
+        const double crossingX = start.x + (sample.z - start.z) *
+                                               (end.x - start.x) /
+                                               (end.z - start.z);
+        if (sample.x < crossingX) {
+          inside = !inside;
+        }
+      }
+    }
+  }
+  const double distance = std::sqrt(nearestSquared);
+  return float((inside || onBoundary)
+                   ? 1.0
+                   : outsideWeight(distance - mask.width, mask.falloff));
+}
 
 void validateTerrainSpatialMaskPoints(const nlohmann::json &points,
                                       bool polygon) {

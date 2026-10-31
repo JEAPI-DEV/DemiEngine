@@ -55,6 +55,9 @@
   <li>Omitted fields show their canonical component defaults; values you type become explicit in the document.</li>
 </ul>
 
+<h3>3D viewport navigation</h3>
+<p>Hold the right mouse button to look around and fly with WASD and Q/E. While holding it, scroll to adjust movement speed from 0.1 to 10,000 metres per second; the viewport displays the current speed. Shift temporarily multiplies that speed by four. Scrolling without the right button zooms as before. Navigation changes only the editor view. Regional terrain scenes open at their first enabled authored camera when available, so a continent-sized bounding box does not hide the working area behind fog. Frame Scene remains available for a full overview.</p>
+
 <h3>Framing a game camera</h3>
 <p>Arrange the scene Viewport using its normal navigation, then select one camera in Hierarchy. Choose <strong>Scene → Align selected camera to view</strong>, or the matching camera button beside the existing view-to-camera action. The selected camera must have a matching Transform2D or Transform3D component for the current view dimension. The action is disabled in Play mode.</p>
 <p>For a 3D camera, alignment copies the view's position, aim, projection mode, active lens setting and clipping distances. Parent translation, rotation and scale are taken into account; the camera's scale and parent remain unchanged. For 2D, it copies position and orthographic size. A parent with zero scale cannot be inverted, so alignment reports an error without changing the document.</p>

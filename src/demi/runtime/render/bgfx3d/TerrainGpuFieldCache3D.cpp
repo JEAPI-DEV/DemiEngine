@@ -11,14 +11,22 @@
 
 namespace demi::runtime::render {
 
+struct TerrainGpuAllocationAccounting3D {
+  std::size_t bytes = 0;
+};
+
 struct TerrainGpuTexture3D {
   GpuResources *resources = nullptr;
   TextureHandle handle;
+  std::shared_ptr<TerrainGpuAllocationAccounting3D> accounting;
   std::size_t bytes = 0;
 
   ~TerrainGpuTexture3D() {
     if (resources && handle) {
       resources->destroy(handle);
+    }
+    if (accounting) {
+      accounting->bytes -= bytes;
     }
   }
 };
@@ -109,7 +117,7 @@ std::size_t reserveFor(const HeightField &field,
       std::min(samples, multiplyBytes(field.biomeIds.size(),
                                       std::max(std::size_t{1}, roles)));
   // Packed arrays plus palette/map working storage and one padded palette row.
-  return addBytes(multiplyBytes(samples, 24),
+  return addBytes(multiplyBytes(samples, field.morphFromHeights ? 36 : 24),
                   addBytes(multiplyBytes(combinations, 256),
                            multiplyBytes(maximumTextureSize, 16)));
 }
@@ -145,7 +153,9 @@ struct TerrainGpuFieldCache3D::Impl {
   JobSystem &jobs;
   std::unordered_map<const HeightField *, Entry> entries;
   std::vector<std::unique_ptr<Pending>> pending;
-  std::vector<std::weak_ptr<TerrainGpuTexture3D>> textures;
+  // Charge allocations once, including textures borrowed after cache eviction.
+  std::shared_ptr<TerrainGpuAllocationAccounting3D> accounting =
+      std::make_shared<TerrainGpuAllocationAccounting3D>();
   std::size_t gpuBudget = 128U * 1024U * 1024U;
   std::size_t stagingBudget = 64U * 1024U * 1024U;
   std::size_t jobBudget = 2;
@@ -156,15 +166,7 @@ struct TerrainGpuFieldCache3D::Impl {
 
   Impl(GpuResources &gpu, JobSystem &pool) : resources(gpu), jobs(pool) {}
 
-  std::size_t residentBytes() const {
-    std::size_t bytes = 0;
-    for (const auto &weak : textures) {
-      if (const auto texture = weak.lock()) {
-        bytes = addBytes(bytes, texture->bytes);
-      }
-    }
-    return bytes;
-  }
+  std::size_t residentBytes() const { return accounting->bytes; }
   std::size_t pendingBytes() const {
     std::size_t bytes = 0;
     for (const auto &job : pending) {
@@ -223,7 +225,8 @@ struct TerrainGpuFieldCache3D::Impl {
       throw std::runtime_error(
           error.empty() ? "GPU terrain texture allocation failed" : error);
     }
-    textures.push_back(owner);
+    accounting->bytes += bytes.size();
+    owner->accounting = accounting;
     uploaded = addBytes(uploaded, bytes.size());
     return owner;
   }
@@ -233,7 +236,8 @@ struct TerrainGpuFieldCache3D::Impl {
     result->source = job.source;
     const bool reuseHeight =
         job.reuse && sameDimensions(*job.reuse->source, *job.source) &&
-        sharedPages(job.reuse->source->heights, job.source->heights);
+        sharedPages(job.reuse->source->heights, job.source->heights) &&
+        job.reuse->source->morphFromHeights == job.source->morphFromHeights;
     const bool reuseNormal =
         job.reuse && sameDimensions(*job.reuse->source, *job.source) &&
         sharedPages(job.reuse->source->normals, job.source->normals);
@@ -262,7 +266,7 @@ struct TerrainGpuFieldCache3D::Impl {
     result->textures_[0] =
         reuseHeight
             ? job.reuse->textures_[0]
-            : upload(data.sampleWidth, data.sampleHeight, TextureFormat::R32F,
+            : upload(data.sampleWidth, data.sampleHeight, data.heightFormat,
                      std::as_bytes(std::span(data.heights)),
                      "Terrain GPU heights");
     result->textures_[1] = reuseNormal
@@ -439,8 +443,6 @@ void TerrainGpuFieldCache3D::pollCompleted() {
     }
     iterator = impl_->pending.erase(iterator);
   }
-  std::erase_if(impl_->textures,
-                [](const auto &weak) { return weak.expired(); });
 }
 void TerrainGpuFieldCache3D::touch(
     const std::shared_ptr<const HeightField> &field) {

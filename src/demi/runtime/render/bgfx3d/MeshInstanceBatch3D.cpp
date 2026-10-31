@@ -1,3 +1,4 @@
+#include <span>
 #include "demi/runtime/render/bgfx3d/MeshInstanceBatch3D.h"
 
 #include <bit>
@@ -129,7 +130,7 @@ bool MeshInstanceBatch3D::flush(
     RenderCommands &commands, std::uint16_t view, ProgramHandle meshProgram,
     ProgramHandle instancedProgram, SamplerHandle sampler,
     const DrawState &state,
-    const std::array<DrawUniformValue, 8> &lightingUniforms,
+    std::span<const DrawUniformValue> lightingUniforms,
     std::uint32_t &draws, std::uint32_t &triangles, std::string &error,
     MeshPbrBindings3D *surfaces, TextureHandle whiteTexture,
     const MeshSurfacePassPrograms3D &pass) const {

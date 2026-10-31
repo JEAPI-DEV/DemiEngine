@@ -454,10 +454,45 @@ void materialSnapshotDoesNotBorrowMutableLibraryStorage() {
   assert(std::abs(red - 0.010022826F) < 0.00000001F);
 }
 
+void morphEndpointsOwnTheirHeightTexture() {
+  TestResources resources;
+  JobSystem jobs(1);
+  TerrainGpuFieldCache3D cache(resources, jobs);
+  const auto original = fieldForTest();
+  auto before = prepareReady(jobs, cache, original);
+  auto changed = std::make_shared<HeightField>(*original);
+  auto start = std::make_shared<TerrainSamples<float>>(original->heights);
+  start->set(0, 100);
+  changed->morphFromHeights = start;
+  auto morph = prepareReady(jobs, cache, changed);
+  assert(morph->height != before->height && morph->normal == before->normal);
+  assert(resources.textures.at(morph->height.index).format == TextureFormat::RGBA32F);
+  float from = 0;
+  std::memcpy(&from, resources.textures.at(morph->height.index).bytes.data() + sizeof(float), sizeof(float));
+  assert(from == 100);
+  auto replacement = std::make_shared<HeightField>(*changed);
+  auto replacedStart = std::make_shared<TerrainSamples<float>>(*start);
+  replacedStart->set(0, 200);
+  replacement->morphFromHeights = replacedStart;
+  auto latest = prepareReady(jobs, cache, replacement);
+  assert(latest->height != morph->height && latest->normal == morph->normal);
+  cache.clear();
+  std::size_t liveBytes = 0;
+  for (const auto &[id, texture] : resources.textures) {
+    liveBytes += texture.bytes.size();
+  }
+  assert(cache.residentBytes() == liveBytes);
+  before.reset();
+  morph.reset();
+  latest.reset();
+  assert(cache.residentBytes() == 0 && resources.textures.empty());
+}
+
 } // namespace
 
 int main() {
   singleFlightReadinessAndBorrowedLifetime();
+  morphEndpointsOwnTheirHeightTexture();
   appearanceChangesReuseExactChannels();
   paletteDedupChangesRebuildClassification();
   equalSampleCountsCannotReuseDifferentTextureDimensions();

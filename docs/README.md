@@ -7,6 +7,21 @@ are registered in `tools/package-store/src/Docs.php`.
 
 This directory keeps material that has a different job:
 
+- [Regional streaming plan](world-terrain-streaming-plan.md) records shared prefab
+  prepare/adopt, frame-paced publication measurements, and unified graph
+  authoring, cell lifecycle gates and stored-versus-procedural vegetation measurements.
+- [Regional morphing and performance](regional-terrain-morphing.md) records
+  shared transition endpoints, seam/collision tests, constant-time GPU accounting
+  and unattended rendered traversal.
+- [Regional range and startup qualification](regional-terrain-range.md) records
+  primary-source research, initial cover preparation, layered vegetation,
+  impostor content, renderer/UI costs and full-size desktop qualification.
+- [Regional editor usability](regional-editor-usability.md) records preview
+  vegetation, navigation, material filtering, native traversal and remaining
+  performance/headless qualification limits.
+- [Regional terrain sampling](regional-terrain-sampling.md) records the native
+  global lattice, analytic relief, fixed-footprint normals and streaming boundaries.
+
 - [Static model LOD generation](static-model-lod-generation.md) records the shared
   generator, material/UV preservation, recipes and transactional publication.
 

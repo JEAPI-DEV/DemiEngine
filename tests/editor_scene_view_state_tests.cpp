@@ -1,6 +1,8 @@
 #include "editor/EditorWorkspace.h"
 #include "editor/EditorEntityBounds3D.h"
 #include "editor/EditorViewportProjection.h"
+#include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
+#include "demi/runtime/terrain/RegionalTerrainSampler.h"
 
 #include "demi/runtime/scene/Transform3DHierarchy.h"
 #include "demi/runtime/scene/components/3dcomponents/Camera3DComponent.h"
@@ -66,6 +68,40 @@ void depthRangeCoversAuthoredContent(demi::editor::EditorWorkspace &workspace) {
 } // namespace
 
 int main() {
+  {
+    demi::runtime::World regionWorld;
+    demi::runtime::Entity region;
+    region.id = "region";
+    region.setComponent(demi::runtime::Transform3DComponent{});
+    auto config = std::make_shared<demi::runtime::TerrainRegionConfig>();
+    config->recipe.size = {240000, 220000};
+    config->originX = -120000;
+    config->originZ = -110000;
+    demi::runtime::Terrain3DComponent terrain;
+    terrain.region = config;
+    region.setComponent(terrain);
+    regionWorld.entities.push_back(std::move(region));
+    demi::editor::EditorSceneViewState view;
+    view.reset(regionWorld);
+    const auto before = view.camera().focusDistance;
+    assert(before > 10000);
+    view.update({.wheel = -1, .hovered = true, .focused = true});
+    assert(view.camera().focusDistance > before);
+    assert(view.camera().projection.farClip > view.camera().focusDistance);
+
+    demi::runtime::Entity camera;
+    camera.id = "regional_camera";
+    camera.setComponent(demi::runtime::Transform3DComponent{.position = {10, 300, 20}});
+    camera.setComponent(demi::runtime::Camera3DComponent{});
+    regionWorld.entities.push_back(std::move(camera));
+    view.reset(regionWorld);
+    assert(close(view.camera().position, {10, 300, 20}));
+    assert(view.frameScene(regionWorld));
+    assert(view.camera().focusDistance > 10000);
+    view.reset(regionWorld);
+    assert(close(view.camera().position, {10, 300, 20}));
+  }
+
   const std::filesystem::path root = DEMI_SOURCE_DIR;
   {
     demi::editor::EditorWorkspace wide;
@@ -114,6 +150,15 @@ int main() {
   workspace.sceneView().update(
       {.deltaSeconds = 0.1F, .flyButton = true, .moveForward = true});
   assert(close(workspace.sceneView().camera().position, inactive.position));
+
+  const auto beforeSpeedChange = workspace.sceneView().camera();
+  const auto previousSpeed = workspace.sceneView().flySpeed();
+  workspace.sceneView().update({.wheel = 4, .hovered = true, .focused = true,
+                                 .flyButton = true});
+  assert(workspace.sceneView().flySpeed() > previousSpeed);
+  assert(close(workspace.sceneView().camera().position, beforeSpeedChange.position));
+  assert(close(workspace.sceneView().camera().focusDistance, beforeSpeedChange.focusDistance));
+  workspace.sceneView().update({});
 
   const auto beforeRefresh = workspace.sceneView().camera();
   assert(workspace.refresh(error));

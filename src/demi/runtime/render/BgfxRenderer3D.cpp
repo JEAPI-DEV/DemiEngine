@@ -1,3 +1,4 @@
+#include "demi/runtime/terrain/RegionalTerrainPresentation.h"
 #include "demi/runtime/render/BgfxRenderer3D.h"
 #include "demi/runtime/destruction/DestructionWorld3D.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
@@ -129,6 +130,8 @@ bool BgfxRenderer3D::initialize(std::string &error) {
       resources_.createUniform("u_lightColor", UniformType::Vec4, 1, error);
   ambientColorUniform_ =
       resources_.createUniform("u_ambientColor", UniformType::Vec4, 1, error);
+  fogColorUniform_ = resources_.createUniform("u_fogColor", UniformType::Vec4, 1, error);
+  fogRangeUniform_ = resources_.createUniform("u_fogRange", UniformType::Vec4, 1, error);
   constexpr std::array<std::byte, 4> White{std::byte{0xff}, std::byte{0xff},
                                            std::byte{0xff}, std::byte{0xff}};
   whiteTexture_ = resources_.createTexture({.width = 1,
@@ -143,7 +146,7 @@ bool BgfxRenderer3D::initialize(std::string &error) {
       !directionalInstancedProgram_ || !meshSampler_ || !tintUniform_ ||
       !alphaCutoffUniform_ || !debugModeUniform_ || !viewPositionUniform_ ||
       !metalRoughUniform_ || !whiteTexture_ || !lightDirectionUniform_ ||
-      !lightColorUniform_ || !ambientColorUniform_) {
+      !lightColorUniform_ || !ambientColorUniform_ || !fogColorUniform_ || !fogRangeUniform_) {
     shutdown();
     return false;
   }
@@ -319,7 +322,7 @@ void BgfxRenderer3D::shutdown() {
   for (const UniformHandle uniform :
        {tintUniform_, alphaCutoffUniform_, debugModeUniform_,
         viewPositionUniform_, metalRoughUniform_, lightDirectionUniform_,
-        lightColorUniform_, ambientColorUniform_})
+        lightColorUniform_, ambientColorUniform_, fogColorUniform_, fogRangeUniform_})
     if (uniform)
       resources_.destroy(uniform);
   if (meshProgram_)
@@ -336,6 +339,8 @@ void BgfxRenderer3D::shutdown() {
   lightDirectionUniform_ = {};
   lightColorUniform_ = {};
   ambientColorUniform_ = {};
+  fogColorUniform_ = {};
+  fogRangeUniform_ = {};
   meshProgram_ = {};
   instancedMeshProgram_ = {};
   particleRenderer_.shutdown();
@@ -373,6 +378,19 @@ bool BgfxRenderer3D::renderFrame(const World &world,
       }
     }
   } presentationScope{*this, ownsPresentation, presentationSucceeded};
+  RuntimeProfiler::setGauge("Renderer3D.viewport_width", frame.viewportWidth);
+  RuntimeProfiler::setGauge("Renderer3D.viewport_height", frame.viewportHeight);
+  const bool preparingRegion = regionalTerrainPreparing(world);
+  RuntimeProfiler::setGauge("Terrain.region.initial_preparing", preparingRegion ? 1 : 0);
+  if (preparingRegion) {
+    auto loadingFrame = frame;
+    loadingFrame.updateContent = false;
+    loadingFrame.camera.clearColor = {0.04F, 0.06F, 0.08F, 1.0F};
+    const bool rendered = renderView(world, loadingFrame, deltaSeconds, error,
+                                    false, {}, loadingFrame);
+    presentationSucceeded = rendered;
+    return rendered;
+  }
   if (frame.updateContent) {
     meshRetention_.collect(
         instancePreparation_.worldSources(world, &extractionJobs_));
@@ -399,6 +417,9 @@ bool BgfxRenderer3D::renderFrame(const World &world,
     waterTimeAdvanced_ = true;
   }
   cameraInstances_.reset();
+  for (auto &instances : shadowInstances_) {
+    instances.reset();
+  }
   auto mainFrame = frame;
   std::size_t shadowBatches = 0;
   std::size_t shadowTriangles = 0;
@@ -407,7 +428,7 @@ bool BgfxRenderer3D::renderFrame(const World &world,
     ProfileScope scope("Renderer3D.directional_shadow");
     shadows_.cast(cascade);
     if (!renderView(world, depthFrames[cascade], 0, error, true, sceneLighting,
-                    frame)) {
+                    frame, nullptr, &shadowInstances_[cascade])) {
       return false;
     }
     shadowBatches += statistics_.batches;
@@ -480,7 +501,7 @@ bool BgfxRenderer3D::renderFrame(const World &world,
   }
   const bool rendered = renderView(
       world, mainFrame, deltaSeconds, error, false, sceneLighting, frame,
-      capture, capture != nullptr ? &cameraInstances_ : nullptr);
+      capture, &cameraInstances_);
   statistics_.shadowPasses = depthFrames.size();
   if (rendered && frame.updateContent) {
     deformedMeshes_.retain([this](const std::string &id) {
@@ -638,6 +659,10 @@ bool BgfxRenderer3D::renderView(const World &world,
           return cached == modelMeshes_.end()
                      ? nullptr
                      : cached->second->materialSections.get();
+        },
+        [this](const VisibleMesh3D &draw) {
+          return draw.preparedSource &&
+                 opaqueInstanceSourceEligible(*draw.preparedSource);
         });
     lastExtractionMilliseconds_ =
         std::chrono::duration<double, std::milli>(
@@ -781,7 +806,7 @@ bool BgfxRenderer3D::renderView(const World &world,
       (depthCapture || frame.outputAnalyticDepth) ? 1.F / frame.camera.farClip
                                                   : 0.F};
   const std::array<float, 4> defaultMetalRough{0.0F, 0.8F, 0.0F, 0.0F};
-  const std::array<DrawUniformValue, 8> lightingUniforms{{
+  const std::array<DrawUniformValue, 10> lightingUniforms{{
       {.handle = tintUniform_, .values = whiteTint},
       {.handle = alphaCutoffUniform_, .values = noAlphaCutoff},
       {.handle = debugModeUniform_, .values = debugMode},
@@ -790,6 +815,8 @@ bool BgfxRenderer3D::renderView(const World &world,
       {.handle = ambientColorUniform_, .values = lighting.ambient},
       {.handle = viewPositionUniform_, .values = viewPosition},
       {.handle = metalRoughUniform_, .values = defaultMetalRough},
+      {.handle = fogColorUniform_, .values = sceneLighting.fogColor},
+      {.handle = fogRangeUniform_, .values = sceneLighting.fogRange},
   }};
   if (frame.updateContent) {
     const auto terrainProgram = analyticDepthProgram(

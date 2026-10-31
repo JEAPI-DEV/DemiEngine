@@ -2,11 +2,18 @@
 
 #include "demi/diagnostics/Diagnostic.h"
 
+#include <functional>
 #include <span>
 #include <string>
 #include <string_view>
 
+namespace demi::assets {
+struct AssetGroupProgress;
+}
 namespace demi::runtime {
+struct World;
+using AssetBootstrapPump =
+    std::function<bool(const assets::AssetGroupProgress &)>;
 
 class RuntimeAssetService;
 
@@ -20,6 +27,8 @@ struct SceneAssetBootstrapResult {
 [[nodiscard]] SceneAssetBootstrapResult
 prepareInitialSceneAssets(RuntimeAssetService &assets, std::string_view sceneId,
                           std::span<const std::string> preloadedAssets = {},
-                          Diagnostics *diagnostics = nullptr);
+                          Diagnostics *diagnostics = nullptr,
+                          const World *preparedWorld = nullptr,
+                          const AssetBootstrapPump &pump = {});
 
 } // namespace demi::runtime

@@ -31,6 +31,9 @@ uniform vec4 u_shadowCamera;
 uniform vec4 u_lightDirection;
 uniform vec4 u_lightColor;
 uniform vec4 u_ambientColor;
+uniform vec4 u_fogColor;
+// Start distance, inverse span, enabled, reserved.
+uniform vec4 u_fogRange;
 uniform vec4 u_tint;
 uniform vec4 u_alphaCutoff;
 uniform vec4 u_debugMode;
@@ -435,6 +438,8 @@ void main()
     }
     else
     {
-        gl_FragColor = vec4(encodeColor(shadedColor), albedo.a);
+        float fogAmount = clamp((length(toView) - u_fogRange.x) * u_fogRange.y, 0.0, 1.0);
+        fogAmount = fogAmount * fogAmount * (3.0 - 2.0 * fogAmount) * u_fogRange.z;
+        gl_FragColor = vec4(encodeColor(mix(shadedColor, u_fogColor.rgb, fogAmount)), albedo.a);
     }
 }

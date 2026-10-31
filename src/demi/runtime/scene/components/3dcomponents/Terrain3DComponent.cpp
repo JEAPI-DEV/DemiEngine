@@ -126,12 +126,14 @@ void Terrain3DComponent::copyRecipe(Terrain3DComponent &destination,
                                     const Terrain3DComponent &source) {
   destination.recipe = source.recipe;
   destination.generated.reset();
+  destination.region.reset();
 }
 void Terrain3DComponent::copyAsset(Terrain3DComponent &destination,
                                    const Terrain3DComponent &source) {
   destination.asset = source.asset;
   destination.recipe = nullptr;
   destination.generated.reset();
+  destination.region.reset();
 }
 bool Terrain3DComponent::readAsset(const Terrain3DComponent &source,
                                    nlohmann::json &out) {

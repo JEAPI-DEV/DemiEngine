@@ -23,10 +23,15 @@ struct TerrainChunk {
 // consumers do not need the generator or its authored recipe to read a field.
 struct HeightField {
   Vec2 size{};
+  // Runtime regional tiles share a source-local material frame. Finite cooked
+  // fields keep zero; tile payloads must not masquerade as finite asset caches.
+  Vec2 projectionOrigin{};
   int cellsX = 0;
   int cellsZ = 0;
   TerrainSamples<float> baseHeights;
   TerrainSamples<float> heights;
+  // Transient render transition endpoints, excluded from authored/cooked data.
+  std::shared_ptr<const TerrainSamples<float>> morphFromHeights;
   // Signed erosion transport of the selected graph surface, after weighted
   // blends. Independent per-node ledgers remain diagnostic provenance.
   std::shared_ptr<const TerrainSamples<float>> surfaceSedimentBalance;

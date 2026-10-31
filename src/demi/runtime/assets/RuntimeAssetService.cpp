@@ -1,6 +1,10 @@
 #include "demi/runtime/assets/RuntimeAssetService.h"
 #include "demi/runtime/assets/TerrainAssetResourceLoader.h"
 #include "demi/runtime/scene/RuntimePrefabService.h"
+#include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
+#include "demi/runtime/terrain/RegionalTerrainSampler.h"
+#include "demi/runtime/terrain/TerrainPalette.h"
+#include <set>
 
 #include "demi/filesystem/ProjectPaths.h"
 #include "demi/runtime/scene/SceneAssetReferences.h"
@@ -149,7 +153,13 @@ bool RuntimeAssetService::configure(const ProjectData &project,
       });
   if (terrainLoader_)
     std::erase(loaders_, terrainLoader_);
-  terrainLoader_ = createTerrainAssetResourceLoader(registry);
+  try {
+    terrainLoader_ = createTerrainAssetResourceLoader(registry);
+  } catch (const std::exception &failure) {
+    report(diagnostics, "ASSET_REGION_SOURCE_INVALID", failure.what(),
+           project.projectDirectory.string());
+    return false;
+  }
   loaders_.push_back(terrainLoader_);
   if (!fallbackLoader_) {
     fallbackLoader_ = std::make_shared<ResidentSourceAssetLoader>(
@@ -251,8 +261,9 @@ RuntimeAssetService::prepareScene(const std::string_view sceneId,
   return service_->prepare(group, diagnostics);
 }
 
-assets::AssetGroupDescriptor RuntimeAssetService::sceneGroup(
-    const std::string_view sceneId, std::vector<std::string> roots) const {
+assets::AssetGroupDescriptor
+RuntimeAssetService::sceneGroup(const std::string_view sceneId,
+                                std::vector<std::string> roots) const {
   assets::AssetGroupDescriptor descriptor{.id = sceneGroupId(sceneId),
                                           .roots = std::move(roots),
                                           .budget = {},
@@ -283,7 +294,7 @@ RuntimeAssetService::prepareScene(const std::string_view sceneId,
            std::string(sceneId));
     return 0;
   }
-  auto referencedAssets = collectSceneAssetReferences(preparedWorld, sceneId);
+  auto referencedAssets = sceneReferences(preparedWorld, sceneId, diagnostics);
   if (referencedAssets.empty()) {
     return 0;
   }
@@ -437,7 +448,57 @@ RuntimeAssetService::resolveRoot(const std::string_view root,
            std::string(root));
     return {};
   }
-  return collectSceneAssetReferences(*world, root);
+  return sceneReferences(*world, root, diagnostics);
+}
+
+std::vector<std::string>
+RuntimeAssetService::sceneReferences(const World &world,
+                                     std::string_view sceneId,
+                                     Diagnostics *diagnostics) const {
+  auto references = collectSceneAssetReferences(world, sceneId);
+  std::set<std::string> prototypes;
+  for (const auto &entity : world.entities) {
+    if (!sceneId.empty() && entity.sceneOwner != sceneId) {
+      continue;
+    }
+    const auto *terrain = entity.component<Terrain3DComponent>();
+    if (!terrain || !terrain->region || !terrain->region->palette) {
+      continue;
+    }
+    for (const auto &[id, entry] : terrain->region->palette->placements) {
+      if (!entry.model.empty()) {
+        references.push_back(entry.model);
+      }
+      if (!entry.prefab.empty()) {
+        prototypes.insert(entry.prefab);
+      }
+    }
+  }
+  // Load each reusable prototype's resources once, including its reduced LOD
+  // meshes and materials. Discovering dependencies must not scatter a world.
+  if (prototypes.empty()) {
+    return references;
+  }
+  RuntimePrefabService prefabs;
+  prefabs.configure(project_.projectDirectory);
+  for (const auto &prefab : prototypes) {
+    const auto prepared =
+        prefabs.prepareInstance(prefab, {.id = "__asset_prototype"});
+    if (!prepared) {
+      if (diagnostics) {
+        diagnostics->insert(diagnostics->end(),
+                            prepared.result().diagnostics.begin(),
+                            prepared.result().diagnostics.end());
+      }
+      return {};
+    }
+    const auto assets = collectEntityAssetReferences(prepared.entities());
+    references.insert(references.end(), assets.begin(), assets.end());
+  }
+  std::ranges::sort(references);
+  references.erase(std::unique(references.begin(), references.end()),
+                   references.end());
+  return references;
 }
 
 std::shared_ptr<assets::AssetResourceLoader> createResidentSourceAssetLoader() {

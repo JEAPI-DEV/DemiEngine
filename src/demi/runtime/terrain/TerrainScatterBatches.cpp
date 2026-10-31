@@ -1,4 +1,5 @@
 #include "demi/runtime/terrain/TerrainScatterBatches.h"
+#include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshInstances3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
@@ -9,6 +10,7 @@
 #include "demi/runtime/terrain/TerrainScatterLayout.h"
 #include <algorithm>
 #include <map>
+#include <unordered_map>
 
 namespace demi::runtime {
 namespace {
@@ -88,19 +90,27 @@ bool sameTransform(const WorldTransform3D &left,
 
 TerrainScatterBatchResult
 syncTerrainScatterBatches(World &world, WorldCommandBuffer &commands,
-                          std::string_view ownerId, const HeightField &field,
+                          std::string_view ownerId, TerrainScatterView view,
                           const TerrainPrefabServiceProvider &prefabs,
-                          std::string &error) {
+                          std::string &error, std::stop_token stop) {
+  ProfileScope profile("Terrain.scatter_batches");
   TerrainScatterBatchResult result;
-  const auto *owner = findEntity(world, std::string(ownerId));
+  result.handled.resize(view.placements.size());
+  const auto *pendingOwner = commands.pendingEntity(ownerId);
+  // Command creation can reallocate its storage. Never retain a borrowed
+  // pending-entity pointer across further create() calls.
+  const std::optional<Entity> ownerSnapshot =
+      pendingOwner ? std::optional<Entity>(*pendingOwner) : std::nullopt;
+  const auto *owner =
+      ownerSnapshot ? &*ownerSnapshot : findEntity(world, std::string(ownerId));
   if (!owner) {
     error =
         "Terrain scatter batch owner was not found: " + std::string(ownerId);
     return result;
   }
   const std::string prefix =
-      std::string(ownerId) + "/__scatter/" + field.paletteId + "/";
-  std::map<std::string, WorldTransform3D> previous;
+      std::string(ownerId) + "/__scatter/" + std::string(view.paletteId) + "/";
+  std::unordered_map<std::string_view, WorldTransform3D> previous;
   std::vector<std::string> oldBatches;
   for (const auto &entity : world.entities) {
     if (!entity.hasComponent<TerrainScatterBatch>() ||
@@ -110,41 +120,39 @@ syncTerrainScatterBatches(World &world, WorldCommandBuffer &commands,
     oldBatches.push_back(entity.id);
     const auto *instances = entity.component<MeshInstances3DComponent>();
     if (instances) {
-      previous.insert(instances->transforms().begin(),
-                      instances->transforms().end());
+      for (const auto &[id, transform] : instances->transforms()) {
+        previous.try_emplace(id, transform);
+      }
     }
   }
 
   std::map<std::string, PreparedSource> sources;
   std::map<std::string, Entity> batches;
-  std::map<std::string, WorldTransform3D> current;
-  for (const auto &placement : field.scatterPlacements) {
-    if (placement.collision != TerrainCollisionPolicy::None) {
-      continue;
-    }
+  std::unordered_map<std::string, WorldTransform3D> current;
+  current.reserve(view.placements.size());
+  struct BatchPart {
+    MeshInstances3DComponent *instances = nullptr;
+    WorldTransform3D transform;
+  };
+  struct BatchGroup {
+    bool batchable = false;
+    std::vector<BatchPart> parts;
+  };
+  std::map<std::pair<std::string, std::string>, BatchGroup> groups;
+  const auto groupFor =
+      [&](const TerrainScatterPlacement &placement) -> BatchGroup & {
     const std::string sourceKey = placement.prefab.empty()
                                       ? "model:" + placement.model
                                       : "prefab:" + placement.prefab;
-    auto [source, inserted] = sources.try_emplace(sourceKey);
-    if (inserted) {
+    auto [group, newGroup] = groups.try_emplace({sourceKey, placement.ruleId});
+    if (!newGroup) {
+      return group->second;
+    }
+    auto [source, newSource] = sources.try_emplace(sourceKey);
+    if (newSource) {
       source->second = prepareSource(placement, prefabs);
     }
-    if (!source->second.batchable) {
-      continue;
-    }
-    const auto placementId =
-        terrainScatterInstanceId(ownerId, field.paletteId, placement.ruleId,
-                                 placement.candidateX, placement.candidateZ);
-    const auto *terrain = owner->component<Terrain3DComponent>();
-    if (terrain && std::ranges::find(terrain->scatterExclusions, placementId) !=
-                       terrain->scatterExclusions.end()) {
-      continue;
-    }
-    result.placements.insert(placementId);
-    const WorldTransform3D placementTransform{
-        placement.position,
-        {0, placement.yaw, 0},
-        {placement.scale, placement.scale, placement.scale}};
+    group->second.batchable = source->second.batchable;
     for (const auto &part : source->second.parts) {
       const auto batchId = prefix + "__batches/" +
                            terrainScatterInstanceKey(sourceKey, part.source.id,
@@ -165,13 +173,64 @@ syncTerrainScatterBatches(World &world, WorldCommandBuffer &commands,
         batch->second.removeComponent<TerrainScatterCollisionState>();
         batch->second.serializedComponents.erase("Transform3D");
       }
+      group->second.parts.push_back(
+          {batch->second.component<MeshInstances3DComponent>(),
+           part.transform});
+    }
+    return group->second;
+  };
+  // Scatter normally emits consecutive rules. Unsorted inputs still resolve
+  // through the group map; only invariant source/part setup is reused.
+  BatchGroup *group = nullptr;
+  std::string_view lastRule, lastModel, lastPrefab;
+  const auto *terrain = owner->component<Terrain3DComponent>();
+  for (std::size_t index = 0; index < view.placements.size(); ++index) {
+    if ((index & 255U) == 0 && stop.stop_requested()) {
+      return {};
+    }
+    const auto &placement = view.placements[index];
+    if (placement.collision != TerrainCollisionPolicy::None) {
+      continue;
+    }
+    if (!group || lastRule != placement.ruleId ||
+        lastModel != placement.model || lastPrefab != placement.prefab) {
+      group = &groupFor(placement);
+      lastRule = placement.ruleId;
+      lastModel = placement.model;
+      lastPrefab = placement.prefab;
+    }
+    if (!group->batchable) {
+      continue;
+    }
+    const auto placementId =
+        terrainScatterInstanceId(ownerId, view.paletteId, placement.ruleId,
+                                 placement.candidateX, placement.candidateZ);
+    if (std::ranges::find(view.exclusions, placementId) !=
+            view.exclusions.end() ||
+        (terrain &&
+         std::ranges::find(terrain->scatterExclusions, placementId) !=
+             terrain->scatterExclusions.end())) {
+      continue;
+    }
+    result.handled[index] = 1;
+    const WorldTransform3D placementTransform{
+        placement.position,
+        {0, placement.yaw, 0},
+        {placement.scale, placement.scale, placement.scale}};
+    for (const auto &part : group->parts) {
       const auto transform =
           composeWorldTransform3D(placementTransform, part.transform);
-      batch->second.component<MeshInstances3DComponent>()->setTransform(
-          placementId, transform);
+      part.instances->setTransform(placementId, transform);
       current.try_emplace(placementId, transform);
     }
   }
+
+  // A prepared group can be fully excluded. Do not publish an empty owner.
+  std::erase_if(batches, [](const auto &item) {
+    return item.second.template component<MeshInstances3DComponent>()
+        ->transforms()
+        .empty();
+  });
 
   for (auto &[id, batch] : batches) {
     const auto *existing = findEntity(world, id);
@@ -214,7 +273,7 @@ syncTerrainScatterBatches(World &world, WorldCommandBuffer &commands,
     }
   }
   for (const auto &[id, unused] : previous) {
-    if (!current.contains(id)) {
+    if (!current.contains(std::string(id))) {
       ++result.statistics.removed;
     }
   }

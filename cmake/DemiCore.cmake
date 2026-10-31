@@ -25,6 +25,9 @@ add_library(demi-core STATIC
   src/demi/runtime/terrain/TerrainBiomeRules.cpp
   src/demi/runtime/terrain/TerrainGenerator.cpp
   src/demi/runtime/terrain/TerrainEvaluation.cpp
+  src/demi/runtime/terrain/RegionalTerrainMorphField.cpp
+  src/demi/runtime/terrain/RegionalTerrainCover.cpp
+  src/demi/runtime/terrain/RegionalTerrainSampler.cpp
   src/demi/runtime/terrain/TerrainUpdate.cpp
   src/demi/runtime/terrain/TerrainPatch.cpp
   src/demi/runtime/terrain/TerrainGenerationCache.cpp
@@ -49,6 +52,7 @@ add_library(demi-core STATIC
   src/demi/runtime/terrain/TerrainCook.cpp
   src/demi/runtime/terrain/TerrainCookFormat.cpp
   src/demi/runtime/terrain/TerrainCookNode.cpp
+  src/demi/runtime/terrain/TerrainVegetationResidency.cpp
   src/demi/runtime/terrain/TerrainScatter.cpp
   src/demi/runtime/terrain/TerrainLod.cpp
   src/demi/runtime/terrain/TerrainLodResidency.cpp
@@ -102,6 +106,7 @@ add_library(demi-core STATIC
   src/demi/assets/MaterialSet.cpp
   src/demi/assets/TerrainAssetValidation.cpp
   src/demi/assets/TerrainAssetCook.cpp
+  src/demi/assets/TerrainRegionAsset.cpp
   src/demi/assets/TerrainAsset.cpp
   src/demi/assets/TerrainSurfaceReferences.cpp
   src/demi/assets/TerrainAssetSource.cpp

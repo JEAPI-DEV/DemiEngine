@@ -9,6 +9,7 @@
 #include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
 #include "demi/runtime/terrain/TerrainGenerationCache.h"
 #include "demi/runtime/terrain/TerrainWorld.h"
+#include "demi/runtime/terrain/TerrainVegetationWorld.h"
 #include <functional>
 #include <unordered_set>
 
@@ -41,6 +42,9 @@ std::string editorPlacementOwner(const runtime::World &world, std::string_view e
     if (entity->hasComponent<runtime::PrefabPlacement3DComponent>()) return entity->id;
     if (const auto terrainOwner = runtime::terrainSurfaceOwner(*entity))
       generatedOwner = *terrainOwner;
+    if (const auto *cell = entity->component<runtime::TerrainVegetationCellOwner>()) {
+      generatedOwner = cell->regionOwner;
+    }
     const auto *transform = entity->component<runtime::Transform3DComponent>();
     if (transform && entity->id.starts_with(transform->parent + "/__masonry_preview/"))
       generatedOwner = transform->parent;
@@ -111,6 +115,7 @@ bool applyEditorPreviewValue(runtime::World &world,
     if (sameSource) {
       terrain->recipe = previous->recipe;
       terrain->generated = previous->generated;
+      terrain->region = previous->region;
     }
   }
   restoreEditorDerivedState(replacement);

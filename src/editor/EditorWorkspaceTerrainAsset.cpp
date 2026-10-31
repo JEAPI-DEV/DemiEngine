@@ -3,9 +3,15 @@
 #include "editor/EditorTerrainRuntime.h"
 
 #include "demi/assets/TerrainAsset.h"
+#include "demi/assets/TerrainRegionAsset.h"
+#include "demi/assets/DataAsset.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/Transform3DComponent.h"
 #include "demi/runtime/terrain/TerrainUpdate.h"
+#include "demi/runtime/terrain/TerrainWorld.h"
+#include "demi/runtime/terrain/RegionalTerrainSystem.h"
+#include "demi/runtime/terrain/RegionalTerrainPresentation.h"
 #include "demi/runtime/terrain/TerrainWorldBatch.h"
 
 #include <algorithm>
@@ -40,8 +46,36 @@ bool installSharedTerrain(runtime::World &world, std::string_view assetId,
                           const nlohmann::json &recipe,
                           const EditorTerrainUpdate &update, std::string &error,
                           runtime::RuntimePrefabService *prefabs) {
-  if (!update.surface || !update.surface->heightField() || !update.patch) {
+  if (!update.surface || !update.surface->heightField()) {
     error = "Terrain publication requires a native surface and patch.";
+    return false;
+  }
+  for (auto &entity : world.entities) {
+    const auto *terrain = entity.component<runtime::Terrain3DComponent>();
+    if (terrain && terrain->asset == assetId && terrain->region) {
+      try {
+        auto config = std::make_shared<runtime::TerrainRegionConfig>(*terrain->region);
+        config->recipe = runtime::TerrainRecipe::parse(recipe);
+        // The finite authoring overview intentionally suppresses placements.
+        // Streaming must retain the actual palette after Generate/Undo/Redo.
+        const auto registry = loadAssetRegistry(config->projectDirectory);
+        config->palette = assets::resolveTerrainAssetGenerationInputs(
+                              registry, config->recipe).palette;
+        (void)runtime::RegionalTerrainSampler(*config);
+        entity.updateComponent<runtime::Terrain3DComponent>([&](auto &value) {
+          value.recipe = recipe;
+          value.generated = update.surface->heightField();
+          value.region = std::move(config);
+        });
+        return true;
+      } catch (const std::exception &failure) {
+        error = failure.what();
+        return false;
+      }
+    }
+  }
+  if (!update.patch) {
+    error = "Finite terrain publication requires a native patch.";
     return false;
   }
   runtime::TerrainUpdate native;
@@ -52,6 +86,33 @@ bool installSharedTerrain(runtime::World &world, std::string_view assetId,
                                           prefabs);
 }
 } // namespace
+
+bool EditorWorkspace::updateRegionalPreview(std::string &error, float deltaSeconds) {
+  if (!project_) {
+    return true;
+  }
+  if (!regionalPreview_) {
+    regionalPreview_ = std::make_shared<runtime::RegionalTerrainSystem>(
+        runtime::RegionalTerrainSystem::Options{.physics = false, .vegetation = true});
+  }
+  const auto view = sceneView_.camera();
+  const auto orderRevision = project_->world.entities.orderRevision();
+  const bool updated = regionalPreview_->updateView(
+      project_->world, view.position, view.forward, error, &terrainPreviewPrefabs_, deltaSeconds);
+  // Streaming publication can relocate every entity, including authored roots.
+  // Hierarchy rows borrow these entities and must rebuild before drawing again.
+  if (project_->world.entities.orderRevision() != orderRevision) {
+    invalidateHierarchyPreview();
+  }
+  return updated;
+}
+bool EditorWorkspace::regionalPreviewPreparing() const {
+  return project_ && runtime::regionalTerrainPreparing(project_->world);
+}
+
+bool EditorWorkspace::regionalPreviewPending() const {
+  return regionalPreview_ && regionalPreview_->hasPendingWork();
+}
 
 bool EditorWorkspace::terrainEditingAsset() const {
   if (!terrainAssetBinding_ || !terrainAssetDocument_ || !project_ ||
@@ -152,9 +213,29 @@ bool EditorWorkspace::openTerrainAssetDocument(
     candidate = *terrainAssetDocument_;
   else if (!candidate.open(record->manifest, error))
     return false;
+  const bool regionalOverview =
+      assets::terrainRegionSourceIds(assetIndex_.registry())
+          .contains(candidate.id());
+  std::shared_ptr<runtime::TerrainRegionConfig> regionPreview;
   try {
-    (void)assets::prepareTerrainAsset(assetIndex_.registry(),
-                                      record->manifest.id);
+    if (regionalOverview) {
+      for (const auto &manifest : assetIndex_.registry().assets) {
+        if (!assets::isTerrainRegionAsset(manifest)) {
+          continue;
+        }
+        const auto data = assets::loadDataAsset(manifest);
+        const auto definition = assets::parseTerrainRegionAsset(*data->document);
+        if (definition.terrain == candidate.id()) {
+          regionPreview = std::make_shared<runtime::TerrainRegionConfig>(
+              assets::compileTerrainRegionSource(assetIndex_.registry(), definition));
+          regionPreview->recipe = runtime::TerrainRecipe::parse(candidate.recipe());
+          regionPreview->originX = regionPreview->originZ = 0;
+          break;
+        }
+      }
+    } else {
+      (void)assets::prepareTerrainAsset(assetIndex_.registry(), record->manifest.id);
+    }
   } catch (const std::exception &failure) {
     error = failure.what();
     return false;
@@ -179,8 +260,25 @@ bool EditorWorkspace::openTerrainAssetDocument(
       {"entities", nlohmann::json::array({owner})}};
   runtime::RuntimePrefabService previewPrefabs;
   previewPrefabs.configure(project_->project.projectDirectory);
-  auto world = runtime::loadSceneDocument(previewProject, previewId, preview,
-                                          error, false, &previewPrefabs);
+  std::optional<runtime::World> world;
+  if (regionalOverview) {
+    world.emplace();
+    world->activeSceneId = previewId;
+    world->loadedSceneIds.insert(previewId);
+    runtime::Entity root;
+    root.id = PreviewOwner;
+    root.sceneOwner = previewId;
+    root.setComponent(runtime::Transform3DComponent{});
+    runtime::Terrain3DComponent component;
+    component.asset = candidate.id();
+    component.recipe = candidate.recipe();
+    component.region = regionPreview;
+    root.setComponent(std::move(component));
+    world->entities.push_back(std::move(root));
+  } else {
+    world = runtime::loadSceneDocument(previewProject, previewId, preview,
+                                       error, false, &previewPrefabs);
+  }
   if (!world)
     return false;
   if (terrainAssetDocument_ && terrainAssetDocument_->id() == candidate.id() &&
@@ -212,9 +310,10 @@ bool EditorWorkspace::openTerrainAssetDocument(
   viewportTool_.cancelDrag();
   viewDimension_ = EditorSceneViewDimension::ThreeDimensional;
   sceneView_.reset(project_->world);
+  sceneView_.studioLighting = regionalOverview;
   (void)sceneView_.frameScene(project_->world);
   syncTerrainAuthoring();
-  refreshDiagnostics();
+  syncEditorDiagnostic();
   return true;
 }
 
@@ -239,7 +338,7 @@ void EditorWorkspace::leaveTerrainAssetDocument() {
   activeDocument_ = EditorWorkspaceDocument::Scene;
   if (selectedEntityIds_.empty() && !project_->world.entities.empty())
     selectedEntityIds_.push_back(project_->world.entities.front().id);
-  refreshDiagnostics();
+  syncEditorDiagnostic();
 }
 
 bool EditorWorkspace::placeTerrainAsset(
@@ -286,12 +385,17 @@ bool EditorWorkspace::assignTerrainAsset(const std::string_view entityId,
   }
   const AssetManifest *manifest =
       findAsset(assetIndex_.registry(), std::string(assetId));
-  if (!manifest || manifest->type != "Terrain") {
-    error = "Choose an imported Terrain asset.";
+  if (!manifest || (manifest->type != "Terrain" &&
+                    !assets::isTerrainRegionAsset(*manifest))) {
+    error = "Choose an imported Terrain or terrain region asset.";
     return false;
   }
   try {
-    (void)assets::prepareTerrainAsset(assetIndex_.registry(), assetId);
+    if (assets::isTerrainRegionAsset(*manifest)) {
+      (void)assets::loadTerrainRegionSource(assetIndex_.registry(), assetId);
+    } else {
+      (void)assets::prepareTerrainAsset(assetIndex_.registry(), assetId);
+    }
   } catch (const std::exception &failure) {
     error = failure.what();
     return false;
@@ -399,8 +503,8 @@ bool EditorWorkspace::restoreTerrainAssetPreview(std::string &error) {
     } else {
       // The authored asset changed while Preview was visible. Its previous
       // baseline is stale; generate the current source at Final quality.
-      const auto inputs = assets::resolveTerrainAssetGenerationInputs(
-          assetIndex_.registry(),
+      const auto inputs = resolveEditorTerrainAssetInputs(
+          assetIndex_.registry(), source.id(),
           runtime::TerrainRecipe::parse(source.recipe()));
       auto generated = regenerateEditorTerrainWithInputs(
           source.recipe(), currentEditorTerrain(project_->world, owner->id),
@@ -443,8 +547,9 @@ bool EditorWorkspace::refreshTerrainAssetPreview(const nlohmann::json &recipe,
     auto update = updateEditorTerrainWithInputs(
         terrain->recipe, recipe,
         currentEditorTerrain(project_->world, owner->id),
-        assets::resolveTerrainAssetGenerationInputs(
-            assetIndex_.registry(), runtime::TerrainRecipe::parse(recipe)),
+        resolveEditorTerrainAssetInputs(assetIndex_.registry(),
+                                        terrainAssetDocument_->id(),
+                                        runtime::TerrainRecipe::parse(recipe)),
         {}, {}, error);
     if (!update)
       return false;
@@ -510,9 +615,12 @@ bool EditorWorkspace::saveTerrainAsset(std::string &error) {
     return false;
   refreshAssetMetadata();
   try {
-    (void)assets::storeTerrainAssetPreview(
-        assetIndex_.registry(), terrainAssetDocument_->id(),
-        terrainAssetDocument_->recipe(), surface->heightField());
+    if (!assets::terrainRegionSourceIds(assetIndex_.registry())
+             .contains(terrainAssetDocument_->id())) {
+      (void)assets::storeTerrainAssetPreview(
+          assetIndex_.registry(), terrainAssetDocument_->id(),
+          terrainAssetDocument_->recipe(), surface->heightField());
+    }
   } catch (const std::exception &failure) {
     error = failure.what();
     return false;

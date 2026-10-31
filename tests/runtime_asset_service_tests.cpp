@@ -4,6 +4,7 @@
 #include "demi/runtime/assets/RegistryAssetResourceLoader.h"
 #include "demi/runtime/assets/RuntimeAssetReload.h"
 #include "demi/runtime/assets/RuntimeAssetService.h"
+#include "demi/runtime/assets/RuntimeAssetBootstrap.h"
 #include "demi/runtime/scene/GenericComponent.h"
 #include "demi/runtime/scene/ResourceLifetimeRegistry.h"
 #include "demi/runtime/scene/SceneAssetReferences.h"
@@ -546,7 +547,50 @@ void implicitSceneBudgets(const std::filesystem::path &root,
 
 } // namespace
 
+void startupPumpsAndReusesPreparedWorld() {
+  using namespace demi;
+  using namespace demi::runtime;
+  const auto root = std::filesystem::temp_directory_path() /
+      ("demi-bootstrap-pump-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+  write(root / "data.json", R"({"format_version":1,"value":42})");
+  AssetRegistry registry;
+  registry.projectDirectory = root;
+  registry.assets.push_back({.id = "asset://bootstrap/data", .type = "DataAsset",
+      .settingsJson = "{}", .sourcePath = root / "data.json", .sourcePaths = {root / "data.json"}});
+  ProjectData project;
+  project.projectDirectory = root;
+  // No authored scene is registered. Startup must use the supplied world,
+  // rather than trying to expand its source again on the platform thread.
+  World world;
+  world.activeSceneId = "scene://bootstrap/ready";
+  Entity entity;
+  entity.id = "owner";
+  entity.sceneOwner = world.activeSceneId;
+  entity.serializedComponents["GameplayData"] = R"({"values":{"resource":"asset://bootstrap/data"}})";
+  world.entities.push_back(std::move(entity));
+  RuntimeAssetService service;
+  Diagnostics diagnostics;
+  assert(service.configure(project, registry, &diagnostics));
+  int pumps = 0;
+  const auto result = prepareInitialSceneAssets(service, world.activeSceneId, {},
+      &diagnostics, &world, [&](const auto &) { ++pumps; return true; });
+  assert(result.success && result.hasResidentGroup && pumps > 0);
+  assert(!hasErrors(diagnostics));
+  assert(service.releaseScene(world.activeSceneId));
+  diagnostics.clear();
+  const auto cancelled = prepareInitialSceneAssets(service, world.activeSceneId, {},
+      &diagnostics, &world, [](const auto &) { return false; });
+  assert(!cancelled.success);
+  assert(std::ranges::any_of(diagnostics, [](const auto &issue) {
+    return issue.code == "ASSET_STARTUP_CANCELLED";
+  }));
+  assert(service.memoryReport().assets.empty());
+  service.shutdown();
+  std::filesystem::remove_all(root);
+}
+
 int main() {
+  startupPumpsAndReusesPreparedWorld();
   headlessVisualPreparationDoesNotRetainSourceCopies();
   referenceCollectionSkipsInstancePayloadsAndRetainsDynamicResources();
   registryVerificationRetainsOnlyMetadata();

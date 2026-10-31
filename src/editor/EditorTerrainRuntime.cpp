@@ -1,4 +1,6 @@
 #include "editor/EditorTerrainRuntime.h"
+#include "demi/assets/TerrainAsset.h"
+#include "demi/assets/TerrainRegionAsset.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
 #include "demi/runtime/terrain/TerrainGenerationCache.h"
@@ -9,6 +11,23 @@
 #include <stdexcept>
 
 namespace demi::editor {
+runtime::TerrainGenerationInputs
+resolveEditorTerrainAssetInputs(const AssetRegistry &registry,
+                                std::string_view assetId,
+                                const runtime::TerrainRecipe &recipe) {
+  auto inputs = assets::resolveTerrainAssetGenerationInputs(registry, recipe);
+  if (assets::terrainRegionSourceIds(registry).contains(std::string(assetId))) {
+    if (inputs.palette) {
+      auto overview =
+          std::make_shared<runtime::TerrainPalette>(*inputs.palette);
+      overview->placements.clear();
+      inputs.palette = std::move(overview);
+    }
+    inputs.fingerprint += ":regional-overview";
+  }
+  return inputs;
+}
+
 namespace {
 class HeightFieldSurface final : public EditorTerrainSurface {
 public:
