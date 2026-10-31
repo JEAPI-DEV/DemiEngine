@@ -4,6 +4,7 @@
 #include "demi/runtime/scene/Transform3DHierarchy.h"
 #include "demi/runtime/scene/WorldCommandBuffer.h"
 #include "demi/runtime/scene/WorldQueries.h"
+#include "demi/runtime/scene/EntityLookup.h"
 #include "demi/runtime/scene/components/3dcomponents/Camera3DComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
 #include "demi/runtime/scene/components/3dcomponents/Terrain3DComponent.h"
@@ -162,8 +163,15 @@ struct RegionalTerrainSystem::Impl {
     bool initialReady = false;
     std::optional<RegionalTerrainMorph> morph;
     bool morphBeforePublication = false;
+    std::vector<RegionalTerrainMorphPatch> stagedMorph;
+    EntityLookup renderLookup;
+    std::shared_ptr<RegionalTerrainRenderPreparation> renderPreparation =
+        std::make_shared<RegionalTerrainRenderPreparation>();
     std::optional<bool> surfaceBlending;
     std::vector<TerrainRegionPatchVariant> target;
+    std::vector<TerrainRegionPatchVariant> requestedActive;
+    std::vector<TerrainRegionPatchVariant> requestedTarget;
+    std::size_t requestedPatchCount = 0;
     Region(JobSystem &jobs, const Entity &owner, WorldTransform3D pose,
            std::shared_ptr<const TerrainRegionConfig> source,
            std::uint64_t serial, Options options, Vec3 initialCamera)
@@ -244,6 +252,17 @@ struct RegionalTerrainSystem::Impl {
           initialCover.clear();
         }
       }
+      const auto statistics = cache.statistics();
+      const bool unchanged = active == requestedActive && target == requestedTarget;
+      const bool settled = statistics.residentCells == requestedPatchCount &&
+                           statistics.pendingJobs == 0 &&
+                           statistics.retiringJobs == 0;
+      // Pending, retiring and budget-blocked demand still needs polling. A
+      // complete unchanged cover has no residency work to repeat each tick.
+      if (unchanged && settled) {
+        return;
+      }
+      ProfileScope profile("Terrain.region.residency_update");
       std::set<TerrainRegionPatchVariant> requested(active.begin(),
                                                     active.end());
       requested.insert(target.begin(), target.end());
@@ -252,6 +271,9 @@ struct RegionalTerrainSystem::Impl {
         demand.push_back({key, patchReservation(*config)});
       }
       cache.update(demand);
+      requestedActive = active;
+      requestedTarget = target;
+      requestedPatchCount = demand.size();
     }
     bool targetReady(std::string &error) const {
       if (!proposed) {
@@ -268,12 +290,51 @@ struct RegionalTerrainSystem::Impl {
       }
       return true;
     }
+    RegionalTerrainRenderPatch renderPatch(
+        std::shared_ptr<const HeightField> field) const {
+      auto [low, high] = std::minmax_element(field->heights.begin(),
+                                            field->heights.end());
+      float minimum = *low;
+      float maximum = *high;
+      if (field->morphFromHeights) {
+        const auto [fromLow, fromHigh] = std::minmax_element(
+            field->morphFromHeights->begin(), field->morphFromHeights->end());
+        minimum = std::min(minimum, *fromLow);
+        maximum = std::max(maximum, *fromHigh);
+      }
+      const float x = float(config->originX) + field->projectionOrigin.x;
+      const float z = float(config->originZ) + field->projectionOrigin.y;
+      return {field, {x, minimum, z},
+              {x + field->size.x, maximum, z + field->size.y}};
+    }
+    void refreshRenderPreparation(
+        World &world, const std::vector<TerrainRegionPatchVariant> &variants) {
+      ProfileScope profile("Terrain.region.prepare_render_requests");
+      renderPreparation->active.clear();
+      renderPreparation->active.reserve(variants.size());
+      for (const auto &key : variants) {
+        const auto &patch = *cache.find(key);
+        // A region can own thousands of patches. Resolve IDs through the shared
+        // index rather than scanning the whole World for every active patch.
+        const auto *entity =
+            renderLookup.find(world.entities, patch.entities.front());
+        const auto *terrain =
+            entity ? entity->component<Terrain3DComponent>() : nullptr;
+        if (!terrain || !terrain->generated) {
+          throw std::runtime_error("Regional render patch is missing: " +
+                                   patch.entities.front());
+        }
+        renderPreparation->active.push_back(renderPatch(terrain->generated));
+      }
+    }
     void transition(World &world, const Entity &owner, std::string &error,
                     float deltaSeconds) {
       if (morph) {
         if (morph->advance(world, deltaSeconds)) {
           if (morphBeforePublication) {
             (void)publish(world, owner, error);
+          } else {
+            refreshRenderPreparation(world, active);
           }
           morph.reset();
         }
@@ -282,8 +343,35 @@ struct RegionalTerrainSystem::Impl {
       if (!targetReady(error)) {
         return;
       }
+      if (!renderPreparation->pending.empty()) {
+        if (renderPreparation->waiting()) {
+          return;
+        }
+        if (!initialReady || !morphBeforePublication) {
+          (void)publish(world, owner, error);
+        }
+        if (!stagedMorph.empty()) {
+          morph.emplace(world, std::move(stagedMorph));
+          for (const auto &patch : renderPreparation->pending) {
+            // Splits already retained the target cover in publish(). Only its
+            // morph fields are additional demand. Merges must also hold the
+            // eventual coarse replacement until the fine cover finishes.
+            if (morphBeforePublication || patch.field->morphFromHeights) {
+              renderPreparation->active.push_back(patch);
+            }
+          }
+        }
+        renderPreparation->pending.clear();
+        return;
+      }
+      for (const auto &key : target) {
+        const auto &patch = *cache.find(key);
+        const auto *entity = findEntity(*patch.world, patch.entities.front());
+        renderPreparation->pending.push_back(
+            renderPatch(entity->component<Terrain3DComponent>()->generated));
+      }
+      renderPreparation->prepared = false;
       if (!initialReady) {
-        (void)publish(world, owner, error);
         return;
       }
       const auto fields = [&](const auto &variants) {
@@ -316,10 +404,10 @@ struct RegionalTerrainSystem::Impl {
              makeRegionalMorphField(*config, key.patch, grid, from, to),
              patch.entities});
       }
-      if (!morphBeforePublication) {
-        (void)publish(world, owner, error);
+      for (const auto &patch : patches) {
+        renderPreparation->pending.push_back(renderPatch(patch.field));
       }
-      morph.emplace(world, std::move(patches));
+      stagedMorph = std::move(patches);
     }
     bool publish(World &world, const Entity &owner, std::string &error) {
       if (!targetReady(error)) {
@@ -378,6 +466,7 @@ struct RegionalTerrainSystem::Impl {
         }
         adoptPreparedPhysicsShapes3D(world, *cache.find(key)->world);
       }
+      refreshRenderPreparation(world, target);
       active = target;
       cover = std::move(*proposed);
       // Bootstrap already planned a complete camera-demanded cover. Waiting
@@ -466,6 +555,7 @@ struct RegionalTerrainSystem::Impl {
     std::size_t vegetationCells = 0, vegetationBytes = 0, vegetationPending = 0;
     std::size_t budgetMisses = 0;
     std::size_t morphingRegions = 0;
+    std::size_t renderWaitingRegions = 0;
     double finestSpacing = std::numeric_limits<double>::max();
     for (const auto &[id, source] : sources) {
       const auto *owner = findEntity(world, id);
@@ -516,7 +606,8 @@ struct RegionalTerrainSystem::Impl {
                                 local.z - region->plannedCamera->z),
                      local.y - region->plannedCamera->y) >=
               source->baseSampleSpacing;
-      if (!region->morph && !region->cover.empty() &&
+      if (!region->morph && region->renderPreparation->pending.empty() &&
+          !region->cover.empty() &&
           (region->needsPlan || cameraMoved || facingChanged)) {
         region->plannedCamera = local;
         region->plannedForward = localForward;
@@ -575,13 +666,15 @@ struct RegionalTerrainSystem::Impl {
       region->demand();
       region->transition(world, *owner, error, deltaSeconds);
       morphingRegions += region->morph.has_value() ? 1U : 0U;
+      renderWaitingRegions += region->renderPreparation->waiting() ? 1U : 0U;
       const auto stats = region->cache.statistics();
       auto *liveOwner = findEntity(world, id);
       const auto *presentation =
           liveOwner->component<RegionalTerrainPresentation>();
-      if (!presentation || presentation->ready != region->initialReady) {
-        liveOwner->setComponent(
-            RegionalTerrainPresentation{region->initialReady});
+      if (!presentation || presentation->ready != region->initialReady ||
+          presentation->render != region->renderPreparation) {
+        liveOwner->setComponent(RegionalTerrainPresentation{
+            region->initialReady, region->renderPreparation});
       }
       if (region->vegetation &&
           !region->vegetation->update(world, local, prefabs, error,
@@ -614,6 +707,8 @@ struct RegionalTerrainSystem::Impl {
                               vegetationPending);
     RuntimeProfiler::setGauge("Terrain.region.budget_misses", budgetMisses);
     RuntimeProfiler::setGauge("Terrain.region.morphing_regions", morphingRegions);
+    RuntimeProfiler::setGauge("Terrain.region.render_waiting_regions",
+                              renderWaitingRegions);
     RuntimeProfiler::setGauge("Terrain.region.finest_spacing",
                               activeCount ? finestSpacing : 0);
     RuntimeProfiler::setGauge("Terrain.region.active_tiles", activeCount);

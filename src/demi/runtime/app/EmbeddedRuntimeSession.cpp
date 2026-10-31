@@ -289,19 +289,40 @@ bool EmbeddedRuntimeSession::advance(State &state, InputState input,
     ++state.fixedTicks;
     return true;
   };
+  int fixedSteps = 0;
+  const int maximumFixedSteps =
+      state.loaded.project.simulation.maximumFixedStepsPerFrame;
+  RuntimeProfiler::setGauge("Simulation.scaled_input_ms", scaledDelta * 1000.0);
+  RuntimeProfiler::setGauge("Simulation.backlog_before_steps_ms",
+                            state.fixedAccumulator * 1000.0);
   if (oneFixedTick) {
     if (!fixedUpdate()) {
       return false;
     }
     state.fixedAccumulator = 0.0;
+    fixedSteps = 1;
   } else {
-    while (state.fixedAccumulator >= fixedStep) {
+    while (state.fixedAccumulator >= fixedStep &&
+           fixedSteps < maximumFixedSteps) {
       if (!fixedUpdate()) {
         return false;
       }
       state.fixedAccumulator -= fixedStep;
+      ++fixedSteps;
     }
   }
+  RuntimeProfiler::setGauge("Simulation.backlog_before_drop_ms",
+                            state.fixedAccumulator * 1000.0);
+  double droppedSeconds = 0;
+  if (state.fixedAccumulator >= fixedStep) {
+    const double retained = std::fmod(state.fixedAccumulator, fixedStep);
+    droppedSeconds = state.fixedAccumulator - retained;
+    state.fixedAccumulator = retained;
+  }
+  RuntimeProfiler::setGauge("Simulation.fixed_steps", fixedSteps);
+  RuntimeProfiler::setGauge("Simulation.advanced_ms",
+                            fixedSteps * fixedStep * 1000.0);
+  RuntimeProfiler::setGauge("Simulation.dropped_fixed_ms", droppedSeconds * 1000.0);
   {
     ProfileScope networkScope("Network.update");
     state.network.update();

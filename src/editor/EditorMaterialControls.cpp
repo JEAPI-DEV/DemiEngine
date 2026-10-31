@@ -107,6 +107,13 @@ void drawEditorMaterialSurfaceControls(EditorWorkspace &workspace,
       "OpenGL normals use +Y (green up); DirectX normals use -Y (green down). "
       "Choose the convention of the imported maps.");
 
+  ImGui::SeparatorText("Foliage lighting");
+  scalar("Leaf transmission", "foliage_transmission", surface.foliageTransmission, 0, 1);
+  scalar("Ambient occlusion strength", "ambient_occlusion_strength", surface.ambientOcclusionStrength, 0, 1);
+  ImGui::TextWrapped("Transmission adds backlighting to thin leaves and grass. "
+                     "Use two-sided cutout geometry; opaque objects keep zero. "
+                     "Occlusion strength affects ambient lighting only.");
+
   ImGui::SeparatorText("Mesh wind");
   scalar("Wind strength (world units)", "wind_strength", surface.windStrength,
          0, std::numeric_limits<float>::max());

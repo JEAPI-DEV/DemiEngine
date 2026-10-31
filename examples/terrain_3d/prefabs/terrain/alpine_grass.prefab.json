@@ -9,12 +9,18 @@
         "Transform3D": {},
         "MeshRenderer": {
           "model": "asset://terrain/alpine/grass_patch",
-          "medium_lod_model": "asset://terrain/alpine/grass_distant",
+          "medium_lod_model": "asset://terrain/alpine/grass_mid",
           "low_lod_model": "asset://terrain/alpine/grass_distant",
           "medium_lod_distance": 14,
           "low_lod_distance": 45,
           "cull_distance": 700,
-          "casts_shadows": false
+          "casts_shadows": false,
+          "color": [1, 1, 1, 1],
+          "material_properties": {
+            "foliage_transmission": 0.7,
+            "ambient_occlusion_strength": 0.55,
+            "normal_strength": 0.45
+          }
         }
       }
     }

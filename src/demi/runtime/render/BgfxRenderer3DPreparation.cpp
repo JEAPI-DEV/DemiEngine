@@ -2,8 +2,10 @@
 
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/render/bgfx3d/SceneLighting3D.h"
+#include "demi/runtime/terrain/RegionalTerrainPresentation.h"
 
 #include <algorithm>
+#include <limits>
 
 namespace demi::runtime::render {
 
@@ -12,7 +14,10 @@ void BgfxRenderer3D::configureTerrainPresentation(
     const SceneLighting3D &sceneLighting) {
   // A loading HUD with no terrain must not reset the incoming landscape's
   // array-quality settings or invalidate its in-flight preparation jobs.
-  if (world.terrainOwners.empty()) {
+  if (world.terrainOwners.empty() &&
+      !std::ranges::any_of(world.entities, [](const auto &entity) {
+        return entity.template hasComponent<RegionalTerrainPresentation>();
+      })) {
     return;
   }
   terrainLodResidency_.setSettings(
@@ -34,9 +39,65 @@ void BgfxRenderer3D::configureTerrainPresentation(
       std::max(sceneLighting.terrainLodCacheBytes,
                sceneLighting.terrainTextureCacheBytes * 2),
       sceneLighting.terrainLodPrepareJobs);
+  prepareRegionalTerrain(world, frame);
   terrainCameraDemand_.beginCamera(
       world, frame, terrainLodResidency_,
       [this](const auto &field) { terrainGpuFields_.touch(field); });
+}
+
+void BgfxRenderer3D::prepareRegionalTerrain(
+    const World &world, const BgfxCameraFrame3D &frame) {
+  ProfileScope preparation("Renderer3D.prepare_regional_cover");
+  if (!regionalTerrainLease_) {
+    regionalTerrainLease_ = std::make_shared<int>(0);
+  }
+  for (const auto &owner : world.entities) {
+    if (!owner.enabled) {
+      continue;
+    }
+    const auto *presentation = owner.component<RegionalTerrainPresentation>();
+    if (!presentation || !presentation->render) {
+      continue;
+    }
+    auto &state = *presentation->render;
+    // Every camera in this presentation contributes to one readiness result.
+    // A later camera cannot acknowledge work still pending for an earlier one.
+    if (state.renderer.lock() != regionalTerrainLease_ ||
+        state.presentation != regionalTerrainPresentation_) {
+      state.prepared = true;
+      state.presentation = regionalTerrainPresentation_;
+      state.renderer = regionalTerrainLease_;
+    }
+    const auto transform = resolveWorldTransform3D(world, owner);
+    if (!transform) {
+      continue;
+    }
+    bool preparing = false;
+    const auto request = [&](const RegionalTerrainRenderPatch &patch) {
+      PreparedTerrainChunkLod bounds;
+      bounds.boundsMin = patch.boundsMin;
+      bounds.boundsMax = patch.boundsMax;
+      if (!terrainChunkVisible3D(bounds, *transform, frame)) {
+        return;
+      }
+      const auto field = terrainGpuFields_.request(patch.field, materials_);
+      preparing = preparing || field.preparing;
+      if (field.field && field.field->mapped) {
+        // Prewarm the minimum tier; visible-camera demand still chooses detail.
+        const auto arrays = terrainMaterials_.request(
+            *field.field, std::numeric_limits<float>::max());
+        preparing = preparing || (!arrays.arrays && arrays.preparing);
+      }
+    };
+    for (const auto &source : state.active) {
+      request(source);
+    }
+    for (const auto &source : state.pending) {
+      request(source);
+    }
+    // Permanent unsupported/budget failures keep the explicit CPU path usable.
+    state.prepared = state.prepared && !preparing;
+  }
 }
 
 bool BgfxRenderer3D::prepareScenePresentation(const World &world,

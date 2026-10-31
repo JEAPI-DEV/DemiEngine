@@ -844,8 +844,18 @@ int main() {
     assert(capture.lastUniformValues[1] == std::vector<float>({0, 1, 1, 0}));
     assert(capture.lastUniformValues[2][3] == -1);
     assert(capture.lastUniformValues[3] == std::vector<float>({12, 8, 4, 3}));
-    assert(capture.lastUniformValues.size() == 6);
+    assert(capture.lastUniformValues.size() == 7);
     assert(capture.lastUniformValues[4] == std::vector<float>({.125F, 0, .75F, 0}));
+    assert(capture.lastUniformValues[5] == std::vector<float>({0, 1, 0, 0}));
+    mesh.materialNumbers["foliage_transmission"] = .7F;
+    mesh.materialNumbers["ambient_occlusion_strength"] = .4F;
+    assert(bindings.prepare(&material, mesh, {}, 3, error));
+    assert(bindings.submit(BufferedDraw{}, error));
+    assert(capture.lastUniformValues[5] == std::vector<float>({.7F, .4F, 0, 0}));
+    mesh.materialNumbers["foliage_transmission"] = 2;
+    assert(!bindings.prepare(&material, mesh, {}, 3, error));
+    mesh.materialNumbers.erase("foliage_transmission");
+    mesh.materialNumbers.erase("ambient_occlusion_strength");
     assert(capture.lastUniformValues.back() == std::vector<float>({0, 1, 1, 0}));
     assert(resolvedMaps[0].second == ImageMipSemantic::Normal);
     assert(resolvedMaps[1].second == ImageMipSemantic::Linear);
@@ -2872,6 +2882,47 @@ int main() {
     const auto generated = TerrainGenerator::generate(recipe);
     assert(generated);
     const auto source = std::make_shared<const HeightField>(*generated);
+    {
+      MeshUploadCapture preparationUploads(*resources);
+      TextureCapture preparationCommands(*commands);
+      BgfxRenderer3D preparingRenderer(preparationUploads, preparationCommands);
+      assert(preparingRenderer.initialize(error));
+      assert(preparingRenderer.loadAssets(mappedRegistry, diagnostics));
+      // Replacement fields prepare before any patch entities are published.
+      // Loading presentation must drive that work without drawing CPU terrain.
+      World preparingWorld;
+      Entity root;
+      root.id = "preparing-region";
+      root.setComponent(Transform3DComponent{});
+      Terrain3DComponent region;
+      region.region = std::make_shared<TerrainRegionConfig>();
+      root.setComponent(region);
+      auto preparation = std::make_shared<RegionalTerrainRenderPreparation>();
+      preparation->pending.push_back({source, {0, 0, 0}, {16, 0, 16}});
+      root.setComponent(RegionalTerrainPresentation{false, preparation});
+      preparingWorld.entities.push_back(std::move(root));
+      auto preparingCamera = frame;
+      preparingCamera.camera.perspective = false;
+      preparingCamera.camera.orthographicSize = 20;
+      preparingCamera.position = {8, 100, 8};
+      preparingCamera.forward = {0, -1, 0};
+      preparingCamera.up = {0, 0, -1};
+      preparingCamera.camera.renderHud = false;
+      const auto preparationDeadline =
+          std::chrono::steady_clock::now() + std::chrono::seconds(2);
+      do {
+        assert(preparingRenderer.renderFrame(preparingWorld, preparingCamera, .016F, error));
+        static_cast<void>(graphics.endFrame());
+        assert(preparingRenderer.terrainStatistics().gpuPatchInstances == 0);
+        assert(preparingRenderer.terrainStatistics().gpuPatchFallbacks == 0);
+        assert(!preparation->renderer.expired());
+        assert(std::chrono::steady_clock::now() < preparationDeadline);
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      } while (!preparation->prepared);
+      preparingRenderer.tickInactiveTerrain();
+      preparation->prepared = false;
+      assert(!preparation->waiting());
+    }
     World terrain;
     Entity owner;
     owner.id = "gpu-terrain-owner";

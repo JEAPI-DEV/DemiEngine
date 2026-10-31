@@ -254,6 +254,19 @@ void materialSectionsPreserveSourceAssignments(
 
   staticAndSkinnedDrawsUseSectionRanges(*model);
 
+  auto cutoutMaterial = model->materials[0];
+  cutoutMaterial.alphaMode = GltfAlphaMode::Mask;
+  cutoutMaterial.alphaCutoff = .25F;
+  cutoutMaterial.baseColor.a = .5F;
+  cutoutMaterial.textures.at(GltfMapRole::Albedo).minFilter = GltfFilter::LinearMipmapLinear;
+  asset.settingsJson = "{}";
+  assert(prepareImportedMaterial(asset, 0, cutoutMaterial, false, prepared, error));
+  assert(prepared.textures.front().texture.sampling.alphaCoverageCutoff == .5F);
+  assert(prepared.textures.front().texture.sampling.mipmaps);
+  cutoutMaterial.alphaMode = GltfAlphaMode::Blend;
+  assert(prepareImportedMaterial(asset, 0, cutoutMaterial, false, prepared, error));
+  assert(!prepared.textures.front().texture.sampling.alphaCoverageCutoff);
+
   auto packedMaterial = model->materials[0];
   packedMaterial.textures.emplace(GltfMapRole::MetallicRoughness, firstTexture);
   assert(prepareImportedMaterial(asset, 0, packedMaterial, false, prepared,

@@ -75,13 +75,15 @@ private:
     bool usesPbrSurface = false;
     std::uint32_t firstIndex = 0;
     std::uint32_t indexCount = UINT32_MAX;
-    bool operator==(const Key &) const = default;
+    bool operator==(const Key &other) const;
   };
   struct KeyHash {
     std::size_t operator()(const Key &key) const;
   };
   // Pass programs/state are adapted at flush. Borrowed source and resource
   // addresses remain valid only inside the owning view/preparation operation.
+  // Override values are immutable during that operation: keys compare/hash
+  // them by value, allowing equivalent entities to share a batch.
   void appendGroup(InstanceGroup group);
   std::size_t usedGroups_ = 0;
   std::unordered_map<Key, std::size_t, KeyHash> groupLookup_;

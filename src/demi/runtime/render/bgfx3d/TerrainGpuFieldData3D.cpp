@@ -97,6 +97,9 @@ ResolvedMaterial resolve(const std::string &id,
   if (material->program) {
     throw UnsupportedField("Terrain material uses a custom shader: " + id);
   }
+  if (material->surface.foliageTransmission > 0) {
+    throw UnsupportedField("Foliage transmission requires ordinary mesh shading");
+  }
   if (!material->albedoTexture.empty() &&
       !material->surface.maps.contains(assets::MaterialMapSlot::Albedo)) {
     throw UnsupportedField(

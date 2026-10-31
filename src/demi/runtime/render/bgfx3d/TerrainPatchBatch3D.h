@@ -68,7 +68,7 @@ public:
                 std::vector<VisibleMesh3D> fallbackMeshes,
                 std::size_t gpuBudgetBytes, std::string &error,
                 std::shared_ptr<const TerrainMaterialArrays3D> arrays = {},
-                float detailDistance = 200);
+                float detailDistance = 200, float viewDepth = 0);
   [[nodiscard]] std::vector<VisibleMesh3D>
   flush(RenderCommands &commands, std::uint16_t viewId, ProgramHandle program,
         std::span<const DrawUniformValue> lighting, bool overdraw,

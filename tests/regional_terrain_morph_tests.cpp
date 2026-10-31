@@ -15,6 +15,7 @@
 #include <chrono>
 #include <cmath>
 #include <iostream>
+#include <set>
 #include <thread>
 
 using namespace demi::runtime;
@@ -179,6 +180,68 @@ void movingBootstrapBecomesReady() {
   assert(!regionalTerrainPreparing(world));
 }
 
+void presentationWaitsForReplacementResources() {
+  auto source = std::make_shared<TerrainRegionConfig>(config());
+  World world;
+  Entity owner;
+  owner.id = "render-gated-region";
+  owner.setComponent(Transform3DComponent{});
+  Terrain3DComponent terrain;
+  terrain.region = source;
+  owner.setComponent(terrain);
+  world.entities.push_back(std::move(owner));
+  RegionalTerrainSystem streaming({.physics = false, .vegetation = false});
+  auto lease = std::make_shared<int>(0);
+  const auto update = [&](Vec3 camera) {
+    std::string error;
+    assert(streaming.update(world, camera, error, nullptr, .05F));
+    auto state = findEntity(world, "render-gated-region")
+                     ->component<RegionalTerrainPresentation>()->render;
+    state->renderer = lease;
+    return state;
+  };
+  const Vec3 nearCamera{64, 20, 64};
+  auto state = update(nearCamera);
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+  while (state->pending.empty()) {
+    state = update(nearCamera);
+    assert(std::chrono::steady_clock::now() < deadline);
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+  for (int frame = 0; frame < 10; ++frame) {
+    update(nearCamera);
+    assert(world.entities.size() == 1);
+  }
+  state->prepared = true;
+  update(nearCamera);
+  assert(!regionalTerrainPreparing(world));
+  const auto previousCount = world.entities.size();
+  const Vec3 farCamera{10000, 10000, 10000};
+  while (state->pending.empty()) {
+    update(farCamera);
+    assert(std::chrono::steady_clock::now() < deadline);
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+  assert(!state->prepared);
+  for (int frame = 0; frame < 10; ++frame) {
+    update(farCamera);
+    assert(world.entities.size() == previousCount);
+    for (const auto &entity : world.entities) {
+      assert(!entity.hasComponent<TerrainVisualMorph>());
+    }
+  }
+  state->prepared = true;
+  update(farCamera);
+  assert(std::ranges::any_of(world.entities, [](const auto &entity) {
+    const auto *morph = entity.template component<TerrainVisualMorph>();
+    return morph && morph->amount == 0;
+  }));
+  // A hidden/destroyed renderer cannot leave a headless world blocked.
+  lease.reset();
+  state->prepared = false;
+  assert(!state->waiting());
+}
+
 void streamingMorphsBothDirections() {
   auto source = std::make_shared<TerrainRegionConfig>(config());
   World world;
@@ -190,7 +253,7 @@ void streamingMorphsBothDirections() {
   owner.setComponent(terrain);
   world.entities.push_back(std::move(owner));
   RegionalTerrainSystem streaming({.physics = false, .vegetation = false});
-  const auto settle = [&](Vec3 camera, bool expectMorph) {
+  const auto settle = [&](Vec3 camera, bool expectMorph, bool expectSplit = false) {
     bool seen = false;
     const auto deadline =
         std::chrono::steady_clock::now() + std::chrono::seconds(15);
@@ -198,6 +261,14 @@ void streamingMorphsBothDirections() {
       std::string error;
       if (!streaming.update(world, camera, error, nullptr, .05F)) {
         throw std::runtime_error(error);
+      }
+      if (expectSplit) {
+        const auto preparation = findEntity(world, "region")
+            ->component<RegionalTerrainPresentation>()->render;
+        std::set<const HeightField *> requested;
+        for (const auto &patch : preparation->active) {
+          assert(requested.insert(patch.field.get()).second);
+        }
       }
       for (const auto &entity : world.entities) {
         if (const auto *morph = entity.component<TerrainVisualMorph>();
@@ -213,7 +284,7 @@ void streamingMorphsBothDirections() {
   };
   settle({64, 20, 64}, false);
   settle({10000, 10000, 10000}, true);
-  settle({64, 20, 64}, true);
+  settle({64, 20, 64}, true, true);
 }
 } // namespace
 int main() {
@@ -221,5 +292,6 @@ int main() {
   gpuAndNativeFallbackAgree();
   movingBootstrapBecomesReady();
   streamingMorphsBothDirections();
+  presentationWaitsForReplacementResources();
   std::cout << "Regional terrain morph tests passed\n";
 }

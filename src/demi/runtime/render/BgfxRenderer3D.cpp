@@ -227,6 +227,7 @@ bool BgfxRenderer3D::initialize(std::string &error) {
 }
 
 void BgfxRenderer3D::shutdown() {
+  regionalTerrainLease_.reset();
   cancelAssetPreparation();
   meshPbr_.shutdown();
   for (const auto &[ordinary, analytic] : analyticDepthPrograms_) {
@@ -380,6 +381,9 @@ bool BgfxRenderer3D::renderFrame(const World &world,
   } presentationScope{*this, ownsPresentation, presentationSucceeded};
   RuntimeProfiler::setGauge("Renderer3D.viewport_width", frame.viewportWidth);
   RuntimeProfiler::setGauge("Renderer3D.viewport_height", frame.viewportHeight);
+  const auto sceneLighting =
+      collectSceneLighting3D(world, frame.camera.renderMask, &entityQueries_);
+  configureTerrainPresentation(world, frame, sceneLighting);
   const bool preparingRegion = regionalTerrainPreparing(world);
   RuntimeProfiler::setGauge("Terrain.region.initial_preparing", preparingRegion ? 1 : 0);
   if (preparingRegion) {
@@ -395,9 +399,6 @@ bool BgfxRenderer3D::renderFrame(const World &world,
     meshRetention_.collect(
         instancePreparation_.worldSources(world, &extractionJobs_));
   }
-  const auto sceneLighting =
-      collectSceneLighting3D(world, frame.camera.renderMask, &entityQueries_);
-  configureTerrainPresentation(world, frame, sceneLighting);
   const auto &lighting =
       frame.lightingOverride ? *frame.lightingOverride : sceneLighting;
   std::optional<std::uint16_t> authoredTargetHeight;

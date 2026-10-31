@@ -1,0 +1,18 @@
+{
+  "format_version": 1,
+  "source_url": "https://polyhaven.com/a/grass_medium_01",
+  "license": "CC0-1.0",
+  "license_url": "https://polyhaven.com/license",
+  "authors": [
+    "Rob Tuytel (photography)",
+    "Rico Cilliers (modeling)"
+  ],
+  "derivation": "grass_mid.gltf: 1566 triangles; Blender 5.2.2 Decimate collapse at 0.2 with triangulate enabled. Same placement frame, original RGBA alpha/normal/ORM maps.",
+  "retrieved": "2026-10-25",
+  "api_credit": "Powered by Poly Haven",
+  "opacity_map": {
+    "url": "https://dl.polyhaven.org/file/ph-assets/Models/png/2k/grass_medium_01/grass_medium_01_alpha_2k.png",
+    "md5": "0810166131307c1094d37e73a8490542",
+    "retrieved": "2026-10-31"
+  }
+}

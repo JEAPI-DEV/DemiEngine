@@ -576,9 +576,23 @@ void zeroWorkerPoolNeverRunsPreparationInline() {
   cache.endPresentation();
 }
 
+void ambientOcclusionStrengthIsPacked() {
+  auto source = sourceForTest(1);
+  auto &layer = source->layers[1];
+  layer.images[Slot::AmbientOcclusion] = solidImage(1, {0, 0, 0, 255});
+  layer.surface.ambientOcclusionStrength = .5F;
+  std::string error;
+  const auto data = prepareTerrainMaterialArrayData3D(*source, 1, error);
+  assert(data);
+  // One neutral layer precedes the authored layer, each with one RGBA pixel.
+  assert(std::to_integer<unsigned>(data->pixels[2].at(4)) == 128);
+  assert(std::to_integer<unsigned>(data->pixels[2].at(0)) == 255);
+}
+
 } // namespace
 
 int main() {
+  ambientOcclusionStrengthIsPacked();
   packingPreservesChannelsSemanticsAndEveryLayer();
   missingScalarMapsUseAuthoredSurfaceValues();
   absentSlotsUseOneTexelPerLayerWithoutReducingRealMaps();

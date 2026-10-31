@@ -62,21 +62,31 @@ try:
     # Bake the actual scanned foliage silhouette without baked directional
     # lighting; the runtime supplies its own light and leaves grass shadows off.
     original_materials = list(high.data.materials)
-    image = next(node.image for material in original_materials
-                 for node in material.node_tree.nodes
-                 if node.type == 'TEX_IMAGE' and node.image and '_diff' in node.image.name)
-    emission = bpy.data.materials.new('Demi grass albedo bake')
-    emission.use_nodes = True
-    nodes = emission.node_tree.nodes
-    nodes.clear()
-    texture = nodes.new('ShaderNodeTexImage')
-    texture.image = image
-    shader = nodes.new('ShaderNodeEmission')
-    destination = nodes.new('ShaderNodeOutputMaterial')
-    emission.node_tree.links.new(texture.outputs['Color'], shader.inputs['Color'])
-    emission.node_tree.links.new(shader.outputs[0], destination.inputs['Surface'])
-    for slot in high.material_slots:
-        slot.material = emission
+    bake_materials = []
+    for original in original_materials:
+        emission = original.copy()
+        nodes, links = emission.node_tree.nodes, emission.node_tree.links
+        surface = next(node for node in nodes if node.type == 'BSDF_PRINCIPLED')
+        destination = next(node for node in nodes if node.type == 'OUTPUT_MATERIAL')
+        shader = nodes.new('ShaderNodeEmission')
+        color = surface.inputs['Base Color']
+        if color.is_linked:
+            links.new(color.links[0].from_socket, shader.inputs['Color'])
+        else:
+            shader.inputs['Color'].default_value = color.default_value
+        transparent = nodes.new('ShaderNodeBsdfTransparent')
+        mix = nodes.new('ShaderNodeMixShader')
+        alpha = surface.inputs['Alpha']
+        if alpha.is_linked:
+            links.new(alpha.links[0].from_socket, mix.inputs[0])
+        else:
+            mix.inputs[0].default_value = alpha.default_value
+        links.new(transparent.outputs[0], mix.inputs[1])
+        links.new(shader.outputs[0], mix.inputs[2])
+        links.new(mix.outputs[0], destination.inputs['Surface'])
+        bake_materials.append(emission)
+    for slot, material in zip(high.material_slots, bake_materials):
+        slot.material = material
     camera_data = bpy.data.cameras.new('Demi grass bake camera')
     camera = bpy.data.objects.new('Demi grass bake camera', camera_data)
     scene.collection.objects.link(camera)

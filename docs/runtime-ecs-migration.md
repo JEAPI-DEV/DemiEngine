@@ -120,8 +120,8 @@ outside the world-transform snapshot may therefore retain value comparisons or
 broader registry-revision invalidation. No general event-driven rendering claim
 follows from this transform-specific boundary.
 
-The profiler exposes `Renderer3D.transform_updates` for changed local snapshots
-and `Renderer3D.transforms_recomputed` for recomposed poses. These are diagnostic
+The profiler exposes `Scene.transform_updates` for changed local snapshots
+and `Scene.transforms_recomputed` for recomposed poses. These are diagnostic
 counts, not measured performance gains. The Linux timings below describe the
 preceding storage/system-iteration qualification; the explicit mutation and
 reactive-snapshot follow-up requires its own measurements before a performance

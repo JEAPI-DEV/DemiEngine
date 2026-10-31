@@ -7,9 +7,17 @@ are registered in `tools/package-store/src/Docs.php`.
 
 This directory keeps material that has a different job:
 
+- [Ground-level terrain flight performance](terrain-ground-flight-performance.md)
+  records a vegetation-resident route, whole-view terrain ordering and render
+  request publication costs.
+- [Terrain streaming stability](terrain-streaming-stability.md) records GPU-ready
+  cover publication, unsuitable cliff scatter, intermediate grass, physics
+  hierarchy synchronization and embedded fixed-step catch-up qualification.
 - [Regional streaming plan](world-terrain-streaming-plan.md) records shared prefab
   prepare/adopt, frame-paced publication measurements, and unified graph
   authoring, cell lifecycle gates and stored-versus-procedural vegetation measurements.
+- [Terrain visual quality](terrain-visual-quality.md) records the missing-opacity
+  diagnosis, material/mip changes, source-art repair and matched visual/performance checks.
 - [Regional morphing and performance](regional-terrain-morphing.md) records
   shared transition endpoints, seam/collision tests, constant-time GPU accounting
   and unattended rendered traversal.

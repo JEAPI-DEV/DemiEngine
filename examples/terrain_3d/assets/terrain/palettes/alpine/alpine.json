@@ -73,30 +73,6 @@
       "biomes": [
         "rock"
       ]
-    },
-    "cliff_faces": {
-      "prefab": "prefab://terrain/alpine_cliff",
-      "category": "rock",
-      "density": 8e-05,
-      "candidate_spacing": 70,
-      "position_jitter": 1,
-      "spacing": 70,
-      "biomes": [
-        "rock"
-      ],
-      "slope": [
-        18,
-        75
-      ],
-      "scale": [
-        3,
-        9
-      ],
-      "collision": "none",
-      "cluster": {
-        "size": 300,
-        "strength": 0.6
-      }
     }
   }
 }

@@ -145,6 +145,10 @@ private:
   void configureTerrainPresentation(const World &world,
                                     const BgfxCameraFrame3D &frame,
                                     const SceneLighting3D &lighting);
+  void prepareRegionalTerrain(const World &world,
+                              const BgfxCameraFrame3D &frame);
+  std::shared_ptr<void> regionalTerrainLease_;
+  std::uint64_t regionalTerrainPresentation_ = 0;
   struct AssetPreparation;
   std::shared_ptr<AssetPreparation> assetPreparation_;
   struct TextureVariantPreparation;

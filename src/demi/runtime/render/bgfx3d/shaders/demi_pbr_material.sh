@@ -13,6 +13,20 @@ uniform vec4 u_pbrSurface;
 // MeshRenderer.size, then biome repetitions per terrain-local unit.
 uniform vec4 u_pbrLocalScale;
 uniform vec4 u_pbrProjectionOrigin;
+// Thin-leaf transmission, ambient occlusion strength, reserved.
+uniform vec4 u_pbrFoliage;
+
+vec3 pbrFoliageLight(vec3 albedo, vec3 normal, vec3 view, vec3 light, float metallic)
+{
+    if (u_pbrFoliage.x <= 0.0)
+    {
+        return vec3(0.0);
+    }
+    float back = max(-dot(normal, light), 0.0);
+    float forwardScatter = pow(max(dot(-light, view), 0.0), 4.0);
+    float strength = u_pbrFoliage.x * (1.0 - metallic);
+    return albedo * (strength * back * (0.35 + 0.65 * forwardScatter) / 3.14159265);
+}
 
 vec3 pbrNormalize(vec3 value, vec3 fallback)
 {

@@ -218,6 +218,37 @@ void sharedTopologyCombinesIndependentOwnerTransforms(GpuResources &resources) {
   assert(batch.topologyBytes() > 0);
 }
 
+void independentFieldsSubmitNearToFar(GpuResources &resources) {
+  TerrainPatchBatch3D batch(resources);
+  const auto farField = readyField(resources, flatField());
+  const auto nearField = readyField(resources, flatField());
+  const auto middleField = readyField(resources, flatField());
+  std::string error;
+  batch.beginPresentation();
+  batch.beginView();
+  // Publication order deliberately disagrees with camera depth. Equal-depth
+  // patches retain their order, including within a shared field's batch.
+  assert(batch.addPatch(farField, {8, 8}, instance(100), {}, GpuBudget,
+                        error, {}, 200, 100));
+  assert(batch.addPatch(nearField, {8, 8}, instance(10), {}, GpuBudget,
+                        error, {}, 200, 10));
+  assert(batch.addPatch(middleField, {8, 8}, instance(50), {}, GpuBudget,
+                        error, {}, 200, 50));
+  assert(batch.addPatch(nearField, {8, 8}, instance(11), {}, GpuBudget,
+                        error, {}, 200, 10));
+  CapturingCommands commands;
+  assert(batch.flush(commands, 0, terrainProgram(resources, error), lighting(),
+                     false, error).empty());
+  assert(commands.submissions.size() == 3);
+  assert(commands.submissions[0].textures[0] == nearField->height);
+  assert(commands.submissions[1].textures[0] == middleField->height);
+  assert(commands.submissions[2].textures[0] == farField->height);
+  assert(commands.submissions[0].instances.size() == 2);
+  assert(commands.submissions[0].instances[0][12] == 10);
+  assert(commands.submissions[0].instances[1][12] == 11);
+  assert(batch.statistics().instances == 4);
+}
+
 void oppositeSurfaceBlendingFlagsShareOneBatch(GpuResources &resources) {
   TerrainPatchBatch3D batch(resources);
   const auto field = readyField(resources, flatField());
@@ -781,6 +812,7 @@ int main() {
     auto resources = createBgfxGpuResources();
     sharedTopologyCombinesIndependentOwnerTransforms(*resources);
     oppositeSurfaceBlendingFlagsShareOneBatch(*resources);
+    independentFieldsSubmitNearToFar(*resources);
     mappedProgramsPreserveMixedCullCoverage(*resources);
     publishedSurfaceBlendingToggleKeepsGpuResources(*resources);
     opaquePatchOrderUsesViewDepthWithStableTies(*resources);

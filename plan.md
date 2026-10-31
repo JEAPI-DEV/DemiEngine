@@ -1,5 +1,22 @@
 # DemiEngine Roadmap
 
+Ground-level traversal now has a repeatable vegetation-resident profiling route.
+Terrain draws sort across regional owners, and render-request refresh uses the
+shared entity index without duplicate split demand. See
+[ground-flight performance](docs/terrain-ground-flight-performance.md).
+
+Regional GPU preparation now precedes cover publication; Alpine cliff scatter
+and grass LOD staging are corrected. Physics reuses tracked hierarchy snapshots
+and embedded Play honors the project fixed-step cap. See
+[streaming stability and CPU qualification](docs/terrain-streaming-stability.md).
+
+The foliage/material quality pass restores the Alpine grass opacity mask,
+adds coverage-preserving imported cutout mips, opt-in thin-leaf transmission and
+AO strength, and preserves instancing for identical material overrides. See
+[visual quality qualification](docs/terrain-visual-quality.md). Terrain formation,
+regional shading-normal filtering, richer indirect lighting and model LOD fades
+remain distinct quality gaps.
+
 Regional split/merge geometry now shares a timed transition across changed
 patches and stitched neighbors, with matching GPU/native fallback endpoints.
 GPU field allocation accounting is now constant-time instead of scanning every

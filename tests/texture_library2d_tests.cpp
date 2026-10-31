@@ -204,9 +204,37 @@ void materialMipSemanticsPreserveColorAndNormalMeaning() {
   assert(opposing[10] == std::byte{255});
 }
 
+void cutoutMipsPreserveColorAndCoverage() {
+  ImageData2D image{.width = 4, .height = 4};
+  image.rgba.assign(4 * 4 * 4, std::byte{0});
+  for (const auto index : {0U, 1U, 4U}) {
+    image.rgba[index * 4 + 1] = std::byte{255};
+    image.rgba[index * 4 + 3] = std::byte{255};
+  }
+  const auto ordinary = imageMipChain2D(image, ImageMipSemantic::Color);
+  const auto masked = imageMipChain2D(image, ImageMipSemantic::Color, {}, .8F);
+  assert(masked.size() == ordinary.size());
+  assert(std::equal(image.rgba.begin(), image.rgba.end(), masked.begin()));
+  const auto firstMip = image.rgba.size();
+  assert(std::to_integer<unsigned>(ordinary[firstMip + 1]) < 255);
+  assert(masked[firstMip + 1] == std::byte{255});
+  assert(std::to_integer<unsigned>(ordinary[firstMip + 3]) < 204);
+  assert(std::to_integer<unsigned>(masked[firstMip + 3]) >= 204);
+  for (std::size_t pixel = 1; pixel < 4; ++pixel) {
+    assert(masked[firstMip + pixel * 4 + 3] == std::byte{0});
+  }
+  assert(imageMipChain2D(image, ImageMipSemantic::Linear, {}, .8F).empty());
+  assert(imageMipChain2D(image, ImageMipSemantic::Color, {}, 0.F).empty());
+  assert(imageMipChain2D(image, ImageMipSemantic::Color, {}, 2.F).empty());
+  std::stop_source cancelled;
+  cancelled.request_stop();
+  assert(imageMipChain2D(image, ImageMipSemantic::Color, cancelled.get_token(), .8F).empty());
+}
+
 } // namespace
 
 int main() {
+  cutoutMipsPreserveColorAndCoverage();
   workerPreparationOwnsDecodedPixelsAndSemanticMips();
   materialMipSemanticsPreserveColorAndNormalMeaning();
   assert(imageMipChain2D({}).empty());

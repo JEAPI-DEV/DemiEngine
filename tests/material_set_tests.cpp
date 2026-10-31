@@ -402,8 +402,9 @@ void rejectsUndeclaredDependency() {
 }
 
 void exampleMaterialSetLoadsFromDisk() {
+  // The example's materials and palettes include installed package resources.
   const AssetRegistry example =
-      loadAuthoredAssetRegistry(DEMI_SOURCE_DIR "/examples/terrain_3d");
+      loadAssetRegistry(DEMI_SOURCE_DIR "/examples/terrain_3d");
   const std::optional<TerrainMaterialSet> set =
       loadTerrainMaterialSet(example, "asset://terrain/materials/terrain_pbr");
   assert(set.has_value());

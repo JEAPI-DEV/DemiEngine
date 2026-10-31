@@ -13,6 +13,7 @@ void BgfxRenderer3D::beginPresentation() {
     return;
   }
   presentationActive_ = true;
+  ++regionalTerrainPresentation_;
   waterTimeAdvanced_ = false;
   cameraInstances_.reset();
   for (auto &instances : shadowInstances_) {
@@ -140,6 +141,7 @@ void BgfxRenderer3D::tickInactiveTerrain() {
   // A hidden/skipped view retires terrain demand, not resident model/material
   // assets. Those textures are owned by asset publication and normal material
   // presentation; discarding them here causes synchronous decode on resumption.
+  regionalTerrainLease_.reset();
   terrainPatches_.clear();
   terrainGpuFields_.clear();
   terrainMaterials_.clear();

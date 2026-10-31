@@ -30,6 +30,9 @@ struct MaterialSurface {
   float normalStrength = 1;
   float tiling = 1;
   float detailStrength = 0;
+  // Thin, non-refractive leaf transmission; zero retains ordinary opaque lighting.
+  float foliageTransmission = 0;
+  float ambientOcclusionStrength = 1;
   // Visual world-space bending only; authored geometry and collision stay
   // fixed.
   float windStrength = 0;

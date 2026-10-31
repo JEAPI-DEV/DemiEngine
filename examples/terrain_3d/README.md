@@ -23,8 +23,30 @@ seconds, retaining the finer grid through coarsening. Collision keeps its
 prepared snapshots; material and vegetation LOD appearance are separate. Grass draws to
 700 m (768 m residency), while trees/rocks stream within 3,072 m. The tree's
 near/mid geometry and six-triangle distant impostor share the same source art.
+Grass keeps an intermediate mesh from 14 to 45 m before its distant cards.
+Solid rocks replace random upright cliff-scan placements. Visible replacement
+terrain fields prepare on the GPU before the cover changes.
 These distances are configured in the region asset and vegetation prefabs;
 long-range canopy does not generate dense grass throughout its entire radius.
+
+The grass source includes its original opacity mask, packed into RGBA albedo.
+Its distant cards are baked with alpha preserved; imported cutout mipmaps retain
+coverage and avoid filtering transparent black into leaf color. Grass uses
+`foliage_transmission` and `ambient_occlusion_strength` material overrides, while
+cliff and snow use scanned maps from the installed terrain package. These are
+surface-quality improvements; richer terrain formation and lighting remain work.
+
+## Ground-level performance probe
+
+Run `python3 scripts/profile_terrain_flight.py --output /tmp/terrain-flight`
+from the repository root after building `linux-release`. It opens a maximized
+editor and uses a private project copy for a round trip 3 m above the ground,
+with pauses to distinguish streaming work from settled rendering. CSV phase
+markers, a screenshot, log and summary JSON are retained. The source scene and
+saved editor layout are preserved. Use `--layout <baseline-output>-workspace`
+for a comparison with the same dock layout; resizing Game View invalidates the
+run. See
+[qualification](../../docs/terrain-ground-flight-performance.md).
 
 ## Finite Silvermere tour
 

@@ -246,6 +246,12 @@ void main()
 #elif defined(DEMI_MESH_PBR)
     vec4 surfaceParameters = u_metalRough;
     vec3 receiverNormal = pbrNormalize(v_normal, vec3(0.0, 1.0, 0.0));
+    // Thin foliage has two visible sides. Orient its shading frame toward the
+    // viewer before evaluating reflected and transmitted light.
+    if (u_pbrFoliage.x > 0.0 && dot(receiverNormal, u_viewPosition.xyz - v_worldPos) < 0.0)
+    {
+        receiverNormal = -receiverNormal;
+    }
     vec3 lightingNormal = receiverNormal;
     float occlusion = 1.0;
     vec3 emissive = vec3(0.0);
@@ -270,7 +276,7 @@ void main()
         if (u_pbrMapFlags.z > 0.5)
             surfaceParameters.x = pbrSampleMap(s_pbrMetallic, false, materialCoordinates).r;
         if (u_pbrMapFlags.w > 0.5)
-            occlusion = clamp(pbrSampleMap(s_pbrOcclusion, false, materialCoordinates).r, 0.0, 1.0);
+            occlusion = mix(1.0, clamp(pbrSampleMap(s_pbrOcclusion, false, materialCoordinates).r, 0.0, 1.0), u_pbrFoliage.y);
         if (u_pbrMapFlags2.y > 0.5)
             emissive = pbrSampleMap(s_pbrEmissive, u_pbrMapFlags2.w > 0.5, materialCoordinates).rgb;
     }
@@ -353,6 +359,10 @@ void main()
     shadedColor += u_lightColor.rgb * u_lightDirection.w * visibility *
                    directSurfaceLight(baseColor, normal, viewDirection,
                                       directionalDirection, metallic, roughness);
+#ifdef DEMI_MESH_PBR
+    shadedColor += u_lightColor.rgb * u_lightDirection.w * visibility *
+                   pbrFoliageLight(baseColor, normal, viewDirection, directionalDirection, metallic);
+#endif
 #ifndef DEMI_DIRECTIONAL_ONLY
 #ifdef DEMI_TERRAIN
     if (surfaceParameters.z < 1.0)
@@ -392,6 +402,9 @@ void main()
         lighting += irradiance * max(dot(normal, lightDirection), 0.0);
         shadedColor += irradiance * directSurfaceLight(
             baseColor, normal, viewDirection, lightDirection, metallic, roughness);
+#ifdef DEMI_MESH_PBR
+        shadedColor += irradiance * pbrFoliageLight(baseColor, normal, viewDirection, lightDirection, metallic);
+#endif
     }
 #endif
 #ifdef DEMI_TERRAIN

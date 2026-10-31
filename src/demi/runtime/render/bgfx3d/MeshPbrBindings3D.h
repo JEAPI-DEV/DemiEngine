@@ -49,8 +49,8 @@ private:
   float frameTime_ = 0;
   std::array<float, 4> windValues_{};
   std::array<SamplerHandle, 6> samplers_{};
-  std::array<UniformHandle, 5> uniforms_{};
-  std::array<std::array<float, 4>, 5> values_{};
+  std::array<UniformHandle, 6> uniforms_{};
+  std::array<std::array<float, 4>, 6> values_{};
   std::array<DrawTextureBinding, 6> bindings_{};
   std::vector<DrawUniformValue> joinedUniforms_;
   std::vector<DrawTextureBinding> joinedTextures_;

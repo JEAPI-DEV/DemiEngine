@@ -76,7 +76,7 @@
             1,
             1
           ],
-          "ambient_intensity": 0.45,
+          "ambient_intensity": 0.65,
           "shadow_cascades": 4,
           "shadow_distance": 1600,
           "shadow_resolution": 2048,
@@ -109,9 +109,9 @@
   "instances": [
     {
       "id": "valley_outcrop_0",
-      "prefab": "prefab://terrain/alpine_cliff",
+      "prefab": "prefab://demi/woodland/rock",
       "overrides": {
-        "cliff": {
+        "rock": {
           "components": {
             "Transform3D": {
               "position": [
@@ -136,9 +136,9 @@
     },
     {
       "id": "valley_outcrop_1",
-      "prefab": "prefab://terrain/alpine_cliff",
+      "prefab": "prefab://demi/woodland/rock",
       "overrides": {
-        "cliff": {
+        "rock": {
           "components": {
             "Transform3D": {
               "position": [
@@ -163,9 +163,9 @@
     },
     {
       "id": "valley_outcrop_2",
-      "prefab": "prefab://terrain/alpine_cliff",
+      "prefab": "prefab://demi/woodland/rock",
       "overrides": {
-        "cliff": {
+        "rock": {
           "components": {
             "Transform3D": {
               "position": [

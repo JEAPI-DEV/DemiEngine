@@ -6,7 +6,7 @@
   "scene": 0,
   "scenes": [
     {
-      "name": "Demi_Alpine_GrassBake.001",
+      "name": "Scene",
       "nodes": [
         0
       ]
@@ -76,8 +76,8 @@
     },
     {
       "mimeType": "image/png",
-      "name": "grass_medium_01_diff_2k",
-      "uri": "grass_medium_01_diff_2k.png"
+      "name": "grass_medium_01_diff_2k-grass_medium_01_alpha_2k",
+      "uri": "grass_medium_01_diff_2k-grass_medium_01_alpha_2k.png"
     },
     {
       "mimeType": "image/jpeg",
@@ -89,7 +89,7 @@
     {
       "bufferView": 0,
       "componentType": 5126,
-      "count": 8978,
+      "count": 8991,
       "max": [
         0.6574051976203918,
         0.5846109986305237,
@@ -105,13 +105,13 @@
     {
       "bufferView": 1,
       "componentType": 5126,
-      "count": 8978,
+      "count": 8991,
       "type": "VEC3"
     },
     {
       "bufferView": 2,
       "componentType": 5126,
-      "count": 8978,
+      "count": 8991,
       "type": "VEC2"
     },
     {
@@ -124,26 +124,26 @@
   "bufferViews": [
     {
       "buffer": 0,
-      "byteLength": 107736,
+      "byteLength": 107892,
       "byteOffset": 0,
       "target": 34962
     },
     {
       "buffer": 0,
-      "byteLength": 107736,
-      "byteOffset": 107736,
+      "byteLength": 107892,
+      "byteOffset": 107892,
       "target": 34962
     },
     {
       "buffer": 0,
-      "byteLength": 71824,
-      "byteOffset": 215472,
+      "byteLength": 71928,
+      "byteOffset": 215784,
       "target": 34962
     },
     {
       "buffer": 0,
       "byteLength": 46980,
-      "byteOffset": 287296,
+      "byteOffset": 287712,
       "target": 34963
     }
   ],
@@ -155,7 +155,7 @@
   ],
   "buffers": [
     {
-      "byteLength": 334276,
+      "byteLength": 334692,
       "uri": "grass_patch.bin"
     }
   ]

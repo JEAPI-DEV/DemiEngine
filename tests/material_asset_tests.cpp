@@ -62,7 +62,9 @@ void typedViewUsesTheCanonicalDescriptor() {
       "macro_variation_scale":0.01,
       "wind_strength":0.25,
       "wind_frequency":1.5,
-      "wind_height":2
+      "wind_height":2,
+      "foliage_transmission":0.7,
+      "ambient_occlusion_strength":0.4
     }
   })");
   const auto material = parseMaterialAsset(document);
@@ -78,6 +80,8 @@ void typedViewUsesTheCanonicalDescriptor() {
   assert(surface.windStrength == 0.25F);
   assert(surface.windFrequency == 1.5F);
   assert(surface.windHeight == 2.F);
+  assert(surface.foliageTransmission == 0.7F);
+  assert(surface.ambientOcclusionStrength == 0.4F);
   assert(surface.mapping == MaterialMapping::Triplanar &&
          surface.normalMapYDown);
   assert(surface.maps.at(MaterialMapSlot::Albedo) == "asset://textures/color");
@@ -106,6 +110,11 @@ void builtinSurfaceDomainsAreValidated() {
   assert(rejected({{"format_version", 1}, {"textures", {{"albedo", 42}}}}));
   for (const auto parameters :
        {Json{{"roughness", -1}},
+        Json{{"foliage_transmission", -1}},
+        Json{{"foliage_transmission", 1.1}},
+        Json{{"ambient_occlusion_strength", 1.1}},
+        Json{{"foliage_transmission", {1, 1, 1, 1}}},
+        Json{{"ambient_occlusion_strength", {1, 1, 1, 1}}},
         Json{{"metallic", 2}},
         Json{{"normal_strength", -1}},
         Json{{"tiling", 0}},

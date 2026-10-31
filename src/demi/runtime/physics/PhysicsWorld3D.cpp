@@ -13,6 +13,7 @@
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/scene/Transform3DHierarchy.h"
 #include "demi/runtime/scene/WorldQueries.h"
+#include "demi/runtime/scene/WorldTransformSnapshot3D.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
 #include "demi/runtime/scene/model/World.h"
 
@@ -352,6 +353,7 @@ struct PhysicsWorld3D::Impl final : JPH::ContactListener {
                                 physicsWorkerCount()};
   JPH::PhysicsSystem physics;
   World *world = nullptr;
+  WorldTransformSnapshot3D bodyTransforms;
   bool replacementPhase = false;
   std::unordered_map<std::string, BodyRecord> bodies;
   std::unordered_map<std::string, CharacterRecord> characters;
@@ -813,6 +815,9 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
 
   {
     ProfileScope scope("Physics3D.sync_bodies");
+    // Resolve the hierarchy once per fixed step. Per-body parent lookup scans
+    // the whole entity list and becomes quadratic for streamed terrain chunks.
+    const auto &transforms = impl_->bodyTransforms.refresh(world);
     for (const auto entityIndex : world.componentQueries.queryAny<
              BoxCollider3DComponent, SphereCollider3DComponent,
              CapsuleCollider3DComponent, ConvexCollider3DComponent,
@@ -842,8 +847,7 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
           asset->second.lastUsedEpoch = impl_->frameEpoch;
       }
       // Shape scaling and body placement use the same hierarchy snapshot.
-      const auto resolved =
-          resolveWorldTransform3D(world, entity, *inputs.transform);
+      const auto &resolved = transforms[entityIndex];
       if (!resolved) {
         continue;
       }

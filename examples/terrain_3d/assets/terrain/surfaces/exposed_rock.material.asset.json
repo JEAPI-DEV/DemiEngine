@@ -1,5 +1,10 @@
 {
   "dependencies": [
+    "asset://polyhaven/terrain/textures/marble_cliff_05/albedo",
+    "asset://polyhaven/terrain/textures/marble_cliff_05/ambient_occlusion",
+    "asset://polyhaven/terrain/textures/marble_cliff_05/height",
+    "asset://polyhaven/terrain/textures/marble_cliff_05/normal",
+    "asset://polyhaven/terrain/textures/marble_cliff_05/roughness",
     "asset://polyhaven/terrain/textures/rock_face_03/albedo",
     "asset://polyhaven/terrain/textures/rock_face_03/ambient_occlusion",
     "asset://polyhaven/terrain/textures/rock_face_03/height",
@@ -12,6 +17,6 @@
   "importer_version": 1,
   "settings": {},
   "source": "exposed_rock.material.json",
-  "source_hash": "fnv1a64:a1ecb99baf61dbb9",
+  "source_hash": "fnv1a64:9ffdfdc4ab47496f",
   "type": "Material"
 }

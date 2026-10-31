@@ -37,6 +37,8 @@ struct TextureSampling2D {
   std::optional<TextureFilter> minFilter;
   std::optional<TextureFilter> magFilter;
   std::optional<TextureFilter> mipFilter;
+  // Used by imported masked albedo; ordinary color/data textures keep their policy.
+  std::optional<float> alphaCoverageCutoff;
 };
 
 // Immutable-by-convention CPU payload. RGBA8 base pixels and optional mip
