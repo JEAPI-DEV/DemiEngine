@@ -1,0 +1,25 @@
+{
+  "format_version": 1,
+  "canvas_size": [
+    960,
+    640
+  ],
+  "children": [
+    {
+      "id": "game_ui",
+      "prefab": "ui-prefab://screens/gameplay",
+      "overrides": {
+        "floor": {
+          "text": "THE HOLLOW THRONE"
+        },
+        "objective": {
+          "text": "Bait the king's cleave. Strike during his recovery."
+        }
+      }
+    },
+    {
+      "id": "boss_bar",
+      "prefab": "ui-prefab://screens/boss_bar"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "attribution": "SnowHex / Jose Javier — Dungeon Gathering",
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://dungeon/torch",
+  "importer": "image",
+  "importer_version": 1,
+  "license": "License.txt",
+  "settings": {
+    "filter": "nearest",
+    "wrap": "clamp"
+  },
+  "source": "Torch Yellow.png",
+  "source_hash": "fnv1a64:44285f8fcfb1ecae",
+  "type": "Texture2D"
+}

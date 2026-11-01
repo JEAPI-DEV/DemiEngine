@@ -1,0 +1,14 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "generated_output": "../../../generated/assets/dungeon/held_ember_staff/held_ember_staff.svg",
+  "id": "asset://dungeon/held_ember_staff",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {
+    "filter": "nearest"
+  },
+  "source": "held_ember_staff.svg",
+  "source_hash": "fnv1a64:ce43ee68524aff36",
+  "type": "SvgTexture2D"
+}

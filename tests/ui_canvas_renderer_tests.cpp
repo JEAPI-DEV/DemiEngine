@@ -127,6 +127,34 @@ int main() {
   assert(canvas.statistics().triangles >= 32);
   static_cast<void>(graphics.endFrame());
 
+  ui::UiDocument emptyFills;
+  emptyFills.canvasSize = {320, 180};
+  emptyFills.nodes = {
+      {.id = "depleted_health",
+       .type = "rect",
+       .resolved = {.x = 10, .y = 10, .width = 0, .height = 8},
+       .backgroundColor = {.r = 1, .g = 0, .b = 0, .a = 1},
+       .borderColor = {.r = 1, .g = 1, .b = 1, .a = 1},
+       .borderWidth = 1},
+      {.id = "collapsed_fill",
+       .type = "rect",
+       .resolved = {.x = 10, .y = 30, .width = 100, .height = 0},
+       .backgroundColor = {.r = 0, .g = 1, .b = 0, .a = 1}},
+  };
+  assert(canvas.begin(0, 320, 180, 0, error));
+  assert(renderer.draw(emptyFills, 320, 180));
+  assert(canvas.flush(error));
+  assert(canvas.statistics().quads == 0);
+  static_cast<void>(graphics.endFrame());
+
+  // Restoring a fill must render again without replacing its node.
+  emptyFills.nodes.back().resolved.height = 8;
+  assert(canvas.begin(0, 320, 180, 0, error));
+  assert(renderer.draw(emptyFills, 320, 180));
+  assert(canvas.flush(error));
+  assert(canvas.statistics().quads == 1);
+  static_cast<void>(graphics.endFrame());
+
   ui::UiDocument editingDocument;
   editingDocument.canvasSize = {320, 180};
   editingDocument.focusedId = "name";
@@ -257,6 +285,41 @@ int main() {
   assert(animatedRenderer.draw(animatedDocument, 320, 180));
   assert(canvas.flush(error));
   assert(canvas.statistics().quads == 2);
+  static_cast<void>(graphics.endFrame());
+
+  ui::UiDocument slicedDocument;
+  slicedDocument.canvasSize = {320, 180};
+  ui::UiNode slicedImage;
+  slicedImage.id = "atlas_panel";
+  slicedImage.type = "image";
+  slicedImage.texture = "asset://atlas";
+  slicedImage.resolved = {10, 20, 100, 60};
+  slicedImage.sourcePosition = {16, 8};
+  slicedImage.sourceSize = {24, 24};
+  slicedImage.imageSkin = {.start = {3, 3}, .end = {3, 3}, .scale = 2};
+  slicedDocument.nodes = {slicedImage};
+  UiCanvasRenderer slicedRenderer(canvas, font, [&canvas](std::string_view) {
+    return TextureView2D{
+        .handle = canvas.whiteTexture(), .width = 64, .height = 64};
+  });
+  assert(canvas.begin(0, 320, 180, 0, error));
+  assert(slicedRenderer.draw(slicedDocument, 320, 180));
+  assert(canvas.flush(error));
+  assert(canvas.statistics().quads == 9);
+  static_cast<void>(graphics.endFrame());
+
+  // Tiny destinations proportionally shrink borders; empty images are no-ops.
+  slicedDocument.nodes.front().resolved = {10, 20, 4, 4};
+  assert(canvas.begin(0, 320, 180, 0, error));
+  assert(slicedRenderer.draw(slicedDocument, 640, 360));
+  assert(canvas.flush(error));
+  assert(canvas.statistics().quads == 4);
+  static_cast<void>(graphics.endFrame());
+  slicedDocument.nodes.front().resolved.width = 0;
+  assert(canvas.begin(0, 320, 180, 0, error));
+  assert(slicedRenderer.draw(slicedDocument, 320, 180));
+  assert(canvas.flush(error));
+  assert(canvas.statistics().quads == 0);
   static_cast<void>(graphics.endFrame());
 
   textures.clear();

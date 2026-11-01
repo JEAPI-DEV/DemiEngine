@@ -1,0 +1,13 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://dungeon/warden",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {
+    "filter": "nearest"
+  },
+  "source": "warden.svg",
+  "source_hash": "fnv1a64:96c7736967962ccc",
+  "type": "SvgTexture2D"
+}

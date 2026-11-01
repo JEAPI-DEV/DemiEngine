@@ -1,0 +1,12 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "generated_output": "../../../../generated/assets/dungeon/maps/floor1/floor1.tilemap.json",
+  "id": "asset://dungeon/maps/floor1",
+  "importer": "tilemap2d",
+  "importer_version": 1,
+  "settings": {},
+  "source": "floor1.tilemap.json",
+  "source_hash": "fnv1a64:b0e2eaae47aaa3f8",
+  "type": "Tilemap2D"
+}

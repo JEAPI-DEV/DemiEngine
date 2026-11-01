@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://dungeon/sound_dash",
+  "importer": "audio",
+  "importer_version": 1,
+  "settings": {},
+  "source": "dash.wav",
+  "source_hash": "fnv1a64:249dab70e4ed679f",
+  "type": "AudioClip"
+}

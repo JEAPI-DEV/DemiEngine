@@ -1,4 +1,13 @@
 # Example validation, headless runtime, packaging, replay, and script checks.
+add_test(NAME demi-dungeon-example-validate
+  COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/Dungeon --platform linux)
+add_test(NAME demi-dungeon-example-smoke
+  COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/Dungeon --max-frames 3)
+set_tests_properties(demi-dungeon-example-smoke PROPERTIES
+  ENVIRONMENT "DEMI_HEADLESS=1"
+  PASS_REGULAR_EXPRESSION "Dungeon ready: floor=1 enemies=7"
+  TIMEOUT 30)
+
 add_test(NAME demi-terrain-graph-example-validate
   COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/terrain_graph_3d)
 add_test(NAME demi-terrain-graph-example-smoke

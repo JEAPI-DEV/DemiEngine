@@ -1,0 +1,226 @@
+{
+  "format_version": 1,
+  "name": "Dungeon \u2014 The Hollow Crown",
+  "main_scene": "scene://dungeon/floor1",
+  "scenes": [
+    {
+      "id": "scene://dungeon/floor1",
+      "path": "scenes/floor1.scene.json"
+    },
+    {
+      "id": "scene://dungeon/floor2",
+      "path": "scenes/floor2.scene.json"
+    },
+    {
+      "id": "scene://dungeon/floor3",
+      "path": "scenes/floor3.scene.json"
+    },
+    {
+      "id": "scene://dungeon/boss1",
+      "path": "scenes/boss1.scene.json"
+    }
+  ],
+  "assets": [
+    "asset://dungeon/stone",
+    "asset://dungeon/walls",
+    "asset://dungeon/stairs",
+    "asset://dungeon/torch",
+    "asset://dungeon/potion",
+    "asset://dungeon/hearts",
+    "asset://dungeon/warden",
+    "asset://dungeon/crawler",
+    "asset://dungeon/acolyte",
+    "asset://dungeon/sentinel",
+    "asset://dungeon/boss",
+    "asset://dungeon/sound_shoot",
+    "asset://dungeon/sound_hit",
+    "asset://dungeon/sound_hurt",
+    "asset://dungeon/sound_kill",
+    "asset://dungeon/sound_heal",
+    "asset://dungeon/sound_dash",
+    "asset://dungeon/sound_boss",
+    "asset://dungeon/buttons",
+    "asset://dungeon/coin",
+    "asset://dungeon/ui_font",
+    "asset://dungeon/chest",
+    "asset://dungeon/skirmisher",
+    "asset://dungeon/short_blade",
+    "asset://dungeon/long_blade",
+    "asset://dungeon/held_staff",
+    "asset://dungeon/water",
+    "asset://dungeon/note",
+    "asset://dungeon/lever",
+    "asset://dungeon/ember_staff_icon",
+    "asset://dungeon/held_ember_staff",
+    "asset://dungeon/frost_staff_icon",
+    "asset://dungeon/held_frost_staff",
+    "asset://dungeon/mana_potion",
+    "asset://dungeon/ether",
+    "asset://dungeon/layouts/floor1",
+    "asset://dungeon/layouts/floor2",
+    "asset://dungeon/layouts/floor3",
+    "asset://dungeon/layouts/boss1",
+    "asset://dungeon/portrait_frame",
+    "asset://dungeon/health_frame",
+    "asset://dungeon/mana_frame",
+    "asset://dungeon/health_ribbon",
+    "asset://dungeon/mana_ribbon",
+    "asset://dungeon/ui_bold",
+    "asset://dungeon/banner",
+    "asset://dungeon/bookshelf"
+  ],
+  "simulation": {
+    "fixed_timestep": 0.016666667,
+    "random_seed": 731
+  },
+  "input": {
+    "actions": {
+      "move_x": {
+        "type": "axis1d",
+        "bindings": [
+          {
+            "input": "key:a",
+            "scale": -1
+          },
+          {
+            "input": "key:left",
+            "scale": -1
+          },
+          {
+            "input": "key:d",
+            "scale": 1
+          },
+          {
+            "input": "key:right",
+            "scale": 1
+          }
+        ]
+      },
+      "move_y": {
+        "type": "axis1d",
+        "bindings": [
+          {
+            "input": "key:s",
+            "scale": -1
+          },
+          {
+            "input": "key:down",
+            "scale": -1
+          },
+          {
+            "input": "key:w",
+            "scale": 1
+          },
+          {
+            "input": "key:up",
+            "scale": 1
+          }
+        ]
+      },
+      "attack": {
+        "type": "button",
+        "bindings": [
+          {
+            "input": "key:space"
+          }
+        ]
+      },
+      "dash": {
+        "type": "button",
+        "bindings": [
+          {
+            "input": "key:left shift"
+          }
+        ]
+      },
+      "interact": {
+        "type": "button",
+        "bindings": [
+          {
+            "input": "key:e"
+          }
+        ]
+      },
+      "restart": {
+        "type": "button",
+        "bindings": [
+          {
+            "input": "key:r"
+          }
+        ]
+      },
+      "pause": {
+        "type": "button",
+        "bindings": [
+          {
+            "input": "key:escape"
+          }
+        ]
+      },
+      "power": {
+        "type": "button",
+        "bindings": [
+          {
+            "input": "key:1"
+          }
+        ]
+      },
+      "vitality": {
+        "type": "button",
+        "bindings": [
+          {
+            "input": "key:2"
+          }
+        ]
+      },
+      "inventory": {
+        "type": "button",
+        "bindings": [
+          {
+            "input": "key:i"
+          }
+        ]
+      },
+      "heal": {
+        "type": "button",
+        "bindings": [
+          {
+            "input": "key:q"
+          }
+        ]
+      },
+      "save": {
+        "type": "button",
+        "bindings": [
+          {
+            "input": "key:f5"
+          }
+        ]
+      },
+      "next_weapon": {
+        "type": "button",
+        "bindings": [
+          {
+            "input": "key:x"
+          }
+        ]
+      },
+      "restore_mana": {
+        "type": "button",
+        "bindings": [
+          {
+            "input": "key:t"
+          }
+        ]
+      },
+      "journal": {
+        "type": "button",
+        "bindings": [
+          {
+            "input": "key:j"
+          }
+        ]
+      }
+    }
+  }
+}

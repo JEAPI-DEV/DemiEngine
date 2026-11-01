@@ -181,6 +181,46 @@ int main() {
     return 1;
   }
 
+  // Opening a gate by disabling its entity must stop every geometric query
+  // immediately, and re-enabling it must restore query participation.
+  World gateWorld;
+  gateWorld.entities.push_back(makePlatform());
+  gateWorld.entities.front().enabled = false;
+  const auto gateQueriesEmpty = [&] {
+    return !overlapBox(gateWorld, {}, {1, 1}) &&
+           overlapCircle(gateWorld, {}, 3).empty() &&
+           overlapBoxAll(gateWorld, {}, {1, 1}).empty() &&
+           overlapCircleAll(gateWorld, {}, 3).empty() &&
+           !raycast2D(gateWorld, {-5, 0}, {1, 0}, 10);
+  };
+  if (!gateQueriesEmpty()) {
+    std::cerr << "Disabled gate still participates in a 2D query.\n";
+    return 1;
+  }
+  gateWorld.entities.front().enabled = true;
+  if (!overlapBox(gateWorld, {}, {1, 1}) ||
+      overlapCircle(gateWorld, {}, 3).size() != 1 ||
+      overlapBoxAll(gateWorld, {}, {1, 1}).size() != 1 ||
+      overlapCircleAll(gateWorld, {}, 3).size() != 1 ||
+      !raycast2D(gateWorld, {-5, 0}, {1, 0}, 10)) {
+    std::cerr << "Re-enabled gate did not return to 2D queries.\n";
+    return 1;
+  }
+  gateWorld.entities.front().removeComponent<BoxCollider2DComponent>();
+  gateWorld.entities.front().setComponent(CircleCollider2DComponent{
+      .radius = 1.0F, .isTrigger = true, .layer = "sensor"});
+  if (overlapBox(gateWorld, {}, {1, 1}) ||
+      overlapCircle(gateWorld, {}, 3, "sensor").size() != 1 ||
+      !raycast2D(gateWorld, {-5, 0}, {1, 0}, 10, "sensor")) {
+    std::cerr << "Enabled trigger query semantics changed.\n";
+    return 1;
+  }
+  gateWorld.entities.front().enabled = false;
+  if (!gateQueriesEmpty()) {
+    std::cerr << "Disabled trigger still participates in a 2D query.\n";
+    return 1;
+  }
+
   World rotatedWallWorld;
   Entity rotatedWall;
   rotatedWall.id = "rotated_wall";

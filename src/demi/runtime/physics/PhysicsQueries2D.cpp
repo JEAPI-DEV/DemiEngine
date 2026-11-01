@@ -24,7 +24,8 @@ bool overlapBox(const World &world, const Vec2 center, const Vec2 size,
                 const std::string &ignoredEntityId) {
   const Aabb query = makeAabb(center, size);
   for (const Entity &entity : world.entities) {
-    if (entity.id == ignoredEntityId || !participatesInCollision(entity)) {
+    if (!entity.enabled || entity.id == ignoredEntityId ||
+        !participatesInCollision(entity)) {
       continue;
     }
     if (queryIntersects(query, colliderAabb(entity))) {
@@ -41,7 +42,7 @@ std::vector<std::string> overlapCircle(const World &world, const Vec2 center,
   std::vector<std::string> hits;
   const float queryRadius = std::max(radius, 0.0F);
   for (const Entity &entity : world.entities) {
-    if (entity.id == ignoredEntityId ||
+    if (!entity.enabled || entity.id == ignoredEntityId ||
         !entity.hasComponent<Transform2DComponent>() || !hasCollider(entity) ||
         (!layer.empty() && colliderLayer(entity) != layer))
       continue;
@@ -80,7 +81,7 @@ overlapBoxAll(const World &world, const Vec2 center, const Vec2 size,
   std::vector<PhysicsQueryHit2D> hits;
   const Aabb query = makeAabb(center, size);
   for (const Entity &entity : world.entities) {
-    if (entity.id == ignoredEntityId ||
+    if (!entity.enabled || entity.id == ignoredEntityId ||
         !entity.hasComponent<Transform2DComponent>() || !hasCollider(entity) ||
         (!layer.empty() && colliderLayer(entity) != layer))
       continue;
@@ -109,7 +110,7 @@ overlapCircleAll(const World &world, const Vec2 center, const float radius,
   std::vector<PhysicsQueryHit2D> hits;
   const float queryRadius = std::max(radius, 0.0F);
   for (const Entity &entity : world.entities) {
-    if (entity.id == ignoredEntityId ||
+    if (!entity.enabled || entity.id == ignoredEntityId ||
         !entity.hasComponent<Transform2DComponent>() || !hasCollider(entity) ||
         (!layer.empty() && colliderLayer(entity) != layer))
       continue;
@@ -147,7 +148,7 @@ raycast2D(const World &world, const Vec2 origin, Vec2 direction,
   direction.y /= length;
   std::optional<PhysicsRaycastHit2D> closest;
   for (const Entity &entity : world.entities) {
-    if (entity.id == ignoredEntityId ||
+    if (!entity.enabled || entity.id == ignoredEntityId ||
         !entity.hasComponent<Transform2DComponent>() || !hasCollider(entity) ||
         (!layer.empty() && colliderLayer(entity) != layer))
       continue;

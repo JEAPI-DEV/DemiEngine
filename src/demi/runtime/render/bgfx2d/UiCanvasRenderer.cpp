@@ -153,6 +153,12 @@ bool UiCanvasRenderer::drawNode(const ui::UiNode &node, const float scaleX,
                                 const float scaleY, const ScissorRect scissor,
                                 const bool focused) {
   const Rect2D rect = scaledRect(node, scaleX, scaleY);
+  // Runtime fills can reach zero when health or charge is depleted. An empty
+  // HUD rectangle has no geometry; Canvas2D correctly rejects degenerate draws.
+  // Keep intrinsic text sizing for labels and containers on the normal path.
+  if (node.type == "rect" && (rect.width == 0.0F || rect.height == 0.0F)) {
+    return true;
+  }
   const float scale = std::min(scaleX, scaleY) * node.scale;
   const auto solid = [&](const Color &color) {
     return color.a <= 0.0F ||
@@ -218,16 +224,50 @@ bool UiCanvasRenderer::drawNode(const ui::UiNode &node, const float scaleX,
           node.sourceSize.x > 0.0F ? node.sourceSize.x : texture.width;
       const float sourceHeight =
           node.sourceSize.y > 0.0F ? node.sourceSize.y : texture.height;
-      if (!canvas_.image(
-              texture.handle, uiImageBounds(rect, sourceWidth, sourceHeight),
-              TextureRegion2D{
-                  .u0 = node.sourcePosition.x / texture.width,
-                  .v0 = node.sourcePosition.y / texture.height,
-                  .u1 = (node.sourcePosition.x + sourceWidth) / texture.width,
-                  .v1 = (node.sourcePosition.y + sourceHeight) / texture.height,
-              },
-              packVertexColorRgba8(node.color), BlendMode::Alpha, scissor))
+      const TextureRegion2D source{
+          .u0 = node.sourcePosition.x / texture.width,
+          .v0 = node.sourcePosition.y / texture.height,
+          .u1 = (node.sourcePosition.x + sourceWidth) / texture.width,
+          .v1 = (node.sourcePosition.y + sourceHeight) / texture.height,
+      };
+      if (rect.width == 0 || rect.height == 0) {
+        return true;
+      }
+      if (node.imageSkin.sliced()) {
+        const auto &skin = node.imageSkin;
+        // Implicit full-texture sources are checked after texture resolution.
+        if (skin.start.x + skin.end.x > sourceWidth ||
+            skin.start.y + skin.end.y > sourceHeight) {
+          return false;
+        }
+        const NinePatch2D borders{
+            .left = skin.start.x * skin.scale * scaleX * node.scale,
+            .top = skin.start.y * skin.scale * scaleY * node.scale,
+            .right = skin.end.x * skin.scale * scaleX * node.scale,
+            .bottom = skin.end.y * skin.scale * scaleY * node.scale,
+            .center =
+                {
+                    .u0 =
+                        (node.sourcePosition.x + skin.start.x) / texture.width,
+                    .v0 =
+                        (node.sourcePosition.y + skin.start.y) / texture.height,
+                    .u1 = (node.sourcePosition.x + sourceWidth - skin.end.x) /
+                          texture.width,
+                    .v1 = (node.sourcePosition.y + sourceHeight - skin.end.y) /
+                          texture.height,
+                },
+        };
+        if (!canvas_.ninePatch(texture.handle, rect, source, borders,
+                               packVertexColorRgba8(node.color),
+                               BlendMode::Alpha, scissor)) {
+          return false;
+        }
+      } else if (!canvas_.image(texture.handle,
+                                uiImageBounds(rect, sourceWidth, sourceHeight),
+                                source, packVertexColorRgba8(node.color),
+                                BlendMode::Alpha, scissor)) {
         return false;
+      }
     }
   }
 

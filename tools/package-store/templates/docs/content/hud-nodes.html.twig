@@ -35,6 +35,9 @@
 }</code></pre>
 <p>Renders a filled rectangle behind its children. <code>background_color</code> accepts <code>[r, g, b, a]</code> (0…1) or a hex string.</p>
 
+<h2>rect</h2>
+<p>For a simple colored fill, use a <code>rect</code> node with <code>size</code> and <code>background_color</code>. A rectangle whose resolved width or height is zero draws nothing, including its border. This allows health or charge bars to empty completely and become visible again when their size increases.</p>
+
 <h2>label</h2>
 <p>Read-only text. The most common node in Skyforge’s HUD.</p>
 <pre><code>{
@@ -58,6 +61,15 @@
 
 <h2>image</h2>
 <p>A texture rectangle. Portraits, icons, backgrounds.</p>
+<p>Use <code>source_position</code> and <code>source_size</code> for pixel regions in a UI atlas. By default images preserve their aspect ratio. Add <code>nine_slice: [[left, top], [right, bottom]]</code> to fill the node while preserving its source-pixel borders. Optional <code>nine_slice_scale</code> multiplies the border size in canvas units (default 1); this is useful for crisp pixel-art skins. Border values must be nonnegative and fit the source region, and the scale must be positive and finite. Small destinations compress borders proportionally; zero-sized images draw nothing.</p>
+<pre><code>{
+  "id": "bag_frame", "type": "image",
+  "texture": "asset://ui/atlas",
+  "source_position": [32, 16], "source_size": [24, 24],
+  "nine_slice": [[4, 4], [4, 4]], "nine_slice_scale": 3,
+  "size": [640, 400]
+}</code></pre>
+<p>The HUD Inspector exposes atlas regions and slice borders. These fields also work in <code>Hud.create</code>, UI-prefab parameters and instance overrides, and appear in <code>demi hud inspect --format json</code>. The <code>Dungeon</code> example composes skinned images with ordinary button children into reusable UI prefabs; no game-specific native widget is needed.</p>
 <pre><code>{
   "id": "portrait",
   "type": "image",

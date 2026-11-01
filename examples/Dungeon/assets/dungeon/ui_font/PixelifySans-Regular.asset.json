@@ -1,0 +1,13 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "generated_output": "../../../generated/assets/dungeon/ui_font/PixelifySans-Regular.ttf",
+  "id": "asset://dungeon/ui_font",
+  "importer": "font",
+  "importer_version": 1,
+  "license": "OFL.txt",
+  "settings": {},
+  "source": "PixelifySans-Regular.ttf",
+  "source_hash": "fnv1a64:028c61ce2806c21c",
+  "type": "Font2D"
+}

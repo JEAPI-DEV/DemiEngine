@@ -1,0 +1,14 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "generated_output": "../../../generated/assets/dungeon/short_blade/short_blade.svg",
+  "id": "asset://dungeon/short_blade",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {
+    "filter": "nearest"
+  },
+  "source": "short_blade.svg",
+  "source_hash": "fnv1a64:5d1775f8080c9af9",
+  "type": "SvgTexture2D"
+}

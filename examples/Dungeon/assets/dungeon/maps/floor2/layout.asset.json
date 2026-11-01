@@ -1,0 +1,13 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://dungeon/layouts/floor2",
+  "importer": "json_data",
+  "importer_version": 1,
+  "settings": {
+    "content_type": "data"
+  },
+  "source": "floor2.tilemap.json",
+  "source_hash": "fnv1a64:7ea671d3b889a03a",
+  "type": "DataAsset"
+}

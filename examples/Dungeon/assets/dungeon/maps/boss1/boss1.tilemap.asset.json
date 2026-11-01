@@ -1,0 +1,12 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "generated_output": "../../../../generated/assets/dungeon/maps/boss1/boss1.tilemap.json",
+  "id": "asset://dungeon/maps/boss1",
+  "importer": "tilemap2d",
+  "importer_version": 1,
+  "settings": {},
+  "source": "boss1.tilemap.json",
+  "source_hash": "fnv1a64:71acafb17247c7da",
+  "type": "Tilemap2D"
+}

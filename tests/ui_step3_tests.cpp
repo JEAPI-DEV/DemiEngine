@@ -811,6 +811,31 @@ int main() {
   instance["overrides"] = {{"$root", {{"blocks_pointer", "yes"}}}};
   if (expandUiDocument(hudPath, overriddenHud).document)
     return 1;
+  instance["overrides"] = {{"$root",
+                            {{"nine_slice", {{2, 3}, {4, 5}}},
+                             {"nine_slice_scale", 3},
+                             {"source_size", {24, 24}}}}};
+  const auto skinned = expandUiDocument(hudPath, overriddenHud);
+  if (!skinned.document) {
+    return 1;
+  }
+  const auto skinDocument = parseUiDocument(*skinned.document);
+  const auto &skin = skinDocument.nodes[1].imageSkin;
+  if (skin.start.x != 2 || skin.start.y != 3 || skin.end.x != 4 ||
+      skin.end.y != 5 || skin.scale != 3) {
+    return 1;
+  }
+  for (const auto &invalid : {nlohmann::json{{"nine_slice", {{-1, 2}, {3, 4}}}},
+                              nlohmann::json{{"nine_slice", {2, 3}}},
+                              nlohmann::json{{"nine_slice_scale", 0}},
+                              nlohmann::json{{"nine_slice", {{20, 2}, {20, 2}}},
+                                             {"source_size", {24, 24}}}}) {
+    instance["overrides"] = {{"$root", invalid}};
+    if (expandUiDocument(hudPath, overriddenHud).document) {
+      std::cerr << "Invalid UI skin accepted.\n";
+      return 1;
+    }
+  }
   instance["overrides"] = {{"missing", {{"text", "NO"}}}};
   if (expandUiDocument(hudPath, overriddenHud).document) {
     std::cerr << "Unknown override descendant was silently ignored.\n";

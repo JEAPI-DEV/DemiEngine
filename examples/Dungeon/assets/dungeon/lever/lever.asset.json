@@ -1,0 +1,14 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "generated_output": "../../../generated/assets/dungeon/lever/lever.svg",
+  "id": "asset://dungeon/lever",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {
+    "filter": "nearest"
+  },
+  "source": "lever.svg",
+  "source_hash": "fnv1a64:fa5e9958df8a2921",
+  "type": "SvgTexture2D"
+}

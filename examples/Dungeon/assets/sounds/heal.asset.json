@@ -1,0 +1,11 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://dungeon/sound_heal",
+  "importer": "audio",
+  "importer_version": 1,
+  "settings": {},
+  "source": "heal.wav",
+  "source_hash": "fnv1a64:44cd80474404efed",
+  "type": "AudioClip"
+}

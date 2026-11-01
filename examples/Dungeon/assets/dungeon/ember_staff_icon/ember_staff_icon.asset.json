@@ -1,0 +1,14 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "generated_output": "../../../generated/assets/dungeon/ember_staff_icon/ember_staff_icon.svg",
+  "id": "asset://dungeon/ember_staff_icon",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {
+    "filter": "nearest"
+  },
+  "source": "ember_staff_icon.svg",
+  "source_hash": "fnv1a64:bc7091343c6e1dc0",
+  "type": "SvgTexture2D"
+}

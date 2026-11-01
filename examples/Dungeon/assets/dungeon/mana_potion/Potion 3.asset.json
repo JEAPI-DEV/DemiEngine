@@ -1,0 +1,15 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "generated_output": "../../../generated/assets/dungeon/mana_potion/Potion 3.png",
+  "id": "asset://dungeon/mana_potion",
+  "importer": "image",
+  "importer_version": 1,
+  "license": "License.txt",
+  "settings": {
+    "filter": "nearest"
+  },
+  "source": "Potion 3.png",
+  "source_hash": "fnv1a64:c56482f2bbae912f",
+  "type": "Texture2D"
+}

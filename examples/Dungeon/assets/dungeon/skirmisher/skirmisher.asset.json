@@ -1,0 +1,14 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "generated_output": "../../../generated/assets/dungeon/skirmisher/skirmisher.svg",
+  "id": "asset://dungeon/skirmisher",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {
+    "filter": "nearest"
+  },
+  "source": "skirmisher.svg",
+  "source_hash": "fnv1a64:930fdac6aa0a637e",
+  "type": "SvgTexture2D"
+}

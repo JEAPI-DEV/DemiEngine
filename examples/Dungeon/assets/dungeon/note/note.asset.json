@@ -1,0 +1,14 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "generated_output": "../../../generated/assets/dungeon/note/note.svg",
+  "id": "asset://dungeon/note",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {
+    "filter": "nearest"
+  },
+  "source": "note.svg",
+  "source_hash": "fnv1a64:472e7493e3157ddd",
+  "type": "SvgTexture2D"
+}

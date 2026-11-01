@@ -1,0 +1,79 @@
+{
+  "format_version": 1,
+  "id": "ui-prefab://kit/button",
+  "parameters": {
+    "size": {
+      "type": "array",
+      "default": [
+        240,
+        48
+      ]
+    },
+    "tint": {
+      "type": "array",
+      "default": [
+        0.38,
+        0.44,
+        0.58,
+        1
+      ]
+    },
+    "layer": {
+      "type": "integer",
+      "default": 0
+    },
+    "label": {
+      "type": "string",
+      "default": ""
+    },
+    "action": {
+      "type": "string",
+      "default": ""
+    }
+  },
+  "root": {
+    "id": "button",
+    "type": "image",
+    "size": "${size}",
+    "texture": "asset://dungeon/buttons",
+    "source_position": [
+      11,
+      92
+    ],
+    "source_size": [
+      26,
+      26
+    ],
+    "nine_slice": [
+      [
+        4,
+        4
+      ],
+      [
+        4,
+        4
+      ]
+    ],
+    "nine_slice_scale": 3,
+    "color": "${tint}",
+    "layer": "${layer}",
+    "children": [
+      {
+        "id": "hit",
+        "type": "button",
+        "dock": "fill",
+        "text": "${label}",
+        "action": "${action}",
+        "font": "asset://dungeon/ui_font",
+        "font_size": 20,
+        "text_alignment": "center",
+        "text_vertical_alignment": "center",
+        "text_color": "#f4edda",
+        "background_color": "#00000000",
+        "hover_color": "#c4e5ff44",
+        "color": "#c4e5ff",
+        "layer": "${layer}"
+      }
+    ]
+  }
+}

@@ -7,6 +7,7 @@
 <p>Queries respect the same <a href="{{ path('docs_page', {slug: 'physics-layers'}) }}">layer filters</a> as real contacts, so a ray that ignores pickups can be authored with <code>mask_bits</code> rather than extra checks in Lua.</p>
 
 <h2>Raycast, overlap, and shape cast</h2>
+<p>2D raycasts and overlap queries ignore disabled entities. Re-enabling an entity restores its collider to queries. Opening a door with <code>Entity.set_enabled(id, false)</code> therefore removes it from movement, sight and projectile blocking together.</p>
 <p>Three families of questions cover almost every need.</p>
 <table>
   <thead><tr><th>Family</th><th>Question</th><th>Everyday uses</th></tr></thead>

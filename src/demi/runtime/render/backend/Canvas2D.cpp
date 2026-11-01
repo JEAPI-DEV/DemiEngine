@@ -276,11 +276,15 @@ bool Canvas2D::ninePatch(const TextureHandle texture, const Rect2D &destination,
 
   for (int y = 0; y < 3; ++y) {
     for (int x = 0; x < 3; ++x) {
+      const float width = xs[x + 1] - xs[x];
+      const float height = ys[y + 1] - ys[y];
+      // Border compression can collapse the center of a small control. Zero
+      // authored borders similarly remove edge cells; neither needs a draw.
+      if (width <= 0.0F || height <= 0.0F) {
+        continue;
+      }
       if (!add(texture,
-               Rect2D{.x = xs[x],
-                      .y = ys[y],
-                      .width = xs[x + 1] - xs[x],
-                      .height = ys[y + 1] - ys[y]},
+               Rect2D{.x = xs[x], .y = ys[y], .width = width, .height = height},
                TextureRegion2D{
                    .u0 = us[x], .v0 = vs[y], .u1 = us[x + 1], .v1 = vs[y + 1]},
                rgba, blend, scissor, program, uniformSet))

@@ -45,6 +45,17 @@ Json reportToJson(const runtime::ui::HudLayoutReport &report) {
           {"width", node.resolved.width},
           {"height", node.resolved.height}}},
     });
+    if (node.type == "image") {
+      nodes.back()["image"] = {
+          {"texture", node.texture},
+          {"source_position", {node.sourcePosition.x, node.sourcePosition.y}},
+          {"source_size", {node.sourceSize.x, node.sourceSize.y}},
+          {"nine_slice",
+           {{node.imageSkin.start.x, node.imageSkin.start.y},
+            {node.imageSkin.end.x, node.imageSkin.end.y}}},
+          {"nine_slice_scale", node.imageSkin.scale},
+      };
+    }
   }
   return {{"format_version", 1},
           {"canvas_size",

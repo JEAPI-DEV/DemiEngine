@@ -1,0 +1,14 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "generated_output": "../../../generated/assets/dungeon/held_staff/held_staff.svg",
+  "id": "asset://dungeon/held_staff",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {
+    "filter": "nearest"
+  },
+  "source": "held_staff.svg",
+  "source_hash": "fnv1a64:c1b89d4e28b8936f",
+  "type": "SvgTexture2D"
+}

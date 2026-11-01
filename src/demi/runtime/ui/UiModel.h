@@ -1,4 +1,5 @@
 #pragma once
+#include "demi/runtime/ui/UiImageSkin.h"
 
 #include "demi/runtime/scene/model/SceneTypes.h"
 #include "demi/runtime/ui/TextEditingEngine.h"
@@ -85,6 +86,7 @@ struct UiNode {
   Color textColor{1.0F, 1.0F, 1.0F, 1.0F};
   Vec2 sourcePosition{};
   Vec2 sourceSize{};
+  UiImageSkin imageSkin;
   int layer = 0;
   int animationFrame = 0;
   float value = 0.0F;

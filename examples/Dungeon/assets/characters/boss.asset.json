@@ -1,0 +1,13 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://dungeon/boss",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {
+    "filter": "nearest"
+  },
+  "source": "boss.svg",
+  "source_hash": "fnv1a64:37c7ea5bc2d8a0e3",
+  "type": "SvgTexture2D"
+}

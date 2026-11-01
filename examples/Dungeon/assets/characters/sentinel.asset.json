@@ -1,0 +1,13 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://dungeon/sentinel",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {
+    "filter": "nearest"
+  },
+  "source": "sentinel.svg",
+  "source_hash": "fnv1a64:6fe790344014ecd3",
+  "type": "SvgTexture2D"
+}

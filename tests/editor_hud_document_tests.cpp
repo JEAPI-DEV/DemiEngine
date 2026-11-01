@@ -107,6 +107,35 @@ void verifyPrefabInstanceOverrides(const std::filesystem::path &root) {
   assert(reopened.effectiveNode("alpha.dot.title")->at("text") == "Shared");
 }
 
+void verifyImageSkinAuthoring(const std::filesystem::path &root) {
+  using Json = nlohmann::json;
+  std::filesystem::create_directories(root);
+  const auto path = root / "skin.hud.json";
+  {
+    std::ofstream output(path);
+    output << R"({"format_version":1,"children":[{"id":"panel","type":"image",
+      "size":[200,100],"source_size":[24,24],"nine_slice":[[3,3],[3,3]]}]})";
+  }
+  demi::editor::EditorHudDocument document;
+  std::string error;
+  assert(document.open(path, error));
+  assert(document.setNodeField("panel", "nine_slice_scale", 3, error));
+  assert(document.preview().nodes[1].imageSkin.scale == 3);
+  const auto valid = document.json();
+  assert(!document.setNodeField(
+      "panel", "nine_slice",
+      Json::array({Json::array({20, 2}), Json::array({20, 2})}), error));
+  assert(document.json() == valid);
+  assert(document.undo(error));
+  assert(document.preview().nodes[1].imageSkin.scale == 1);
+  assert(document.redo(error));
+  assert(document.save(error));
+  demi::editor::EditorHudDocument reopened;
+  assert(reopened.open(path, error));
+  assert(reopened.preview().nodes[1].imageSkin.scale == 3);
+  assert(reopened.preview().nodes[1].imageSkin.start.x == 3);
+}
+
 void verifyTabAuthoring(const std::filesystem::path &root) {
   using Json = nlohmann::json;
   std::filesystem::create_directories(root / "ui");
@@ -651,6 +680,7 @@ int main() {
   assert(!uiPrefab.setCanvasSize({640.0F, 360.0F}, error));
   verifyVisibleDropTargets();
   verifyTextEditSessions(root);
+  verifyImageSkinAuthoring(root / "image_skin");
   verifyPrefabInstanceOverrides(root / "overrides");
   verifyTabAuthoring(root / "tabs");
   verifyDockPresets(root);

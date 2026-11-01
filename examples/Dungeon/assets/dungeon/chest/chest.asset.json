@@ -1,0 +1,14 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "generated_output": "../../../generated/assets/dungeon/chest/chest.svg",
+  "id": "asset://dungeon/chest",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {
+    "filter": "nearest"
+  },
+  "source": "chest.svg",
+  "source_hash": "fnv1a64:32fa4fe6c1c3545f",
+  "type": "SvgTexture2D"
+}

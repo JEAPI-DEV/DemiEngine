@@ -28,7 +28,11 @@ HudLayoutReport inspectHudLayout(UiDocument hud, const HudLayoutRequest &request
                             .visible = node.visible,
                             .focusable = node.focusable,
                             .blocksPointer = node.blocksPointer,
-                            .resolved = node.resolved});
+                            .resolved = node.resolved,
+                            .texture = node.texture,
+                            .sourcePosition = node.sourcePosition,
+                            .sourceSize = node.sourceSize,
+                            .imageSkin = node.imageSkin});
   }
   std::ranges::sort(report.nodes, {}, &HudNodeReport::id);
   return report;
