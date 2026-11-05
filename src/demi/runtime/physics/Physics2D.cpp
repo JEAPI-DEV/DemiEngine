@@ -1,5 +1,6 @@
 #include "demi/runtime/physics/Physics2D.h"
 #include "demi/runtime/physics/Box2DWorldState.h"
+#include "demi/runtime/physics/Box2DShapes2D.h"
 #include "demi/runtime/physics/PhysicsGeometry2D.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
@@ -375,164 +376,6 @@ void stepPhysics2D(World &world, const float fixedDt,
   entitiesByBody.reserve(
       world.componentQueries.queryAny<Transform2DComponent>(world.entities).size());
 
-  auto createFixtures = [&](Entity &entity, b2Body *body) {
-    const Transform2DComponent &transform =
-        *entity.component<Transform2DComponent>();
-    const Vec2 scale = absoluteScale(transform);
-    if (entity.hasComponent<BoxCollider2DComponent>()) {
-      const BoxCollider2DComponent &box =
-          *entity.component<BoxCollider2DComponent>();
-      b2PolygonShape shape;
-      const Vec2 offset = scaledLocalPoint(transform, box.offset);
-      shape.SetAsBox(box.size.x * scale.x * 0.5F, box.size.y * scale.y * 0.5F,
-                     {offset.x, offset.y}, 0.0F);
-      b2FixtureDef fixtureDef;
-      fixtureDef.shape = &shape;
-      fixtureDef.density = box.density;
-      fixtureDef.friction = box.friction;
-      fixtureDef.restitution =
-          box.restitution > 0.0F
-              ? box.restitution
-              : (entity.hasComponent<Rigidbody2DComponent>()
-                     ? std::clamp(
-                           entity.component<Rigidbody2DComponent>()->bounciness,
-                           0.0F, 1.0F)
-                     : 0.0F);
-      fixtureDef.isSensor = box.isTrigger;
-      fixtureDef.filter.categoryBits = box.categoryBits;
-      fixtureDef.filter.maskBits = box.maskBits;
-      if (const auto category = world.physicsCategoryBits.find(box.layer);
-          category != world.physicsCategoryBits.end()) {
-        fixtureDef.filter.categoryBits = category->second;
-        fixtureDef.filter.maskBits = world.physicsMaskBits.at(box.layer);
-      }
-      body->CreateFixture(&fixtureDef);
-    }
-    if (entity.hasComponent<CircleCollider2DComponent>()) {
-      const CircleCollider2DComponent &collider =
-          *entity.component<CircleCollider2DComponent>();
-      b2CircleShape shape;
-      const Vec2 offset = scaledLocalPoint(transform, collider.offset);
-      shape.m_p.Set(offset.x, offset.y);
-      shape.m_radius = collider.radius * circleScale(transform);
-      b2FixtureDef fixtureDef;
-      fixtureDef.shape = &shape;
-      fixtureDef.density = collider.density;
-      fixtureDef.friction = collider.friction;
-      fixtureDef.restitution =
-          collider.restitution > 0.0F
-              ? collider.restitution
-              : (entity.hasComponent<Rigidbody2DComponent>()
-                     ? std::clamp(
-                           entity.component<Rigidbody2DComponent>()->bounciness,
-                           0.0F, 1.0F)
-                     : 0.0F);
-      fixtureDef.isSensor = collider.isTrigger;
-      fixtureDef.filter.categoryBits = collider.categoryBits;
-      fixtureDef.filter.maskBits = collider.maskBits;
-      if (const auto category = world.physicsCategoryBits.find(collider.layer);
-          category != world.physicsCategoryBits.end()) {
-        fixtureDef.filter.categoryBits = category->second;
-        fixtureDef.filter.maskBits = world.physicsMaskBits.at(collider.layer);
-      }
-      body->CreateFixture(&fixtureDef);
-    }
-    if (const auto *capsule = entity.component<CapsuleCollider2DComponent>()) {
-      const Vec2 size{capsule->size.x * scale.x, capsule->size.y * scale.y};
-      const Vec2 offset = scaledLocalPoint(transform, capsule->offset);
-      const float radius = std::max(std::min(size.x, size.y) * 0.5F, 0.001F);
-      const bool vertical = size.y >= size.x;
-      const float straight =
-          std::max((vertical ? size.y : size.x) - radius * 2.0F, 0.0F);
-      b2FixtureDef definition;
-      definition.density = capsule->density;
-      definition.friction = capsule->friction;
-      definition.restitution = capsule->restitution;
-      definition.isSensor = capsule->isTrigger;
-      definition.filter.categoryBits = capsule->categoryBits;
-      definition.filter.maskBits = capsule->maskBits;
-      if (const auto category = world.physicsCategoryBits.find(capsule->layer);
-          category != world.physicsCategoryBits.end()) {
-        definition.filter.categoryBits = category->second;
-        definition.filter.maskBits = world.physicsMaskBits.at(capsule->layer);
-      }
-      if (straight > 0.0F) {
-        b2PolygonShape middle;
-        middle.SetAsBox(vertical ? radius : straight * 0.5F,
-                        vertical ? straight * 0.5F : radius,
-                        {offset.x, offset.y}, 0.0F);
-        definition.shape = &middle;
-        body->CreateFixture(&definition);
-      }
-      for (const float side : {-1.0F, 1.0F}) {
-        b2CircleShape cap;
-        cap.m_radius = radius;
-        cap.m_p = {offset.x + (vertical ? 0.0F : side * straight * 0.5F),
-                   offset.y + (vertical ? side * straight * 0.5F : 0.0F)};
-        definition.shape = &cap;
-        body->CreateFixture(&definition);
-      }
-    }
-    if (const auto *polygon = entity.component<PolygonCollider2DComponent>();
-        polygon != nullptr && polygon->points.size() >= 3) {
-      std::vector<b2Vec2> vertices;
-      const std::size_t count =
-          std::min<std::size_t>(polygon->points.size(), b2_maxPolygonVertices);
-      vertices.reserve(count);
-      for (std::size_t index = 0; index < count; ++index) {
-        const Vec2 point = scaledLocalPoint(
-            transform, {polygon->points[index].x + polygon->offset.x,
-                        polygon->points[index].y + polygon->offset.y});
-        vertices.push_back({point.x, point.y});
-      }
-      b2PolygonShape shape;
-      shape.Set(vertices.data(), static_cast<int32>(vertices.size()));
-      b2FixtureDef definition;
-      definition.shape = &shape;
-      definition.density = polygon->density;
-      definition.friction = polygon->friction;
-      definition.restitution = polygon->restitution;
-      definition.isSensor = polygon->isTrigger;
-      definition.filter.categoryBits = polygon->categoryBits;
-      definition.filter.maskBits = polygon->maskBits;
-      if (const auto category = world.physicsCategoryBits.find(polygon->layer);
-          category != world.physicsCategoryBits.end()) {
-        definition.filter.categoryBits = category->second;
-        definition.filter.maskBits = world.physicsMaskBits.at(polygon->layer);
-      }
-      body->CreateFixture(&definition);
-    }
-    if (const auto *edge = entity.component<EdgeCollider2DComponent>();
-        edge != nullptr && edge->points.size() >= 2) {
-      std::vector<b2Vec2> vertices;
-      vertices.reserve(edge->points.size());
-      for (const Vec2 point : edge->points) {
-        const Vec2 scaled = scaledLocalPoint(transform, point);
-        vertices.push_back({scaled.x, scaled.y});
-      }
-      b2ChainShape shape;
-      if (edge->loop && vertices.size() >= 3)
-        shape.CreateLoop(vertices.data(), static_cast<int32>(vertices.size()));
-      else
-        shape.CreateChain(vertices.data(), static_cast<int32>(vertices.size()),
-                          vertices.front(), vertices.back());
-      b2FixtureDef definition;
-      definition.shape = &shape;
-      definition.density = edge->density;
-      definition.friction = edge->friction;
-      definition.restitution = edge->restitution;
-      definition.isSensor = edge->isTrigger;
-      definition.filter.categoryBits = edge->categoryBits;
-      definition.filter.maskBits = edge->maskBits;
-      if (const auto category = world.physicsCategoryBits.find(edge->layer);
-          category != world.physicsCategoryBits.end()) {
-        definition.filter.categoryBits = category->second;
-        definition.filter.maskBits = world.physicsMaskBits.at(edge->layer);
-      }
-      body->CreateFixture(&definition);
-    }
-  };
-
   auto bodyTypeFor = [](const Entity &entity) {
     if (!entity.hasComponent<Rigidbody2DComponent>())
       return b2_staticBody;
@@ -601,7 +444,9 @@ void stepPhysics2D(World &world, const float fixedDt,
         bodyDef.enabled = rb.bodyEnabled;
       }
       body = physicsWorld.CreateBody(&bodyDef);
-      createFixtures(entity, body);
+      visitBox2DFixtures2D(
+          world, entity, transform,
+          [&](const b2FixtureDef &definition) { body->CreateFixture(&definition); });
       state.bodies.emplace(entityId, body);
         state.bodyTypes.emplace(entityId, currentType);
         state.shapeSignatures.emplace(entityId, currentSignature);

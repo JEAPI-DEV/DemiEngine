@@ -206,6 +206,28 @@ private:
   return result == JPH::EAllowedDOFs::None ? JPH::EAllowedDOFs::All : result;
 }
 
+void applyRigidbodySettings3D(JPH::BodyCreationSettings &settings,
+                              const Rigidbody3DComponent &body) {
+  settings.mLinearVelocity = jolt(body.velocity);
+  settings.mAngularVelocity = jolt(body.angularVelocity);
+  settings.mLinearDamping = body.linearDamping;
+  settings.mAngularDamping = body.angularDamping;
+  settings.mGravityFactor = body.useGravity ? body.gravityScale : 0.0F;
+  settings.mFriction = body.friction;
+  settings.mRestitution = body.restitution;
+  settings.mAllowSleeping = body.allowSleep;
+  settings.mNumVelocityStepsOverride =
+      std::clamp(body.solverVelocitySteps, 0, 128);
+  settings.mNumPositionStepsOverride =
+      std::clamp(body.solverPositionSteps, 0, 128);
+  settings.mMotionQuality = body.continuous ? JPH::EMotionQuality::LinearCast
+                                            : JPH::EMotionQuality::Discrete;
+  settings.mAllowedDOFs = allowedDofs(body);
+  settings.mOverrideMassProperties =
+      JPH::EOverrideMassProperties::CalculateInertia;
+  settings.mMassPropertiesOverride.mMass = body.mass;
+}
+
 [[nodiscard]] JPH::EMotionType motionType(const Rigidbody3DComponent *body) {
   if (body == nullptr || body->bodyType == "static")
     return JPH::EMotionType::Static;
@@ -355,6 +377,7 @@ struct PhysicsWorld3D::Impl final : JPH::ContactListener {
   World *world = nullptr;
   WorldTransformSnapshot3D bodyTransforms;
   bool replacementPhase = false;
+  bool bodiesSynchronized = false;
   std::unordered_map<std::string, BodyRecord> bodies;
   std::unordered_map<std::string, CharacterRecord> characters;
   std::unordered_map<std::uint32_t, std::string> ids;
@@ -601,6 +624,10 @@ PhysicsWorld3D::PhysicsWorld3D() : impl_(std::make_unique<Impl>()) {}
 PhysicsWorld3D::~PhysicsWorld3D() = default;
 bool PhysicsWorld3D::available() const { return impl_ != nullptr; }
 
+bool PhysicsWorld3D::hasSynchronizedBodies(const World &world) const {
+  return impl_->world == &world && impl_->bodiesSynchronized;
+}
+
 PhysicsWorld3D &ensurePhysicsWorld3D(World &world) {
   if (world.physicsWorld3D == nullptr)
     world.physicsWorld3D = std::make_shared<PhysicsWorld3D>();
@@ -705,25 +732,7 @@ bool PhysicsWorld3D::replaceBodies(
       JPH::BodyCreationSettings settings(
           shape, position, rotation, motionType(body),
           body->bodyType == "static" ? StaticLayer : MovingLayer);
-      settings.mLinearVelocity = jolt(body->velocity);
-      settings.mAngularVelocity = jolt(body->angularVelocity);
-      settings.mLinearDamping = body->linearDamping;
-      settings.mAngularDamping = body->angularDamping;
-      settings.mGravityFactor = body->useGravity ? body->gravityScale : 0;
-      settings.mFriction = body->friction;
-      settings.mRestitution = body->restitution;
-      settings.mAllowSleeping = body->allowSleep;
-      settings.mNumVelocityStepsOverride =
-          std::clamp(body->solverVelocitySteps, 0, 128);
-      settings.mNumPositionStepsOverride =
-          std::clamp(body->solverPositionSteps, 0, 128);
-      settings.mMotionQuality = body->continuous
-                                    ? JPH::EMotionQuality::LinearCast
-                                    : JPH::EMotionQuality::Discrete;
-      settings.mAllowedDOFs = allowedDofs(*body);
-      settings.mOverrideMassProperties =
-          JPH::EOverrideMassProperties::CalculateInertia;
-      settings.mMassPropertiesOverride.mMass = body->mass;
+      applyRigidbodySettings3D(settings, *body);
       auto *created = batch.create(settings);
       if (!created)
         throw std::runtime_error(
@@ -880,26 +889,7 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
             nativeMotionType == JPH::EMotionType::Static ? StaticLayer
                                                          : MovingLayer);
         if (body != nullptr) {
-          settings.mLinearVelocity = jolt(body->velocity);
-          settings.mAngularVelocity = jolt(body->angularVelocity);
-          settings.mLinearDamping = body->linearDamping;
-          settings.mAngularDamping = body->angularDamping;
-          settings.mGravityFactor =
-              body->useGravity ? body->gravityScale : 0.0F;
-          settings.mFriction = body->friction;
-          settings.mRestitution = body->restitution;
-          settings.mAllowSleeping = body->allowSleep;
-          settings.mNumVelocityStepsOverride =
-              std::clamp(body->solverVelocitySteps, 0, 128);
-          settings.mNumPositionStepsOverride =
-              std::clamp(body->solverPositionSteps, 0, 128);
-          settings.mMotionQuality = body->continuous
-                                        ? JPH::EMotionQuality::LinearCast
-                                        : JPH::EMotionQuality::Discrete;
-          settings.mAllowedDOFs = allowedDofs(*body);
-          settings.mOverrideMassProperties =
-              JPH::EOverrideMassProperties::CalculateInertia;
-          settings.mMassPropertiesOverride.mMass = body->mass;
+          applyRigidbodySettings3D(settings, *body);
         }
         settings.mIsSensor = inputs.isTrigger;
         JPH::Body *created = interface.CreateBody(settings);
@@ -1093,6 +1083,8 @@ void PhysicsWorld3D::step(World &world, const float fixedDt,
       iterator = impl_->bodies.erase(iterator);
     }
   }
+
+  impl_->bodiesSynchronized = true;
 
   if (world.destruction3D) {
     ProfileScope scope("Destruction3D.update");

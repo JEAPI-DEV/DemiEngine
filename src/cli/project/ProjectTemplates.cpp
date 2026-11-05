@@ -1,6 +1,6 @@
 #include "cli/project/ProjectTemplates.h"
+#include "cli/CommandLine.h"
 #include "cli/LuaStubExport.h"
-#include "cli/CliArguments.h"
 
 #include "demi/schema/Validation.h"
 
@@ -275,49 +275,55 @@ ScaffoldResult ProjectScaffolder::create(const ScaffoldRequest &request) const {
 int runNewCommand(const std::vector<std::string> &args,
                   const std::filesystem::path &templateRoot, std::ostream &out,
                   std::ostream &error) {
+  CLI::App command{"Create a project from a template", "demi new"};
+  std::string destination;
+  std::string templateId;
+  std::string name;
+  bool list = false;
+  bool dryRun = false;
+  auto *directoryOption = command.add_option("directory", destination);
+  auto *templateOption = command.add_option("--template", templateId);
+  command.add_option("--name", name)->needs(directoryOption);
+  command.add_flag("--dry-run", dryRun)->needs(directoryOption);
+  auto *listOption = command.add_flag("--list", list);
+  directoryOption->needs(templateOption)->excludes(listOption);
+  templateOption->needs(directoryOption);
+  command.require_option(1);
+  if (const auto status = parseCommand(command, args, 1, out, error)) {
+    return *status;
+  }
   ProjectTemplateCatalog catalog(templateRoot);
   Diagnostics diagnostics;
-  if (args.size() == 2 && args[1] == "--list") {
+  if (list) {
     for (const auto &item : catalog.discover(diagnostics))
       out << item.id << "\t" << item.title << '\n';
     if (!diagnostics.empty())
       printDiagnosticsText(error, diagnostics);
     return hasErrors(diagnostics) ? 1 : 0;
   }
-  if (args.size() < 2 || args[1].starts_with("--")) {
-    error << "new requires: demi new <directory> --template <id> "
-             "[--name <name>] [--dry-run].\n";
-    return 2;
-  }
-  const std::string templateId = valueAfter(args, "--template");
-  if (templateId.empty()) {
-    error << "new requires --template <id>.\n";
-    return 2;
-  }
   auto item = catalog.find(templateId, diagnostics);
   if (!item) {
     printDiagnosticsText(error, diagnostics);
     return 1;
   }
-  std::string name = valueAfter(args, "--name");
   if (name.empty())
     name = item->defaultName;
   ScaffoldResult result =
       ProjectScaffolder{}.create({.projectTemplate = *item,
-                                  .destination = args[1],
+                                  .destination = destination,
                                   .projectName = name,
-                                  .dryRun = hasArg(args, "--dry-run")});
+                                  .dryRun = dryRun});
   if (hasErrors(result.diagnostics)) {
     printDiagnosticsText(error, result.diagnostics);
     return 1;
   }
-  if (hasArg(args, "--dry-run")) {
+  if (dryRun) {
     out << "Would create " << result.files.size() << " file(s):\n";
     for (const auto &file : result.files)
       out << "  " << file.string() << '\n';
   } else {
     out << "Created " << name << " from template " << templateId << " at "
-        << std::filesystem::path(args[1]).string() << '\n';
+        << std::filesystem::path(destination).string() << '\n';
   }
   return 0;
 }

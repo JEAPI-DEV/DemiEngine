@@ -1,18 +1,17 @@
 #include "editor/EditorInspectorModel.h"
 #include "editor/EditorHierarchyIndex.h"
 
-#include "editor/EditorSceneJson.h"
 #include "demi/runtime/scene/model/World.h"
+#include "editor/EditorSceneJson.h"
 
 #include "demi/assets/AssetRegistry.h"
-#include "demi/assets/RenderAsset.h"
+#include "demi/assets/MaterialSurface.h"
 #include "demi/filesystem/ProjectPaths.h"
-#include "demi/runtime/scene/composition/PrefabResolver.h"
 #include "demi/runtime/scene/composition/EntityHierarchy.h"
+#include "demi/runtime/scene/composition/PrefabResolver.h"
 
 #include <algorithm>
 #include <cctype>
-#include <cmath>
 #include <tuple>
 
 namespace demi::editor {
@@ -123,28 +122,19 @@ nlohmann::json editorMeshSurfaceFallback(
     const std::string_view field, const nlohmann::json &component,
     const assets::MaterialAsset *material) {
   if (field == "surface_mode") {
-    if (material != nullptr) {
-      if (material->renderState.blend == "alpha")
-        return "transparent";
-      return material->renderState.blend;
-    }
-    return "opaque";
+    return assets::materialSurfaceMode(material ? material->renderState.blend
+                                                : "opaque");
   }
-  const float builtin = field == "roughness" ? 0.8F
-                      : field == "opacity" ? 1.0F : 0.0F;
-  float value = builtin;
-  if (material != nullptr) {
-    if (const auto found = material->numbers.find(std::string(field));
-        found != material->numbers.end())
-      value = found->second;
-  }
+  std::optional<float> property;
   if (const auto properties = component.find("material_properties");
       properties != component.end() && properties->is_object()) {
     if (const auto found = properties->find(std::string(field));
-        found != properties->end() && found->is_number())
-      value = found->get<float>();
+        found != properties->end() && found->is_number()) {
+      property = found->get<float>();
+    }
   }
-  return std::isfinite(value) ? std::clamp(value, 0.0F, 1.0F) : builtin;
+  return assets::resolveMaterialSurfaceNumber(
+      field, material ? &material->numbers : nullptr, property);
 }
 
 std::string_view editorPropertyOriginLabel(const EditorPropertyOrigin origin) {

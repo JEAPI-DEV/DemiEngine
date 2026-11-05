@@ -31,6 +31,8 @@ public:
   PhysicsWorld3D &operator=(const PhysicsWorld3D &) = delete;
 
   [[nodiscard]] bool available() const;
+  // Allocating a native world alone does not publish authored collider bodies.
+  [[nodiscard]] bool hasSynchronizedBodies(const World &world) const;
   // Main-thread retirement independent of stepping, including paused worlds.
   void removeEntities(std::span<const std::string> entityIds);
   void step(World &world, float fixedDt, Vec3 gravity = {0.0F, -9.81F, 0.0F});

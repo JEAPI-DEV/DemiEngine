@@ -14,6 +14,11 @@ FetchContent_MakeAvailable(EnTT)
 target_compile_definitions(EnTT INTERFACE ENTT_NO_ETO)
 
 if(NOT ANDROID)
+  FetchContent_Declare(CLI11
+    GIT_REPOSITORY https://github.com/CLIUtils/CLI11.git
+    GIT_TAG 37bb6edc5317e99af72ef48405e65d9ca5218861
+    GIT_SHALLOW FALSE)
+  FetchContent_MakeAvailable(CLI11)
   FetchContent_Declare(imnodes
     GIT_REPOSITORY https://github.com/Nelarius/imnodes.git
     GIT_TAG eb36902c892548ef94f88f51ad7e7c9c7058a71c

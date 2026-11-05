@@ -1,5 +1,5 @@
 #include "cli/package/PackageCommands.h"
-#include "cli/CliArguments.h"
+#include "cli/CommandLine.h"
 #include "demi/assets/PackageContent.h"
 
 #include "demi/core/Version.h"
@@ -23,8 +23,18 @@ constexpr int ExitSuccess = 0;
 constexpr int ExitFailure = 1;
 constexpr int ExitUsage = 2;
 
-std::filesystem::path projectFile(const std::vector<std::string> &args) {
-  const std::string requested = valueAfter(args, "--project");
+struct PackageOptions {
+  std::string project;
+  std::string registry;
+  std::string cache;
+  std::string format = "text";
+  std::string updateOnly;
+  bool offline = false;
+  bool dryRun = false;
+  bool preserveLocked = false;
+};
+
+std::filesystem::path projectFile(const std::string &requested) {
   if (!requested.empty()) {
     const std::filesystem::path path(requested);
     return std::filesystem::is_directory(path) ? path / "demi.project.json"
@@ -92,11 +102,12 @@ requirementsFrom(const nlohmann::json &project, Diagnostics &diagnostics,
   return result;
 }
 
-std::string registrySource(const std::vector<std::string> &args,
+std::string registrySource(const PackageOptions &options,
                            const nlohmann::json &project,
                            const PackageCommandContext &) {
-  if (const std::string value = valueAfter(args, "--registry"); !value.empty())
-    return value;
+  if (!options.registry.empty()) {
+    return options.registry;
+  }
   if (const char *value = std::getenv("DEMI_PACKAGE_REGISTRY");
       value != nullptr && *value != '\0')
     return value;
@@ -135,13 +146,12 @@ lockedVersions(const packages::PackageLockLoadResult &lock) {
   return result;
 }
 
-int install(const std::vector<std::string> &args,
-            const PackageCommandContext &context, nlohmann::json project,
-            const std::filesystem::path &projectPath,
+int install(const PackageOptions &options, const PackageCommandContext &context,
+            nlohmann::json project, const std::filesystem::path &projectPath,
             std::optional<nlohmann::json> replacementProject,
             const bool forceLocked, std::ostream &output, std::ostream &error) {
   Diagnostics diagnostics;
-  const bool json = valueAfter(args, "--format") == "json";
+  const bool json = options.format == "json";
   const auto directory = projectPath.parent_path();
   packages::PackageLockLoadResult lock;
   const auto lockPath = directory / packages::PackageLockFilename;
@@ -157,11 +167,10 @@ int install(const std::vector<std::string> &args,
     return ExitFailure;
   }
 
-  const std::string source = forceLocked &&
-                                     valueAfter(args, "--registry").empty() &&
-                                     !lock.registry.empty()
-                                 ? lock.registry
-                                 : registrySource(args, project, context);
+  const std::string source =
+      forceLocked && options.registry.empty() && !lock.registry.empty()
+          ? lock.registry
+          : registrySource(options, project, context);
   auto registry = packages::makePackageRegistry(source, diagnostics, directory);
   if (!registry) {
     print(diagnostics, json, error);
@@ -187,11 +196,10 @@ int install(const std::vector<std::string> &args,
         requirementsFrom(replacementProject ? *replacementProject : project,
                          diagnostics, projectPath);
     const auto engine = packages::SemanticVersion::parse(EngineVersion);
-    auto pins = hasArg(args, "--preserve-locked")
+    auto pins = options.preserveLocked
                     ? lockedVersions(lock)
                     : std::map<std::string, packages::SemanticVersion>{};
-    if (const std::string updated = valueAfter(args, "--update-only");
-        !updated.empty()) {
+    if (const std::string updated = options.updateOnly; !updated.empty()) {
       pins = lockedVersions(lock);
       pins.erase(updated);
     }
@@ -208,9 +216,9 @@ int install(const std::vector<std::string> &args,
   auto installDiagnostics = packages::installPackages(
       *registry, releases,
       {.projectDirectory = directory,
-       .cacheDirectory = valueAfter(args, "--cache"),
-       .offline = hasArg(args, "--offline"),
-       .dryRun = hasArg(args, "--dry-run"),
+       .cacheDirectory = options.cache,
+       .offline = options.offline,
+       .dryRun = options.dryRun,
        .replacementProject = replacementProject,
        .validateStaging = [](const std::filesystem::path &staging) {
          Diagnostics result;
@@ -246,14 +254,13 @@ int install(const std::vector<std::string> &args,
     for (const auto &[name, release] : releases)
       installed.push_back(
           {{"name", name}, {"version", release.manifest.version.string()}});
-    output << nlohmann::json{{"status", hasArg(args, "--dry-run")
-                                            ? "planned"
-                                            : "installed"},
+    output << nlohmann::json{{"status",
+                              options.dryRun ? "planned" : "installed"},
                              {"packages", installed}}
                   .dump(2)
            << '\n';
   } else {
-    output << (hasArg(args, "--dry-run") ? "Would install " : "Installed ")
+    output << (options.dryRun ? "Would install " : "Installed ")
            << releases.size() << " package(s).\n";
   }
   return ExitSuccess;
@@ -264,17 +271,49 @@ int install(const std::vector<std::string> &args,
 int runPackageCommand(const std::vector<std::string> &args,
                       const PackageCommandContext &context,
                       std::ostream &output, std::ostream &error) {
-  if (args.size() < 2) {
-    error << "package requires a subcommand.\n";
-    return ExitUsage;
+  CLI::App app{"Manage project packages", "demi package"};
+  app.require_subcommand(1, 1);
+  PackageOptions options;
+  std::string argument;
+  bool locked = false;
+  for (const auto *name : {"add", "remove", "install", "update", "list",
+                           "outdated", "publish", "test"}) {
+    auto *command = app.add_subcommand(name);
+    command->add_option("--format", options.format)
+        ->check(CLI::IsMember({"text", "json"}));
   }
-  const std::string &command = args[1];
-  const bool json = valueAfter(args, "--format") == "json";
+  for (const auto *name :
+       {"add", "remove", "install", "update", "list", "outdated"}) {
+    app.get_subcommand(name)->add_option("--project", options.project);
+  }
+  for (const auto *name : {"add", "remove"}) {
+    app.get_subcommand(name)->add_option("package", argument)->required();
+  }
+  app.get_subcommand("update")->add_option("package", argument);
+  for (const auto *name : {"publish", "test"}) {
+    app.get_subcommand(name)->add_option("directory", argument);
+  }
+  for (const auto *name :
+       {"add", "remove", "install", "update", "outdated", "publish"}) {
+    app.get_subcommand(name)->add_option("--registry", options.registry);
+  }
+  for (const auto *name : {"add", "remove", "install", "update"}) {
+    auto *command = app.get_subcommand(name);
+    command->add_option("--cache", options.cache);
+    command->add_flag("--offline", options.offline);
+    command->add_flag("--dry-run", options.dryRun);
+    command->add_flag("--preserve-locked", options.preserveLocked);
+  }
+  app.get_subcommand("install")->add_flag("--locked", locked);
+  if (const auto status = parseCommand(app, args, 1, output, error)) {
+    return *status;
+  }
+  const std::string command = app.get_subcommands().front()->get_name();
+  const bool json = options.format == "json";
   if (command == "test") {
-    const std::filesystem::path root =
-        args.size() >= 3 && !args[2].starts_with("--")
-            ? std::filesystem::path(args[2])
-            : std::filesystem::current_path();
+    const std::filesystem::path root = !argument.empty()
+                                           ? std::filesystem::path(argument)
+                                           : std::filesystem::current_path();
     const auto loaded =
         packages::loadPackageManifest(root / packages::PackageManifestFilename);
     if (!loaded.manifest) {
@@ -303,10 +342,9 @@ int runPackageCommand(const std::vector<std::string> &args,
                                                                 : ExitFailure;
   }
   if (command == "publish") {
-    const std::filesystem::path root =
-        args.size() >= 3 && !args[2].starts_with("--")
-            ? std::filesystem::path(args[2])
-            : std::filesystem::current_path();
+    const std::filesystem::path root = !argument.empty()
+                                           ? std::filesystem::path(argument)
+                                           : std::filesystem::current_path();
     Diagnostics diagnostics;
     const auto manifest =
         packages::loadPackageManifest(root / packages::PackageManifestFilename);
@@ -323,8 +361,8 @@ int runPackageCommand(const std::vector<std::string> &args,
     diagnostics.insert(diagnostics.end(), archiveDiagnostics.begin(),
                        archiveDiagnostics.end());
     auto info = packages::inspectPackageArchive(archive, diagnostics);
-    const std::string source = !valueAfter(args, "--registry").empty()
-                                   ? valueAfter(args, "--registry")
+    const std::string source = !options.registry.empty()
+                                   ? options.registry
                                    : (context.engineRoot / "packages").string();
     auto registry = packages::makePackageRegistry(
         source, diagnostics, std::filesystem::current_path());
@@ -349,7 +387,7 @@ int runPackageCommand(const std::vector<std::string> &args,
     return ExitSuccess;
   }
 
-  const auto projectPath = projectFile(args);
+  const auto projectPath = projectFile(options.project);
   Diagnostics diagnostics;
   auto project = readJson(projectPath, diagnostics);
   if (!project) {
@@ -357,12 +395,7 @@ int runPackageCommand(const std::vector<std::string> &args,
     return ExitFailure;
   }
   if (command == "add") {
-    if (args.size() < 3 || args[2].starts_with("--")) {
-      error << "Usage: demi package add <name>@<constraint> [--project "
-               "<project>] [--registry <registry>]\n";
-      return ExitUsage;
-    }
-    const auto spec = parseSpec(args[2]);
+    const auto spec = parseSpec(argument);
     if (!spec) {
       error << "Invalid package name or semantic-version constraint.\n";
       return ExitUsage;
@@ -372,46 +405,44 @@ int runPackageCommand(const std::vector<std::string> &args,
         !replacement["packages"].is_object())
       replacement["packages"] = nlohmann::json::object();
     replacement["packages"][spec->first] = spec->second;
-    return install(args, context, *project, projectPath, std::move(replacement),
-                   false, output, error);
+    return install(options, context, *project, projectPath,
+                   std::move(replacement), false, output, error);
   }
   if (command == "remove") {
-    if (args.size() < 3 || !packages::validPackageName(args[2])) {
-      error << "Usage: demi package remove <name> [--project <project>]\n";
+    if (!packages::validPackageName(argument)) {
+      error << "Invalid package name: " << argument << '\n';
       return ExitUsage;
     }
     const Diagnostics removalDiagnostics =
-        assets::validatePackageRemoval(projectPath.parent_path(), args[2]);
+        assets::validatePackageRemoval(projectPath.parent_path(), argument);
     if (hasErrors(removalDiagnostics)) {
       print(removalDiagnostics, json, error);
       return ExitFailure;
     }
     nlohmann::json replacement = *project;
     if (replacement.contains("packages") && replacement["packages"].is_object())
-      replacement["packages"].erase(args[2]);
-    return install(args, context, *project, projectPath, std::move(replacement),
-                   false, output, error);
+      replacement["packages"].erase(argument);
+    return install(options, context, *project, projectPath,
+                   std::move(replacement), false, output, error);
   }
   if (command == "install")
-    return install(args, context, *project, projectPath, std::nullopt,
-                   hasArg(args, "--locked"), output, error);
+    return install(options, context, *project, projectPath, std::nullopt,
+                   locked, output, error);
   if (command == "update") {
     nlohmann::json replacement = *project;
-    if (args.size() >= 3 && !args[2].starts_with("--")) {
+    if (!argument.empty()) {
       if (!replacement.contains("packages") ||
           !replacement["packages"].is_object() ||
-          !replacement["packages"].contains(args[2])) {
-        error << "Direct package is not declared: " << args[2] << '\n';
+          !replacement["packages"].contains(argument)) {
+        error << "Direct package is not declared: " << argument << '\n';
         return ExitUsage;
       }
     }
-    auto updateArgs = args;
-    if (args.size() >= 3 && !args[2].starts_with("--")) {
-      updateArgs.push_back("--update-only");
-      updateArgs.push_back(args[2]);
+    if (!argument.empty()) {
+      options.updateOnly = argument;
     }
-    return install(updateArgs, context, *project, projectPath, std::nullopt,
-                   false, output, error);
+    return install(options, context, *project, projectPath, std::nullopt, false,
+                   output, error);
   }
   if (command == "list") {
     const auto lock = packages::loadPackageLock(projectPath.parent_path() /
@@ -430,7 +461,7 @@ int runPackageCommand(const std::vector<std::string> &args,
   }
   if (command == "outdated") {
     auto requirements = requirementsFrom(*project, diagnostics, projectPath);
-    const std::string source = registrySource(args, *project, context);
+    const std::string source = registrySource(options, *project, context);
     auto registry = packages::makePackageRegistry(source, diagnostics,
                                                   projectPath.parent_path());
     if (!registry || hasErrors(diagnostics)) {

@@ -4,7 +4,7 @@
 <h2>What a query is</h2>
 <p>Gameplay constantly needs to know about space before it acts. A turret must know whether a wall blocks its view. A hero must know whether it is standing on ground before allowing a jump. A pickup must know which loot lies within reach.</p>
 <p>You could answer any of those with a trigger volume and an event, but that means extra entities and state to clean up. A <strong>query</strong> is a one-shot question answered immediately: pass positions and sizes, get back a hit (or nothing). Nothing is spawned, nothing persists, and it is safe to call every frame.</p>
-<p>Queries respect the same <a href="{{ path('docs_page', {slug: 'physics-layers'}) }}">layer filters</a> as real contacts, so a ray that ignores pickups can be authored with <code>mask_bits</code> rather than extra checks in Lua.</p>
+<p>Query calls that accept an optional <code>layer</code> filter narrow their results to that named physics layer. Contact <code>category_bits</code>/<code>mask_bits</code> control simulation contacts; they do not replace the explicit query arguments.</p>
 
 <h2>Raycast, overlap, and shape cast</h2>
 <p>2D raycasts and overlap queries ignore disabled entities. Re-enabling an entity restores its collider to queries. Opening a door with <code>Entity.set_enabled(id, false)</code> therefore removes it from movement, sight and projectile blocking together.</p>
@@ -20,6 +20,7 @@
 <p>Use a ray when you only need the first blocker. Use overlap when you need everyone inside an area. Use a cast when the moving object has real width and a thin ray would miss the wall it scrapes.</p>
 
 <h2>2D queries</h2>
+<p>2D queries use Box2D shapes constructed by the same code as simulation fixtures. Capsule, polygon and edge queries test their native geometry rather than only their bounding boxes. Queries can run before the first physics step and read current authored transforms, including parents. A multi-ray batch snapshots its candidates for that call only.</p>
 <p>Native multi-ray visibility queries select reachable colliders once per query batch and then use the same exact intersection rules as individual raycasts. The candidate set lives only for that call; it is rebuilt after movement or blocker changes rather than retaining stale world state.</p>
 <p>The 2D module is <code>demi.physics.query2d</code>. All positions are world-space <code>x, y</code>. Raycasts take an <strong>origin plus a direction and a distance</strong>, not two end points.</p>
 <pre><code>local Q2 = require("demi.physics.query2d")
@@ -99,6 +100,7 @@ local can_jump = ground ~= nil</code></pre>
 </ul>
 
 <h2>3D queries</h2>
+<p>3D queries use Jolt collision shapes, including for worlds that have not started simulation. Before the first physics synchronization, queries read authored collider transforms without advancing physics or creating simulation bodies. Once simulation has synchronized, world queries use its native spatial index and synchronized poses; a component edit is reflected there through the normal physics synchronization step. Hypothetical movement checks test the supplied candidate pose without moving the live body.</p>
 <p>The 3D module is <code>demi.physics.query3d</code>. Rays are defined by an origin and a direction, not two points.</p>
 <pre><code>local Q3 = require("demi.physics.query3d")
 

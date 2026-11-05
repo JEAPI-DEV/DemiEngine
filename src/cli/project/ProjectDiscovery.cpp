@@ -1,13 +1,9 @@
 #include "cli/project/ProjectDiscovery.h"
 
-#include "cli/CliArguments.h"
-
 namespace demi::cli {
 
-std::filesystem::path
-projectFileFromArgs(const std::vector<std::string> &args,
-                    std::filesystem::path startDirectory) {
-  const std::string requested = valueAfter(args, "--project");
+std::filesystem::path resolveProjectFile(const std::string &requested,
+                                         std::filesystem::path startDirectory) {
   if (requested.empty())
     return demi::findProjectFile(std::move(startDirectory));
 

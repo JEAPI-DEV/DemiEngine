@@ -1,15 +1,16 @@
+#include "demi/assets/RenderAsset.h"
+#include "demi/runtime/scene/components/3dcomponents/PrefabPlacement3DComponent.h"
+#include "demi/runtime/scene/components/3dcomponents/Transform3DComponent.h"
+#include "demi/runtime/scene/model/World.h"
+#include "demi/runtime/terrain/TerrainWaterMesh.h"
 #include "editor/EditorInspectorModel.h"
 #include "editor/EditorSceneDocument.h"
-#include "demi/assets/RenderAsset.h"
-#include "demi/runtime/scene/model/World.h"
-#include "demi/runtime/scene/components/3dcomponents/Transform3DComponent.h"
-#include "demi/runtime/scene/components/3dcomponents/PrefabPlacement3DComponent.h"
-#include "demi/runtime/terrain/TerrainWaterMesh.h"
 
 #ifdef NDEBUG
 #undef NDEBUG
 #endif
 #include <cassert>
+#include <limits>
 
 int main() {
   using namespace demi;
@@ -261,8 +262,34 @@ int main() {
                                    nullptr) == 0.8F);
   assert(editorMeshSurfaceFallback("surface_mode", nlohmann::json::object(),
                                    nullptr) == "opaque");
-  const auto metallic = std::ranges::find(
-      meshDescriptor->fields, "metallic", &runtime::ComponentFieldDescriptor::name);
+  auto rawMaterial = assignedMaterial;
+  rawMaterial.numbers["roughness"] = std::numeric_limits<float>::quiet_NaN();
+  rawMaterial.numbers["metallic"] = 2.0F;
+  rawMaterial.numbers["opacity"] = -1.0F;
+  assert(editorMeshSurfaceFallback("roughness", {}, &rawMaterial) == 0.8F);
+  assert(editorMeshSurfaceFallback("metallic", {}, &rawMaterial) == 1.0F);
+  assert(editorMeshSurfaceFallback("opacity", {}, &rawMaterial) == 0.0F);
+  const nlohmann::json rawProperties = {
+      {"vertices", "unrelated invalid geometry"},
+      {"roughness", 0.1},
+      {"material_properties",
+       {{"roughness", 0.75},
+        {"opacity", std::numeric_limits<float>::infinity()}}}};
+  // A reset fallback excludes the top-level field and ignores unrelated fields.
+  assert(editorMeshSurfaceFallback("roughness", rawProperties, &rawMaterial) ==
+         0.75F);
+  assert(editorMeshSurfaceFallback("opacity", rawProperties, &rawMaterial) ==
+         1.0F);
+  assert(editorMeshSurfaceFallback(
+             "roughness", {{"material_properties", {{"roughness", "invalid"}}}},
+             &assignedMaterial) == 0.25F);
+  rawMaterial.renderState.blend = "additive";
+  assert(editorMeshSurfaceFallback("surface_mode", {}, &rawMaterial) ==
+         "additive");
+
+  const auto metallic =
+      std::ranges::find(meshDescriptor->fields, "metallic",
+                        &runtime::ComponentFieldDescriptor::name);
   assert(metallic != meshDescriptor->fields.end());
   assert(!editorPropertyPresentation(*meshDescriptor, *metallic,
                                      nlohmann::json::object(), false, false)

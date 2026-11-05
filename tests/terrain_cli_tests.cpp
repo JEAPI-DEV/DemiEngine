@@ -422,17 +422,16 @@ void usageErrors() {
   assert(invoke({"terrain"}).code == ExitUsageError);
   const auto unknown = invoke({"terrain", "explain", "--at", "0,0"});
   assert(unknown.code == ExitUsageError);
-  assert(contains(unknown.error, "Unknown terrain subcommand: explain")
-             || contains(unknown.error, "terrain explain requires"));
+  assert(contains(unknown.error, "path"));
 
   const auto unknownSubcommand = invoke({"terrain", "teleport"});
   assert(unknownSubcommand.code == ExitUsageError);
-  assert(contains(unknownSubcommand.error, "Unknown terrain subcommand"));
+  assert(!unknownSubcommand.error.empty());
   assert(unknownSubcommand.out.empty());
 
   const auto missingPath = invoke({"terrain", "inspect"});
   assert(missingPath.code == ExitUsageError);
-  assert(contains(missingPath.error, "terrain inspect requires a recipe path"));
+  assert(contains(missingPath.error, "path"));
 }
 
 // A scene document is not a recipe. It must fail with a message, not a crash.
@@ -791,17 +790,17 @@ void presetsOutputIsDeterministic(const std::filesystem::path &root) {
 void presetsUsageErrors() {
   const auto missing = invoke({"terrain", "presets"});
   assert(missing.code == ExitUsageError);
-  assert(contains(missing.error, "requires a project path"));
+  assert(contains(missing.error, "project"));
 
   const auto format =
       invoke({"terrain", "presets", "somewhere", "--format", "yaml"});
   assert(format.code == ExitUsageError);
-  assert(contains(format.error, "--format must be text or json"));
+  assert(contains(format.error, "--format") && contains(format.error, "yaml"));
 
   const auto unknown =
       invoke({"terrain", "presets", "somewhere", "--presets", "all"});
   assert(unknown.code == ExitUsageError);
-  assert(contains(unknown.error, "Unknown option: --presets"));
+  assert(contains(unknown.error, "--presets"));
 
   const auto absent = invoke({"terrain", "presets", "/nonexistent/project"});
   assert(absent.code == ExitValidationFailure);
@@ -991,7 +990,7 @@ void applyPresetFailuresAreDistinct(const std::filesystem::path &root) {
   const auto noProject =
       invoke({"terrain", "apply-preset", "--preset", PresetId});
   assert(noProject.code == ExitUsageError);
-  assert(contains(noProject.error, "requires a project path"));
+  assert(contains(noProject.error, "project"));
 
   const std::string original = readFile(scenePath);
   assert(contains(original, "\"seed\": 1337"));

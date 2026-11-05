@@ -1,6 +1,6 @@
 #include "cli/CookCommands.h"
 
-#include "cli/CliArguments.h"
+#include "cli/CommandLine.h"
 #include "cli/project/ProjectDiscovery.h"
 #include "demi/assets/AssetCooker.h"
 #include "demi/diagnostics/Diagnostic.h"
@@ -11,18 +11,25 @@
 namespace demi::cli {
 int runCookCommand(const std::vector<std::string> &args, std::ostream &output,
                    std::ostream &error) {
-  const auto project = projectFileFromArgs(args);
+  CLI::App command{"Cook project assets", "demi cook"};
+  std::string requestedProject;
+  std::string platform = "linux";
+  std::filesystem::path outputDirectory;
+  command.add_option("--project", requestedProject);
+  command.add_option("--platform", platform)
+      ->check(CLI::IsMember({"linux", "linux_server", "android"}));
+  command.add_option("--output", outputDirectory);
+  if (const auto status = parseCommand(command, args, 1, output, error)) {
+    return *status;
+  }
+  const auto project = resolveProjectFile(requestedProject);
   if (project.empty()) {
     error << "cook requires --project <project>.\n";
     return 2;
   }
-  const std::string platform = valueAfter(args, "--platform").empty()
-                                   ? "linux"
-                                   : valueAfter(args, "--platform");
-  const std::filesystem::path outputDirectory =
-      valueAfter(args, "--output").empty()
-          ? project.parent_path() / "generated" / "cooked" / platform
-          : std::filesystem::path(valueAfter(args, "--output"));
+  if (outputDirectory.empty()) {
+    outputDirectory = project.parent_path() / "generated" / "cooked" / platform;
+  }
   const auto diagnostics =
       assets::cookProject({.projectFile = project,
                            .outputDirectory = outputDirectory,

@@ -8,7 +8,6 @@ import json
 import math
 import os
 from pathlib import Path
-import shutil
 import subprocess
 import tempfile
 import time
@@ -23,11 +22,11 @@ def main():
     args = parser.parse_args()
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
+    (output / "runtime.log").write_text("")
     with tempfile.TemporaryDirectory(prefix='demi-fog-render-') as temp:
         project = Path(temp)
         (project / 'scenes').mkdir()
         (project / 'scripts').mkdir()
-        shutil.copyfile(repo / 'scripts/probes/fog_render.lua', project / 'scripts/probe.lua')
         (project / 'demi.project.json').write_text(json.dumps({
             'format_version': 1, 'name': 'Fog GPU regression',
             'build': {'application_id': 'dev.demi.fogprobe',
@@ -50,37 +49,55 @@ def main():
                   for actor, position in [('player', [0, 0]), ('enemy', [2, 0])]),
                 {'id': 'probe', 'components': {'LuaScript': {'module': 'script://scripts/probe.lua'}}}
             ]}))
-        env = os.environ.copy()
-        env['SDL_VIDEODRIVER'] = 'x11'
-        process = subprocess.Popen(['stdbuf', '-oL', str(args.binary.resolve()), 'run',
-            '--project', str(project), '--max-frames', '600'],
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
-        # Window management only; all gameplay/control input stays in Lua.
-        deadline = time.monotonic() + 15
-        window = None
-        while process.poll() is None and time.monotonic() < deadline:
-            windows = subprocess.run(['xdotool', 'search', '--pid', str(process.pid),
-                '--name', 'Fog GPU regression'], capture_output=True, text=True).stdout.split()
-            if windows:
-                window = windows[-1]
-                subprocess.run(['xdotool', 'windowactivate', '--sync', window],
-                               check=True, capture_output=True)
-                for state in ('MAXIMIZED_VERT', 'MAXIMIZED_HORZ'):
-                    subprocess.run(['xdotool', 'windowstate', '--add', state, window],
-                                   check=True, capture_output=True)
-                break
-            time.sleep(.05)
-        if window is None:
-            process.terminate()
-            raise RuntimeError('Cannot locate the probe window')
-        with (output / 'runtime.log').open('w') as log:
-            for line in process.stdout:
-                log.write(line)
-                if 'FOG_CAPTURE_' in line:
-                    state = line.split('FOG_CAPTURE_', 1)[1].strip().lower()
-                    subprocess.run(['import', '-window', window, str(output / (state + '.png'))], check=True)
-            if process.wait(timeout=30):
-                raise RuntimeError('Renderer failed; inspect runtime.log')
+        for phase in ('closed', 'memory', 'open', 'corridor', 'shifted'):
+            probe = (repo / 'scripts/probes/fog_render.lua').read_text()
+            probe = probe.replace('return Probe', f'Probe.phase = "{phase}"\nreturn Probe')
+            (project / 'scripts/probe.lua').write_text(probe)
+            env = os.environ.copy()
+            env['SDL_VIDEODRIVER'] = 'x11'
+            process = subprocess.Popen(['stdbuf', '-oL', str(args.binary.resolve()), 'run',
+                '--project', str(project), '--max-frames', '600'],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
+            try:
+                # Window management only; all gameplay/control input stays in Lua.
+                deadline = time.monotonic() + 15
+                window = None
+                while process.poll() is None and time.monotonic() < deadline:
+                    windows = subprocess.run(['xdotool', 'search', '--pid', str(process.pid),
+                        '--name', 'Fog GPU regression'], capture_output=True, text=True).stdout.split()
+                    if windows:
+                        window = windows[-1]
+                        subprocess.run(['xdotool', 'windowactivate', '--sync', window],
+                                       check=True, capture_output=True)
+                        for state in ('MAXIMIZED_VERT', 'MAXIMIZED_HORZ'):
+                            subprocess.run(['xdotool', 'windowstate', '--add', state, window],
+                                           check=True, capture_output=True)
+                        break
+                    time.sleep(.05)
+                if window is None:
+                    raise RuntimeError('Cannot locate the probe window')
+                captured = False
+                with (output / 'runtime.log').open('a') as log:
+                    for line in process.stdout:
+                        log.write(line)
+                        if f'FOG_CAPTURE_{phase.upper()}' in line:
+                            subprocess.run(['import', '-window', window,
+                                            str(output / (phase + '.png'))], check=True)
+                            captured = True
+                            break
+                if not captured:
+                    raise RuntimeError(f'Renderer did not publish {phase}; inspect runtime.log')
+            finally:
+                # Only terminate the test process created above, after its static
+                # frame was captured. No desktop input is injected.
+                if process.poll() is None:
+                    process.terminate()
+                    try:
+                        process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait(timeout=5)
+                process.stdout.close()
     closed = Image.open(output / 'closed.png').convert('RGB')
     opened = Image.open(output / 'open.png').convert('RGB')
     memory = Image.open(output / 'memory.png').convert('RGB')

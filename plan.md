@@ -16,7 +16,11 @@ engine code, rather than add another supported implementation. See
 
 Completed in the current worktree: GPU fog shading, call-scoped native ray
 batches, document-owned UI geometry resolution, and immutable HarfBuzz font
-resource ownership. The 165 Hz target still requires repeatable qualification;
+resource ownership. Native Box2D/Jolt query consolidation and CLI11 command parsing now remove
+722 production-source lines, with qualification recorded in the library
+boundaries document above. Follow-up camera/material rule consolidation, no-op
+destruction staging and existing UTF-8/hash library reuse are also qualified there
+(39 additional production lines removed). The 165 Hz target still requires repeatable qualification;
 the abandoned UI replacement is not evidence of achieving it.
 
 Ground-level traversal now has a repeatable vegetation-resident profiling route.

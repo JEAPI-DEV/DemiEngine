@@ -13,12 +13,6 @@
 
 namespace demi::runtime::physics2d_detail {
 
-namespace {
-
-constexpr float QueryContactSlop = 0.06F;
-
-} // namespace
-
 [[nodiscard]] Vec2 scaledLocalPoint(const Transform2DComponent &transform,
                                     const Vec2 point) {
   return {.x = point.x * transform.scale.x, .y = point.y * transform.scale.y};
@@ -124,22 +118,6 @@ constexpr float QueryContactSlop = 0.06F;
          entity.hasComponent<CapsuleCollider2DComponent>() ||
          entity.hasComponent<PolygonCollider2DComponent>() ||
          entity.hasComponent<EdgeCollider2DComponent>();
-}
-
-[[nodiscard]] bool queryIntersects(const Aabb &a, const Aabb &b) {
-  return a.minX <= b.maxX + QueryContactSlop &&
-         a.maxX >= b.minX - QueryContactSlop &&
-         a.minY <= b.maxY + QueryContactSlop &&
-         a.maxY >= b.minY - QueryContactSlop;
-}
-
-[[nodiscard]] Aabb makeAabb(const Vec2 center, const Vec2 size) {
-  return Aabb{
-      .minX = center.x - size.x * 0.5F,
-      .minY = center.y - size.y * 0.5F,
-      .maxX = center.x + size.x * 0.5F,
-      .maxY = center.y + size.y * 0.5F,
-  };
 }
 
 } // namespace demi::runtime::physics2d_detail

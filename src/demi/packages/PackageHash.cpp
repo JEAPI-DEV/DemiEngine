@@ -19,11 +19,15 @@ std::string encodeHash(const std::array<unsigned char, 32> &hash) {
 
 } // namespace
 
-std::string sha256Text(const std::string_view text) {
+std::string sha256Bytes(const std::span<const unsigned char> bytes) {
   std::array<unsigned char, 32> hash{};
-  mbedtls_sha256(reinterpret_cast<const unsigned char *>(text.data()),
-                 text.size(), hash.data(), 0);
+  mbedtls_sha256(bytes.data(), bytes.size(), hash.data(), 0);
   return encodeHash(hash);
+}
+
+std::string sha256Text(const std::string_view text) {
+  return sha256Bytes(
+      {reinterpret_cast<const unsigned char *>(text.data()), text.size()});
 }
 
 std::optional<std::string> sha256File(const std::filesystem::path &path) {

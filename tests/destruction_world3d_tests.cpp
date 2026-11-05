@@ -11,6 +11,7 @@
 #include <filesystem>
 #include <iostream>
 #include <limits>
+#include <memory>
 #include <stdexcept>
 #include <thread>
 
@@ -422,10 +423,53 @@ void impactAcrossAssemblies() {
          "Target filter affected another assembly");
 }
 
+struct WorldCopyObserver {
+  explicit WorldCopyObserver(std::shared_ptr<std::size_t> observedCopies)
+      : copies(std::move(observedCopies)) {}
+  WorldCopyObserver(const WorldCopyObserver &other) : copies(other.copies) {
+    ++*copies;
+  }
+  WorldCopyObserver(WorldCopyObserver &&) noexcept = default;
+  WorldCopyObserver &operator=(const WorldCopyObserver &) = default;
+  WorldCopyObserver &operator=(WorldCopyObserver &&) noexcept = default;
+
+  std::shared_ptr<std::size_t> copies;
+};
+
+void intactFadingDoesNotCopyUnrelatedEntities() {
+  auto world = fixture();
+  findEntity(world, "root")
+      ->component<Destructible3DComponent>()
+      ->fadingParts["right"] = {3, 1};
+  const auto copies = std::make_shared<std::size_t>(0);
+  for (int index = 0; index < 256; ++index) {
+    Entity unrelated;
+    unrelated.id = "unrelated_" + std::to_string(index);
+    unrelated.setComponent(WorldCopyObserver(copies));
+    world.entities.push_back(std::move(unrelated));
+  }
+  auto &physics = ensurePhysicsWorld3D(world);
+  physics.step(world, 1.0F / 60, {});
+  *copies = 0;
+  hit(world, "right", 0.25F);
+  physics.step(world, 1.0F / 60, {});
+  const auto state = world.destruction3D->state("root");
+  expect(state.status == "applied" && state.bodies == 1,
+         "Partial damage unexpectedly detached a fragment: " + state.error);
+  expect(!findEntity(world, "visual_right")->hasComponent<FragmentOpacity3D>(),
+         "Partial damage started fading an attached visual");
+  std::cout << "No-op fragment fade copied " << *copies
+            << " of 256 unrelated observer components\n";
+  expect(*copies == 0,
+         "No-op fragment fade copied the unrelated world into a transaction");
+}
+
 void realFragmentFading() {
-  auto world=fixture();
-  findEntity(world,"root")->component<Destructible3DComponent>()->fadingParts["right"]={3,1};
-  auto &physics=ensurePhysicsWorld3D(world);
+  auto world = fixture();
+  findEntity(world, "root")
+      ->component<Destructible3DComponent>()
+      ->fadingParts["right"] = {3, 1};
+  auto &physics = ensurePhysicsWorld3D(world);
   physics.step(world,1.F/60,{0,0,0});
   std::string error;
   expect(!findEntity(world,"visual_right")->hasComponent<FragmentOpacity3D>(),"Intact visual fades");
@@ -841,6 +885,7 @@ int main() {
     impactAcrossAssemblies();
     impactQueueGrowth();
     cosmeticImpactEffects();
+    intactFadingDoesNotCopyUnrelatedEntities();
     realFragmentFading();
     manyImpactAssemblies();
     sharedImpulseBudget();

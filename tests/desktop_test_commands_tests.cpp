@@ -1,4 +1,4 @@
-#include "cli/CliArguments.h"
+#include "cli/CommandLine.h"
 #include "cli/TestCommands.h"
 #include <chrono>
 #include <filesystem>
@@ -14,16 +14,24 @@ int main(int argc, char **argv) {
   using namespace demi::cli;
   if (argc > 1 && std::string_view(argv[1]) == "run") {
     std::vector<std::string> args(argv + 1, argv + argc);
-    const bool valid =
-        valueAfter(args, "--window-size") == "1234x567" &&
-        valueAfter(args, "--max-frames") == "77" &&
-        valueAfter(args, "--profile-frames")
-            .ends_with("trace with spaces.csv") &&
-        valueAfter(args, "--project").ends_with("demi.project.json");
-    if (!valid)
+    CLI::App command;
+    std::string projectPath;
+    std::string window;
+    std::string trace;
+    int frames = 0;
+    bool e2e = false;
+    command.add_option("--project", projectPath)->required();
+    command.add_option("--window-size", window)->required();
+    command.add_option("--max-frames", frames)->required();
+    command.add_option("--profile-frames", trace)->required();
+    command.add_flag("--e2e-tests", e2e);
+    if (parseCommand(command, args, 1, std::cout, std::cerr) ||
+        window != "1234x567" || frames != 77 ||
+        !trace.ends_with("trace with spaces.csv") ||
+        !projectPath.ends_with("demi.project.json") || !e2e) {
       return 9;
-    const auto project =
-        std::filesystem::path(valueAfter(args, "--project")).parent_path();
+    }
+    const auto project = std::filesystem::path(projectPath).parent_path();
     if (std::filesystem::exists(project / "fail_before_summary")) {
       std::cerr << "Native HUD RCSS source could not be opened.\n";
       return 7;

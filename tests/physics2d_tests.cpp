@@ -1,5 +1,6 @@
 #include "demi/runtime/physics/Box2DWorldState.h"
 #include "demi/runtime/physics/Physics2D.h"
+#include "demi/runtime/physics/RadialRaycast2D.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
 
@@ -343,6 +344,100 @@ int main() {
       transformedCircleHit->normal.y > -0.99F) {
     std::cerr << "Rotated, scaled circle offset did not match its world "
                  "shape.\n";
+    return 1;
+  }
+
+  // Native queries must use the same capsule and polygon geometry as fixtures,
+  // including their empty bounding-box corners, before any simulation exists.
+  World nativeQueryWorld;
+  Entity capsuleTarget;
+  capsuleTarget.id = "capsule_target";
+  capsuleTarget.setComponent(Transform2DComponent{});
+  capsuleTarget.setComponent(
+      CapsuleCollider2DComponent{.size = {2.0F, 4.0F}, .layer = "capsule"});
+  nativeQueryWorld.entities.push_back(std::move(capsuleTarget));
+  if (raycast2D(nativeQueryWorld, {0.95F, 1.95F}, {1, 0}, 3, "capsule") ||
+      !overlapCircle(nativeQueryWorld, {0.95F, 1.95F}, 0.01F, "capsule")
+           .empty() ||
+      overlapCircle(nativeQueryWorld, {}, 0.1F, "capsule") !=
+          std::vector<std::string>{"capsule_target"}) {
+    std::cerr
+        << "Capsule queries used bounding boxes or duplicated fixtures.\n";
+    return 1;
+  }
+  const auto capsuleRay =
+      raycast2D(nativeQueryWorld, {-3, 1.5F}, {1, 0}, 6, "capsule");
+  if (!capsuleRay ||
+      std::abs(capsuleRay->distance - (3 - std::sqrt(0.75F))) > 0.001F) {
+    std::cerr << "Capsule ray did not hit its rounded cap.\n";
+    return 1;
+  }
+  Entity triangleTarget;
+  triangleTarget.id = "triangle_target";
+  triangleTarget.setComponent(Transform2DComponent{});
+  triangleTarget.setComponent(PolygonCollider2DComponent{
+      .points = {{0, 0}, {2, 0}, {0, 2}}, .layer = "triangle"});
+  nativeQueryWorld.entities.push_back(std::move(triangleTarget));
+  if (raycast2D(nativeQueryWorld, {1.5F, 1.5F}, {1, 0}, 3, "triangle") ||
+      !overlapBoxAll(nativeQueryWorld, {1.7F, 1.7F}, {0.1F, 0.1F}, "triangle")
+           .empty() ||
+      overlapCircleAll(nativeQueryWorld, {0.25F, 0.25F}, 0.1F, "triangle")
+              .size() != 1) {
+    std::cerr << "Polygon queries did not use native convex geometry.\n";
+    return 1;
+  }
+  Entity edgeTarget;
+  edgeTarget.id = "edge_target";
+  edgeTarget.setComponent(Transform2DComponent{});
+  edgeTarget.setComponent(
+      EdgeCollider2DComponent{.points = {{-2, 2}, {2, -2}}, .layer = "edge"});
+  nativeQueryWorld.entities.push_back(std::move(edgeTarget));
+  const auto edgeRay = raycast2D(nativeQueryWorld, {-3, 1}, {1, 0}, 6, "edge");
+  if (!edgeRay || std::abs(edgeRay->distance - 2.0F) > 0.001F) {
+    std::cerr << "Edge ray used chain bounds instead of its native segment.\n";
+    return 1;
+  }
+
+  World parentQueryWorld;
+  Entity queryParent;
+  queryParent.id = "query_parent";
+  queryParent.setComponent(Transform2DComponent{
+      .position = {10, 0}, .rotation = 1.57079632679F, .scale = {2, 2}});
+  parentQueryWorld.entities.push_back(std::move(queryParent));
+  Entity queryChild;
+  queryChild.id = "query_child";
+  queryChild.setComponent(
+      Transform2DComponent{.parent = "query_parent", .position = {1, 0}});
+  queryChild.setComponent(
+      BoxCollider2DComponent{.size = {1, 1}, .layer = "child"});
+  parentQueryWorld.entities.push_back(std::move(queryChild));
+  const RadialRaycast2D parentBatch(parentQueryWorld, {10, -3}, 10, "child");
+  const auto parentRay = parentBatch.cast({0, 1});
+  if (!parentRay || std::abs(parentRay->distance - 4) > 0.001F ||
+      parentBatch.silhouetteAngles().size() != 4 ||
+      overlapCircle(parentQueryWorld, {10, 2}, 0.1F, "child").size() != 1 ||
+      raycast2D(parentQueryWorld, {10, -3}, {0, 1}, 10, "child",
+                "query_child")) {
+    std::cerr
+        << "Queries did not resolve parented native collider transforms.\n";
+    return 1;
+  }
+  parentQueryWorld.entities.front()
+      .component<Transform2DComponent>()
+      ->position.x = 20;
+  if (raycast2D(parentQueryWorld, {10, -3}, {0, 1}, 10, "child") ||
+      !raycast2D(parentQueryWorld, {20, -3}, {0, 1}, 10, "child") ||
+      !parentBatch.cast({0, 1})) {
+    std::cerr << "New queries missed an immediate parent edit or mutated an "
+                 "existing batch.\n";
+    return 1;
+  }
+  const auto insideRay =
+      raycast2D(parentQueryWorld, {20, 2}, {1, 0}, 5, "child");
+  if (!insideRay || insideRay->distance != 0 || insideRay->normal.x != 0 ||
+      insideRay->normal.y != 0) {
+    std::cerr
+        << "A ray originating inside a collider lost its zero-distance hit.\n";
     return 1;
   }
 

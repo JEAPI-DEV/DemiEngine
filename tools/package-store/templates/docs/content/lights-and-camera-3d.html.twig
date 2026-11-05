@@ -141,7 +141,7 @@ local wx, wy, wz = Camera3D.screen_to_world(
   <li><code>screen_to_world</code> returns three world-space scalars. Its final distance argument is measured along the ray, not along the camera's forward axis.</li>
   <li><code>Physics.raycast</code>'s optional final argument is an ignored entity ID, not a layer filter.</li>
 </ul>
-<p>FOV is in degrees. <code>orthographic_size</code> is the full visible height in world units.</p>
+<p>FOV is in degrees. <code>orthographic_size</code> is the full visible height in world units. World-text placement and terrain screen-error estimates use this same projection: a 600-pixel-high viewport showing 12 world units has 50 pixels per world unit. Orthographic world text and terrain LOD no longer use the earlier incorrect half-height interpretation.</p>
 
 <h2>Transform3D directions</h2>
 <p>Cameras, lights, and characters constantly need “which way am I facing?”. <code>demi.transform3d</code> answers in world space:</p>

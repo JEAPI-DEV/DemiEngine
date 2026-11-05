@@ -1,6 +1,6 @@
 #include "cli/BuildCommands.h"
 
-#include "cli/CliArguments.h"
+#include "cli/CommandLine.h"
 #include "cli/build/BuildService.h"
 #include "cli/project/ProjectDiscovery.h"
 #include "demi/runtime/platform/RuntimeCapabilities.h"
@@ -56,74 +56,75 @@ int inspectBuildSettings(const std::filesystem::path &projectPath) {
 
 int runBuildCommand(const std::vector<std::string> &args,
                     const BuildContext &context) {
-  if (args.size() < 2) {
-    std::cerr
-        << "build requires a target: inspect, apk, aab, linux, or "
-           "linux_server.\n";
-    return 2;
+  CLI::App command{"Inspect or package a project", "demi build"};
+  std::string target;
+  std::string requestedProject;
+  std::string configuration;
+  std::string requestedOutput;
+  std::string gradle = "gradle";
+  command.add_option("target", target)
+      ->required()
+      ->check(
+          CLI::IsMember({"inspect", "apk", "aab", "linux", "linux_server"}));
+  command.add_option("--project", requestedProject);
+  command.add_option("--configuration", configuration)
+      ->check(CLI::IsMember({"debug", "release"}));
+  command.add_option("--output", requestedOutput);
+  command.add_option("--gradle", gradle);
+  if (const auto status =
+          parseCommand(command, args, 1, std::cout, std::cerr)) {
+    return *status;
   }
-  const std::filesystem::path project = projectFileFromArgs(args);
+  const auto project = resolveProjectFile(requestedProject);
   if (project.empty()) {
     std::cerr << "build requires --project <project> or a demi.project.json in "
                  "the current directory.\n";
     return 2;
   }
 
-  if (args[1] == "inspect")
+  if (target == "inspect")
     return inspectBuildSettings(std::filesystem::absolute(project));
 
-  const std::string configuration = valueAfter(args, "--configuration");
-  if (!configuration.empty() && configuration != "debug" &&
-      configuration != "release") {
-    std::cerr << "--configuration must be debug or release.\n";
-    return 2;
-  }
-  if (args[1] == "aab" && configuration == "debug") {
+  if (target == "aab" && configuration == "debug") {
     std::cerr << "AAB output is a release workflow; omit --configuration or "
                  "use release.\n";
     return 2;
   }
 
   build::ProjectOperation operation;
-  if (args[1] == "linux")
+  if (target == "linux") {
     operation = build::ProjectOperation::PackageLinux;
-  else if (args[1] == "linux_server")
+  } else if (target == "linux_server") {
     operation = build::ProjectOperation::PackageLinuxServer;
-  else if (args[1] == "apk")
+  } else if (target == "apk") {
     operation = configuration == "release"
                     ? build::ProjectOperation::PackageAndroidRelease
                     : build::ProjectOperation::PackageAndroid;
-  else if (args[1] == "aab")
+  } else {
     operation = build::ProjectOperation::BundleAndroidRelease;
-  else {
-    std::cerr << "Unknown build target: " << args[1] << '\n';
-    return 2;
   }
 
   const std::filesystem::path absoluteProject =
       std::filesystem::absolute(project);
-  const std::string requestedOutput = valueAfter(args, "--output");
   const build::ProjectOperationResult result = build::runProjectOperation(
       {.operation = operation,
        .projectFile = absoluteProject,
        .outputDirectory = requestedOutput.empty()
-                              ? defaultOutput(absoluteProject, args[1])
+                              ? defaultOutput(absoluteProject, target)
                               : std::filesystem::path(requestedOutput),
        .engineRoot = context.engineRoot,
        .runtimeExecutable = std::filesystem::absolute(context.executablePath),
-       .gradleExecutable = valueAfter(args, "--gradle").empty()
-                               ? "gradle"
-                               : valueAfter(args, "--gradle"),
+       .gradleExecutable = gradle,
        .hostFeatures = runtime::hostRuntimeFeatures()});
   if (!result.diagnostics.empty())
     printDiagnosticsText(std::cerr, result.diagnostics);
   if (!result.succeeded())
     return 1;
   std::cout << "Wrote "
-            << (args[1] == "apk"            ? "Android APK: "
-                : args[1] == "aab"          ? "Android App Bundle: "
-                : args[1] == "linux_server" ? "Linux server bundle: "
-                                            : "Linux bundle: ")
+            << (target == "apk"            ? "Android APK: "
+                : target == "aab"          ? "Android App Bundle: "
+                : target == "linux_server" ? "Linux server bundle: "
+                                           : "Linux bundle: ")
             << result.artifact.string() << '\n';
   return 0;
 }

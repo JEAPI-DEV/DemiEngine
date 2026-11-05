@@ -31,8 +31,8 @@ struct MaterialBinding {
   std::string albedoTexture;
   DrawState state;
   float metallic = 0.0F;
-  float roughness = 0.8F;
-  float opacity = 1.0F;
+  float roughness = assets::MaterialSurface::DefaultRoughness;
+  float opacity = assets::MaterialSurface::DefaultOpacity;
   std::array<float, 4> baseColor{1.0F, 1.0F, 1.0F, 1.0F};
   float alphaCutoff = 0.0F;
   std::uint32_t uniformSet = 0;

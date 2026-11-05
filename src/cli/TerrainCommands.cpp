@@ -1,11 +1,12 @@
 #include "cli/TerrainCommands.h"
 #include "cli/TerrainCompactCommand.h"
 
-#include "cli/CliArguments.h"
+#include "cli/CommandLine.h"
 #include "demi/assets/AssetRegistry.h"
 #include "demi/assets/DataAsset.h"
 #include "demi/assets/TerrainAssetValidation.h"
 #include "demi/filesystem/AtomicTextFile.h"
+#include "demi/filesystem/AuthoredJsonPatch.h"
 #include "demi/filesystem/ProjectDiscovery.h"
 #include "demi/runtime/scene/Component.h"
 #include "demi/runtime/scene/ProjectParser.h"
@@ -20,7 +21,6 @@
 #include "demi/runtime/terrain/TerrainPreset.h"
 #include "demi/runtime/terrain/TerrainRecipe.h"
 #include "demi/runtime/terrain/TerrainSeed.h"
-#include "demi/filesystem/AuthoredJsonPatch.h"
 
 #include <algorithm>
 #include <array>
@@ -112,12 +112,6 @@ std::size_t columnWidth(const std::vector<std::string> &values) {
   for (const std::string &value : values)
     width = std::max(width, value.size());
   return width;
-}
-
-bool parseInteger(const std::string &text, int &value) {
-  const auto result =
-      std::from_chars(text.data(), text.data() + text.size(), value);
-  return result.ec == std::errc{} && result.ptr == text.data() + text.size();
 }
 
 bool parseNumber(const std::string &text, float &value) {
@@ -674,29 +668,14 @@ void printExplainText(const runtime::TerrainRecipe &recipe,
 
 int runSeeds(const std::vector<std::string> &args, std::ostream &out,
              std::ostream &error) {
-  std::string seedText;
-  std::string format = "text";
-  for (std::size_t i = 2; i < args.size(); ++i) {
-    if (args[i] == "--format" && i + 1 < args.size()) {
-      format = args[++i];
-      continue;
-    }
-    if (!args[i].starts_with("--"))
-      seedText = args[i];
-  }
-  if (seedText.empty()) {
-    error << "terrain seeds requires a world seed.\n";
-    return ExitUsageError;
-  }
-  if (format != "text" && format != "json") {
-    error << "--format must be text or json.\n";
-    return ExitUsageError;
-  }
   int worldSeed = 0;
-  if (!parseInteger(seedText, worldSeed)) {
-    error << "terrain seeds requires an integer world seed: " << seedText
-          << '\n';
-    return ExitUsageError;
+  std::string format = "text";
+  CLI::App command{"Derive terrain seed channels", "demi terrain seeds"};
+  command.add_option("seed", worldSeed)->required();
+  command.add_option("--format", format)
+      ->check(CLI::IsMember({"text", "json"}));
+  if (const auto status = parseCommand(command, args, 2, out, error)) {
+    return *status;
   }
   if (format == "json") {
     out << Json{{"format_version", 1},
@@ -717,21 +696,12 @@ int runInspect(const std::vector<std::string> &args, std::ostream &out,
                std::ostream &error) {
   std::string path;
   std::string format = "text";
-  for (std::size_t i = 2; i < args.size(); ++i) {
-    if (args[i] == "--format" && i + 1 < args.size()) {
-      format = args[++i];
-      continue;
-    }
-    if (!args[i].starts_with("--"))
-      path = args[i];
-  }
-  if (path.empty()) {
-    error << "terrain inspect requires a recipe path.\n";
-    return ExitUsageError;
-  }
-  if (format != "text" && format != "json") {
-    error << "--format must be text or json.\n";
-    return ExitUsageError;
+  CLI::App command{"Inspect a terrain recipe", "demi terrain inspect"};
+  command.add_option("path", path)->required();
+  command.add_option("--format", format)
+      ->check(CLI::IsMember({"text", "json"}));
+  if (const auto status = parseCommand(command, args, 2, out, error)) {
+    return *status;
   }
   const auto recipe = loadRecipe(path, error);
   if (!recipe)
@@ -748,29 +718,14 @@ int runExplain(const std::vector<std::string> &args, std::ostream &out,
   std::string path;
   std::string format = "text";
   std::string at;
-  for (std::size_t i = 2; i < args.size(); ++i) {
-    if (args[i] == "--format" && i + 1 < args.size()) {
-      format = args[++i];
-      continue;
-    }
-    if (args[i] == "--at" && i + 1 < args.size()) {
-      at = args[++i];
-      continue;
-    }
-    if (!args[i].starts_with("--"))
-      path = args[i];
-  }
-  if (path.empty()) {
-    error << "terrain explain requires a recipe path.\n";
-    return ExitUsageError;
-  }
-  if (at.empty()) {
-    error << "terrain explain requires --at <x>,<z>.\n";
-    return ExitUsageError;
-  }
-  if (format != "text" && format != "json") {
-    error << "--format must be text or json.\n";
-    return ExitUsageError;
+  CLI::App command{"Explain terrain evaluation at a point",
+                   "demi terrain explain"};
+  command.add_option("path", path)->required();
+  command.add_option("--format", format)
+      ->check(CLI::IsMember({"text", "json"}));
+  command.add_option("--at", at)->required();
+  if (const auto status = parseCommand(command, args, 2, out, error)) {
+    return *status;
   }
   const auto recipe = loadRecipe(path, error);
   if (!recipe)
@@ -892,43 +847,6 @@ struct PresetOptions {
   std::string format = "text";
 };
 
-// Both preset verbs take a project path and --format; apply-preset additionally
-// takes --preset and --entity. An unrecognised option is rejected instead of
-// silently ignored, so a mistyped flag never becomes a silent no-op.
-std::optional<PresetOptions>
-parsePresetOptions(const std::vector<std::string> &args, std::ostream &error) {
-  PresetOptions options;
-  for (std::size_t index = 2; index < args.size(); ++index) {
-    if (args[index] == "--format" && index + 1 < args.size()) {
-      options.format = args[++index];
-      continue;
-    }
-    if (args[index] == "--preset" && index + 1 < args.size()) {
-      options.preset = args[++index];
-      continue;
-    }
-    if (args[index] == "--entity" && index + 1 < args.size()) {
-      options.entity = args[++index];
-      continue;
-    }
-    if (!args[index].starts_with("--")) {
-      options.project = args[index];
-      continue;
-    }
-    error << "Unknown option: " << args[index] << '\n';
-    return std::nullopt;
-  }
-  if (options.project.empty()) {
-    error << "terrain " << args[1] << " requires a project path.\n";
-    return std::nullopt;
-  }
-  if (options.format != "text" && options.format != "json") {
-    error << "--format must be text or json.\n";
-    return std::nullopt;
-  }
-  return options;
-}
-
 Json presetToJson(const runtime::TerrainPreset &preset) {
   Json biomes = Json::array();
   for (const auto &[id, biome] : preset.biomes) {
@@ -984,9 +902,15 @@ void printPresetText(const runtime::TerrainPreset &preset, std::ostream &out) {
 
 int runPresets(const std::vector<std::string> &args, std::ostream &out,
                std::ostream &error) {
-  const auto options = parsePresetOptions(args, error);
-  if (!options)
-    return ExitUsageError;
+  PresetOptions parsed;
+  const auto *options = &parsed;
+  CLI::App command{"Terrain presets", "demi terrain presets"};
+  command.add_option("project", parsed.project)->required();
+  command.add_option("--format", parsed.format)
+      ->check(CLI::IsMember({"text", "json"}));
+  if (const auto status = parseCommand(command, args, 2, out, error)) {
+    return *status;
+  }
   const auto context = loadProjectContext(options->project, error);
   if (!context)
     return ExitValidationFailure;
@@ -1106,13 +1030,16 @@ std::optional<std::string> readTextFile(const std::filesystem::path &path) {
 
 int runApplyPreset(const std::vector<std::string> &args, std::ostream &out,
                    std::ostream &error) {
-  const auto options = parsePresetOptions(args, error);
-  if (!options)
-    return ExitUsageError;
-  if (options->preset.empty()) {
-    error << "terrain apply-preset requires --preset "
-             "<asset://id|builtin://terrain/name>.\n";
-    return ExitUsageError;
+  PresetOptions parsed;
+  const auto *options = &parsed;
+  CLI::App command{"Terrain presets", "demi terrain apply-preset"};
+  command.add_option("project", parsed.project)->required();
+  command.add_option("--format", parsed.format)
+      ->check(CLI::IsMember({"text", "json"}));
+  command.add_option("--preset", parsed.preset)->required();
+  command.add_option("--entity", parsed.entity);
+  if (const auto status = parseCommand(command, args, 2, out, error)) {
+    return *status;
   }
   const auto context = loadProjectContext(options->project, error);
   if (!context)
@@ -1281,66 +1208,56 @@ int runValidate(const std::vector<std::string> &args, std::ostream &out,
 
 int runTerrainCommand(const std::vector<std::string> &args, std::ostream &out,
                       std::ostream &error) {
-  if (args.size() < 2) {
-    error << "Usage: demi terrain inspect <recipe.json> "
-             "[--format text|json]\n"
-             "       demi terrain compact <recipe-or-terrain.json> [--write]\n"
-             "       demi terrain explain <recipe.json> --at <x>,<z> "
-             "[--format text|json]\n"
-             "       demi terrain seeds <seed> [--format text|json]\n"
-          << "       demi terrain presets <project> [--format text|json]\n"
-          << "       demi terrain apply-preset <project> --preset "
-             "<asset://id|builtin://terrain/name> "
-             "[--entity <id>] [--format text|json]\n"
-          << "       demi terrain validate <project> [--palette <asset://id>] "
-             "[--materials <asset://id>] [--development] [--json]\n";
-    return ExitUsageError;
+  CLI::App command{"Terrain authoring and diagnostics", "demi terrain"};
+  command.require_subcommand(1, 1);
+  int result = ExitUsageError;
+  using Handler =
+      int (*)(const std::vector<std::string> &, std::ostream &, std::ostream &);
+  for (const auto &[name, run] :
+       {std::pair<const char *, Handler>{"compact", runTerrainCompactCommand},
+        {"inspect", runInspect},
+        {"explain", runExplain},
+        {"seeds", runSeeds},
+        {"presets", runPresets},
+        {"apply-preset", runApplyPreset},
+        {"validate", runValidate}}) {
+    auto *subcommand = command.add_subcommand(name);
+    subcommand->set_help_flag("");
+    subcommand->prefix_command();
+    subcommand->callback([&, run] { result = run(args, out, error); });
   }
-  const std::string &subcommand = args[1];
-  if (subcommand == "compact")
-    return runTerrainCompactCommand(args, out, error);
-  if (subcommand == "inspect")
-    return runInspect(args, out, error);
-  if (subcommand == "explain")
-    return runExplain(args, out, error);
-  if (subcommand == "seeds")
-    return runSeeds(args, out, error);
-  if (subcommand == "presets")
-    return runPresets(args, out, error);
-  if (subcommand == "apply-preset")
-    return runApplyPreset(args, out, error);
-  if (subcommand == "validate")
-    return runValidate(args, out, error);
-  error << "Unknown terrain subcommand: " << subcommand << '\n'
-        << "Usage: demi terrain "
-           "inspect|explain|seeds|presets|apply-preset|validate ...\n";
-  return ExitUsageError;
+  if (const auto status = parseCommand(command, args, 1, out, error)) {
+    return *status;
+  }
+  return result;
 }
 
 
 int runValidate(const std::vector<std::string> &args, std::ostream &out,
                 std::ostream &error) {
-  if (args.size() < 3) {
-    error << "Usage: demi terrain validate <project> [--palette <asset://id>] "
-             "[--materials <asset://id>] [--development] [--json]\n";
-    return ExitUsageError;
+  CLI::App command{"Validate terrain assets for shipping",
+                   "demi terrain validate"};
+  std::string project;
+  bool development = false;
+  bool json = false;
+  demi::assets::TerrainAssetValidationRequest request;
+  command.add_option("project", project)->required();
+  command.add_option("--palette", request.paletteId);
+  command.add_option("--materials", request.materialSetId);
+  command.add_flag("--development", development);
+  command.add_flag("--json", json);
+  if (const auto status = parseCommand(command, args, 2, out, error)) {
+    return *status;
   }
-  const auto context = loadProjectContext(args[2], error);
+  const auto context = loadProjectContext(project, error);
   if (!context)
     return ExitValidationFailure;
   const demi::AssetRegistry registry =
       loadAssetRegistry(context->projectDirectory);
 
-  demi::assets::TerrainAssetValidationRequest request;
   request.registry = &registry;
-  request.use = hasArg(args, "--development")
-                    ? demi::assets::TerrainAssetUse::DevelopmentOnly
-                    : demi::assets::TerrainAssetUse::Shippable;
-  if (const auto palette = valueAfter(args, "--palette"); !palette.empty())
-    request.paletteId = palette;
-  if (const auto materials = valueAfter(args, "--materials");
-      !materials.empty())
-    request.materialSetId = materials;
+  request.use = development ? demi::assets::TerrainAssetUse::DevelopmentOnly
+                            : demi::assets::TerrainAssetUse::Shippable;
   if (request.paletteId.empty() && request.materialSetId.empty()) {
     // Fall back to whatever the project declares, so the common case needs no
     // flags at all and cannot be run against the wrong document by accident.
@@ -1357,13 +1274,13 @@ int runValidate(const std::vector<std::string> &args, std::ostream &out,
     }
   }
   if (request.paletteId.empty() && request.materialSetId.empty()) {
-    error << "No terrain palette or material set found in " << args[2]
+    error << "No terrain palette or material set found in " << project
           << ". Name one with --palette or --materials.\n";
     return ExitValidationFailure;
   }
 
   const auto report = demi::assets::validateTerrainAssets(request);
-  if (hasArg(args, "--json")) {
+  if (json) {
     Json findings = Json::array();
     for (const auto &finding : report.findings)
       findings.push_back({{"kind",

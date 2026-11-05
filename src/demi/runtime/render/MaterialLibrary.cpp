@@ -12,7 +12,7 @@ namespace {
 BlendMode blendMode(const std::string &value) {
   if (value == "additive")
     return BlendMode::Additive;
-  if (value == "alpha")
+  if (assets::materialSurfaceMode(value) == "transparent")
     return BlendMode::Alpha;
   return BlendMode::Opaque;
 }
@@ -87,17 +87,11 @@ bool MaterialLibrary::load(const AssetRegistry &registry,
                      .topology = PrimitiveTopology::Triangles,
                      .writeDepth = descriptor->renderState.depthWrite};
     binding.alphaCutoff = descriptor->renderState.alphaCutoff;
-    const auto parameter = [&](std::string_view name, float fallback) {
-      const auto found = descriptor->numbers.find(std::string(name));
-      return found == descriptor->numbers.end() ? fallback : found->second;
-    };
-    binding.metallic = parameter("metallic", 0.0F);
-    binding.roughness = parameter("roughness", 0.8F);
-    binding.opacity = parameter("opacity", 1.0F);
-    if (const auto color = descriptor->colors.find("base_color");
-        color != descriptor->colors.end())
-      binding.baseColor = {color->second.r, color->second.g, color->second.b,
-                           color->second.a};
+    binding.metallic = binding.surface.metallic;
+    binding.roughness = binding.surface.roughness;
+    binding.opacity = binding.surface.opacity;
+    const auto &color = binding.surface.baseColor;
+    binding.baseColor = {color.r, color.g, color.b, color.a};
     if (const auto albedo = descriptor->textures.find("albedo");
         albedo != descriptor->textures.end())
       binding.albedoTexture = albedo->second;

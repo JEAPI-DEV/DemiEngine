@@ -1,11 +1,10 @@
 #include "cli/HudCommands.h"
-#include "cli/CliArguments.h"
+#include "cli/CommandLine.h"
 
-#include "demi/runtime/ui/HudLayoutReport.h"
 #include "demi/runtime/scene/HudParser.h"
+#include "demi/runtime/ui/HudLayoutReport.h"
 
 #include <algorithm>
-#include <cstdio>
 #include <fstream>
 #include <nlohmann/json.hpp>
 #include <optional>
@@ -82,36 +81,21 @@ void printText(const runtime::ui::HudLayoutReport &report, std::ostream &out) {
 
 int runHudCommand(const std::vector<std::string> &args, std::ostream &out,
                   std::ostream &error) {
-  if (args.size() < 2 || args[1] != "inspect") {
-    error << "Usage: demi hud inspect <hud.json> [--safe-area l,t,r,b] "
-             "[--reveal-hidden] [--format text|json]\n";
-    return 2;
-  }
+  CLI::App command{"Inspect resolved HUD layout", "demi hud"};
+  command.require_subcommand(1, 1);
+  auto *inspect =
+      command.add_subcommand("inspect", "Report canvas and node rectangles");
   std::string path;
   std::string format = "text";
-  std::string safeArea;
+  std::vector<float> safeArea;
   bool revealHidden = false;
-  for (std::size_t i = 2; i < args.size(); ++i) {
-    if (args[i] == "--format" && i + 1 < args.size()) {
-      format = args[i + 1];
-      ++i;
-      continue;
-    }
-    if (args[i] == "--safe-area" && i + 1 < args.size()) {
-      safeArea = args[i + 1];
-      ++i;
-      continue;
-    }
-    if (args[i] == "--reveal-hidden") {
-      revealHidden = true;
-      continue;
-    }
-    if (!args[i].starts_with("--"))
-      path = args[i];
-  }
-  if (path.empty()) {
-    error << "hud inspect requires a .hud.json path.\n";
-    return 2;
+  inspect->add_option("path", path)->required();
+  inspect->add_option("--format", format)
+      ->check(CLI::IsMember({"text", "json"}));
+  inspect->add_option("--safe-area", safeArea)->delimiter(',')->expected(4);
+  inspect->add_flag("--reveal-hidden", revealHidden);
+  if (const auto status = parseCommand(command, args, 1, out, error)) {
+    return *status;
   }
   const auto document = readJson(path, error);
   if (!document)
@@ -119,15 +103,7 @@ int runHudCommand(const std::vector<std::string> &args, std::ostream &out,
   runtime::ui::HudLayoutRequest request;
   request.revealHidden = revealHidden;
   if (!safeArea.empty()) {
-    const auto parsed = sscanf(safeArea.c_str(), "%f,%f,%f,%f",
-                               &request.safeArea.left, &request.safeArea.top,
-                               &request.safeArea.right,
-                               &request.safeArea.bottom);
-    if (parsed != 4) {
-      error << "--safe-area must be four comma-separated numbers: "
-               "left,top,right,bottom.\n";
-      return 2;
-    }
+    request.safeArea = {safeArea[0], safeArea[1], safeArea[2], safeArea[3]};
   }
   std::string failure;
   auto hud = runtime::scene_loading::parseHudDocument(path, *document, failure);

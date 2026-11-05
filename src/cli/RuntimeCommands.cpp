@@ -1,6 +1,7 @@
 #include "cli/RuntimeCommands.h"
 
 #include "cli/CliArguments.h"
+#include "cli/CommandLine.h"
 #include "cli/doctor/DoctorService.h"
 #include "cli/project/ProjectDiscovery.h"
 #include "demi/assets/TerrainAsset.h"
@@ -11,26 +12,35 @@
 #include <iostream>
 
 namespace demi::cli {
-namespace {
-
-int numericValueAfter(const std::vector<std::string> &args,
-                      const std::string &key) {
-  const std::string value = valueAfter(args, key);
-  if (value.empty())
-    return 0;
-  try {
-    return std::stoi(value);
-  } catch (...) {
-    return 0;
-  }
-}
-
-} // namespace
-
 int runRuntimeCommand(const std::vector<std::string> &args,
                       const RuntimeCommandMode mode, std::ostream &output,
                       std::ostream &error) {
-  const std::filesystem::path project = projectFileFromArgs(args);
+  CLI::App command{"Run a project", "demi " + args.front()};
+  runtime::RuntimeOptions options;
+  std::string requestedProject;
+  std::string window;
+  std::string target;
+  command.add_option("target", target)->check(CLI::IsMember({"linux"}));
+  command.add_option("--project", requestedProject);
+  command.add_option("--max-frames", options.maxFrames)
+      ->check(CLI::NonNegativeNumber);
+  command.add_flag("--profiler", options.profiler);
+  command.add_flag("--watch", options.watch);
+  command.add_flag("--e2e-tests", options.e2eTests);
+  command.add_option("--input-replay", options.inputReplayPath);
+  command.add_option("--profile-report", options.profileReportPath);
+  command.add_option("--profile-frames", options.profileFramesPath);
+  command.add_option("--debug-overlays", options.debugOverlays);
+  command.add_option("--window-size", window)
+      ->check([](const std::string &value) {
+        return parseWindowSize(value)
+                   ? std::string{}
+                   : "requires WIDTHxHEIGHT, each between 1 and 65535";
+      });
+  if (const auto status = parseCommand(command, args, 1, output, error)) {
+    return *status;
+  }
+  const std::filesystem::path project = resolveProjectFile(requestedProject);
   if (project.empty()) {
     error << (mode == RuntimeCommandMode::Develop ? "dev" : "run")
           << " could not find demi.project.json. Run inside a project or pass "
@@ -48,25 +58,16 @@ int runRuntimeCommand(const std::vector<std::string> &args,
            << " (watching source files)\n";
   }
 
-  bool serve = mode == RuntimeCommandMode::Serve;
-  std::pair<int, int> windowSize{0, 0};
-  if (hasArg(args, "--window-size")) {
-    const auto parsed = parseWindowSize(valueAfter(args, "--window-size"));
-    if (!parsed) {
-      error
-          << "--window-size requires WIDTHxHEIGHT, each between 1 and 65535.\n";
-      return 2;
-    }
-    windowSize = *parsed;
-  }
-  if (hasArg(args, "--profile-frames") &&
-      (valueAfter(args, "--profile-frames").empty() ||
-       valueAfter(args, "--profile-frames").starts_with("--"))) {
-    error << "--profile-frames requires an output CSV path.\n";
-    return 2;
+  options.projectPath = project;
+  options.serve = mode == RuntimeCommandMode::Serve;
+  options.watch = options.watch || mode == RuntimeCommandMode::Develop;
+  if (!window.empty()) {
+    const auto size = *parseWindowSize(window);
+    options.windowWidth = size.first;
+    options.windowHeight = size.second;
   }
 #ifdef DEMI_SERVER_CLI
-  serve = true;
+  options.serve = true;
 #endif
   try {
     // Development tools prepare source assets before entering the runtime.
@@ -76,20 +77,7 @@ int runRuntimeCommand(const std::vector<std::string> &args,
     error << "Terrain asset preparation failed: " << exception.what() << '\n';
     return 1;
   }
-  return runtime::runProject(runtime::RuntimeOptions{
-      .projectPath = project,
-      .maxFrames = numericValueAfter(args, "--max-frames"),
-      .serve = serve,
-      .profiler = hasArg(args, "--profiler"),
-      .watch = mode == RuntimeCommandMode::Develop || hasArg(args, "--watch"),
-      .e2eTests = hasArg(args, "--e2e-tests"),
-      .inputReplayPath = valueAfter(args, "--input-replay"),
-      .profileReportPath = valueAfter(args, "--profile-report"),
-      .debugOverlays = valueAfter(args, "--debug-overlays"),
-      .windowWidth = windowSize.first,
-      .windowHeight = windowSize.second,
-      .profileFramesPath = valueAfter(args, "--profile-frames"),
-  });
+  return runtime::runProject(options);
 }
 
 } // namespace demi::cli

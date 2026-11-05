@@ -21,7 +21,7 @@ else()
   target_include_directories(demi-cli-support PUBLIC src PRIVATE ${lua_SOURCE_DIR})
   target_compile_features(demi-cli-support PUBLIC cxx_std_20)
   target_link_libraries(demi-cli-support PUBLIC demi-core CURL::libcurl
-    mbedcrypto)
+    mbedcrypto CLI11::CLI11)
   if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
     target_compile_options(demi-cli-support PRIVATE -Wall -Wextra -Wpedantic)
   endif()
@@ -67,7 +67,7 @@ else()
   endif()
 
   add_executable(demi-runtime src/runtime/main.cpp)
-  target_link_libraries(demi-runtime PRIVATE demi-core demi-runtime-lib)
+  target_link_libraries(demi-runtime PRIVATE demi-core demi-runtime-lib CLI11::CLI11)
 
   add_library(demi-editor-model STATIC
     src/editor/EditorTerrainAuthoring.cpp
@@ -240,7 +240,7 @@ else()
     demi-runtime-lib demi-graphics-bgfx SDL3::SDL3-static bgfx bx)
 
   add_executable(demi-editor src/editor/main.cpp)
-  target_link_libraries(demi-editor PRIVATE demi-editor-ui)
+  target_link_libraries(demi-editor PRIVATE demi-editor-ui CLI11::CLI11)
   target_compile_definitions(demi-editor-ui PRIVATE
     DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
     DEMI_EDITOR_BRANDING_PATH="${CMAKE_BINARY_DIR}/editor-assets/demi_engine.png")

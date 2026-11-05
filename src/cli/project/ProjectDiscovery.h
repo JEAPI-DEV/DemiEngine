@@ -10,8 +10,8 @@ namespace demi::cli {
 
 using ::demi::findProjectFile;
 
-[[nodiscard]] std::filesystem::path projectFileFromArgs(
-    const std::vector<std::string> &args,
+[[nodiscard]] std::filesystem::path resolveProjectFile(
+    const std::string &requested,
     std::filesystem::path startDirectory = std::filesystem::current_path());
 
 } // namespace demi::cli

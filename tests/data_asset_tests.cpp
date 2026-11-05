@@ -12,6 +12,7 @@
 #include <iostream>
 #include <iterator>
 #include <nlohmann/json.hpp>
+#include <vector>
 
 namespace {
 
@@ -53,12 +54,60 @@ demi::AssetManifest dataManifest(const std::filesystem::path &root,
           .sourcePaths = {root / source}};
 }
 
+bool utf8BoundaryCases() {
+  using namespace demi::assets;
+  const std::vector<std::string> invalid{"\x80",
+                                         "\xC0\xAF",
+                                         "\xE0\x80\x80",
+                                         "\xED\xA0\x80",
+                                         "\xED\xBF\xBF",
+                                         "\xF4\x90\x80\x80",
+                                         "\xF5\x80\x80\x80",
+                                         "\xC2",
+                                         "\xE2\x82",
+                                         "\xF0\x9F\x92",
+                                         std::string("null\0", 5) + "\x80"};
+  for (const auto &text : invalid) {
+    const auto parsed = parseDataDocument(text, "utf8.json");
+    if (parsed.document || parsed.diagnostics.size() != 1 ||
+        parsed.diagnostics.front().code != "DATA_DOCUMENT_INVALID_UTF8" ||
+        parsed.diagnostics.front().path != "utf8.json") {
+      std::cerr << "Invalid UTF-8 was not rejected before JSON parsing.\n";
+      return false;
+    }
+  }
+  const std::vector<std::string> valid{"\x7F",
+                                       "\xC2\x80",
+                                       "\xDF\xBF",
+                                       "\xE0\xA0\x80",
+                                       "\xED\x9F\xBF",
+                                       "\xEE\x80\x80",
+                                       "\xEF\xBF\xBF",
+                                       "\xF0\x90\x80\x80",
+                                       "\xF4\x8F\xBF\xBF",
+                                       "e\xCC\x81",
+                                       std::string("a\0b", 3)};
+  for (const auto &text : valid) {
+    const auto parsed = parseDataDocument(nlohmann::json(text).dump());
+    if (!parsed.document || !parsed.diagnostics.empty() ||
+        std::get<std::string>(parsed.document->root().value) != text) {
+      std::cerr << "Valid UTF-8 or embedded NUL bytes were changed.\n";
+      return false;
+    }
+  }
+  return true;
+}
+
 } // namespace
 
 int main() {
   using namespace demi;
   using namespace demi::assets;
   using namespace demi::runtime;
+
+  if (!utf8BoundaryCases()) {
+    return 1;
+  }
 
   const auto dataImporter = importerFor("content.json", "DataAsset");
   const auto materialImporter = importerFor("material.json", "Material");

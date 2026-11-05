@@ -73,13 +73,28 @@ bool FogOfWar2D::update(Vec2 focus, float radius, float feather,
   focus_ = focus;
   radius_ = radius;
   feather_ = feather;
-  boundary_.resize(rayDistances.size());
+  boundary_.clear();
+  boundary_.reserve(rayDistances.size());
+  // Corner refinement can produce distinct angles whose points coincide at
+  // float precision. Remove zero-length edges so GPU coverage reaches the
+  // actual incident silhouette instead of treating a redundant edge as dark.
+  const auto coincident = [](Vec2 left, Vec2 right) {
+    const float dx = left.x - right.x;
+    const float dy = left.y - right.y;
+    return dx * dx + dy * dy <= 0.000000000001F;
+  };
   for (std::size_t index = 0; index < rayDistances.size(); ++index) {
     const float angle = rayAngles.empty() ? index * tau / rayDistances.size()
                                           : rayAngles[index];
-    boundary_[index] = {angle,
-                        {rayDistances[index] * std::cos(angle),
-                         rayDistances[index] * std::sin(angle)}};
+    const Vec2 point{rayDistances[index] * std::cos(angle),
+                     rayDistances[index] * std::sin(angle)};
+    if (boundary_.empty() || !coincident(boundary_.back().point, point)) {
+      boundary_.push_back({angle, point});
+    }
+  }
+  if (boundary_.size() > 1 &&
+      coincident(boundary_.front().point, boundary_.back().point)) {
+    boundary_.pop_back();
   }
   revision_ = nextRevision.fetch_add(1);
   return true;

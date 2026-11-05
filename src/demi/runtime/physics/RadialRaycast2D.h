@@ -1,15 +1,17 @@
 #pragma once
 #include "demi/runtime/physics/Physics2D.h"
+#include <memory>
 namespace demi::runtime {
-// Call-scoped broad phase for rays from one origin. The world must remain
-// unchanged (poses, layers, membership) until the batch is destroyed. Do not
-// cache across simulation steps: new batches observe moved/disabled colliders
+// Operation-scoped native shape snapshot for rays from one origin. New batches
+// observe authored poses, hierarchy, disabled colliders and membership
 // immediately.
+class NativeQueryShapes2D;
 class RadialRaycast2D {
 public:
   RadialRaycast2D(const World &world, Vec2 origin, float radius,
                   const std::string &layer,
                   const std::string &ignoredEntityId = {});
+  ~RadialRaycast2D();
   // Candidate silhouette directions for visibility fans. Shape intersections
   // still go through cast(); these angles only prevent missing thin blockers.
   [[nodiscard]] std::vector<float> silhouetteAngles() const;
@@ -20,8 +22,6 @@ public:
 private:
   Vec2 origin_;
   float radius_;
-  std::string layer_;
-  std::string ignoredEntityId_;
-  std::vector<const Entity *> candidates_;
+  std::unique_ptr<NativeQueryShapes2D> candidates_;
 };
 } // namespace demi::runtime

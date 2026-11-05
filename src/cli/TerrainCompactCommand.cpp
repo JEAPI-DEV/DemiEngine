@@ -1,4 +1,5 @@
 #include "cli/TerrainCompactCommand.h"
+#include "cli/CommandLine.h"
 
 #include "demi/filesystem/AtomicTextFile.h"
 #include "demi/filesystem/AuthoredJsonPatch.h"
@@ -27,13 +28,16 @@ std::string readSource(const std::filesystem::path &path) {
 
 int runTerrainCompactCommand(const std::vector<std::string> &args,
                              std::ostream &out, std::ostream &error) {
-  if (args.size() < 3 || args.size() > 4 ||
-      (args.size() == 4 && args[3] != "--write")) {
-    error << "Usage: demi terrain compact <recipe-or-terrain.json> [--write]\n";
-    return 2;
+  CLI::App command{"Compact terrain source without changing native operations",
+                   "demi terrain compact"};
+  std::filesystem::path path;
+  bool write = false;
+  command.add_option("path", path)->required();
+  command.add_flag("--write", write);
+  if (const auto status = parseCommand(command, args, 2, out, error)) {
+    return *status;
   }
   try {
-    const std::filesystem::path path = args[2];
     const auto original = readSource(path);
     const auto before = nlohmann::json::parse(original);
     auto after = before;
@@ -49,7 +53,7 @@ int runTerrainCompactCommand(const std::vector<std::string> &args,
       throw std::runtime_error("Could not preserve terrain source formatting");
     out << "Source bytes: " << original.size() << " -> " << patched->size()
         << "; sculpt stamps retained: " << nativeAfter.edits.size() << '\n';
-    if (args.size() == 4 && *patched != original) {
+    if (write && *patched != original) {
       if (readSource(path) != original)
         throw std::runtime_error("Terrain source changed during compaction");
       std::error_code failure;
@@ -59,8 +63,8 @@ int runTerrainCompactCommand(const std::vector<std::string> &args,
       out << "Compacted source saved. Reimport its asset manifest if "
              "registered.\n";
     } else {
-      out << (args.size() == 4 ? "Already compact.\n"
-                               : "Preview only; add --write to save.\n");
+      out << (write ? "Already compact.\n"
+                    : "Preview only; add --write to save.\n");
     }
     return 0;
   } catch (const std::exception &failure) {

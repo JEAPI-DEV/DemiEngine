@@ -36,6 +36,15 @@ int main() {
   assert(fog.update({3, 3}, 11, 1.4F, distances));
   assert(fog.discoveryRevision() == remembered);
   assert(fog.boundary().size() == 4);
+  // Sub-ULP corner samples must not leave zero-length render edges. A real
+  // near/far silhouette jump at almost the same angle must remain intact.
+  const std::array<float, 5> cornerAngles{0, 0.00000001F, 0.7F, 2.4F, 4.6F};
+  const std::array<float, 5> repeatedCorner{6, 6, 5, 6, 6};
+  assert(fog.update({}, 11, 1.4F, repeatedCorner, cornerAngles));
+  assert(fog.boundary().size() == 4);
+  const std::array<float, 5> silhouetteJump{6, 3, 5, 6, 6};
+  assert(fog.update({}, 11, 1.4F, silhouetteJump, cornerAngles));
+  assert(fog.boundary().size() == 5);
   fog.clear();
   assert(fog.discovered().empty() && fog.boundary().empty());
   assert(fog.configure(24, 24, 1, {}, {}, 0.5F));

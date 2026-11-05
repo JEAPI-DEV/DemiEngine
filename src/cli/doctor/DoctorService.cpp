@@ -1,5 +1,6 @@
 #include "cli/doctor/DoctorService.h"
-#include "cli/CliArguments.h"
+#include "cli/CommandLine.h"
+#include "cli/project/ProjectDiscovery.h"
 
 #include "demi/runtime/scene/ProjectBuildValidation.h"
 #include "demi/schema/Validation.h"
@@ -23,18 +24,6 @@ void add(Diagnostics &diagnostics, Severity severity, std::string code,
                          .message = std::move(message),
                          .path = path.string(),
                          .suggestion = std::move(suggestion)});
-}
-
-std::filesystem::path projectFileFrom(const std::vector<std::string> &args) {
-  const std::string value = valueAfter(args, "--project");
-  if (!value.empty()) {
-    const std::filesystem::path path(value);
-    return std::filesystem::is_directory(path) ? path / "demi.project.json"
-                                               : path;
-  }
-  const auto candidate = std::filesystem::current_path() / "demi.project.json";
-  return std::filesystem::is_regular_file(candidate) ? candidate
-                                                     : std::filesystem::path{};
 }
 
 std::vector<std::filesystem::path> pathEntries(const std::string &path) {
@@ -256,14 +245,25 @@ int runDoctorCommand(
     const std::vector<std::string> &args, std::ostream &out,
     std::ostream &error,
     std::optional<capabilities::RuntimeFeatures> hostFeatures) {
-  const auto project = projectFileFrom(args);
+  CLI::App command{"Check project tooling and platform capabilities",
+                   "demi doctor"};
+  std::string requestedProject;
+  std::string platform = "linux";
+  std::string format = "text";
+  command.add_option("--project", requestedProject);
+  command.add_option("--platform", platform)
+      ->check(CLI::IsMember({"linux", "linux_server", "android"}));
+  command.add_option("--format", format)
+      ->check(CLI::IsMember({"text", "json"}));
+  if (const auto status = parseCommand(command, args, 1, out, error)) {
+    return *status;
+  }
+  const auto project = resolveProjectFile(requestedProject);
   if (project.empty()) {
     error << "doctor requires --project <project> or a demi.project.json in "
              "the current directory.\n";
     return 2;
   }
-  const std::string platform = valueAfter(args, "--platform");
-  const std::string format = valueAfter(args, "--format");
   const Diagnostics diagnostics = DoctorService{}.inspect(
       {.projectPath = project,
        .platform = platform.empty() ? "linux" : platform,

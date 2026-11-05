@@ -192,7 +192,6 @@ add_library(demi-core STATIC
   src/demi/runtime/network/NetworkContract.cpp
   src/demi/runtime/tilemap/TilemapAsset.cpp
   src/demi/runtime/physics/Box2DWorldState.cpp
-  src/demi/runtime/physics/SpatialQuery3D.cpp
   ${DEMI_COMPONENT_MODEL_SOURCES}
 )
 

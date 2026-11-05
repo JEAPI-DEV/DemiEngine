@@ -831,7 +831,7 @@ target_link_libraries(demi-entity-collection-tests PRIVATE demi-core)
     DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
   target_compile_definitions(demi-material-set-tests PRIVATE
     DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
-  target_link_libraries(demi-terrain-cli-tests PRIVATE demi-core demi-runtime-lib)
+  target_link_libraries(demi-terrain-cli-tests PRIVATE demi-core demi-runtime-lib CLI11::CLI11)
   target_compile_definitions(demi-terrain-palette-tests PRIVATE
     DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
   add_executable(demi-terrain-layers-tests tests/terrain_layers_tests.cpp)

@@ -27,7 +27,5 @@ struct Aabb {
 [[nodiscard]] Aabb colliderAabb(const Entity &entity);
 [[nodiscard]] std::string colliderLayer(const Entity &entity);
 [[nodiscard]] bool hasCollider(const Entity &entity);
-[[nodiscard]] bool queryIntersects(const Aabb &left, const Aabb &right);
-[[nodiscard]] Aabb makeAabb(Vec2 center, Vec2 size);
 
 } // namespace demi::runtime::physics2d_detail
