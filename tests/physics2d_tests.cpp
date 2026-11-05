@@ -4,12 +4,11 @@
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
 
+#include <chrono>
 #include <cmath>
 #include <iostream>
 
-#if DEMI_HAS_BOX2D
 #include <box2d/box2d.h>
-#endif
 
 namespace {
 
@@ -47,7 +46,6 @@ demi::runtime::Entity makePlayer() {
 }
 
 bool motionCommandsWakeSleepingBodies() {
-#if DEMI_HAS_BOX2D
   for (int command = 0; command < 7; ++command) {
     World world;
     Entity player = makePlayer();
@@ -110,7 +108,6 @@ bool motionCommandsWakeSleepingBodies() {
       return false;
     }
   }
-#endif
   return true;
 }
 
@@ -161,9 +158,63 @@ bool capsuleStopsAtPolygonFromAllSides() {
   return true;
 }
 
+bool unchangedJointsRetainNativeState() {
+  World world;
+  constexpr int jointCount = 128;
+  constexpr int stepCount = 240;
+  for (int index = 0; index < jointCount; ++index) {
+    Entity anchor;
+    anchor.id = "retained_anchor_" + std::to_string(index);
+    anchor.setComponent(
+        Transform2DComponent{.position = {0, float(index) * 4}});
+    anchor.setComponent(CircleCollider2DComponent{.radius = 0.1F});
+    world.entities.push_back(std::move(anchor));
+    Entity bob;
+    bob.id = "retained_bob_" + std::to_string(index);
+    bob.setComponent(Transform2DComponent{.position = {1, float(index) * 4}});
+    bob.setComponent(
+        Rigidbody2DComponent{.bodyType = "dynamic", .gravityScale = 0});
+    bob.setComponent(CircleCollider2DComponent{.radius = 0.1F});
+    bob.setComponent(DistanceJoint2DComponent{
+        .otherEntity = "retained_anchor_" + std::to_string(index),
+        .length = 1});
+    world.entities.push_back(std::move(bob));
+  }
+  stepPhysics2D(world, 1.0F / 60, PhysicsSettings2D{.gravity = {}});
+  auto &native = *static_cast<b2World *>(world.box2dState->world);
+  for (auto *joint = native.GetJointList(); joint; joint = joint->GetNext()) {
+    joint->GetUserData().pointer = 1;
+  }
+  std::size_t recreated = 0;
+  const auto started = std::chrono::steady_clock::now();
+  for (int step = 0; step < stepCount; ++step) {
+    stepPhysics2D(world, 1.0F / 60, PhysicsSettings2D{.gravity = {}});
+    for (auto *joint = native.GetJointList(); joint; joint = joint->GetNext()) {
+      if (joint->GetUserData().pointer != 1) {
+        ++recreated;
+        joint->GetUserData().pointer = 1;
+      }
+    }
+  }
+  const auto milliseconds = std::chrono::duration<double, std::milli>(
+                                std::chrono::steady_clock::now() - started)
+                                .count();
+  std::cout << "2D joint retention: " << jointCount << " joints, " << stepCount
+            << " steps, " << recreated << " recreated native joints, "
+            << milliseconds << " ms CPU workload\n";
+  if (native.GetJointCount() != jointCount || recreated != 0) {
+    std::cerr << "Unchanged authored joints discarded native solver state.\n";
+    return false;
+  }
+  return true;
+}
+
 } // namespace
 
 int main() {
+  if (!unchangedJointsRetainNativeState()) {
+    return 1;
+  }
   if (!motionCommandsWakeSleepingBodies()) {
     return 1;
   }
@@ -595,14 +646,12 @@ int main() {
   for (int step = 0; step < 30; ++step)
     stepPhysics2D(jointWorld, 1.0F / 60.0F,
                   PhysicsSettings2D{.gravity = {0.0F, 0.0F}});
-#if DEMI_HAS_BOX2D
   if (jointWorld.box2dState == nullptr ||
       static_cast<b2World *>(jointWorld.box2dState->world)->GetJointCount() !=
           1) {
     std::cerr << "Persistent Box2D world accumulated distance joints.\n";
     return 1;
   }
-#endif
   const float jointDistance =
       jointWorld.entities.back().component<Transform2DComponent>()->position.x;
   if (std::abs(jointDistance - 1.0F) > 0.05F) {
@@ -684,14 +733,12 @@ int main() {
   shapeWorld.entities.push_back(std::move(chain));
   stepPhysics2D(shapeWorld, 1.0F / 60.0F,
                 PhysicsSettings2D{.gravity = {0.0F, 0.0F}});
-#if DEMI_HAS_BOX2D
   if (shapeWorld.box2dState == nullptr ||
       static_cast<b2World *>(shapeWorld.box2dState->world)->GetBodyCount() !=
           3) {
     std::cerr << "Capsule, polygon, and edge/chain fixtures were not built.\n";
     return 1;
   }
-#endif
 
   World kinematicWorld;
   Entity mover;

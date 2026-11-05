@@ -23,6 +23,12 @@ destruction staging and existing UTF-8/hash library reuse are also qualified the
 (39 additional production lines removed). The 165 Hz target still requires repeatable qualification;
 the abandoned UI replacement is not evidence of achieving it.
 
+The follow-up runtime/preparation pass now retains native 2D joints, shares 2D
+world poses/step selection, retains staged asset state, reuses model preparation
+work, consumes native reload events and shares immutable network responses.
+Required-backend fallback solvers/compile flags are removed. Counts, timing limits
+and qualification are recorded in the engine library boundaries document.
+
 Ground-level traversal now has a repeatable vegetation-resident profiling route.
 Terrain draws sort across regional owners, and render-request refresh uses the
 shared entity index without duplicate split demand. See

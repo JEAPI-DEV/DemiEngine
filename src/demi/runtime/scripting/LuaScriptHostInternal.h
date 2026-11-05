@@ -29,8 +29,6 @@ void luaReportCallbackError(lua_State *state, const char *functionName,
 [[nodiscard]] std::filesystem::path
 luaResolveScriptPath(const ProjectData &project, const std::string &module);
 void luaConfigurePackagePath(lua_State *state, const ProjectData &project);
-[[nodiscard]] std::filesystem::file_time_type
-luaScriptWriteTime(const std::filesystem::path &path);
 [[nodiscard]] bool luaLoadScriptTable(lua_State *state,
                                       const std::filesystem::path &scriptPath,
                                       std::string &error);

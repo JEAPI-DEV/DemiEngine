@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <cstdlib>
+#include <iostream>
 #include <string>
 #include <vector>
 
@@ -49,10 +50,17 @@ void lifecycleAndRenderingAreOrdered() {
   world.ui.nodes.push_back(
       {.id = "panel",
        .type = "panel",
-       .resolved = {.x = 10, .y = 10, .width = 40, .height = 30},
+       .layout = {.position = {10, 10}, .size = {40, 30}},
        .backgroundColor = {.r = 1.0F, .g = 0.0F, .b = 0.0F, .a = 1.0F}});
-  assert(
-      host.renderFrame(world, Camera2DComponent{}, {}, 0.016F, nullptr, error));
+  const bool rendered =
+      host.renderFrame(world, Camera2DComponent{}, {}, 0.016F, nullptr, error);
+  if (!rendered) {
+    std::cerr << "Bgfx2DAppHost render failed: " << error << '\n';
+  }
+  assert(rendered);
+  const auto &panel = world.ui.nodes.front().resolved;
+  assert(panel.x == 10 && panel.y == 10);
+  assert(panel.width == 40 && panel.height == 30);
   assert(!host.setWindowMode("invalid", error));
   assert(host.setWindowMode("windowed", error));
 

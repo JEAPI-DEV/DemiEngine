@@ -54,16 +54,24 @@ public:
                                  std::string &error) override;
   [[nodiscard]] std::string_view backendName() const override;
   [[nodiscard]] bool restore(std::string &error) override;
+  [[nodiscard]] std::size_t snapshotBuilds() const { return snapshotBuilds_; }
 
 private:
   [[nodiscard]] AssetRegistry snapshot(const std::set<std::string> &roots,
                                        std::string &error) const;
+
+  [[nodiscard]] bool pendingSourceMatches() const;
+  void clearPendingPublication();
 
   const AssetRegistry &source_;
   RegistryAssetBackend backend_;
   std::set<std::string> residentIds_;
   std::vector<std::string> pendingUploadIds_;
   std::set<std::string> pendingResidentIds_;
+  std::optional<AssetRegistry> pendingRegistry_;
+  std::vector<std::size_t> pendingSourceIndices_;
+  std::size_t pendingSourceCount_ = 0;
+  mutable std::size_t snapshotBuilds_ = 0;
 };
 
 } // namespace demi::runtime

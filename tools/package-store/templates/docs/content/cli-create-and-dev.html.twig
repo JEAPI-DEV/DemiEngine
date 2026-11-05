@@ -74,6 +74,7 @@
 
 </ul>
 <p>When a watched file changes, the edit is prepared and swapped in at a frame boundary so the game never applies half a change. When an edit is invalid (bad JSON, unknown component, broken reference), the reload is rejected, diagnostics print, and the last good world keeps running — a typo never kills the session. Fix the file, save again, and the corrected version loads.</p>
+<p>Development mode forwards validated changed script paths to loaded script instances; it does not poll each instance's timestamp every frame. Standalone hosts with <code>DEMI_LUA_HOT_RELOAD=1</code> use the native watcher too. Ordinary file edits recheck the affected paths; directory changes, ambiguous notifications and unsupported watch backends retain a full-scan fallback. Generated/internal directories remain excluded.</p>
 
 <h2>Open the visual editor</h2>
 <p>The <strong>editor</strong> is a native window where you arrange scenes, HUDs, and prefabs visually instead of only editing JSON. It shares the same loaders, validation, and diagnostics as the command line, so what the editor accepts is exactly what the CLI accepts.</p>

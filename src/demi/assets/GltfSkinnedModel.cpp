@@ -454,7 +454,14 @@ bool GltfSkinnedModel3D::posePositions(const Pose &pose,
 bool GltfSkinnedModel3D::bindPoseNormals(std::vector<runtime::Vec3> &out,
                                          std::string &error) const {
   Pose pose;
-  if (!bindPose(pose, error)) {
+  return bindPose(pose, error) && poseNormals(pose, out, error);
+}
+
+bool GltfSkinnedModel3D::poseNormals(const Pose &pose,
+                                     std::vector<runtime::Vec3> &out,
+                                     std::string &error) const {
+  if (pose.nodes.size() != nodes.size() || pose.skins.size() != skins.size()) {
+    error = "GLB pose data does not match its node or skin count.";
     return false;
   }
   const auto transformNormal = [](const Matrix &matrix, runtime::Vec3 normal) {

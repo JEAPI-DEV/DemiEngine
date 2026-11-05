@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <unordered_map>
 #include <vector>
 
@@ -39,6 +40,8 @@ private:
     bool operator==(const Signature &) const = default;
   };
 
+  [[nodiscard]] static std::optional<Signature>
+  signatureFor(const std::filesystem::path &path);
   [[nodiscard]] std::unordered_map<std::string, Signature> scan();
 
   class NativeEvents;

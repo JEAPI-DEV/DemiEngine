@@ -1,6 +1,7 @@
 #pragma once
 
 #include "demi/runtime/scene/Transform3DHierarchy.h"
+#include "demi/runtime/scene/Transform2DHierarchy.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
 
 #include "demi/runtime/scene/model/World.h"
@@ -50,38 +51,13 @@ namespace demi::runtime {
 }
 [[nodiscard]] inline float worldRotation2D(const World &world,
                                            const Entity &entity);
-[[nodiscard]] inline Vec2 worldScale2D(const World &world,
-                                       const Entity &entity) {
-  const auto *transform = entity.component<Transform2DComponent>();
-  if (transform == nullptr)
-    return {1.0F, 1.0F};
-  Vec2 scale = transform->scale;
-  if (!transform->parent.empty())
-    if (const Entity *parent = findEntity(world, transform->parent);
-        parent != nullptr && parent->hasComponent<Transform2DComponent>()) {
-      const Vec2 parentScale = worldScale2D(world, *parent);
-      scale = {.x = scale.x * parentScale.x, .y = scale.y * parentScale.y};
-    }
-  return scale;
+[[nodiscard]] inline Vec2 worldScale2D(const World &world, const Entity &entity) {
+  const auto pose = resolveWorldTransform2D(world, entity);
+  return pose ? pose->scale : Vec2{1.0F, 1.0F};
 }
-[[nodiscard]] inline Vec2 worldPosition2D(const World &world,
-                                          const Entity &entity) {
-  if (!entity.component<Transform2DComponent>())
-    return {};
-  Vec2 position = entity.component<Transform2DComponent>()->position;
-  if (!entity.component<Transform2DComponent>()->parent.empty())
-    if (const Entity *parent =
-            findEntity(world, entity.component<Transform2DComponent>()->parent);
-        parent != nullptr && parent->component<Transform2DComponent>()) {
-      const Vec2 parentScale = worldScale2D(world, *parent);
-      const Vec2 rotated = rotate2D(
-          {.x = position.x * parentScale.x, .y = position.y * parentScale.y},
-          worldRotation2D(world, *parent));
-      const Vec2 parentPosition = worldPosition2D(world, *parent);
-      position = {.x = parentPosition.x + rotated.x,
-                  .y = parentPosition.y + rotated.y};
-    }
-  return position;
+[[nodiscard]] inline Vec2 worldPosition2D(const World &world, const Entity &entity) {
+  const auto pose = resolveWorldTransform2D(world, entity);
+  return pose ? pose->position : Vec2{};
 }
 [[nodiscard]] inline IsoTransformComponent
 worldIsoTransform(const World &world, const Entity &entity) {
@@ -101,26 +77,14 @@ worldIsoTransform(const World &world, const Entity &entity) {
   }
   return resolved;
 }
-[[nodiscard]] inline float worldRotation2D(const World &world,
-                                           const Entity &entity) {
-  if (!entity.component<Transform2DComponent>())
-    return 0.0F;
-  float rotation = entity.component<Transform2DComponent>()->rotation;
-  if (!entity.component<Transform2DComponent>()->parent.empty())
-    if (const Entity *parent =
-            findEntity(world, entity.component<Transform2DComponent>()->parent);
-        parent != nullptr && parent->component<Transform2DComponent>())
-      rotation += worldRotation2D(world, *parent);
-  return rotation;
+[[nodiscard]] inline float worldRotation2D(const World &world, const Entity &entity) {
+  const auto pose = resolveWorldTransform2D(world, entity);
+  return pose ? pose->rotation : 0.0F;
 }
 [[nodiscard]] inline Vec2 worldPoint2D(const World &world, const Entity &entity,
-                                       const Vec2 localPoint) {
-  const Vec2 position = worldPosition2D(world, entity);
-  const Vec2 scale = worldScale2D(world, entity);
-  const Vec2 offset =
-      rotate2D({.x = localPoint.x * scale.x, .y = localPoint.y * scale.y},
-               worldRotation2D(world, entity));
-  return {.x = position.x + offset.x, .y = position.y + offset.y};
+                                     const Vec2 localPoint) {
+  const auto pose = resolveWorldTransform2D(world, entity);
+  return pose ? transformPoint2D(*pose, localPoint) : localPoint;
 }
 [[nodiscard]] inline Vec2 activeCameraPosition(const World &world) {
   for (const Entity &entity : world.entities)

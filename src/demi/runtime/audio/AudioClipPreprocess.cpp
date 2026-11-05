@@ -1,17 +1,14 @@
 #include "demi/runtime/audio/AudioClipPreprocess.h"
 
-#if DEMI_HAS_MINIAUDIO
 #include <miniaudio.h>
 
 #include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <vector>
-#endif
 
 namespace demi::runtime {
 
-#if DEMI_HAS_MINIAUDIO
 namespace {
 
 [[nodiscard]] float pcmSampleAsFloat(const unsigned char* sample, const ma_format format) {
@@ -90,6 +87,5 @@ std::uint64_t detectLeadingSilenceFrames(ma_sound* sound) {
   (void)ma_sound_seek_to_pcm_frame(sound, 0);
   return 0;
 }
-#endif
 
 } // namespace demi::runtime

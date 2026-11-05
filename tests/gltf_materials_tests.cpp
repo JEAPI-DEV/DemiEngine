@@ -15,8 +15,10 @@
 #undef NDEBUG
 #endif
 #include <cassert>
+#include <algorithm>
 #include <chrono>
 #include <cstring>
+#include <cmath>
 #include <fstream>
 #include <nlohmann/json.hpp>
 
@@ -62,8 +64,10 @@ void staticAndSkinnedDrawsUseSectionRanges(const GltfSkinnedModel3D &model) {
                                        0, 0, 1, 0, 0, 0, 0, 1};
   std::vector<demi::runtime::Vec3> positions;
   std::vector<demi::runtime::Vec3> normals;
-  assert(model.bindPosePositions(positions, error));
-  assert(model.bindPoseNormals(normals, error));
+  GltfSkinnedModel3D::Pose pose;
+  assert(model.bindPose(pose, error));
+  assert(model.posePositions(pose, positions, error));
+  assert(model.poseNormals(pose, normals, error));
   assert(normals.size() == model.vertices.size() && normals.front().z == 1);
   std::vector<demi::runtime::Vec2> uvs;
   for (const auto &vertex : model.vertices) {
@@ -109,6 +113,140 @@ void staticAndSkinnedDrawsUseSectionRanges(const GltfSkinnedModel3D &model) {
   const auto submitted = commands.ranges.size();
   assert(!skin.draw(commands, 0, {}, {}, {}, identity, {}, {}, error, 4, 3));
   assert(commands.ranges.size() == submitted);
+}
+
+void sharedPoseNormalsUseTheProvidedMatrices(const GltfSkinnedModel3D &source) {
+  auto model = source;
+  for (auto &vertex : model.vertices) {
+    vertex.normal = {1, 1, 0};
+  }
+  GltfSkinnedModel3D::Pose pose;
+  std::string error;
+  assert(model.bindPose(pose, error));
+  pose.nodes.front()[0] = 2;
+  // Changing native defaults after resolving the pose must not trigger a
+  // second solve: positions and inverse-transpose normals use these matrices.
+  model.nodes.front().scale = {100, 100, 100};
+  std::vector<demi::runtime::Vec3> positions;
+  std::vector<demi::runtime::Vec3> normals;
+  assert(model.posePositions(pose, positions, error));
+  assert(model.poseNormals(pose, normals, error));
+  assert(std::abs(positions[1].x - 2) < 0.0001F);
+  assert(std::abs(normals.front().x - 1 / std::sqrt(5.0F)) < 0.0001F);
+  assert(std::abs(normals.front().y - 2 / std::sqrt(5.0F)) < 0.0001F);
+  std::vector<GpuMeshVertex3D> packed;
+  assert(prepareMeshVertices3D(positions, {}, model.indices, 0xffffffffU,
+                               normals, {}, packed, error));
+  assert(packed.size() == positions.size() && packed[1].x == positions[1].x);
+  assert(packed.front().nx == normals.front().x);
+  pose.nodes.clear();
+  assert(!model.poseNormals(pose, normals, error));
+}
+
+void importedImagePreparationReusesUnmodifiedPixels(const std::filesystem::path &root) {
+  // One RGBA source deliberately exercises distinct nonzero packed channels.
+  constexpr unsigned char png[]{
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
+      0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+      0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4, 0x89, 0x00, 0x00, 0x00,
+      0x0d, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9c, 0x63, 0x70, 0x68, 0x38, 0x90,
+      0x00, 0x00, 0x04, 0x65, 0x01, 0xe1, 0xa5, 0x99, 0x3b, 0x54, 0x00, 0x00,
+      0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82};
+  const auto bytes = std::as_bytes(std::span(png));
+  const auto encoded = std::make_shared<const std::vector<std::byte>>(
+      bytes.begin(), bytes.end());
+  GltfMaterialTexture texture;
+  texture.encoded = encoded;
+  GltfMaterial3D material;
+  material.textures = {{GltfMapRole::Albedo, texture},
+                       {GltfMapRole::MetallicRoughness, texture},
+                       {GltfMapRole::Occlusion, texture}};
+  material.roughness = 0.5F;
+  material.metallic = 0.25F;
+  material.occlusionStrength = 0.5F;
+  AssetManifest asset{.id = "asset://shared-image", .settingsJson = "{}"};
+  ImportedImagePreparation3D images;
+  images.includeMaterial(asset, material);
+  images.includeMaterial(asset, material);
+  PreparedImportedMaterial3D prepared;
+  std::string error;
+  assert(prepareImportedMaterial(asset, 0, material, false, images, prepared, error));
+  assert(images.decodedImages() == 1 && prepared.textures.size() == 4);
+  assert(images.retainedBuffers() == 1 && images.peakRetainedBuffers() == 1);
+  const auto channel = [&](MaterialMapSlot slot, std::size_t index) {
+    const auto found = std::ranges::find(prepared.textures, slot,
+                                         &PreparedImportedTexture3D::slot);
+    assert(found != prepared.textures.end());
+    return std::to_integer<unsigned char>(found->texture.rgbaMipBytes[index]);
+  };
+  assert(channel(MaterialMapSlot::Roughness, 0) == 64);
+  assert(channel(MaterialMapSlot::Metallic, 0) == 48);
+  assert(channel(MaterialMapSlot::AmbientOcclusion, 0) == 160);
+  assert(channel(MaterialMapSlot::Albedo, 3) == 255);
+  material.alphaMode = GltfAlphaMode::Blend;
+  material.roughness = 1;
+  material.metallic = 0.5F;
+  material.occlusionStrength = 1;
+  assert(prepareImportedMaterial(asset, 1, material, false, images, prepared, error));
+  assert(images.decodedImages() == 1);
+  assert(channel(MaterialMapSlot::Roughness, 0) == 128);
+  assert(channel(MaterialMapSlot::Metallic, 0) == 96);
+  assert(channel(MaterialMapSlot::AmbientOcclusion, 0) == 64);
+  assert(channel(MaterialMapSlot::Albedo, 3) == 96);
+  assert(images.retainedBuffers() == 0 && images.peakRetainedBuffers() == 1);
+  ImportedImagePreparation3D nextJob;
+  assert(nextJob.decodedImages() == 0);
+  nextJob.includeMaterial(asset, material);
+  assert(prepareImportedMaterial(asset, 1, material, false, nextJob, prepared, error));
+  assert(nextJob.decodedImages() == 1);
+  const auto overridePath = root / "override.png";
+  {
+    std::ofstream file(overridePath, std::ios::binary);
+    file.write(reinterpret_cast<const char *>(png), sizeof(png));
+  }
+  asset.texturePath = overridePath;
+  images.includeMaterial(asset, material);
+  images.includeMaterial(asset, material);
+  assert(prepareImportedMaterial(asset, 2, material, false, images, prepared, error));
+  // This earlier source was already consumed; the new operation decodes it
+  // once again alongside its separate albedo override.
+  assert(images.decodedImages() == 3 && images.retainedBuffers() == 2);
+  std::filesystem::remove(overridePath);
+  assert(prepareImportedMaterial(asset, 3, material, false, images, prepared, error));
+  assert(images.decodedImages() == 3 && images.retainedBuffers() == 0);
+  assert(images.peakRetainedBuffers() == 2);
+  ImportedImagePreparation3D missingSourceJob;
+  assert(!prepareImportedMaterial(asset, 0, material, false, missingSourceJob,
+                                   prepared, error));
+  assert(missingSourceJob.decodedImages() == 0);
+  std::stop_source cancelled;
+  cancelled.request_stop();
+  ImportedImagePreparation3D abandonedJob;
+  assert(!prepareImportedMaterial(asset, 0, material, false, abandonedJob,
+                                   prepared, error, cancelled.get_token()));
+  assert(abandonedJob.decodedImages() == 0);
+
+  // Many unique images must not accumulate decoded base buffers just because
+  // preparation shares a model-local context. Their sole use takes ownership.
+  asset.texturePath.reset();
+  ImportedImagePreparation3D uniqueImages;
+  std::vector<GltfMaterial3D> uniqueMaterials;
+  for (int index = 0; index < 8; ++index) {
+    GltfMaterial3D unique;
+    GltfMaterialTexture source;
+    source.encoded = std::make_shared<const std::vector<std::byte>>(
+        bytes.begin(), bytes.end());
+    unique.textures.emplace(GltfMapRole::Albedo, std::move(source));
+    uniqueImages.includeMaterial(asset, unique);
+    uniqueMaterials.push_back(std::move(unique));
+  }
+  for (std::size_t index = 0; index < uniqueMaterials.size(); ++index) {
+    assert(prepareImportedMaterial(asset, index, uniqueMaterials[index], false,
+                                    uniqueImages, prepared, error));
+    assert(uniqueImages.retainedBuffers() == 0);
+  }
+  assert(uniqueImages.decodedImages() == 8);
+  assert(uniqueImages.peakRetainedBuffers() == 0);
 }
 
 void materialSectionsPreserveSourceAssignments(
@@ -253,6 +391,7 @@ void materialSectionsPreserveSourceAssignments(
          !overridden.meshes[0].materialSection);
 
   staticAndSkinnedDrawsUseSectionRanges(*model);
+  sharedPoseNormalsUseTheProvidedMatrices(*model);
 
   auto cutoutMaterial = model->materials[0];
   cutoutMaterial.alphaMode = GltfAlphaMode::Mask;
@@ -320,6 +459,7 @@ int main() {
        std::to_string(
            std::chrono::steady_clock::now().time_since_epoch().count()));
   std::filesystem::create_directories(root);
+  importedImagePreparationReusesUnmodifiedPixels(root);
   materialSectionsPreserveSourceAssignments(root);
   std::filesystem::remove_all(root);
 }

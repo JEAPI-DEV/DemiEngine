@@ -30,6 +30,7 @@
 #include <stdexcept>
 #include <string_view>
 #include <thread>
+#include <type_traits>
 
 // The test target supplies the same fixture paths as demi-network-tests:
 // DEMI_DTLS_TEST_CERT=server5.crt, DEMI_DTLS_TEST_KEY=server5.key,
@@ -381,7 +382,7 @@ std::shared_ptr<HttpOperation> submit(HttpClient &client, HttpRequest request) {
 HttpResponse completed(const std::shared_ptr<HttpOperation> &operation) {
   waitFor([&] { return operation->done(); }, "HTTP operation did not complete");
   const auto response = operation->response();
-  require(response.has_value(), "completed HTTP operation has no response");
+  require(response != nullptr, "completed HTTP operation has no response");
   return *response;
 }
 
@@ -476,6 +477,38 @@ void binaryAndHeaders() {
   operation->cancel();
   require(operation->response()->body == binary,
           "completed HTTP response was mutable or cancellation overwrote it");
+}
+
+void immutableResponseSnapshots() {
+  static_assert(
+      std::is_same_v<decltype(std::declval<HttpOperation>().response()),
+                     std::shared_ptr<const HttpResponse>>);
+  std::string payload(2U * 1024U * 1024U, '\0');
+  for (std::size_t index = 0; index < payload.size(); ++index) {
+    payload[index] = static_cast<char>(index & 0xffU);
+  }
+  std::shared_ptr<const HttpResponse> retained;
+  {
+    Fixture fixture(wire(payload, "200 OK", "X-Probe: one\r\n"));
+    HttpClient client;
+    auto operation = submit(client, {.url = fixture.url()});
+    waitFor([&] { return operation->done(); },
+            "large HTTP response did not complete");
+    retained = operation->response();
+    require(retained && retained->body == payload,
+            "large HTTP binary response changed");
+    const auto again = operation->response();
+    require(again.get() == retained.get() &&
+                again->body.data() == retained->body.data(),
+            "HTTP response copied its completed payload");
+    operation->cancel();
+    require(operation->response() == retained,
+            "late cancellation replaced a completed HTTP snapshot");
+    client.shutdown();
+    operation.reset();
+  }
+  require(retained->body == payload && retained->status == 200,
+          "HTTP snapshot did not outlive its operation and client");
 }
 
 void statusesAndRedirects() {
@@ -792,6 +825,10 @@ void cancellationAndShutdown() {
                 cancelCalls.load(std::memory_order_acquire) == 1 &&
                 cancelResponseVisible.load(std::memory_order_relaxed),
             "HTTP cancellation did not publish its response before signalling");
+    const auto cancelledSnapshot = cancelled->response();
+    cancelled->cancel();
+    require(cancelledSnapshot && cancelled->response() == cancelledSnapshot,
+            "HTTP repeated cancellation replaced its snapshot");
     std::vector<std::shared_ptr<HttpOperation>> operations;
     // Exercise queued and active cancellation beyond small arbitrary caps.
     for (int i = 0; i < 192; ++i) {
@@ -932,9 +969,30 @@ void luaResponseContract() {
     assert(Data.kind(response.json.empty) == 'array' and #response.json.empty == 0)
     assert(response.headers['x-probe'][1] == 'one')
     assert(response.headers['x-probe'][2] == 'two')
-    assert(http_test_request:response().body == response.body)
+    local originalBody = response.body
+    response.body = "changed Lua copy"
+    response.headers['x-probe'][1] = 'changed'
+    response.json.items[1] = -1
+    local second = http_test_request:response()
+    assert(second ~= response and second.body == originalBody)
+    assert(second.headers ~= response.headers and second.headers['x-probe'][1] == 'one')
+    assert(second.json ~= response.json and second.json.items[1] == 1)
   )lua");
   require(check.succeeded, check.error.c_str());
+  Fixture pending(wire("unused"), false, 1000ms);
+  const auto cancelled = host.executeConsole(
+      "local request = assert(require('demi.network.http').get(" +
+      nlohmann::json(pending.url()).dump() + R"lua())
+      request:cancel()
+      local first = request:response()
+      assert(first.error_code == 'cancelled')
+      first.error_code = 'changed Lua copy'
+      first.headers.changed = {'changed'}
+      local second = request:response()
+      assert(first ~= second and second.error_code == 'cancelled')
+      assert(second.headers.changed == nil)
+    )lua");
+  require(cancelled.succeeded, cancelled.error.c_str());
   const auto sent = fixture.received();
   require(sent.find("Content-Type: application/json") != std::string::npos,
           "Lua JSON request omitted its content type");
@@ -990,6 +1048,7 @@ int main() {
       {"Lua polling with busy worker", luaPollingWithBusyWorker},
       {"validation", validation},
       {"binary and headers", binaryAndHeaders},
+      {"immutable response snapshots", immutableResponseSnapshots},
       {"statuses and redirects", statusesAndRedirects},
       {"chunked and limits", chunkedAndLimits},
       {"content decoding", contentDecoding},

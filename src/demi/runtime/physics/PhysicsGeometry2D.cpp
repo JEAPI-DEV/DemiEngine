@@ -1,11 +1,14 @@
 #include "demi/runtime/physics/PhysicsGeometry2D.h"
+#include "demi/runtime/scene/Transform2DHierarchy.h"
 #include "demi/runtime/scene/components/2dcomponents/BoxCollider2DComponent.h"
 #include "demi/runtime/scene/components/2dcomponents/CapsuleCollider2DComponent.h"
 #include "demi/runtime/scene/components/2dcomponents/CircleCollider2DComponent.h"
 #include "demi/runtime/scene/components/2dcomponents/EdgeCollider2DComponent.h"
 #include "demi/runtime/scene/components/2dcomponents/PolygonCollider2DComponent.h"
+#include "demi/runtime/scene/components/2dcomponents/Rigidbody2DComponent.h"
 #include "demi/runtime/scene/components/2dcomponents/Transform2DComponent.h"
 #include "demi/runtime/scene/model/Entity.h"
+#include "demi/runtime/scene/model/World.h"
 
 #include <algorithm>
 #include <cmath>
@@ -43,9 +46,15 @@ namespace demi::runtime::physics2d_detail {
   return false;
 }
 
-[[nodiscard]] Aabb colliderAabb(const Entity &entity) {
-  const Transform2DComponent &transform =
-      *entity.component<Transform2DComponent>();
+std::optional<Aabb> colliderAabb(const World &world, const Entity &entity) {
+  const auto pose = resolveWorldTransform2D(world, entity);
+  if (!pose) {
+    return std::nullopt;
+  }
+  Transform2DComponent transform;
+  transform.position = pose->position;
+  transform.rotation = pose->rotation;
+  transform.scale = pose->scale;
   const float cosine = std::cos(transform.rotation);
   const float sine = std::sin(transform.rotation);
   const auto worldPoint = [&](const Vec2 point) {
@@ -56,8 +65,8 @@ namespace demi::runtime::physics2d_detail {
   if (const auto *circle = entity.component<CircleCollider2DComponent>()) {
     const Vec2 center = worldPoint(circle->offset);
     const float radius = circle->radius * circleScale(transform);
-    return {center.x - radius, center.y - radius, center.x + radius,
-            center.y + radius};
+    return Aabb{center.x - radius, center.y - radius, center.x + radius,
+                center.y + radius};
   }
 
   std::vector<Vec2> points;
@@ -84,8 +93,8 @@ namespace demi::runtime::physics2d_detail {
     points = edge->points;
   }
   if (points.empty())
-    return {transform.position.x, transform.position.y, transform.position.x,
-            transform.position.y};
+    return Aabb{transform.position.x, transform.position.y,
+                transform.position.x, transform.position.y};
   const Vec2 first = worldPoint(points.front());
   Aabb result{first.x, first.y, first.x, first.y};
   for (const Vec2 point : points) {
@@ -96,6 +105,19 @@ namespace demi::runtime::physics2d_detail {
     result.maxY = std::max(result.maxY, world.y);
   }
   return result;
+}
+
+std::vector<std::size_t> physicsEntityIndices2D(const World &world) {
+  auto indices =
+      world.componentQueries
+          .queryAny<Rigidbody2DComponent, BoxCollider2DComponent,
+                    CircleCollider2DComponent, CapsuleCollider2DComponent,
+                    PolygonCollider2DComponent, EdgeCollider2DComponent>(
+              world.entities);
+  std::erase_if(indices, [&](std::size_t index) {
+    return !world.entities[index].hasComponent<Transform2DComponent>();
+  });
+  return indices;
 }
 
 [[nodiscard]] std::string colliderLayer(const Entity &entity) {

@@ -68,6 +68,7 @@ add_library(demi-core STATIC
   src/demi/runtime/profiling/RuntimeProfiler.cpp
   src/demi/runtime/profiling/ProcessResourceSampler.cpp
   src/demi/runtime/math/VectorMath.cpp
+  src/demi/runtime/camera/Camera3DMath.cpp
   src/demi/runtime/ui/FontRasterizer.cpp
   src/demi/runtime/geometry/MeshDeformation3D.cpp
   src/demi/runtime/geometry/MeshRefinement3D.cpp
@@ -192,6 +193,7 @@ add_library(demi-core STATIC
   src/demi/runtime/network/NetworkContract.cpp
   src/demi/runtime/tilemap/TilemapAsset.cpp
   src/demi/runtime/physics/Box2DWorldState.cpp
+  src/demi/runtime/physics/Box2DJoints2D.cpp
   ${DEMI_COMPONENT_MODEL_SOURCES}
 )
 

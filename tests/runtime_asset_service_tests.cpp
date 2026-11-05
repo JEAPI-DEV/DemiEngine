@@ -167,6 +167,80 @@ void stagedRegistryPublicationIsAtomicAndCancellable() {
   assert(published == std::vector<std::string>({"asset://a", "asset://b"}));
 }
 
+void stagedRegistrySnapshotIsReusedAndInvalidated() {
+  using demi::runtime::AssetPublicationStage;
+  demi::AssetRegistry registry;
+  registry.assets = {{.id = "asset://a", .type = "Texture2D",
+                      .dependencies = {"asset://b"}},
+                     {.id = "asset://b", .type = "Texture2D"}};
+  const auto requested = registry.assets.front();
+  const demi::assets::DecodedAsset decoded{.payload = std::make_shared<int>(1)};
+  const std::array uploads{demi::assets::AssetResourceUpload{requested, decoded}};
+  const std::array ids{requested.id};
+  bool finish = false;
+  bool fail = false;
+  int cancellations = 0;
+  const demi::AssetManifest *candidateData = nullptr;
+  std::string dependencySettings;
+  demi::runtime::RegistryAssetResourceLoader loader(
+      registry, {.name = "snapshot-probe", .assetTypes = {"Texture2D"},
+                 .apply = [](const demi::AssetRegistry &, std::string &) {
+                   return true;
+                 },
+                 .applyStep = [&](const demi::AssetRegistry &candidate, double,
+                                   std::string &) {
+                   candidateData = candidate.assets.data();
+                   dependencySettings = candidate.assets.back().settingsJson;
+                   if (fail) {
+                     return AssetPublicationStage::Failed;
+                   }
+                   return finish ? AssetPublicationStage::Ready
+                                 : AssetPublicationStage::Pending;
+                 },
+                 .cancelApply = [&] { ++cancellations; }});
+  std::string error;
+  assert(loader.uploadBatch(uploads, 1, error) == 0);
+  const auto *retainedData = candidateData;
+  for (int poll = 0; poll < 8; ++poll) {
+    assert(loader.uploadBatch(uploads, 1, error) == 0);
+    assert(candidateData == retainedData);
+  }
+  assert(loader.snapshotBuilds() == 1);
+  registry.assets.back().settingsJson = R"({"filter":"nearest"})";
+  assert(loader.uploadBatch(uploads, 1, error) == 0);
+  assert(cancellations == 1 && loader.snapshotBuilds() == 2);
+  assert(dependencySettings == registry.assets.back().settingsJson);
+  fail = true;
+  assert(loader.uploadBatch(uploads, 1, error) == 0);
+  assert(!loader.hasPendingUploadBatch() && cancellations == 2);
+  fail = false;
+  assert(loader.uploadBatch(uploads, 1, error) == 0);
+  assert(loader.snapshotBuilds() == 3);
+  loader.cancelUploadBatch(ids);
+  assert(!loader.hasPendingUploadBatch() && cancellations == 3);
+  assert(loader.uploadBatch(uploads, 1, error) == 0);
+  assert(loader.snapshotBuilds() == 4);
+  // Releasing a pending, not-yet-resident root still cancels its publication.
+  assert(loader.unloadBatch(ids, error));
+  assert(!loader.hasPendingUploadBatch() && cancellations == 4);
+  assert(loader.uploadBatch(uploads, 1, error) == 0);
+  assert(loader.snapshotBuilds() == 5);
+  assert(loader.restore(error));
+  assert(!loader.hasPendingUploadBatch() && cancellations == 5);
+  assert(loader.uploadBatch(uploads, 1, error) == 0);
+  finish = true;
+  assert(loader.uploadBatch(uploads, 1, error) == 1);
+  assert(!loader.hasPendingUploadBatch());
+  finish = false;
+  assert(loader.uploadBatch(uploads, 1, error) == 0);
+  assert(loader.uploadBatch(uploads, -1, error) == 1);
+  assert(!loader.hasPendingUploadBatch());
+  assert(loader.uploadBatch(uploads, 1, error) == 0);
+  registry.assets.erase(registry.assets.begin());
+  assert(loader.uploadBatch(uploads, 1, error) == 0);
+  assert(!error.empty() && !loader.hasPendingUploadBatch());
+}
+
 void referenceCollectionSkipsInstancePayloadsAndRetainsDynamicResources() {
   demi::runtime::World world;
   demi::runtime::Entity instances;
@@ -595,6 +669,7 @@ int main() {
   referenceCollectionSkipsInstancePayloadsAndRetainsDynamicResources();
   registryVerificationRetainsOnlyMetadata();
   stagedRegistryPublicationIsAtomicAndCancellable();
+  stagedRegistrySnapshotIsReusedAndInvalidated();
   registryBatchPublishesOneSnapshot();
   registryGroupReleaseBatchesAndRetainsSharedResources();
   {

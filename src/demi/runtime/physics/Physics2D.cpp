@@ -1,8 +1,9 @@
 #include "demi/runtime/physics/Physics2D.h"
-#include "demi/runtime/physics/Box2DWorldState.h"
 #include "demi/runtime/physics/Box2DShapes2D.h"
+#include "demi/runtime/physics/Box2DWorldState.h"
 #include "demi/runtime/physics/PhysicsGeometry2D.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
+#include "demi/runtime/scene/Transform2DHierarchy.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
 
 #include <algorithm>
@@ -15,20 +16,12 @@
 #include <unordered_set>
 #include <vector>
 
-#if DEMI_HAS_BOX2D
 #include <box2d/box2d.h>
-#endif
 
 namespace demi::runtime {
 
-using physics2d_detail::Aabb;
-using physics2d_detail::absoluteScale;
-using physics2d_detail::circleScale;
-using physics2d_detail::colliderAabb;
 using physics2d_detail::colliderLayer;
 using physics2d_detail::hasCollider;
-using physics2d_detail::participatesInCollision;
-using physics2d_detail::scaledLocalPoint;
 namespace {
 
 constexpr float PresentationPoseEpsilon = 0.00001F;
@@ -96,12 +89,11 @@ bool samePresentationRotation(const float left, const float right) {
   return std::abs(left - right) <= PresentationPoseEpsilon;
 }
 
-void beginPhysicsPresentationStep2D(World &world) {
+void beginPhysicsPresentationStep2D(
+    World &world, std::span<const std::size_t> entityIndices) {
   std::unordered_set<std::string> liveEntityIds;
-  liveEntityIds.reserve(
-      world.componentQueries.queryAny<Transform2DComponent>(world.entities).size());
-  for (const auto entityIndex :
-       world.componentQueries.queryAny<Transform2DComponent>(world.entities)) {
+  liveEntityIds.reserve(entityIndices.size());
+  for (const auto entityIndex : entityIndices) {
     const Entity &entity = world.entities[entityIndex];
     const auto *transform = entity.component<Transform2DComponent>();
     if (!entity.enabled || transform == nullptr ||
@@ -137,9 +129,9 @@ void beginPhysicsPresentationStep2D(World &world) {
                 });
 }
 
-void finishPhysicsPresentationStep2D(World &world) {
-  for (const auto entityIndex :
-       world.componentQueries.queryAny<Transform2DComponent>(world.entities)) {
+void finishPhysicsPresentationStep2D(
+    World &world, std::span<const std::size_t> entityIndices) {
+  for (const auto entityIndex : entityIndices) {
     const Entity &entity = world.entities[entityIndex];
     const auto *transform = entity.component<Transform2DComponent>();
     if (!entity.enabled || transform == nullptr)
@@ -154,103 +146,22 @@ void finishPhysicsPresentationStep2D(World &world) {
 
 } // namespace
 
-namespace {
-
-#if !DEMI_HAS_BOX2D
-
-[[nodiscard]] bool intersects(const Aabb &a, const Aabb &b) {
-  return a.minX < b.maxX && a.maxX > b.minX && a.minY < b.maxY &&
-         a.maxY > b.minY;
-}
-
-[[nodiscard]] bool isDynamic(const Entity &entity) {
-  return entity.hasComponent<Rigidbody2DComponent>() &&
-         entity.component<Rigidbody2DComponent>()->bodyType == "dynamic";
-}
-
-void resolveAxis(World &world, Entity &moving, const Vec2 delta,
-                 const bool horizontal) {
-  if (!moving.hasComponent<Transform2DComponent>() ||
-      !moving.hasComponent<Rigidbody2DComponent>()) {
-    return;
-  }
-
-  const std::optional<Aabb> previousAabb =
-      moving.hasComponent<BoxCollider2DComponent>()
-          ? std::optional<Aabb>{colliderAabb(moving)}
-          : std::nullopt;
-
-  moving.component<Transform2DComponent>()->position.x += delta.x;
-  moving.component<Transform2DComponent>()->position.y += delta.y;
-
-  if (!moving.hasComponent<BoxCollider2DComponent>()) {
-    return;
-  }
-
-  for (const Entity &other : world.entities) {
-    if (other.id == moving.id || !participatesInCollision(other)) {
-      continue;
-    }
-
-    const Aabb movingAabb = colliderAabb(moving);
-    const Aabb otherAabb = colliderAabb(other);
-    if (!intersects(movingAabb, otherAabb)) {
-      continue;
-    }
-
-    if (horizontal) {
-      if (previousAabb.has_value() && previousAabb->maxX <= otherAabb.minX) {
-        moving.component<Transform2DComponent>()->position.x -=
-            movingAabb.maxX - otherAabb.minX;
-      } else if (previousAabb.has_value() &&
-                 previousAabb->minX >= otherAabb.maxX) {
-        moving.component<Transform2DComponent>()->position.x +=
-            otherAabb.maxX - movingAabb.minX;
-      } else {
-        continue;
-      }
-      moving.component<Rigidbody2DComponent>()->velocity.x = 0.0F;
-    } else {
-      const float incomingVelocity =
-          moving.component<Rigidbody2DComponent>()->velocity.y;
-      if (previousAabb.has_value() && previousAabb->minY >= otherAabb.maxY) {
-        moving.component<Transform2DComponent>()->position.y +=
-            otherAabb.maxY - movingAabb.minY;
-      } else if (previousAabb.has_value() &&
-                 previousAabb->maxY <= otherAabb.minY) {
-        moving.component<Transform2DComponent>()->position.y -=
-            movingAabb.maxY - otherAabb.minY;
-      } else if (delta.y < 0.0F) {
-        moving.component<Transform2DComponent>()->position.y +=
-            otherAabb.maxY - movingAabb.minY;
-      } else if (delta.y > 0.0F) {
-        moving.component<Transform2DComponent>()->position.y -=
-            movingAabb.maxY - otherAabb.minY;
-      } else {
-        continue;
-      }
-
-      const float bounciness = std::clamp(
-          moving.component<Rigidbody2DComponent>()->bounciness, 0.0F, 1.0F);
-      if (bounciness > 0.0F && std::abs(incomingVelocity) > 2.0F) {
-        moving.component<Rigidbody2DComponent>()->velocity.y =
-            -incomingVelocity * bounciness;
-      } else {
-        moving.component<Rigidbody2DComponent>()->velocity.y = 0.0F;
-      }
-    }
-  }
-}
-
-#endif
-
-} // namespace
 void stepPhysics2D(World &world, const float fixedDt,
                    const PhysicsSettings2D &settings) {
-  beginPhysicsPresentationStep2D(world);
+  const auto entityIndices = physics2d_detail::physicsEntityIndices2D(world);
+  const bool hasParents =
+      std::ranges::any_of(entityIndices, [&](std::size_t index) {
+        return !world.entities[index]
+                    .component<Transform2DComponent>()
+                    ->parent.empty();
+      });
+  std::vector<std::optional<WorldTransform2D>> worldPoses;
+  if (hasParents) {
+    worldPoses = resolveWorldTransforms2D(world);
+  }
+  beginPhysicsPresentationStep2D(world, entityIndices);
   world.previousPhysicsContacts = std::move(world.physicsContacts);
   world.physicsContacts.clear();
-#if DEMI_HAS_BOX2D
   if (world.box2dState == nullptr) {
     world.box2dState = std::make_unique<Box2DWorldState>();
   }
@@ -258,6 +169,8 @@ void stepPhysics2D(World &world, const float fixedDt,
 
   if (!state.initialised) {
     state.world = new b2World({settings.gravity.x, settings.gravity.y});
+    state.joints =
+        std::make_unique<Box2DJoints2D>(*static_cast<b2World *>(state.world));
     state.gravityX = settings.gravity.x;
     state.gravityY = settings.gravity.y;
     state.initialised = true;
@@ -270,11 +183,8 @@ void stepPhysics2D(World &world, const float fixedDt,
   }
   b2World &physicsWorld = *static_cast<b2World *>(state.world);
 
-  for (void *joint : state.joints)
-    physicsWorld.DestroyJoint(static_cast<b2Joint *>(joint));
-  state.joints.clear();
-
-  auto computeShapeSignature = [&](const Entity &entity) -> std::uint64_t {
+  auto computeShapeSignature = [&](const Entity &entity,
+                                   Vec2 worldScale) -> std::uint64_t {
     std::uint64_t signature = 0x9E3779B97F4A7C15ULL;
     auto mix = [&signature](std::uint64_t value) {
       signature ^=
@@ -300,10 +210,8 @@ void stepPhysics2D(World &world, const float fixedDt,
       mix(static_cast<std::uint64_t>(rigidbody->lockRotation));
       mixFloat(rigidbody->bounciness);
     }
-    if (const auto *transform = entity.component<Transform2DComponent>()) {
-      mixFloat(transform->scale.x);
-      mixFloat(transform->scale.y);
-    }
+    mixFloat(worldScale.x);
+    mixFloat(worldScale.y);
     if (const auto *box = entity.component<BoxCollider2DComponent>()) {
       mix(0x01);
       mix(static_cast<std::uint64_t>(box->isTrigger));
@@ -370,11 +278,9 @@ void stepPhysics2D(World &world, const float fixedDt,
   };
 
   std::unordered_set<std::string> liveEntityIds;
-  liveEntityIds.reserve(
-      world.componentQueries.queryAny<Transform2DComponent>(world.entities).size());
+  liveEntityIds.reserve(entityIndices.size());
   std::unordered_map<const b2Body *, Entity *> entitiesByBody;
-  entitiesByBody.reserve(
-      world.componentQueries.queryAny<Transform2DComponent>(world.entities).size());
+  entitiesByBody.reserve(entityIndices.size());
 
   auto bodyTypeFor = [](const Entity &entity) {
     if (!entity.hasComponent<Rigidbody2DComponent>())
@@ -390,64 +296,75 @@ void stepPhysics2D(World &world, const float fixedDt,
 
   {
     ProfileScope scope("Physics2D.sync_bodies");
-    for (const auto entityIndex :
-         world.componentQueries.queryAny<Transform2DComponent>(world.entities)) {
+    for (const auto entityIndex : entityIndices) {
       Entity &entity = world.entities[entityIndex];
       if (!entity.enabled)
         continue;
-    if (!entity.hasComponent<Transform2DComponent>())
-      continue;
-    if (!entity.hasComponent<Rigidbody2DComponent>() && !hasCollider(entity))
-      continue;
+      if (!entity.hasComponent<Transform2DComponent>())
+        continue;
+      if (!entity.hasComponent<Rigidbody2DComponent>() && !hasCollider(entity))
+        continue;
 
-    const std::string &entityId = entity.id;
-    liveEntityIds.insert(entityId);
+      const std::string &entityId = entity.id;
 
-    const Transform2DComponent &transform =
-        *entity.component<Transform2DComponent>();
-    const int currentType = static_cast<int>(bodyTypeFor(entity));
-    const std::uint64_t currentSignature = computeShapeSignature(entity);
-
-    b2Body *body = nullptr;
-    if (const auto found = state.bodies.find(entityId);
-        found != state.bodies.end()) {
-      const int previousType = state.bodyTypes[entityId];
-      const std::uint64_t previousSignature = state.shapeSignatures[entityId];
-      if (previousType == currentType &&
-          previousSignature == currentSignature) {
-        body = reinterpret_cast<b2Body *>(found->second);
-      } else {
-        physicsWorld.DestroyBody(reinterpret_cast<b2Body *>(found->second));
-        state.bodies.erase(found);
-        state.bodyTypes.erase(entityId);
-        state.shapeSignatures.erase(entityId);
+      Transform2DComponent transform =
+          *entity.component<Transform2DComponent>();
+      if (hasParents) {
+        const auto &pose = worldPoses[entityIndex];
+        if (!pose) {
+          continue;
+        }
+        transform.position = pose->position;
+        transform.rotation = pose->rotation;
+        transform.scale = pose->scale;
       }
-    }
+      liveEntityIds.insert(entityId);
+      const int currentType = static_cast<int>(bodyTypeFor(entity));
+      const std::uint64_t currentSignature =
+          computeShapeSignature(entity, transform.scale);
 
-    if (body == nullptr) {
-      b2BodyDef bodyDef;
-      bodyDef.position.Set(transform.position.x, transform.position.y);
-      bodyDef.angle = transform.rotation;
-      bodyDef.type = static_cast<b2BodyType>(currentType);
-      if (entity.hasComponent<Rigidbody2DComponent>()) {
-        const Rigidbody2DComponent &rb =
-            *entity.component<Rigidbody2DComponent>();
-        bodyDef.linearVelocity.Set(rb.velocity.x, rb.velocity.y);
-        bodyDef.angularVelocity = rb.angularVelocity;
-        bodyDef.linearDamping = rb.linearDamping;
-        bodyDef.angularDamping = rb.angularDamping;
-        bodyDef.fixedRotation = rb.lockRotation;
-        bodyDef.gravityScale = rb.gravityScale;
-        bodyDef.bullet = rb.continuous;
-        bodyDef.allowSleep = rb.allowSleep;
-        bodyDef.awake = rb.awake;
-        bodyDef.enabled = rb.bodyEnabled;
+      b2Body *body = nullptr;
+      if (const auto found = state.bodies.find(entityId);
+          found != state.bodies.end()) {
+        const int previousType = state.bodyTypes[entityId];
+        const std::uint64_t previousSignature = state.shapeSignatures[entityId];
+        if (previousType == currentType &&
+            previousSignature == currentSignature) {
+          body = reinterpret_cast<b2Body *>(found->second);
+        } else {
+          state.joints->removeBody(*static_cast<b2Body *>(found->second));
+          physicsWorld.DestroyBody(static_cast<b2Body *>(found->second));
+          state.bodies.erase(found);
+          state.bodyTypes.erase(entityId);
+          state.shapeSignatures.erase(entityId);
+        }
       }
-      body = physicsWorld.CreateBody(&bodyDef);
-      visitBox2DFixtures2D(
-          world, entity, transform,
-          [&](const b2FixtureDef &definition) { body->CreateFixture(&definition); });
-      state.bodies.emplace(entityId, body);
+
+      if (body == nullptr) {
+        b2BodyDef bodyDef;
+        bodyDef.position.Set(transform.position.x, transform.position.y);
+        bodyDef.angle = transform.rotation;
+        bodyDef.type = static_cast<b2BodyType>(currentType);
+        if (entity.hasComponent<Rigidbody2DComponent>()) {
+          const Rigidbody2DComponent &rb =
+              *entity.component<Rigidbody2DComponent>();
+          bodyDef.linearVelocity.Set(rb.velocity.x, rb.velocity.y);
+          bodyDef.angularVelocity = rb.angularVelocity;
+          bodyDef.linearDamping = rb.linearDamping;
+          bodyDef.angularDamping = rb.angularDamping;
+          bodyDef.fixedRotation = rb.lockRotation;
+          bodyDef.gravityScale = rb.gravityScale;
+          bodyDef.bullet = rb.continuous;
+          bodyDef.allowSleep = rb.allowSleep;
+          bodyDef.awake = rb.awake;
+          bodyDef.enabled = rb.bodyEnabled;
+        }
+        body = physicsWorld.CreateBody(&bodyDef);
+        visitBox2DFixtures2D(world, entity, transform,
+                             [&](const b2FixtureDef &definition) {
+                               body->CreateFixture(&definition);
+                             });
+        state.bodies.emplace(entityId, body);
         state.bodyTypes.emplace(entityId, currentType);
         state.shapeSignatures.emplace(entityId, currentSignature);
       } else {
@@ -493,125 +410,18 @@ void stepPhysics2D(World &world, const float fixedDt,
       if (liveEntityIds.contains(iterator->first)) {
         ++iterator;
         continue;
-    }
-    physicsWorld.DestroyBody(reinterpret_cast<b2Body *>(iterator->second));
-    state.bodyTypes.erase(iterator->first);
+      }
+      state.joints->removeBody(*static_cast<b2Body *>(iterator->second));
+      physicsWorld.DestroyBody(static_cast<b2Body *>(iterator->second));
+      state.bodyTypes.erase(iterator->first);
       state.shapeSignatures.erase(iterator->first);
       iterator = state.bodies.erase(iterator);
     }
   }
 
-  const auto bodyForEntity = [&](const std::string &id) -> b2Body * {
-    const auto found = state.bodies.find(id);
-    return found == state.bodies.end()
-               ? nullptr
-               : reinterpret_cast<b2Body *>(found->second);
-  };
-
   {
     ProfileScope scope("Physics2D.sync_joints");
-    std::vector<b2DistanceJointDef> jointDefs;
-    for (const auto entityIndex :
-         world.componentQueries.queryAny<DistanceJoint2DComponent>(world.entities)) {
-      const Entity &entity = world.entities[entityIndex];
-      const auto *joint = entity.component<DistanceJoint2DComponent>();
-    if (joint == nullptr)
-      continue;
-    b2Body *bodyA = bodyForEntity(entity.id);
-    b2Body *bodyB = bodyForEntity(joint->otherEntity);
-    if (bodyA == nullptr || bodyB == nullptr || bodyA == bodyB)
-      continue;
-    const b2Vec2 positionA = bodyA->GetPosition();
-    const b2Vec2 positionB = bodyB->GetPosition();
-    b2DistanceJointDef definition;
-    definition.Initialize(
-        bodyA, bodyB,
-        {positionA.x + joint->anchor.x, positionA.y + joint->anchor.y},
-        {positionB.x + joint->otherAnchor.x,
-         positionB.y + joint->otherAnchor.y});
-    definition.length = joint->length;
-    definition.minLength = joint->length;
-    definition.maxLength = joint->length;
-    definition.stiffness = joint->stiffness;
-    definition.damping = joint->damping;
-    definition.collideConnected = joint->collideConnected;
-    jointDefs.push_back(definition);
-  }
-  for (b2DistanceJointDef &definition : jointDefs) {
-    state.joints.push_back(physicsWorld.CreateJoint(&definition));
-  }
-  for (const auto entityIndex :
-       world.componentQueries.queryAny<Joint2DComponent>(world.entities)) {
-    const Entity &entity = world.entities[entityIndex];
-    const auto *joint = entity.component<Joint2DComponent>();
-    if (joint == nullptr)
-      continue;
-    b2Body *bodyA = bodyForEntity(entity.id);
-    b2Body *bodyB = bodyForEntity(joint->otherEntity);
-    if (bodyA == nullptr || bodyB == nullptr || bodyA == bodyB)
-      continue;
-    if (joint->type == "revolute") {
-      b2RevoluteJointDef definition;
-      definition.bodyA = bodyA;
-      definition.bodyB = bodyB;
-      definition.localAnchorA = {joint->anchor.x, joint->anchor.y};
-      definition.localAnchorB = {joint->otherAnchor.x, joint->otherAnchor.y};
-      definition.enableLimit = joint->enableLimit;
-      definition.lowerAngle = joint->lowerLimit;
-      definition.upperAngle = joint->upperLimit;
-      definition.enableMotor = joint->enableMotor;
-      definition.motorSpeed = joint->motorSpeed;
-      definition.maxMotorTorque = joint->maxMotorTorque;
-      definition.collideConnected = joint->collideConnected;
-      state.joints.push_back(physicsWorld.CreateJoint(&definition));
-    } else if (joint->type == "prismatic") {
-      b2PrismaticJointDef definition;
-      definition.bodyA = bodyA;
-      definition.bodyB = bodyB;
-      definition.localAnchorA = {joint->anchor.x, joint->anchor.y};
-      definition.localAnchorB = {joint->otherAnchor.x, joint->otherAnchor.y};
-      definition.localAxisA = {joint->axis.x, joint->axis.y};
-      definition.enableLimit = joint->enableLimit;
-      definition.lowerTranslation = joint->lowerLimit;
-      definition.upperTranslation = joint->upperLimit;
-      definition.enableMotor = joint->enableMotor;
-      definition.motorSpeed = joint->motorSpeed;
-      definition.maxMotorForce = joint->maxMotorForce;
-      definition.collideConnected = joint->collideConnected;
-      state.joints.push_back(physicsWorld.CreateJoint(&definition));
-    } else if (joint->type == "weld") {
-      b2WeldJointDef definition;
-      definition.bodyA = bodyA;
-      definition.bodyB = bodyB;
-      definition.localAnchorA = {joint->anchor.x, joint->anchor.y};
-      definition.localAnchorB = {joint->otherAnchor.x, joint->otherAnchor.y};
-      definition.referenceAngle = bodyB->GetAngle() - bodyA->GetAngle();
-      definition.collideConnected = joint->collideConnected;
-      state.joints.push_back(physicsWorld.CreateJoint(&definition));
-    } else if (joint->type == "rope") {
-      b2DistanceJointDef definition;
-      definition.bodyA = bodyA;
-      definition.bodyB = bodyB;
-      definition.localAnchorA = {joint->anchor.x, joint->anchor.y};
-      definition.localAnchorB = {joint->otherAnchor.x, joint->otherAnchor.y};
-      definition.length = joint->maxLength;
-      definition.minLength = 0.0F;
-      definition.maxLength = joint->maxLength;
-      definition.collideConnected = joint->collideConnected;
-      state.joints.push_back(physicsWorld.CreateJoint(&definition));
-    } else if (joint->type == "motor") {
-      b2MotorJointDef definition;
-      definition.Initialize(bodyA, bodyB);
-      definition.linearOffset = {joint->otherAnchor.x - joint->anchor.x,
-                                 joint->otherAnchor.y - joint->anchor.y};
-      definition.angularOffset = joint->upperLimit;
-      definition.maxForce = joint->maxMotorForce;
-      definition.maxTorque = joint->maxMotorTorque;
-      definition.correctionFactor = joint->correctionFactor;
-      definition.collideConnected = joint->collideConnected;
-        state.joints.push_back(physicsWorld.CreateJoint(&definition));
-      }
-    }
+    state.joints->synchronize(world, entityIndices, state.bodies);
   }
 
   {
@@ -628,11 +438,11 @@ void stepPhysics2D(World &world, const float fixedDt,
     for (b2Contact *contact = physicsWorld.GetContactList(); contact != nullptr;
          contact = contact->GetNext()) {
       if (!contact->IsTouching()) {
-      continue;
-    }
+        continue;
+      }
 
-    b2Fixture *fixtureA = contact->GetFixtureA();
-    b2Fixture *fixtureB = contact->GetFixtureB();
+      b2Fixture *fixtureA = contact->GetFixtureA();
+      b2Fixture *fixtureB = contact->GetFixtureB();
       b2Body *bodyA = fixtureA->GetBody();
       b2Body *bodyB = fixtureB->GetBody();
 
@@ -648,16 +458,16 @@ void stepPhysics2D(World &world, const float fixedDt,
       if (!reportsContacts(*entityA) && !reportsContacts(*entityB))
         continue;
 
-    b2WorldManifold manifold;
-    contact->GetWorldManifold(&manifold);
-    const b2Manifold *localManifold = contact->GetManifold();
-    const Vec2 point =
-        localManifold->pointCount > 0
-            ? Vec2{.x = manifold.points[0].x, .y = manifold.points[0].y}
-            : Vec2{};
-    const float normalImpulse = localManifold->pointCount > 0
-                                    ? localManifold->points[0].normalImpulse
-                                    : 0.0F;
+      b2WorldManifold manifold;
+      contact->GetWorldManifold(&manifold);
+      const b2Manifold *localManifold = contact->GetManifold();
+      const Vec2 point =
+          localManifold->pointCount > 0
+              ? Vec2{.x = manifold.points[0].x, .y = manifold.points[0].y}
+              : Vec2{};
+      const float normalImpulse = localManifold->pointCount > 0
+                                      ? localManifold->points[0].normalImpulse
+                                      : 0.0F;
       const bool trigger = fixtureA->IsSensor() || fixtureB->IsSensor();
       const std::string layerA = colliderLayer(*entityA);
       const std::string layerB = colliderLayer(*entityB);
@@ -683,8 +493,8 @@ void stepPhysics2D(World &world, const float fixedDt,
               .entityId = entityA->id,
               .otherEntityId = entityB->id,
               .otherLayer = layerB,
-        .point = point,
-        .normal = Vec2{.x = -manifold.normal.x, .y = -manifold.normal.y},
+              .point = point,
+              .normal = Vec2{.x = -manifold.normal.x, .y = -manifold.normal.y},
               .normalImpulse = normalImpulse,
               .isTrigger = trigger,
           });
@@ -694,9 +504,9 @@ void stepPhysics2D(World &world, const float fixedDt,
               .entityId = entityB->id,
               .otherEntityId = entityA->id,
               .otherLayer = layerA,
-        .point = point,
-        .normal = Vec2{.x = manifold.normal.x, .y = manifold.normal.y},
-        .normalImpulse = normalImpulse,
+              .point = point,
+              .normal = Vec2{.x = manifold.normal.x, .y = manifold.normal.y},
+              .normalImpulse = normalImpulse,
               .isTrigger = trigger,
           });
     }
@@ -706,62 +516,70 @@ void stepPhysics2D(World &world, const float fixedDt,
 
   {
     ProfileScope scope("Physics2D.sync_components");
-    for (const auto entityIndex :
-         world.componentQueries.queryAny<Transform2DComponent>(world.entities)) {
-      Entity &entity = world.entities[entityIndex];
-      if (!entity.enabled)
+    std::vector<std::optional<WorldTransform2D>> nativeOverrides;
+    std::vector<std::optional<WorldTransform2D>> publishedPoses;
+    std::unordered_map<std::string, std::size_t> parentIndices;
+    if (hasParents) {
+      nativeOverrides.resize(world.entities.size());
+      parentIndices.reserve(world.entities.size());
+      for (std::size_t index = 0; index < world.entities.size(); ++index) {
+        parentIndices.emplace(world.entities[index].id, index);
+      }
+      for (const auto index : entityIndices) {
+        const auto found = state.bodies.find(world.entities[index].id);
+        if (found == state.bodies.end()) {
+          continue;
+        }
+        const auto &body = *static_cast<b2Body *>(found->second);
+        if (body.GetType() == b2_staticBody || !worldPoses[index]) {
+          continue;
+        }
+        auto pose = *worldPoses[index];
+        pose.position = {body.GetPosition().x, body.GetPosition().y};
+        pose.rotation = body.GetAngle();
+        nativeOverrides[index] = pose;
+      }
+      publishedPoses = resolveWorldTransforms2D(world, nativeOverrides);
+    }
+    for (const auto index : entityIndices) {
+      Entity &entity = world.entities[index];
+      const auto found = state.bodies.find(entity.id);
+      if (!entity.enabled || found == state.bodies.end()) {
         continue;
-    if (!entity.hasComponent<Transform2DComponent>())
-      continue;
-    const auto found = state.bodies.find(entity.id);
-    if (found == state.bodies.end())
-      continue;
-    b2Body *body = reinterpret_cast<b2Body *>(found->second);
-    const b2Vec2 position = body->GetPosition();
-    entity.component<Transform2DComponent>()->position =
-        Vec2{.x = position.x, .y = position.y};
-    entity.component<Transform2DComponent>()->rotation = body->GetAngle();
-    if (entity.hasComponent<Rigidbody2DComponent>()) {
-      const b2Vec2 velocity = body->GetLinearVelocity();
-      entity.component<Rigidbody2DComponent>()->velocity =
-          Vec2{.x = velocity.x, .y = velocity.y};
-      entity.component<Rigidbody2DComponent>()->angularVelocity =
-          body->GetAngularVelocity();
-        entity.component<Rigidbody2DComponent>()->awake = body->IsAwake();
+      }
+      const auto &body = *static_cast<b2Body *>(found->second);
+      if (body.GetType() != b2_staticBody) {
+        const auto &authored = *entity.component<Transform2DComponent>();
+        WorldTransform2D pose{
+            .position = {body.GetPosition().x, body.GetPosition().y},
+            .rotation = body.GetAngle()};
+        std::optional<WorldTransform2D> parentPose;
+        if (hasParents) {
+          const auto parent = parentIndices.find(authored.parent);
+          if (parent != parentIndices.end()) {
+            parentPose = publishedPoses[parent->second];
+          }
+        }
+        const auto local = localTransform2D(authored, pose, parentPose);
+        if (changed(authored.position.x, local.position.x) ||
+            changed(authored.position.y, local.position.y) ||
+            changed(authored.rotation, local.rotation)) {
+          entity.updateComponent<Transform2DComponent>([&](auto &transform) {
+            transform.position = local.position;
+            transform.rotation = local.rotation;
+          });
+        }
+      }
+      if (auto *rigidbody = entity.component<Rigidbody2DComponent>()) {
+        rigidbody->velocity = {body.GetLinearVelocity().x,
+                               body.GetLinearVelocity().y};
+        rigidbody->angularVelocity = body.GetAngularVelocity();
+        rigidbody->awake = body.IsAwake();
       }
     }
   }
-#else
-  for (const auto entityIndex :
-       world.componentQueries.queryAny<Transform2DComponent>(world.entities)) {
-    Entity &entity = world.entities[entityIndex];
-    if (!entity.enabled || !isDynamic(entity) ||
-        !entity.hasComponent<Transform2DComponent>()) {
-      continue;
-    }
 
-    entity.component<Rigidbody2DComponent>()->velocity.x = std::clamp(
-        entity.component<Rigidbody2DComponent>()->velocity.x, -100.0F, 100.0F);
-    entity.component<Rigidbody2DComponent>()->velocity.y +=
-        settings.gravity.y *
-        entity.component<Rigidbody2DComponent>()->gravityScale * fixedDt;
-    entity.component<Rigidbody2DComponent>()->velocity.y = std::clamp(
-        entity.component<Rigidbody2DComponent>()->velocity.y, -100.0F, 100.0F);
-
-    resolveAxis(world, entity,
-                Vec2{.x = entity.component<Rigidbody2DComponent>()->velocity.x *
-                          fixedDt,
-                     .y = 0.0F},
-                true);
-    resolveAxis(world, entity,
-                Vec2{.x = 0.0F,
-                     .y = entity.component<Rigidbody2DComponent>()->velocity.y *
-                          fixedDt},
-                false);
-  }
-#endif
-
-  finishPhysicsPresentationStep2D(world);
+  finishPhysicsPresentationStep2D(world, entityIndices);
 
   {
     ProfileScope scope("Physics2D.contact_phases");

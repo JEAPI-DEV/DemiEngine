@@ -159,6 +159,93 @@ not an attempt to minimize lines at the expense of clarity.
 The larger archive-format, generic-reflection and delta-world transaction
 rewrites remain deferred: they were not needed for these bounded changes.
 
+## Runtime/preparation ownership pass (2026-11-05)
+
+Implemented against `8a8ae205`; all seven audit areas are addressed.
+
+- **Native 2D joints:** `Box2DJoints2D` owns stable native constraints, updates
+  mutable settings and recreates only structural changes. Body removal/replacement
+  retires attached handles before Box2D destroys them. Weld reference angles bind
+  once. Joint creation, removal, limits, motors and changed body targets are tested.
+- **2D selection and hierarchy:** one scoped EnTT selection feeds physics phases.
+  Queries select relevant typed pools. `Transform2DHierarchy` composes all pose
+  fields together, bounds cycles and supports a batch resolve with native-body
+  overrides. Simulation and queries use the same poses; publication converts back
+  to local position/rotation without rewriting authored scale or parent. Tests
+  include children preceding parents, intermediate non-body parents and dynamic
+  collisions. Native joint anchor conventions remain unchanged and are documented
+  and tested with nonzero anchors under rotated/scaled parents.
+- **Asset publication:** the loader retains one candidate registry for a pending
+  upload operation, instead of rebuilding dependency closure/manifests on every
+  continuation. Relevant source edits, cancellation, unload, failure and restore
+  invalidate it. Comparisons borrow the captured closure's source entries; this
+  is not a permanent registry cache.
+- **Model preparation:** exact image-slot use counts allow one decode per shared
+  source, no retained base for unique images, and release/move on last use. Per-slot
+  factors, channels, alpha and mip policies remain independent. Positions/normals
+  share one bind pose. Static vertex packing runs on the preparation worker using
+  the existing prepared-upload path; GPU calls remain on the publication thread.
+- **Reload handling:** native file events retain their paths. Ordinary edits
+  recheck those paths; structural/ambiguous events and unavailable watch backends
+  retain full-scan handling. The coordinator forwards validated script changes to
+  the host. Standalone opt-in hosts reuse the watcher. Per-instance, per-frame
+  timestamp polling is removed, and invalid source retains the last good table.
+  Normal runs no longer create unused project watchers.
+- **Network payloads:** completed HTTP/TCP responses use immutable owning native
+  snapshots, removing the intermediate body/header copy on each response query.
+  Pending calls remain empty; Lua calls still produce fresh mutable tables.
+  Cancellation, publication ordering and snapshots surviving service shutdown
+  are covered with binary payloads and Lua mutation-isolation tests.
+
+### Required dependencies and ownership boundaries
+
+Box2D, Jolt, miniaudio, mbedTLS and sol2 are required by these runtime targets.
+Their obsolete `DEMI_HAS_*` compile definitions are removed. The non-Box2D solver
+and miniaudio-not-compiled factory branch are removed rather than maintained as
+parallel implementations. Real optional platform/media/network features and
+runtime audio-disabled/device-failure handling remain supported.
+
+Native Box2D test guards had incorrectly hidden tests because their feature
+macro was private to the runtime target. Those tests now run unconditionally.
+The baseline native suite was checked separately; only the new joint-retention
+expectation failed the old implementation. Native joint cleanup and shared camera
+math now belong to the core target needed by core/render-only consumers, rather
+than depending backwards on runtime linkage.
+
+### Evidence and limits
+
+| Workload | Before | After |
+| --- | ---: | ---: |
+| 128 distance joints over 240 fixed steps: recreated joints | 30,720 | 0 |
+| Same CPU-only loop, median of three elapsed-time runs | 61.70 ms | 46.69 ms |
+| One existing-file edit/poll in 2,048 files: metadata calls | 4,097 | 4 |
+| Same watcher phase: directory reads | 66 | 0 |
+| 128 Lua instances, 240 unchanged dev frames: script-path metadata calls | 30,851 | 4 |
+| Matched Dungeon moving Game CPU median | 4.613 ms | 4.644 ms |
+| Matched Dungeon moving Game CPU p99 | 7.543 ms | 7.398 ms |
+
+Joint timings are targeted workload elapsed times, not an FPS claim. Watcher
+syscalls isolate edit-to-poll and do not include reload validation. Lua counts
+include startup. Dungeon used Release/Vulkan, the same 3840x2022 viewport, script
+route and existing 60 FPS cap; overall frame cost is effectively unchanged.
+No end-to-end model-loading speedup is claimed without a representative loading
+benchmark. Regression counters verify one registry snapshot across staged polls,
+one decoded base for shared ORM channels, no retained bases for unique images,
+and unchanged GPU-thread publication.
+
+Qualification: 22 focused CTest suites, four runtime workflow tests (including
+2D/3D physics replays and asset streaming), eight Dungeon and two animation E2E
+scenarios, and all five maximized GPU fog fixtures pass. Four affected projects
+validate without diagnostics. One stale app-host fixture authored a derived
+rectangle; it now authors layout and checks the resulting geometry, retaining
+its rendering assertion. No runtime behavior was changed to accommodate it.
+
+This pass adds **660 net production-source lines**, including the new joint and
+2D hierarchy owners. It is an ownership/correctness/performance improvement, not
+a line-count reduction. There are no new third-party dependencies or authoring
+formats. Evidence is under
+`build/linux-release/qualification/seven-runtime-improvements/`.
+
 ## Preferred replacement: Blast authoring
 
 The pinned SDK already contains fracture authoring, mesh cleaning, convex

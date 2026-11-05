@@ -554,6 +554,8 @@ int runProject(const RuntimeOptions &options) {
   std::string luaError;
   bool luaScriptsLoaded = false;
   if (luaHost.initialize(loaded.world, input, &audioSystem, luaError)) {
+    luaHost.setHotReloadEnabled(options.watch || luaHost.hotReloadEnabled(),
+                                options.watch);
     luaHost.setWindowMode(loaded.project.build.window.mode);
     luaHost.clearWindowModeDirty();
     luaHost.setAssetRegistry(&assetRegistry);
@@ -565,7 +567,6 @@ int runProject(const RuntimeOptions &options) {
   } else {
     std::cerr << "Lua unavailable: " << luaError << '\n';
   }
-  luaHost.setHotReloadEnabled(options.watch || luaHost.hotReloadEnabled());
   if (options.e2eTests)
     luaHost.startE2ETests("tests.e2e");
 
@@ -607,7 +608,9 @@ int runProject(const RuntimeOptions &options) {
       return RuntimeFailure;
     }
     platform::ProjectFileWatcher watcher;
-    watcher.reset(loaded.project.projectDirectory);
+    if (options.watch) {
+      watcher.reset(loaded.project.projectDirectory);
+    }
     ReloadCoordinator reloadCoordinator(
         options.projectPath,
         {.reloadScene =
@@ -635,7 +638,10 @@ int runProject(const RuntimeOptions &options) {
                                  ? "A resident asset could not be reloaded."
                                  : diagnostics.front().message;
                return false;
-             }});
+             },
+         .reloadScripts = [&](std::span<const std::filesystem::path> paths) {
+           luaHost.notifyScriptChanges(paths);
+         }});
     // A headless run has no native window to supply pointer coordinates.
     // Treat replay positions as logical HUD-canvas coordinates, matching the
     // 960x540 coordinates authored by examples and used by windowed playback.
@@ -809,7 +815,9 @@ int runProject(const RuntimeOptions &options) {
     }
 
     platform::ProjectFileWatcher watcher;
-    watcher.reset(loaded.project.projectDirectory);
+    if (options.watch) {
+      watcher.reset(loaded.project.projectDirectory);
+    }
     ReloadCoordinator reloadCoordinator(
         options.projectPath,
         {.reloadScene =
@@ -837,7 +845,10 @@ int runProject(const RuntimeOptions &options) {
                                  ? "A resident 2D asset could not be reloaded."
                                  : diagnostics.front().message;
                return false;
-             }});
+             },
+         .reloadScripts = [&](std::span<const std::filesystem::path> paths) {
+           luaHost.notifyScriptChanges(paths);
+         }});
 
     luaHost.applicationServices().setClipboardHandlers(
         [&appHost] { return appHost.clipboard(); },
@@ -1114,7 +1125,9 @@ int runProject(const RuntimeOptions &options) {
     }
 
     platform::ProjectFileWatcher watcher;
-    watcher.reset(loaded.project.projectDirectory);
+    if (options.watch) {
+      watcher.reset(loaded.project.projectDirectory);
+    }
     ReloadCoordinator reloadCoordinator(
         options.projectPath,
         {.reloadScene =
@@ -1142,7 +1155,10 @@ int runProject(const RuntimeOptions &options) {
                                  ? "A resident 3D asset could not be reloaded."
                                  : diagnostics.front().message;
                return false;
-             }});
+             },
+         .reloadScripts = [&](std::span<const std::filesystem::path> paths) {
+           luaHost.notifyScriptChanges(paths);
+         }});
 
     luaHost.applicationServices().setClipboardHandlers(
         [&appHost] { return appHost.clipboard(); },

@@ -6,6 +6,8 @@
 #include "demi/runtime/render/backend/RenderAssetLoading.h"
 #include "demi/runtime/render/bgfx2d/ColorPacking2D.h"
 #include "demi/runtime/render/bgfx3d/ImportedModelMaterials3D.h"
+#include "demi/runtime/render/bgfx3d/MeshVertexPreparation3D.h"
+#include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/scene/model/MeshMaterialSections3D.h"
 
 #include <nlohmann/json.hpp>
@@ -22,7 +24,8 @@ struct PreparedModelAsset {
   MeshGeometry3D geometry;
   std::vector<GpuSkinnedVertex3D> skinVertices;
   GpuSkinPaletteLayout skinLayout;
-  std::vector<Vec3> normals;
+  std::vector<GpuMeshVertex3D> vertices;
+  double vertexPreparationMilliseconds = 0.0;
   std::vector<PreparedImportedMaterial3D> materials;
   std::vector<std::string> diagnostics;
   std::string error;
@@ -51,8 +54,12 @@ void prepareModelAsset(const AssetManifest &asset, PreparedModelAsset &result,
   if (!result.animated) {
     return;
   }
-  if (!result.animated->bindPosePositions(geometry.positions, result.error) ||
-      !result.animated->bindPoseNormals(result.normals, result.error)) {
+  assets::GltfSkinnedModel3D::Pose bindPose;
+  std::vector<Vec3> normals;
+  if (!result.animated->bindPose(bindPose, result.error) ||
+      !result.animated->posePositions(bindPose, geometry.positions,
+                                      result.error) ||
+      !result.animated->poseNormals(bindPose, normals, result.error)) {
     return;
   }
   for (const auto &vertex : result.animated->vertices) {
@@ -60,6 +67,16 @@ void prepareModelAsset(const AssetManifest &asset, PreparedModelAsset &result,
     geometry.colors.push_back(packVertexColorRgba8(vertex.color));
   }
   geometry.indices = result.animated->indices;
+  const auto vertexPreparationStart = std::chrono::steady_clock::now();
+  if (!prepareMeshVertices3D(geometry.positions, geometry.uvs, geometry.indices,
+                             0xffffffffU, normals, geometry.colors,
+                             result.vertices, result.error)) {
+    return;
+  }
+  result.vertexPreparationMilliseconds =
+      std::chrono::duration<double, std::milli>(
+          std::chrono::steady_clock::now() - vertexPreparationStart)
+          .count();
   std::string unsupportedSkin;
   if (!buildGpuSkinVertices(*result.animated, result.skinVertices,
                             result.skinLayout, unsupportedSkin)) {
@@ -68,6 +85,10 @@ void prepareModelAsset(const AssetManifest &asset, PreparedModelAsset &result,
   std::set<std::size_t> usedMaterials;
   for (const auto &section : result.animated->materialSections) {
     usedMaterials.insert(section.material);
+  }
+  ImportedImagePreparation3D images;
+  for (const auto index : usedMaterials) {
+    images.includeMaterial(asset, result.animated->materials.at(index));
   }
   for (const auto index : usedMaterials) {
     for (const auto &diagnostic :
@@ -78,7 +99,7 @@ void prepareModelAsset(const AssetManifest &asset, PreparedModelAsset &result,
     if (!prepareImportedMaterial(asset, index,
                                  result.animated->materials.at(index),
                                  result.profile->materialPolicy == "unlit",
-                                 material, result.error, stop)) {
+                                 images, material, result.error, stop)) {
       return;
     }
     result.materials.push_back(std::move(material));
@@ -409,9 +430,10 @@ bool BgfxRenderer3D::stepAssetPreparation(
         auto cached = std::make_unique<CachedMesh>(resources_);
         auto &geometry = model.geometry;
         std::string error;
-        if (!cached->gpu.upload(geometry.positions, geometry.uvs,
-                                geometry.indices, 0xffffffffU, error,
-                                model.normals, geometry.colors)) {
+        RuntimeProfiler::record("Renderer3D.model_vertex_prepare_cpu",
+                                model.vertexPreparationMilliseconds);
+        if (!cached->gpu.uploadPrepared(model.vertices, geometry.indices,
+                                        error)) {
           diagnostics.push_back(asset.id + ": " + error);
           return false;
         }

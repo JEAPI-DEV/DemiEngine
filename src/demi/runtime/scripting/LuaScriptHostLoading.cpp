@@ -1,4 +1,5 @@
 #include "demi/runtime/assets/RuntimeAssetService.h"
+#include "demi/runtime/platform/ProjectFileWatcher.h"
 #include "demi/runtime/scene/SceneLoader.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
@@ -59,7 +60,6 @@ bool LuaScriptHost::loadScriptInstance(std::string entityId,
       .entityId = std::move(entityId),
       .module = module,
       .path = scriptPath,
-      .lastWriteTime = luaScriptWriteTime(scriptPath),
       .tableRef = tableRef,
       .actionHandlers = HandleActionAnnotation::parse(scriptPath),
       .eventHandlers = OnEventAnnotation::parse(scriptPath),
@@ -75,7 +75,12 @@ bool LuaScriptHost::loadWorldScripts(const ProjectData &project, World &world,
     return false;
   }
 
-  projectDirectory_ = project.projectDirectory;
+  if (projectDirectory_ != project.projectDirectory) {
+    scriptWatcher_.reset();
+    changedScripts_.clear();
+    projectDirectory_ = project.projectDirectory;
+  }
+  setHotReloadEnabled(hotReloadEnabled_, externalScriptChanges_);
   networkContract_.reset();
   if (!project.networkContract.empty()) {
     if (assetRegistry_ == nullptr) {
@@ -116,7 +121,6 @@ bool LuaScriptHost::loadWorldScripts(const ProjectData &project, World &world,
     moduleActionHandlers_.push_back(ModuleActionHandler{
         .module = LuaModulePath::moduleName(module),
         .path = scriptPath,
-        .lastWriteTime = luaScriptWriteTime(scriptPath),
         .actionHandlers = HandleActionAnnotation::parse(scriptPath),
         .eventHandlers = OnEventAnnotation::parse(scriptPath),
     });
@@ -249,11 +253,15 @@ void LuaScriptHost::reloadChangedScripts() {
     return;
   }
 
+  if (scriptWatcher_) {
+    notifyScriptChanges(scriptWatcher_->poll().changed);
+  }
+  if (changedScripts_.empty()) {
+    return;
+  }
+  const auto changes = std::exchange(changedScripts_, {});
   for (ScriptInstance &script : scripts_) {
-    const std::filesystem::file_time_type currentWriteTime =
-        luaScriptWriteTime(script.path);
-    if (currentWriteTime == std::filesystem::file_time_type{} ||
-        currentWriteTime == script.lastWriteTime) {
+    if (!changes.contains(script.path.lexically_normal().string())) {
       continue;
     }
 
@@ -261,7 +269,6 @@ void LuaScriptHost::reloadChangedScripts() {
     if (!luaLoadScriptTable(state, script.path, error)) {
       std::cerr << "Lua hot reload failed for " << script.path.string() << ": "
                 << error << '\n';
-      script.lastWriteTime = currentWriteTime;
       continue;
     }
 
@@ -286,7 +293,6 @@ void LuaScriptHost::reloadChangedScripts() {
       std::cerr << "Lua hot reload rejected for " << script.path.string()
                 << ": " << metadataError << '\n';
       luaL_unref(state, LUA_REGISTRYINDEX, newTableRef);
-      script.lastWriteTime = currentWriteTime;
       continue;
     }
     if (const Entity *entity = findEntity(*world_, script.entityId);
@@ -298,7 +304,6 @@ void LuaScriptHost::reloadChangedScripts() {
         std::cerr << "Lua hot reload rejected for " << script.path.string()
                   << ": " << propertyError << '\n';
         luaL_unref(state, LUA_REGISTRYINDEX, newTableRef);
-        script.lastWriteTime = currentWriteTime;
         continue;
       }
     } else if (!applyScriptProperties(state, newTableRef, {}, propertyError,
@@ -307,7 +312,6 @@ void LuaScriptHost::reloadChangedScripts() {
       std::cerr << "Lua hot reload rejected for " << script.path.string()
                 << ": " << propertyError << '\n';
       luaL_unref(state, LUA_REGISTRYINDEX, newTableRef);
-      script.lastWriteTime = currentWriteTime;
       continue;
     }
     luaCallLifecycle(state, script.tableRef, "on_destroy", script.path,
@@ -316,7 +320,6 @@ void LuaScriptHost::reloadChangedScripts() {
     script.tableRef = newTableRef;
     script.actionHandlers = HandleActionAnnotation::parse(script.path);
     script.eventHandlers = OnEventAnnotation::parse(script.path);
-    script.lastWriteTime = currentWriteTime;
     luaCallLifecycle(state, script.tableRef, "on_create", script.path,
                      script.entityId);
     luaCallLifecycle(state, script.tableRef, "on_start", script.path,

@@ -105,18 +105,22 @@ TextureSampling2D samplingFor(const AssetManifest &asset,
 bool prepareMap(const AssetManifest &asset,
                 const assets::GltfMaterial3D &material, Slot slot,
                 ImageMipSemantic semantic, PreparedTexture2D &output,
-                std::string &error, std::stop_token stop) {
+                std::string &error, std::stop_token stop,
+                ImportedImagePreparation3D &images) {
+  if (stop.stop_requested()) {
+    error = "Imported image preparation was cancelled.";
+    return false;
+  }
   const auto found = material.textures.find(roleFor(slot));
   const auto *source =
       found == material.textures.end() ? nullptr : &found->second;
   ImageData2D image;
   if (slot == Slot::Albedo && asset.texturePath) {
-    if (!decodeImage2D(readRenderAssetBytes(*asset.texturePath), image,
-                       error)) {
+    if (!images.read(*asset.texturePath, image, error)) {
       return false;
     }
   } else if (source) {
-    if (!source->encoded || !decodeImage2D(*source->encoded, image, error)) {
+    if (!images.read(source->encoded, image, error)) {
       return false;
     }
   } else if (slot == Slot::Emissive) {
@@ -160,7 +164,8 @@ bool prepareMap(const AssetManifest &asset,
     }
   }
   auto sampling = samplingFor(asset, source, semantic);
-  if (slot == Slot::Albedo && material.alphaMode == assets::GltfAlphaMode::Mask &&
+  if (slot == Slot::Albedo &&
+      material.alphaMode == assets::GltfAlphaMode::Mask &&
       material.alphaCutoff > 0 && material.baseColor.a > 0) {
     const float cutoff = material.alphaCutoff / material.baseColor.a;
     if (cutoff <= 1) {
@@ -172,6 +177,67 @@ bool prepareMap(const AssetManifest &asset,
 
 } // namespace
 
+void ImportedImagePreparation3D::includeMaterial(
+    const AssetManifest &asset, const assets::GltfMaterial3D &material) {
+  for (const auto slot :
+       {Slot::Albedo, Slot::Normal, Slot::Roughness, Slot::Metallic,
+        Slot::AmbientOcclusion, Slot::Emissive}) {
+    if (slot == Slot::Albedo && asset.texturePath) {
+      ++overrides_[*asset.texturePath].remaining;
+    } else if (const auto source = material.textures.find(roleFor(slot));
+               source != material.textures.end() && source->second.encoded) {
+      ++images_[source->second.encoded].remaining;
+    }
+  }
+}
+
+bool ImportedImagePreparation3D::readImage(ImageUse &use,
+                                           std::span<const std::byte> encoded,
+                                           ImageData2D &output,
+                                           std::string &error) {
+  error.clear();
+  const bool lastUse = use.remaining <= 1;
+  if (!use.pixels) {
+    if (!decodeImage2D(encoded, output, error)) {
+      return false;
+    }
+    ++decodedImages_;
+    if (!lastUse) {
+      use.pixels = output;
+      ++retainedBuffers_;
+      peakRetainedBuffers_ = std::max(peakRetainedBuffers_, retainedBuffers_);
+    }
+  } else if (lastUse) {
+    output = std::move(*use.pixels);
+    use.pixels.reset();
+    --retainedBuffers_;
+  } else {
+    output = *use.pixels;
+  }
+  if (use.remaining > 0) {
+    --use.remaining;
+  }
+  return true;
+}
+
+bool ImportedImagePreparation3D::read(
+    const std::shared_ptr<const std::vector<std::byte>> &encoded,
+    ImageData2D &output, std::string &error) {
+  if (!encoded) {
+    error = "Imported material texture source is unavailable.";
+    return false;
+  }
+  return readImage(images_[encoded], *encoded, output, error);
+}
+
+bool ImportedImagePreparation3D::read(const std::filesystem::path &path,
+                                      ImageData2D &output, std::string &error) {
+  auto &use = overrides_[path];
+  const auto encoded =
+      use.pixels ? std::vector<std::byte>{} : readRenderAssetBytes(path);
+  return readImage(use, encoded, output, error);
+}
+
 std::string importedMaterialId(std::string_view model, std::size_t material) {
   return std::string(model) + "#material/" + std::to_string(material);
 }
@@ -179,6 +245,18 @@ std::string importedMaterialId(std::string_view model, std::size_t material) {
 bool prepareImportedMaterial(const AssetManifest &asset, std::size_t index,
                              const assets::GltfMaterial3D &material,
                              bool forceUnlit,
+                             PreparedImportedMaterial3D &output,
+                             std::string &error, std::stop_token stop) {
+  ImportedImagePreparation3D images;
+  images.includeMaterial(asset, material);
+  return prepareImportedMaterial(asset, index, material, forceUnlit, images,
+                                 output, error, stop);
+}
+
+bool prepareImportedMaterial(const AssetManifest &asset, std::size_t index,
+                             const assets::GltfMaterial3D &material,
+                             bool forceUnlit,
+                             ImportedImagePreparation3D &images,
                              PreparedImportedMaterial3D &output,
                              std::string &error, std::stop_token stop) {
   PreparedImportedMaterial3D prepared;
@@ -233,7 +311,7 @@ bool prepareImportedMaterial(const AssetManifest &asset, std::size_t index,
         .id =
             prepared.id + "/" + std::string(assets::materialMapSlotName(slot))};
     if (!prepareMap(asset, material, slot, semanticFor(slot), texture.texture,
-                    error, stop)) {
+                    error, stop, images)) {
       return false;
     }
     binding.surface.maps.emplace(slot, texture.id);
@@ -261,8 +339,9 @@ bool reloadImportedTexture(const AssetManifest &asset, std::size_t material,
     error = "Imported material index is no longer present in its source.";
     return false;
   }
+  ImportedImagePreparation3D images;
   return prepareMap(asset, materials[material], slot, semantic, output, error,
-                    stop);
+                    stop, images);
 }
 
 } // namespace demi::runtime::render

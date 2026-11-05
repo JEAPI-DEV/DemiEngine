@@ -22,12 +22,73 @@ bool hasCode(const demi::Diagnostics &diagnostics, const std::string &code) {
   return false;
 }
 
+void targetedChangesInLargeTree() {
+  namespace fs = std::filesystem;
+  using demi::runtime::platform::ProjectFileWatcher;
+  const auto root = fs::temp_directory_path() / "demi_watch_targeted_tests";
+  const auto outside =
+      fs::temp_directory_path() / "demi_watch_targeted_outside";
+  std::error_code error;
+  fs::remove_all(root, error);
+  fs::remove_all(outside, error);
+  for (int directory = 0; directory < 32; ++directory) {
+    for (int file = 0; file < 64; ++file) {
+      write(root / std::to_string(directory) / (std::to_string(file) + ".lua"),
+            "return 1");
+    }
+  }
+  ProjectFileWatcher watcher;
+  watcher.reset(root);
+  assert(watcher.poll().empty());
+  const auto first = root / "10/17.lua";
+  const auto second = root / "20/23.lua";
+  write(first, "return 22");
+  auto changes = watcher.poll();
+  assert(changes.generation == 1);
+  assert(changes.changed == std::vector<fs::path>{first});
+  assert(changes.removed.empty());
+  write(second, "return 333");
+  write(first, "return 4444");
+  changes = watcher.poll();
+  assert(changes.generation == 2);
+  assert((changes.changed == std::vector<fs::path>{first, second}));
+  assert(changes.removed.empty());
+  fs::remove(first);
+  changes = watcher.poll();
+  assert(changes.generation == 3 && changes.changed.empty());
+  assert(changes.removed == std::vector<fs::path>{first});
+  const auto added = root / "10/added.lua";
+  write(added, "return 5");
+  changes = watcher.poll();
+  assert(changes.generation == 4);
+  assert(changes.changed == std::vector<fs::path>{added});
+
+  write(root / "generated/ignored.lua", "generated");
+  write(root / "saves/ignored.lua", "save");
+  write(outside / "external.lua", "return 6");
+  fs::create_directory_symlink(outside, root / "linked-directory");
+  assert(watcher.poll().empty());
+  write(outside / "external.lua", "return 77");
+  assert(watcher.poll().empty());
+  // Existing discovery admits file symlinks but never descends directory ones.
+  fs::create_symlink(outside / "external.lua", root / "alias.lua");
+  changes = watcher.poll();
+  assert(changes.changed == std::vector<fs::path>{root / "alias.lua"});
+  fs::remove(root / "alias.lua");
+  changes = watcher.poll();
+  assert(changes.removed == std::vector<fs::path>{root / "alias.lua"});
+  fs::remove_all(root, error);
+  fs::remove_all(outside, error);
+}
+
 } // namespace
 
 int main() {
   namespace fs = std::filesystem;
   using demi::runtime::ReloadCoordinator;
   using demi::runtime::platform::ProjectFileWatcher;
+
+  targetedChangesInLargeTree();
 
   const fs::path root = fs::temp_directory_path() / "demi_watch_reload_tests";
   std::error_code ignored;
@@ -59,6 +120,7 @@ int main() {
   int sceneReloads = 0;
   int sceneCancellations = 0;
   int assetReloads = 0;
+  std::vector<fs::path> scriptChanges;
   ReloadCoordinator coordinator(
       root / "demi.project.json",
       {.reloadScene =
@@ -71,10 +133,15 @@ int main() {
            [&](std::string &) {
              ++assetReloads;
              return true;
-           }});
+           },
+       .reloadScripts = [&](std::span<const fs::path> paths) {
+         scriptChanges.insert(scriptChanges.end(), paths.begin(), paths.end());
+       }});
   auto result = coordinator.process(luaBatch);
   assert(result.applied);
   assert(result.luaChanged);
+  assert(scriptChanges == luaBatch.changed);
+  scriptChanges.clear();
   assert(sceneReloads == 0 && assetReloads == 0);
   assert(!coordinator.process(luaBatch).applied); // stale generation
 
@@ -98,6 +165,7 @@ int main() {
   assert(!result.applied);
   assert(demi::hasErrors(result.diagnostics));
 
+  assert(scriptChanges.empty()); // Rejected source never reaches the host.
   write(root / "scripts/main.lua", "local M = {}\nreturn M\n");
   result = coordinator.process(watcher.poll());
   assert(result.applied);

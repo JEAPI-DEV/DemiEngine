@@ -7,9 +7,7 @@
 
 #include <algorithm>
 
-#if DEMI_HAS_BOX2D
 #include <box2d/box2d.h>
-#endif
 
 namespace demi::runtime {
 
@@ -95,7 +93,6 @@ bool addRigidbodyForce(World &world, const std::string &entityId,
   if (force.x != 0.0F || force.y != 0.0F) {
     entity->component<Rigidbody2DComponent>()->awake = true;
   }
-#if DEMI_HAS_BOX2D
   if (world.box2dState != nullptr) {
     if (const auto found = world.box2dState->bodies.find(entityId);
         found != world.box2dState->bodies.end()) {
@@ -104,7 +101,6 @@ bool addRigidbodyForce(World &world, const std::string &entityId,
       return true;
     }
   }
-#endif
   entity->component<Rigidbody2DComponent>()->velocity.x += force.x / 60.0F;
   entity->component<Rigidbody2DComponent>()->velocity.y += force.y / 60.0F;
   return true;
@@ -118,7 +114,6 @@ bool addRigidbodyTorque(World &world, const std::string &entityId,
   if (torque != 0.0F) {
     entity->component<Rigidbody2DComponent>()->awake = true;
   }
-#if DEMI_HAS_BOX2D
   if (world.box2dState != nullptr) {
     if (const auto found = world.box2dState->bodies.find(entityId);
         found != world.box2dState->bodies.end()) {
@@ -126,7 +121,6 @@ bool addRigidbodyTorque(World &world, const std::string &entityId,
       return true;
     }
   }
-#endif
   entity->component<Rigidbody2DComponent>()->angularVelocity += torque / 60.0F;
   return true;
 }
@@ -188,7 +182,11 @@ bool moveKinematicBody(World &world, const std::string &entityId,
   Rigidbody2DComponent &body = *entity->component<Rigidbody2DComponent>();
   if (body.bodyType != "kinematic")
     return false;
-  const Vec2 current = entity->component<Transform2DComponent>()->position;
+  const auto pose = resolveWorldTransform2D(world, *entity);
+  if (!pose) {
+    return false;
+  }
+  const Vec2 current = pose->position;
   if (target.x != current.x || target.y != current.y) {
     body.awake = true;
   }
@@ -207,7 +205,12 @@ std::optional<Vec2> moveAndSlideKinematic(World &world,
       !participatesInCollision(*entity))
     return std::nullopt;
 
-  Aabb bounds = colliderAabb(*entity);
+  const auto initialBounds = colliderAabb(world, *entity);
+  auto pose = resolveWorldTransform2D(world, *entity);
+  if (!initialBounds || !pose) {
+    return std::nullopt;
+  }
+  Aabb bounds = *initialBounds;
   Vec2 applied = motion;
   const auto isStaticObstacle = [&entity](const Entity &candidate) {
     if (&candidate == entity || !candidate.enabled ||
@@ -216,10 +219,16 @@ std::optional<Vec2> moveAndSlideKinematic(World &world,
     const auto *body = candidate.component<Rigidbody2DComponent>();
     return body == nullptr || body->bodyType == "static";
   };
-  for (const Entity &candidate : world.entities) {
-    if (!isStaticObstacle(candidate))
-      continue;
-    const Aabb obstacle = colliderAabb(candidate);
+  std::vector<Aabb> obstacles;
+  for (const auto index : physics2d_detail::physicsEntityIndices2D(world)) {
+    const Entity &candidate = world.entities[index];
+    if (isStaticObstacle(candidate)) {
+      if (const auto obstacle = colliderAabb(world, candidate)) {
+        obstacles.push_back(*obstacle);
+      }
+    }
+  }
+  for (const Aabb &obstacle : obstacles) {
     if (bounds.maxY <= obstacle.minY || bounds.minY >= obstacle.maxY)
       continue;
     const float rightSeparation = obstacle.minX - bounds.maxX;
@@ -233,10 +242,7 @@ std::optional<Vec2> moveAndSlideKinematic(World &world,
   }
   bounds.minX += applied.x;
   bounds.maxX += applied.x;
-  for (const Entity &candidate : world.entities) {
-    if (!isStaticObstacle(candidate))
-      continue;
-    const Aabb obstacle = colliderAabb(candidate);
+  for (const Aabb &obstacle : obstacles) {
     if (bounds.maxX <= obstacle.minX || bounds.minX >= obstacle.maxX)
       continue;
     const float topSeparation = obstacle.minY - bounds.maxY;
@@ -249,9 +255,15 @@ std::optional<Vec2> moveAndSlideKinematic(World &world,
       applied.y = std::max(applied.y, bottomSeparation);
   }
 
-  Transform2DComponent &transform = *entity->component<Transform2DComponent>();
-  transform.position.x += applied.x;
-  transform.position.y += applied.y;
+  const auto &transform = *entity->component<Transform2DComponent>();
+  pose->position.x += applied.x;
+  pose->position.y += applied.y;
+  const Entity *parent = findEntity(world, transform.parent);
+  const auto parentPose =
+      parent ? resolveWorldTransform2D(world, *parent) : std::nullopt;
+  const auto local = localTransform2D(transform, *pose, parentPose);
+  entity->updateComponent<Transform2DComponent>(
+      [&](auto &updated) { updated.position = local.position; });
   entity->component<Rigidbody2DComponent>()->velocity = {};
   return applied;
 }

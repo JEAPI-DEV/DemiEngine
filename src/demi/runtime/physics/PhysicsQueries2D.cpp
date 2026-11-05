@@ -77,7 +77,8 @@ public:
   NativeQueryShapes2D(const World &world, const std::string &layer,
                       const std::string &ignoredEntityId,
                       std::optional<b2AABB> bounds = std::nullopt) {
-    for (const Entity &entity : world.entities) {
+    for (const auto index : physics2d_detail::physicsEntityIndices2D(world)) {
+      const Entity &entity = world.entities[index];
       if (!entity.enabled || entity.id == ignoredEntityId ||
           !entity.hasComponent<Transform2DComponent>() ||
           !physics2d_detail::hasCollider(entity)) {
@@ -88,9 +89,13 @@ public:
         continue;
       }
       Transform2DComponent transform;
-      transform.position = worldPosition2D(world, entity);
-      transform.rotation = worldRotation2D(world, entity);
-      transform.scale = worldScale2D(world, entity);
+      const auto pose = resolveWorldTransform2D(world, entity);
+      if (!pose) {
+        continue;
+      }
+      transform.position = pose->position;
+      transform.rotation = pose->rotation;
+      transform.scale = pose->scale;
       const b2Transform nativeTransform(
           {transform.position.x, transform.position.y},
           b2Rot(transform.rotation));

@@ -35,6 +35,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <optional>
+#include <span>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -47,6 +48,7 @@ class AudioSystem;
 class MediaSystem;
 class NetworkSystem;
 class RuntimeAssetService;
+namespace platform { class ProjectFileWatcher; }
 
 class LuaScriptHost {
 public:
@@ -597,7 +599,10 @@ public:
   void clearCursorStateDirty();
   void setPhysicsEnabled(bool enabled);
   [[nodiscard]] bool physicsEnabled() const;
-  void setHotReloadEnabled(bool enabled);
+  // The runtime coordinator supplies validated paths in dev mode. Standalone
+  // hosts use the same native watcher when hot reload is explicitly enabled.
+  void setHotReloadEnabled(bool enabled, bool externallyDriven = false);
+  void notifyScriptChanges(std::span<const std::filesystem::path> paths);
   [[nodiscard]] bool hotReloadEnabled() const;
   void startE2ETests(const std::string &moduleName);
   void updateE2ETests(double deltaTime);
@@ -660,7 +665,6 @@ private:
     std::string entityId;
     std::string module;
     std::filesystem::path path;
-    std::filesystem::file_time_type lastWriteTime{};
     int tableRef = 0;
     bool lifecycleStarted = false;
     std::vector<LuaActionHandler> actionHandlers;
@@ -686,7 +690,6 @@ private:
   struct ModuleActionHandler {
     std::string module;
     std::filesystem::path path;
-    std::filesystem::file_time_type lastWriteTime{};
     std::vector<LuaActionHandler> actionHandlers;
     std::vector<LuaEventHandler> eventHandlers;
   };
@@ -765,6 +768,9 @@ private:
   bool applicationSuspended_ = false;
   LuaE2ETestRunner e2eTestRunner_;
   bool hotReloadEnabled_ = false;
+  bool externalScriptChanges_ = false;
+  std::unique_ptr<platform::ProjectFileWatcher> scriptWatcher_;
+  std::unordered_set<std::string> changedScripts_;
   bool cutscenePaused_ = false;
   bool previousUiMouseDown_ = false;
   std::optional<std::string> pendingSceneUnload_;

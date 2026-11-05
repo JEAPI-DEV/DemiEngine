@@ -2,6 +2,7 @@
 #include "demi/filesystem/ProjectPaths.h"
 
 #include <algorithm>
+#include <set>
 #include <unordered_set>
 #include <utility>
 #include <uv.h>
@@ -23,9 +24,14 @@ bool ignored(const std::filesystem::path &relative) {
 
 // libuv owns the platform event backend. One watch per admitted directory also
 // works on Linux, where recursive fs-event watches are not supported. Events
-// invalidate the existing snapshot; idle frames do no directory/stat traversal.
+// identify paths to recheck; structural changes reconcile the full snapshot.
 class ProjectFileWatcher::NativeEvents {
 public:
+  struct Changes {
+    std::set<std::filesystem::path> paths;
+    bool rescan = false;
+  };
+
   explicit NativeEvents(std::filesystem::path root) : root_(std::move(root)) {
     initialized_ = uv_loop_init(&loop_) == 0;
     fallback = !initialized_;
@@ -41,11 +47,14 @@ public:
     uv_run(&loop_, UV_RUN_DEFAULT);
     uv_loop_close(&loop_);
   }
-  bool poll() {
+  Changes poll() {
     if (initialized_) {
       uv_run(&loop_, UV_RUN_NOWAIT);
     }
-    return std::exchange(dirty_, false);
+    return std::exchange(pending_, Changes{});
+  }
+  bool watchesDirectory(const std::filesystem::path &path) const {
+    return watches_.contains(path.string());
   }
   void beginScan() {
     seen_.clear();
@@ -98,27 +107,33 @@ private:
         reinterpret_cast<uv_handle_t *>(&watch->handle),
         [](uv_handle_t *handle) { delete static_cast<Watch *>(handle->data); });
   }
-  static void changed(uv_fs_event_t *handle, const char *filename, int,
+  static void changed(uv_fs_event_t *handle, const char *filename, int events,
                       int status) {
     auto &watch = *static_cast<Watch *>(handle->data);
     auto &owner = *watch.owner;
     if (status < 0) {
       uv_fs_event_stop(handle);
       owner.fallback = true;
-      owner.dirty_ = true;
+      owner.pending_.rescan = true;
       return;
     }
-    const auto path = filename ? watch.directory / filename : watch.directory;
-    const auto relative =
-        path.lexically_normal().lexically_relative(owner.root_);
-    if (relative == "." || (!relative.empty() && *relative.begin() != ".." &&
-                            !ignored(relative))) {
-      owner.dirty_ = true;
+    if (filename == nullptr || events == 0) {
+      owner.pending_.rescan = true;
+      return;
+    }
+    const auto path = (watch.directory / filename).lexically_normal();
+    const auto relative = path.lexically_relative(owner.root_);
+    if (relative == ".") {
+      owner.pending_.rescan = true;
+    } else if (!relative.empty() && *relative.begin() != ".." &&
+               !ignored(relative)) {
+      owner.pending_.paths.insert(path);
     }
   }
+
   uv_loop_t loop_{};
   bool initialized_ = false;
-  bool dirty_ = false;
+  Changes pending_;
   std::filesystem::path root_;
   std::unordered_set<std::string> seen_;
   std::unordered_map<std::string, std::unique_ptr<Watch>> watches_;
@@ -138,6 +153,21 @@ void ProjectFileWatcher::reset(const std::filesystem::path &projectDirectory) {
   nextFallbackScan_ = std::chrono::steady_clock::now();
   snapshot_ = scan();
   generation_ = 0;
+}
+
+std::optional<ProjectFileWatcher::Signature>
+ProjectFileWatcher::signatureFor(const std::filesystem::path &path) {
+  std::error_code error;
+  if (!std::filesystem::is_regular_file(path, error) || error) {
+    return std::nullopt;
+  }
+  Signature signature;
+  signature.writeTime = std::filesystem::last_write_time(path, error);
+  if (error) {
+    return std::nullopt;
+  }
+  signature.size = std::filesystem::file_size(path, error);
+  return error ? std::nullopt : std::make_optional(signature);
 }
 
 std::unordered_map<std::string, ProjectFileWatcher::Signature>
@@ -169,20 +199,12 @@ ProjectFileWatcher::scan() {
       }
       continue;
     }
-    if (!entry.is_regular_file(error) || ignored(relative))
-      continue;
-    Signature signature;
-    signature.writeTime = entry.last_write_time(error);
-    if (error) {
-      error.clear();
+    if (ignored(relative)) {
       continue;
     }
-    signature.size = entry.file_size(error);
-    if (error) {
-      error.clear();
-      continue;
+    if (const auto signature = signatureFor(entry.path())) {
+      result.emplace(relative.generic_string(), *signature);
     }
-    result.emplace(relative.generic_string(), signature);
   }
   events_->finishScan();
   return result;
@@ -195,24 +217,50 @@ ProjectFileChangeBatch ProjectFileWatcher::poll() {
   }
   const auto now = std::chrono::steady_clock::now();
   const bool fallbackDue = events_->fallback && now >= nextFallbackScan_;
-  if (!events_->poll() && !fallbackDue) {
-    return batch;
+  const auto changes = events_->poll();
+  bool rescan = changes.rescan || fallbackDue;
+  for (const auto &path : changes.paths) {
+    std::error_code error;
+    if (events_->watchesDirectory(path) ||
+        std::filesystem::is_directory(path, error)) {
+      rescan = true;
+      break;
+    }
   }
-  // Unsupported/network filesystems and exhausted watch limits still reload,
-  // but fallback polling is bounded instead of scanning on every game frame.
-  nextFallbackScan_ = now + std::chrono::milliseconds(500);
-  const auto current = scan();
-  for (const auto &[path, signature] : current) {
-    const auto previous = snapshot_.find(path);
-    if (previous == snapshot_.end() || previous->second != signature)
-      batch.changed.push_back(projectDirectory_ / path);
+  if (rescan) {
+    // Lost/ambiguous events, structural changes and unavailable native watches
+    // reconcile directory watches as well as file signatures.
+    nextFallbackScan_ = now + std::chrono::milliseconds(500);
+    auto current = scan();
+    for (const auto &[path, signature] : current) {
+      const auto previous = snapshot_.find(path);
+      if (previous == snapshot_.end() || previous->second != signature) {
+        batch.changed.push_back(projectDirectory_ / path);
+      }
+    }
+    for (const auto &[path, unused] : snapshot_) {
+      (void)unused;
+      if (!current.contains(path)) {
+        batch.removed.push_back(projectDirectory_ / path);
+      }
+    }
+    snapshot_ = std::move(current);
+  } else {
+    for (const auto &path : changes.paths) {
+      const auto relative =
+          path.lexically_relative(projectDirectory_).generic_string();
+      const auto previous = snapshot_.find(relative);
+      if (const auto signature = signatureFor(path)) {
+        if (previous == snapshot_.end() || previous->second != *signature) {
+          batch.changed.push_back(path);
+          snapshot_[relative] = *signature;
+        }
+      } else if (previous != snapshot_.end()) {
+        batch.removed.push_back(path);
+        snapshot_.erase(previous);
+      }
+    }
   }
-  for (const auto &[path, unused] : snapshot_) {
-    (void)unused;
-    if (!current.contains(path))
-      batch.removed.push_back(projectDirectory_ / path);
-  }
-  snapshot_ = current;
   if (!batch.empty())
     batch.generation = ++generation_;
   std::ranges::sort(batch.changed);

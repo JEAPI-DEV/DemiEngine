@@ -15,6 +15,7 @@ struct TextureImporterSettings {
   std::string filter;
   std::string wrap = "clamp";
   bool mipmaps = false;
+  bool operator==(const TextureImporterSettings &) const = default;
 };
 
 struct AssetManifest {
@@ -37,6 +38,7 @@ struct AssetManifest {
   std::optional<std::filesystem::path> licensePath;
   std::string sourcePackage;
   std::string packageContentHash;
+  bool operator==(const AssetManifest &) const = default;
 };
 
 struct AssetRegistry {
