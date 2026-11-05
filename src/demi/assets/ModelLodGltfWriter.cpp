@@ -5,9 +5,6 @@
 #include <algorithm>
 #include <bit>
 #include <cmath>
-#include <cstdlib>
-#include <fstream>
-#include <iterator>
 #include <limits>
 #include <set>
 #include <stdexcept>
@@ -66,57 +63,6 @@ std::size_t appendView(Json &root, std::size_t offset, std::size_t size,
   const auto index = views.size();
   views.push_back(std::move(view));
   return index;
-}
-
-std::vector<std::byte> readImageUri(std::string_view uri,
-                                    const std::filesystem::path &source,
-                                    std::string &mime) {
-  if (uri.starts_with("data:")) {
-    const auto separator = uri.find(',');
-    if (separator == std::string_view::npos ||
-        !uri.substr(0, separator).ends_with(";base64")) {
-      throw std::runtime_error("Unsupported glTF image data URI.");
-    }
-    mime = std::string(uri.substr(5, separator - 5 - 7));
-    const auto payload = uri.substr(separator + 1);
-    if (payload.empty() || payload.size() % 4 != 0) {
-      throw std::runtime_error("Invalid glTF image base64 payload.");
-    }
-    auto size = payload.size() / 4 * 3;
-    if (payload.ends_with("==")) {
-      size -= 2;
-    } else if (payload.ends_with("=")) {
-      --size;
-    }
-    checkAppend(0, size);
-    cgltf_options options{};
-    void *data = nullptr;
-    if (cgltf_load_buffer_base64(&options, size, payload.data(), &data) !=
-        cgltf_result_success) {
-      throw std::runtime_error("Could not decode glTF image base64 payload.");
-    }
-    const std::unique_ptr<void, decltype(&std::free)> allocation(data,
-                                                                 &std::free);
-    const auto *begin = static_cast<const std::byte *>(data);
-    return {begin, begin + size};
-  }
-  std::string decoded(uri);
-  decoded.resize(cgltf_decode_uri(decoded.data()));
-  std::ifstream input(source.parent_path() / decoded, std::ios::binary);
-  if (!input) {
-    throw std::runtime_error("Could not read glTF image: " + decoded);
-  }
-  const std::vector<char> contents((std::istreambuf_iterator<char>(input)), {});
-  if (input.bad()) {
-    throw std::runtime_error("Could not finish reading glTF image: " + decoded);
-  }
-  checkAppend(0, contents.size());
-  std::vector<std::byte> bytes(contents.size());
-  std::transform(
-      contents.begin(), contents.end(), bytes.begin(), [](char value) {
-        return static_cast<std::byte>(static_cast<unsigned char>(value));
-      });
-  return bytes;
 }
 
 std::string imageMime(const std::vector<std::byte> &bytes) {
@@ -185,17 +131,23 @@ void embedBuffers(const cgltf_data &document, Json &root,
   }
 }
 
-void embedImages(Json &root, const std::filesystem::path &source,
+void embedImages(const cgltf_data &document, Json &root,
+                 const std::filesystem::path &source,
                  std::vector<std::byte> &binary) {
   if (!root.contains("images")) {
     return;
   }
-  for (auto &image : root.at("images")) {
+  for (std::size_t index = 0; index < root.at("images").size(); ++index) {
+    auto &image = root["images"][index];
     if (!image.contains("uri")) {
       continue;
     }
     std::string mime = image.value("mimeType", std::string{});
-    auto bytes = readImageUri(image.at("uri").get<std::string>(), source, mime);
+    if (index >= document.images_count) {
+      throw std::runtime_error(
+          "glTF image index is outside the parsed document.");
+    }
+    auto bytes = readImage(document.images[index], source, &mime, maximumSize);
     if (mime.empty()) {
       mime = imageMime(bytes);
     }
@@ -315,7 +267,7 @@ bool writeModelLodGlb(const cgltf_data &document,
     Json root = Json::parse(document.json, document.json + document.json_size);
     std::vector<std::byte> binary;
     embedBuffers(document, root, binary);
-    embedImages(root, source, binary);
+    embedImages(document, root, source, binary);
     std::set<std::pair<std::size_t, std::size_t>> replaced;
     for (const auto &primitive : primitives) {
       if (!replaced.emplace(primitive.mesh, primitive.primitive).second) {

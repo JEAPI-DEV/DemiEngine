@@ -7,6 +7,7 @@
 #include <SDL3/SDL.h>
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
@@ -91,79 +92,21 @@ void SDLCALL permissionResult(void *userdata, const char *permission,
 #endif
 
 std::string_view keyName(const SDL_Scancode key) {
+  constexpr std::string_view letters = "abcdefghijklmnopqrstuvwxyz";
+  constexpr std::string_view digits = "1234567890";
+  constexpr std::array<std::string_view, 12> functionKeys{
+      "f1", "f2", "f3", "f4",  "f5",  "f6",
+      "f7", "f8", "f9", "f10", "f11", "f12"};
+  if (key >= SDL_SCANCODE_A && key <= SDL_SCANCODE_Z) {
+    return letters.substr(static_cast<std::size_t>(key - SDL_SCANCODE_A), 1);
+  }
+  if (key >= SDL_SCANCODE_1 && key <= SDL_SCANCODE_0) {
+    return digits.substr(static_cast<std::size_t>(key - SDL_SCANCODE_1), 1);
+  }
+  if (key >= SDL_SCANCODE_F1 && key <= SDL_SCANCODE_F12) {
+    return functionKeys[static_cast<std::size_t>(key - SDL_SCANCODE_F1)];
+  }
   switch (key) {
-  case SDL_SCANCODE_A:
-    return "a";
-  case SDL_SCANCODE_B:
-    return "b";
-  case SDL_SCANCODE_C:
-    return "c";
-  case SDL_SCANCODE_D:
-    return "d";
-  case SDL_SCANCODE_E:
-    return "e";
-  case SDL_SCANCODE_F:
-    return "f";
-  case SDL_SCANCODE_G:
-    return "g";
-  case SDL_SCANCODE_H:
-    return "h";
-  case SDL_SCANCODE_I:
-    return "i";
-  case SDL_SCANCODE_J:
-    return "j";
-  case SDL_SCANCODE_K:
-    return "k";
-  case SDL_SCANCODE_L:
-    return "l";
-  case SDL_SCANCODE_M:
-    return "m";
-  case SDL_SCANCODE_N:
-    return "n";
-  case SDL_SCANCODE_O:
-    return "o";
-  case SDL_SCANCODE_P:
-    return "p";
-  case SDL_SCANCODE_Q:
-    return "q";
-  case SDL_SCANCODE_R:
-    return "r";
-  case SDL_SCANCODE_S:
-    return "s";
-  case SDL_SCANCODE_T:
-    return "t";
-  case SDL_SCANCODE_U:
-    return "u";
-  case SDL_SCANCODE_V:
-    return "v";
-  case SDL_SCANCODE_W:
-    return "w";
-  case SDL_SCANCODE_X:
-    return "x";
-  case SDL_SCANCODE_Y:
-    return "y";
-  case SDL_SCANCODE_Z:
-    return "z";
-  case SDL_SCANCODE_0:
-    return "0";
-  case SDL_SCANCODE_1:
-    return "1";
-  case SDL_SCANCODE_2:
-    return "2";
-  case SDL_SCANCODE_3:
-    return "3";
-  case SDL_SCANCODE_4:
-    return "4";
-  case SDL_SCANCODE_5:
-    return "5";
-  case SDL_SCANCODE_6:
-    return "6";
-  case SDL_SCANCODE_7:
-    return "7";
-  case SDL_SCANCODE_8:
-    return "8";
-  case SDL_SCANCODE_9:
-    return "9";
   case SDL_SCANCODE_SPACE:
     return "space";
   case SDL_SCANCODE_RETURN:
@@ -202,30 +145,6 @@ std::string_view keyName(const SDL_Scancode key) {
     return "left alt";
   case SDL_SCANCODE_RALT:
     return "right alt";
-  case SDL_SCANCODE_F1:
-    return "f1";
-  case SDL_SCANCODE_F2:
-    return "f2";
-  case SDL_SCANCODE_F3:
-    return "f3";
-  case SDL_SCANCODE_F4:
-    return "f4";
-  case SDL_SCANCODE_F5:
-    return "f5";
-  case SDL_SCANCODE_F6:
-    return "f6";
-  case SDL_SCANCODE_F7:
-    return "f7";
-  case SDL_SCANCODE_F8:
-    return "f8";
-  case SDL_SCANCODE_F9:
-    return "f9";
-  case SDL_SCANCODE_F10:
-    return "f10";
-  case SDL_SCANCODE_F11:
-    return "f11";
-  case SDL_SCANCODE_F12:
-    return "f12";
   default:
     return {};
   }

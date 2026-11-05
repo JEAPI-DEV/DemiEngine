@@ -1,4 +1,5 @@
 #include "demi/runtime/render/bgfx3d/PostProcessRenderer3D.h"
+#include "demi/runtime/math/VectorMath.h"
 
 #include "demi/runtime/render/backend/ImageColorSpace.h"
 #include "demi/runtime/render/backend/QuadBatch.h"
@@ -24,27 +25,6 @@ Vec3 normalized(Vec3 value, Vec3 fallback) {
     return fallback;
   }
   return {value.x / length, value.y / length, value.z / length};
-}
-
-Vec3 cross(Vec3 first, Vec3 second) {
-  return {first.y * second.z - first.z * second.y,
-          first.z * second.x - first.x * second.z,
-          first.x * second.y - first.y * second.x};
-}
-
-VertexLayout quadVertexLayout() {
-  return VertexLayout{.attributes = {
-                          {.semantic = VertexSemantic::Position,
-                           .components = 2,
-                           .type = VertexElementType::Float},
-                          {.semantic = VertexSemantic::TexCoord0,
-                           .components = 2,
-                           .type = VertexElementType::Float},
-                          {.semantic = VertexSemantic::Color0,
-                           .components = 4,
-                           .type = VertexElementType::UInt8,
-                           .normalized = true},
-                      }};
 }
 
 } // namespace
@@ -223,8 +203,8 @@ bool PostProcessRenderer3D::present(
       return false;
     }
     const auto forward = normalized(frame.forward, {0, 0, -1});
-    const auto right = normalized(cross(forward, frame.up), {1, 0, 0});
-    const auto up = normalized(cross(right, forward), {0, 1, 0});
+    const auto right = normalized(math::cross(forward, frame.up), {1, 0, 0});
+    const auto up = normalized(math::cross(right, forward), {0, 1, 0});
     const float extent =
         frame.camera.perspective
             ? std::tan(frame.camera.fov * std::numbers::pi_v<float> / 360.F)

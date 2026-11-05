@@ -937,6 +937,8 @@ endif()
 
 add_executable(demi-gltf-materials-tests tests/gltf_materials_tests.cpp)
 target_link_libraries(demi-gltf-materials-tests PRIVATE demi-render3d-bgfx)
+target_include_directories(demi-gltf-materials-tests PRIVATE
+  "${bgfx_SOURCE_DIR}/bgfx/3rdparty/cgltf")
 
 add_executable(demi-opaque-instance-plan-tests tests/opaque_instance_plan_tests.cpp)
 target_link_libraries(demi-opaque-instance-plan-tests PRIVATE demi-render3d-bgfx)

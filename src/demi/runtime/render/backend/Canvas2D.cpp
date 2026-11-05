@@ -10,21 +10,6 @@
 namespace demi::runtime::render {
 namespace {
 
-VertexLayout quadVertexLayout() {
-  return VertexLayout{.attributes = {
-                          {.semantic = VertexSemantic::Position,
-                           .components = 2,
-                           .type = VertexElementType::Float},
-                          {.semantic = VertexSemantic::TexCoord0,
-                           .components = 2,
-                           .type = VertexElementType::Float},
-                          {.semantic = VertexSemantic::Color0,
-                           .components = 4,
-                           .type = VertexElementType::UInt8,
-                           .normalized = true},
-                      }};
-}
-
 bool positive(const Rect2D &rect) {
   return rect.width > 0.0F && rect.height > 0.0F;
 }

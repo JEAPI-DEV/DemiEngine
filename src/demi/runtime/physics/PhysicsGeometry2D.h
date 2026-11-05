@@ -27,9 +27,8 @@ struct Aabb {
                                     Vec2 point);
 [[nodiscard]] Vec2 absoluteScale(const Transform2DComponent &transform);
 [[nodiscard]] float circleScale(const Transform2DComponent &transform);
-[[nodiscard]] bool participatesInCollision(const Entity &entity);
-[[nodiscard]] std::optional<Aabb> colliderAabb(const World &world,
-                                               const Entity &entity);
+[[nodiscard]] std::optional<Aabb> solidColliderAabb(const World &world,
+                                                    const Entity &entity);
 [[nodiscard]] std::vector<std::size_t>
 physicsEntityIndices2D(const World &world);
 [[nodiscard]] std::string colliderLayer(const Entity &entity);

@@ -12,6 +12,7 @@
 #include <cassert>
 #include <cmath>
 #include <filesystem>
+#include <limits>
 #include <ranges>
 #include <string>
 
@@ -97,10 +98,55 @@ float dragAtDistance(float distance, float meshSize,
   return action.edit->value[0].get<float>() -
          (operation == editor::EditorGizmoOperation::Scale ? 1 : 0);
 }
+void projectionPolicies() {
+  using namespace demi;
+  editor::EditorSceneViewCamera camera;
+  camera.projection.nearClip = 0.1F;
+  camera.projection.farClip = 1;
+  const runtime::Vec2 viewport{800, 600};
+  assert(!editor::projectScenePoint3D(camera, {0, 0, 0.1F}, viewport));
+  assert(editor::projectScenePoint3D(camera, {0, 0, std::nextafter(0.1F, 1.0F)},
+                                     viewport));
+  const auto distant =
+      editor::projectScenePoint3D(camera, {0, 0, 10}, viewport);
+  assert(distant && distant->x == 400 && distant->y == 300);
+  camera.projection.perspective = false;
+  camera.projection.orthographicSize = 0;
+  const auto topRay = editor::sceneViewportRay(camera, {400, 0}, viewport);
+  assert(std::abs(topRay.origin.y - 0.01F) < 0.000001F);
+  const auto top = editor::projectScenePoint3D(camera, {0, 0.01F, 1}, viewport);
+  assert(top && std::abs(top->y) < 0.001F);
+  assert(std::abs(editor::sceneWorldUnitsPerPixel(camera, {0, 0, 1}, viewport) -
+                  0.01F / 600) < 0.0000001F);
+  camera.forward = {0.000001F, 0, 0};
+  camera.up = {};
+  const auto fallback = editor::sceneViewportRay(camera, {400, 300}, viewport);
+  assert(fallback.direction.x == 0 && fallback.direction.z == 1);
+  camera.forward = camera.up = {1, 0, 0};
+  const auto parallel = editor::sceneViewportRay(camera, {400, 300}, viewport);
+  const auto direction = editor::projectSceneDirection3D(camera, {1, 0, 0});
+  assert(parallel.direction.x == 1 && direction.x == -1 && direction.y == 0);
+  camera.projection.perspective = true;
+  camera.projection.fov = 90;
+  const auto cancelled =
+      editor::sceneViewportRay(camera, {600, 300}, {600, 600});
+  assert(cancelled.direction.x == 1 && cancelled.direction.y == 0);
+  camera.forward = {0, 0, 1};
+  camera.up = {0, 1, 0};
+  camera.projection.fov = std::numeric_limits<float>::quiet_NaN();
+  const auto invalid = editor::sceneViewportRay(camera, {0, 0}, viewport);
+  assert(invalid.direction.z == 1 && invalid.direction.x == 0);
+  assert(!editor::projectScenePoint3D(camera, {0, 0, 1}, viewport));
+  camera.projection.perspective = false;
+  camera.projection.orthographicSize = std::numeric_limits<float>::quiet_NaN();
+  assert(!editor::projectScenePoint3D(camera, {0, 0, 1}, viewport));
+  assert(editor::sceneWorldUnitsPerPixel(camera, {0, 0, 1}, viewport) == 0);
+}
 } // namespace
 
 int main() {
   using namespace demi;
+  projectionPolicies();
   for (const auto operation : {editor::EditorGizmoOperation::Translate,
                                editor::EditorGizmoOperation::Scale}) {
     const float near =

@@ -1,4 +1,6 @@
 #include "demi/runtime/physics/PhysicsGeometry2D.h"
+#include "demi/runtime/physics/Box2DShapes2D.h"
+
 #include "demi/runtime/scene/Transform2DHierarchy.h"
 #include "demi/runtime/scene/components/2dcomponents/BoxCollider2DComponent.h"
 #include "demi/runtime/scene/components/2dcomponents/CapsuleCollider2DComponent.h"
@@ -9,6 +11,7 @@
 #include "demi/runtime/scene/components/2dcomponents/Transform2DComponent.h"
 #include "demi/runtime/scene/model/Entity.h"
 #include "demi/runtime/scene/model/World.h"
+#include <box2d/box2d.h>
 
 #include <algorithm>
 #include <cmath>
@@ -30,23 +33,8 @@ namespace demi::runtime::physics2d_detail {
   return std::max(scale.x, scale.y);
 }
 
-[[nodiscard]] bool participatesInCollision(const Entity &entity) {
-  if (!entity.hasComponent<Transform2DComponent>())
-    return false;
-  if (const auto *box = entity.component<BoxCollider2DComponent>())
-    return !box->isTrigger;
-  if (const auto *circle = entity.component<CircleCollider2DComponent>())
-    return !circle->isTrigger;
-  if (const auto *capsule = entity.component<CapsuleCollider2DComponent>())
-    return !capsule->isTrigger;
-  if (const auto *polygon = entity.component<PolygonCollider2DComponent>())
-    return !polygon->isTrigger;
-  if (const auto *edge = entity.component<EdgeCollider2DComponent>())
-    return !edge->isTrigger;
-  return false;
-}
-
-std::optional<Aabb> colliderAabb(const World &world, const Entity &entity) {
+std::optional<Aabb> solidColliderAabb(const World &world,
+                                      const Entity &entity) {
   const auto pose = resolveWorldTransform2D(world, entity);
   if (!pose) {
     return std::nullopt;
@@ -55,56 +43,37 @@ std::optional<Aabb> colliderAabb(const World &world, const Entity &entity) {
   transform.position = pose->position;
   transform.rotation = pose->rotation;
   transform.scale = pose->scale;
-  const float cosine = std::cos(transform.rotation);
-  const float sine = std::sin(transform.rotation);
-  const auto worldPoint = [&](const Vec2 point) {
-    const Vec2 scaled = scaledLocalPoint(transform, point);
-    return Vec2{transform.position.x + scaled.x * cosine - scaled.y * sine,
-                transform.position.y + scaled.x * sine + scaled.y * cosine};
-  };
-  if (const auto *circle = entity.component<CircleCollider2DComponent>()) {
-    const Vec2 center = worldPoint(circle->offset);
-    const float radius = circle->radius * circleScale(transform);
-    return Aabb{center.x - radius, center.y - radius, center.x + radius,
-                center.y + radius};
+  const b2Transform nativeTransform({pose->position.x, pose->position.y},
+                                    b2Rot(pose->rotation));
+  std::optional<b2AABB> combined;
+  visitBox2DFixtures2D(
+      world, entity, transform, [&](const b2FixtureDef &fixture) {
+        if (fixture.isSensor) {
+          return;
+        }
+        for (int32 child = 0; child < fixture.shape->GetChildCount(); ++child) {
+          b2AABB bounds;
+          fixture.shape->ComputeAABB(&bounds, nativeTransform, child);
+          // Movement clips to authored geometry, not the polygon/edge solver
+          // skin. Circle radii are the physical surface and must remain in the
+          // bounds.
+          const float skin = fixture.shape->GetType() == b2Shape::e_circle
+                                 ? 0.0F
+                                 : fixture.shape->m_radius;
+          bounds.lowerBound += b2Vec2(skin, skin);
+          bounds.upperBound -= b2Vec2(skin, skin);
+          if (combined) {
+            combined->Combine(bounds);
+          } else {
+            combined = bounds;
+          }
+        }
+      });
+  if (!combined) {
+    return std::nullopt;
   }
-
-  std::vector<Vec2> points;
-  if (const auto *box = entity.component<BoxCollider2DComponent>()) {
-    const Vec2 half{box->size.x * 0.5F, box->size.y * 0.5F};
-    points = {{box->offset.x - half.x, box->offset.y - half.y},
-              {box->offset.x + half.x, box->offset.y - half.y},
-              {box->offset.x + half.x, box->offset.y + half.y},
-              {box->offset.x - half.x, box->offset.y + half.y}};
-  } else if (const auto *capsule =
-                 entity.component<CapsuleCollider2DComponent>()) {
-    const Vec2 half{capsule->size.x * 0.5F, capsule->size.y * 0.5F};
-    points = {{capsule->offset.x - half.x, capsule->offset.y - half.y},
-              {capsule->offset.x + half.x, capsule->offset.y - half.y},
-              {capsule->offset.x + half.x, capsule->offset.y + half.y},
-              {capsule->offset.x - half.x, capsule->offset.y + half.y}};
-  } else if (const auto *polygon =
-                 entity.component<PolygonCollider2DComponent>()) {
-    points.reserve(polygon->points.size());
-    for (const Vec2 point : polygon->points)
-      points.push_back(
-          {point.x + polygon->offset.x, point.y + polygon->offset.y});
-  } else if (const auto *edge = entity.component<EdgeCollider2DComponent>()) {
-    points = edge->points;
-  }
-  if (points.empty())
-    return Aabb{transform.position.x, transform.position.y,
-                transform.position.x, transform.position.y};
-  const Vec2 first = worldPoint(points.front());
-  Aabb result{first.x, first.y, first.x, first.y};
-  for (const Vec2 point : points) {
-    const Vec2 world = worldPoint(point);
-    result.minX = std::min(result.minX, world.x);
-    result.minY = std::min(result.minY, world.y);
-    result.maxX = std::max(result.maxX, world.x);
-    result.maxY = std::max(result.maxY, world.y);
-  }
-  return result;
+  return Aabb{combined->lowerBound.x, combined->lowerBound.y,
+              combined->upperBound.x, combined->upperBound.y};
 }
 
 std::vector<std::size_t> physicsEntityIndices2D(const World &world) {

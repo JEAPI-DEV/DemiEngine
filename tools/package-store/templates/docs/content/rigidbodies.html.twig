@@ -104,6 +104,7 @@ Body.move_kinematic(id, 3.5, 4.0, fixed_dt)</code></pre>
 </table>
 <p>2D velocities, <code>move_kinematic</code> targets and requested/returned <code>move_and_slide</code> displacements are world-space. Bodies under a Transform2D parent use the same composed position, rotation and scale as queries and rendering. Simulation results are converted back to local position/rotation; the authored parent and scale are preserved.</p>
 <p>Use <code>move_and_slide</code> for 2D motion that should clip and slide against static collider bounds. Use <code>move_kinematic</code> for rails and platforms following a known target. The 3D version is <code>move_kinematic(id, x, y, z, rx, ry, rz, fixed_dt)</code> with Euler rotation in radians.</p>
+<p>The clipping bounds come from the native Box2D fixtures, combining all solid shapes on each entity and excluding sensors. This keeps capsule, polygon and multi-collider bounds aligned with simulation. Movement clipping remains axis-aligned-bounds based; it is not a curved-shape sweep.</p>
 
 <h2>Full 2D example</h2>
 <p>A Skyforge cargo crate that can be shoved, then settles and sleeps.</p>

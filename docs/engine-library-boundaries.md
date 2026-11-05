@@ -246,6 +246,52 @@ a line-count reduction. There are no new third-party dependencies or authoring
 formats. Evidence is under
 `build/linux-release/qualification/seven-runtime-improvements/`.
 
+## Direct maintenance reductions (2026-11-05)
+
+Implemented against `c003e09f`. This pass replaces duplicated implementations
+with existing owners and removes **294 net production-source lines** (438 added,
+732 removed, including shared helper code). There are no new dependencies,
+production files, persistent caches or authoring formats.
+
+- SDL letters, digits and F1–F12 use compact mappings over their defined scancode
+  ranges; special-key names and unsupported-key rejection remain unchanged.
+  Tests inject SDL events for every scancode and invalid sentinels.
+- `GltfDocument` owns image loading for both material import and LOD output.
+  Existing mbedTLS performs base64 decoding directly into the result, after a
+  size query and byte-limit check. cgltf still owns URI decoding and buffer views.
+  Tests cover valid embedded/data/external images, percent-encoded filenames,
+  MIME/byte limits, malformed payloads, unavailable/truncated buffers, decoded
+  NUL paths and preserving existing LOD output on failure.
+- Eight math consumers reuse `VectorMath` instead of repeating vector primitives.
+  Small operations remain inline; differing normalization thresholds and fallback
+  policies are retained where they are meaningful.
+- Canvas, postprocessing and opaque depth resolve share one `QuadVertex` layout
+  in the existing `QuadBatch` owner.
+- Movement's solid bounds come from shared native Box2D fixtures and
+  `ComputeAABB`/`Combine`. Polygon/edge solver skin is excluded, physical circle
+  radius retained, and sensors excluded. Rotated capsules and entities with
+  several solid colliders now match their native bounds. Movement remains
+  bounds-based, not an exact curved-shape sweep.
+- Editor projection reuses `CameraProjection3D` rather than repeating screen/ray
+  and pixel-scale calculations. The adapter keeps strict near clipping, no far
+  clipping, editor minimum orthographic size and degenerate-basis behavior.
+  Invalid projection settings are checked, and only numeric camera inputs are
+  copied so overlay projection does not copy unrelated asset IDs/render masks.
+
+Release qualification: 16 focused CTest suites pass; all eight Dungeon E2E
+scenarios and both animation E2E scenarios pass. The animation suite ran visibly
+through Vulkan at 5120x2696 using engine Test input. Five maximized GPU fog
+fixtures pass. Dungeon, animation and the Android-target minimal 2D example
+validate without diagnostics; the latter is source validation, not an Android
+execution claim. The CLI, runtime, editor and server were rebuilt.
+Evidence: `build/linux-release/qualification/maintenance-deletions/`.
+No frame-time speedup is claimed for this maintenance-focused pass.
+
+The Android safe-area JNI replacement was rejected: the pinned SDL Android
+insets implementation does not cover every Android API level supported by the
+engine. Deleting that compatibility path would remove behavior, unlike the
+required-backend fallback code removed in the preceding pass.
+
 ## Preferred replacement: Blast authoring
 
 The pinned SDK already contains fracture authoring, mesh cleaning, convex

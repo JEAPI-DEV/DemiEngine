@@ -1,4 +1,5 @@
 #include "demi/runtime/render/bgfx3d/DebugGeometry3D.h"
+#include "demi/runtime/math/VectorMath.h"
 
 #include "demi/runtime/physics/ColliderAsset3D.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
@@ -27,31 +28,9 @@ constexpr Color LightColor{1.0F, 0.82F, 0.22F, 1.0F};
 constexpr Color CameraColor{0.66F, 0.42F, 1.0F, 1.0F};
 constexpr int CircleSegments = 24;
 
-Vec3 add(const Vec3 left, const Vec3 right) {
-  return {left.x + right.x, left.y + right.y, left.z + right.z};
-}
-
-Vec3 subtract(const Vec3 left, const Vec3 right) {
-  return {left.x - right.x, left.y - right.y, left.z - right.z};
-}
-
-Vec3 multiply(const Vec3 value, const float scalar) {
-  return {value.x * scalar, value.y * scalar, value.z * scalar};
-}
-
-float dot(const Vec3 left, const Vec3 right) {
-  return left.x * right.x + left.y * right.y + left.z * right.z;
-}
-
-Vec3 cross(const Vec3 left, const Vec3 right) {
-  return {left.y * right.z - left.z * right.y,
-          left.z * right.x - left.x * right.z,
-          left.x * right.y - left.y * right.x};
-}
-
 Vec3 normalize(const Vec3 value) {
-  const float length = std::sqrt(dot(value, value));
-  return length > 0.00001F ? multiply(value, 1.0F / length) : Vec3{};
+  const float length = std::sqrt(math::dot(value, value));
+  return length > 0.00001F ? math::scale(value, 1.0F / length) : Vec3{};
 }
 
 bool isTrigger(const Entity &entity) {
@@ -76,14 +55,14 @@ void addLine(std::vector<DebugLine3D> &lines, const Vec3 start, const Vec3 end,
 void addCircle(std::vector<DebugLine3D> &lines, const Vec3 center,
                const Vec3 firstAxis, const Vec3 secondAxis, const float radius,
                const Color color) {
-  Vec3 previous = add(center, multiply(firstAxis, radius));
+  Vec3 previous = math::add(center, math::scale(firstAxis, radius));
   for (int segment = 1; segment <= CircleSegments; ++segment) {
     const float angle = static_cast<float>(segment) /
                         static_cast<float>(CircleSegments) *
                         std::numbers::pi_v<float> * 2.0F;
-    const Vec3 current =
-        add(center, add(multiply(firstAxis, std::cos(angle) * radius),
-                        multiply(secondAxis, std::sin(angle) * radius)));
+    const Vec3 current = math::add(
+        center, math::add(math::scale(firstAxis, std::cos(angle) * radius),
+                          math::scale(secondAxis, std::sin(angle) * radius)));
     addLine(lines, previous, current, color);
     previous = current;
   }
@@ -98,8 +77,8 @@ void addBox(std::vector<DebugLine3D> &lines, const WorldTransform3D &transform,
   for (const float x : {-half.x, half.x})
     for (const float y : {-half.y, half.y})
       for (const float z : {-half.z, half.z})
-        corners[index++] =
-            transformPoint3D(transform, add(collider.offset, Vec3{x, y, z}));
+        corners[index++] = transformPoint3D(
+            transform, math::add(collider.offset, Vec3{x, y, z}));
   constexpr std::array<std::pair<int, int>, 12> Edges{{
       {0, 1},
       {0, 2},
@@ -134,15 +113,16 @@ void addSphere(std::vector<DebugLine3D> &lines,
 void addHemisphereArc(std::vector<DebugLine3D> &lines, const Vec3 center,
                       const Vec3 axis, const Vec3 side, const float radius,
                       const float axisSign, const Color color) {
-  Vec3 previous = add(center, multiply(side, -radius));
+  Vec3 previous = math::add(center, math::scale(side, -radius));
   for (int segment = 1; segment <= CircleSegments / 2; ++segment) {
     const float angle = -std::numbers::pi_v<float> * 0.5F +
                         static_cast<float>(segment) /
                             static_cast<float>(CircleSegments / 2) *
                             std::numbers::pi_v<float>;
-    const Vec3 current =
-        add(center, add(multiply(side, std::sin(angle) * radius),
-                        multiply(axis, axisSign * std::cos(angle) * radius)));
+    const Vec3 current = math::add(
+        center,
+        math::add(math::scale(side, std::sin(angle) * radius),
+                  math::scale(axis, axisSign * std::cos(angle) * radius)));
     addLine(lines, previous, current, color);
     previous = current;
   }
@@ -158,15 +138,15 @@ void addCapsule(std::vector<DebugLine3D> &lines,
   const Vec3 center = transformPoint3D(transform, collider.offset);
   const Vec3 axis = normalize(transformDirection3D(transform, {0, 1, 0}));
   const Vec3 first = normalize(transformDirection3D(transform, {1, 0, 0}));
-  const Vec3 second = normalize(cross(axis, first));
-  const Vec3 top = add(center, multiply(axis, halfSegment));
-  const Vec3 bottom = subtract(center, multiply(axis, halfSegment));
+  const Vec3 second = normalize(math::cross(axis, first));
+  const Vec3 top = math::add(center, math::scale(axis, halfSegment));
+  const Vec3 bottom = math::subtract(center, math::scale(axis, halfSegment));
   addCircle(lines, top, first, second, radius, color);
   addCircle(lines, bottom, first, second, radius, color);
   for (const Vec3 side :
-       {first, multiply(first, -1.0F), second, multiply(second, -1.0F)})
-    addLine(lines, add(bottom, multiply(side, radius)),
-            add(top, multiply(side, radius)), color);
+       {first, math::scale(first, -1.0F), second, math::scale(second, -1.0F)})
+    addLine(lines, math::add(bottom, math::scale(side, radius)),
+            math::add(top, math::scale(side, radius)), color);
   addHemisphereArc(lines, top, axis, first, radius, 1.0F, color);
   addHemisphereArc(lines, top, axis, second, radius, 1.0F, color);
   addHemisphereArc(lines, bottom, axis, first, radius, -1.0F, color);
@@ -179,15 +159,17 @@ void addConvex(std::vector<DebugLine3D> &lines,
   std::vector<Vec3> points;
   points.reserve(collider.points.size());
   for (const Vec3 point : collider.points)
-    points.push_back(transformPoint3D(transform, add(point, collider.offset)));
+    points.push_back(
+        transformPoint3D(transform, math::add(point, collider.offset)));
   std::set<std::pair<std::size_t, std::size_t>> edges;
   constexpr float Epsilon = 0.0001F;
   for (std::size_t first = 0; first < points.size(); ++first)
     for (std::size_t second = first + 1; second < points.size(); ++second)
       for (std::size_t third = second + 1; third < points.size(); ++third) {
-        const Vec3 normal = cross(subtract(points[second], points[first]),
-                                  subtract(points[third], points[first]));
-        if (dot(normal, normal) <= Epsilon * Epsilon)
+        const Vec3 normal =
+            math::cross(math::subtract(points[second], points[first]),
+                        math::subtract(points[third], points[first]));
+        if (math::dot(normal, normal) <= Epsilon * Epsilon)
           continue;
         bool positive = false;
         bool negative = false;
@@ -195,7 +177,7 @@ void addConvex(std::vector<DebugLine3D> &lines,
           if (other == first || other == second || other == third)
             continue;
           const float side =
-              dot(normal, subtract(points[other], points[first]));
+              math::dot(normal, math::subtract(points[other], points[first]));
           positive = positive || side > Epsilon;
           negative = negative || side < -Epsilon;
         }
@@ -234,12 +216,12 @@ bool individuallyVisible(const Entity &entity) {
 void addLight(std::vector<DebugLine3D> &lines, const Entity &entity,
               const WorldTransform3D &transform) {
   constexpr float Marker = 0.3F;
-  addLine(lines, add(transform.position, {-Marker, 0.0F, 0.0F}),
-          add(transform.position, {Marker, 0.0F, 0.0F}), LightColor);
-  addLine(lines, add(transform.position, {0.0F, -Marker, 0.0F}),
-          add(transform.position, {0.0F, Marker, 0.0F}), LightColor);
-  addLine(lines, add(transform.position, {0.0F, 0.0F, -Marker}),
-          add(transform.position, {0.0F, 0.0F, Marker}), LightColor);
+  addLine(lines, math::add(transform.position, {-Marker, 0.0F, 0.0F}),
+          math::add(transform.position, {Marker, 0.0F, 0.0F}), LightColor);
+  addLine(lines, math::add(transform.position, {0.0F, -Marker, 0.0F}),
+          math::add(transform.position, {0.0F, Marker, 0.0F}), LightColor);
+  addLine(lines, math::add(transform.position, {0.0F, 0.0F, -Marker}),
+          math::add(transform.position, {0.0F, 0.0F, Marker}), LightColor);
   Vec3 direction{};
   float distance = 1.0F;
   if (const auto *light = entity.component<DirectionalLightComponent>())
@@ -257,7 +239,8 @@ void addLight(std::vector<DebugLine3D> &lines, const Entity &entity,
   }
   direction = normalize(transformDirection3D(transform, direction));
   addLine(lines, transform.position,
-          add(transform.position, multiply(direction, distance)), LightColor);
+          math::add(transform.position, math::scale(direction, distance)),
+          LightColor);
 }
 
 void addCamera(std::vector<DebugLine3D> &lines, const Camera3DComponent &camera,
@@ -273,12 +256,17 @@ void addCamera(std::vector<DebugLine3D> &lines, const Camera3DComponent &camera,
                                     DegreesToRadians * 0.5F) *
                                Depth
                          : std::min(camera.orthographicSize, 2.0F);
-  const Vec3 center = add(transform.position, multiply(forward, Depth));
+  const Vec3 center =
+      math::add(transform.position, math::scale(forward, Depth));
   const std::array<Vec3, 4> corners{
-      add(center, add(multiply(right, -half), multiply(up, -half))),
-      add(center, add(multiply(right, half), multiply(up, -half))),
-      add(center, add(multiply(right, half), multiply(up, half))),
-      add(center, add(multiply(right, -half), multiply(up, half)))};
+      math::add(center,
+                math::add(math::scale(right, -half), math::scale(up, -half))),
+      math::add(center,
+                math::add(math::scale(right, half), math::scale(up, -half))),
+      math::add(center,
+                math::add(math::scale(right, half), math::scale(up, half))),
+      math::add(center,
+                math::add(math::scale(right, -half), math::scale(up, half)))};
   for (std::size_t index = 0; index < corners.size(); ++index) {
     addLine(lines, transform.position, corners[index], CameraColor);
     addLine(lines, corners[index], corners[(index + 1) % corners.size()],

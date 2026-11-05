@@ -6,6 +6,21 @@
 
 namespace demi::runtime::render {
 
+VertexLayout quadVertexLayout() {
+  return VertexLayout{.attributes = {
+                          {.semantic = VertexSemantic::Position,
+                           .components = 2,
+                           .type = VertexElementType::Float},
+                          {.semantic = VertexSemantic::TexCoord0,
+                           .components = 2,
+                           .type = VertexElementType::Float},
+                          {.semantic = VertexSemantic::Color0,
+                           .components = 4,
+                           .type = VertexElementType::UInt8,
+                           .normalized = true},
+                      }};
+}
+
 QuadBatch::QuadBatch(const std::size_t maxQuadsPerDraw)
     : maxQuadsPerDraw_(
           std::min(maxQuadsPerDraw,

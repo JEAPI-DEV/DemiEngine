@@ -40,9 +40,12 @@
 #define cgltf_validate demi_cgltf_validate
 #include <cgltf.h>
 
+#include <cstddef>
 #include <filesystem>
+#include <limits>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace demi::assets::gltf {
 
@@ -50,6 +53,13 @@ struct DocumentDeleter {
   void operator()(cgltf_data *document) const;
 };
 using Document = std::unique_ptr<cgltf_data, DocumentDeleter>;
+
+// Reads encoded image bytes without decoding pixels. Data-URI MIME overrides
+// the optional caller value; external URIs leave it available for inference.
+[[nodiscard]] std::vector<std::byte>
+readImage(const cgltf_image &image, const std::filesystem::path &source,
+          std::string *mime = nullptr,
+          std::size_t maximumBytes = std::numeric_limits<std::size_t>::max());
 
 // Metadata-only loading keeps accessor-bound collider generation inexpensive.
 [[nodiscard]] Document parseDocument(const std::filesystem::path &path,

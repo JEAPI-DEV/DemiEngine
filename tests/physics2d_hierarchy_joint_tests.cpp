@@ -1,5 +1,6 @@
 #include "demi/runtime/physics/Box2DWorldState.h"
 #include "demi/runtime/physics/Physics2D.h"
+#include "demi/runtime/physics/PhysicsGeometry2D.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
 
@@ -276,6 +277,47 @@ void preservedJointAnchorFramesWithParents() {
       "Bound anchors did not follow native local frames after parent rotation");
 }
 
+void nativeSolidColliderBounds() {
+  World world;
+  Entity collider;
+  collider.id = "bounds";
+  collider.setComponent(Transform2DComponent{});
+  collider.setComponent(BoxCollider2DComponent{.size = {2, 4}});
+  world.entities.push_back(std::move(collider));
+  auto &entity = world.entities.front();
+  const auto check = [&](float minX, float minY, float maxX, float maxY) {
+    const auto bounds = physics2d_detail::solidColliderAabb(world, entity);
+    expect(bounds && near(bounds->minX, minX) && near(bounds->minY, minY) &&
+               near(bounds->maxX, maxX) && near(bounds->maxY, maxY),
+           "Native solid bounds lost geometry or included solver skin");
+  };
+  check(-1, -2, 1, 2);
+  entity.setComponent(
+      CircleCollider2DComponent{.radius = 0.5F, .offset = {3, 0}});
+  check(-1, -2, 3.5F, 2);
+  entity.component<CircleCollider2DComponent>()->isTrigger = true;
+  check(-1, -2, 1, 2);
+  entity.component<BoxCollider2DComponent>()->isTrigger = true;
+  entity.component<CircleCollider2DComponent>()->isTrigger = false;
+  check(2.5F, -0.5F, 3.5F, 0.5F);
+  entity.setComponent(Rigidbody2DComponent{.bodyType = "kinematic"});
+  expect(moveAndSlideKinematic(world, "bounds", {1, 0}).has_value(),
+         "A trigger collider hid another solid collider from movement");
+  entity.component<CircleCollider2DComponent>()->isTrigger = true;
+  expect(!moveAndSlideKinematic(world, "bounds", {1, 0}),
+         "Trigger-only geometry blocked kinematic movement");
+  entity.removeComponent<BoxCollider2DComponent>();
+  entity.removeComponent<CircleCollider2DComponent>();
+  entity.setComponent(CapsuleCollider2DComponent{.size = {2, 4}});
+  entity.setComponent(Transform2DComponent{.rotation = 0.785398163F});
+  const float extent = 1 + std::sqrt(0.5F);
+  check(-extent, -extent, extent, extent);
+  entity.removeComponent<CapsuleCollider2DComponent>();
+  entity.setComponent(EdgeCollider2DComponent{.points = {{-2, 1}, {1, -3}, {4, 2}}});
+  entity.setComponent(Transform2DComponent{});
+  check(-2, -3, 4, 2);
+}
+
 void parentedSimulationAndQueries() {
   World world;
   Entity parent;
@@ -373,6 +415,7 @@ int main() {
     distanceEditsAndBodyLifetime();
     mutableJointParametersAndWeldReference();
     preservedJointAnchorFramesWithParents();
+    nativeSolidColliderBounds();
     parentedSimulationAndQueries();
     publicationOrderAndHierarchyValidation();
     std::cout << "Persistent 2D joints and parented simulation passed\n";

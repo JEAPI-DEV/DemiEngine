@@ -12,8 +12,7 @@
 namespace demi::runtime {
 
 using physics2d_detail::Aabb;
-using physics2d_detail::colliderAabb;
-using physics2d_detail::participatesInCollision;
+using physics2d_detail::solidColliderAabb;
 
 namespace {
 
@@ -201,11 +200,10 @@ std::optional<Vec2> moveAndSlideKinematic(World &world,
   Entity *entity = findEntity(world, entityId);
   if (entity == nullptr || !entity->hasComponent<Transform2DComponent>() ||
       !entity->hasComponent<Rigidbody2DComponent>() ||
-      entity->component<Rigidbody2DComponent>()->bodyType != "kinematic" ||
-      !participatesInCollision(*entity))
+      entity->component<Rigidbody2DComponent>()->bodyType != "kinematic")
     return std::nullopt;
 
-  const auto initialBounds = colliderAabb(world, *entity);
+  const auto initialBounds = solidColliderAabb(world, *entity);
   auto pose = resolveWorldTransform2D(world, *entity);
   if (!initialBounds || !pose) {
     return std::nullopt;
@@ -213,8 +211,7 @@ std::optional<Vec2> moveAndSlideKinematic(World &world,
   Aabb bounds = *initialBounds;
   Vec2 applied = motion;
   const auto isStaticObstacle = [&entity](const Entity &candidate) {
-    if (&candidate == entity || !candidate.enabled ||
-        !participatesInCollision(candidate))
+    if (&candidate == entity || !candidate.enabled)
       return false;
     const auto *body = candidate.component<Rigidbody2DComponent>();
     return body == nullptr || body->bodyType == "static";
@@ -223,7 +220,7 @@ std::optional<Vec2> moveAndSlideKinematic(World &world,
   for (const auto index : physics2d_detail::physicsEntityIndices2D(world)) {
     const Entity &candidate = world.entities[index];
     if (isStaticObstacle(candidate)) {
-      if (const auto obstacle = colliderAabb(world, candidate)) {
+      if (const auto obstacle = solidColliderAabb(world, candidate)) {
         obstacles.push_back(*obstacle);
       }
     }

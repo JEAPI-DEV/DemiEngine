@@ -1,4 +1,6 @@
+#include "demi/assets/GltfDocument.h"
 #include "demi/assets/GltfSkinnedModel.h"
+#include "demi/assets/ModelLodGltfWriter.h"
 #include "demi/runtime/render/backend/BgfxGraphicsDevice.h"
 #include "demi/runtime/render/bgfx3d/GpuSkinnedMesh3D.h"
 #include "demi/runtime/render/bgfx3d/ImportedModelMaterials3D.h"
@@ -14,13 +16,15 @@
 #ifdef NDEBUG
 #undef NDEBUG
 #endif
-#include <cassert>
 #include <algorithm>
+#include <cassert>
 #include <chrono>
-#include <cstring>
 #include <cmath>
+#include <cstring>
 #include <fstream>
 #include <nlohmann/json.hpp>
+#include <stdexcept>
+#include <limits>
 
 using namespace demi;
 using namespace demi::assets;
@@ -249,6 +253,103 @@ void importedImagePreparationReusesUnmodifiedPixels(const std::filesystem::path 
   assert(uniqueImages.peakRetainedBuffers() == 0);
 }
 
+void imageReadersShareUrisAndFailures(const std::filesystem::path &root,
+                                      const Json &sourceDocument) {
+  constexpr std::string_view pngUri =
+      "data:image/png;base64,"
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/"
+      "iZk9HQAAAABJRU5ErkJggg==";
+  auto png = demi::tests::redPixelPng();
+  const auto source = root / "image-readers.gltf";
+  const auto exercise = [&](const std::string &uri, bool valid) {
+    auto json = sourceDocument;
+    json["images"][0]["uri"] = uri;
+    write(source, json);
+    std::string error;
+    const auto loaded = loadGltfSkinnedModel3D(source, error);
+    assert(bool(loaded) == valid);
+    if (valid) {
+      assert(*loaded->materials[0].textures.at(GltfMapRole::Albedo).encoded ==
+             png);
+    } else {
+      assert(!error.empty());
+    }
+    auto document = gltf::parseDocument(source, error);
+    assert(document && gltf::loadDocumentBuffers(*document, source, error));
+    std::vector<std::byte> output{std::byte{0x12}};
+    const bool written =
+        gltf::writeModelLodGlb(*document, source, {}, output, error);
+    assert(written == valid);
+    if (!valid) {
+      assert(!error.empty() &&
+             output == std::vector<std::byte>{std::byte{0x12}});
+      return;
+    }
+    const auto destination = root / "image-readers.glb";
+    {
+      std::ofstream file(destination, std::ios::binary);
+      file.write(reinterpret_cast<const char *>(output.data()), output.size());
+      assert(file.good());
+    }
+    auto embedded = gltf::parseDocument(destination, error);
+    assert(embedded &&
+           gltf::loadDocumentBuffers(*embedded, destination, error));
+    assert(embedded->images_count == 1 && embedded->images[0].uri == nullptr);
+    assert(embedded->images[0].mime_type != nullptr);
+    assert(std::string_view(embedded->images[0].mime_type) == "image/png");
+    assert(gltf::readImage(embedded->images[0], destination) == png);
+  };
+  exercise(std::string(pngUri), true);
+  std::filesystem::copy_file(root / "pixel.png", root / "pixel image.png",
+                             std::filesystem::copy_options::overwrite_existing);
+  exercise("pixel%20image.png", true);
+  for (const auto *uri :
+       {"missing.png", "pixel.png%00trailing", "data:image/png,raw",
+        "data:image/png;base64,", "data:image/png;base64,AQI",
+        "data:image/png;base64,AQ$D", "data:image/png;base64,AQ=I",
+        "data:image/png;base64,AQID===="}) {
+    exercise(uri, false);
+  }
+
+  cgltf_image image{};
+  std::string uri(pngUri);
+  image.uri = uri.data();
+  std::string mime = "previous";
+  assert(gltf::readImage(image, source, &mime) == png && mime == "image/png");
+  uri = "pixel%20image.png";
+  image.uri = uri.data();
+  mime = "retained";
+  assert(gltf::readImage(image, source, &mime) == png && mime == "retained");
+  const auto rejected = [&](std::size_t maximum) {
+    try {
+      (void)gltf::readImage(image, source, nullptr, maximum);
+    } catch (const std::runtime_error &) {
+      return true;
+    }
+    return false;
+  };
+  assert(rejected(png.size() - 1)); // Check the limit before allocating bytes.
+  uri = pngUri;
+  image.uri = uri.data();
+  assert(rejected(png.size() - 1)); // Decoded data uses the same ceiling.
+
+  cgltf_buffer buffer{};
+  buffer.size = png.size();
+  buffer.data = png.data();
+  cgltf_buffer_view view{};
+  view.buffer = &buffer;
+  view.size = png.size();
+  image.uri = nullptr;
+  image.buffer_view = &view;
+  assert(gltf::readImage(image, source) == png);
+  assert(rejected(png.size() - 1));
+  view.offset = png.size(); // A nonempty view now runs beyond its buffer.
+  assert(rejected(std::numeric_limits<std::size_t>::max()));
+  view.offset = 0;
+  buffer.data = nullptr;
+  assert(rejected(std::numeric_limits<std::size_t>::max()));
+}
+
 void materialSectionsPreserveSourceAssignments(
     const std::filesystem::path &root) {
   const std::array<float, 24> data{0,  0, 0, 1, 0, 0, 0, 1, 0, -2, -3, 2,
@@ -315,6 +416,7 @@ void materialSectionsPreserveSourceAssignments(
   std::string error;
   const auto model = loadGltfSkinnedModel3D(path, error);
   assert(model && error.empty());
+  imageReadersShareUrisAndFailures(root, document);
   assert(model->materialSections.size() == 2);
   assert(model->materialSections[0].material == 0);
   assert(model->materialSections[0].firstIndex == 0);

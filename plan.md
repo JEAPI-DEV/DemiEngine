@@ -14,7 +14,7 @@ engine code, rather than add another supported implementation. See
 [engine library boundaries](docs/engine-library-boundaries.md) and the
 [architecture audit](docs/engine-architecture-audit-2026-11-03.md).
 
-Completed in the current worktree: GPU fog shading, call-scoped native ray
+Recent qualified work includes: GPU fog shading, call-scoped native ray
 batches, document-owned UI geometry resolution, and immutable HarfBuzz font
 resource ownership. Native Box2D/Jolt query consolidation and CLI11 command parsing now remove
 722 production-source lines, with qualification recorded in the library
@@ -28,6 +28,11 @@ world poses/step selection, retains staged asset state, reuses model preparation
 work, consumes native reload events and shares immutable network responses.
 Required-backend fallback solvers/compile flags are removed. Counts, timing limits
 and qualification are recorded in the engine library boundaries document.
+
+A direct deduplication pass reuses glTF image loading, native solid bounds, editor
+projection, vector math, quad vertex layouts and compact SDL key mappings. It
+removes 294 production-source lines without new dependencies or persistent state;
+qualification and preserved edge-case policies are recorded in the same report.
 
 Ground-level traversal now has a repeatable vegetation-resident profiling route.
 Terrain draws sort across regional owners, and render-request refresh uses the
