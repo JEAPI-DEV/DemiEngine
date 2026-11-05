@@ -41,8 +41,8 @@ int main() {
   }
   assert(!bounded.precache(extendedText, error));
   assert(error.find("page budget") != std::string::npos);
-  assert(bounded.fonts().coverageCacheSize() <=
-         bounded.fonts().coverageCacheLimit());
+  assert(bounded.fonts().size() == 1);
+  assert(bounded.fonts().resolve('A') == bounded.fonts().font(0));
 
   assert(!font.initialize({}, 32.0F, error));
   assert(font.initializeBuiltin(32.0F, error));
@@ -125,7 +125,7 @@ int main() {
   // Inter and explicitly selected smooth fonts can share one atlas page.
   assert(font.pageCount() == 1);
   const auto previousGlyphs=font.glyphCount();
-  assert(font.addFallback("inter-bold",defaultFontData(),1,error,{{"wght",700}}));
+  assert(font.addFallback("inter-bold",demi::runtime::render::defaultFontData(),1,error,{{"wght",700}}));
   const auto bold=font.shape("M",1,demi::runtime::ui::TextDirection::Auto,{},"inter-bold");
   assert(bold.runs.front().glyphs.front().fontIndex==2);
   assert(font.draw(canvas,bold,4,18,0xffffffffU));

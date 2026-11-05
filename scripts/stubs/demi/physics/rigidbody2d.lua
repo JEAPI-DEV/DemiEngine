@@ -2,6 +2,8 @@
 -- Native module: require("demi.physics.rigidbody2d"). Annotations only.
 ---@class Rigidbody2DService
 local Rigidbody2D = {}
+---Nonzero velocity, impulse, force and torque commands wake a sleeping body.
+---Zero velocity commands preserve its sleeping state.
 ---@param entity_id string
 ---@return number|nil x
 ---@return number|nil y

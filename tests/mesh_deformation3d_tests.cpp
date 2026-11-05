@@ -161,6 +161,8 @@ int main() {
     const auto *first =
         cache.get("one", "model", 1, triangle, {}, {}, {}, dents, error);
     assert(first && cache.uploads() == 1);
+    assert(first->indexMultiplier > 1);
+    assert(first->gpu.indexCount() == 3 * first->indexMultiplier);
     assert(cache.get("one", "model", 1, triangle, {}, {}, {}, dents, error) ==
            first);
     assert(cache.uploads() == 1);

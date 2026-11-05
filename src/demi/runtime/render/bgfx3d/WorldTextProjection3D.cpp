@@ -1,4 +1,5 @@
 #include "demi/runtime/render/bgfx3d/WorldTextProjection3D.h"
+#include "demi/runtime/ui/UiLayoutEngine.h"
 
 #include "demi/runtime/scene/Transform3DHierarchy.h"
 #include "demi/runtime/scene/EntityComponentQuery.h"
@@ -101,11 +102,15 @@ ui::UiDocument projectWorldText3D(const World &world,
     node.id = "world_text:" + entity.id;
     node.type = "label";
     node.text = text->text;
-    node.resolved = {x, y, width, fontPixels * 1.25F};
+    node.layout.position = {x, y};
+    node.layout.size = {width, fontPixels * 1.25F};
     node.color = text->color;
     node.textColor = text->color;
     node.fontSize = fontPixels;
     document.nodes.push_back(std::move(node));
+  }
+  if (!document.nodes.empty()) {
+    ui::UiLayoutEngine{}.ensure(document, document.canvasSize);
   }
   return document;
 }

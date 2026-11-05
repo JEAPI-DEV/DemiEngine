@@ -1,3 +1,4 @@
+#include "demi/runtime/ui/UiLayoutEngine.h"
 #include "demi/runtime/ui/UiPresentation.h"
 
 #include <algorithm>
@@ -10,6 +11,7 @@ namespace demi::runtime::ui {
 
 bool uiPointInsideScrollClip(const UiDocument &document, const UiNode &node,
                              Vec2 point) {
+  UiLayoutEngine{}.ensure(document, document.canvasSize);
   std::string parent = node.parent;
   for (std::size_t depth = 0; !parent.empty() && depth < document.nodes.size();
        ++depth) {

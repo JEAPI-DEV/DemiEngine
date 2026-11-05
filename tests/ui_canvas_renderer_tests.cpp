@@ -1,3 +1,4 @@
+#include "demi/runtime/ui/UiStateController.h"
 #include "demi/runtime/render/backend/BgfxGraphicsDevice.h"
 #include "demi/runtime/render/bgfx2d/UiCanvasRenderer.h"
 
@@ -85,36 +86,36 @@ int main() {
   document.nodes = {
       {.id = "scroll",
        .type = "scroll",
-       .resolved = {.x = 5, .y = 5, .width = 100, .height = 60},
+       .layout = {.position = {5, 5}, .size = {100, 60}},
        .backgroundColor = {.r = 0.1F, .g = 0.2F, .b = 0.3F, .a = 1.0F}},
       {.id = "label",
        .parent = "scroll",
        .type = "label",
        .text = "Clipped",
-       .resolved = {.x = 80, .y = 10, .width = 100, .height = 20},
+       .layout = {.position = {75, 5}, .size = {100, 20}},
        .fontSize = 16},
       {.id = "intrinsic_label",
        .type = "label",
        .text = "Position only",
-       .resolved = {.x = 12, .y = 155},
+       .layout = {.position = {12, 155}, .size = {0, 0}},
        .fontSize = 12},
       {.id = "button",
        .type = "button",
        .text = "Play",
-       .resolved = {.x = 120, .y = 80, .width = 80, .height = 30},
+       .layout = {.position = {120, 80}, .size = {80, 30}},
        .backgroundColor = {.r = 0.3F, .g = 0.4F, .b = 0.5F, .a = 1.0F},
        .borderColor = {.r = 1, .g = 1, .b = 1, .a = 1},
        .fontSize = 14,
        .borderWidth = 1},
       {.id = "progress",
        .type = "progress",
-       .resolved = {.x = 20, .y = 130, .width = 200, .height = 10},
+       .layout = {.position = {20, 130}, .size = {200, 10}},
        .color = {.r = 0, .g = 1, .b = 0, .a = 1},
        .backgroundColor = {.r = 0, .g = 0, .b = 0, .a = 1},
        .value = 0.5F},
       {.id = "circle",
        .type = "circle",
-       .resolved = {.x = 250, .y = 120, .width = 30, .height = 30},
+       .layout = {.position = {250, 120}, .size = {30, 30}},
        .color = {.r = 1, .g = 0, .b = 0, .a = 1},
        .radius = 15},
   };
@@ -132,13 +133,13 @@ int main() {
   emptyFills.nodes = {
       {.id = "depleted_health",
        .type = "rect",
-       .resolved = {.x = 10, .y = 10, .width = 0, .height = 8},
+       .layout = {.position = {10, 10}, .size = {0, 8}},
        .backgroundColor = {.r = 1, .g = 0, .b = 0, .a = 1},
        .borderColor = {.r = 1, .g = 1, .b = 1, .a = 1},
        .borderWidth = 1},
       {.id = "collapsed_fill",
        .type = "rect",
-       .resolved = {.x = 10, .y = 30, .width = 100, .height = 0},
+       .layout = {.position = {10, 30}, .size = {100, 0}},
        .backgroundColor = {.r = 0, .g = 1, .b = 0, .a = 1}},
   };
   assert(canvas.begin(0, 320, 180, 0, error));
@@ -148,7 +149,7 @@ int main() {
   static_cast<void>(graphics.endFrame());
 
   // Restoring a fill must render again without replacing its node.
-  emptyFills.nodes.back().resolved.height = 8;
+  assert(ui::UiStateController{}.setSize(emptyFills, emptyFills.nodes.back().id, {100, 8}));
   assert(canvas.begin(0, 320, 180, 0, error));
   assert(renderer.draw(emptyFills, 320, 180));
   assert(canvas.flush(error));
@@ -161,10 +162,7 @@ int main() {
   editingDocument.nodes = {{.id = "name",
                             .type = "text_input",
                             .text = "abc",
-                            .resolved = {.x = 20,
-                                         .y = 20,
-                                         .width = 140,
-                                         .height = 32},
+                            .layout = {.position = {20, 20}, .size = {140, 32}},
                             .backgroundColor = {.r = 0.1F,
                                                 .g = 0.1F,
                                                 .b = 0.1F,
@@ -186,7 +184,7 @@ int main() {
   positionOnlyText.nodes = {{.id = "legacy_label",
                              .type = "label",
                              .text = "VISIBLE",
-                             .resolved = {.x = 28, .y = 26},
+                             .layout = {.position = {28, 26}, .size = {0, 0}},
                              .fontSize = 18}};
   assert(capturedCanvas.begin(0, 320, 180, 0, error));
   UiCanvasRenderer capturedRenderer(capturedCanvas, font);
@@ -204,10 +202,7 @@ int main() {
   smallText.nodes = {{.id = "small_descenders",
                       .type = "label",
                       .text = "fpgqy",
-                      .resolved = {.x = 20,
-                                   .y = 40,
-                                   .width = 160,
-                                   .height = 12},
+                      .layout = {.position = {20, 40}, .size = {160, 12}},
                       .fontSize = 12}};
   assert(capturedCanvas.begin(0, 320, 180, 0, error));
   assert(capturedRenderer.draw(smallText, 320, 180));
@@ -223,7 +218,7 @@ int main() {
   ui::UiNode panel;
   panel.id = "rounded";
   panel.type = "panel";
-  panel.resolved = {10, 10, 80, 40};
+  panel.layout = {.position = {10, 10}, .size = {80, 40}};
   panel.cornerRadius = 10;
   panel.backgroundColor = {1, 1, 1, 1};
   rounded.nodes = {panel};
@@ -239,12 +234,13 @@ int main() {
   ui::UiNode input;
   input.id = "padded_input";
   input.type = "text_input";
-  input.resolved = {20, 40, 200, 44};
+  input.layout = {.position = {20, 40}, .size = {200, 44}};
   input.placeholder = "Name";
   input.fontSize = 16;
   input.layout.padding = {12, 8, 12, 8};
   input.textVerticalAlignment = ui::Alignment::Center;
   rounded.nodes = {input};
+  rounded.invalidateLayout();
   assert(capturedCanvas.begin(0, 320, 180, 0, error));
   assert(capturedRenderer.draw(rounded, 320, 180));
   assert(capturedCanvas.flush(error));
@@ -266,12 +262,12 @@ int main() {
        .type = "image",
        .texture = "asset://walk",
        .animation = "asset://walk",
-       .resolved = {.x = 10, .y = 10, .width = 32, .height = 32},
+       .layout = {.position = {10, 10}, .size = {32, 32}},
        .animationFrame = 10},
       {.id = "gif",
        .type = "image",
        .texture = "asset://gif",
-       .resolved = {.x = 50, .y = 10, .width = 32, .height = 32}},
+       .layout = {.position = {50, 10}, .size = {32, 32}}},
   };
   const std::unordered_map<std::string, TextureAnimation2D> animations{
       {"asset://walk", {.frameCount = 4}},
@@ -293,7 +289,7 @@ int main() {
   slicedImage.id = "atlas_panel";
   slicedImage.type = "image";
   slicedImage.texture = "asset://atlas";
-  slicedImage.resolved = {10, 20, 100, 60};
+  slicedImage.layout = {.position = {10, 20}, .size = {100, 60}};
   slicedImage.sourcePosition = {16, 8};
   slicedImage.sourceSize = {24, 24};
   slicedImage.imageSkin = {.start = {3, 3}, .end = {3, 3}, .scale = 2};
@@ -309,13 +305,13 @@ int main() {
   static_cast<void>(graphics.endFrame());
 
   // Tiny destinations proportionally shrink borders; empty images are no-ops.
-  slicedDocument.nodes.front().resolved = {10, 20, 4, 4};
+  assert(ui::UiStateController{}.setRect(slicedDocument, "atlas_panel", {10, 20}, {4, 4}));
   assert(canvas.begin(0, 320, 180, 0, error));
   assert(slicedRenderer.draw(slicedDocument, 640, 360));
   assert(canvas.flush(error));
   assert(canvas.statistics().quads == 4);
   static_cast<void>(graphics.endFrame());
-  slicedDocument.nodes.front().resolved.width = 0;
+  assert(ui::UiStateController{}.setSize(slicedDocument, "atlas_panel", {0, 4}));
   assert(canvas.begin(0, 320, 180, 0, error));
   assert(slicedRenderer.draw(slicedDocument, 320, 180));
   assert(canvas.flush(error));

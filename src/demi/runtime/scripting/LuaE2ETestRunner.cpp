@@ -8,6 +8,7 @@ extern "C" {
 }
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <utility>
 
@@ -26,7 +27,15 @@ void LuaE2ETestRunner::initialize(lua_State *state,
   callbacks_ = std::move(callbacks);
 }
 
+void LuaE2ETestRunner::releaseCondition() {
+  if (state_ != nullptr && conditionRef_ != 0) {
+    luaL_unref(state_, LUA_REGISTRYINDEX, conditionRef_);
+  }
+  conditionRef_ = 0;
+}
+
 void LuaE2ETestRunner::releaseReferences() {
+  releaseCondition();
   if (state_ != nullptr) {
     if (coroutineRef_ != 0) {
       luaL_unref(state_, LUA_REGISTRYINDEX, coroutineRef_);
@@ -149,6 +158,23 @@ void LuaE2ETestRunner::start(const std::string &moduleName) {
 
 bool LuaE2ETestRunner::active() const { return active_; }
 
+bool LuaE2ETestRunner::waitingForScene() const {
+  return active_ && wait_ == WaitKind::Scene;
+}
+
+bool LuaE2ETestRunner::waitingForExternalWork() const {
+  return active_ && (wait_ == WaitKind::Scene || wait_ == WaitKind::Condition);
+}
+
+double LuaE2ETestRunner::monotonicSeconds() const {
+  if (callbacks_.monotonicSeconds) {
+    return callbacks_.monotonicSeconds();
+  }
+  return std::chrono::duration<double>(
+             std::chrono::steady_clock::now().time_since_epoch())
+      .count();
+}
+
 int LuaE2ETestRunner::passed() const { return passed_; }
 
 int LuaE2ETestRunner::failed() const { return failed_; }
@@ -194,11 +220,22 @@ void LuaE2ETestRunner::waitFor(const double seconds) {
   waitElapsed_ = 0.0;
 }
 
+void LuaE2ETestRunner::waitUntil(lua_State *caller, const int predicateIndex,
+                                 const double timeout) {
+  releaseCondition();
+  lua_pushvalue(caller, predicateIndex);
+  conditionRef_ = luaL_ref(caller, LUA_REGISTRYINDEX);
+  conditionDeadline_ = monotonicSeconds() +
+                       (std::isfinite(timeout) ? std::max(timeout, 0.0) : 0.0);
+  wait_ = WaitKind::Condition;
+}
+
 void LuaE2ETestRunner::expectScene(const std::string &sceneId,
                                    const double timeout) {
   wait_ = WaitKind::Scene;
   waitScene_ = sceneId;
-  waitTimeout_ = std::max(timeout, 0.0);
+  waitTimeout_ = std::isfinite(timeout) ? std::max(timeout, 0.0) : 0.0;
+  sceneDeadline_ = monotonicSeconds() + waitTimeout_;
   waitElapsed_ = 0.0;
 }
 
@@ -216,6 +253,7 @@ void LuaE2ETestRunner::passTest() {
 }
 
 void LuaE2ETestRunner::finishTest() {
+  releaseCondition();
   if (coroutineRef_ != 0) {
     luaL_unref(state_, LUA_REGISTRYINDEX, coroutineRef_);
     coroutineRef_ = 0;
@@ -310,17 +348,38 @@ void LuaE2ETestRunner::update(const double deltaTime) {
       if (active == waitScene_) {
         break;
       }
-      waitElapsed_ += deltaTime;
-      if (waitElapsed_ >= waitTimeout_) {
+      if (monotonicSeconds() >= sceneDeadline_) {
         failTest("Timed out waiting for scene " + waitScene_ +
                  " (active: " + active + ")");
         return;
       }
       return;
     }
-    case WaitKind::Gesture:
-      if (pendingGestureEvents_ > 0)
+    case WaitKind::Condition: {
+      lua_rawgeti(state, LUA_REGISTRYINDEX, conditionRef_);
+      if (lua_pcall(state, 0, 1, 0) != LUA_OK) {
+        const char *message = lua_tostring(state, -1);
+        const std::string error = message != nullptr ? message : "unknown error";
+        lua_pop(state, 1);
+        failTest("Test.wait_until predicate failed: " + error);
         return;
+      }
+      const bool satisfied = lua_toboolean(state, -1) != 0;
+      lua_pop(state, 1);
+      if (satisfied) {
+        releaseCondition();
+        break;
+      }
+      if (monotonicSeconds() >= conditionDeadline_) {
+        failTest("Test.wait_until timed out");
+        return;
+      }
+      return;
+    }
+    case WaitKind::Gesture:
+      if (pendingGestureEvents_ > 0) {
+        return;
+      }
       break;
     case WaitKind::None:
       break;

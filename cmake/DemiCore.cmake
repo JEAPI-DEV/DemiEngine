@@ -8,6 +8,7 @@ set_target_properties(demi-mesh-simplification PROPERTIES POSITION_INDEPENDENT_C
 target_include_directories(demi-mesh-simplification PUBLIC
   "${bgfx_SOURCE_DIR}/bgfx/3rdparty/meshoptimizer/src")
 add_library(demi-core STATIC
+  src/demi/runtime/visibility/FogOfWar2D.cpp
   src/demi/graph/DependencyGraph.cpp
   src/demi/runtime/terrain/TerrainGraph.cpp
   src/demi/runtime/terrain/TerrainGraphRegistry.cpp

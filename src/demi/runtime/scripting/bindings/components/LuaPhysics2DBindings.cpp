@@ -3,23 +3,59 @@
 #include <sol/sol.hpp>
 namespace demi::runtime {
 namespace {
+sol::table queryHitTable(lua_State *state, const PhysicsQueryHit2D &hit) {
+  sol::table item = sol::state_view(state).create_table();
+  item["entity_id"] = hit.entityId;
+  item["layer"] = hit.layer;
+  item["point"] = sol::as_table(std::vector<float>{hit.point.x, hit.point.y});
+  item["normal"] =
+      sol::as_table(std::vector<float>{hit.normal.x, hit.normal.y});
+  item["distance"] = hit.distance;
+  item["fraction"] = hit.fraction;
+  return item;
+}
+
 sol::table queryHitsTable(lua_State *state,
                           const std::vector<PhysicsQueryHit2D> &hits) {
-  sol::state_view lua(state);
-  sol::table result = lua.create_table();
+  sol::table result = sol::state_view(state).create_table();
   int index = 1;
-  for (const PhysicsQueryHit2D &hit : hits) {
-    sol::table item = lua.create_table();
-    item["entity_id"] = hit.entityId;
-    item["layer"] = hit.layer;
-    item["point"] = sol::as_table(std::vector<float>{hit.point.x, hit.point.y});
-    item["normal"] =
-        sol::as_table(std::vector<float>{hit.normal.x, hit.normal.y});
-    item["distance"] = hit.distance;
-    item["fraction"] = hit.fraction;
-    result[index++] = item;
+  for (const auto &hit : hits) {
+    result[index++] = queryHitTable(state, hit);
   }
   return result;
+}
+
+std::optional<std::vector<PhysicsRay2D>> readRays(const sol::table &requests) {
+  const std::size_t count = requests.size();
+  if (count > 4096) {
+    return std::nullopt;
+  }
+  for (const auto &pair : requests) {
+    if (!pair.first.is<int>()) {
+      return std::nullopt;
+    }
+    const int index = pair.first.as<int>();
+    if (index < 1 || static_cast<std::size_t>(index) > count) {
+      return std::nullopt;
+    }
+  }
+  std::vector<PhysicsRay2D> rays;
+  rays.reserve(count);
+  for (std::size_t index = 1; index <= count; ++index) {
+    const sol::object value = requests[index];
+    if (!value.is<sol::table>()) {
+      return std::nullopt;
+    }
+    const sol::table ray = value.as<sol::table>();
+    const sol::optional<float> dx = ray[1];
+    const sol::optional<float> dy = ray[2];
+    const sol::optional<float> distance = ray[3];
+    if (!dx || !dy || !distance || ray.size() != 3) {
+      return std::nullopt;
+    }
+    rays.push_back({{*dx, *dy}, *distance});
+  }
+  return rays;
 }
 } // namespace
 
@@ -68,16 +104,36 @@ void LuaPhysics2DBindingModule::install(LuaScriptHost &host,
             layer.value_or(""), ignored.value_or(""));
         if (!hit)
           return sol::make_object(state, sol::nil);
+        return sol::make_object(state, queryHitTable(state, *hit));
+      });
+  physics.set_function(
+      "raycast_batch",
+      [state, &host](float x, float y, const sol::table &requests,
+                     sol::optional<std::string> layer,
+                     sol::optional<std::string> ignored)
+          -> std::tuple<sol::object, sol::object> {
+        const auto rays = readRays(requests);
+        if (!rays) {
+          return {sol::make_object(state, sol::nil),
+                  sol::make_object(
+                      state, "Expected a dense array of at most 4096 "
+                             "{direction_x, direction_y, distance} rays.")};
+        }
+        const auto batch = host.physicsRaycastBatch(
+            {x, y}, *rays, layer.value_or(""), ignored.value_or(""));
+        if (!batch.error.empty()) {
+          return {sol::make_object(state, sol::nil),
+                  sol::make_object(state, batch.error)};
+        }
         sol::table result = sol::state_view(state).create_table();
-        result["entity_id"] = hit->entityId;
-        result["layer"] = hit->layer;
-        result["point"] =
-            sol::as_table(std::vector<float>{hit->point.x, hit->point.y});
-        result["normal"] =
-            sol::as_table(std::vector<float>{hit->normal.x, hit->normal.y});
-        result["distance"] = hit->distance;
-        result["fraction"] = hit->fraction;
-        return sol::make_object(state, result);
+        int index = 1;
+        for (const auto &hit : batch.hits) {
+          result[index++] =
+              hit ? sol::make_object(state, queryHitTable(state, *hit))
+                  : sol::make_object(state, false);
+        }
+        return {sol::make_object(state, result),
+                sol::make_object(state, sol::nil)};
       });
   physics.set_function(
       "has_contact",

@@ -35,6 +35,7 @@
 #include "demi/runtime/scripting/bindings/media/LuaVideoBindings.h"
 #include "demi/runtime/scripting/bindings/mesh/LuaMeshConstructionBindings.h"
 #include "demi/runtime/scripting/bindings/navigation/LuaNavigationBindings.h"
+#include "demi/runtime/scripting/bindings/navigation/LuaFog2DBindings.h"
 #include "demi/runtime/scripting/bindings/persistence/LuaSaveBindings.h"
 #include "demi/runtime/scripting/bindings/scene/LuaPrefabBindings.h"
 #include "demi/runtime/scripting/bindings/terrain/LuaTerrainWaterBindings.h"
@@ -100,6 +101,7 @@ void installBindingModules(LuaScriptHost &host, lua_State *state) {
   const LuaAnimationBindingModule animation;
   const LuaAssetsBindingModule assets;
   const LuaNavigationBindingModule navigation;
+  const LuaFog2DBindingModule fog2D;
   const LuaTilemap2DBindingModule tilemap2D;
   const LuaDataBindingModule data;
   const LuaTestBindingModule e2eTests;
@@ -136,6 +138,7 @@ void installBindingModules(LuaScriptHost &host, lua_State *state) {
                                        &animation,
                                        &assets,
                                        &navigation,
+                                       &fog2D,
                                        &tilemap2D,
                                        &data,
                                        &e2eTests,

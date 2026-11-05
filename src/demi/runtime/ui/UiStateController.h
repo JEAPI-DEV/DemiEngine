@@ -11,6 +11,11 @@ public:
   [[nodiscard]] UiNode *find(UiDocument &document, std::string_view id) const;
   [[nodiscard]] const UiNode *find(const UiDocument &document,
                                    std::string_view id) const;
+  bool setRect(UiDocument &document, std::string_view id, Vec2 position,
+               Vec2 size) const;
+  bool setPosition(UiDocument &document, std::string_view id,
+                   Vec2 position) const;
+  bool setSize(UiDocument &document, std::string_view id, Vec2 size) const;
   bool setText(UiDocument &document, std::string_view id,
                std::string text) const;
   bool setValue(UiDocument &document, std::string_view id, float value) const;

@@ -63,8 +63,14 @@ references and resets its counters.
 - `Test.swipe_xy(x1, y1, x2, y2, duration?)`: swipe between canvas
   positions.
 - `Test.wait(seconds)`: wait for game time to pass.
+- `Test.wait_until(predicate, timeout?)`: poll a non-yielding predicate each update
+  until it returns a truthy value, with a monotonic wall-clock timeout (default
+  10 seconds). Predicate errors and timeout fail the test. Use this for worker
+  or network completion, whose progress is independent of accelerated game time.
 - `Test.expect_scene(scene_id, timeout?)`: wait until the active scene
-  matches; fails the test on timeout (default 10s).
+  matches; fails the test on a monotonic wall-clock timeout (default 10s).
+  Unlike `Test.wait`, this allows asynchronous scene loading to finish even
+  when a headless test advances game time faster than real time.
 - `Test.expect(condition, message)`: fail the test unless `condition` is
   truthy.
 - `Test.node_center(node_id)`: resolved canvas-space center, or nil.
@@ -87,7 +93,11 @@ queued sends.
   The adb-tap lifecycle flow remains available for projects without Lua
   tests.
 - Desktop: `demi test linux --project <project>`. The same harness
-  runs in a window, which makes it usable in local loops and CI.
+  runs in a window, which makes it usable in local loops and CI. Its
+  `build/linux/qualification/runtime.log` preserves complete runtime stdout and
+  stderr alongside `qualification.json`; failed runs print that output too.
+  A nonzero runtime exit or signal fails qualification even after a passing
+  Lua summary.
 
 Tests that need new engine behavior belong behind the same markers as other
 runtime features: keep assertions deterministic and prefer node ids over

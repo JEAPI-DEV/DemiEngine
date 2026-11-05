@@ -36,3 +36,13 @@ the required shaping and bidi code.
 
 This boundary lets the shaping implementation change without changing HUD
 documents, Lua APIs, layout tests, or render backends.
+
+## Resource ownership update — 2026-11-03
+
+FontResolver now retains an immutable HarfBuzz font with its font bytes and
+variation selection. Coverage uses that native resource. Sized shaping sub-fonts
+are local to a shaping operation, and its buffer is reused between runs. This
+removes per-character blob/face/font reconstruction and the separate engine
+coverage cache. The unused synthetic TextLayoutCache was also removed; it never
+served production font callbacks. Existing wrapping, bidi and editing behavior
+remain qualification requirements for any future library replacement.

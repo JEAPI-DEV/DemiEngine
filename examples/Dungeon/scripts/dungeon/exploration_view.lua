@@ -2,6 +2,7 @@ local Entity = require("demi.entity")
 local Sprite = require("demi.sprite2d")
 local Hud = require("dungeon.ui")
 local Exploration = require("dungeon.exploration")
+local Fog = require("demi.visibility.fog2d")
 local ExplorationView = {}
 
 function ExplorationView.create(world, run)
@@ -62,16 +63,19 @@ function ExplorationView.create(world, run)
       sorting_order = 20,
     })
   end
-  for y = 0, run.floor.height - 1 do
-    for x = 0, run.floor.width - 1 do
-      world:sprite(
-        "fog_" .. x .. "_" .. y,
-        x,
-        y,
-        { size = { 1, 1 }, color = world.fog_color, sorting_order = 2000 }
-      )
-    end
-  end
+  assert(
+    Fog.configure(
+      run.floor.width,
+      run.floor.height,
+      1,
+      -0.5,
+      -0.5,
+      world.fog_color[1],
+      world.fog_color[2],
+      world.fog_color[3],
+      0.45
+    )
+  )
 end
 
 function ExplorationView.sync_gates(world, run)
@@ -100,29 +104,26 @@ function ExplorationView.update(view, run)
   for _, lever in ipairs(run.levers) do
     Sprite.set_color(world:id(lever.id), lever.used and 0.4 or 1, 1, lever.used and 0.4 or 1, 1)
   end
-  if view.visibility_revision == run.visibility_revision then
+  local moved = not view.fog_x
+    or math.abs(run.player.x - view.fog_x) + math.abs(run.player.y - view.fog_y) > 0.08
+  local discovery_changed = view.visibility_revision ~= run.visibility_revision
+  if not moved and not discovery_changed then
     return
   end
   view.visibility_revision = run.visibility_revision
   view.map_seen = view.map_seen or {}
-  for y = 0, run.floor.height - 1 do
-    for x = 0, run.floor.width - 1 do
-      local seen = Exploration.discovered(run, x, y)
-      local visible = Exploration.visible(run, x, y)
-      Sprite.set_color(
-        world:id("fog_" .. x .. "_" .. y),
-        world.fog_color[1],
-        world.fog_color[2],
-        world.fog_color[3],
-        visible and 0 or (seen and 0.55 or 1)
-      )
-      local key = Exploration.key(x, y)
-      if view.map_seen[key] ~= seen then
-        Hud.set_visible("map_" .. x .. "_" .. y, seen)
-        view.map_seen[key] = seen
+  if discovery_changed then
+    for key in pairs(run.discovered) do
+      if not view.map_seen[key] then
+        local x, y = key:match("^(%d+):(%d+)$")
+        Fog.reveal(tonumber(x), tonumber(y))
+        Hud.set_visible("map_" .. x .. "_" .. y, true)
+        view.map_seen[key] = true
       end
     end
   end
+  assert(Fog.update(run.player.x, run.player.y, Exploration.sight_range, 1.4, "wall"))
+  view.fog_x, view.fog_y = run.player.x, run.player.y
   Hud.set_visible("map_exit", Exploration.discovered(run, run.floor.exit[1], run.floor.exit[2]))
   for _, seal in ipairs(run.seals) do
     Hud.set_visible("map_" .. seal.id, Exploration.discovered(run, seal.x, seal.y))

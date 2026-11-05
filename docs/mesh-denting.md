@@ -95,6 +95,10 @@ or persisted in savegames automatically. Scene reload restores source geometry.
 
 Loaded model rest geometry is retained once on the CPU. Only dented instances
 allocate private GPU geometry and leave the shared-model instancing batch.
+Uniform subdivision keeps each source triangle's descendants contiguous. The
+private mesh records the index multiplier, and rendering applies it to both the
+start and count of every material section. This preserves the complete imported
+or procedural surface instead of drawing truncated source-sized ranges.
 Unchanged dents reuse those buffers. Rebuilding includes bounded subdivision,
 refined vertex count × dent count, normal generation and upload, and occurs only
 after dent/source changes.
@@ -115,3 +119,23 @@ projectile mass and **V** changes speed. The HUD reports measured impact energy
 and native dent depth. **R** restores the mesh and **B** returns to the lab.
 Both barrels use the existing benchmark model unchanged. The map remains
 editable in `scenes/denting.scene.json`.
+
+## Material-section regression
+
+The November 2026 renderer fix addresses the barrel appearing shortened and
+broken into triangles after impact. Refinement enlarged the private index buffer,
+but section draw calls still addressed the source index ranges. Both imported
+models and inline meshes now map section starts/counts into refined indices;
+profiler triangle counts use the mapped ranges as well.
+
+`demi-bgfx-renderer3d-tests` checks two separated material ranges after three
+subdivision levels, on a reused frame, and after reset. The deformation cache
+test checks its published multiplier against the uploaded index count. A Release
+maximized-window capture at 3840x2022 verifies the imported barrel at 1024 J and
+150 mm dent depth without missing geometry:
+`build/linux-release/qualification/core-diagnostics-preview/performance_3d_lab/denting_after_1024j.png`.
+
+The focused Release CTest gate passed 2/2 after the final rebuild of `demi`,
+`demi-editor` and the test executables. The earlier renderer-test attempt stopped
+at loading the destruction example while its new UI package was not yet installed;
+the complete rerun passed after the official package installation.

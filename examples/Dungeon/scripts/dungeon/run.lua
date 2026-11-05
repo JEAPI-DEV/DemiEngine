@@ -6,6 +6,7 @@ local Loot = require("dungeon.loot")
 local Encounters = require("dungeon.encounters")
 local Exploration = require("dungeon.exploration")
 local Magic = require("dungeon.magic")
+local Director = require("dungeon.director")
 local Run = {}
 
 function Run.enter_floor(run, index)
@@ -30,6 +31,8 @@ function Run.enter_floor(run, index)
       count = 1,
     }
   end
+  run.cinematic = nil
+  Director.prepare(run)
   Loot.populate(run)
   Encounters.create(run)
   Exploration.create(run)
@@ -51,6 +54,8 @@ function Run.new()
       cast_slow = 0,
       level = 1,
       xp = 0,
+      skill_points = 0,
+      talents = {},
       buff_time = 0,
       inventory = Inventory.new(),
       cooldown = 0,
@@ -115,6 +120,9 @@ function Run.step(run, action, geometry, dt)
     return
   end
   run.time = run.time + dt
+  if Director.update(run, action, geometry, dt) then
+    return
+  end
   run.floor_time = run.floor_time + dt
   if action.equip_slot and run.player.inventory.equipment.weapon ~= action.equip_slot then
     Inventory.activate(run.player, action.equip_slot)
@@ -183,6 +191,7 @@ function Run.observe(run)
     merchant = run.merchant,
     floor = run.floor.index,
     phase = run.phase,
+    cinematic = run.cinematic,
     kills = run.kills,
     time = run.time,
     coins = run.coins,

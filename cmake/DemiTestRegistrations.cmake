@@ -454,3 +454,7 @@ add_test(NAME demi-terrain-region-asset-tests COMMAND demi-terrain-region-asset-
 
 add_test(NAME demi-regional-terrain-morph-tests COMMAND demi-regional-terrain-morph-tests)
 add_test(NAME demi-regional-terrain-streaming-tests COMMAND demi-regional-terrain-streaming-tests)
+
+add_test(NAME demi-ui-layout-ownership-tests COMMAND demi-ui-layout-ownership-tests)
+add_test(NAME demi-visibility-queries2d-tests COMMAND demi-visibility-queries2d-tests)
+add_test(NAME demi-fog-of-war2d-tests COMMAND demi-fog-of-war2d-tests)

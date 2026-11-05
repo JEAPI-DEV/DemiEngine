@@ -10,6 +10,7 @@ local Persistence = require("dungeon.persistence")
 local Scene = require("demi.scene")
 local Floors = require("dungeon.floors")
 local Checkpoint = require("dungeon.checkpoint")
+local Progression = require("dungeon.progression")
 local Game = {}
 
 function Game:build_floor()
@@ -80,6 +81,9 @@ end
 function Game:on_update(dt)
   if self.transitioning then
     return
+  end
+  if Input.pressed("character") then
+    self:toggle_character()
   end
   if Input.pressed("journal") then
     self:toggle_journal()
@@ -165,6 +169,41 @@ function Game:start()
       end
     end
   end
+end
+
+-- @HandleAction("dungeon_character")
+function Game:toggle_character()
+  if self.run.phase == "playing" then
+    if self.menus.mode == "talents" then
+      self.menus.mode = nil
+    else
+      self.menus.mode = "talents"
+    end
+    self.menus.dirty = true
+    self.pending = {}
+  end
+end
+
+function Game:learn(path)
+  if self.menus.mode == "talents" then
+    Progression.spend(self.run, path)
+    self.menus.dirty = true
+  end
+end
+
+-- @HandleAction("dungeon_talent_vigor")
+function Game:learn_vigor()
+  self:learn("vigor")
+end
+
+-- @HandleAction("dungeon_talent_blade")
+function Game:learn_blade()
+  self:learn("blade")
+end
+
+-- @HandleAction("dungeon_talent_arcana")
+function Game:learn_arcana()
+  self:learn("arcana")
 end
 
 -- @HandleAction("dungeon_restart")

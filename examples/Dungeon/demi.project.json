@@ -47,7 +47,8 @@
     "asset://dungeon/short_blade",
     "asset://dungeon/long_blade",
     "asset://dungeon/held_staff",
-    "asset://dungeon/water",
+    "asset://dungeon/pool",
+    "asset://dungeon/statue",
     "asset://dungeon/note",
     "asset://dungeon/lever",
     "asset://dungeon/ember_staff_icon",
@@ -220,6 +221,14 @@
             "input": "key:j"
           }
         ]
+      },
+      "character": {
+        "bindings": [
+          {
+            "input": "key:c"
+          }
+        ],
+        "type": "button"
       }
     }
   }

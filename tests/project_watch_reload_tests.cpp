@@ -1,6 +1,7 @@
 #include "demi/runtime/app/ReloadCoordinator.h"
 #include "demi/runtime/platform/ProjectFileWatcher.h"
 
+#include <algorithm>
 #include <cassert>
 #include <filesystem>
 #include <fstream>
@@ -138,6 +139,42 @@ int main() {
   // Generated output must never feed the watcher back into itself.
   write(root / "generated/runtime-cook/linux/output.bin", "generated");
   assert(watcher.poll().empty());
+
+  // Directory events must install watches for newly created descendants,
+  // including atomic editor saves and renamed/deleted subtrees.
+  const auto nested = root / "scripts/new/deep/action.lua";
+  write(nested, "return 1");
+  auto changes = watcher.poll();
+  assert(std::ranges::find(changes.changed, nested) != changes.changed.end());
+  write(nested, "return 22");
+  changes = watcher.poll();
+  assert(std::ranges::find(changes.changed, nested) != changes.changed.end());
+  const auto temporary = nested.parent_path() / "replacement.tmp";
+  write(temporary, "return 333");
+  fs::rename(temporary, nested);
+  changes = watcher.poll();
+  assert(std::ranges::find(changes.changed, nested) != changes.changed.end());
+  fs::rename(root / "scripts/new", root / "scripts/moved");
+  const auto moved = root / "scripts/moved/deep/action.lua";
+  changes = watcher.poll();
+  assert(std::ranges::find(changes.changed, moved) != changes.changed.end());
+  assert(std::ranges::find(changes.removed, nested) != changes.removed.end());
+  write(moved, "return 4444");
+  changes = watcher.poll();
+  assert(std::ranges::find(changes.changed, moved) != changes.changed.end());
+  fs::remove_all(root, ignored);
+  assert(!watcher.poll().removed.empty());
+  write(root / "scripts/recreated.lua", "return 5");
+  changes = watcher.poll();
+  assert(std::ranges::find(changes.changed, root / "scripts/recreated.lua") !=
+         changes.changed.end());
+  for (int frame = 0; frame < 100; ++frame) {
+    assert(watcher.poll().empty());
+  }
+  watcher.reset(root);
+  assert(watcher.poll().empty());
+  write(root / "scripts/recreated.lua", "return 66");
+  assert(watcher.poll().generation == 1);
 
   fs::remove_all(root, ignored);
 }

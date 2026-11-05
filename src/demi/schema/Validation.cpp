@@ -376,7 +376,8 @@ void validatePhysics3D(Diagnostics &diagnostics,
   std::optional<AssetRegistry> colliderRegistry;
   if (std::ranges::any_of(document["entities"], [](const auto &entity) {
         return entity.is_object() && entity.contains("components") &&
-               entity["components"].is_object() && entity["components"].contains("Destructible3D");
+               entity["components"].is_object() &&
+               entity["components"].contains("Destructible3D");
       })) {
     const auto project = findProjectDirectory(path);
     colliderRegistry = project ? loadAssetRegistry(*project) : AssetRegistry{};
@@ -386,15 +387,19 @@ void validatePhysics3D(Diagnostics &diagnostics,
   const auto isMovingColliderAsset = [&](const nlohmann::json &component) {
     if (component.is_object() && component.contains("inline_geometry")) {
       std::string error;
-      const auto shape = assets::parseColliderShapeAsset(component["inline_geometry"], error);
-      const auto asset=component.find("asset");
-      return (asset==component.end() || (asset->is_string() && asset->get<std::string>().empty())) && shape && !shape->parts.empty();
+      const auto shape =
+          assets::parseColliderShapeAsset(component["inline_geometry"], error);
+      const auto asset = component.find("asset");
+      return (asset == component.end() ||
+              (asset->is_string() && asset->get<std::string>().empty())) &&
+             shape && !shape->parts.empty();
     }
     if (!component.is_object() || !component.contains("asset") ||
         !component["asset"].is_string())
       return false;
     const std::string id = component["asset"].get<std::string>();
-    if (const auto found = movingColliderAssets.find(id); found != movingColliderAssets.end())
+    if (const auto found = movingColliderAssets.find(id);
+        found != movingColliderAssets.end())
       return found->second;
     bool valid = false;
     if (!colliderRegistry) {
@@ -427,12 +432,19 @@ void validatePhysics3D(Diagnostics &diagnostics,
                              .message = "MeshInstances3D requires MeshRenderer "
                                         "without AnimationPlayer3D.",
                              .path = path.string()});
-    for(const char *lightType:{"PointLight","SpotLight"}) {
-      const auto light=components.find(lightType);
-      if(light!=components.end() && light->is_object() && light->contains("casts_shadows") && (*light)["casts_shadows"]==true)
-        diagnostics.push_back({.severity=Severity::Warning,.code="SHADOW_LIGHT_TYPE_UNSUPPORTED",
-          .message=std::string(lightType)+" shadows are not rendered; only directional shadow maps are supported.",
-          .path=path.string(),.suggestion="Use DirectionalLight.casts_shadows for real-time shadows."});
+    for (const char *lightType : {"PointLight", "SpotLight"}) {
+      const auto light = components.find(lightType);
+      if (light != components.end() && light->is_object() &&
+          light->contains("casts_shadows") && (*light)["casts_shadows"] == true)
+        diagnostics.push_back(
+            {.severity = Severity::Warning,
+             .code = "SHADOW_LIGHT_TYPE_UNSUPPORTED",
+             .message = std::string(lightType) +
+                        " shadows are not rendered; only directional shadow "
+                        "maps are supported.",
+             .path = path.string(),
+             .suggestion =
+                 "Use DirectionalLight.casts_shadows for real-time shadows."});
     }
     if (const auto environment = components.find("Environment3D");
         environment != components.end() && environment->is_object()) {
@@ -440,55 +452,92 @@ void validatePhysics3D(Diagnostics &diagnostics,
       const auto project = findProjectDirectory(path);
       if (sky != environment->end() && sky->is_string() &&
           !sky->get<std::string>().empty() && project) {
-        if (!colliderRegistry) colliderRegistry = loadAssetRegistry(*project);
-        const auto *asset = findAsset(*colliderRegistry, sky->get<std::string>());
+        if (!colliderRegistry)
+          colliderRegistry = loadAssetRegistry(*project);
+        const auto *asset =
+            findAsset(*colliderRegistry, sky->get<std::string>());
         if (!asset || asset->type != "Texture2D")
           diagnostics.push_back({.severity = Severity::Error,
-            .code = "ENVIRONMENT_SKY_TEXTURE_INVALID",
-            .message = "Environment3D sky_texture must reference a Texture2D panorama.",
-            .path = path.string()});
+                                 .code = "ENVIRONMENT_SKY_TEXTURE_INVALID",
+                                 .message = "Environment3D sky_texture must "
+                                            "reference a Texture2D panorama.",
+                                 .path = path.string()});
       }
     }
     for (const char *type : {"Masonry3D", "SurfaceRelief3D"}) {
-      const auto component=components.find(type);
-      if(component==components.end() || !component->is_object()) continue;
-      const auto height=component->find("height_map");
-      if(height==component->end() || !height->is_string() || height->get<std::string>().empty()) continue;
-      const auto project=findProjectDirectory(path);
-      if(!project) continue;
-      if(!colliderRegistry) colliderRegistry=loadAssetRegistry(*project);
-      const auto *asset=findAsset(*colliderRegistry,height->get<std::string>());
-      if(!asset || asset->type!="Texture2D")
-        diagnostics.push_back({.severity=Severity::Error,.code="RELIEF_HEIGHT_MAP_INVALID",
-          .message="Entity "+id+" requires a Texture2D height map.",.path=path.string()});
+      const auto component = components.find(type);
+      if (component == components.end() || !component->is_object())
+        continue;
+      const auto height = component->find("height_map");
+      if (height == component->end() || !height->is_string() ||
+          height->get<std::string>().empty())
+        continue;
+      const auto project = findProjectDirectory(path);
+      if (!project)
+        continue;
+      if (!colliderRegistry)
+        colliderRegistry = loadAssetRegistry(*project);
+      const auto *asset =
+          findAsset(*colliderRegistry, height->get<std::string>());
+      if (!asset || asset->type != "Texture2D")
+        diagnostics.push_back(
+            {.severity = Severity::Error,
+             .code = "RELIEF_HEIGHT_MAP_INVALID",
+             .message = "Entity " + id + " requires a Texture2D height map.",
+             .path = path.string()});
     }
     if (components.contains("SurfaceRelief3D")) {
-      const auto mesh=components.find("MeshRenderer");
-      if (mesh==components.end() || !mesh->is_object() || !mesh->value("model","").empty() ||
-          mesh->value("shape","cube")!="cube" || mesh->contains("vertices") ||
-          components.contains("Dentable3D") || components.contains("AnimationPlayer3D"))
-        diagnostics.push_back({.severity=Severity::Error,.code="SURFACE_RELIEF_MESH_INVALID",
-          .message="SurfaceRelief3D requires an undeformed cube MeshRenderer (no model, inline vertices or animation).",.path=path.string()});
+      const auto mesh = components.find("MeshRenderer");
+      if (mesh == components.end() || !mesh->is_object() ||
+          !mesh->value("model", "").empty() ||
+          mesh->value("shape", "cube") != "cube" ||
+          mesh->contains("vertices") || components.contains("Dentable3D") ||
+          components.contains("AnimationPlayer3D"))
+        diagnostics.push_back(
+            {.severity = Severity::Error,
+             .code = "SURFACE_RELIEF_MESH_INVALID",
+             .message =
+                 "SurfaceRelief3D requires an undeformed cube MeshRenderer (no "
+                 "model, inline vertices or animation).",
+             .path = path.string()});
     }
-    if (components.contains("ModelCollider3D") && components["ModelCollider3D"].is_object()) {
+    if (components.contains("ModelCollider3D") &&
+        components["ModelCollider3D"].is_object()) {
       const auto &model = components["ModelCollider3D"];
-      const bool hasAsset = model.contains("asset") && model["asset"].is_string() && !model["asset"].get<std::string>().empty();
+      const bool hasAsset = model.contains("asset") &&
+                            model["asset"].is_string() &&
+                            !model["asset"].get<std::string>().empty();
       const bool hasInline = model.contains("inline_geometry");
       std::string error;
-      const auto inlineShape = hasInline ? assets::parseColliderShapeAsset(model["inline_geometry"], error) : std::nullopt;
-      if (hasAsset == hasInline || (hasInline && (!inlineShape || inlineShape->parts.empty())))
-        diagnostics.push_back({.severity=Severity::Error,.code="COLLIDER_SOURCE_INVALID",.message="ModelCollider3D requires exactly one asset or valid inline compound geometry. " + error,.path=path.string()});
+      const auto inlineShape =
+          hasInline
+              ? assets::parseColliderShapeAsset(model["inline_geometry"], error)
+              : std::nullopt;
+      if (hasAsset == hasInline ||
+          (hasInline && (!inlineShape || inlineShape->parts.empty())))
+        diagnostics.push_back(
+            {.severity = Severity::Error,
+             .code = "COLLIDER_SOURCE_INVALID",
+             .message = "ModelCollider3D requires exactly one asset or valid "
+                        "inline compound geometry. " +
+                        error,
+             .path = path.string()});
     }
-    if (components.contains("Dentable3D") && !components.contains("MeshRenderer"))
-      diagnostics.push_back({.severity = Severity::Error,
-        .code = "DENTABLE3D_MESH_REQUIRED",
-        .message = "Entity " + id + " requires MeshRenderer for Dentable3D.",
-        .path = path.string()});
-    if (components.contains("Dentable3D") && components.contains("AnimationPlayer3D"))
-      diagnostics.push_back({.severity = Severity::Error,
-        .code = "DENTABLE3D_ANIMATION_UNSUPPORTED",
-        .message = "Entity " + id + " cannot combine Dentable3D and AnimationPlayer3D yet.",
-        .path = path.string()});
+    if (components.contains("Dentable3D") &&
+        !components.contains("MeshRenderer"))
+      diagnostics.push_back(
+          {.severity = Severity::Error,
+           .code = "DENTABLE3D_MESH_REQUIRED",
+           .message = "Entity " + id + " requires MeshRenderer for Dentable3D.",
+           .path = path.string()});
+    if (components.contains("Dentable3D") &&
+        components.contains("AnimationPlayer3D"))
+      diagnostics.push_back(
+          {.severity = Severity::Error,
+           .code = "DENTABLE3D_ANIMATION_UNSUPPORTED",
+           .message = "Entity " + id +
+                      " cannot combine Dentable3D and AnimationPlayer3D yet.",
+           .path = path.string()});
     const auto character = components.find("CharacterController3D");
     const std::string bodyType = body != components.end() && body->is_object()
                                      ? body->value("body_type", "static")
@@ -503,7 +552,8 @@ void validatePhysics3D(Diagnostics &diagnostics,
            .code = "PHYSICS3D_MULTIPLE_COLLIDERS",
            .message = "Entity " + id + " has multiple 3D collider components.",
            .path = path.string(),
-           .suggestion = "Use one collider per entity or a compound Collider3D asset."});
+           .suggestion =
+               "Use one collider per entity or a compound Collider3D asset."});
     if (body != components.end() && bodyType != "static" && colliderCount == 0)
       diagnostics.push_back(
           {.severity = Severity::Error,
@@ -559,7 +609,8 @@ void validatePhysics3D(Diagnostics &diagnostics,
            .message =
                "Triangle-mesh collider " + id + " must use a static body.",
            .path = path.string(),
-           .suggestion = "Use ConvexCollider3D or a convex/compound Collider3D asset for moving bodies."});
+           .suggestion = "Use ConvexCollider3D or a convex/compound Collider3D "
+                         "asset for moving bodies."});
     if (body != components.end() && bodyType != "static") {
       const auto transform = components.find("Transform3D");
       if (transform != components.end() && transform->is_object() &&

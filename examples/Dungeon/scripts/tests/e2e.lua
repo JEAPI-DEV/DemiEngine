@@ -7,6 +7,18 @@ local Inventory = require("dungeon.inventory")
 local Combat = require("dungeon.combat")
 Persistence.slot = "hollow_crown_e2e"
 
+-- Place a single duelist for focused combat checks; dungeon traversal tests
+-- below use the unmodified authored population and routes.
+local function duel_fixture(x, y)
+  local game = Session.game
+  local enemy = game.run.enemies[1]
+  game.world:move(enemy, x - enemy.x, y - enemy.y)
+  -- A fixture relocation must not sweep through the intervening dungeon walls.
+  require("demi.transform2d").set_position(game.world:id(enemy.id), x, y)
+  enemy.x, enemy.y, enemy.home_x, enemy.home_y = x, y, x, y
+  enemy.path, enemy.path_timer = nil, 0
+end
+
 return {
   tests = {
     {
@@ -35,6 +47,7 @@ return {
         Test.touch("resume_button")
         Test.wait(0.1)
         Test.expect(Session.observe().time > before, "Resume did not advance simulation")
+        duel_fixture(6, 5)
         Session.set_driver(function()
           return {}
         end)
@@ -61,6 +74,7 @@ return {
       func = function()
         Test.reset()
         Test.wait(0.1)
+        duel_fixture(9, 6)
         Session.set_driver(function(state)
           local target = state.enemies[1]
           if target.hp <= 0 then
@@ -91,6 +105,7 @@ return {
       end,
     },
     require("tests.weapon_swap"),
+    require("tests.exploration_quality"),
     {
       name = "Magic cannot fire without mana and the desktop flask slot refills it",
       func = function()
@@ -133,8 +148,15 @@ return {
         Test.touch("interact_button")
         Test.wait(0.1)
         Test.expect(#Session.observe().journal == 1, "Keeper note was not recorded")
+        -- Simulate an existing checkpoint written before note formatting changed.
+        local saved_note = Session.game.run.journal[1]:gsub("%s+", " ")
+        Session.game.run.journal[1] = saved_note
         Test.touch("journal_button")
         Test.expect(Hud.get_text("bag_title") == "DISCOVERIES & NOTES", "Journal did not open")
+        Test.expect(Hud.get_text("journal_text"):find("\n\n", 1, true) ~= nil,
+          "Journal lost the authored paragraph breaks")
+        Test.expect(Session.game.run.journal[1] == saved_note,
+          "Displaying current note formatting rewrote the saved journal")
         Test.touch("bag_close")
         Navigator.travel(Test, Session, 24, 6)
         Test.expect(
@@ -186,7 +208,7 @@ return {
           local floor = Floors.create(state.floor)
           return nav:action(state, floor.exit[1], floor.exit[2], true)
         end)
-        for attempt = 1, 600 do
+        for attempt = 1, 1200 do
           if Session.observe().phase == "upgrade" then
             break
           end

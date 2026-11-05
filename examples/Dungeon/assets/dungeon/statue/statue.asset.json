@@ -1,0 +1,14 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "generated_output": "../../../generated/assets/dungeon/statue/statue.svg",
+  "id": "asset://dungeon/statue",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {
+    "filter": "nearest"
+  },
+  "source": "statue.svg",
+  "source_hash": "fnv1a64:7a745fb897aa96a6",
+  "type": "SvgTexture2D"
+}

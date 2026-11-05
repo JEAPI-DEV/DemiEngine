@@ -37,14 +37,14 @@
             0.05,
             1
           ],
-          "orthographic_size": 8,
+          "orthographic_size": 9,
           "bounds_min": [
             9,
             7
           ],
           "bounds_max": [
-            26,
-            21
+            51,
+            39
           ]
         }
       }

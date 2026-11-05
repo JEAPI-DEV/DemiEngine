@@ -90,6 +90,75 @@ bool testSwipeDurationAcrossFrameRates() {
   return input.touches.front().phase == TouchPhase::Ended;
 }
 
+bool testWallClockConditions() {
+  std::unique_ptr<lua_State, decltype(&lua_close)> vm(luaL_newstate(), &lua_close);
+  lua_State *state = vm.get();
+  luaL_openlibs(state);
+  LuaE2ETestRunner runner;
+  double clock = 0.0;
+  runner.initialize(state, {.monotonicSeconds = [&clock] { return clock; }});
+  lua_pushlightuserdata(state, &runner);
+  lua_pushcclosure(state, [](lua_State *caller) -> int {
+    luaL_checktype(caller, 1, LUA_TFUNCTION);
+    runnerFromLua(caller).waitUntil(caller, 1, luaL_optnumber(caller, 2, 1.0));
+    return lua_yield(caller, 0);
+  }, 1);
+  lua_setglobal(state, "wait_until");
+  if (luaL_dostring(state, R"lua(
+    predicates = setmetatable({}, {__mode='v'})
+    package.preload.conditions = function()
+      return {tests={
+        {name='immediate',func=function() wait_until(function() return true end,0) end},
+        {name='wall deadline',func=function()
+          local predicate=function() return false end
+          predicates[1]=predicate
+          wait_until(predicate,1)
+        end},
+        {name='predicate error',func=function()
+          local predicate=function() error('condition failure') end
+          predicates[2]=predicate
+          wait_until(predicate,1)
+        end},
+        {name='eventual',func=function() wait_until(function() return ready end,1) end}
+      }}
+    end
+  )lua") != LUA_OK) {
+    return false;
+  }
+  runner.start("conditions");
+  runner.update(100.0);
+  runner.update(100.0);
+  if (runner.passed() != 1) {
+    return false;
+  }
+  runner.update(100.0);
+  for (int frame = 0; frame < 10; ++frame) {
+    runner.update(100.0);
+  }
+  if (runner.failed() != 0 || !runner.waitingForExternalWork()) {
+    std::cerr << "Accelerated simulation expired a wall-clock condition.\n";
+    return false;
+  }
+  clock = 1.0;
+  runner.update(0.0);
+  runner.update(0.0);
+  runner.update(0.0);
+  runner.update(0.0);
+  runner.update(0.0);
+  lua_pushboolean(state, true);
+  lua_setglobal(state, "ready");
+  runner.update(0.0);
+  runner.update(0.0);
+  if (runner.active() || runner.passed() != 2 || runner.failed() != 2 ||
+      lua_gettop(state) != 0 || luaL_dostring(state,
+          "collectgarbage('collect'); assert(predicates[1]==nil and predicates[2]==nil)") != LUA_OK) {
+    std::cerr << "Condition completion retained predicates or lost failure isolation.\n";
+    return false;
+  }
+  runner.shutdown();
+  return true;
+}
+
 bool runTests() {
   std::unique_ptr<lua_State, decltype(&lua_close)> vm(luaL_newstate(),
                                                       lua_close);
@@ -101,6 +170,7 @@ bool runTests() {
   LuaE2ETestRunner runner;
   std::string scene = "first";
   int quits = 0;
+  double clock = 0;
   runner.initialize(
       state,
       {
@@ -116,6 +186,7 @@ bool runTests() {
               },
           .activeScene = [&scene] { return scene; },
           .requestQuit = [&quits] { ++quits; },
+          .monotonicSeconds = [&clock] { return clock; },
       });
   auto bind = [&](const char *name, lua_CFunction function) {
     lua_pushlightuserdata(state, &runner);
@@ -206,6 +277,7 @@ bool runTests() {
 
   runner.start("failures");
   for (int frame = 0; frame < 20 && runner.active(); ++frame) {
+    clock += 0.125;
     runner.update(0.125);
   }
   if (runner.active() || runner.passed() != 1 || runner.failed() != 3 ||
@@ -271,7 +343,8 @@ bool runTests() {
 } // namespace
 
 int main() {
-  if (!testSwipeDurationAcrossFrameRates() || !runTests()) {
+  if (!testSwipeDurationAcrossFrameRates() ||
+      !testWallClockConditions() || !runTests()) {
     std::cerr << "Lua E2E runner tests failed.\n";
     return 1;
   }

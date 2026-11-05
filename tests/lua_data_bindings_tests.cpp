@@ -68,6 +68,13 @@ local Dialogue = require("demi.data.dialogue")
 
 local Probe = {}
 function Probe:on_start()
+  local empty = Data.array()
+  assert(Data.kind(empty) == "array" and #empty == 0)
+  local original = {10, 20}
+  local copied = Data.array(original)
+  assert(Data.kind(copied) == "array" and copied[2] == 20 and copied ~= original)
+  assert(not pcall(Data.array, { name = "not-an-array" }))
+  assert(not pcall(Data.array, { [1] = "one", [3] = "three" }))
   local document, load_error = Data.load("asset://data/probe")
   local missing, missing_error = Data.load("asset://data/missing")
   local matches = Data.query({ content_type = "probe", tags = {"test:lua"} })

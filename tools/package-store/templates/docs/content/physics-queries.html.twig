@@ -20,6 +20,7 @@
 <p>Use a ray when you only need the first blocker. Use overlap when you need everyone inside an area. Use a cast when the moving object has real width and a thin ray would miss the wall it scrapes.</p>
 
 <h2>2D queries</h2>
+<p>Native multi-ray visibility queries select reachable colliders once per query batch and then use the same exact intersection rules as individual raycasts. The candidate set lives only for that call; it is rebuilt after movement or blocker changes rather than retaining stale world state.</p>
 <p>The 2D module is <code>demi.physics.query2d</code>. All positions are world-space <code>x, y</code>. Raycasts take an <strong>origin plus a direction and a distance</strong>, not two end points.</p>
 <pre><code>local Q2 = require("demi.physics.query2d")
 
@@ -171,3 +172,13 @@ end</code></pre>
   <li>Layer filters decide who is visible to a query — tune them in <a href="{{ path('docs_page', {slug: 'physics-layers'}) }}">Physics layers</a> instead of filtering results by hand.</li>
 </ul>
 <p>Queries are immediate; lasting contacts are better served by <a href="{{ path('docs_page', {slug: 'physics-events'}) }}">Physics events</a>. Shapes being tested are described in <a href="{{ path('docs_page', {slug: 'colliders'}) }}">Colliders</a>.</p>
+
+<h2>Batching rays from one origin</h2>
+<p><code>raycast_batch(x, y, rays, layer?, ignored_entity_id?)</code> selects candidate colliders once, then applies the same exact intersection rules as <code>raycast</code>. Each input is <code>{direction_x, direction_y, maximum_distance}</code>. Directions are normalized as in single-ray queries. Each result preserves its input index: a hit table or <code>false</code> for a miss.</p>
+<pre><code>local hits, error = Q2.raycast_batch(x, y, {
+    {1, 0, 8},
+    {0, 1, 4},
+}, "wall")
+assert(hits, error)
+if hits[1] then print(hits[1].distance) end</code></pre>
+<p>The input must be a dense array of at most 4096 triples, with finite origins/directions and finite non-negative distances. Invalid batches return <code>nil, error</code>; an empty batch returns an empty array. Candidate selection is call-scoped and does not retain world state across frames.</p>

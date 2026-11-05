@@ -10,6 +10,7 @@
 #include "demi/runtime/ui/UiModel.h"
 #include "demi/runtime/ui/UiTweenSystem.h"
 #include "demi/runtime/ui/UiVirtualCollection.h"
+#include "demi/runtime/visibility/FogOfWar2D.h"
 
 #include <cstdint>
 #include <filesystem>
@@ -73,6 +74,7 @@ struct TerrainRuntimeOwner {
 };
 
 struct World {
+  FogOfWar2D fog2D;
   std::filesystem::path scenePath;
   std::string id;
   std::string name;

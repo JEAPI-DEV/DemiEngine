@@ -49,3 +49,42 @@ Thirty domain tests and the native playthrough suite check these contracts. They
 cannot prove that the game is fun. The useful next play feedback is whether players
 notice a clue, choose to pursue it, use different weapons for different situations,
 and feel that choosing to flee or explore was consequential.
+
+## Authored exploration and readable progression (2026-11-01)
+
+Primary RPG references consulted:
+
+- [Crate Entertainment: Grim Dawn exploration](https://www.grimdawn.com/guide/gameplay/exploration/)
+  describes handcrafted routes, secrets, optional dangerous areas and shortcuts.
+- [Crate Entertainment: Grim Dawn masteries](https://www.grimdawn.com/guide/character/masteries/)
+  describes choosing complementary character specializations rather than only
+  accumulating automatic stat increases.
+
+Application here is deliberately smaller: the first three authored maps expand
+from 35x26 to 60x46, retaining old areas and stable state identities. Added wings
+have quiet rooms, a western reward branch, a statue encounter, an eastern timed
+trap route with a disarming lever, and a refuge. Both loops reach the stairs
+without an enemy-clear requirement. The entrance duelist moves to an optional
+reliquary, giving the starting merchant and note room breathing space.
+
+The statue sequence pauses combat, moves two guards around their plinths, and
+returns control with an attack grace period. E skips to the same end state.
+It is gameplay choreography in Lua using native transforms and camera follow,
+not a prerecorded movie or an extension to the engine's cutscene status flags.
+
+Exploration grants XP once per discovered room, chests grant XP once, and combat
+continues to award XP. C opens Vigor, Blade and Arcana talent choices. Rank two
+adds armor, dodge recovery or reduced spell cost respectively. An XP meter and
+unspent-point indication make this progression visible. Version 3 checkpoints
+retain old actors/items/discovery and acquire appended wing identities; they are
+backed up before a version 4 save replaces them.
+
+The blue banner-shaped objects were waterfall frames stretched across a solid
+pool collider. A bounded pool texture now fills that same authored collision
+rectangle. Backpack and journal buttons use colored SVG textures with small key
+hints. Native smooth fog replaces tile-sized fog sprites; sight extends from
+7 to 11 units, with a feathered live edge and interpolated discovery memory.
+
+These are design decisions and testable mechanisms, not proof of entertainment
+value. Room variety, combat balance and repeated-run appeal still need human
+playtesting; the example is not a full commercial RPG campaign.

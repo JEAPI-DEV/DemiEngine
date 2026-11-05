@@ -1,0 +1,14 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "generated_output": "../../../generated/assets/dungeon/pool/pool.svg",
+  "id": "asset://dungeon/pool",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {
+    "filter": "nearest"
+  },
+  "source": "pool.svg",
+  "source_hash": "fnv1a64:91c87a9feea7d067",
+  "type": "SvgTexture2D"
+}

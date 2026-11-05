@@ -16,6 +16,7 @@ local Exploration = require("dungeon.exploration")
 local ExplorationView = require("dungeon.exploration_view")
 local Magic = require("dungeon.magic")
 
+local Progression = require("dungeon.progression")
 local View = {}
 View.__index = View
 
@@ -27,25 +28,34 @@ function View.new(world, run)
   for _, pickup in ipairs(run.pickups) do
     self.pickups[pickup.id] = true
   end
+  self.map_scale = math.min(105 / run.floor.width, 78 / run.floor.height)
+  local scale = self.map_scale
+  local cells = {}
   Hud.clear_children("minimap")
   for y = 0, run.floor.height - 1 do
     for x = 0, run.floor.width - 1 do
       if Floors.walkable(run.floor, x, y) then
-        assert(Hud.create("minimap", {
+        cells[#cells + 1] = {
           id = "map_" .. x .. "_" .. y,
           type = "rect",
-          position = { x * 3, (25 - y) * 3 },
-          size = { 3, 3 },
+          position = { x * scale, (run.floor.height - 1 - y) * scale },
+          size = { scale, scale },
           background_color = "#192435",
           visible = false,
-        }))
+        }
       end
     end
   end
+  assert(
+    Hud.create(
+      "minimap",
+      { id = "map_cells", type = "container", size = { 105, 78 }, children = cells }
+    )
+  )
   assert(Hud.create("minimap", {
     id = "map_exit",
     type = "rect",
-    position = { run.floor.exit[1] * 3, (25 - run.floor.exit[2]) * 3 },
+    position = { run.floor.exit[1] * scale, (run.floor.height - 1 - run.floor.exit[2]) * scale },
     size = { 4, 4 },
     background_color = "#edbc67",
   }))
@@ -67,7 +77,7 @@ function View.new(world, run)
     assert(Hud.create("minimap", {
       id = "map_" .. seal.id,
       type = "rect",
-      position = { seal.x * 3, (25 - seal.y) * 3 },
+      position = { seal.x * scale, (run.floor.height - 1 - seal.y) * scale },
       size = { 4, 4 },
       background_color = "#df98ff",
     }))
@@ -159,10 +169,26 @@ function View:hud(run, paused)
     "pause_button",
     "journal_button",
     "inventory_button",
+    "inventory_button_icon",
+    "inventory_button_key",
+    "journal_button_icon",
+    "journal_button_key",
+    "character_button",
+    "character_button_icon",
+    "character_button_key",
   }) do
     Hud.set_visible(id, playing)
   end
   Hud.set_text("floor", run.floor.index == 4 and "THE THRONE" or ("FLOOR " .. run.floor.index))
+  Hud.set_size("xp_fill", 200 * player.xp / Progression.threshold(player), 3)
+  Hud.set_text(
+    "xp_text",
+    player.xp
+      .. "/"
+      .. Progression.threshold(player)
+      .. " XP   [C] TALENTS"
+      .. ((player.skill_points or 0) > 0 and " +" or "")
+  )
   Hud.set_text("character_name", "WARDEN  LV." .. player.level)
   Hud.set_text("health_text", string.format("%.1f / %d", player.hp, player.max_hp))
   Hud.set_size("health_fill", 209 * player.hp / player.max_hp, 12)
@@ -250,16 +276,24 @@ function View:hud(run, paused)
     objective = "[E] Descend now — no enemy or sigil requirement"
   end
   local context = objective:sub(1, 3) == "[E]" or Exploration.prompt(run) ~= nil
-  Hud.set_visible("objective", context and run.phase == "playing")
-  Hud.set_visible("interact_button", context and run.phase == "playing")
+  Hud.set_visible("objective", (context or run.cinematic ~= nil) and run.phase == "playing")
+  Hud.set_visible("interact_button", (context or run.cinematic ~= nil) and run.phase == "playing")
   Hud.set_text("objective", objective:gsub("%[E%] ", ""))
-  Hud.set_position("map_player", player.x * 3, (25 - player.y) * 3)
+  Hud.set_position(
+    "map_player",
+    player.x * self.map_scale,
+    (run.floor.height - 1 - player.y) * self.map_scale
+  )
   for index, enemy in ipairs(run.enemies) do
     Hud.set_visible(
       "map_enemy_" .. index,
-      enemy.hp > 0 and Exploration.visible(run, enemy.x, enemy.y)
+      enemy.hp > 0 and not enemy.dormant and Exploration.visible(run, enemy.x, enemy.y)
     )
-    Hud.set_position("map_enemy_" .. index, enemy.x * 3, (25 - enemy.y) * 3)
+    Hud.set_position(
+      "map_enemy_" .. index,
+      enemy.x * self.map_scale,
+      (run.floor.height - 1 - enemy.y) * self.map_scale
+    )
   end
   local boss = run.floor.index == 4 and run.enemies[1]
   Hud.set_visible(
@@ -317,17 +351,37 @@ function View:hud(run, paused)
   Hud.set_text("overlay_title", title)
   Hud.set_text("overlay_subtitle", subtitle)
   Hud.set_text("overlay_detail", detail)
+  if run.cinematic then
+    Hud.set_visible("message_panel", false)
+    Hud.set_visible("objective", false)
+    Hud.set_visible("room_title", false)
+  end
 end
 
 function View:update(run, paused, dt)
   if not self.world:ready() then
     return
   end
+  local sequence = run.cinematic
+  local target = sequence and "director_focus" or "player"
+  if self.camera_target ~= target then
+    Entity.set_field("dungeon_camera", "Camera2D", "target", self.world:id(target))
+    self.camera_target = target
+  end
+  if sequence then
+    Transform.set_position(self.world:id("director_focus"), table.unpack(sequence.encounter.focus))
+  end
+  Hud.set_visible("cinematic_panel", sequence ~= nil)
+  if sequence then
+    Hud.set_text("cinematic_caption", sequence.encounter.caption .. "   [E] Skip")
+  end
   CombatView.update(self.world, run.player, self.weapons, true)
   self:actor(run.player, run.time, true)
   for _, enemy in ipairs(run.enemies) do
-    self:actor(enemy, run.time, Exploration.visible(run, enemy.x, enemy.y))
-    CombatView.update(self.world, enemy, self.weapons, Exploration.visible(run, enemy.x, enemy.y))
+    local revealed = (not enemy.dormant or run.cinematic ~= nil)
+      and Exploration.visible(run, enemy.x, enemy.y)
+    self:actor(enemy, run.time, revealed)
+    CombatView.update(self.world, enemy, self.weapons, revealed)
   end
   for _, pickup in ipairs(run.pickups) do
     if not self.pickups[pickup.id] then

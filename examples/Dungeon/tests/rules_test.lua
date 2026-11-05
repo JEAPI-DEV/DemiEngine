@@ -37,7 +37,15 @@ end
 
 -- Domain tests use an unobstructed movement adapter; wall collision is exercised
 -- separately in the real runtime, through Rigidbody2D.move_and_slide.
-local open_space = {}
+local function batch_distances(geometry, x, y, rays)
+  local distances = {}
+  for index, ray in ipairs(rays) do
+    distances[index] = geometry:wall_distance(x, y, ray[1], ray[2], ray[3]) or false
+  end
+  return distances
+end
+
+local open_space = { wall_distances = batch_distances }
 function open_space:move(actor, x, y)
   actor.x, actor.y = actor.x + x, actor.y + y
 end
@@ -116,6 +124,7 @@ test("wall occlusion stops bolts before enemies", function()
   local run = Run.new()
   run.enemies = { Enemies.create("crawler", 8, 5, 1) }
   local wall = {
+    wall_distances = batch_distances,
     wall_distance = function()
       return 0.5
     end,
@@ -340,6 +349,7 @@ test("melee locks its aim, respects walls and handles a large fixed step", funct
   actor.melee = nil
   Melee.start(actor, "long_sword", 1, 0, 4)
   local wall = {
+    wall_distances = batch_distances,
     wall_distance = function()
       return 0.5
     end,
@@ -561,6 +571,7 @@ test("oblique walls do not occlude themselves and explored room rims remain know
   assert(math.abs(Exploration.tile_entry_distance(0, 0, 1, 1) - math.sqrt(0.5)) < 0.000001)
   local run = Run.new()
   local geometry = {
+    wall_distances = batch_distances,
     wall_distance = function(_, x, y, dx, dy, distance)
       if dx > 0 then
         local hit = (7.5 - x) / dx
@@ -593,6 +604,103 @@ test("secrets are not pre-discovered and containers drop resources only once", f
   run.player.x, run.player.y = prop.x, prop.y
   Loot.update(run, 0)
   assert(run.player.mana == 2)
+end)
+
+local Progression = require("dungeon.progression")
+local Director = require("dungeon.director")
+
+test("discovery grants experience once and talents change distinct builds", function()
+  local run = Run.new()
+  Exploration.update(run, open_space)
+  local xp = run.player.xp
+  run.vision_origin = nil
+  Exploration.update(run, open_space)
+  assert(run.player.xp == xp and xp > 0)
+  Progression.award(run, 100)
+  local power = Inventory.stats(run.player).power
+  assert(Progression.spend(run, "blade"))
+  assert(Inventory.stats(run.player).power == power + 1)
+  assert(Progression.spend(run, "arcana"))
+  assert(Progression.spend(run, "arcana"))
+  run.player.mana = run.player.max_mana
+  assert(run.player.max_mana == 12)
+  assert(Magic.spend(run.player, "spark") and run.player.mana == 11)
+  assert(not Progression.spend(run, "invalid"))
+  local restored = assert(Checkpoint.decode(Checkpoint.encode(run)))
+  assert(restored.player.talents.arcana == 2 and restored.player.max_mana == 12)
+end)
+
+test("statue entrance can finish or skip without repeating or dealing damage", function()
+  for _, skip in ipairs({ false, true }) do
+    local run = Run.new()
+    run.player.x, run.player.y = 41, 30
+    local health = run.player.hp
+    assert(Director.update(run, {}, open_space, 0.1))
+    assert(run.cinematic)
+    if skip then
+      assert(Director.update(run, { interact = true }, open_space, 0.1))
+    else
+      for tick = 1, 260 do
+        Director.update(run, {}, open_space, 1 / 60)
+      end
+    end
+    assert(not run.cinematic and run.player.hp == health)
+    for _, entry in ipairs(run.floor.ambushes[1].actors) do
+      for _, enemy in ipairs(run.enemies) do
+        if enemy.id == entry.id then
+          assert(not enemy.dormant and math.abs(enemy.y - entry.to[2]) < 0.001)
+        end
+      end
+    end
+    assert(not Director.update(run, {}, open_space, 0.1))
+  end
+end)
+
+test("gauntlet release disarms traps for players and enemies", function()
+  local run = Run.new()
+  local trap = run.floor.traps[2]
+  run.player.x, run.player.y = trap.x, trap.y
+  run.player.invulnerable = 0
+  run.floor_time = 3.5
+  local before = run.player.hp
+  Encounters.update(run)
+  assert(run.player.hp < before)
+  for _, lever in ipairs(run.levers) do
+    if lever.id == trap.lever then
+      lever.used = true
+    end
+  end
+  run.player.invulnerable = 0
+  run.floor_time = 7.5
+  before = run.player.hp
+  Encounters.update(run)
+  assert(Encounters.disabled(run, trap) and run.player.hp == before)
+end)
+
+test("version three saves retain old progress and acquire new wing identities", function()
+  local run = Run.new()
+  run.player.x, run.player.y = 8, 7
+  run.player.level = 3
+  local saved = Checkpoint.encode(run)
+  saved.format_version = 3
+  saved.player.skill_points, saved.player.talents = nil, nil
+  for _, specification in ipairs({
+    { "enemies", 7 },
+    { "chests", 3 },
+    { "shrines", 1 },
+    { "levers", 1 },
+    { "clues", 1 },
+    { "breakables", 8 },
+  }) do
+    while #saved[specification[1]] > specification[2] do
+      table.remove(saved[specification[1]])
+    end
+  end
+  saved.enemies[1].x, saved.enemies[1].y, saved.enemies[1].hp = 9, 6, 2
+  local restored = assert(Checkpoint.decode(saved))
+  assert(restored.player.x == 8 and restored.player.skill_points == 2)
+  assert(restored.enemies[1].hp == 2 and #restored.enemies == 10)
+  assert(#restored.chests == 5 and #restored.shrines == 2)
 end)
 
 print(string.format("Dungeon rules: %d passed, 0 failed", passed))

@@ -36,10 +36,12 @@ end
 
 function Magic.spend(player, profile)
   local spell = assert(Magic.profiles[profile])
-  if player.mana < spell.cost then
+  local arcana = player.talents and player.talents.arcana or 0
+  local cost = math.max(1, spell.cost - (arcana >= 2 and 1 or 0))
+  if player.mana < cost then
     return false
   end
-  player.mana = player.mana - spell.cost
+  player.mana = player.mana - cost
   return true
 end
 

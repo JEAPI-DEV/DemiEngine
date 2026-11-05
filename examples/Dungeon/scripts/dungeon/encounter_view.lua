@@ -58,7 +58,8 @@ function EncounterView.update(world, run)
     Sprite.set_color(world:id(shrine.id), shrine.used and 0.3 or 1, shrine.used and 0.3 or 1, 1, 1)
   end
   for index, trap in ipairs(run.floor.traps) do
-    local phase = Encounters.trap_phase(run.floor_time, trap)
+    local phase = Encounters.disabled(run, trap) and "safe"
+      or Encounters.trap_phase(run.floor_time, trap)
     local active = phase == "active"
     Sprite.set_color(
       world:id("trap_" .. index),

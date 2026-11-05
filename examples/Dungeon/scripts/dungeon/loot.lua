@@ -2,6 +2,7 @@ local Inventory = require("dungeon.inventory")
 local Items = require("dungeon.items")
 local Exploration = require("dungeon.exploration")
 local Magic = require("dungeon.magic")
+local Progression = require("dungeon.progression")
 local Loot = {}
 Loot.stock =
   { "healing_potion", "mana_potion", "short_sword", "chainmail", "swift_boots", "long_sword" }
@@ -38,18 +39,7 @@ function Loot.update(run, dt)
     if enemy.hp <= 0 and not enemy.rewarded then
       enemy.rewarded = true
       local xp = enemy.kind == "boss" and 50 or (enemy.kind == "sentinel" and 10 or 6)
-      run.player.xp = run.player.xp + xp
-      while run.player.xp >= run.player.level * 20 do
-        run.player.xp = run.player.xp - run.player.level * 20
-        run.player.level = run.player.level + 1
-        run.player.base_hp = run.player.base_hp + 1
-        if run.player.level % 2 == 0 then
-          run.player.base_power = run.player.base_power + 1
-        end
-        Inventory.refresh(run.player)
-        run.player.hp = math.min(run.player.max_hp, run.player.hp + 2)
-        run.message = "Level " .. run.player.level .. "! Vitality and spellcraft increased."
-      end
+      Progression.award(run, xp)
       if enemy.kind == "acolyte" then
         Loot.drop(run, "mana_shard", enemy.x, enemy.y)
       elseif enemy.kind == "sentinel" then
@@ -94,6 +84,7 @@ function Loot.interact(run)
       local added, message = Inventory.add(run.player.inventory, chest.item, 1)
       if added then
         chest.opened = true
+        Progression.award(run, 8)
         run.message = "Found " .. Items[chest.item].name .. "! Open your bag with I."
       else
         run.message = message

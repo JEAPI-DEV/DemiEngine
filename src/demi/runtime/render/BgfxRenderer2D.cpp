@@ -10,6 +10,7 @@
 #include "demi/runtime/render/bgfx2d/DebugCanvasRenderer.h"
 #include "demi/runtime/render/bgfx2d/IsoCanvasRenderer.h"
 #include "demi/runtime/render/bgfx2d/ParticleCanvasRenderer.h"
+#include "demi/runtime/render/bgfx2d/FogCanvasRenderer.h"
 #include "demi/runtime/render/bgfx2d/SpriteCanvasRenderer.h"
 #include "demi/runtime/render/bgfx2d/TilemapCanvasRenderer.h"
 #include "demi/runtime/render/bgfx2d/UiCanvasRenderer.h"
@@ -39,7 +40,8 @@ BgfxRenderer2D::BgfxRenderer2D(GpuResources &resources,
                                RenderCommands &commands)
     : canvas_(resources, commands), font_(resources), textures_(resources),
       materials_(resources),
-      particles_(std::make_unique<ParticleSimulation>()) {}
+      particles_(std::make_unique<ParticleSimulation>()),
+      fog_(std::make_unique<FogCanvasRenderer>(resources)) {}
 
 BgfxRenderer2D::~BgfxRenderer2D() { shutdown(); }
 
@@ -59,6 +61,7 @@ bool BgfxRenderer2D::initialize(std::string &error) {
 void BgfxRenderer2D::shutdown() {
   frameOpen_ = false;
   particles_->system.clear();
+  fog_->clear();
   tilemaps_.clear();
   textureAnimations_.clear();
   textures_.clear();
@@ -306,6 +309,7 @@ bool BgfxRenderer2D::drawWorld(const World &world,
   const auto particleData = particles_->system.renderData();
   return particleRenderer.draw(particleData, camera_, cameraPosition_,
                                viewportWidth_, viewportHeight_) &&
+         fog_->draw(canvas_, world.fog2D, camera_, cameraPosition_, viewportWidth_, viewportHeight_) &&
          debugRenderer.drawWorld(world, camera_, cameraPosition_,
                                  viewportWidth_, viewportHeight_);
 }

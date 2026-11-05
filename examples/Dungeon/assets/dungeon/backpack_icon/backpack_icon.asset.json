@@ -1,0 +1,14 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "generated_output": "../../../generated/assets/dungeon/backpack_icon/backpack_icon.svg",
+  "id": "asset://dungeon/backpack_icon",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {
+    "filter": "nearest"
+  },
+  "source": "backpack_icon.svg",
+  "source_hash": "fnv1a64:0f1971f89e50ce29",
+  "type": "SvgTexture2D"
+}

@@ -262,8 +262,32 @@ int runTestLinuxCommand(const std::vector<std::string> &args, std::ostream &out,
   }
 
   const TestOutcome outcome = parseTestOutput(captured);
+  const bool runtimeSucceeded =
+      WIFEXITED(childStatus) && WEXITSTATUS(childStatus) == 0;
   const bool success = outcome.summaryFound && !timedOut &&
-                       outcome.passed > 0 && outcome.failed == 0;
+                       outcome.passed > 0 && outcome.failed == 0 &&
+                       runtimeSucceeded;
+  std::string detail;
+  if (timedOut) {
+    detail = "The runtime did not complete within the timeout.";
+  } else if (!runtimeSucceeded) {
+    detail = WIFSIGNALED(childStatus)
+                 ? "The runtime terminated with signal " +
+                       std::to_string(WTERMSIG(childStatus)) + "."
+                 : "The runtime exited with status " +
+                       std::to_string(WEXITSTATUS(childStatus)) + ".";
+  } else if (!outcome.summaryFound) {
+    detail = "The runtime did not emit a final [test] SUMMARY.";
+  }
+  const std::filesystem::path runtimeLogPath = outputDirectory / "runtime.log";
+  std::ofstream runtimeLog(runtimeLogPath, std::ios::binary);
+  runtimeLog << captured;
+  runtimeLog.close();
+  if (!runtimeLog) {
+    error << "Could not write desktop runtime log: " << runtimeLogPath << '\n'
+          << captured;
+    return 1;
+  }
   Json results = Json::array();
   for (const Json &result : outcome.results)
     results.push_back(result);
@@ -272,13 +296,9 @@ int runTestLinuxCommand(const std::vector<std::string> &args, std::ostream &out,
       {"format_version", 1},
       {"platform", "linux"},
       {"project", project.string()},
-      {"steps",
-       Json::array({Json{
-           {"name", "lua_tests"},
-           {"status", success ? "passed" : "failed"},
-           {"detail", timedOut
-                          ? std::string("No [test] SUMMARY within the timeout.")
-                          : std::string()}}})},
+      {"steps", Json::array({Json{{"name", "lua_tests"},
+                                  {"status", success ? "passed" : "failed"},
+                                  {"detail", detail}}})},
       {"lua_tests",
        {{"passed", outcome.passed},
         {"failed", outcome.failed},
@@ -289,14 +309,29 @@ int runTestLinuxCommand(const std::vector<std::string> &args, std::ostream &out,
       outputDirectory / "qualification.json";
   std::ofstream reportOutput(reportPath);
   reportOutput << report.dump(2) << '\n';
+  reportOutput.close();
+  if (!reportOutput) {
+    error << "Could not write desktop test report: " << reportPath << '\n';
+    return 1;
+  }
 
   out << "Desktop test summary: passed=" << outcome.passed
-      << " failed=" << outcome.failed << (timedOut ? " (timed out)" : "")
+      << " failed=" << outcome.failed
+      << (timedOut           ? " (timed out)"
+          : runtimeSucceeded ? ""
+                             : " (runtime failed)")
       << '\n';
   for (const Json &result : outcome.results)
     out << "  " << result["status"].get<std::string>() << "  "
         << result["name"].get<std::string>() << '\n';
   out << "Wrote desktop test report: " << reportPath << '\n';
+  out << "Wrote desktop runtime log: " << runtimeLogPath << '\n';
+  if (!success) {
+    if (!detail.empty()) {
+      error << detail << '\n';
+    }
+    error << captured;
+  }
   return success ? 0 : 1;
 }
 

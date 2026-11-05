@@ -3,7 +3,6 @@
 #include "demi/runtime/scene/HudParser.h"
 #include "demi/runtime/ui/UiActionController.h"
 #include "demi/runtime/ui/UiInteractionController.h"
-#include "demi/runtime/ui/UiLayoutEngine.h"
 #include "demi/runtime/ui/UiLocalization.h"
 #include "demi/runtime/ui/UiMutationQueue.h"
 #include "demi/runtime/ui/UiStateController.h"
@@ -13,10 +12,6 @@
 
 namespace demi::runtime {
 namespace {
-
-void relayoutHud(World &world) {
-  ui::UiLayoutEngine{}.layout(world.ui, world.ui.canvasSize);
-}
 
 void discardInvalidRecyclers(World &world) {
   std::erase_if(world.uiVirtualRecyclers, [&](auto &entry) {
@@ -94,10 +89,8 @@ bool LuaScriptHost::setHudRect(const std::string &id, float x, float y,
                                float width, float height) {
   if (world_ == nullptr)
     return false;
-  if (auto *node = ui::UiStateController{}.find(world_->ui, id)) {
-    node->layout.position = {x, y};
-    node->layout.size = {width, height};
-    relayoutHud(*world_);
+  if (ui::UiStateController{}.setRect(world_->ui, id, {x, y},
+                                      {width, height})) {
     return true;
   }
   return false;
@@ -138,9 +131,7 @@ bool LuaScriptHost::setHudImageAnimationFrame(const std::string &id,
 bool LuaScriptHost::setHudPosition(const std::string &id, float x, float y) {
   if (world_ == nullptr)
     return false;
-  if (auto *node = ui::UiStateController{}.find(world_->ui, id)) {
-    node->layout.position = {x, y};
-    relayoutHud(*world_);
+  if (ui::UiStateController{}.setPosition(world_->ui, id, {x, y})) {
     return true;
   }
   return false;
@@ -150,9 +141,7 @@ bool LuaScriptHost::setHudSize(const std::string &id, float width,
                                float height) {
   if (world_ == nullptr)
     return false;
-  if (auto *node = ui::UiStateController{}.find(world_->ui, id)) {
-    node->layout.size = {width, height};
-    relayoutHud(*world_);
+  if (ui::UiStateController{}.setSize(world_->ui, id, {width, height})) {
     return true;
   }
   return false;
@@ -196,7 +185,6 @@ bool LuaScriptHost::setHudOpacity(const std::string &id, float opacity) {
 bool LuaScriptHost::applyHudAction(const std::string &action) {
   if (!world_ || !ui::UiActionController{}.apply(world_->ui, action))
     return false;
-  relayoutHud(*world_);
   return true;
 }
 
@@ -205,7 +193,6 @@ bool LuaScriptHost::setHudVisible(const std::string &id, bool visible) {
     return false;
   if (!ui::UiStateController{}.setVisible(world_->ui, id, visible))
     return false;
-  relayoutHud(*world_);
   return true;
 }
 
@@ -214,7 +201,6 @@ bool LuaScriptHost::setHudValue(const std::string &id, const float value) {
     return false;
   if (!ui::UiStateController{}.setValue(world_->ui, id, value))
     return false;
-  relayoutHud(*world_);
   return true;
 }
 
@@ -326,7 +312,6 @@ LuaScriptHost::createHudDefinition(const std::string &parent,
     ui::UiVariables{}.discover(world_->ui);
     ui::UiVariables{}.apply(world_->ui);
     discardInvalidRecyclers(*world_);
-    relayoutHud(*world_);
     return ui::UiMutationQueue::handle(world_->ui, rootId);
   } catch (const nlohmann::json::exception &failure) {
     error = failure.what();
@@ -356,7 +341,6 @@ LuaScriptHost::createHudNode(const std::string &parent, ui::UiNode node,
   ui::UiVariables{}.discover(world_->ui);
   ui::UiVariables{}.apply(world_->ui);
   discardInvalidRecyclers(*world_);
-  relayoutHud(*world_);
   return ui::UiMutationQueue::handle(world_->ui, id);
 }
 
@@ -381,7 +365,6 @@ LuaScriptHost::cloneHudNode(const ui::UiNodeHandle &source,
     return std::nullopt;
   }
   discardInvalidRecyclers(*world_);
-  relayoutHud(*world_);
   return ui::UiMutationQueue::handle(world_->ui, newRootId);
 }
 
@@ -399,7 +382,6 @@ bool LuaScriptHost::removeHudNode(const ui::UiNodeHandle &node,
     return false;
   }
   discardInvalidRecyclers(*world_);
-  relayoutHud(*world_);
   return true;
 }
 
@@ -417,7 +399,6 @@ bool LuaScriptHost::reparentHudNode(const ui::UiNodeHandle &node,
     error = result.error;
     return false;
   }
-  relayoutHud(*world_);
   return true;
 }
 
@@ -435,7 +416,6 @@ bool LuaScriptHost::clearHudChildren(const std::string &parent,
     return false;
   }
   discardInvalidRecyclers(*world_);
-  relayoutHud(*world_);
   return true;
 }
 
@@ -465,8 +445,6 @@ ui::UiVirtualReconcileResult LuaScriptHost::reconcileHudRows(
   auto result =
       owner->reconcile(world_->ui, world_->uiTweens, rowTemplate, stableKeys,
                        rowExtents, scrollOffset, viewportExtent, overscan);
-  if (result.applied)
-    relayoutHud(*world_);
   return result;
 }
 
@@ -478,7 +456,6 @@ bool LuaScriptHost::clearHudRows(const std::string &collectionId) {
     return false;
   found->second->clear(world_->ui, world_->uiTweens);
   world_->uiVirtualRecyclers.erase(found);
-  relayoutHud(*world_);
   return true;
 }
 
@@ -528,13 +505,11 @@ bool LuaScriptHost::setHudLocale(const std::string &locale,
   }
   if (!ui::UiLocalization{}.setLocale(world_->ui, locale, error))
     return false;
-  relayoutHud(*world_);
   return true;
 }
 void LuaScriptHost::setHudPseudoLocale(const bool enabled) {
   if (world_) {
     ui::UiLocalization{}.setPseudoLocale(world_->ui, enabled);
-    relayoutHud(*world_);
   }
 }
 

@@ -1,4 +1,7 @@
 #include "demi/runtime/physics/Physics2D.h"
+#include "demi/runtime/physics/RadialRaycast2D.h"
+#include "demi/runtime/profiling/RuntimeProfiler.h"
+#include <ranges>
 #include "demi/runtime/physics/PhysicsGeometry2D.h"
 #include "demi/runtime/scene/components/2dcomponents/BoxCollider2DComponent.h"
 #include "demi/runtime/scene/components/2dcomponents/CircleCollider2DComponent.h"
@@ -6,6 +9,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <numbers>
 
 namespace demi::runtime {
 
@@ -135,10 +139,12 @@ overlapCircleAll(const World &world, const Vec2 center, const float radius,
   return hits;
 }
 
-std::optional<PhysicsRaycastHit2D>
-raycast2D(const World &world, const Vec2 origin, Vec2 direction,
-          const float distance, const std::string &layer,
-          const std::string &ignoredEntityId) {
+template <typename Candidates>
+static std::optional<PhysicsRaycastHit2D>
+raycastCandidates(const Candidates &candidates, const Vec2 origin,
+                  Vec2 direction, const float distance,
+                  const std::string &layer,
+                  const std::string &ignoredEntityId) {
   const float length =
       std::sqrt(direction.x * direction.x + direction.y * direction.y);
   const float maxDistance = std::max(distance, 0.0F);
@@ -147,7 +153,8 @@ raycast2D(const World &world, const Vec2 origin, Vec2 direction,
   direction.x /= length;
   direction.y /= length;
   std::optional<PhysicsRaycastHit2D> closest;
-  for (const Entity &entity : world.entities) {
+  for (const Entity *candidate : candidates) {
+    const Entity &entity = *candidate;
     if (!entity.enabled || entity.id == ignoredEntityId ||
         !entity.hasComponent<Transform2DComponent>() || !hasCollider(entity) ||
         (!layer.empty() && colliderLayer(entity) != layer))
@@ -285,6 +292,133 @@ raycast2D(const World &world, const Vec2 origin, Vec2 direction,
     }
   }
   return closest;
+}
+
+std::optional<PhysicsRaycastHit2D>
+raycast2D(const World &world, Vec2 origin, Vec2 direction, float distance,
+          const std::string &layer, const std::string &ignoredEntityId) {
+  const auto candidates =
+      world.entities |
+      std::views::transform([](const Entity &entity) { return &entity; });
+  return raycastCandidates(candidates, origin, direction, distance, layer,
+                           ignoredEntityId);
+}
+
+RadialRaycast2D::RadialRaycast2D(const World &world, Vec2 origin, float radius,
+                                 const std::string &layer, const std::string &ignoredEntityId)
+    : origin_(origin), radius_(radius), layer_(layer), ignoredEntityId_(ignoredEntityId) {
+  // Filter once for an entire fan of rays. The exact shared shape tests still
+  // decide each hit; the bounds only reject colliders no ray can reach.
+  for (const Entity &entity : world.entities) {
+    if (!entity.enabled || !entity.hasComponent<Transform2DComponent>() ||
+        !hasCollider(entity) ||
+        (!layer.empty() && colliderLayer(entity) != layer)) {
+      continue;
+    }
+    const Aabb bounds = colliderAabb(entity);
+    const float dx = origin.x - std::clamp(origin.x, bounds.minX, bounds.maxX);
+    const float dy = origin.y - std::clamp(origin.y, bounds.minY, bounds.maxY);
+    if (dx * dx + dy * dy <= radius * radius) {
+      candidates_.push_back(&entity);
+    }
+  }
+}
+
+std::vector<float> RadialRaycast2D::silhouetteAngles() const {
+  constexpr float tau = 2 * std::numbers::pi_v<float>;
+  std::vector<float> angles;
+  const auto append = [&](Vec2 point) {
+    const Vec2 relative{point.x - origin_.x, point.y - origin_.y};
+    if (relative.x == 0 && relative.y == 0) {
+      return;
+    }
+    float angle = std::atan2(relative.y, relative.x);
+    if (angle < 0) {
+      angle += tau;
+    }
+    if (angle >= tau) {
+      angle = 0;
+    }
+    angles.push_back(angle);
+  };
+  for (const Entity *entity : candidates_) {
+    if (entity->id == ignoredEntityId_) {
+      continue;
+    }
+    const auto &transform = *entity->component<Transform2DComponent>();
+    const float cosine = std::cos(transform.rotation);
+    const float sine = std::sin(transform.rotation);
+    const auto worldPoint = [&](Vec2 local) {
+      const Vec2 scaled = scaledLocalPoint(transform, local);
+      return Vec2{transform.position.x + scaled.x * cosine - scaled.y * sine,
+                   transform.position.y + scaled.x * sine + scaled.y * cosine};
+    };
+    if (const auto *circle = entity->component<CircleCollider2DComponent>()) {
+      const Vec2 center = worldPoint(circle->offset);
+      const Vec2 relative{center.x - origin_.x, center.y - origin_.y};
+      const float distance = std::hypot(relative.x, relative.y);
+      const float radius = circle->radius * circleScale(transform);
+      if (distance > radius && radius > 0) {
+        const float centerAngle = std::atan2(relative.y, relative.x);
+        const float tangentOffset = std::asin(radius / distance);
+        for (float angle : {centerAngle - tangentOffset,
+                            centerAngle + tangentOffset}) {
+          angle = std::fmod(angle + tau, tau);
+          angles.push_back(angle);
+        }
+      }
+    } else if (const auto *box = entity->component<BoxCollider2DComponent>()) {
+      const Vec2 half{box->size.x * .5F, box->size.y * .5F};
+      for (const Vec2 corner : {Vec2{-half.x, -half.y}, Vec2{half.x, -half.y},
+                                Vec2{half.x, half.y}, Vec2{-half.x, half.y}}) {
+        append(worldPoint({box->offset.x + corner.x,
+                            box->offset.y + corner.y}));
+      }
+    } else {
+      // Match the shared native ray query, which currently intersects other
+      // collider shapes through their world AABB rather than polygon edges.
+      const Aabb bounds = colliderAabb(*entity);
+      append({bounds.minX, bounds.minY});
+      append({bounds.maxX, bounds.minY});
+      append({bounds.maxX, bounds.maxY});
+      append({bounds.minX, bounds.maxY});
+    }
+  }
+  std::ranges::sort(angles);
+  angles.erase(std::unique(angles.begin(), angles.end()), angles.end());
+  return angles;
+}
+
+std::optional<PhysicsRaycastHit2D> RadialRaycast2D::cast(Vec2 direction) const {
+  return cast(direction, radius_);
+}
+
+std::optional<PhysicsRaycastHit2D> RadialRaycast2D::cast(Vec2 direction, float distance) const {
+  return raycastCandidates(candidates_, origin_, direction, std::min(distance, radius_), layer_, ignoredEntityId_);
+}
+
+PhysicsRaycastBatch2DResult raycastBatch2D(const World &world, Vec2 origin,
+    std::span<const PhysicsRay2D> rays, const std::string &layer, const std::string &ignoredEntityId) {
+  ProfileScope batchScope("Physics2D.raycast_batch");
+  if (!std::isfinite(origin.x) || !std::isfinite(origin.y) || rays.size() > 4096) {
+    return {{}, "Ray batch requires a finite origin and at most 4096 rays."};
+  }
+  float radius = 0;
+  for (const PhysicsRay2D &ray : rays) {
+    if (!std::isfinite(ray.direction.x) || !std::isfinite(ray.direction.y) ||
+        !std::isfinite(ray.distance) || ray.distance < 0) {
+      return {{}, "Ray directions must be finite and distances finite and non-negative."};
+    }
+    radius = std::max(radius, ray.distance);
+  }
+  PhysicsRaycastBatch2DResult result;
+  result.hits.reserve(rays.size());
+  if (rays.empty()) { return result; }
+  const RadialRaycast2D query(world, origin, radius, layer, ignoredEntityId);
+  for (const PhysicsRay2D &ray : rays) {
+    result.hits.push_back(query.cast(ray.direction, ray.distance));
+  }
+  return result;
 }
 
 std::vector<PhysicsContact2D> contactsForEntity(const World &world,

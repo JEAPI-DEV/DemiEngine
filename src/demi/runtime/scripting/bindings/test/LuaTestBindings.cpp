@@ -71,6 +71,14 @@ void LuaTestBindingModule::install(LuaScriptHost &host,
                       return lua_yield(localState, 0);
                     });
 
+  test.set_function("wait_until", [&runner](sol::this_state lua) -> int {
+    lua_State *localState = lua;
+    luaL_checktype(localState, 1, LUA_TFUNCTION);
+    const double timeout = luaL_optnumber(localState, 2, 10.0);
+    runner.waitUntil(localState, 1, timeout);
+    return lua_yield(localState, 0);
+  });
+
   test.set_function("expect_scene",
                     [&runner](const std::string &sceneId,
                               sol::optional<double> timeout,
@@ -82,7 +90,8 @@ void LuaTestBindingModule::install(LuaScriptHost &host,
 
   test.set_function(
       "node_center",
-      [&runner, state](const std::string &nodeId) -> sol::object {
+      [&runner](sol::this_state current, const std::string &nodeId) -> sol::object {
+        lua_State *state = current;
         const auto center = runner.nodeCenterCanvas(nodeId);
         if (!center)
           return sol::make_object(state, sol::nil);

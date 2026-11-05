@@ -4,6 +4,7 @@
 #include "demi/runtime/scene/model/World.h"
 
 #include <optional>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -31,6 +32,18 @@ struct PhysicsRaycastHit2D {
   float fraction = 0.0F;
 };
 using PhysicsQueryHit2D = PhysicsRaycastHit2D;
+struct PhysicsRay2D {
+  Vec2 direction;
+  float distance = 0;
+};
+struct PhysicsRaycastBatch2DResult {
+  std::vector<std::optional<PhysicsRaycastHit2D>> hits;
+  std::string error;
+};
+[[nodiscard]] PhysicsRaycastBatch2DResult raycastBatch2D(
+    const World &world, Vec2 origin, std::span<const PhysicsRay2D> rays,
+    const std::string &layer = {}, const std::string &ignoredEntityId = {});
+
 
 [[nodiscard]] std::optional<Vec2>
 rigidbodyVelocity(const World &world, const std::string &entityId);

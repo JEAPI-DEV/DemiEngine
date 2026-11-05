@@ -118,6 +118,18 @@ std::set<std::string> localModuleNames(const std::string &text) {
        it != end; ++it) {
     names.insert((*it)[1].str());
   }
+  // Game service objects passed as parameters are not engine imports merely
+  // because they share a capitalized name such as Session.
+  const std::regex parametersPattern(R"(\bfunction(?:\s+[A-Za-z_][A-Za-z0-9_:.]*)?\s*\(([^)]*)\))");
+  const std::regex parameterName(R"(\b[A-Za-z_][A-Za-z0-9_]*\b)");
+  for (std::sregex_iterator it(text.begin(), text.end(), parametersPattern), end;
+       it != end; ++it) {
+    const std::string parameters = (*it)[1].str();
+    for (std::sregex_iterator parameter(parameters.begin(), parameters.end(), parameterName), last;
+         parameter != last; ++parameter) {
+      names.insert(parameter->str());
+    }
+  }
   return names;
 }
 
@@ -660,6 +672,11 @@ int main(int argc, char **argv) {
   const ApiSet stubApis =
       declaredStubApis(root / "scripts" / "stubs" / "demi");
   bool passed = verifyExplicitModulePublication();
+  if (!localModuleNames("function Navigator.travel(Session, target) end").contains("Session") ||
+      !localModuleNames("local callback = function(Service) end").contains("Service")) {
+    std::cerr << "Game function parameters were mistaken for native service imports.\n";
+    passed = false;
+  }
 
   for (const std::string_view api : {
            "Transform3D.get_position",

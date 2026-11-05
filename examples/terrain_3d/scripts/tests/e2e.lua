@@ -19,17 +19,22 @@ local function distance(left, right)
   return math.sqrt(x * x + y * y + z * z)
 end
 
+local function open_camera_tour()
+  Test.expect(Scene.load("scene://terrain_3d/loading"), "Open the independent camera-tour scene")
+  Test.expect_scene("scene://terrain_3d/loading", 10)
+  Test.expect_scene("scene://terrain_3d/main", 90)
+end
+
 return {tests = {
   {name = "regional terrain covers distant teleports and revisits", func = function()
     Test.expect_scene("scene://terrain_3d/alpine", 30)
     -- Drive the real camera through LOD boundaries without desktop input.
     -- Wait for initial collision coverage before measuring moving-camera work.
     local opening
-    for attempt = 1, 300 do
-      Test.wait(0.1)
+    Test.wait_until(function()
       opening = Physics3D.raycast(0, 6000, 0, 0, -1, 0, 12000)
-      if opening then break end
-    end
+      return opening ~= nil
+    end, 30)
     Test.expect(opening ~= nil, "Opening regional cover must finish preparing")
     local altitude = math.max(400, opening.point[2] + 120)
     for step = 0, 40 do
@@ -48,23 +53,25 @@ return {tests = {
     for _, point in ipairs(points) do
       Transform3D.set_position("camera", point[1], 4500, point[2])
       local hit
-      for attempt = 1, 100 do
-        Test.wait(0.1)
+      Test.wait_until(function()
         hit = Physics3D.raycast(point[1], 6000, point[2], 0, -1, 0, 12000)
-        if hit then break end
-      end
+        return hit ~= nil
+      end, 10)
       Test.expect(hit ~= nil, "Streamed terrain must retain collision coverage at distant viewpoints")
       Test.wait(2)
     end
     Transform3D.set_position("camera", 0, 400, 0)
     Test.wait(5)
+    Test.wait_until(function()
+      return Physics3D.raycast(0, 6000, 0, 0, -1, 0, 12000) ~= nil
+    end, 15)
     Test.expect(Physics3D.raycast(0, 6000, 0, 0, -1, 0, 12000) ~= nil,
                 "Returning to the opening valley must restore terrain coverage")
     Test.expect(Scene.load("scene://terrain_3d/loading"), "Unload the regional world")
     Test.expect_scene("scene://terrain_3d/main", 90)
   end},
   {name = "camera tour advances pauses resumes and restarts", func = function()
-    Test.expect_scene("scene://terrain_3d/main", 30)
+    open_camera_tour()
     Test.wait(0.1)
     Test.touch("tour_restart")
     local initial = camera_position()
@@ -84,6 +91,7 @@ return {tests = {
     Test.expect(distance(camera_position(), Route[1].position) < 6, "Restart must return to the opening view")
   end},
   {name = "chapter controls visit the route and wrap while paused", func = function()
+    open_camera_tour()
     Test.touch("tour_restart")
     Test.touch("tour_pause")
     for chapter = 2, #Route do

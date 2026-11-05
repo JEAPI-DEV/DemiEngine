@@ -16,7 +16,7 @@ function Combat.direction(x, y)
 end
 
 function Combat.damage(run, actor, amount, source)
-  if actor.hp <= 0 or (actor.invulnerable or 0) > 0 then
+  if actor.dormant or actor.hp <= 0 or (actor.invulnerable or 0) > 0 then
     return false
   end
   if actor == run.player then

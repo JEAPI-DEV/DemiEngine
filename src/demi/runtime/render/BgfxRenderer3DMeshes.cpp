@@ -450,13 +450,16 @@ bool BgfxRenderer3D::submitVisibleMeshes(
             return false;
           }
           const GpuMesh3D *drawMesh = &cached->gpu;
+          std::uint32_t indexMultiplier = 1;
           if (!dents.empty()) {
-            drawMesh = deformedMeshes_.get(entity.id, "inline", signature,
-                                           mesh->vertices, mesh->uvs, indices,
-                                           cached->inlineColors, dents, error);
-            if (!drawMesh) {
+            const auto *deformed = deformedMeshes_.get(
+                entity.id, "inline", signature, mesh->vertices, mesh->uvs,
+                indices, cached->inlineColors, dents, error);
+            if (!deformed) {
               return false;
             }
+            drawMesh = &deformed->gpu;
+            indexMultiplier = deformed->indexMultiplier;
           }
           const bool drawSectionRange = section && !visible.drawAllSections;
           const auto resolvedTexture =
@@ -468,13 +471,14 @@ bool BgfxRenderer3D::submitVisibleMeshes(
             queued = drawMesh->draw(
                 meshPbr_, frame.viewId, program, resolvedTexture, meshSampler_,
                 *modelMatrix, state, error, drawUniforms,
-                drawSectionRange ? section->firstIndex : 0,
-                drawSectionRange ? section->indexCount : UINT32_MAX);
+                drawSectionRange ? section->firstIndex * indexMultiplier : 0,
+                drawSectionRange ? section->indexCount * indexMultiplier
+                                 : UINT32_MAX);
             if (queued) {
               ++bufferedDraws;
-              const auto drawnIndices = drawSectionRange
-                                            ? section->indexCount
-                                            : drawMesh->indexCount();
+              const auto drawnIndices =
+                  drawSectionRange ? section->indexCount * indexMultiplier
+                                   : drawMesh->indexCount();
               bufferedTriangles += drawnIndices / 3U;
             }
           }
@@ -511,19 +515,24 @@ bool BgfxRenderer3D::submitVisibleMeshes(
             }
           }
           const GpuMesh3D *drawGpu = &drawMesh->gpu;
+          std::uint32_t indexMultiplier = 1;
           if (!dents.empty() && player == nullptr) {
             const auto &rest = cached->second->restGeometry;
-            drawGpu = deformedMeshes_.get(
+            const auto *deformed = deformedMeshes_.get(
                 entity.id, selectedModel, 0, rest.positions, rest.uvs,
                 rest.indices, rest.colors, dents, error);
-            if (!drawGpu) {
+            if (!deformed) {
               return false;
             }
+            drawGpu = &deformed->gpu;
+            indexMultiplier = deformed->indexMultiplier;
           }
           const bool drawSectionRange = section && !visible.drawAllSections;
-          const auto firstIndex = drawSectionRange ? section->firstIndex : 0;
-          const auto indexCount =
-              drawSectionRange ? section->indexCount : UINT32_MAX;
+          const auto firstIndex =
+              drawSectionRange ? section->firstIndex * indexMultiplier : 0;
+          const auto indexCount = drawSectionRange
+                                      ? section->indexCount * indexMultiplier
+                                      : UINT32_MAX;
           // Match primitive meshes: an entity texture overrides material and
           // embedded model albedo. Keep it in the instancing key below as well.
           std::string textureId = mesh->texture;

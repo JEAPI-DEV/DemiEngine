@@ -1,3 +1,4 @@
+#include "demi/runtime/ui/UiLayoutEngine.h"
 #include "demi/runtime/render/bgfx2d/UiCanvasRenderer.h"
 
 #include "demi/runtime/ui/TextEditingEngine.h"
@@ -116,6 +117,7 @@ UiCanvasRenderer::UiCanvasRenderer(
 bool UiCanvasRenderer::draw(const ui::UiDocument &document,
                             const std::uint16_t viewportWidth,
                             const std::uint16_t viewportHeight) {
+  ui::UiLayoutEngine{}.ensure(document, document.canvasSize);
   const float scaleX = viewportWidth / std::max(document.canvasSize.x, 1.0F);
   const float scaleY = viewportHeight / std::max(document.canvasSize.y, 1.0F);
   locale_ = document.locale;

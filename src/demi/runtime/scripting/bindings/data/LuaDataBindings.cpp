@@ -148,6 +148,38 @@ int query(lua_State *state) {
   return 1;
 }
 
+int array(lua_State *state) {
+  if (lua_isnoneornil(state, 1)) {
+    lua_newtable(state);
+  } else {
+    luaL_checktype(state, 1, LUA_TTABLE);
+    const auto size = lua_rawlen(state, 1);
+    lua_newtable(state);
+    const int output = lua_gettop(state);
+    std::size_t count = 0;
+    lua_pushnil(state);
+    while (lua_next(state, 1) != 0) {
+      const bool validIndex =
+          lua_isinteger(state, -2) && lua_tointeger(state, -2) > 0 &&
+          static_cast<lua_Unsigned>(lua_tointeger(state, -2)) <= size;
+      if (!validIndex) {
+        return luaL_error(state,
+                          "Data.array requires dense one-based integer keys");
+      }
+      ++count;
+      lua_pushvalue(state, -1);
+      lua_rawseti(state, output, lua_tointeger(state, -3));
+      lua_pop(state, 1);
+    }
+    if (count != size) {
+      return luaL_error(state,
+                        "Data.array requires dense one-based integer keys");
+    }
+  }
+  setLuaJsonTableKind(state, "array");
+  return 1;
+}
+
 int kind(lua_State *state) {
   pushLuaService(state, "Data");
   lua_getfield(state, -1, "null");
@@ -199,9 +231,10 @@ void LuaDataBindingModule::install(LuaScriptHost &scriptHost,
 void installLuaDataValueBindings(lua_State *state) {
   lua_newtable(state);
   const luaL_Reg functions[] = {{"parse_yaml", parseYaml},
-                               {"kind", kind},
-                               {"is_null", isNull},
-                               {nullptr, nullptr}};
+                                {"array", array},
+                                {"kind", kind},
+                                {"is_null", isNull},
+                                {nullptr, nullptr}};
   luaL_setfuncs(state, functions, 0);
   lua_newtable(state);
   setLuaJsonTableKind(state, "null");

@@ -55,54 +55,36 @@ tests[#tests + 1] = {
     Test.expect(TlsClient.connect("127.0.0.1", 34443, "certs/server.crt"),
                   "TLS client failed to connect to the loopback server")
     local client_id = nil
-    for _ = 1, 50 do
-      Test.wait(0.1)
-      -- The server endpoint is exclusively owned by this test, so its
-      -- "connected" event is safe to consume here.
+    Test.wait_until(function()
+      -- The server endpoint is owned by this test; consume its connection event.
       for _, event in ipairs(TlsServer.events()) do
         if event.type == "connected" then
           client_id = event.client_id
         end
       end
-      if client_id ~= nil then
-        break
-      end
-    end
+      return client_id ~= nil
+    end, 5.0)
     Test.expect(client_id ~= nil,
                   "TLS server never accepted the client (server: " ..
-                      tostring(TlsServer.error()) .. ")")
+                      tostring(TlsServer.error()) .. "; client: " .. tostring(TlsClient.error()) .. ")")
     Test.expect(TlsServer.client_connected(client_id),
                   "TLS server handshake did not complete")
     -- The client endpoint is shared with the game's matchmaking lobby, which
     -- drains the same event stream every frame; use the polled connection
     -- state instead of the "connected" event.
-    local client_connected = false
-    for _ = 1, 50 do
-      Test.wait(0.1)
-      if TlsClient.is_connected() then
-        client_connected = true
-        break
-      end
-    end
-    Test.expect(client_connected,
-                  "TLS client handshake did not complete (client: " ..
-                      tostring(TlsClient.error()) .. ")")
+    Test.wait_until(function() return TlsClient.is_connected() end, 5.0)
     TlsServer.send(client_id, "loopback-ping")
     local echo = nil
-    for _ = 1, 50 do
-      Test.wait(0.1)
+    Test.wait_until(function()
       -- Pump the server so the queued frame flushes, then read the client.
-      for _, event in ipairs(TlsServer.events()) do
-      end
+      TlsServer.events()
       for _, event in ipairs(TlsClient.events()) do
         if event.type == "message" then
           echo = event.message
         end
       end
-      if echo ~= nil then
-        break
-      end
-    end
+      return echo ~= nil
+    end, 5.0)
     Test.expect(echo == "loopback-ping",
                   "TLS echo did not roundtrip (received " ..
                       tostring(echo) .. ")")

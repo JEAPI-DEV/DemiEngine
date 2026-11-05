@@ -18,7 +18,7 @@ function Test.reset()
     Test.touch("restart_button")
   else
     if Session.game.menus.mode then
-      Test.touch("bag_close")
+      Test.touch(Session.game.menus.mode == "talents" and "talent_close" or "bag_close")
     end
     if not Session.game.paused then
       Test.touch("pause_button")

@@ -1,5 +1,24 @@
 # DemiEngine Roadmap
 
+## Current architectural work
+
+The RmlUi migration was reverted at the user's request. Keep the existing JSON
+HUD authoring, visual HUD editor, event annotations and localization workflow.
+Do not resume that replacement without an explicit new decision. Independent
+fog/raycast/layout/font performance work and gameplay fixes remain in scope.
+
+The desktop performance target is 165 Hz (6.06 ms per frame), with game behavior
+preserved through engine-level refactoring and explicit example migrations.
+Library adoption must transfer responsibility upstream and delete redundant
+engine code, rather than add another supported implementation. See
+[engine library boundaries](docs/engine-library-boundaries.md) and the
+[architecture audit](docs/engine-architecture-audit-2026-11-03.md).
+
+Completed in the current worktree: GPU fog shading, call-scoped native ray
+batches, document-owned UI geometry resolution, and immutable HarfBuzz font
+resource ownership. The 165 Hz target still requires repeatable qualification;
+the abandoned UI replacement is not evidence of achieving it.
+
 Ground-level traversal now has a repeatable vegetation-resident profiling route.
 Terrain draws sort across regional owners, and render-request refresh uses the
 shared entity index without duplicate split demand. See

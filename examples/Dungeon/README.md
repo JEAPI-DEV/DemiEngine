@@ -19,14 +19,33 @@ modules and assets. New Expedition starts from floor one; Continue restores a sa
 | Mouse + LMB / Space | Aim and attack |
 | X | Cycle carried weapons between attacks |
 | Left Shift | Dodge; cancels a committed sword swing |
-| E | Interact, inspect a wall, pull a lever, or descend |
+| E | Interact, inspect a wall, pull a lever, descend, or skip an entrance scene |
 | I / bag icon | Inventory and equipment |
 | J / notes icon | Discovered notes and secrets |
+| C / portrait icon | Spend level-up talent points |
 | Q / red-potion slot | Drink a healing potion |
 | T / blue-potion slot | Drink a mana flask |
 | Escape / pause icon | Pause; save, return to title or start a new expedition |
 | F5 | Save |
 | R | Restart the live expedition without deleting the checkpoint |
+
+The first three floors now span 60x46 cells. Each has an added loop through a
+quiet cloister, a statue encounter, an optional reliquary and a refuge. The eastern
+trap route has timed warning phases and a release lever. The northern route has
+guards emerging around stone plinths; E skips their entrance, and combat pauses
+until control returns. Neither route requires clearing every enemy.
+
+Discoveries, opened chests and defeated enemies grant experience. Each level gives
+one talent point: Vigor increases vitality, Blade improves melee, and Arcana
+increases mana. The second rank grants armor, faster dodge recovery or cheaper
+spells respectively. The XP bar and C panel show your progress. Choices persist
+in checkpoints; version 3 saves gain the new wings without losing old progress.
+
+Sight reaches 11 world units with a smooth, collider-occluded edge. The GPU
+shades the visibility polygon and distance falloff; the CPU does not rasterize
+a fog bitmap while moving.
+Explored terrain remains dimly visible. Pool art fills the same rectangle as its
+movement collider; pools do not block sight or projectiles.
 
 The HUD follows the supplied reference composition: a portrait with tapered health
 and mana ribbons at the upper left, coins below it, a compact floor map at the upper
@@ -93,6 +112,7 @@ ui/screens/
   inventory.ui.prefab.json
   dialogs.ui.prefab.json
   boss_bar.ui.prefab.json
+  talents.ui.prefab.json
 ui/kit/
   frame.ui.prefab.json
   button.ui.prefab.json
@@ -143,10 +163,11 @@ before removal. Full bags leave rewards in the world, and shops charge only afte
 an item is delivered. Gear changes actual damage, defense, movement or cooldowns.
 
 Saves retain inventory, mana, encounter state, opened gates, discovery and journal
-entries. They use platform player data, never project or cooked source. Version-1
-and version-2 checkpoints are backed up before a version-3 write. Migration preserves
-gear, experience and currency but restarts the redesigned current floor at its
-entrance. Unsupported or corrupt checkpoints are reported and preserved.
+entries. They use platform player data, never project or cooked source. Version 1
+through version 3 checkpoints are backed up before a version-4 write. Versions 1
+and 2 preserve gear, experience and currency but restart the redesigned floor at
+its entrance. Version 3 preserves its current floor progress and adds only new
+wing identities. Active entrance scenes and learned talents also resume. Unsupported or corrupt checkpoints are reported and preserved.
 
 ## Validation and later training
 

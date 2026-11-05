@@ -3,6 +3,18 @@
 local Native = require("demi.hud")
 local Ui = {}
 local scopes = {
+  ["talent_frame"] = "talents",
+  ["talent_title"] = "talents",
+  ["talent_points"] = "talents",
+  ["talent_help"] = "talents",
+  ["talent_vigor_text"] = "talents",
+  ["talent_vigor"] = "talents",
+  ["talent_blade_text"] = "talents",
+  ["talent_blade"] = "talents",
+  ["talent_arcana_text"] = "talents",
+  ["talent_arcana"] = "talents",
+  ["talent_close"] = "talents",
+
   ["bag"] = "inventory",
   ["bag_capacity"] = "inventory",
   ["bag_close"] = "inventory",
@@ -144,8 +156,15 @@ for _, name in ipairs({
   end
 end
 
-function Ui.create(parent, definition)
+local function qualify(definition)
   definition.id = Ui.id(definition.id)
+  for _, child in ipairs(definition.children or {}) do
+    qualify(child)
+  end
+end
+
+function Ui.create(parent, definition)
+  qualify(definition)
   return Native.create(Ui.id(parent), definition)
 end
 

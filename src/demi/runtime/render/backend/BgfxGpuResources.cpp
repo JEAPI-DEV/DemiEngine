@@ -5,6 +5,9 @@
 #include <bgfx/bgfx.h>
 #include <bgfx/embedded_shader.h>
 
+#include <fs_demi_fog_essl.h>
+#include <fs_demi_fog_glsl.h>
+#include <fs_demi_fog_spv.h>
 #include <fs_demi_directional_essl.h>
 #include <fs_demi_directional_glsl.h>
 #include <fs_demi_directional_spv.h>
@@ -315,6 +318,16 @@ const bgfx::EmbeddedShader EmbeddedShaders[] = {
        sizeof(vs_demi_post_process_spv)},
       {bgfx::RendererType::Noop,
        reinterpret_cast<const std::uint8_t *>("VSH\x5\x0\x0\x0\x0\x0\x0"), 10},
+      {bgfx::RendererType::Count, nullptr, 0}}},
+    {"fs_demi_fog",
+     {{bgfx::RendererType::OpenGLES, fs_demi_fog_essl,
+       sizeof(fs_demi_fog_essl)},
+      {bgfx::RendererType::OpenGL, fs_demi_fog_glsl,
+       sizeof(fs_demi_fog_glsl)},
+      {bgfx::RendererType::Vulkan, fs_demi_fog_spv,
+       sizeof(fs_demi_fog_spv)},
+      {bgfx::RendererType::Noop,
+       reinterpret_cast<const std::uint8_t *>("FSH\x5\x0\x0\x0\x0\x0\x0"), 10},
       {bgfx::RendererType::Count, nullptr, 0}}},
     {"fs_demi_post_process",
      {{bgfx::RendererType::OpenGLES, fs_demi_post_process_essl,
@@ -901,6 +914,10 @@ public:
     const char *vertexName = nullptr;
     const char *fragmentName = nullptr;
     switch (program) {
+    case BuiltinProgram::Fog2D:
+      vertexName = "vs_ocornut_imgui";
+      fragmentName = "fs_demi_fog";
+      break;
     case BuiltinProgram::Textured2D:
       vertexName = "vs_ocornut_imgui";
       fragmentName = "fs_ocornut_imgui";

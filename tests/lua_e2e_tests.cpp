@@ -2,6 +2,11 @@
 #include "demi/runtime/scripting/LuaScriptHost.h"
 #include "demi/runtime/ui/UiLayoutEngine.h"
 
+extern "C" {
+#include <lua.h>
+#include <lauxlib.h>
+#include <lualib.h>
+}
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -20,9 +25,41 @@ bool writeFile(const std::filesystem::path &path, const char *contents) {
   return true;
 }
 
+bool sceneWaitUsesWallClock() {
+  lua_State *state = luaL_newstate();
+  luaL_openlibs(state);
+  LuaE2ETestRunner runner;
+  double clock = 10;
+  runner.initialize(state, {.activeScene = [] { return std::string("scene://old"); },
+                            .monotonicSeconds = [&] { return clock; }});
+  lua_pushlightuserdata(state, &runner);
+  lua_pushcclosure(state, [](lua_State *thread) {
+    auto *owner = static_cast<LuaE2ETestRunner *>(lua_touserdata(thread, lua_upvalueindex(1)));
+    owner->expectScene("scene://new", 1.0);
+    return lua_yield(thread, 0);
+  }, 1);
+  lua_setglobal(state, "await_scene");
+  const bool loaded = luaL_dostring(state,
+      "package.preload['deadline_probe']=function() return {tests={{name='wall deadline',func=await_scene}}} end") == LUA_OK;
+  runner.start("deadline_probe");
+  runner.update(0);
+  runner.update(1000);
+  const bool retained = runner.waitingForScene() && runner.failed() == 0;
+  clock = 11.01;
+  runner.update(0);
+  const bool expired = runner.failed() == 1;
+  runner.shutdown();
+  lua_close(state);
+  return loaded && retained && expired;
+}
+
 } // namespace
 
 int main() {
+  if (!sceneWaitUsesWallClock()) {
+    std::cerr << "Asynchronous scene waits must use wall-clock deadlines.\n";
+    return 1;
+  }
   namespace runtime = demi::runtime;
   const std::filesystem::path projectDirectory =
       std::filesystem::temp_directory_path() / "demi_lua_mobile_tests";
@@ -69,7 +106,7 @@ return {tests = {
                   "probe_button center was nil")
   end},
   {name = "scene timeout fails the test", func = function()
-    Test.expect_scene("scene://never/loads", 0.05)
+    Test.expect_scene("scene://never/loads", 0.0)
   end},
 }}
 )lua")) {

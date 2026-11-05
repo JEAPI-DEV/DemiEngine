@@ -45,6 +45,74 @@ demi::runtime::Entity makePlayer() {
   return player;
 }
 
+bool motionCommandsWakeSleepingBodies() {
+#if DEMI_HAS_BOX2D
+  for (int command = 0; command < 7; ++command) {
+    World world;
+    Entity player = makePlayer();
+    auto *body = player.component<Rigidbody2DComponent>();
+    body->velocity = {};
+    body->lockRotation = false;
+    player.component<Transform2DComponent>()->position = {};
+    world.entities.push_back(std::move(player));
+    for (int frame = 0; frame < 120; ++frame) {
+      stepPhysics2D(world, 1.0F / 60.0F);
+    }
+    body = world.entities.front().component<Rigidbody2DComponent>();
+    if (body->awake) {
+      std::cerr << "Idle native body did not reach natural sleep.\n";
+      return false;
+    }
+    if (!setRigidbodyVelocity(world, "player", {}) ||
+        !setRigidbodyVelocityX(world, "player", 0) ||
+        !setRigidbodyVelocityY(world, "player", 0) ||
+        !setRigidbodyAngularVelocity(world, "player", 0)) {
+      return false;
+    }
+    stepPhysics2D(world, 1.0F / 60.0F);
+    if (body->awake) {
+      std::cerr << "Zero velocity command spuriously woke a sleeping body.\n";
+      return false;
+    }
+    bool accepted = false;
+    switch (command) {
+    case 0:
+      accepted = setRigidbodyVelocity(world, "player", {2, 0});
+      break;
+    case 1:
+      accepted = setRigidbodyVelocityX(world, "player", 2);
+      break;
+    case 2:
+      accepted = setRigidbodyVelocityY(world, "player", 2);
+      break;
+    case 3:
+      accepted = setRigidbodyAngularVelocity(world, "player", 2);
+      break;
+    case 4:
+      accepted = addRigidbodyImpulse(world, "player", {2, 0});
+      break;
+    case 5:
+      accepted = addRigidbodyForce(world, "player", {20, 0});
+      break;
+    case 6:
+      accepted = addRigidbodyTorque(world, "player", 20);
+      break;
+    }
+    stepPhysics2D(world, 1.0F / 60.0F);
+    const auto *transform = world.entities.front().component<Transform2DComponent>();
+    const bool moved = std::abs(transform->position.x) > 0.0001F ||
+                       std::abs(transform->position.y) > 0.0001F ||
+                       std::abs(transform->rotation) > 0.0001F;
+    if (!accepted || !body->awake || !moved) {
+      std::cerr << "Motion command " << command
+                << " was overwritten by stale native sleeping state.\n";
+      return false;
+    }
+  }
+#endif
+  return true;
+}
+
 bool capsuleStopsAtPolygonFromAllSides() {
   struct Probe {
     Vec2 start;
@@ -95,6 +163,9 @@ bool capsuleStopsAtPolygonFromAllSides() {
 } // namespace
 
 int main() {
+  if (!motionCommandsWakeSleepingBodies()) {
+    return 1;
+  }
   demi::runtime::World world;
   world.entities.push_back(makePlayer());
   world.entities.push_back(makePlatform());

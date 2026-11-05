@@ -109,6 +109,18 @@ function Inventory.stats(player)
       end
     end
   end
+  local talents = player.talents or {}
+  local vigor, blade, arcana = talents.vigor or 0, talents.blade or 0, talents.arcana or 0
+  stats.max_hp = stats.max_hp + vigor * 2
+  stats.max_mana = stats.max_mana + arcana * 2
+  stats.defense = stats.defense + (vigor >= 2 and 1 or 0)
+  if blade >= 2 then
+    stats.dash_delay = stats.dash_delay * 0.75
+  end
+  local weapon = Items[stats.weapon]
+  if weapon and weapon.melee then
+    stats.power = stats.power + blade
+  end
   if (player.buff_time or 0) > 0 then
     stats.power = stats.power + 2
   end

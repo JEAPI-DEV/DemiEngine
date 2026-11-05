@@ -93,6 +93,9 @@ bool UiMutationQueue::alive(const UiDocument &document,
 
 UiMutationResult UiMutationQueue::apply(UiDocument &document) {
   initializeGenerations(document);
+  if (mutations_.empty()) {
+    return {true, {}};
+  }
   UiDocument result = document;
   const auto fail = [&](std::string error) {
     mutations_.clear();
@@ -196,6 +199,7 @@ UiMutationResult UiMutationQueue::apply(UiDocument &document) {
         eraseSubtree(result, id);
     }
   }
+  result.invalidateLayout();
   document = std::move(result);
   mutations_.clear();
   return {true, {}};

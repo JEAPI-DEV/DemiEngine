@@ -1,3 +1,4 @@
+#include "demi/runtime/ui/UiLayoutEngine.h"
 #include "demi/runtime/ui/UiAccessibilityTree.h"
 
 #include <algorithm>
@@ -87,6 +88,7 @@ Rect intersectBounds(const Rect first, const Rect second) {
 
 std::vector<UiAccessibilityNode>
 UiAccessibilityTree::snapshot(const UiDocument &document) {
+  UiLayoutEngine{}.ensure(document, document.canvasSize);
   std::unordered_map<std::string, const UiNode *> nodesById;
   nodesById.reserve(document.nodes.size());
   for (const UiNode &node : document.nodes)

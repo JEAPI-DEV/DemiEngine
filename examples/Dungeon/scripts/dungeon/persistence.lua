@@ -18,6 +18,7 @@ function Persistence.write(run)
         previous.format_version ~= 1
         and previous.format_version ~= 2
         and previous.format_version ~= 3
+        and previous.format_version ~= 4
       )
     then
       return false, "Existing checkpoint is incompatible; it has been preserved."
@@ -26,14 +27,14 @@ function Persistence.write(run)
     if not valid then
       return false, "Existing checkpoint is invalid; it has been preserved."
     end
-    if previous.format_version < 3 then
+    if previous.format_version < 4 then
       local backup = Persistence.slot .. "_v" .. previous.format_version .. "_backup"
       if not Save.exists(backup) and not Save.write(backup, previous, previous.format_version) then
         return false, "Could not back up the old checkpoint; it has been preserved."
       end
     end
   end
-  if not Save.write(Persistence.slot, Checkpoint.encode(run), 3) then
+  if not Save.write(Persistence.slot, Checkpoint.encode(run), 4) then
     return false, "Save failed: " .. Save.last_error()
   end
   return true, "Expedition saved. Continue from the title screen."

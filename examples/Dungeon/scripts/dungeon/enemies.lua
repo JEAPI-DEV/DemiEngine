@@ -113,7 +113,7 @@ end
 
 function Enemies.update(run, geometry, dt)
   for _, enemy in ipairs(run.enemies) do
-    if enemy.hp > 0 then
+    if enemy.hp > 0 and not enemy.dormant then
       local spec = types[enemy.kind]
       enemy.alert_time = math.max(0, enemy.alert_time - dt)
       enemy.slow_time = math.max(0, enemy.slow_time - dt)

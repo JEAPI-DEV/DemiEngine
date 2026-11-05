@@ -426,6 +426,33 @@ foreach(variant glsl essl spv)
   endforeach()
 endforeach()
 
+# The fog program consumes geometry/discovery data and shades screen pixels on the GPU.
+foreach(variant IN ITEMS glsl essl spv)
+  if(variant STREQUAL "glsl")
+    set(fog_platform linux)
+    set(fog_profile 140)
+  elseif(variant STREQUAL "essl")
+    set(fog_platform android)
+    set(fog_profile 100_es)
+  else()
+    set(fog_platform linux)
+    set(fog_profile spirv)
+  endif()
+  set(fog_header "${DEMI_BGFX_BUILTIN_SHADER_DIR}/fs_demi_fog_${variant}.h")
+  add_custom_command(OUTPUT "${fog_header}"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${DEMI_BGFX_BUILTIN_SHADER_DIR}"
+    COMMAND "${DEMI_SHADERC_EXECUTABLE}"
+      -f "${CMAKE_SOURCE_DIR}/src/demi/runtime/render/bgfx2d/shaders/fs_demi_fog.sc"
+      -o "${fog_header}" --type fragment --platform ${fog_platform} -p ${fog_profile}
+      --varyingdef "${bgfx_SOURCE_DIR}/bgfx/examples/common/imgui/varying.def.sc"
+      -i "${DEMI_BGFX_SHADER_INCLUDE_DIR}" --bin2c fs_demi_fog_${variant}
+    DEPENDS ${DEMI_SHADERC_DEPENDENCY}
+      "${CMAKE_SOURCE_DIR}/src/demi/runtime/render/bgfx2d/shaders/fs_demi_fog.sc"
+    VERBATIM)
+  list(APPEND DEMI_BGFX_BUILTIN_SHADER_HEADERS "${fog_header}")
+endforeach()
+
+
 add_library(demi-graphics-bgfx STATIC
   ${DEMI_BGFX_BUILTIN_SHADER_HEADERS}
   "${DEMI_RENDER_GENERATED_INCLUDE_DIR}/demi/runtime/render/InterFontData.h"
@@ -485,6 +512,7 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
 endif()
 
 add_library(demi-render2d-bgfx STATIC
+  src/demi/runtime/render/bgfx2d/FogCanvasRenderer.cpp
   src/demi/runtime/render/BgfxRenderer2D.cpp
   src/demi/runtime/render/MaterialLibrary.cpp
   src/demi/runtime/render/ParticleSystem2D.cpp

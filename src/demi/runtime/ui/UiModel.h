@@ -78,7 +78,7 @@ struct UiNode {
   std::string accessibilityDescription;
   std::string script;
   LayoutSpec layout;
-  Rect resolved;
+  mutable Rect resolved;
   Color color{1.0F, 1.0F, 1.0F, 1.0F};
   Color backgroundColor{0.0F, 0.0F, 0.0F, 0.0F};
   Color borderColor{1.0F, 1.0F, 1.0F, 0.20F};
@@ -166,6 +166,18 @@ struct UiDocument {
   std::vector<UiEvent> events;
   std::unordered_map<std::string, std::uint64_t> generations;
   std::uint64_t nextGeneration = 1;
+
+  // Geometry is derived from node layout/visibility and viewport inputs.
+  // Mutation owners invalidate it; geometry consumers resolve it on demand.
+  void invalidateLayout() { layoutDirty_ = true; }
+  [[nodiscard]] std::uint64_t layoutRevision() const { return layoutRevision_; }
+
+private:
+  friend class UiLayoutEngine;
+  mutable bool layoutDirty_ = true;
+  mutable Vec2 layoutViewport_{};
+  mutable std::uint64_t layoutRevision_ = 0;
+
 };
 
 } // namespace demi::runtime::ui

@@ -1,3 +1,4 @@
+#include "demi/runtime/ui/UiLayoutEngine.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
 #include "demi/runtime/scene/RuntimePrefabService.h"
@@ -173,6 +174,8 @@ local Http = require("demi.network.http")
 local Random = require("demi.math.random")
 local Events = require("demi.events")
 local Hud = require("demi.hud")
+local Query2D = require("demi.physics.query2d")
+local Fog = require("demi.visibility.fog2d")
 local Text = require("demi.text")
 local Save = require("demi.save")
 local Cutscene = require("demi.cutscene")
@@ -428,7 +431,35 @@ function Probe:on_start()
 end
 -- @HandleAction("test.annotated")
 function Probe:handle_annotated_action(event)
+  local rays = {{1, 0, 20}, {0, 1, 0}, {-1, 0, 20}}
+  local hits, issue = Query2D.raycast_batch(0, 0, rays)
+  assert(hits and not issue and #hits == 3 and hits[2] == false)
+  for index, ray in ipairs(rays) do
+    local single = Query2D.raycast(0, 0, ray[1], ray[2], ray[3])
+    assert((hits[index] ~= false) == (single ~= nil))
+    if single then assert(hits[index].entity_id == single.entity_id and hits[index].distance == single.distance) end
+  end
+  local bad, error = Query2D.raycast_batch(0, 0, {{1, 0, -1}})
+  assert(bad == nil and type(error) == "string")
+  bad, error = Query2D.raycast_batch(0, 0, {invalid = {1, 0, 1}})
+  assert(bad == nil and type(error) == "string")
+  assert(#assert(Query2D.raycast_batch(0, 0, {})) == 0)
+  assert(Fog.configure(12, 12, 1, -0.5, -0.5, 0.02, 0.03, 0.05, 0.4))
+  Fog.reveal(2, 2)
+  assert(Fog.update(2, 2, 8, 1.2, "wall"))
+  assert(not Fog.update(2, 2, -1, 1.2, "wall"))
+  Fog.clear()
   Save.set_string("test", "annotated_action", event.action .. ":" .. event.id)
+  assert(Hud.clear_children("styled_hud"))
+  for index = 1, 512 do
+    assert(Hud.create("styled_hud", {
+      id = "action_child_" .. index, type = "label", text = tostring(index),
+    }))
+  end
+end
+-- @HandleAction("test.annotated")
+function Probe:observe_action_after_hud_rebuild(event)
+  Save.set_string("test", "action_after_hud_rebuild", event.action .. ":" .. event.id)
 end
 -- @OnEvent("test.script_event")
 function Probe:handle_script_event(event)
@@ -827,6 +858,7 @@ return PropProbe
     std::cerr << "Declarative HUD tree creation lost styling or atomicity.\n";
     return 1;
   }
+  ui::UiLayoutEngine{}.ensure(world.ui, world.ui.canvasSize);
   const auto hudImageNode = std::ranges::find_if(
       world.ui.nodes, [](const runtime::ui::UiNode &element) {
         return element.id == "hud_image";
@@ -836,6 +868,31 @@ return PropProbe
       hudImageNode->animation != "asset://animations/test" ||
       hudImageNode->animationFrame != 3) {
     std::cerr << "HUD geometry mutation did not refresh resolved layout.\n";
+    return 1;
+  }
+  const auto stableLayoutRevision = world.ui.layoutRevision();
+  host.setViewport(100, 100);
+  if (!host.setHudRect("hud_image", 18, 24, hudImageNode->layout.size.x,
+                       hudImageNode->layout.size.y) ||
+      world.ui.layoutRevision() != stableLayoutRevision) {
+    std::cerr << "Unchanged HUD geometry or viewport rebuilt cached layout.\n";
+    return 1;
+  }
+  for (int position = 19; position <= 118; ++position) {
+    if (!host.setHudPosition("hud_image", static_cast<float>(position), 25) ||
+        !host.setHudSize("hud_image", 31, 32)) {
+      std::cerr << "HUD geometry setter failed.\n";
+      return 1;
+    }
+  }
+  if (world.ui.layoutRevision() != stableLayoutRevision) {
+    std::cerr << "HUD setters eagerly recomputed layout inside a mutation batch.\n";
+    return 1;
+  }
+  static_cast<void>(host.hudAccessibilitySnapshot());
+  if (hudImageNode->resolved.x != 118 || hudImageNode->resolved.width != 31 ||
+      world.ui.layoutRevision() != stableLayoutRevision + 1) {
+    std::cerr << "HUD geometry consumer did not resolve the complete mutation batch.\n";
     return 1;
   }
   const runtime::Entity *tintedSprite =
@@ -1010,6 +1067,13 @@ return PropProbe
   if (host.saveString("test", "annotated_action") !=
       "test.annotated:button_start") {
     std::cerr << "@HandleAction did not dispatch to annotated Lua function.\n";
+    return 1;
+  }
+
+  if (host.saveString("test", "action_after_hud_rebuild") !=
+          "test.annotated:button_start" ||
+      host.hudText("action_child_512") != "512") {
+    std::cerr << "HUD rebuild invalidated the remaining action callbacks.\n";
     return 1;
   }
 

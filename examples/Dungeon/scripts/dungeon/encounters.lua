@@ -35,9 +35,21 @@ function Encounters.trap_phase(time, trap)
   return phase < 2.5 and "safe" or (phase < 3.3 and "warning" or "active")
 end
 
+function Encounters.disabled(run, trap)
+  for _, lever in ipairs(run.levers or {}) do
+    if trap.lever == lever.id and lever.used then
+      return true
+    end
+  end
+  return false
+end
+
 function Encounters.update(run)
   for index, trap in ipairs(run.floor.traps) do
-    if Encounters.trap_phase(run.floor_time, trap) == "active" then
+    if
+      not Encounters.disabled(run, trap)
+      and Encounters.trap_phase(run.floor_time, trap) == "active"
+    then
       local cycle = math.floor((run.floor_time + trap.offset) / 4)
       local actors = { run.player }
       for _, enemy in ipairs(run.enemies) do

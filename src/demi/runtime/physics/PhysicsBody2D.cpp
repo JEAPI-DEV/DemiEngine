@@ -38,7 +38,12 @@ bool setRigidbodyVelocity(World &world, const std::string &entityId,
   if (entity == nullptr || !entity->hasComponent<Rigidbody2DComponent>()) {
     return false;
   }
+  // Keep the requested state coherent: native velocity changes wake Box2D,
+  // so a stale copied sleeping flag must not put it back to sleep in sync.
   entity->component<Rigidbody2DComponent>()->velocity = velocity;
+  if (velocity.x != 0.0F || velocity.y != 0.0F) {
+    entity->component<Rigidbody2DComponent>()->awake = true;
+  }
   return true;
 }
 
@@ -49,6 +54,9 @@ bool setRigidbodyVelocityX(World &world, const std::string &entityId,
     return false;
   }
   entity->component<Rigidbody2DComponent>()->velocity.x = x;
+  if (x != 0.0F) {
+    entity->component<Rigidbody2DComponent>()->awake = true;
+  }
   return true;
 }
 
@@ -59,6 +67,9 @@ bool setRigidbodyVelocityY(World &world, const std::string &entityId,
     return false;
   }
   entity->component<Rigidbody2DComponent>()->velocity.y = y;
+  if (y != 0.0F) {
+    entity->component<Rigidbody2DComponent>()->awake = true;
+  }
   return true;
 }
 
@@ -67,6 +78,9 @@ bool addRigidbodyImpulse(World &world, const std::string &entityId,
   Entity *entity = findEntity(world, entityId);
   if (entity == nullptr || !entity->hasComponent<Rigidbody2DComponent>()) {
     return false;
+  }
+  if (impulse.x != 0.0F || impulse.y != 0.0F) {
+    entity->component<Rigidbody2DComponent>()->awake = true;
   }
   entity->component<Rigidbody2DComponent>()->velocity.x += impulse.x;
   entity->component<Rigidbody2DComponent>()->velocity.y += impulse.y;
@@ -78,6 +92,9 @@ bool addRigidbodyForce(World &world, const std::string &entityId,
   Entity *entity = findEntity(world, entityId);
   if (entity == nullptr || !entity->hasComponent<Rigidbody2DComponent>())
     return false;
+  if (force.x != 0.0F || force.y != 0.0F) {
+    entity->component<Rigidbody2DComponent>()->awake = true;
+  }
 #if DEMI_HAS_BOX2D
   if (world.box2dState != nullptr) {
     if (const auto found = world.box2dState->bodies.find(entityId);
@@ -98,6 +115,9 @@ bool addRigidbodyTorque(World &world, const std::string &entityId,
   Entity *entity = findEntity(world, entityId);
   if (entity == nullptr || !entity->hasComponent<Rigidbody2DComponent>())
     return false;
+  if (torque != 0.0F) {
+    entity->component<Rigidbody2DComponent>()->awake = true;
+  }
 #if DEMI_HAS_BOX2D
   if (world.box2dState != nullptr) {
     if (const auto found = world.box2dState->bodies.find(entityId);
@@ -117,6 +137,9 @@ bool setRigidbodyAngularVelocity(World &world, const std::string &entityId,
   if (entity == nullptr || !entity->hasComponent<Rigidbody2DComponent>())
     return false;
   entity->component<Rigidbody2DComponent>()->angularVelocity = angularVelocity;
+  if (angularVelocity != 0.0F) {
+    entity->component<Rigidbody2DComponent>()->awake = true;
+  }
   return true;
 }
 
@@ -166,6 +189,9 @@ bool moveKinematicBody(World &world, const std::string &entityId,
   if (body.bodyType != "kinematic")
     return false;
   const Vec2 current = entity->component<Transform2DComponent>()->position;
+  if (target.x != current.x || target.y != current.y) {
+    body.awake = true;
+  }
   body.velocity = {(target.x - current.x) / fixedDt,
                    (target.y - current.y) / fixedDt};
   return true;

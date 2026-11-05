@@ -4,19 +4,26 @@
 #include "demi/runtime/geometry/MeshRefinement3D.h"
 #include "demi/runtime/render/bgfx3d/GpuMesh3D.h"
 
+#include <algorithm>
 #include <memory>
 #include <unordered_map>
-#include <algorithm>
 #include <vector>
 
 namespace demi::runtime::render {
+struct DeformedMesh3D {
+  GpuMesh3D gpu;
+  // Uniform refinement emits contiguous descendants for every source triangle.
+  // Material section offsets and counts must both use this multiplier.
+  std::uint32_t indexMultiplier = 1;
+};
+
 // Shared rest geometry stays immutable. Only dented instances own private GPU
 // buffers; unchanged dents require neither deformation work nor uploads.
 class DeformedMeshCache3D {
 public:
   explicit DeformedMeshCache3D(GpuResources &resources)
       : resources_(resources) {}
-  [[nodiscard]] const GpuMesh3D *
+  [[nodiscard]] const DeformedMesh3D *
   get(const std::string &entityId, const std::string &sourceId,
       std::uint64_t sourceRevision, std::span<const Vec3> positions,
       std::span<const Vec2> uvs, std::span<const std::uint32_t> indices,
@@ -33,8 +40,8 @@ public:
 
 private:
   struct Entry {
-    explicit Entry(GpuResources &resources) : gpu(resources) {}
-    GpuMesh3D gpu;
+    explicit Entry(GpuResources &resources) : deformed{GpuMesh3D(resources)} {}
+    DeformedMesh3D deformed;
     std::string sourceId;
     std::uint64_t sourceRevision = 0;
     std::uint64_t dentSignature = 0;

@@ -152,12 +152,20 @@ function World:build(run)
   end
   for _, region in ipairs(floor.water) do
     self:sprite("cistern_" .. region[1], (region[1] + region[3]) / 2, (region[2] + region[4]) / 2, {
-      texture = "asset://dungeon/water",
-      source_position = { 0, 0 },
-      source_size = { 32, 32 },
+      texture = "asset://dungeon/pool",
       size = { region[3] - region[1] + 1, region[4] - region[2] + 1 },
       sorting_order = -5,
     })
+  end
+  self:create("director_focus", { Transform2D = { position = { run.player.x, run.player.y } } })
+  for _, statue in ipairs(floor.statues or {}) do
+    self:sprite(statue.id, statue.x, statue.y, {
+      texture = "asset://dungeon/statue",
+      size = { 1.8, 3 },
+      pivot = { 0.5, 0.85 },
+      sorting_order = 500 - math.floor(statue.y * 10),
+    }, { BoxCollider2D = { size = { 1.25, 0.8 }, layer = "wall", debug_visible = false } })
+    self.navigation:set_blocked(math.floor(statue.x + 0.5), math.floor(statue.y + 0.5), true)
   end
   self:actor(run.player)
   for _, enemy in ipairs(run.enemies) do
@@ -213,6 +221,16 @@ function World:move(actor, dx, dy)
   local x, y = Rigidbody.move_and_slide(self:id(actor.id), dx, dy)
   assert(x, "Missing kinematic dungeon actor: " .. actor.id)
   actor.x, actor.y = Transform.get_position(self:id(actor.id))
+end
+
+function World:wall_distances(x, y, rays)
+  local hits, problem = Physics.raycast_batch(x, y, rays, "wall")
+  assert(hits, problem)
+  local distances = {}
+  for index, hit in ipairs(hits) do
+    distances[index] = hit and hit.distance or false
+  end
+  return distances
 end
 
 function World:wall_distance(x, y, dx, dy, distance)

@@ -1541,6 +1541,49 @@ int main() {
     static_cast<void>(graphics.endFrame());
   }
   {
+    // Material ranges address source triangles. Refinement must expand both
+    // ranges, including the nonzero offset, rather than truncate the mesh.
+    MeshUploadCapture uploads(*resources);
+    TextureCapture draws(*commands);
+    BgfxRenderer3D dentRenderer(uploads, draws);
+    assert(dentRenderer.initialize(error));
+    World dentWorld;
+    Entity panel = shape("sectioned_dent", "", {});
+    auto *mesh = panel.component<MeshRendererComponent>();
+    mesh->surfaceMode = "transparent";
+    mesh->vertices = {{0, 0, 0}, {1, 0, 0}, {0, 1, 0},
+                      {0, 0, 1}, {1, 0, 1}, {0, 1, 1}};
+    mesh->markGeometryChanged();
+    MeshMaterialSections3D sections;
+    sections.sections = {{.id = "front", .firstIndex = 0, .indexCount = 3},
+                         {.id = "back", .firstIndex = 3, .indexCount = 3}};
+    panel.setComponent(sections);
+    panel.setComponent(Dentable3DComponent{});
+    dentWorld.entities.push_back(std::move(panel));
+    assert(dentMesh3D(dentWorld, "sectioned_dent", {0.25F, 0.25F, 0},
+                      {0, 0, -1}, 0.1F, 0.03F, error));
+    for (unsigned render = 0; render < 2; ++render) {
+      draws.bufferedIndices.clear();
+      assert(dentRenderer.renderFrame(dentWorld, frame, 0.016F, error));
+      assert(draws.bufferedIndices.size() == 2);
+      // Three uniform splits produce 64 descendants for each triangle.
+      assert(draws.bufferedIndices[0].first == 0);
+      assert(draws.bufferedIndices[0].count == 192);
+      assert(draws.bufferedIndices[1].first == 192);
+      assert(draws.bufferedIndices[1].count == 192);
+      static_cast<void>(graphics.endFrame());
+    }
+    assert(resetMeshDents3D(dentWorld, "sectioned_dent"));
+    draws.bufferedIndices.clear();
+    assert(dentRenderer.renderFrame(dentWorld, frame, 0.016F, error));
+    assert(draws.bufferedIndices.size() == 2);
+    assert(draws.bufferedIndices[0].first == 0);
+    assert(draws.bufferedIndices[0].count == 3);
+    assert(draws.bufferedIndices[1].first == 3);
+    assert(draws.bufferedIndices[1].count == 3);
+    static_cast<void>(graphics.endFrame());
+  }
+  {
     MeshUploadCapture uploads(*resources);
     TextureCapture coloredDraws(*commands);
     BgfxRenderer3D coloredRenderer(uploads, coloredDraws);

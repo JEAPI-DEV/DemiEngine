@@ -325,9 +325,14 @@ UiVirtualReconcileResult UiVirtualRecycler::reconcile(
       result.error = "Virtual row slot was removed outside its owner.";
       return result;
     }
-    root->visible = true;
-    root->layout.position.y = layout.itemOffset(index);
-    root->layout.size.y = layout.itemExtent(index);
+    const float offset = layout.itemOffset(index);
+    const float extent = layout.itemExtent(index);
+    if (!root->visible || root->layout.position.y != offset || root->layout.size.y != extent) {
+      root->visible = true;
+      root->layout.position.y = offset;
+      root->layout.size.y = extent;
+      document.invalidateLayout();
+    }
     result.rows.push_back(
         {.key = key,
          .index = index,
@@ -336,10 +341,14 @@ UiVirtualReconcileResult UiVirtualRecycler::reconcile(
          .extent = layout.itemExtent(index),
          .rebound = rebound});
   }
-  for (auto &slot : slots_)
-    if (slot.key.empty())
-      if (UiNode *root = UiStateController{}.find(document, slot.root))
+  for (auto &slot : slots_) {
+    if (slot.key.empty()) {
+      if (UiNode *root = UiStateController{}.find(document, slot.root); root && root->visible) {
         root->visible = false;
+        document.invalidateLayout();
+      }
+    }
+  }
   result.applied = true;
   return result;
 }

@@ -312,6 +312,8 @@ public:
   physicsOverlapCircleAll(float x, float y, float radius,
                           const std::string &layer,
                           const std::string &ignoredEntityId) const;
+  [[nodiscard]] PhysicsRaycastBatch2DResult physicsRaycastBatch(Vec2 origin,
+      const std::vector<PhysicsRay2D> &rays, const std::string &layer, const std::string &ignoredEntityId) const;
   [[nodiscard]] std::optional<PhysicsRaycastHit2D>
   physicsRaycast(float originX, float originY, float directionX,
                  float directionY, float distance, const std::string &layer,
@@ -563,6 +565,12 @@ public:
   [[nodiscard]] bool networkIsSecure() const;
   [[nodiscard]] std::string networkSecurityError() const;
   [[nodiscard]] std::vector<NetworkEvent> networkDrainEvents();
+  [[nodiscard]] bool configureFog2D(int width, int height, float cellSize,
+                                    Vec2 origin, Color color, float memoryOpacity);
+  void revealFog2D(int x, int y);
+  void clearFog2D();
+  [[nodiscard]] bool updateFog2D(Vec2 focus, float radius, float feather,
+                                 const std::string &occluderLayer);
   [[nodiscard]] bool startCutscene(std::string id);
   [[nodiscard]] bool pauseCutscene();
   [[nodiscard]] bool resumeCutscene();

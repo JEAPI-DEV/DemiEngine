@@ -39,9 +39,11 @@ function Checkpoint.encode(run)
     enemy.path_timer = 0
   end
   return {
-    format_version = 3,
+    format_version = 4,
     floor = run.floor.index,
     phase = run.phase,
+    cinematic = run.cinematic and { id = run.cinematic.encounter.id, time = run.cinematic.time }
+      or nil,
     gates = copy(run.gates),
     levers = copy(run.levers),
     clues = copy(run.clues),
@@ -86,7 +88,7 @@ function Checkpoint.decode(saved)
       local converted = Checkpoint.encode(fresh)
       converted.player = copy(saved.player)
       for key, value in pairs(fresh.player) do
-        if type(value) == "number" and converted.player[key] == nil then
+        if converted.player[key] == nil then
           converted.player[key] = value
         end
       end
@@ -105,7 +107,25 @@ function Checkpoint.decode(saved)
       end
       saved = converted
     end
-    assert(saved.format_version == 3, "Unsupported checkpoint version; existing save retained.")
+    local expanded = saved.format_version == 3
+    if expanded then
+      saved = copy(saved)
+      local fresh = Run.new()
+      Run.enter_floor(fresh, saved.floor)
+      local additions = Checkpoint.encode(fresh)
+      -- New wings append stable identities. Keep every old actor, opened chest,
+      -- switch and discovery; fill only the newly authored suffix.
+      for _, group in ipairs({ "enemies", "chests", "shrines", "levers", "clues", "breakables" }) do
+        assert(type(saved[group]) == "table", "Invalid legacy " .. group)
+        for index = #saved[group] + 1, #additions[group] do
+          saved[group][index] = additions[group][index]
+        end
+      end
+      saved.player.talents = {}
+      saved.player.skill_points = math.max(0, saved.player.level - 1)
+      saved.format_version = 4
+    end
+    assert(saved.format_version == 4, "Unsupported checkpoint version; existing save retained.")
     assert(number(saved.floor, 1, 4, true), "Invalid floor.")
     assert(saved.phase == "playing" or saved.phase == "upgrade", "Checkpoint is not resumable.")
     assert(saved.phase ~= "upgrade" or saved.floor < 4, "Invalid blessing screen.")
@@ -136,9 +156,22 @@ function Checkpoint.decode(saved)
       end
     end
     assert(
-      number(player.base_mana, 1, 1000) and number(player.mana, 0, player.base_mana),
+      number(player.base_mana, 1, 1000) and number(player.mana, 0, player.base_mana + 6),
       "Invalid mana state."
     )
+    assert(
+      type(player.talents) == "table" and number(player.skill_points, 0, 100, true),
+      "Invalid talents."
+    )
+    local spent = 0
+    for path, rank in pairs(player.talents) do
+      assert(
+        (path == "vigor" or path == "blade" or path == "arcana") and number(rank, 0, 3, true),
+        "Invalid talent rank."
+      )
+      spent = spent + rank
+    end
+    assert(spent + player.skill_points <= player.level - 1, "Talent points exceed earned levels.")
     assert(player.id == "player" and player.radius == 0.3, "Invalid player identity.")
     assert(
       number(player.base_hp, 1, 10000) and number(player.base_power, 1, 1000),
@@ -163,6 +196,7 @@ function Checkpoint.decode(saved)
     end
     player.inventory = bag
     Inventory.refresh(player)
+    assert(number(saved.player.mana, 0, player.max_mana), "Invalid mana capacity.")
     assert(player.hp > 0, "Checkpoint player is dead.")
     run.player = player
     assert(
@@ -344,6 +378,15 @@ function Checkpoint.decode(saved)
         not chest.opened or Exploration.gate_open(run, chest.gate),
         "Opened chest inside a closed vault."
       )
+    end
+    if saved.cinematic then
+      assert(number(saved.cinematic.time, 0, 4.2), "Invalid cinematic time.")
+      for _, encounter in ipairs(run.floor.ambushes or {}) do
+        if encounter.id == saved.cinematic.id then
+          run.cinematic = { encounter = encounter, time = saved.cinematic.time }
+        end
+      end
+      assert(run.cinematic, "Unknown cinematic.")
     end
     run.phase = saved.phase
     run.message = migrated

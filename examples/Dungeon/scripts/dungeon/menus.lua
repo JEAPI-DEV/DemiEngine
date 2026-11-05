@@ -2,8 +2,29 @@ local Hud = require("dungeon.ui")
 local Items = require("dungeon.items")
 local Inventory = require("dungeon.inventory")
 local Loot = require("dungeon.loot")
+local Progression = require("dungeon.progression")
 local Menus = {}
 Menus.__index = Menus
+
+local function journal_text(run)
+  if #run.journal == 0 then
+    return "Read keeper notes and investigate unusual walls. Your discoveries will be recorded here."
+  end
+  local entries = {}
+  for index, recorded in ipairs(run.journal) do
+    entries[index] = recorded
+    -- Saved notes retain their text. Prefer current authored paragraph spacing
+    -- when the words are unchanged, without rewriting the saved journal.
+    local words = recorded:gsub("%s+", " ")
+    for _, clue in ipairs(run.clues) do
+      if words == clue.text:gsub("%s+", " ") then
+        entries[index] = clue.text
+        break
+      end
+    end
+  end
+  return table.concat(entries, "\n\n")
+end
 
 function Menus.new()
   return setmetatable({ mode = nil, rendered_mode = false, selected = 1, dirty = true }, Menus)
@@ -83,7 +104,8 @@ end
 
 function Menus:update(run)
   if self.rendered_mode ~= self.mode then
-    Hud.set_visible("bag", self.mode ~= nil)
+    Hud.set_visible("bag", self.mode ~= nil and self.mode ~= "talents")
+    Hud.set_visible("talents", self.mode == "talents")
     self.rendered_mode = self.mode
     self.dirty = true
   end
@@ -98,6 +120,22 @@ function Menus:update(run)
   end
   self.dirty = false
   self.last_message = run.message
+  if self.mode == "talents" then
+    Hud.set_text(
+      "talent_points",
+      "LEVEL "
+        .. run.player.level
+        .. "   /   "
+        .. (run.player.skill_points or 0)
+        .. " POINTS AVAILABLE"
+    )
+    for path, description in pairs(Progression.paths) do
+      local rank = run.player.talents and run.player.talents[path] or 0
+      Hud.set_text("talent_" .. path .. ".hit", description.name .. " " .. rank .. "/3")
+      Hud.set_disabled("talent_" .. path .. ".hit", rank >= 3 or (run.player.skill_points or 0) < 1)
+    end
+    return
+  end
   local bag = run.player.inventory
   local shop = self.mode == "shop"
   local journal = self.mode == "journal"
@@ -106,6 +144,7 @@ function Menus:update(run)
     journal and "DISCOVERIES & NOTES" or (shop and "THE WAYFARER'S EXCHANGE" or "PACK & CHARACTER")
   )
   Hud.set_text("bag_message", run.message)
+  Hud.set_visible("bag_message", not journal)
   Hud.set_visible("shop_stock", shop)
   Hud.set_visible("character_stats", not shop and not journal)
   Hud.set_visible("equipment_panel", not shop and not journal)
@@ -115,11 +154,7 @@ function Menus:update(run)
   Hud.set_visible("item_use", not journal)
   Hud.set_visible("item_drop", not journal)
   Hud.set_visible("journal_text", journal)
-  Hud.set_text(
-    "journal_text",
-    #run.journal > 0 and table.concat(run.journal, "\n\n")
-      or "Read keeper notes and investigate unusual walls. Your discoveries will be recorded here."
-  )
+  Hud.set_text("journal_text", journal_text(run))
   local occupied = 0
   for index = 1, Inventory.capacity do
     local entry = bag.slots[index]

@@ -1,3 +1,4 @@
+#include "demi/runtime/ui/UiStateController.h"
 #include "editor/EditorHudCanvas.h"
 #include "editor/EditorHudDocument.h"
 
@@ -286,12 +287,13 @@ void verifyVisibleDropTargets() {
   UiNode root;
   root.id = "root";
   root.type = "container";
-  root.resolved = {0, 0, 400, 300};
+  root.layout.size = {400, 300};
   UiNode active;
   active.id = "display";
   active.type = "container";
   active.parent = "root";
-  active.resolved = {0, 40, 400, 200};
+  active.layout.position = {0, 40};
+  active.layout.size = {400, 200};
   UiNode hidden = active;
   hidden.id = "audio";
   hidden.visible = false;
@@ -300,16 +302,17 @@ void verifyVisibleDropTargets() {
   label.type = "label";
   label.parent = "audio";
   label.text = "Hidden";
-  label.resolved = {20, 50, 100, 30};
+  label.layout.position = {20, 10};
+  label.layout.size = {100, 30};
   document.nodes = {root, active, hidden, label};
   assert(demi::editor::pickEditorHudNode(document, {25, 55}) == nullptr);
   const auto *target =
       demi::editor::pickEditorHudDropParent(document, {25, 55});
   assert(target && target->id == "display");
-  document.nodes[1].visible = false;
-  document.nodes[2].visible = true;
-  assert(demi::editor::pickEditorHudNode(document, {25, 55})->id ==
-         "hidden_label");
+  assert(UiStateController{}.setVisible(document, "display", false));
+  assert(UiStateController{}.setVisible(document, "audio", true));
+  const auto *revealed = demi::editor::pickEditorHudNode(document, {25, 55});
+  assert(revealed && revealed->id == "hidden_label");
   assert(demi::editor::pickEditorHudDropParent(document, {25, 55})->id ==
          "audio");
 }

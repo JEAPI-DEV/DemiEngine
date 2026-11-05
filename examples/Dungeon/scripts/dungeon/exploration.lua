@@ -1,5 +1,6 @@
 local Floors = require("dungeon.floors")
-local Exploration = {}
+local Progression = require("dungeon.progression")
+local Exploration = { sight_range = 11 }
 
 function Exploration.key(x, y)
   return math.floor(x + 0.5) .. ":" .. math.floor(y + 0.5)
@@ -85,32 +86,40 @@ end
 
 function Exploration.update(run, geometry)
   local px, py = math.floor(run.player.x + 0.5), math.floor(run.player.y + 0.5)
-  local origin = px .. ":" .. py .. ":" .. run.gate_revision
+  local origin = math.floor(run.player.x * 4)
+    .. ":"
+    .. math.floor(run.player.y * 4)
+    .. ":"
+    .. run.gate_revision
+  local range = Exploration.sight_range
   if run.vision_origin == origin then
     return
   end
   run.vision_origin = origin
   run.visible = {}
-  for y = math.max(0, py - 7), math.min(run.floor.height - 1, py + 7) do
-    for x = math.max(0, px - 7), math.min(run.floor.width - 1, px + 7) do
+  local cells, rays = {}, {}
+  for y = math.max(0, py - range), math.min(run.floor.height - 1, py + range) do
+    for x = math.max(0, px - range), math.min(run.floor.width - 1, px + range) do
       local dx, dy = x - run.player.x, y - run.player.y
       local distance = math.sqrt(dx * dx + dy * dy)
-      -- A wall's near face remains visible, while geometry behind it does not.
-      local visible = distance < 0.7
-        or (
-          distance <= 7
-          and not geometry:wall_distance(
-            run.player.x,
-            run.player.y,
-            dx / distance,
-            dy / distance,
-            math.max(0, Exploration.tile_entry_distance(run.player.x, run.player.y, x, y) - 0.01)
-          )
-        )
-      if visible then
+      if distance < 0.7 then
         local key = Exploration.key(x, y)
         run.visible[key], run.discovered[key] = true, true
+      elseif distance <= range then
+        cells[#cells + 1] = { x, y }
+        rays[#rays + 1] = {
+          dx / distance,
+          dy / distance,
+          math.max(0, Exploration.tile_entry_distance(run.player.x, run.player.y, x, y) - 0.01),
+        }
       end
+    end
+  end
+  local distances = geometry:wall_distances(run.player.x, run.player.y, rays)
+  for index, cell in ipairs(cells) do
+    if not distances[index] then
+      local key = Exploration.key(cell[1], cell[2])
+      run.visible[key], run.discovered[key] = true, true
     end
   end
   -- Light boundary walls adjoining a visible floor cell, including walls just
@@ -154,6 +163,7 @@ function Exploration.update(run, geometry)
   local room = Floors.room(run.floor, px, py)
   if room ~= "Passage" and not run.visited_rooms[room] then
     run.visited_rooms[room] = true
+    Progression.award(run, 4)
   end
   run.visibility_revision = run.visibility_revision + 1
 end
@@ -208,7 +218,7 @@ function Exploration.interact(run)
         clue.read = true
         run.journal[#run.journal + 1] = clue.text
       end
-      run.message = clue.text
+      run.message = "Keeper note recorded. [J] Open your journal to read it."
       return true
     end
   end

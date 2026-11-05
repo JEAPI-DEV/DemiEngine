@@ -546,12 +546,12 @@ int main() {
   eventsDocument.nodes = {
       {.id = "drag_source",
        .type = "slider",
-       .resolved = {.x = 0.0F, .y = 0.0F, .width = 100.0F, .height = 40.0F},
+       .layout = {.position = {0.0F, 0.0F}, .size = {100.0F, 40.0F}},
        .maximum = 100.0F,
        .focusable = true},
       {.id = "drop_target",
        .type = "button",
-       .resolved = {.x = 120.0F, .y = 0.0F, .width = 100.0F, .height = 40.0F},
+       .layout = {.position = {120.0F, 0.0F}, .size = {100.0F, 40.0F}},
        .focusable = true},
   };
   UiInteractionController eventInteraction;
@@ -634,7 +634,7 @@ int main() {
   multiPointer.nodes = {
       {.id = "touch_target",
        .type = "button",
-       .resolved = {.x = 0.0F, .y = 0.0F, .width = 50.0F, .height = 50.0F},
+       .layout = {.position = {0.0F, 0.0F}, .size = {50.0F, 50.0F}},
        .focusable = true}};
   (void)eventInteraction.movePointer(multiPointer, 1, {10.0F, 10.0F}, "touch");
   (void)eventInteraction.movePointer(multiPointer, 2, {20.0F, 20.0F}, "touch");
@@ -684,11 +684,11 @@ int main() {
   scrollEvents.nodes = {
       {.id = "scroll_view",
        .type = "scroll",
-       .resolved = {.x = 0.0F, .y = 0.0F, .width = 100.0F, .height = 100.0F}},
+       .layout = {.position = {0.0F, 0.0F}, .size = {100.0F, 100.0F}}},
       {.id = "scroll_label",
        .parent = "scroll_view",
        .type = "label",
-       .resolved = {.x = 0.0F, .y = 0.0F, .width = 100.0F, .height = 30.0F}},
+       .layout = {.position = {0.0F, 0.0F}, .size = {100.0F, 30.0F}}},
   };
   if (!eventInteraction.scrollPointer(scrollEvents, 0, {10.0F, 10.0F},
                                       {0.0F, -1.0F}, "mouse")) {

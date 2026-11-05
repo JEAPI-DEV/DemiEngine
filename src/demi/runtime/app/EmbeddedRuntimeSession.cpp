@@ -338,7 +338,7 @@ bool EmbeddedRuntimeSession::advance(State &state, InputState input,
   synchronizeTerrainVisibility(state.loaded.world);
   if (state.loaded.world.uiTweens.activeCount() > 0) {
     state.loaded.world.uiTweens.update(state.loaded.world.ui, scaledDelta);
-    ui::UiLayoutEngine{}.layout(state.loaded.world.ui,
+    ui::UiLayoutEngine{}.ensure(state.loaded.world.ui,
                                 state.loaded.world.ui.canvasSize);
   }
   Camera2DSystem{}.update(

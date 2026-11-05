@@ -42,6 +42,10 @@ function Data.revision(id) end
 ---@param value any
 ---@return "array"|"object"|"null"|nil
 function Data.kind(value) end
+---Construct a numeric array, preserving its array identity even when empty.
+---@param values? any[] Dense one-based values to copy.
+---@return any[]
+function Data.array(values) end
 ---@param value any
 ---@return boolean
 function Data.is_null(value) end
