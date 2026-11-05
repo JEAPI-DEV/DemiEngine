@@ -9,6 +9,7 @@ namespace demi::runtime {
 void releaseBox2DWorldState(Box2DWorldState *state) {
   if (state == nullptr)
     return;
+  state->joints.reset();
   if (state->world != nullptr) {
     delete static_cast<b2World *>(state->world);
     state->world = nullptr;

@@ -1,4 +1,5 @@
 #include "cli/SceneCompositionCommands.h"
+#include "cli/CommandLine.h"
 #include "demi/diagnostics/Diagnostic.h"
 #include "demi/runtime/scene/composition/PrefabResolver.h"
 #include <algorithm>
@@ -63,11 +64,14 @@ void collectDiffs(const Json &a, const Json &b, const std::string &path,
 } // namespace
 int runPrefabCommand(const std::vector<std::string> &args, std::ostream &out,
                      std::ostream &error) {
-  if (args.size() < 3 || args[1] != "inspect") {
-    error << "prefab requires: demi prefab inspect <prefab>.\n";
-    return 2;
+  CLI::App command{"Inspect prefab composition", "demi prefab"};
+  command.require_subcommand(1, 1);
+  std::string path;
+  command.add_subcommand("inspect")->add_option("path", path)->required();
+  if (const auto status = parseCommand(command, args, 1, out, error)) {
+    return *status;
   }
-  const auto result = runtime::composition::inspectPrefab(args[2]);
+  const auto result = runtime::composition::inspectPrefab(path);
   if (!result.document) {
     printDiagnosticsText(error, result.diagnostics);
     return 1;
@@ -77,14 +81,16 @@ int runPrefabCommand(const std::vector<std::string> &args, std::ostream &out,
 }
 int runSceneExpand(const std::vector<std::string> &args, std::ostream &out,
                    std::ostream &error) {
-  if (args.size() < 3) {
-    error << "scene expand requires <scene>.\n";
-    return 2;
+  CLI::App command{"scene expand", "demi scene expand"};
+  std::string path;
+  command.add_option("path", path)->required();
+  if (const auto status = parseCommand(command, args, 2, out, error)) {
+    return *status;
   }
-  const auto source = readJson(args[2], error);
+  const auto source = readJson(path, error);
   if (!source)
     return 1;
-  const auto result = runtime::composition::expandScene(args[2], *source);
+  const auto result = runtime::composition::expandScene(path, *source);
   if (!result.document) {
     printDiagnosticsText(error, result.diagnostics);
     return 1;
@@ -94,15 +100,19 @@ int runSceneExpand(const std::vector<std::string> &args, std::ostream &out,
 }
 int runSceneDiff(const std::vector<std::string> &args, std::ostream &out,
                  std::ostream &error) {
-  if (args.size() < 4) {
-    error << "scene diff requires <old> and <new>.\n";
-    return 2;
+  CLI::App command{"scene diff", "demi scene diff"};
+  std::string oldPath;
+  command.add_option("old", oldPath)->required();
+  std::string newPath;
+  command.add_option("new", newPath)->required();
+  if (const auto status = parseCommand(command, args, 2, out, error)) {
+    return *status;
   }
-  const auto a = readJson(args[2], error), b = readJson(args[3], error);
+  const auto a = readJson(oldPath, error), b = readJson(newPath, error);
   if (!a || !b)
     return 1;
-  const auto expandedA = runtime::composition::expandScene(args[2], *a);
-  const auto expandedB = runtime::composition::expandScene(args[3], *b);
+  const auto expandedA = runtime::composition::expandScene(oldPath, *a);
+  const auto expandedB = runtime::composition::expandScene(newPath, *b);
   if (!expandedA.document || !expandedB.document) {
     printDiagnosticsText(error, expandedA.diagnostics);
     printDiagnosticsText(error, expandedB.diagnostics);

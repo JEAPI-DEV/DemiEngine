@@ -1,0 +1,13 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "generated_output": "../../../generated/assets/dungeon/water/Water.png",
+  "id": "asset://dungeon/water",
+  "importer": "image",
+  "importer_version": 1,
+  "license": "License.txt",
+  "settings": {},
+  "source": "Water.png",
+  "source_hash": "fnv1a64:ac6ad4dbd8b58f9d",
+  "type": "Texture2D"
+}

@@ -5,6 +5,7 @@
 
 #include <filesystem>
 #include <functional>
+#include <span>
 
 namespace demi::runtime {
 
@@ -12,6 +13,7 @@ struct ReloadCallbacks {
   std::function<bool(std::string &)> reloadScene;
   std::function<void()> cancelSceneReload;
   std::function<bool(std::string &)> reloadAssets;
+  std::function<void(std::span<const std::filesystem::path>)> reloadScripts;
 };
 
 struct ReloadResult {

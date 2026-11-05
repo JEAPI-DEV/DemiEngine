@@ -9,7 +9,9 @@ namespace demi::runtime {
 namespace {
 
 int callbackRef(lua_State *state, const sol::function callback) {
-  callback.push();
+  // Callbacks may originate in a coroutine. Push onto the same stack used
+  // for the registry operation, rather than consuming the host thread anchor.
+  callback.push(state);
   return luaL_ref(state, LUA_REGISTRYINDEX);
 }
 
@@ -103,7 +105,7 @@ std::uint64_t luaAddEventSubscription(lua_State *state, LuaScriptHost &host,
 int luaEmitEvent(lua_State *state, LuaScriptHost &host,
                  const std::string &eventName, const sol::object payload) {
   if (payload.valid() && payload != sol::nil) {
-    payload.push();
+    payload.push(state);
   } else {
     lua_newtable(state);
   }
@@ -144,7 +146,7 @@ sol::object luaReadSaveTable(lua_State *state, LuaScriptHost &host,
         continue;
       }
       lua_rawgeti(state, LUA_REGISTRYINDEX, hook.callbackRef);
-      stateTable.push();
+      stateTable.push(state);
       lua_pushinteger(state, hook.fromVersion);
       lua_pushinteger(state, hook.toVersion);
       std::string error;

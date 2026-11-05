@@ -1,0 +1,16 @@
+{
+  "attribution": "SnowHex / Jose Javier — Dungeon Gathering",
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://dungeon/stairs",
+  "importer": "image",
+  "importer_version": 1,
+  "license": "License.txt",
+  "settings": {
+    "filter": "nearest",
+    "wrap": "clamp"
+  },
+  "source": "Set 1.3.png",
+  "source_hash": "fnv1a64:86adc780a71a4281",
+  "type": "Texture2D"
+}

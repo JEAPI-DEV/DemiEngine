@@ -181,7 +181,7 @@ void stepSimulation(LoadedProject &loaded, RegionalTerrainSystem &regions, Runti
     synchronizeTerrainVisibility(loaded.world);
     if (loaded.world.uiTweens.activeCount() > 0) {
       loaded.world.uiTweens.update(loaded.world.ui, scaledDt);
-      ui::UiLayoutEngine{}.layout(loaded.world.ui, loaded.world.ui.canvasSize);
+      ui::UiLayoutEngine{}.ensure(loaded.world.ui, loaded.world.ui.canvasSize);
     }
   }
   {
@@ -554,6 +554,8 @@ int runProject(const RuntimeOptions &options) {
   std::string luaError;
   bool luaScriptsLoaded = false;
   if (luaHost.initialize(loaded.world, input, &audioSystem, luaError)) {
+    luaHost.setHotReloadEnabled(options.watch || luaHost.hotReloadEnabled(),
+                                options.watch);
     luaHost.setWindowMode(loaded.project.build.window.mode);
     luaHost.clearWindowModeDirty();
     luaHost.setAssetRegistry(&assetRegistry);
@@ -565,7 +567,6 @@ int runProject(const RuntimeOptions &options) {
   } else {
     std::cerr << "Lua unavailable: " << luaError << '\n';
   }
-  luaHost.setHotReloadEnabled(options.watch || luaHost.hotReloadEnabled());
   if (options.e2eTests)
     luaHost.startE2ETests("tests.e2e");
 
@@ -607,7 +608,9 @@ int runProject(const RuntimeOptions &options) {
       return RuntimeFailure;
     }
     platform::ProjectFileWatcher watcher;
-    watcher.reset(loaded.project.projectDirectory);
+    if (options.watch) {
+      watcher.reset(loaded.project.projectDirectory);
+    }
     ReloadCoordinator reloadCoordinator(
         options.projectPath,
         {.reloadScene =
@@ -635,7 +638,10 @@ int runProject(const RuntimeOptions &options) {
                                  ? "A resident asset could not be reloaded."
                                  : diagnostics.front().message;
                return false;
-             }});
+             },
+         .reloadScripts = [&](std::span<const std::filesystem::path> paths) {
+           luaHost.notifyScriptChanges(paths);
+         }});
     // A headless run has no native window to supply pointer coordinates.
     // Treat replay positions as logical HUD-canvas coordinates, matching the
     // 960x540 coordinates authored by examples and used by windowed playback.
@@ -648,15 +654,26 @@ int runProject(const RuntimeOptions &options) {
     const int targetFrames =
         options.maxFrames > 0
             ? options.maxFrames
-            : (options.e2eTests ? static_cast<int>(std::ceil(120.0 / fixedStep))
-               : inputReplay    ? static_cast<int>(inputReplay->frames.size())
-                                : 1);
+            : (inputReplay ? static_cast<int>(inputReplay->frames.size()) : 1);
     bool running = true;
     const bool unboundedServer =
         options.serve && !options.e2eTests && options.maxFrames == 0;
-    while (running && (unboundedServer || frameCount < targetFrames)) {
-      if (options.watch)
+    const bool wallTimedTests = options.e2eTests && options.maxFrames == 0;
+    const auto testDeadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds(120);
+    while (running &&
+           (unboundedServer || wallTimedTests || frameCount < targetFrames)) {
+      if (wallTimedTests && std::chrono::steady_clock::now() >= testDeadline) {
+        luaHost.e2eTestRunner().abort(
+            "Headless suite exceeded its 120 second wall-clock deadline");
+        break;
+      }
+      double hotReloadMilliseconds = 0.0;
+      if (options.watch) {
+        const auto reloadStart = std::chrono::steady_clock::now();
         reportReload(reloadCoordinator.process(watcher.poll()));
+        hotReloadMilliseconds = millisecondsSince(reloadStart);
+      }
       if (inputReplay) {
         // A max-frame replay run commonly needs extra neutral frames for a
         // simulation to settle after its final recorded input.
@@ -669,6 +686,9 @@ int runProject(const RuntimeOptions &options) {
       const auto nextFrame = std::chrono::steady_clock::now() +
                              std::chrono::duration<double>(fixedStep);
       RuntimeProfiler::beginFrame();
+      // Watching runs before simulation (also while paused). Record its cost
+      // after beginFrame so it is not discarded or hidden by Game CPU timing.
+      RuntimeProfiler::record("HotReload.poll", hotReloadMilliseconds);
       const auto frameStart = std::chrono::steady_clock::now();
       const auto updateStart = std::chrono::steady_clock::now();
       if (options.e2eTests) {
@@ -700,6 +720,10 @@ int runProject(const RuntimeOptions &options) {
       ++frameCount;
       if (options.serve) {
         std::this_thread::sleep_until(nextFrame);
+      } else if (options.e2eTests && luaHost.e2eTestRunner().waitingForExternalWork()) {
+        // Headless simulation may advance seconds before an asynchronous
+        // source/asset worker gets CPU time. Yield briefly only at this wait.
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
       }
     }
     if (profileRun) {
@@ -791,7 +815,9 @@ int runProject(const RuntimeOptions &options) {
     }
 
     platform::ProjectFileWatcher watcher;
-    watcher.reset(loaded.project.projectDirectory);
+    if (options.watch) {
+      watcher.reset(loaded.project.projectDirectory);
+    }
     ReloadCoordinator reloadCoordinator(
         options.projectPath,
         {.reloadScene =
@@ -819,7 +845,10 @@ int runProject(const RuntimeOptions &options) {
                                  ? "A resident 2D asset could not be reloaded."
                                  : diagnostics.front().message;
                return false;
-             }});
+             },
+         .reloadScripts = [&](std::span<const std::filesystem::path> paths) {
+           luaHost.notifyScriptChanges(paths);
+         }});
 
     luaHost.applicationServices().setClipboardHandlers(
         [&appHost] { return appHost.clipboard(); },
@@ -868,8 +897,12 @@ int runProject(const RuntimeOptions &options) {
             (static_cast<std::uint64_t>(frameCount) * 0x9E3779B97F4A7C15ULL);
         luaHost.seedRandom(frameSeed);
       }
-      if (options.watch)
+      double hotReloadMilliseconds = 0.0;
+      if (options.watch) {
+        const auto reloadStart = std::chrono::steady_clock::now();
         reportReload(reloadCoordinator.process(watcher.poll()));
+        hotReloadMilliseconds = millisecondsSince(reloadStart);
+      }
 
       luaHost.setApplicationFocused(frameState.focused);
       luaHost.setApplicationMinimized(frameState.minimized);
@@ -907,6 +940,9 @@ int runProject(const RuntimeOptions &options) {
       }
 
       RuntimeProfiler::beginFrame();
+      // Watching runs before simulation (also while paused). Record its cost
+      // after beginFrame so it is not discarded or hidden by Game CPU timing.
+      RuntimeProfiler::record("HotReload.poll", hotReloadMilliseconds);
       recordPlatformFrameTiming(frameState, frameCount == 0);
       RuntimeProfiler::setGauge("Window.capture_interrupted",
                                 timingInterrupted ? 1 : 0);
@@ -1089,7 +1125,9 @@ int runProject(const RuntimeOptions &options) {
     }
 
     platform::ProjectFileWatcher watcher;
-    watcher.reset(loaded.project.projectDirectory);
+    if (options.watch) {
+      watcher.reset(loaded.project.projectDirectory);
+    }
     ReloadCoordinator reloadCoordinator(
         options.projectPath,
         {.reloadScene =
@@ -1117,7 +1155,10 @@ int runProject(const RuntimeOptions &options) {
                                  ? "A resident 3D asset could not be reloaded."
                                  : diagnostics.front().message;
                return false;
-             }});
+             },
+         .reloadScripts = [&](std::span<const std::filesystem::path> paths) {
+           luaHost.notifyScriptChanges(paths);
+         }});
 
     luaHost.applicationServices().setClipboardHandlers(
         [&appHost] { return appHost.clipboard(); },
@@ -1162,8 +1203,12 @@ int runProject(const RuntimeOptions &options) {
             (static_cast<std::uint64_t>(frameCount) * 0x9E3779B97F4A7C15ULL);
         luaHost.seedRandom(frameSeed);
       }
-      if (options.watch)
+      double hotReloadMilliseconds = 0.0;
+      if (options.watch) {
+        const auto reloadStart = std::chrono::steady_clock::now();
         reportReload(reloadCoordinator.process(watcher.poll()));
+        hotReloadMilliseconds = millisecondsSince(reloadStart);
+      }
 
       luaHost.setApplicationFocused(frameState.focused);
       luaHost.setApplicationMinimized(frameState.minimized);
@@ -1201,6 +1246,9 @@ int runProject(const RuntimeOptions &options) {
       }
 
       RuntimeProfiler::beginFrame();
+      // Watching runs before simulation (also while paused). Record its cost
+      // after beginFrame so it is not discarded or hidden by Game CPU timing.
+      RuntimeProfiler::record("HotReload.poll", hotReloadMilliseconds);
       recordPlatformFrameTiming(frameState, frameCount == 0);
       RuntimeProfiler::setGauge("Window.capture_interrupted",
                                 timingInterrupted ? 1 : 0);

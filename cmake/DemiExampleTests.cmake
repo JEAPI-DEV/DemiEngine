@@ -1,4 +1,13 @@
 # Example validation, headless runtime, packaging, replay, and script checks.
+add_test(NAME demi-dungeon-example-validate
+  COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/Dungeon --platform linux)
+add_test(NAME demi-dungeon-example-smoke
+  COMMAND demi run --project ${CMAKE_SOURCE_DIR}/examples/Dungeon --max-frames 3)
+set_tests_properties(demi-dungeon-example-smoke PROPERTIES
+  ENVIRONMENT "DEMI_HEADLESS=1"
+  PASS_REGULAR_EXPRESSION "Dungeon ready: floor=1 enemies=7"
+  TIMEOUT 30)
+
 add_test(NAME demi-terrain-graph-example-validate
   COMMAND demi validate ${CMAKE_SOURCE_DIR}/examples/terrain_graph_3d)
 add_test(NAME demi-terrain-graph-example-smoke
@@ -162,13 +171,6 @@ add_test(NAME demi-runtime-procedural-spider-3d-frame
 set_tests_properties(demi-runtime-procedural-spider-3d-frame PROPERTIES
   ENVIRONMENT "DEMI_HEADLESS=1"
   PASS_REGULAR_EXPRESSION "Procedural spider created")
-add_test(NAME demi-runtime-souls-boss-arena-replay
-  COMMAND demi run
-    --project ${CMAKE_SOURCE_DIR}/examples/souls_boss_arena/demi.project.json
-    --input-replay
-      ${CMAKE_SOURCE_DIR}/examples/souls_boss_arena/replays/combat_smoke.replay.json
-    --max-frames 240
-)
 add_test(NAME demi-install-third-person-foundation
   COMMAND demi package install --project ${CMAKE_SOURCE_DIR}/examples/third_person_foundation --locked --offline)
 add_test(NAME demi-validate-third-person-foundation
@@ -180,11 +182,6 @@ set_tests_properties(demi-validate-third-person-foundation demi-runtime-third-pe
 set_tests_properties(demi-runtime-third-person-foundation PROPERTIES
   ENVIRONMENT "DEMI_HEADLESS=1;DEMI_FIXED_DELTA_SECONDS=0.016666667"
   PASS_REGULAR_EXPRESSION "Third person foundation ready" TIMEOUT 30)
-set_tests_properties(demi-runtime-souls-boss-arena-replay PROPERTIES
-  DEPENDS demi-install-souls-boss-arena-packages
-  ENVIRONMENT "DEMI_HEADLESS=1;DEMI_FIXED_DELTA_SECONDS=0.01666667"
-  PASS_REGULAR_EXPRESSION "Cage Spider encounter started"
-  TIMEOUT 60)
 add_test(NAME demi-runtime-animation-3d-selection-replay
   COMMAND demi run
     --project ${CMAKE_SOURCE_DIR}/examples/animation_3d/demi.project.json
@@ -326,25 +323,6 @@ add_test(NAME demi-validate-physics-3d-galton-board
   COMMAND demi validate
     ${CMAKE_SOURCE_DIR}/examples/physics_3d_galton_board/demi.project.json
 )
-add_test(NAME demi-install-souls-boss-arena-packages
-  COMMAND demi package install
-    --project ${CMAKE_SOURCE_DIR}/examples/souls_boss_arena/demi.project.json
-    --locked --offline
-)
-add_test(NAME demi-validate-souls-boss-arena
-  COMMAND demi validate
-    ${CMAKE_SOURCE_DIR}/examples/souls_boss_arena/demi.project.json
-)
-set_tests_properties(demi-validate-souls-boss-arena PROPERTIES
-  DEPENDS demi-install-souls-boss-arena-packages)
-foreach(script_name combat player camera boss boss_attacks encounter)
-  add_test(NAME demi-script-check-souls-boss-arena-${script_name}
-    COMMAND demi script check
-      ${CMAKE_SOURCE_DIR}/examples/souls_boss_arena/scripts/${script_name}.lua
-  )
-  set_tests_properties(demi-script-check-souls-boss-arena-${script_name}
-    PROPERTIES DEPENDS demi-install-souls-boss-arena-packages)
-endforeach()
 add_test(NAME demi-script-check-physics-3d-galton-board-game
   COMMAND demi script check
     ${CMAKE_SOURCE_DIR}/examples/physics_3d_galton_board/scripts/game.lua

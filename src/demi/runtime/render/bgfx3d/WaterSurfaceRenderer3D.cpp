@@ -1,4 +1,5 @@
 #include "demi/runtime/render/bgfx3d/WaterSurfaceRenderer3D.h"
+#include "demi/runtime/math/VectorMath.h"
 
 #include "demi/runtime/render/backend/ImageColorSpace.h"
 #include "demi/runtime/render/backend/RenderCommands.h"
@@ -31,12 +32,6 @@ Vec3 normalized(Vec3 value, Vec3 fallback) {
     return fallback;
   }
   return {value.x / length, value.y / length, value.z / length};
-}
-
-Vec3 cross(Vec3 first, Vec3 second) {
-  return {first.y * second.z - first.z * second.y,
-          first.z * second.x - first.x * second.z,
-          first.x * second.y - first.y * second.x};
 }
 
 std::array<float, 4> linearColor(Color color) {
@@ -249,8 +244,8 @@ bool WaterSurfaceRenderer3D::draw(std::span<const VisibleMesh3D> surfaces,
     return false;
   }
   const auto forward = normalized(frame.forward, {0, 0, -1});
-  const auto right = normalized(cross(forward, frame.up), {1, 0, 0});
-  const auto up = normalized(cross(right, forward), {0, 1, 0});
+  const auto right = normalized(math::cross(forward, frame.up), {1, 0, 0});
+  const auto up = normalized(math::cross(right, forward), {0, 1, 0});
   const float aspect = float(capture.width) / capture.height;
   const float verticalExtent =
       frame.camera.perspective

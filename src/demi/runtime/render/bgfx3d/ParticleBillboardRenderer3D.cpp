@@ -1,4 +1,5 @@
 #include "demi/runtime/render/bgfx3d/ParticleBillboardRenderer3D.h"
+#include "demi/runtime/math/VectorMath.h"
 
 #include "demi/runtime/render/bgfx2d/ColorPacking2D.h"
 
@@ -34,21 +35,11 @@ VertexLayout particleVertexLayout() {
                       }};
 }
 
-float dot(const Vec3 left, const Vec3 right) {
-  return left.x * right.x + left.y * right.y + left.z * right.z;
-}
-
 Vec3 normalized(const Vec3 value) {
-  const float length = std::sqrt(dot(value, value));
+  const float length = std::sqrt(math::dot(value, value));
   return length > 0.00001F
              ? Vec3{value.x / length, value.y / length, value.z / length}
              : Vec3{};
-}
-
-Vec3 cross(const Vec3 left, const Vec3 right) {
-  return {left.y * right.z - left.z * right.y,
-          left.z * right.x - left.x * right.z,
-          left.x * right.y - left.y * right.x};
 }
 
 constexpr std::size_t maxQuadsPerDraw = 16'384U;
@@ -102,16 +93,16 @@ bool ParticleBillboardRenderer3D::draw(
   if (particles.empty())
     return true;
   Vec3 forward = normalized(camera.forward);
-  if (dot(forward, forward) < 0.5F)
+  if (math::dot(forward, forward) < 0.5F)
     forward = {0.0F, 0.0F, -1.0F};
-  Vec3 cameraRight = normalized(cross(forward, camera.up));
-  if (dot(cameraRight, cameraRight) < 0.5F) {
+  Vec3 cameraRight = normalized(math::cross(forward, camera.up));
+  if (math::dot(cameraRight, cameraRight) < 0.5F) {
     const Vec3 fallbackUp = std::abs(forward.y) < 0.99F
                                 ? Vec3{0.0F, 1.0F, 0.0F}
                                 : Vec3{1.0F, 0.0F, 0.0F};
-    cameraRight = normalized(cross(forward, fallbackUp));
+    cameraRight = normalized(math::cross(forward, fallbackUp));
   }
-  const Vec3 cameraUp = normalized(cross(cameraRight, forward));
+  const Vec3 cameraUp = normalized(math::cross(cameraRight, forward));
 
   std::size_t first = 0;
   while (first < particles.size()) {

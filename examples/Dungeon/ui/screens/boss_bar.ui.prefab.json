@@ -1,0 +1,71 @@
+{
+  "format_version": 1,
+  "id": "ui-prefab://screens/boss_bar",
+  "root": {
+    "id": "boss_panel",
+    "type": "container",
+    "position": [
+      330,
+      12
+    ],
+    "size": [
+      300,
+      42
+    ],
+    "visible": false,
+    "children": [
+      {
+        "id": "boss_frame",
+        "prefab": "ui-prefab://kit/frame",
+        "arguments": {
+          "size": [
+            300,
+            42
+          ],
+          "layer": 0
+        },
+        "overrides": {
+          "$root": {
+            "position": [
+              0,
+              0
+            ],
+            "nine_slice_scale": 1.5
+          }
+        }
+      },
+      {
+        "id": "boss_name",
+        "type": "label",
+        "position": [
+          8,
+          4
+        ],
+        "size": [
+          284,
+          18
+        ],
+        "text": "",
+        "font": "asset://dungeon/ui_bold",
+        "font_size": 15,
+        "text_color": "#ffceb5",
+        "layer": 0,
+        "text_wrap": "word"
+      },
+      {
+        "id": "boss_fill",
+        "type": "rect",
+        "position": [
+          8,
+          29
+        ],
+        "size": [
+          284,
+          5
+        ],
+        "background_color": "#e57b8c",
+        "layer": 0
+      }
+    ]
+  }
+}

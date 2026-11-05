@@ -1,0 +1,14 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "generated_output": "../../../generated/assets/dungeon/health_ribbon/health_ribbon.svg",
+  "id": "asset://dungeon/health_ribbon",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {
+    "filter": "nearest"
+  },
+  "source": "health_ribbon.svg",
+  "source_hash": "fnv1a64:de1660df94935d38",
+  "type": "SvgTexture2D"
+}

@@ -1,0 +1,14 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "generated_output": "../../../generated/assets/dungeon/mana_frame/mana_frame.svg",
+  "id": "asset://dungeon/mana_frame",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {
+    "filter": "nearest"
+  },
+  "source": "mana_frame.svg",
+  "source_hash": "fnv1a64:8832eda73ab69ce8",
+  "type": "SvgTexture2D"
+}

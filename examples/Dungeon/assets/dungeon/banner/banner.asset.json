@@ -1,0 +1,14 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "generated_output": "../../../generated/assets/dungeon/banner/banner.svg",
+  "id": "asset://dungeon/banner",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {
+    "filter": "nearest"
+  },
+  "source": "banner.svg",
+  "source_hash": "fnv1a64:65131dbff49dcdac",
+  "type": "SvgTexture2D"
+}

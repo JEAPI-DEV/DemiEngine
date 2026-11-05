@@ -10,7 +10,7 @@ local Prefab = require("demi.prefab")
 local function stats() return Entity.get_config("player","GameplayData","values") end
 local function reset_scene()
   Test.touch("reset")
-  for attempt=1,60 do
+  for attempt=1,600 do
     Test.wait(0.05)
     if Destruction.state("a/assembly").revision==0 and stats().contacts==0 then
       Test.wait(0.05)

@@ -546,12 +546,12 @@ int main() {
   eventsDocument.nodes = {
       {.id = "drag_source",
        .type = "slider",
-       .resolved = {.x = 0.0F, .y = 0.0F, .width = 100.0F, .height = 40.0F},
+       .layout = {.position = {0.0F, 0.0F}, .size = {100.0F, 40.0F}},
        .maximum = 100.0F,
        .focusable = true},
       {.id = "drop_target",
        .type = "button",
-       .resolved = {.x = 120.0F, .y = 0.0F, .width = 100.0F, .height = 40.0F},
+       .layout = {.position = {120.0F, 0.0F}, .size = {100.0F, 40.0F}},
        .focusable = true},
   };
   UiInteractionController eventInteraction;
@@ -634,7 +634,7 @@ int main() {
   multiPointer.nodes = {
       {.id = "touch_target",
        .type = "button",
-       .resolved = {.x = 0.0F, .y = 0.0F, .width = 50.0F, .height = 50.0F},
+       .layout = {.position = {0.0F, 0.0F}, .size = {50.0F, 50.0F}},
        .focusable = true}};
   (void)eventInteraction.movePointer(multiPointer, 1, {10.0F, 10.0F}, "touch");
   (void)eventInteraction.movePointer(multiPointer, 2, {20.0F, 20.0F}, "touch");
@@ -684,11 +684,11 @@ int main() {
   scrollEvents.nodes = {
       {.id = "scroll_view",
        .type = "scroll",
-       .resolved = {.x = 0.0F, .y = 0.0F, .width = 100.0F, .height = 100.0F}},
+       .layout = {.position = {0.0F, 0.0F}, .size = {100.0F, 100.0F}}},
       {.id = "scroll_label",
        .parent = "scroll_view",
        .type = "label",
-       .resolved = {.x = 0.0F, .y = 0.0F, .width = 100.0F, .height = 30.0F}},
+       .layout = {.position = {0.0F, 0.0F}, .size = {100.0F, 30.0F}}},
   };
   if (!eventInteraction.scrollPointer(scrollEvents, 0, {10.0F, 10.0F},
                                       {0.0F, -1.0F}, "mouse")) {
@@ -811,6 +811,31 @@ int main() {
   instance["overrides"] = {{"$root", {{"blocks_pointer", "yes"}}}};
   if (expandUiDocument(hudPath, overriddenHud).document)
     return 1;
+  instance["overrides"] = {{"$root",
+                            {{"nine_slice", {{2, 3}, {4, 5}}},
+                             {"nine_slice_scale", 3},
+                             {"source_size", {24, 24}}}}};
+  const auto skinned = expandUiDocument(hudPath, overriddenHud);
+  if (!skinned.document) {
+    return 1;
+  }
+  const auto skinDocument = parseUiDocument(*skinned.document);
+  const auto &skin = skinDocument.nodes[1].imageSkin;
+  if (skin.start.x != 2 || skin.start.y != 3 || skin.end.x != 4 ||
+      skin.end.y != 5 || skin.scale != 3) {
+    return 1;
+  }
+  for (const auto &invalid : {nlohmann::json{{"nine_slice", {{-1, 2}, {3, 4}}}},
+                              nlohmann::json{{"nine_slice", {2, 3}}},
+                              nlohmann::json{{"nine_slice_scale", 0}},
+                              nlohmann::json{{"nine_slice", {{20, 2}, {20, 2}}},
+                                             {"source_size", {24, 24}}}}) {
+    instance["overrides"] = {{"$root", invalid}};
+    if (expandUiDocument(hudPath, overriddenHud).document) {
+      std::cerr << "Invalid UI skin accepted.\n";
+      return 1;
+    }
+  }
   instance["overrides"] = {{"missing", {{"text", "NO"}}}};
   if (expandUiDocument(hudPath, overriddenHud).document) {
     std::cerr << "Unknown override descendant was silently ignored.\n";

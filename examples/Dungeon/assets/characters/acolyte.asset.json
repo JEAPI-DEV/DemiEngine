@@ -1,0 +1,13 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://dungeon/acolyte",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {
+    "filter": "nearest"
+  },
+  "source": "acolyte.svg",
+  "source_hash": "fnv1a64:39d78fd8e0296ddf",
+  "type": "SvgTexture2D"
+}

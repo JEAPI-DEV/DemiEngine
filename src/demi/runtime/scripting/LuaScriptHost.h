@@ -35,6 +35,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <optional>
+#include <span>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -47,6 +48,7 @@ class AudioSystem;
 class MediaSystem;
 class NetworkSystem;
 class RuntimeAssetService;
+namespace platform { class ProjectFileWatcher; }
 
 class LuaScriptHost {
 public:
@@ -312,6 +314,8 @@ public:
   physicsOverlapCircleAll(float x, float y, float radius,
                           const std::string &layer,
                           const std::string &ignoredEntityId) const;
+  [[nodiscard]] PhysicsRaycastBatch2DResult physicsRaycastBatch(Vec2 origin,
+      const std::vector<PhysicsRay2D> &rays, const std::string &layer, const std::string &ignoredEntityId) const;
   [[nodiscard]] std::optional<PhysicsRaycastHit2D>
   physicsRaycast(float originX, float originY, float directionX,
                  float directionY, float distance, const std::string &layer,
@@ -563,6 +567,12 @@ public:
   [[nodiscard]] bool networkIsSecure() const;
   [[nodiscard]] std::string networkSecurityError() const;
   [[nodiscard]] std::vector<NetworkEvent> networkDrainEvents();
+  [[nodiscard]] bool configureFog2D(int width, int height, float cellSize,
+                                    Vec2 origin, Color color, float memoryOpacity);
+  void revealFog2D(int x, int y);
+  void clearFog2D();
+  [[nodiscard]] bool updateFog2D(Vec2 focus, float radius, float feather,
+                                 const std::string &occluderLayer);
   [[nodiscard]] bool startCutscene(std::string id);
   [[nodiscard]] bool pauseCutscene();
   [[nodiscard]] bool resumeCutscene();
@@ -589,7 +599,10 @@ public:
   void clearCursorStateDirty();
   void setPhysicsEnabled(bool enabled);
   [[nodiscard]] bool physicsEnabled() const;
-  void setHotReloadEnabled(bool enabled);
+  // The runtime coordinator supplies validated paths in dev mode. Standalone
+  // hosts use the same native watcher when hot reload is explicitly enabled.
+  void setHotReloadEnabled(bool enabled, bool externallyDriven = false);
+  void notifyScriptChanges(std::span<const std::filesystem::path> paths);
   [[nodiscard]] bool hotReloadEnabled() const;
   void startE2ETests(const std::string &moduleName);
   void updateE2ETests(double deltaTime);
@@ -652,7 +665,6 @@ private:
     std::string entityId;
     std::string module;
     std::filesystem::path path;
-    std::filesystem::file_time_type lastWriteTime{};
     int tableRef = 0;
     bool lifecycleStarted = false;
     std::vector<LuaActionHandler> actionHandlers;
@@ -678,7 +690,6 @@ private:
   struct ModuleActionHandler {
     std::string module;
     std::filesystem::path path;
-    std::filesystem::file_time_type lastWriteTime{};
     std::vector<LuaActionHandler> actionHandlers;
     std::vector<LuaEventHandler> eventHandlers;
   };
@@ -757,6 +768,9 @@ private:
   bool applicationSuspended_ = false;
   LuaE2ETestRunner e2eTestRunner_;
   bool hotReloadEnabled_ = false;
+  bool externalScriptChanges_ = false;
+  std::unique_ptr<platform::ProjectFileWatcher> scriptWatcher_;
+  std::unordered_set<std::string> changedScripts_;
   bool cutscenePaused_ = false;
   bool previousUiMouseDown_ = false;
   std::optional<std::string> pendingSceneUnload_;

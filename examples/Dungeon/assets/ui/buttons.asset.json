@@ -1,0 +1,16 @@
+{
+  "attribution": "SnowHex / Jose Javier — Dungeon Gathering",
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://dungeon/buttons",
+  "importer": "image",
+  "importer_version": 1,
+  "license": "License.txt",
+  "settings": {
+    "filter": "nearest",
+    "wrap": "clamp"
+  },
+  "source": "Basic Buttons 3 Fv.png",
+  "source_hash": "fnv1a64:df2d0601dd47d656",
+  "type": "Texture2D"
+}

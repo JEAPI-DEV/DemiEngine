@@ -1,14 +1,14 @@
 #include "cli/AssetCommands.h"
-#include "cli/LuaStubExport.h"
 #include "cli/BuildCommands.h"
 #include "cli/CapabilityCommands.h"
-#include "cli/CliArguments.h"
+#include "cli/CommandLine.h"
 #include "cli/CookCommands.h"
 #include "cli/HudCommands.h"
+#include "cli/LuaStubExport.h"
 #include "cli/RuntimeCommands.h"
 #include "cli/SceneCompositionCommands.h"
-#include "cli/TestCommands.h"
 #include "cli/TerrainCommands.h"
+#include "cli/TestCommands.h"
 #include "cli/doctor/DoctorService.h"
 #include "cli/package/PackageCommands.h"
 #include "cli/project/ProjectDiscovery.h"
@@ -43,8 +43,7 @@
 
 namespace {
 
-using demi::cli::hasArg;
-using demi::cli::valueAfter;
+using demi::cli::parseCommand;
 
 constexpr int ExitSuccess = 0;
 constexpr int ExitValidationFailure = 1;
@@ -94,8 +93,28 @@ int launchAndroidDeviceTool(const std::string &mode,
                             const std::size_t forwardedFrom,
                             const std::filesystem::path &demiExecutable) {
 #if defined(__linux__)
-  const std::filesystem::path project =
-      demi::cli::projectFileFromArgs(args, std::filesystem::current_path());
+  CLI::App parser{"Run or qualify a project on an attached Android device",
+                  "demi " + args.front() + " android"};
+  std::string requestedProject;
+  std::string adb;
+  std::string serial;
+  std::string apk;
+  std::string output;
+  bool watch = false;
+  double settleSeconds = 2.0;
+  parser.add_option("--project", requestedProject);
+  parser.add_option("--adb", adb);
+  parser.add_option("--serial", serial);
+  parser.add_option("--apk", apk);
+  parser.add_option("--output", output);
+  parser.add_flag("--watch", watch);
+  auto *settle = parser.add_option("--settle-seconds", settleSeconds)
+                     ->check(CLI::NonNegativeNumber);
+  if (const auto status =
+          parseCommand(parser, args, forwardedFrom, std::cout, std::cerr)) {
+    return *status;
+  }
+  const auto project = demi::cli::resolveProjectFile(requestedProject);
   if (project.empty()) {
     std::cerr << "No demi.project.json was found. Pass --project <project>.\n";
     return ExitUsageError;
@@ -108,13 +127,20 @@ int launchAndroidDeviceTool(const std::string &mode,
       resolveSelfExecutable(demiExecutable).string(),
       "--project",
       std::filesystem::absolute(project).string()};
-  for (std::size_t index = forwardedFrom; index < args.size(); ++index) {
-    if (args[index] == "--project") {
-      if (index + 1 < args.size())
-        ++index;
-      continue;
+  for (const auto &[option, value] : {std::pair{"--adb", adb},
+                                      {"--serial", serial},
+                                      {"--apk", apk},
+                                      {"--output", output}}) {
+    if (!value.empty()) {
+      command.insert(command.end(), {option, value});
     }
-    command.push_back(args[index]);
+  }
+  if (watch) {
+    command.push_back("--watch");
+  }
+  if (*settle) {
+    command.insert(command.end(),
+                   {"--settle-seconds", std::to_string(settleSeconds)});
   }
   std::vector<char *> native;
   native.reserve(command.size() + 1);
@@ -134,118 +160,20 @@ int launchAndroidDeviceTool(const std::string &mode,
 #endif
 }
 
-void printHelp() {
-  std::cout
-      << "DemiEngine CLI\n"
-      << "Usage:\n"
-      << "  demi --help\n"
-      << "  demi version\n"
-      << "  demi new <directory> --template <id> [--name name] [--dry-run]\n"
-      << "  demi new --list\n"
-      << "  demi doctor --project <project> [--platform linux|android] "
-         "[--format text|json]\n"
-      << "  demi validate [path] [--platform linux|linux_server|android] "
-         "[--format text|json]\n"
-      << "  demi schema export\n"
-      << "  demi asset fracture <prefab.prefab.json>\n"
-      << "  demi capabilities export [--output path]\n"
-      << "  demi capabilities check [--baseline path] [--format text|json]\n"
-      << "  demi capabilities verify-gates [--manifest path]\n"
-      << "  demi prefab inspect <prefab>\n"
-      << "  demi hud inspect <hud.json> [--format text|json]\n"
-      << "  demi terrain inspect <recipe.json> [--format text|json]\n"
-      << "  demi terrain compact <recipe-or-terrain.json> [--write]\n"
-      << "  demi terrain explain <recipe.json> --at <x>,<z> "
-         "[--format text|json]\n"
-      << "  demi terrain validate <project> [--palette <asset://id>] [--materials <asset://id>] [--development] [--json]\n"
-      << "  demi terrain seeds <seed> [--format text|json]\n"
-      << "  demi terrain presets <project> [--format text|json]\n"
-      << "  demi terrain apply-preset <project> --preset <asset://id> "
-         "[--entity <id>] [--format text|json]\n"
-      << "  demi scene list <project>\n"
-      << "  demi scene inspect <scene>\n"
-      << "  demi scene expand <scene>\n"
-      << "  demi scene diff <old> <new>\n"
-      << "  demi asset inspect <asset> [--section nodes,materials,animations,"
-         "bounds] [--format json]\n"
-      << "  demi asset deps <asset>\n"
-      << "  demi asset import <source> --project <project> --id asset://id "
-         "[--importer id] [--content-type type] "
-         "[--preset static_prop|animated_character|environment|billboard] "
-         "[--up +y] [--forward +z] [--meters-per-unit 1]\n"
-      << "  demi asset reimport <asset>\n"
-      << "  demi asset lod <model.asset.json> [--project <project>] "
-         "[--medium-ratio 0.5] [--low-ratio 0.2] [--max-error 0.01] [--format "
-         "json]\n"
-      << "  demi asset register-generated <source> --project <project> --id "
-         "asset://id\n"
-      << "  demi asset collider <model.asset.json> --project <project> --id "
-         "asset://colliders/id [--detail 0..1] [--body static|trigger] "
-         "[--recommend] [--preview scene.json]\n"
-      << "  demi asset export --project <project> --output <file.demipack> "
-         "--asset asset://id\n"
-      << "  demi asset import-package <file.demipack> --project <project>\n"
-      << "  demi asset budget <project> [--platform android|linux] "
-         "[--format json]\n"
-      << "  demi package add <name>@<constraint> [--project <project>] [--registry <url-or-path>]\n"
-      << "  demi package remove <name> [--project <project>]\n"
-      << "  demi package install [--project <project>] [--locked] [--offline]\n"
-      << "    Package defaults: ./demi.project.json; https://demiengine.de\n"
-      << "  demi package update [name] --project <project>\n"
-      << "  demi package list|outdated --project <project>\n"
-      << "  demi package publish [directory] --registry <url-or-path>\n"
-      << "  demi package test [directory] [--format json]\n"
-      << "  demi cook --project <project> [--platform linux] [--output path]\n"
-      << "  demi save inspect <save>\n"
-      << "  demi script check <script>\n"
-      << "  demi lua-stubs generate [directory]\n"
-      << "  demi test [--project <project>]\n"
-      << "  demi test linux [path] [--timeout seconds] [--max-frames count]\n"
-      << "                  [--window-size WIDTHxHEIGHT] [--profile-frames frames.csv]\n"
-      << "  demi test android --project <project> [--serial device]\n"
-      << "  demi dev [--project <project>] [--max-frames count] [--profiler]\n"
-      << "  demi run --project <project> [--max-frames count]\n"
-      << "           [--profiler]\n"
-      << "           [--watch]\n"
-      << "           [--input-replay <fixture.replay.json>]\n"
-      << "           [--profile-report <report.csv>]\n"
-      << "           [--profile-frames <frames.csv>] [--window-size WIDTHxHEIGHT]\n"
-      << "           [--debug-overlays <colliders,contacts,grid,entity_ids,"
-         "draw_order,ui_bounds,profiler>]\n"
-      << "  demi run linux [--project <project>] [--max-frames count] "
-         "[--profiler]\n"
-      << "  demi run android [--project <project>] [--serial device] "
-         "[--watch]\n"
-      << "  demi serve --project <project>\n"
-      << "  demi build apk [--project <project>] [--configuration "
-         "debug|release]\n"
-      << "  demi build aab [--project <project>] [--gradle gradle]\n"
-      << "  demi build inspect [--project <project>]\n"
-      << "  demi build linux [--project <project>] [--output path]\n"
-      << "  demi build linux_server [--project <project>] [--output path]\n"
-      << "  demi editor [--project <project>] [--max-frames count]\n"
-         "              [--max-seconds count] [--profile-frames frames.csv]\n";
-}
-
 int runValidate(const std::vector<std::string> &args) {
+  CLI::App command{"Validate authored source and target capabilities",
+                   "demi validate"};
   std::filesystem::path target = ".";
   std::string format = "text";
   std::string platform;
-
-  for (std::size_t i = 1; i < args.size(); ++i) {
-    if (args[i] == "--format" && i + 1 < args.size()) {
-      format = args[i + 1];
-      ++i;
-      continue;
-    }
-    if (args[i] == "--platform" && i + 1 < args.size()) {
-      platform = args[i + 1];
-      ++i;
-      continue;
-    }
-    if (!args[i].starts_with("--")) {
-      target = args[i];
-    }
+  command.add_option("path", target);
+  command.add_option("--format", format)
+      ->check(CLI::IsMember({"text", "json"}));
+  command.add_option("--platform", platform)
+      ->check(CLI::IsMember({"linux", "linux_server", "android"}));
+  if (const auto status =
+          parseCommand(command, args, 1, std::cout, std::cerr)) {
+    return *status;
   }
 
   const demi::ValidationSummary summary =
@@ -290,8 +218,22 @@ int runValidate(const std::vector<std::string> &args) {
 
 int launchEditor(const std::vector<std::string> &args) {
 #if defined(__linux__) && !defined(DEMI_SERVER_CLI)
-  const std::filesystem::path project =
-      demi::cli::projectFileFromArgs(args, std::filesystem::current_path());
+  CLI::App command{"Open the native editor", "demi editor"};
+  std::string requestedProject;
+  int maxFrames = 0;
+  int maxSeconds = 0;
+  std::string profileFrames;
+  command.add_option("--project", requestedProject);
+  auto *frames = command.add_option("--max-frames", maxFrames)
+                     ->check(CLI::NonNegativeNumber);
+  auto *seconds = command.add_option("--max-seconds", maxSeconds)
+                      ->check(CLI::NonNegativeNumber);
+  command.add_option("--profile-frames", profileFrames);
+  if (const auto status =
+          parseCommand(command, args, 1, std::cout, std::cerr)) {
+    return *status;
+  }
+  const auto project = demi::cli::resolveProjectFile(requestedProject);
   if (project.empty()) {
     std::cerr << "No demi.project.json was found. Pass --project <project>.\n";
     return ExitUsageError;
@@ -307,18 +249,16 @@ int launchEditor(const std::vector<std::string> &args) {
   const std::filesystem::path editor = executable.parent_path() / "demi-editor";
   std::vector<std::string> arguments{editor.string(), "--project",
                                      project.string()};
-  for (const std::string option :
-       {"--max-frames", "--max-seconds", "--profile-frames"}) {
-    if (!hasArg(args, option)) {
-      continue;
-    }
-    const std::string value = valueAfter(args, option);
-    if (value.empty() || value.starts_with("--")) {
-      std::cerr << option << " requires a value.\n";
-      return ExitUsageError;
-    }
-    arguments.push_back(option);
-    arguments.push_back(value);
+  if (*frames) {
+    arguments.insert(arguments.end(),
+                     {"--max-frames", std::to_string(maxFrames)});
+  }
+  if (*seconds) {
+    arguments.insert(arguments.end(),
+                     {"--max-seconds", std::to_string(maxSeconds)});
+  }
+  if (!profileFrames.empty()) {
+    arguments.insert(arguments.end(), {"--profile-frames", profileFrames});
   }
   std::vector<char *> nativeArguments;
   nativeArguments.reserve(arguments.size() + 1);
@@ -336,14 +276,27 @@ int launchEditor(const std::vector<std::string> &args) {
 }
 
 int runScene(const std::vector<std::string> &args) {
-  if (args.size() < 3) {
-    std::cerr << "scene requires a subcommand.\n";
-    return ExitUsageError;
+  if (args.size() >= 2 && args[1] == "diff") {
+    return demi::cli::runSceneDiff(args, std::cout, std::cerr);
   }
-
-  const std::string &subcommand = args[1];
+  if (args.size() >= 2 && args[1] == "expand") {
+    return demi::cli::runSceneExpand(args, std::cout, std::cerr);
+  }
+  CLI::App command{"Inspect authored scenes", "demi scene"};
+  command.require_subcommand(1, 1);
+  std::string path;
+  for (const auto *name : {"list", "inspect"}) {
+    command.add_subcommand(name)->add_option("path", path)->required();
+  }
+  command.add_subcommand("diff", "Compare two expanded scenes");
+  command.add_subcommand("expand", "Expand scene composition");
+  if (const auto status =
+          parseCommand(command, args, 1, std::cout, std::cerr)) {
+    return *status;
+  }
+  const auto subcommand = command.get_subcommands().front()->get_name();
   if (subcommand == "list") {
-    const std::filesystem::path project = args[2];
+    const std::filesystem::path project = path;
     const auto references = demi::extractSceneReferences(project);
     for (const std::string &reference : references) {
       std::cout << reference << '\n';
@@ -351,36 +304,25 @@ int runScene(const std::vector<std::string> &args) {
     return references.empty() ? ExitValidationFailure : ExitSuccess;
   }
 
-  if (subcommand == "inspect") {
-    const std::filesystem::path scene = args[2];
-    const demi::ValidationSummary summary = demi::validatePath(scene);
-    demi::printDiagnosticsText(std::cout, summary.diagnostics);
-    if (!demi::hasErrors(summary.diagnostics)) {
-      std::cout << "Scene inspection complete: " << scene.string() << '\n';
-    }
-    return demi::hasErrors(summary.diagnostics) ? ExitValidationFailure
-                                                : ExitSuccess;
+  const std::filesystem::path scene = path;
+  const demi::ValidationSummary summary = demi::validatePath(scene);
+  demi::printDiagnosticsText(std::cout, summary.diagnostics);
+  if (!demi::hasErrors(summary.diagnostics)) {
+    std::cout << "Scene inspection complete: " << scene.string() << '\n';
   }
-
-  if (subcommand == "diff") {
-    return demi::cli::runSceneDiff(args, std::cout, std::cerr);
-  }
-
-  if (subcommand == "expand") {
-    return demi::cli::runSceneExpand(args, std::cout, std::cerr);
-  }
-
-  std::cerr << "Unknown scene subcommand: " << subcommand << '\n';
-  return ExitUsageError;
+  return demi::hasErrors(summary.diagnostics) ? ExitValidationFailure
+                                              : ExitSuccess;
 }
 
 int runSave(const std::vector<std::string> &args) {
-  if (args.size() < 3 || args[1] != "inspect") {
-    std::cerr << "save requires: demi save inspect <save>.\n";
-    return ExitUsageError;
+  CLI::App command{"Inspect a save document", "demi save"};
+  command.require_subcommand(1, 1);
+  std::filesystem::path save;
+  command.add_subcommand("inspect")->add_option("path", save)->required();
+  if (const auto status =
+          parseCommand(command, args, 1, std::cout, std::cerr)) {
+    return *status;
   }
-
-  const std::filesystem::path save = args[2];
   const demi::ValidationSummary summary = demi::validatePath(save);
   demi::printDiagnosticsText(std::cout, summary.diagnostics);
   if (!demi::hasErrors(summary.diagnostics)) {
@@ -391,26 +333,32 @@ int runSave(const std::vector<std::string> &args) {
 }
 
 int runScript(const std::vector<std::string> &args) {
-  if (args.size() < 3 || args[1] != "check") {
-    std::cerr << "script requires: demi script check <script>.\n";
-    return ExitUsageError;
+  CLI::App command{"Check Lua syntax", "demi script"};
+  command.require_subcommand(1, 1);
+  std::string path;
+  command.add_subcommand("check")->add_option("path", path)->required();
+  if (const auto status =
+          parseCommand(command, args, 1, std::cout, std::cerr)) {
+    return *status;
   }
-
   const demi::Diagnostics diagnostics =
-      demi::runtime::LuaScriptHost::checkScriptSyntax(args[2]);
+      demi::runtime::LuaScriptHost::checkScriptSyntax(path);
   demi::printDiagnosticsText(std::cout, diagnostics);
   return demi::hasErrors(diagnostics) ? ExitValidationFailure : ExitSuccess;
 }
 
 int runLuaStubs(const std::vector<std::string> &args) {
-  if (args.size() < 2 || args[1] != "generate") {
-    std::cerr << "Usage: demi lua-stubs generate [directory].\n";
-    return ExitUsageError;
+  CLI::App command{"Export Lua language-server metadata", "demi lua-stubs"};
+  command.require_subcommand(1, 1);
+  std::filesystem::path output = ".demi/lua";
+  command.add_subcommand("generate")->add_option("directory", output);
+  if (const auto status =
+          parseCommand(command, args, 1, std::cout, std::cerr)) {
+    return *status;
   }
-  const auto output = args.size() >= 3 ? std::filesystem::path(args[2])
-                                       : std::filesystem::path(".demi/lua");
   std::string error;
-  if (!demi::cli::exportLuaStubs(sourceRoot() / "scripts/stubs", output, error)) {
+  if (!demi::cli::exportLuaStubs(sourceRoot() / "scripts/stubs", output,
+                                 error)) {
     std::cerr << error << '\n';
     return ExitValidationFailure;
   }
@@ -418,170 +366,150 @@ int runLuaStubs(const std::vector<std::string> &args) {
   return ExitSuccess;
 }
 
+int runSchema(const std::vector<std::string> &args) {
+  CLI::App command{"Export component schemas", "demi schema"};
+  command.require_subcommand(1, 1);
+  std::filesystem::path outputPath =
+      sourceRoot() / "schemas" / "components.schema.json";
+  command.add_subcommand("export")->add_option("path", outputPath);
+  if (const auto status =
+          parseCommand(command, args, 1, std::cout, std::cerr)) {
+    return *status;
+  }
+  try {
+    const std::string content =
+        demi::runtime::scene_loading::canonicalComponentSchema().dump(2) + '\n';
+    std::error_code error;
+    if (!demi::atomicWriteText(outputPath, content, error)) {
+      std::cerr << "Failed to write component schema: " << outputPath << ": "
+                << error.message() << '\n';
+      return ExitValidationFailure;
+    }
+  } catch (const std::exception &error) {
+    std::cerr << "Failed to export component schema: " << outputPath << ": "
+              << error.what() << '\n';
+    return ExitValidationFailure;
+  } catch (...) {
+    std::cerr << "Failed to export component schema: " << outputPath
+              << ": unknown exception\n";
+    return ExitValidationFailure;
+  }
+  std::cout << "Wrote component schema: " << outputPath << '\n';
+  return ExitSuccess;
+}
+
+int runSmokeTests(const std::vector<std::string> &args) {
+  CLI::App command{"Validate and smoke-test a project", "demi test"};
+  std::string requestedProject;
+  command.add_option("--project", requestedProject);
+  if (const auto status =
+          parseCommand(command, args, 1, std::cout, std::cerr)) {
+    return *status;
+  }
+  const auto project = demi::cli::resolveProjectFile(requestedProject);
+  if (!project.empty()) {
+    const demi::ValidationSummary validation =
+        demi::validateProjectPath(project);
+    demi::printDiagnosticsText(std::cout, validation.diagnostics);
+    if (demi::hasErrors(validation.diagnostics))
+      return ExitValidationFailure;
+    return demi::runtime::runProject({.projectPath = project, .maxFrames = 1});
+  }
+  const demi::ValidationSummary summary = demi::validatePath("examples");
+  demi::printDiagnosticsText(std::cout, summary.diagnostics);
+  return demi::hasErrors(summary.diagnostics) ? ExitValidationFailure
+                                              : ExitSuccess;
+}
+
 } // namespace
 
 int main(int argc, char **argv) {
-  std::vector<std::string> args;
-  for (int i = 1; i < argc; ++i) {
-    args.emplace_back(argv[i]);
-  }
-
-  if (args.empty() || args[0] == "--help" || args[0] == "help") {
-    printHelp();
-    return ExitSuccess;
-  }
-
-  if (args[0] == "version") {
+  std::vector<std::string> args(argv + 1, argv + argc);
+  CLI::App command{"DemiEngine CLI", "demi"};
+  command.require_subcommand(0, 1);
+  int result = ExitSuccess;
+  // Families own their option declarations. Prefix dispatch leaves their argv
+  // intact so there is one parser and one generated help source per family.
+  const auto add = [&](const char *name, const char *description, auto run) {
+    auto *family = command.add_subcommand(name, description);
+    family->set_help_flag("");
+    family->prefix_command();
+    family->callback([&, run] { result = run(); });
+  };
+  command.add_subcommand("version", "Print engine version")->callback([] {
     std::cout << demi::EngineName << ' ' << demi::EngineVersion << '\n';
-    return ExitSuccess;
-  }
-
-  if (args[0] == "new") {
+  });
+  add("new", "Create a project from a template", [&] {
     return demi::cli::project::runNewCommand(args, sourceRoot() / "templates",
                                              std::cout, std::cerr);
-  }
-
-  if (args[0] == "doctor") {
+  });
+  add("doctor", "Inspect tooling and platform capabilities", [&] {
     return demi::cli::doctor::runDoctorCommand(
         args, std::cout, std::cerr, demi::runtime::hostRuntimeFeatures());
-  }
-
-  if (args[0] == "validate") {
-    return runValidate(args);
-  }
-
-  if (args[0] == "schema" && args.size() >= 2 && args[1] == "export") {
-    const std::filesystem::path outputPath =
-        args.size() >= 3 ? std::filesystem::path(args[2])
-                         : sourceRoot() / "schemas" / "components.schema.json";
-    try {
-      const std::string content =
-          demi::runtime::scene_loading::canonicalComponentSchema().dump(2) + '\n';
-      std::error_code error;
-      if (!demi::atomicWriteText(outputPath, content, error)) {
-        std::cerr << "Failed to write component schema: " << outputPath << ": "
-                  << error.message() << '\n';
-        return ExitValidationFailure;
-      }
-    } catch (const std::exception &error) {
-      std::cerr << "Failed to export component schema: " << outputPath << ": "
-                << error.what() << '\n';
-      return ExitValidationFailure;
-    } catch (...) {
-      std::cerr << "Failed to export component schema: " << outputPath
-                << ": unknown exception\n";
-      return ExitValidationFailure;
-    }
-    std::cout << "Wrote component schema: " << outputPath << '\n';
-    return ExitSuccess;
-  }
-
-  if (args[0] == "hud") {
-    return demi::cli::runHudCommand(args, std::cout, std::cerr);
-  }
-
-  if (args[0] == "capabilities") {
-    return demi::cli::runCapabilityCommand(
-        args, demi::cli::CapabilityCommandContext{.sourceRoot = sourceRoot()},
-        std::cout, std::cerr);
-  }
-
-  if (args[0] == "scene") {
-    return runScene(args);
-  }
-
-  if (args[0] == "prefab") {
-    return demi::cli::runPrefabCommand(args, std::cout, std::cerr);
-  }
-
-  if (args[0] == "terrain") {
-    return demi::cli::runTerrainCommand(args, std::cout, std::cerr);
-  }
-
-  if (args[0] == "asset") {
-    return demi::cli::runAssetCommand(args, std::cout, std::cerr);
-  }
-
-  if (args[0] == "package") {
+  });
+  add("validate", "Validate authored source",
+      [&] { return runValidate(args); });
+  add("schema", "Export component schemas", [&] { return runSchema(args); });
+  add("hud", "Inspect resolved HUD layout",
+      [&] { return demi::cli::runHudCommand(args, std::cout, std::cerr); });
+  add("capabilities", "Export and compare the public contract", [&] {
+    return demi::cli::runCapabilityCommand(args, {.sourceRoot = sourceRoot()},
+                                           std::cout, std::cerr);
+  });
+  add("scene", "Inspect and expand scenes", [&] { return runScene(args); });
+  add("prefab", "Inspect a prefab",
+      [&] { return demi::cli::runPrefabCommand(args, std::cout, std::cerr); });
+  add("terrain", "Author and inspect terrain",
+      [&] { return demi::cli::runTerrainCommand(args, std::cout, std::cerr); });
+  add("asset", "Import, inspect and package assets",
+      [&] { return demi::cli::runAssetCommand(args, std::cout, std::cerr); });
+  add("package", "Manage project packages", [&] {
     return demi::cli::package_commands::runPackageCommand(
         args, {.engineRoot = sourceRoot()}, std::cout, std::cerr);
-  }
-
-  if (args[0] == "cook") {
-    return demi::cli::runCookCommand(args, std::cout, std::cerr);
-  }
-
-  if (args[0] == "save") {
-    return runSave(args);
-  }
-
-  if (args[0] == "script") {
-    return runScript(args);
-  }
-
-  if (args[0] == "lua-stubs") {
-    return runLuaStubs(args);
-  }
-
-  if (args[0] == "test") {
-    if (args.size() >= 2 && args[1] == "android")
+  });
+  add("cook", "Cook project assets",
+      [&] { return demi::cli::runCookCommand(args, std::cout, std::cerr); });
+  add("save", "Inspect saves", [&] { return runSave(args); });
+  add("script", "Check Lua syntax", [&] { return runScript(args); });
+  add("lua-stubs", "Export Lua language-server metadata",
+      [&] { return runLuaStubs(args); });
+  add("test", "Run smoke or desktop/Android end-to-end tests", [&] {
+    if (args.size() >= 2 && args[1] == "android") {
       return launchAndroidDeviceTool("qualify", args, 2, argv[0]);
-    if (args.size() >= 2 && args[1] == "linux")
+    }
+    if (args.size() >= 2 && args[1] == "linux") {
       return demi::cli::runTestLinuxCommand(args, std::cout, std::cerr,
                                             resolveSelfExecutable(argv[0]));
-    const std::filesystem::path project = demi::cli::projectFileFromArgs(args);
-    if (!project.empty()) {
-      const demi::ValidationSummary validation =
-          demi::validateProjectPath(project);
-      demi::printDiagnosticsText(std::cout, validation.diagnostics);
-      if (demi::hasErrors(validation.diagnostics))
-        return ExitValidationFailure;
-      return demi::runtime::runProject(
-          {.projectPath = project, .maxFrames = 1});
     }
-    const demi::ValidationSummary summary = demi::validatePath("examples");
-    demi::printDiagnosticsText(std::cout, summary.diagnostics);
-    return demi::hasErrors(summary.diagnostics) ? ExitValidationFailure
-                                                : ExitSuccess;
+    return runSmokeTests(args);
+  });
+  add("build", "Package a Linux or Android target", [&] {
+    return demi::cli::runBuildCommand(
+        args, {.engineRoot = sourceRoot(), .executablePath = argv[0]});
+  });
+  for (const auto *name : {"run", "dev", "serve"}) {
+    add(name, "Run a project (run android delegates to the device tool)",
+        [&, name] {
+          if (args.size() >= 2 && args[1] == "android" &&
+              std::string_view(name) == "run") {
+            return launchAndroidDeviceTool("run", args, 2, argv[0]);
+          }
+          const auto mode = std::string_view(name) == "dev"
+                                ? demi::cli::RuntimeCommandMode::Develop
+                            : std::string_view(name) == "serve"
+                                ? demi::cli::RuntimeCommandMode::Serve
+                                : demi::cli::RuntimeCommandMode::Run;
+          return demi::cli::runRuntimeCommand(args, mode, std::cout, std::cerr);
+        });
   }
-
-  if (args[0] == "build") {
-    return demi::cli::runBuildCommand(args, demi::cli::BuildContext{
-                                                .engineRoot = sourceRoot(),
-                                                .executablePath = argv[0],
-                                            });
-  }
-
-  if (args[0] == "dev") {
-    return demi::cli::runRuntimeCommand(
-        args, demi::cli::RuntimeCommandMode::Develop, std::cout, std::cerr);
-  }
-
-  if (args[0] == "run") {
-    if (args.size() >= 2 && args[1] == "android")
-      return launchAndroidDeviceTool("run", args, 2, argv[0]);
-    if (args.size() >= 2 && !args[1].starts_with("--") && args[1] != "linux") {
-      std::cerr << "Unknown run target: " << args[1] << '\n';
-      return ExitUsageError;
-    }
-    return demi::cli::runRuntimeCommand(
-        args, demi::cli::RuntimeCommandMode::Run, std::cout, std::cerr);
-  }
-
-  if (args[0] == "serve") {
-    return demi::cli::runRuntimeCommand(
-        args, demi::cli::RuntimeCommandMode::Serve, std::cout, std::cerr);
-  }
-
-  if (args[0] == "editor") {
-    return launchEditor(args);
-  }
-
-  if (hasArg(args, "--help")) {
-    printHelp();
+  add("editor", "Open the native editor", [&] { return launchEditor(args); });
+  if (args.empty() || args.front() == "help") {
+    std::cout << command.help();
     return ExitSuccess;
   }
-
-  std::cerr << "Unknown command: " << args[0] << '\n';
-  return ExitUsageError;
+  if (const auto status =
+          parseCommand(command, args, 0, std::cout, std::cerr)) {
+    return *status;
+  }
+  return result;
 }

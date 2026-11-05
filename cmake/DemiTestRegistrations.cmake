@@ -35,6 +35,10 @@ add_test(NAME demi-prefab-template-cache-tests COMMAND demi-prefab-template-cach
 add_test(NAME demi-variable-font-tests COMMAND demi-variable-font-tests)
 add_test(NAME demi-cosmetic-debris3d-tests COMMAND demi-cosmetic-debris3d-tests)
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
+add_test(NAME demi-cli-arguments-tests
+  COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/cli_arguments_tests.py"
+    $<TARGET_FILE:demi> $<TARGET_FILE:demi-runtime> $<TARGET_FILE:demi-editor>)
+
 add_test(NAME demi-bgfx-vk-pipeline-ownership-tests
   COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/bgfx_vk_pipeline_ownership_tests.py"
     "${bgfx_SOURCE_DIR}/bgfx/src/renderer_vk.cpp" "${CMAKE_CXX_COMPILER}")
@@ -454,3 +458,10 @@ add_test(NAME demi-terrain-region-asset-tests COMMAND demi-terrain-region-asset-
 
 add_test(NAME demi-regional-terrain-morph-tests COMMAND demi-regional-terrain-morph-tests)
 add_test(NAME demi-regional-terrain-streaming-tests COMMAND demi-regional-terrain-streaming-tests)
+
+add_test(NAME demi-ui-layout-ownership-tests COMMAND demi-ui-layout-ownership-tests)
+add_test(NAME demi-visibility-queries2d-tests COMMAND demi-visibility-queries2d-tests)
+add_test(NAME demi-fog-of-war2d-tests COMMAND demi-fog-of-war2d-tests)
+
+add_test(NAME demi-lua-script-reload-tests COMMAND demi-lua-script-reload-tests)
+add_test(NAME demi-physics2d-hierarchy-joint-tests COMMAND demi-physics2d-hierarchy-joint-tests)

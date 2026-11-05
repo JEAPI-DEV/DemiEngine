@@ -182,6 +182,7 @@ void parseNodeImpl(const Json &json, const std::string &parent, UiDocument &out,
   node.placeholderTemplate = node.placeholder;
   node.localizationKey = scene_loading::stringOr(source, "localization_key");
   node.texture = scene_loading::stringOr(source, "texture");
+  node.imageSkin = parseUiImageSkin(source).value_or(UiImageSkin{});
   node.action = scene_loading::stringOr(source, "action");
   node.actionEffects = actionEffects(source);
   node.control = scene_loading::stringOr(source, "control");

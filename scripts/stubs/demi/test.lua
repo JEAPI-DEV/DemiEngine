@@ -28,9 +28,14 @@ function Test.swipe_xy(from_x, from_y, to_x, to_y, duration) end
 ---Waits `seconds` of game time before resuming the test.
 ---@param seconds number
 function Test.wait(seconds) end
----Waits until the active scene id matches, or fails the test on timeout.
+---Polls a non-yielding predicate once per runtime update until truthy.
+---Fails on a predicate error or the monotonic wall-clock timeout.
+---@param predicate fun():any
+---@param timeout? number Wall-clock seconds; defaults to 10
+function Test.wait_until(predicate, timeout) end
+---Waits until the active scene id matches, or fails after the wall-clock timeout.
 ---@param scene_id string
----@param timeout? number Defaults to 10
+---@param timeout? number Wall-clock seconds; defaults to 10
 function Test.expect_scene(scene_id, timeout) end
 ---Fails the running test with `message` unless `condition` is truthy.
 ---@param condition any

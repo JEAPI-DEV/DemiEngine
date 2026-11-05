@@ -127,8 +127,8 @@ ReloadCoordinator::process(const platform::ProjectFileChangeBatch &batch) {
     return result;
   }
 
-  // LuaScriptHost prepares each changed table before replacing the live one;
-  // no coordinator callback is necessary for script-only edits.
+  // Publish script notifications only after the batch passes validation and
+  // scene/asset preparation. LuaScriptHost keeps the last good table on failure.
   std::string error;
   if (sceneChanged && callbacks_.reloadScene &&
       !callbacks_.reloadScene(error)) {
@@ -141,6 +141,9 @@ ReloadCoordinator::process(const platform::ProjectFileChangeBatch &batch) {
       callbacks_.cancelSceneReload();
     failure(result.diagnostics, "RELOAD_ASSETS_REJECTED", error, projectFile_);
     return result;
+  }
+  if (result.luaChanged && callbacks_.reloadScripts) {
+    callbacks_.reloadScripts(batch.changed);
   }
   result.applied = true;
   return result;

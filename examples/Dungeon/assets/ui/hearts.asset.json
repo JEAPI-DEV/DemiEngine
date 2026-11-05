@@ -1,0 +1,16 @@
+{
+  "attribution": "SnowHex / Jose Javier — Dungeon Gathering",
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://dungeon/hearts",
+  "importer": "image",
+  "importer_version": 1,
+  "license": "License.txt",
+  "settings": {
+    "filter": "nearest",
+    "wrap": "clamp"
+  },
+  "source": "Hearts Blue.png",
+  "source_hash": "fnv1a64:ffdd8c221cdf4f46",
+  "type": "Texture2D"
+}

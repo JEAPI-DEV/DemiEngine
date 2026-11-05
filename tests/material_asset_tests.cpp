@@ -157,7 +157,8 @@ void customNamesAndReferenceDependenciesRemainValid() {
       {"textures",
        {{"custom_buffer", "asset://targets/history"},
         {"arbitrary_sampler", "asset://textures/image"}}},
-      {"parameters", {{"custom_scalar", -12}, {"roughness", 4}}},
+      {"parameters",
+       {{"custom_scalar", -12}, {"roughness", 4}, {"opacity", 3}}},
   });
   assert(material && material->numbers.at("roughness") == 4);
   assert(rejected({{"format_version", 1},
@@ -166,7 +167,9 @@ void customNamesAndReferenceDependenciesRemainValid() {
   assert(rejected({{"format_version", 1},
                    {"shader", "asset://shaders/custom"},
                    {"parameters", {{"custom_color", {1, 1e100, 0, 1}}}}}));
-  assert(materialSurface(*material).maps.empty());
+  const auto rawSurface = materialSurface(*material);
+  assert(rawSurface.maps.empty());
+  assert(rawSurface.roughness == 4.0F && rawSurface.opacity == 3.0F);
   AssetRegistry registry;
   registry.assets = {
       {.id = "asset://shaders/custom", .type = "Shader"},

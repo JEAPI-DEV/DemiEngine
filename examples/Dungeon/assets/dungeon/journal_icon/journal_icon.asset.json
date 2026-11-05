@@ -1,0 +1,14 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "generated_output": "../../../generated/assets/dungeon/journal_icon/journal_icon.svg",
+  "id": "asset://dungeon/journal_icon",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {
+    "filter": "nearest"
+  },
+  "source": "journal_icon.svg",
+  "source_hash": "fnv1a64:664a5d04a660be10",
+  "type": "SvgTexture2D"
+}

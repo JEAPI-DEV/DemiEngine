@@ -1,0 +1,16 @@
+{
+  "attribution": "SnowHex / Jose Javier — Dungeon Gathering",
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://dungeon/stone",
+  "importer": "image",
+  "importer_version": 1,
+  "license": "License.txt",
+  "settings": {
+    "filter": "nearest",
+    "wrap": "clamp"
+  },
+  "source": "Set 1.png",
+  "source_hash": "fnv1a64:428d926cb8235440",
+  "type": "Texture2D"
+}

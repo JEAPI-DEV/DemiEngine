@@ -34,6 +34,8 @@
   <li><code>report_contacts: true</code> extracts contact points into <code>physics_contact</code> events. Collision events fire either way.</li>
   <li>Joints: <code>Joint2D</code> (revolute, prismatic, weld, rope, motor) and <code>DistanceJoint2D</code> (spring-distance).</li>
 </ul>
+<p>2D native joints retain their identity and solver state between steps. Mutable motor/limit/distance settings update the joint; changes to its bodies, type or structural anchors recreate it. Removing a body also removes its attached native joints.</p>
+<p>Anchor conventions are unchanged: <code>DistanceJoint2D</code> initially treats <code>anchor</code> and <code>other_anchor</code> as world-axis offsets from the body origins, then binds the resulting body-local points. Generic <code>Joint2D</code> anchors are body-local distances in native physics units and are not multiplied by authored Transform scale. Motor offsets use the difference of these raw anchors. A weld retains its reference angle from binding rather than recalculating it every step.</p>
 <pre><code>local Body = require("demi.physics.rigidbody2d")
 
 local vx, vy = Body.get_velocity(id)      -- two scalars (nil per axis when missing)
@@ -50,6 +52,7 @@ Body.set_report_contacts(id, true)
 
 Body.move_kinematic(id, 3, 4, fixed_dt)  -- target x, y and actual fixed step
 local moved_x, moved_y = Body.move_and_slide(id, vx * fixed_dt, vy * fixed_dt)</code></pre>
+<p>Nonzero 2D velocity, impulse, force and torque commands wake a sleeping body. Setting zero velocity preserves sleep. Motion commands keep the authored/runtime awake state consistent with the native physics body.</p>
 <p><code>get_velocity</code> returns two scalars, <code>nil</code> per axis when the entity has no body. <code>move_and_slide</code> takes a requested displacement (not velocity or timestep), clips it against static collider bounds, and returns the applied displacement or <code>nil, nil</code> if unavailable. Call it in <code>on_fixed_update</code>. <code>move_kinematic</code> sets velocity toward a target over the supplied fixed step.</p>
 
 <h2>3D bodies and colliders</h2>

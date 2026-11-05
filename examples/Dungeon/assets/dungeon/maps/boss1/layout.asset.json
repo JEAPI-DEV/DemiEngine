@@ -1,0 +1,13 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://dungeon/layouts/boss1",
+  "importer": "json_data",
+  "importer_version": 1,
+  "settings": {
+    "content_type": "data"
+  },
+  "source": "boss1.tilemap.json",
+  "source_hash": "fnv1a64:71acafb17247c7da",
+  "type": "DataAsset"
+}

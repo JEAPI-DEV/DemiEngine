@@ -21,6 +21,7 @@ public:
     std::function<Vec2(Vec2)> canvasToViewport;
     std::function<std::string()> activeScene;
     std::function<void()> requestQuit;
+    std::function<double()> monotonicSeconds = {};
   };
 
   LuaE2ETestRunner() = default;
@@ -35,6 +36,8 @@ public:
   void abort(const std::string &reason);
   void drainSyntheticTouches(InputState &input, double deltaSeconds);
   [[nodiscard]] bool active() const;
+  [[nodiscard]] bool waitingForScene() const;
+  [[nodiscard]] bool waitingForExternalWork() const;
   [[nodiscard]] int passed() const;
   [[nodiscard]] int failed() const;
   [[nodiscard]] std::optional<Vec2>
@@ -45,6 +48,7 @@ public:
   void enqueueTap(Vec2 viewportPosition);
   void enqueueSwipe(Vec2 from, Vec2 to, double seconds);
   void waitFor(double seconds);
+  void waitUntil(lua_State *caller, int predicateIndex, double timeout);
   void expectScene(const std::string &sceneId, double timeout);
 
 private:
@@ -57,9 +61,11 @@ private:
     std::string name;
     int functionRef = 0;
   };
-  enum class WaitKind { None, Seconds, Scene, Gesture };
+  enum class WaitKind { None, Seconds, Scene, Condition, Gesture };
 
+  [[nodiscard]] double monotonicSeconds() const;
   void releaseReferences();
+  void releaseCondition();
   void failStartup(const std::string &message);
   void complete();
   void failTest(const std::string &message);
@@ -78,6 +84,9 @@ private:
   double waitElapsed_ = 0.0;
   std::string waitScene_;
   double waitTimeout_ = 0.0;
+  double sceneDeadline_ = 0.0;
+  int conditionRef_ = 0;
+  double conditionDeadline_ = 0.0;
   int pendingGestureEvents_ = 0;
   Vec2 gestureStart_;
   double gestureElapsed_ = 0.0;

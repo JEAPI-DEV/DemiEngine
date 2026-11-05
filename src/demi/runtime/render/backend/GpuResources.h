@@ -33,6 +33,7 @@ enum class TextureWrap { Clamp, Repeat, Mirror };
 enum class BufferKind { Vertex, DynamicVertex, Index16, Index32 };
 enum class BuiltinProgram {
   Textured2D,
+  Fog2D,
   WaterSurface3D,
   VertexColor3D,
   Textured3D,

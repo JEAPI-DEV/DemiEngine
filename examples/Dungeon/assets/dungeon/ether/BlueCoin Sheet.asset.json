@@ -1,0 +1,15 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "generated_output": "../../../generated/assets/dungeon/ether/BlueCoin Sheet.png",
+  "id": "asset://dungeon/ether",
+  "importer": "image",
+  "importer_version": 1,
+  "license": "License.txt",
+  "settings": {
+    "filter": "nearest"
+  },
+  "source": "BlueCoin Sheet.png",
+  "source_hash": "fnv1a64:64c67838e1bd19f2",
+  "type": "Texture2D"
+}

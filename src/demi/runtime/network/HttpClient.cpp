@@ -37,8 +37,9 @@ HttpResponse cancelledResponse() {
 
 struct HttpOperation::Impl {
   mutable std::mutex mutex;
-  std::optional<HttpResponse> result;
-  std::shared_ptr<AsyncCompletion> completion = std::make_shared<AsyncCompletion>();
+  std::shared_ptr<const HttpResponse> result;
+  std::shared_ptr<AsyncCompletion> completion =
+      std::make_shared<AsyncCompletion>();
   std::atomic<bool> cancelled = false;
   std::weak_ptr<WorkerWakeup> wakeup;
 
@@ -48,7 +49,7 @@ struct HttpOperation::Impl {
       if (result) {
         return;
       }
-      result = std::move(response);
+      result = std::make_shared<const HttpResponse>(std::move(response));
     }
     // Subscribers may inspect response() and must never run under its lock.
     completion->complete();
@@ -62,10 +63,10 @@ bool HttpOperation::done() const {
   return impl_->completion->ready();
 }
 
-std::optional<HttpResponse> HttpOperation::response() const {
+std::shared_ptr<const HttpResponse> HttpOperation::response() const {
   // Hide the small publication interval until subscribers can observe it too.
   if (!impl_->completion->ready()) {
-    return std::nullopt;
+    return nullptr;
   }
   std::lock_guard lock(impl_->mutex);
   return impl_->result;
@@ -82,7 +83,7 @@ void HttpOperation::cancel() {
       return;
     }
     impl_->cancelled.store(true, std::memory_order_relaxed);
-    impl_->result = cancelledResponse();
+    impl_->result = std::make_shared<const HttpResponse>(cancelledResponse());
   }
   impl_->completion->complete();
   if (const auto wakeup = impl_->wakeup.lock()) {

@@ -8,11 +8,12 @@
 #include <string>
 #include <string_view>
 #include <vector>
-#include <unordered_map>
 
 namespace demi::runtime::ui {
 
 enum class TextDirection { Auto, LeftToRight, RightToLeft };
+
+struct TextFontResource;
 
 struct TextFontFace {
   std::string id;
@@ -22,6 +23,7 @@ struct TextFontFace {
   float ascentRatio = 0.8F;
   float descentRatio = 0.2F;
   FontVariations variations;
+  std::shared_ptr<const TextFontResource> resource;
 };
 
 struct MissingGlyphDiagnostic {
@@ -33,7 +35,8 @@ class FontResolver {
 public:
   [[nodiscard]] bool add(std::string id, std::span<const std::byte> data,
                          std::uint64_t revision, std::string &error,
-                         bool pixelated = false, const FontVariations &variations = {});
+                         bool pixelated = false,
+                         const FontVariations &variations = {});
   void clear();
   [[nodiscard]] const TextFontFace *font(std::size_t index) const;
   [[nodiscard]] const TextFontFace *font(std::string_view id) const;
@@ -47,16 +50,9 @@ public:
           std::string_view preferred) const;
   [[nodiscard]] std::size_t size() const { return fonts_.size(); }
   [[nodiscard]] std::uint64_t revision() const;
-  [[nodiscard]] std::size_t coverageCacheSize() const {
-    return coverageCache_.size();
-  }
-  [[nodiscard]] static constexpr std::size_t coverageCacheLimit() {
-    return 8192;
-  }
 
 private:
   std::vector<TextFontFace> fonts_;
-  mutable std::unordered_map<std::uint32_t, std::size_t> coverageCache_;
 };
 
 struct ShapedGlyph {

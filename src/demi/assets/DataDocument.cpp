@@ -1,7 +1,9 @@
 #include "demi/assets/DataDocument.h"
 
 #include <nlohmann/json.hpp>
+#include <utf8proc.h>
 
+#include <algorithm>
 #include <cmath>
 #include <fstream>
 #include <limits>
@@ -24,41 +26,16 @@ void addError(Diagnostics &diagnostics, std::string code, std::string message,
 }
 
 bool validUtf8(const std::string_view text) {
-  for (std::size_t index = 0; index < text.size();) {
-    const auto lead = static_cast<unsigned char>(text[index]);
-    std::size_t continuation = 0;
-    std::uint32_t codepoint = 0;
-    if (lead <= 0x7F) {
-      ++index;
-      continue;
-    }
-    if ((lead & 0xE0U) == 0xC0U) {
-      continuation = 1;
-      codepoint = lead & 0x1FU;
-    } else if ((lead & 0xF0U) == 0xE0U) {
-      continuation = 2;
-      codepoint = lead & 0x0FU;
-    } else if ((lead & 0xF8U) == 0xF0U) {
-      continuation = 3;
-      codepoint = lead & 0x07U;
-    } else {
+  for (std::size_t offset = 0; offset < text.size();) {
+    utf8proc_int32_t codepoint = 0;
+    const auto available = std::min<std::size_t>(text.size() - offset, 4);
+    const auto length = utf8proc_iterate(
+        reinterpret_cast<const utf8proc_uint8_t *>(text.data() + offset),
+        static_cast<utf8proc_ssize_t>(available), &codepoint);
+    if (length <= 0) {
       return false;
     }
-    if (index + continuation >= text.size())
-      return false;
-    for (std::size_t offset = 1; offset <= continuation; ++offset) {
-      const auto byte = static_cast<unsigned char>(text[index + offset]);
-      if ((byte & 0xC0U) != 0x80U)
-        return false;
-      codepoint = (codepoint << 6U) | (byte & 0x3FU);
-    }
-    const bool overlong = (continuation == 1 && codepoint < 0x80U) ||
-                          (continuation == 2 && codepoint < 0x800U) ||
-                          (continuation == 3 && codepoint < 0x10000U);
-    if (overlong || codepoint > 0x10FFFFU ||
-        (codepoint >= 0xD800U && codepoint <= 0xDFFFU))
-      return false;
-    index += continuation + 1;
+    offset += static_cast<std::size_t>(length);
   }
   return true;
 }

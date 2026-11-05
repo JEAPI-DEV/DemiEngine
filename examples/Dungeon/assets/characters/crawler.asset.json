@@ -1,0 +1,13 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "id": "asset://dungeon/crawler",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {
+    "filter": "nearest"
+  },
+  "source": "crawler.svg",
+  "source_hash": "fnv1a64:7759eb5d5ea1347e",
+  "type": "SvgTexture2D"
+}

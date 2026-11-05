@@ -1,5 +1,6 @@
 #include "cli/TestCommands.h"
 #include "cli/CliArguments.h"
+#include "cli/CommandLine.h"
 #include "cli/project/ProjectDiscovery.h"
 
 #include <nlohmann/json.hpp>
@@ -75,68 +76,53 @@ struct TestOutcome {
   return outcome;
 }
 
-[[nodiscard]] std::filesystem::path
-resolveTestProject(const std::vector<std::string> &args) {
-  if (hasArg(args, "--project"))
-    return projectFileFromArgs(args, std::filesystem::current_path());
-  for (std::size_t index = 2; index < args.size(); ++index) {
-    const auto &argument = args[index];
-    if (argument.starts_with("--")) {
-      ++index;
-      continue;
-    }
-    std::filesystem::path path = argument;
-    std::error_code error;
-    if (std::filesystem::is_directory(path, error))
-      path /= "demi.project.json";
-    return path;
-  }
-  return projectFileFromArgs(args, std::filesystem::current_path());
-}
-
 } // namespace
 
 int runTestLinuxCommand(const std::vector<std::string> &args, std::ostream &out,
                         std::ostream &error,
                         const std::string &selfExecutable) {
-  std::vector<std::string> forwarded;
-  for (std::size_t index = 2; index < args.size(); ++index) {
-    const auto &option = args[index];
-    if (!option.starts_with("--"))
-      continue;
-    const bool runtime = option == "--max-frames" ||
-                         option == "--window-size" ||
-                         option == "--profile-frames";
-    if (!runtime && option != "--project" && option != "--timeout") {
-      error << "Unknown desktop test option: " << option << '\n';
-      return 2;
-    }
-    if (index + 1 == args.size() || args[index + 1].starts_with("--")) {
-      error << option << " requires a value.\n";
-      return 2;
-    }
-    const auto &value = args[++index];
-    if (option == "--window-size" && !parseWindowSize(value)) {
-      error
-          << "--window-size requires WIDTHxHEIGHT, each between 1 and 65535.\n";
-      return 2;
-    }
-    if (option == "--max-frames") {
-      int count = 0;
-      const auto parsed =
-          std::from_chars(value.data(), value.data() + value.size(), count);
-      if (parsed.ec != std::errc{} ||
-          parsed.ptr != value.data() + value.size() || count <= 0) {
-        error << "--max-frames must be a positive integer.\n";
-        return 2;
-      }
-    }
-    if (runtime) {
-      forwarded.push_back(option);
-      forwarded.push_back(value);
-    }
+  CLI::App command{"Run desktop end-to-end tests", "demi test linux"};
+  std::string requestedProject;
+  std::string positionalProject;
+  std::string window;
+  std::string profileFrames;
+  int maxFrames = 0;
+  double timeoutSeconds = 120.0;
+  command.add_option("path", positionalProject);
+  command.add_option("--project", requestedProject);
+  command.add_option("--window-size", window)
+      ->check([](const std::string &value) {
+        return parseWindowSize(value)
+                   ? std::string{}
+                   : "requires WIDTHxHEIGHT, each between 1 and 65535";
+      });
+  auto *frames =
+      command.add_option("--max-frames", maxFrames)->check(CLI::PositiveNumber);
+  command.add_option("--profile-frames", profileFrames);
+  command.add_option("--timeout", timeoutSeconds)
+      ->check([](const std::string &value) {
+        double number = 0;
+        return CLI::detail::lexical_cast(value, number) &&
+                       std::isfinite(number) && number > 0
+                   ? std::string{}
+                   : "must be a positive finite number of seconds";
+      });
+  if (const auto status = parseCommand(command, args, 2, out, error)) {
+    return *status;
   }
-  const std::filesystem::path project = resolveTestProject(args);
+  const auto project = resolveProjectFile(
+      requestedProject.empty() ? positionalProject : requestedProject);
+  std::vector<std::string> forwarded;
+  if (*frames) {
+    forwarded.insert(forwarded.end(),
+                     {"--max-frames", std::to_string(maxFrames)});
+  }
+  if (!window.empty()) {
+    forwarded.insert(forwarded.end(), {"--window-size", window});
+  }
+  if (!profileFrames.empty()) {
+    forwarded.insert(forwarded.end(), {"--profile-frames", profileFrames});
+  }
   if (project.empty()) {
     error << "demi test linux requires --project <project>, a project "
              "directory, or a demi.project.json in the current directory.\n";
@@ -153,21 +139,6 @@ int runTestLinuxCommand(const std::vector<std::string> &args, std::ostream &out,
       project.parent_path() / "build" / "linux" / "qualification";
   std::error_code fileSystemError;
   std::filesystem::create_directories(outputDirectory, fileSystemError);
-
-  double timeoutSeconds = 120.0;
-  const std::string timeoutValue = valueAfter(args, "--timeout");
-  if (!timeoutValue.empty()) {
-    try {
-      std::size_t consumed = 0;
-      timeoutSeconds = std::stod(timeoutValue, &consumed);
-      if (consumed != timeoutValue.size() || !std::isfinite(timeoutSeconds) ||
-          timeoutSeconds <= 0)
-        throw std::invalid_argument("invalid timeout");
-    } catch (const std::exception &) {
-      error << "--timeout must be a positive finite number of seconds.\n";
-      return 2;
-    }
-  }
 
   int pipeFds[2] = {-1, -1};
   if (pipe(pipeFds) != 0) {
@@ -262,8 +233,32 @@ int runTestLinuxCommand(const std::vector<std::string> &args, std::ostream &out,
   }
 
   const TestOutcome outcome = parseTestOutput(captured);
+  const bool runtimeSucceeded =
+      WIFEXITED(childStatus) && WEXITSTATUS(childStatus) == 0;
   const bool success = outcome.summaryFound && !timedOut &&
-                       outcome.passed > 0 && outcome.failed == 0;
+                       outcome.passed > 0 && outcome.failed == 0 &&
+                       runtimeSucceeded;
+  std::string detail;
+  if (timedOut) {
+    detail = "The runtime did not complete within the timeout.";
+  } else if (!runtimeSucceeded) {
+    detail = WIFSIGNALED(childStatus)
+                 ? "The runtime terminated with signal " +
+                       std::to_string(WTERMSIG(childStatus)) + "."
+                 : "The runtime exited with status " +
+                       std::to_string(WEXITSTATUS(childStatus)) + ".";
+  } else if (!outcome.summaryFound) {
+    detail = "The runtime did not emit a final [test] SUMMARY.";
+  }
+  const std::filesystem::path runtimeLogPath = outputDirectory / "runtime.log";
+  std::ofstream runtimeLog(runtimeLogPath, std::ios::binary);
+  runtimeLog << captured;
+  runtimeLog.close();
+  if (!runtimeLog) {
+    error << "Could not write desktop runtime log: " << runtimeLogPath << '\n'
+          << captured;
+    return 1;
+  }
   Json results = Json::array();
   for (const Json &result : outcome.results)
     results.push_back(result);
@@ -272,13 +267,9 @@ int runTestLinuxCommand(const std::vector<std::string> &args, std::ostream &out,
       {"format_version", 1},
       {"platform", "linux"},
       {"project", project.string()},
-      {"steps",
-       Json::array({Json{
-           {"name", "lua_tests"},
-           {"status", success ? "passed" : "failed"},
-           {"detail", timedOut
-                          ? std::string("No [test] SUMMARY within the timeout.")
-                          : std::string()}}})},
+      {"steps", Json::array({Json{{"name", "lua_tests"},
+                                  {"status", success ? "passed" : "failed"},
+                                  {"detail", detail}}})},
       {"lua_tests",
        {{"passed", outcome.passed},
         {"failed", outcome.failed},
@@ -289,14 +280,29 @@ int runTestLinuxCommand(const std::vector<std::string> &args, std::ostream &out,
       outputDirectory / "qualification.json";
   std::ofstream reportOutput(reportPath);
   reportOutput << report.dump(2) << '\n';
+  reportOutput.close();
+  if (!reportOutput) {
+    error << "Could not write desktop test report: " << reportPath << '\n';
+    return 1;
+  }
 
   out << "Desktop test summary: passed=" << outcome.passed
-      << " failed=" << outcome.failed << (timedOut ? " (timed out)" : "")
+      << " failed=" << outcome.failed
+      << (timedOut           ? " (timed out)"
+          : runtimeSucceeded ? ""
+                             : " (runtime failed)")
       << '\n';
   for (const Json &result : outcome.results)
     out << "  " << result["status"].get<std::string>() << "  "
         << result["name"].get<std::string>() << '\n';
   out << "Wrote desktop test report: " << reportPath << '\n';
+  out << "Wrote desktop runtime log: " << runtimeLogPath << '\n';
+  if (!success) {
+    if (!detail.empty()) {
+      error << detail << '\n';
+    }
+    error << captured;
+  }
   return success ? 0 : 1;
 }
 

@@ -35,6 +35,7 @@
 #include "demi/runtime/scripting/bindings/media/LuaVideoBindings.h"
 #include "demi/runtime/scripting/bindings/mesh/LuaMeshConstructionBindings.h"
 #include "demi/runtime/scripting/bindings/navigation/LuaNavigationBindings.h"
+#include "demi/runtime/scripting/bindings/navigation/LuaFog2DBindings.h"
 #include "demi/runtime/scripting/bindings/persistence/LuaSaveBindings.h"
 #include "demi/runtime/scripting/bindings/scene/LuaPrefabBindings.h"
 #include "demi/runtime/scripting/bindings/terrain/LuaTerrainWaterBindings.h"
@@ -100,6 +101,7 @@ void installBindingModules(LuaScriptHost &host, lua_State *state) {
   const LuaAnimationBindingModule animation;
   const LuaAssetsBindingModule assets;
   const LuaNavigationBindingModule navigation;
+  const LuaFog2DBindingModule fog2D;
   const LuaTilemap2DBindingModule tilemap2D;
   const LuaDataBindingModule data;
   const LuaTestBindingModule e2eTests;
@@ -136,6 +138,7 @@ void installBindingModules(LuaScriptHost &host, lua_State *state) {
                                        &animation,
                                        &assets,
                                        &navigation,
+                                       &fog2D,
                                        &tilemap2D,
                                        &data,
                                        &e2eTests,
@@ -237,9 +240,10 @@ void luaReportCallbackError(lua_State *state, const char *functionName,
 std::filesystem::path luaResolveScriptPath(const ProjectData &project,
                                            const std::string &module) {
   constexpr std::string_view prefix = "script://";
-  return module.starts_with(prefix)
-             ? project.projectDirectory / module.substr(prefix.size())
-             : project.projectDirectory / module;
+  const auto path = module.starts_with(prefix)
+      ? project.projectDirectory / module.substr(prefix.size())
+      : project.projectDirectory / module;
+  return std::filesystem::absolute(path).lexically_normal();
 }
 
 void luaConfigurePackagePath(lua_State *state, const ProjectData &project) {
@@ -280,14 +284,6 @@ void luaConfigurePackagePath(lua_State *state, const ProjectData &project) {
   lua_pushstring(state, path.c_str());
   lua_setfield(state, -2, "path");
   lua_pop(state, 1);
-}
-
-std::filesystem::file_time_type
-luaScriptWriteTime(const std::filesystem::path &path) {
-  std::error_code error;
-  const std::filesystem::file_time_type time =
-      std::filesystem::last_write_time(path, error);
-  return error ? std::filesystem::file_time_type{} : time;
 }
 
 bool luaLoadScriptTable(lua_State *state,

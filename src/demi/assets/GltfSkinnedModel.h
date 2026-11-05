@@ -88,6 +88,9 @@ struct GltfSkinnedModel3D {
   [[nodiscard]] bool posePositions(const Pose &pose,
                                    std::vector<runtime::Vec3> &out,
                                    std::string &error) const;
+  [[nodiscard]] bool poseNormals(const Pose &pose,
+                                 std::vector<runtime::Vec3> &out,
+                                 std::string &error) const;
   [[nodiscard]] bool bindPoseNormals(std::vector<runtime::Vec3> &out,
                                      std::string &error) const;
   [[nodiscard]] bool bindPosePositions(std::vector<runtime::Vec3> &out,

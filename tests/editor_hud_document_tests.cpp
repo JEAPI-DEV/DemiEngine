@@ -1,3 +1,4 @@
+#include "demi/runtime/ui/UiStateController.h"
 #include "editor/EditorHudCanvas.h"
 #include "editor/EditorHudDocument.h"
 
@@ -105,6 +106,35 @@ void verifyPrefabInstanceOverrides(const std::filesystem::path &root) {
   assert(
       reopened.setNodeField("alpha.dot", "arguments", Json::object(), error));
   assert(reopened.effectiveNode("alpha.dot.title")->at("text") == "Shared");
+}
+
+void verifyImageSkinAuthoring(const std::filesystem::path &root) {
+  using Json = nlohmann::json;
+  std::filesystem::create_directories(root);
+  const auto path = root / "skin.hud.json";
+  {
+    std::ofstream output(path);
+    output << R"({"format_version":1,"children":[{"id":"panel","type":"image",
+      "size":[200,100],"source_size":[24,24],"nine_slice":[[3,3],[3,3]]}]})";
+  }
+  demi::editor::EditorHudDocument document;
+  std::string error;
+  assert(document.open(path, error));
+  assert(document.setNodeField("panel", "nine_slice_scale", 3, error));
+  assert(document.preview().nodes[1].imageSkin.scale == 3);
+  const auto valid = document.json();
+  assert(!document.setNodeField(
+      "panel", "nine_slice",
+      Json::array({Json::array({20, 2}), Json::array({20, 2})}), error));
+  assert(document.json() == valid);
+  assert(document.undo(error));
+  assert(document.preview().nodes[1].imageSkin.scale == 1);
+  assert(document.redo(error));
+  assert(document.save(error));
+  demi::editor::EditorHudDocument reopened;
+  assert(reopened.open(path, error));
+  assert(reopened.preview().nodes[1].imageSkin.scale == 3);
+  assert(reopened.preview().nodes[1].imageSkin.start.x == 3);
 }
 
 void verifyTabAuthoring(const std::filesystem::path &root) {
@@ -257,12 +287,13 @@ void verifyVisibleDropTargets() {
   UiNode root;
   root.id = "root";
   root.type = "container";
-  root.resolved = {0, 0, 400, 300};
+  root.layout.size = {400, 300};
   UiNode active;
   active.id = "display";
   active.type = "container";
   active.parent = "root";
-  active.resolved = {0, 40, 400, 200};
+  active.layout.position = {0, 40};
+  active.layout.size = {400, 200};
   UiNode hidden = active;
   hidden.id = "audio";
   hidden.visible = false;
@@ -271,16 +302,17 @@ void verifyVisibleDropTargets() {
   label.type = "label";
   label.parent = "audio";
   label.text = "Hidden";
-  label.resolved = {20, 50, 100, 30};
+  label.layout.position = {20, 10};
+  label.layout.size = {100, 30};
   document.nodes = {root, active, hidden, label};
   assert(demi::editor::pickEditorHudNode(document, {25, 55}) == nullptr);
   const auto *target =
       demi::editor::pickEditorHudDropParent(document, {25, 55});
   assert(target && target->id == "display");
-  document.nodes[1].visible = false;
-  document.nodes[2].visible = true;
-  assert(demi::editor::pickEditorHudNode(document, {25, 55})->id ==
-         "hidden_label");
+  assert(UiStateController{}.setVisible(document, "display", false));
+  assert(UiStateController{}.setVisible(document, "audio", true));
+  const auto *revealed = demi::editor::pickEditorHudNode(document, {25, 55});
+  assert(revealed && revealed->id == "hidden_label");
   assert(demi::editor::pickEditorHudDropParent(document, {25, 55})->id ==
          "audio");
 }
@@ -651,6 +683,7 @@ int main() {
   assert(!uiPrefab.setCanvasSize({640.0F, 360.0F}, error));
   verifyVisibleDropTargets();
   verifyTextEditSessions(root);
+  verifyImageSkinAuthoring(root / "image_skin");
   verifyPrefabInstanceOverrides(root / "overrides");
   verifyTabAuthoring(root / "tabs");
   verifyDockPresets(root);

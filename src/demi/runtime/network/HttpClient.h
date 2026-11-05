@@ -2,7 +2,6 @@
 
 #include <cstddef>
 #include <memory>
-#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -45,8 +44,9 @@ public:
   HttpOperation& operator=(const HttpOperation&) = delete;
 
   [[nodiscard]] bool done() const;
-  // Pending returns nullopt; completed responses are stable, independent copies.
-  [[nodiscard]] std::optional<HttpResponse> response() const;
+  // Pending returns nullptr. Completed snapshots are immutable and remain valid
+  // independently of the operation and client lifetimes.
+  [[nodiscard]] std::shared_ptr<const HttpResponse> response() const;
   // Stable signal for the terminal response, including cancellation and errors.
   [[nodiscard]] std::shared_ptr<AsyncCompletion> completion() const;
   // Idempotent. Pending work receives a cancelled response immediately; a
@@ -71,10 +71,12 @@ public:
   // and a sanitized diagnostic. A successful submission clears error.
   // HTTP/HTTPS only; redirects are returned, never automatically followed:
   // callers must decide whether custom credentials may be sent to another URL.
-  // HTTP errors (including 3xx/4xx/5xx) have empty error/errorCode; only 2xx is ok.
-  // Timeouts must be nonnegative: zero uses curl's unlimited overall timeout or
-  // default connection timeout. No application-imposed request-count limit.
-  [[nodiscard]] std::shared_ptr<HttpOperation> request(HttpRequest request, std::string& error);
+  // HTTP errors (including 3xx/4xx/5xx) have empty error/errorCode; only 2xx is
+  // ok. Timeouts must be nonnegative: zero uses curl's unlimited overall
+  // timeout or default connection timeout. No application-imposed request-count
+  // limit.
+  [[nodiscard]] std::shared_ptr<HttpOperation> request(HttpRequest request,
+                                                       std::string &error);
 
   // Terminal and idempotent. Wakes/joins the worker and cancels all pending
   // handles, which remain safe to inspect after client destruction.

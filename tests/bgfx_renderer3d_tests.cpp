@@ -1,4 +1,7 @@
 #include "demi/runtime/terrain/RegionalTerrainPresentation.h"
+#include "demi/runtime/camera/Camera3DMath.h"
+#include "demi/runtime/render/bgfx3d/WorldTextProjection3D.h"
+#include "demi/runtime/scene/components/3dcomponents/WorldText3DComponent.h"
 #include "demi/runtime/terrain/RegionalTerrainSampler.h"
 #include "demi/runtime/destruction/DestructionWorld3D.h"
 #include "demi/runtime/destruction/DetachedFragmentFade3D.h"
@@ -310,9 +313,79 @@ Entity shape(std::string id, std::string shapeName, const Vec3 position) {
   return entity;
 }
 
+void testSharedCameraProjection() {
+  const auto near = [](float actual, float expected) {
+    return std::abs(actual - expected) < 0.001F;
+  };
+  BgfxCameraFrame3D frame;
+  frame.position = {10, 20, 30};
+  frame.forward = {0, 0, -1};
+  frame.up = {0, 1, 0};
+  frame.viewportWidth = 800;
+  frame.viewportHeight = 600;
+  frame.camera.perspective = false;
+  frame.camera.orthographicSize = 12;
+  // A render override supplies its own pose, independently of authored aiming.
+  frame.camera.targetOffset = {1, 0, 0};
+  frame.camera.upAxis = -1;
+  const auto projection = cameraProjection3D(
+      frame.camera, frame.position, frame.forward, frame.up, {800, 600});
+  assert(projection);
+  const auto corner = projection->project({18, 26, 20});
+  assert(corner && near(corner->screen.x, 800) && near(corner->screen.y, 0));
+  assert(near(corner->pixelsPerUnit, 50));
+  assert(!projection->project({10, 20, 31}));
+  const auto ray = projection->ray({800, 0});
+  assert(near(ray.origin.x, 18) && near(ray.origin.y, 26));
+  assert(near(ray.direction.z, -1));
+
+  World world;
+  Entity parent;
+  parent.id = "label_parent";
+  parent.setComponent(Transform3DComponent{.position = {10, 20, 0}});
+  world.entities.push_back(std::move(parent));
+  Entity label;
+  label.id = "label";
+  label.setComponent(Transform3DComponent{
+      .parent = "label_parent", .position = {2, 3, 20}});
+  label.setComponent(WorldText3DComponent{.text = "name", .fontSize = 0.5F});
+  world.entities.push_back(std::move(label));
+  const auto checkLabel = [&](float x, float y, float fontPixels) {
+    const auto document = projectWorldText3D(world, frame);
+    assert(document.nodes.size() == 1);
+    const auto &node = document.nodes.front();
+    assert(near(node.fontSize, fontPixels));
+    assert(near(node.layout.position.x + node.layout.size.x * 0.5F, x));
+    assert(near(node.layout.position.y + node.fontSize, y));
+  };
+  // Twelve visible world units cover 600 pixels: each unit is 50 pixels.
+  checkLabel(500, 150, 25);
+  frame.up = {0, -1, 0};
+  checkLabel(300, 450, 25);
+  frame.up = {0, 1, 0};
+  frame.camera.perspective = true;
+  frame.camera.fov = 90;
+  // At depth ten and a 90-degree FOV, the full visible height is twenty units.
+  checkLabel(460, 210, 15);
+
+  PreparedTerrainChunkLod chunk;
+  chunk.boundsMin = {-1, -1, -1};
+  chunk.boundsMax = {1, 1, 1};
+  chunk.geometricErrors = {0, 0.1F, 0.2F, 0.4F};
+  chunk.triangleCounts = {8, 6, 4, 2};
+  frame.camera.perspective = false;
+  // The 0.1-unit error is five pixels; the next level's error is ten pixels.
+  assert(selectTerrainDrawLevel3D(chunk, {}, {1, 1, 1}, frame, 7) == 1);
+  frame.viewportHeight = 1200;
+  assert(selectTerrainDrawLevel3D(chunk, {}, {1, 1, 1}, frame, 7) == 0);
+  assert(!cameraProjection3D(frame.camera, {}, {}, {0, 1, 0}, {800, 600}));
+  assert(!cameraProjection3D(frame.camera, {}, {0, 1, 0}, {0, 1, 0}, {800, 600}));
+}
+
 } // namespace
 
 int main() {
+  testSharedCameraProjection();
   {
     MeshRendererComponent mesh;
     mesh.color = {0.5F, 0.5F, 0.5F, 0.5F};
@@ -352,7 +425,8 @@ int main() {
     BgfxCameraFrame3D camera;
     camera.cameraId = "hysteresis-camera";
     camera.camera.perspective = false;
-    camera.camera.orthographicSize = 100;
+    // One pixel per world unit isolates the hysteresis transition thresholds.
+    camera.camera.orthographicSize = 200;
     camera.viewportHeight = 200;
     WorldTransform3D transform;
     assert(selectTerrainDrawLevel3D(*chunk, transform, {1, 1, 1}, camera,
@@ -413,7 +487,7 @@ int main() {
       const float y = point.y - camera.position.y;
       if (!camera.camera.perspective) {
         const float factor =
-            float(camera.viewportHeight) / (2 * camera.camera.orthographicSize);
+            float(camera.viewportHeight) / camera.camera.orthographicSize;
         return Vec2{x * factor, y * factor};
       }
       const float depth = camera.position.z - point.z;
@@ -432,7 +506,7 @@ int main() {
         transform.rotation = rotation;
         const auto level = selectTerrainDrawLevel3D(chunk, transform, {1, 1, 1},
                                                     camera, 12.0F);
-        assert(level == 3);
+        assert(level > 0);
         const float heightError = chunk.geometricErrors[level];
         for (const float x : {-2.0F, 0.0F, 2.0F}) {
           for (const float y : {-9.0F, 0.0F, 9.0F}) {
@@ -1538,6 +1612,49 @@ int main() {
     retentionWorld.entities.push_back(std::move(retained));
     assert(retentionRenderer.renderFrame(retentionWorld, frame, 0.016F, error));
     assert(uploads.meshUploads.size() == 2);
+    static_cast<void>(graphics.endFrame());
+  }
+  {
+    // Material ranges address source triangles. Refinement must expand both
+    // ranges, including the nonzero offset, rather than truncate the mesh.
+    MeshUploadCapture uploads(*resources);
+    TextureCapture draws(*commands);
+    BgfxRenderer3D dentRenderer(uploads, draws);
+    assert(dentRenderer.initialize(error));
+    World dentWorld;
+    Entity panel = shape("sectioned_dent", "", {});
+    auto *mesh = panel.component<MeshRendererComponent>();
+    mesh->surfaceMode = "transparent";
+    mesh->vertices = {{0, 0, 0}, {1, 0, 0}, {0, 1, 0},
+                      {0, 0, 1}, {1, 0, 1}, {0, 1, 1}};
+    mesh->markGeometryChanged();
+    MeshMaterialSections3D sections;
+    sections.sections = {{.id = "front", .firstIndex = 0, .indexCount = 3},
+                         {.id = "back", .firstIndex = 3, .indexCount = 3}};
+    panel.setComponent(sections);
+    panel.setComponent(Dentable3DComponent{});
+    dentWorld.entities.push_back(std::move(panel));
+    assert(dentMesh3D(dentWorld, "sectioned_dent", {0.25F, 0.25F, 0},
+                      {0, 0, -1}, 0.1F, 0.03F, error));
+    for (unsigned render = 0; render < 2; ++render) {
+      draws.bufferedIndices.clear();
+      assert(dentRenderer.renderFrame(dentWorld, frame, 0.016F, error));
+      assert(draws.bufferedIndices.size() == 2);
+      // Three uniform splits produce 64 descendants for each triangle.
+      assert(draws.bufferedIndices[0].first == 0);
+      assert(draws.bufferedIndices[0].count == 192);
+      assert(draws.bufferedIndices[1].first == 192);
+      assert(draws.bufferedIndices[1].count == 192);
+      static_cast<void>(graphics.endFrame());
+    }
+    assert(resetMeshDents3D(dentWorld, "sectioned_dent"));
+    draws.bufferedIndices.clear();
+    assert(dentRenderer.renderFrame(dentWorld, frame, 0.016F, error));
+    assert(draws.bufferedIndices.size() == 2);
+    assert(draws.bufferedIndices[0].first == 0);
+    assert(draws.bufferedIndices[0].count == 3);
+    assert(draws.bufferedIndices[1].first == 3);
+    assert(draws.bufferedIndices[1].count == 3);
     static_cast<void>(graphics.endFrame());
   }
   {

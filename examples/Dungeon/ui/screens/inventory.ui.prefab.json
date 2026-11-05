@@ -1,0 +1,1601 @@
+{
+  "format_version": 1,
+  "id": "ui-prefab://screens/inventory",
+  "root": {
+    "id": "bag",
+    "type": "container",
+    "position": [
+      0,
+      0
+    ],
+    "size": [
+      960,
+      640
+    ],
+    "visible": false,
+    "blocks_pointer": true,
+    "layer": 200,
+    "children": [
+      {
+        "id": "bag_veil",
+        "type": "rect",
+        "position": [
+          0,
+          0
+        ],
+        "size": [
+          960,
+          640
+        ],
+        "background_color": "#080b1680",
+        "layer": 200
+      },
+      {
+        "id": "bag_frame",
+        "prefab": "ui-prefab://kit/frame",
+        "arguments": {
+          "size": [
+            620,
+            396
+          ],
+          "layer": 200
+        },
+        "overrides": {
+          "$root": {
+            "position": [
+              24,
+              148
+            ],
+            "nine_slice_scale": 1.5
+          }
+        }
+      },
+      {
+        "id": "bag_title",
+        "type": "label",
+        "position": [
+          46,
+          168
+        ],
+        "size": [
+          460,
+          28
+        ],
+        "text": "PACK & CHARACTER",
+        "font": "asset://dungeon/ui_bold",
+        "font_size": 22,
+        "text_color": "#f7d68f",
+        "layer": 201,
+        "text_wrap": "word"
+      },
+      {
+        "id": "bag_close",
+        "prefab": "ui-prefab://kit/button",
+        "arguments": {
+          "label": "CLOSE [I]",
+          "action": "dungeon_inventory",
+          "size": [
+            92,
+            30
+          ],
+          "layer": 202
+        },
+        "overrides": {
+          "$root": {
+            "position": [
+              528,
+              165
+            ],
+            "nine_slice_scale": 1.5
+          },
+          "hit": {
+            "font_size": 16,
+            "font": "asset://dungeon/ui_bold"
+          }
+        }
+      },
+      {
+        "id": "bag_capacity",
+        "type": "label",
+        "position": [
+          46,
+          200
+        ],
+        "size": [
+          250,
+          20
+        ],
+        "text": "12 SLOTS",
+        "font": "asset://dungeon/ui_font",
+        "font_size": 13,
+        "text_color": "#bccae2",
+        "layer": 201,
+        "text_wrap": "word"
+      },
+      {
+        "id": "character_stats",
+        "type": "label",
+        "position": [
+          310,
+          208
+        ],
+        "size": [
+          310,
+          70
+        ],
+        "text": "",
+        "font": "asset://dungeon/ui_font",
+        "font_size": 16,
+        "text_color": "#e5e5ed",
+        "layer": 201,
+        "text_wrap": "word"
+      },
+      {
+        "id": "item_name",
+        "type": "label",
+        "position": [
+          310,
+          343
+        ],
+        "size": [
+          310,
+          25
+        ],
+        "text": "",
+        "font": "asset://dungeon/ui_font",
+        "font_size": 20,
+        "text_color": "#f7d68f",
+        "layer": 201,
+        "text_wrap": "word"
+      },
+      {
+        "id": "item_description",
+        "type": "label",
+        "position": [
+          310,
+          374
+        ],
+        "size": [
+          310,
+          63
+        ],
+        "text": "",
+        "font": "asset://dungeon/ui_font",
+        "font_size": 16,
+        "text_color": "#e5e5ed",
+        "layer": 201,
+        "text_wrap": "word"
+      },
+      {
+        "id": "bag_message",
+        "type": "label",
+        "position": [
+          46,
+          500
+        ],
+        "size": [
+          574,
+          28
+        ],
+        "text": "",
+        "font": "asset://dungeon/ui_font",
+        "font_size": 14,
+        "text_color": "#c8e7e0",
+        "layer": 201,
+        "text_wrap": "word"
+      },
+      {
+        "id": "item_use",
+        "prefab": "ui-prefab://kit/button",
+        "arguments": {
+          "label": "EQUIP / USE",
+          "action": "dungeon_item_use",
+          "size": [
+            96,
+            34
+          ],
+          "layer": 202
+        },
+        "overrides": {
+          "$root": {
+            "position": [
+              310,
+              451
+            ],
+            "nine_slice_scale": 1.5
+          },
+          "hit": {
+            "font_size": 16,
+            "font": "asset://dungeon/ui_bold"
+          }
+        }
+      },
+      {
+        "id": "item_drop",
+        "prefab": "ui-prefab://kit/button",
+        "arguments": {
+          "label": "DROP ONE",
+          "action": "dungeon_item_drop",
+          "size": [
+            96,
+            34
+          ],
+          "layer": 202
+        },
+        "overrides": {
+          "$root": {
+            "position": [
+              414,
+              451
+            ],
+            "nine_slice_scale": 1.5
+          },
+          "hit": {
+            "font_size": 16,
+            "font": "asset://dungeon/ui_bold"
+          }
+        }
+      },
+      {
+        "id": "item_sell",
+        "prefab": "ui-prefab://kit/button",
+        "arguments": {
+          "label": "SELL ONE",
+          "action": "dungeon_item_sell",
+          "size": [
+            96,
+            34
+          ],
+          "layer": 202
+        },
+        "overrides": {
+          "$root": {
+            "position": [
+              518,
+              451
+            ],
+            "nine_slice_scale": 1.5
+          },
+          "hit": {
+            "font_size": 16,
+            "font": "asset://dungeon/ui_bold"
+          }
+        }
+      },
+      {
+        "id": "shop_stock",
+        "type": "container",
+        "position": [
+          310,
+          210
+        ],
+        "size": [
+          310,
+          228
+        ],
+        "visible": false,
+        "layer": 201,
+        "children": [
+          {
+            "id": "shop_item_1",
+            "prefab": "ui-prefab://kit/button",
+            "arguments": {
+              "label": "",
+              "action": "dungeon_buy",
+              "size": [
+                146,
+                62
+              ],
+              "layer": 202
+            },
+            "overrides": {
+              "$root": {
+                "position": [
+                  0,
+                  0
+                ],
+                "nine_slice_scale": 1.5
+              },
+              "hit": {
+                "font_size": 16,
+                "font": "asset://dungeon/ui_bold"
+              }
+            }
+          },
+          {
+            "id": "shop_item_2",
+            "prefab": "ui-prefab://kit/button",
+            "arguments": {
+              "label": "",
+              "action": "dungeon_buy",
+              "size": [
+                146,
+                62
+              ],
+              "layer": 202
+            },
+            "overrides": {
+              "$root": {
+                "position": [
+                  155,
+                  0
+                ],
+                "nine_slice_scale": 1.5
+              },
+              "hit": {
+                "font_size": 16,
+                "font": "asset://dungeon/ui_bold"
+              }
+            }
+          },
+          {
+            "id": "shop_item_3",
+            "prefab": "ui-prefab://kit/button",
+            "arguments": {
+              "label": "",
+              "action": "dungeon_buy",
+              "size": [
+                146,
+                62
+              ],
+              "layer": 202
+            },
+            "overrides": {
+              "$root": {
+                "position": [
+                  0,
+                  74
+                ],
+                "nine_slice_scale": 1.5
+              },
+              "hit": {
+                "font_size": 16,
+                "font": "asset://dungeon/ui_bold"
+              }
+            }
+          },
+          {
+            "id": "shop_item_4",
+            "prefab": "ui-prefab://kit/button",
+            "arguments": {
+              "label": "",
+              "action": "dungeon_buy",
+              "size": [
+                146,
+                62
+              ],
+              "layer": 202
+            },
+            "overrides": {
+              "$root": {
+                "position": [
+                  155,
+                  74
+                ],
+                "nine_slice_scale": 1.5
+              },
+              "hit": {
+                "font_size": 16,
+                "font": "asset://dungeon/ui_bold"
+              }
+            }
+          },
+          {
+            "id": "shop_item_5",
+            "prefab": "ui-prefab://kit/button",
+            "arguments": {
+              "label": "",
+              "action": "dungeon_buy",
+              "size": [
+                146,
+                62
+              ],
+              "layer": 202
+            },
+            "overrides": {
+              "$root": {
+                "position": [
+                  0,
+                  148
+                ],
+                "nine_slice_scale": 1.5
+              },
+              "hit": {
+                "font_size": 16,
+                "font": "asset://dungeon/ui_bold"
+              }
+            }
+          },
+          {
+            "id": "shop_item_6",
+            "prefab": "ui-prefab://kit/button",
+            "arguments": {
+              "label": "",
+              "action": "dungeon_buy",
+              "size": [
+                146,
+                62
+              ],
+              "layer": 202
+            },
+            "overrides": {
+              "$root": {
+                "position": [
+                  155,
+                  148
+                ],
+                "nine_slice_scale": 1.5
+              },
+              "hit": {
+                "font_size": 16,
+                "font": "asset://dungeon/ui_bold"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": "equipment_panel",
+        "type": "container",
+        "position": [
+          310,
+          279
+        ],
+        "size": [
+          310,
+          54
+        ],
+        "layer": 201,
+        "children": [
+          {
+            "id": "equipped_weapon",
+            "type": "image",
+            "position": [
+              0,
+              0
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "texture": "asset://dungeon/buttons",
+            "source_position": [
+              380,
+              224
+            ],
+            "source_size": [
+              24,
+              24
+            ],
+            "layer": 201
+          },
+          {
+            "id": "equipped_weapon_name",
+            "type": "label",
+            "position": [
+              36,
+              0
+            ],
+            "size": [
+              66,
+              48
+            ],
+            "text": "WEAPON",
+            "font": "asset://dungeon/ui_font",
+            "font_size": 11,
+            "text_color": "#e5e5ed",
+            "layer": 201,
+            "text_wrap": "word"
+          },
+          {
+            "id": "equipped_armor",
+            "type": "image",
+            "position": [
+              104,
+              0
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "texture": "asset://dungeon/buttons",
+            "source_position": [
+              380,
+              224
+            ],
+            "source_size": [
+              24,
+              24
+            ],
+            "layer": 201
+          },
+          {
+            "id": "equipped_armor_name",
+            "type": "label",
+            "position": [
+              140,
+              0
+            ],
+            "size": [
+              66,
+              48
+            ],
+            "text": "ARMOR",
+            "font": "asset://dungeon/ui_font",
+            "font_size": 11,
+            "text_color": "#e5e5ed",
+            "layer": 201,
+            "text_wrap": "word"
+          },
+          {
+            "id": "equipped_charm",
+            "type": "image",
+            "position": [
+              208,
+              0
+            ],
+            "size": [
+              32,
+              32
+            ],
+            "texture": "asset://dungeon/buttons",
+            "source_position": [
+              380,
+              224
+            ],
+            "source_size": [
+              24,
+              24
+            ],
+            "layer": 201
+          },
+          {
+            "id": "equipped_charm_name",
+            "type": "label",
+            "position": [
+              244,
+              0
+            ],
+            "size": [
+              66,
+              48
+            ],
+            "text": "CHARM",
+            "font": "asset://dungeon/ui_font",
+            "font_size": 11,
+            "text_color": "#e5e5ed",
+            "layer": 201,
+            "text_wrap": "word"
+          }
+        ]
+      },
+      {
+        "id": "bag_slot_1",
+        "prefab": "ui-prefab://kit/button",
+        "arguments": {
+          "label": "",
+          "action": "dungeon_item_select",
+          "size": [
+            52,
+            52
+          ],
+          "layer": 201
+        },
+        "overrides": {
+          "$root": {
+            "position": [
+              46,
+              234
+            ],
+            "nine_slice_scale": 1.5
+          },
+          "hit": {
+            "font_size": 16,
+            "font": "asset://dungeon/ui_bold"
+          }
+        }
+      },
+      {
+        "id": "bag_slot_1_icon",
+        "type": "image",
+        "position": [
+          55,
+          243
+        ],
+        "size": [
+          34,
+          34
+        ],
+        "texture": "asset://dungeon/buttons",
+        "source_position": [
+          380,
+          224
+        ],
+        "source_size": [
+          24,
+          24
+        ],
+        "layer": 202
+      },
+      {
+        "id": "bag_slot_1_count",
+        "type": "label",
+        "position": [
+          82,
+          270
+        ],
+        "size": [
+          16,
+          16
+        ],
+        "text": "",
+        "font": "asset://dungeon/ui_font",
+        "font_size": 11,
+        "text_color": "#ffffff",
+        "layer": 203,
+        "text_wrap": "word"
+      },
+      {
+        "id": "bag_slot_1_equipped",
+        "type": "label",
+        "position": [
+          46,
+          288
+        ],
+        "size": [
+          56,
+          16
+        ],
+        "text": "",
+        "font": "asset://dungeon/ui_font",
+        "font_size": 10,
+        "text_color": "#f7d68f",
+        "layer": 202,
+        "text_wrap": "word"
+      },
+      {
+        "id": "bag_slot_2",
+        "prefab": "ui-prefab://kit/button",
+        "arguments": {
+          "label": "",
+          "action": "dungeon_item_select",
+          "size": [
+            52,
+            52
+          ],
+          "layer": 201
+        },
+        "overrides": {
+          "$root": {
+            "position": [
+              106,
+              234
+            ],
+            "nine_slice_scale": 1.5
+          },
+          "hit": {
+            "font_size": 16,
+            "font": "asset://dungeon/ui_bold"
+          }
+        }
+      },
+      {
+        "id": "bag_slot_2_icon",
+        "type": "image",
+        "position": [
+          115,
+          243
+        ],
+        "size": [
+          34,
+          34
+        ],
+        "texture": "asset://dungeon/buttons",
+        "source_position": [
+          380,
+          224
+        ],
+        "source_size": [
+          24,
+          24
+        ],
+        "layer": 202
+      },
+      {
+        "id": "bag_slot_2_count",
+        "type": "label",
+        "position": [
+          142,
+          270
+        ],
+        "size": [
+          16,
+          16
+        ],
+        "text": "",
+        "font": "asset://dungeon/ui_font",
+        "font_size": 11,
+        "text_color": "#ffffff",
+        "layer": 203,
+        "text_wrap": "word"
+      },
+      {
+        "id": "bag_slot_2_equipped",
+        "type": "label",
+        "position": [
+          106,
+          288
+        ],
+        "size": [
+          56,
+          16
+        ],
+        "text": "",
+        "font": "asset://dungeon/ui_font",
+        "font_size": 10,
+        "text_color": "#f7d68f",
+        "layer": 202,
+        "text_wrap": "word"
+      },
+      {
+        "id": "bag_slot_3",
+        "prefab": "ui-prefab://kit/button",
+        "arguments": {
+          "label": "",
+          "action": "dungeon_item_select",
+          "size": [
+            52,
+            52
+          ],
+          "layer": 201
+        },
+        "overrides": {
+          "$root": {
+            "position": [
+              166,
+              234
+            ],
+            "nine_slice_scale": 1.5
+          },
+          "hit": {
+            "font_size": 16,
+            "font": "asset://dungeon/ui_bold"
+          }
+        }
+      },
+      {
+        "id": "bag_slot_3_icon",
+        "type": "image",
+        "position": [
+          175,
+          243
+        ],
+        "size": [
+          34,
+          34
+        ],
+        "texture": "asset://dungeon/buttons",
+        "source_position": [
+          380,
+          224
+        ],
+        "source_size": [
+          24,
+          24
+        ],
+        "layer": 202
+      },
+      {
+        "id": "bag_slot_3_count",
+        "type": "label",
+        "position": [
+          202,
+          270
+        ],
+        "size": [
+          16,
+          16
+        ],
+        "text": "",
+        "font": "asset://dungeon/ui_font",
+        "font_size": 11,
+        "text_color": "#ffffff",
+        "layer": 203,
+        "text_wrap": "word"
+      },
+      {
+        "id": "bag_slot_3_equipped",
+        "type": "label",
+        "position": [
+          166,
+          288
+        ],
+        "size": [
+          56,
+          16
+        ],
+        "text": "",
+        "font": "asset://dungeon/ui_font",
+        "font_size": 10,
+        "text_color": "#f7d68f",
+        "layer": 202,
+        "text_wrap": "word"
+      },
+      {
+        "id": "bag_slot_4",
+        "prefab": "ui-prefab://kit/button",
+        "arguments": {
+          "label": "",
+          "action": "dungeon_item_select",
+          "size": [
+            52,
+            52
+          ],
+          "layer": 201
+        },
+        "overrides": {
+          "$root": {
+            "position": [
+              226,
+              234
+            ],
+            "nine_slice_scale": 1.5
+          },
+          "hit": {
+            "font_size": 16,
+            "font": "asset://dungeon/ui_bold"
+          }
+        }
+      },
+      {
+        "id": "bag_slot_4_icon",
+        "type": "image",
+        "position": [
+          235,
+          243
+        ],
+        "size": [
+          34,
+          34
+        ],
+        "texture": "asset://dungeon/buttons",
+        "source_position": [
+          380,
+          224
+        ],
+        "source_size": [
+          24,
+          24
+        ],
+        "layer": 202
+      },
+      {
+        "id": "bag_slot_4_count",
+        "type": "label",
+        "position": [
+          262,
+          270
+        ],
+        "size": [
+          16,
+          16
+        ],
+        "text": "",
+        "font": "asset://dungeon/ui_font",
+        "font_size": 11,
+        "text_color": "#ffffff",
+        "layer": 203,
+        "text_wrap": "word"
+      },
+      {
+        "id": "bag_slot_4_equipped",
+        "type": "label",
+        "position": [
+          226,
+          288
+        ],
+        "size": [
+          56,
+          16
+        ],
+        "text": "",
+        "font": "asset://dungeon/ui_font",
+        "font_size": 10,
+        "text_color": "#f7d68f",
+        "layer": 202,
+        "text_wrap": "word"
+      },
+      {
+        "id": "bag_slot_5",
+        "prefab": "ui-prefab://kit/button",
+        "arguments": {
+          "label": "",
+          "action": "dungeon_item_select",
+          "size": [
+            52,
+            52
+          ],
+          "layer": 201
+        },
+        "overrides": {
+          "$root": {
+            "position": [
+              46,
+              312
+            ],
+            "nine_slice_scale": 1.5
+          },
+          "hit": {
+            "font_size": 16,
+            "font": "asset://dungeon/ui_bold"
+          }
+        }
+      },
+      {
+        "id": "bag_slot_5_icon",
+        "type": "image",
+        "position": [
+          55,
+          321
+        ],
+        "size": [
+          34,
+          34
+        ],
+        "texture": "asset://dungeon/buttons",
+        "source_position": [
+          380,
+          224
+        ],
+        "source_size": [
+          24,
+          24
+        ],
+        "layer": 202
+      },
+      {
+        "id": "bag_slot_5_count",
+        "type": "label",
+        "position": [
+          82,
+          348
+        ],
+        "size": [
+          16,
+          16
+        ],
+        "text": "",
+        "font": "asset://dungeon/ui_font",
+        "font_size": 11,
+        "text_color": "#ffffff",
+        "layer": 203,
+        "text_wrap": "word"
+      },
+      {
+        "id": "bag_slot_5_equipped",
+        "type": "label",
+        "position": [
+          46,
+          366
+        ],
+        "size": [
+          56,
+          16
+        ],
+        "text": "",
+        "font": "asset://dungeon/ui_font",
+        "font_size": 10,
+        "text_color": "#f7d68f",
+        "layer": 202,
+        "text_wrap": "word"
+      },
+      {
+        "id": "bag_slot_6",
+        "prefab": "ui-prefab://kit/button",
+        "arguments": {
+          "label": "",
+          "action": "dungeon_item_select",
+          "size": [
+            52,
+            52
+          ],
+          "layer": 201
+        },
+        "overrides": {
+          "$root": {
+            "position": [
+              106,
+              312
+            ],
+            "nine_slice_scale": 1.5
+          },
+          "hit": {
+            "font_size": 16,
+            "font": "asset://dungeon/ui_bold"
+          }
+        }
+      },
+      {
+        "id": "bag_slot_6_icon",
+        "type": "image",
+        "position": [
+          115,
+          321
+        ],
+        "size": [
+          34,
+          34
+        ],
+        "texture": "asset://dungeon/buttons",
+        "source_position": [
+          380,
+          224
+        ],
+        "source_size": [
+          24,
+          24
+        ],
+        "layer": 202
+      },
+      {
+        "id": "bag_slot_6_count",
+        "type": "label",
+        "position": [
+          142,
+          348
+        ],
+        "size": [
+          16,
+          16
+        ],
+        "text": "",
+        "font": "asset://dungeon/ui_font",
+        "font_size": 11,
+        "text_color": "#ffffff",
+        "layer": 203,
+        "text_wrap": "word"
+      },
+      {
+        "id": "bag_slot_6_equipped",
+        "type": "label",
+        "position": [
+          106,
+          366
+        ],
+        "size": [
+          56,
+          16
+        ],
+        "text": "",
+        "font": "asset://dungeon/ui_font",
+        "font_size": 10,
+        "text_color": "#f7d68f",
+        "layer": 202,
+        "text_wrap": "word"
+      },
+      {
+        "id": "bag_slot_7",
+        "prefab": "ui-prefab://kit/button",
+        "arguments": {
+          "label": "",
+          "action": "dungeon_item_select",
+          "size": [
+            52,
+            52
+          ],
+          "layer": 201
+        },
+        "overrides": {
+          "$root": {
+            "position": [
+              166,
+              312
+            ],
+            "nine_slice_scale": 1.5
+          },
+          "hit": {
+            "font_size": 16,
+            "font": "asset://dungeon/ui_bold"
+          }
+        }
+      },
+      {
+        "id": "bag_slot_7_icon",
+        "type": "image",
+        "position": [
+          175,
+          321
+        ],
+        "size": [
+          34,
+          34
+        ],
+        "texture": "asset://dungeon/buttons",
+        "source_position": [
+          380,
+          224
+        ],
+        "source_size": [
+          24,
+          24
+        ],
+        "layer": 202
+      },
+      {
+        "id": "bag_slot_7_count",
+        "type": "label",
+        "position": [
+          202,
+          348
+        ],
+        "size": [
+          16,
+          16
+        ],
+        "text": "",
+        "font": "asset://dungeon/ui_font",
+        "font_size": 11,
+        "text_color": "#ffffff",
+        "layer": 203,
+        "text_wrap": "word"
+      },
+      {
+        "id": "bag_slot_7_equipped",
+        "type": "label",
+        "position": [
+          166,
+          366
+        ],
+        "size": [
+          56,
+          16
+        ],
+        "text": "",
+        "font": "asset://dungeon/ui_font",
+        "font_size": 10,
+        "text_color": "#f7d68f",
+        "layer": 202,
+        "text_wrap": "word"
+      },
+      {
+        "id": "bag_slot_8",
+        "prefab": "ui-prefab://kit/button",
+        "arguments": {
+          "label": "",
+          "action": "dungeon_item_select",
+          "size": [
+            52,
+            52
+          ],
+          "layer": 201
+        },
+        "overrides": {
+          "$root": {
+            "position": [
+              226,
+              312
+            ],
+            "nine_slice_scale": 1.5
+          },
+          "hit": {
+            "font_size": 16,
+            "font": "asset://dungeon/ui_bold"
+          }
+        }
+      },
+      {
+        "id": "bag_slot_8_icon",
+        "type": "image",
+        "position": [
+          235,
+          321
+        ],
+        "size": [
+          34,
+          34
+        ],
+        "texture": "asset://dungeon/buttons",
+        "source_position": [
+          380,
+          224
+        ],
+        "source_size": [
+          24,
+          24
+        ],
+        "layer": 202
+      },
+      {
+        "id": "bag_slot_8_count",
+        "type": "label",
+        "position": [
+          262,
+          348
+        ],
+        "size": [
+          16,
+          16
+        ],
+        "text": "",
+        "font": "asset://dungeon/ui_font",
+        "font_size": 11,
+        "text_color": "#ffffff",
+        "layer": 203,
+        "text_wrap": "word"
+      },
+      {
+        "id": "bag_slot_8_equipped",
+        "type": "label",
+        "position": [
+          226,
+          366
+        ],
+        "size": [
+          56,
+          16
+        ],
+        "text": "",
+        "font": "asset://dungeon/ui_font",
+        "font_size": 10,
+        "text_color": "#f7d68f",
+        "layer": 202,
+        "text_wrap": "word"
+      },
+      {
+        "id": "bag_slot_9",
+        "prefab": "ui-prefab://kit/button",
+        "arguments": {
+          "label": "",
+          "action": "dungeon_item_select",
+          "size": [
+            52,
+            52
+          ],
+          "layer": 201
+        },
+        "overrides": {
+          "$root": {
+            "position": [
+              46,
+              390
+            ],
+            "nine_slice_scale": 1.5
+          },
+          "hit": {
+            "font_size": 16,
+            "font": "asset://dungeon/ui_bold"
+          }
+        }
+      },
+      {
+        "id": "bag_slot_9_icon",
+        "type": "image",
+        "position": [
+          55,
+          399
+        ],
+        "size": [
+          34,
+          34
+        ],
+        "texture": "asset://dungeon/buttons",
+        "source_position": [
+          380,
+          224
+        ],
+        "source_size": [
+          24,
+          24
+        ],
+        "layer": 202
+      },
+      {
+        "id": "bag_slot_9_count",
+        "type": "label",
+        "position": [
+          82,
+          426
+        ],
+        "size": [
+          16,
+          16
+        ],
+        "text": "",
+        "font": "asset://dungeon/ui_font",
+        "font_size": 11,
+        "text_color": "#ffffff",
+        "layer": 203,
+        "text_wrap": "word"
+      },
+      {
+        "id": "bag_slot_9_equipped",
+        "type": "label",
+        "position": [
+          46,
+          444
+        ],
+        "size": [
+          56,
+          16
+        ],
+        "text": "",
+        "font": "asset://dungeon/ui_font",
+        "font_size": 10,
+        "text_color": "#f7d68f",
+        "layer": 202,
+        "text_wrap": "word"
+      },
+      {
+        "id": "bag_slot_10",
+        "prefab": "ui-prefab://kit/button",
+        "arguments": {
+          "label": "",
+          "action": "dungeon_item_select",
+          "size": [
+            52,
+            52
+          ],
+          "layer": 201
+        },
+        "overrides": {
+          "$root": {
+            "position": [
+              106,
+              390
+            ],
+            "nine_slice_scale": 1.5
+          },
+          "hit": {
+            "font_size": 16,
+            "font": "asset://dungeon/ui_bold"
+          }
+        }
+      },
+      {
+        "id": "bag_slot_10_icon",
+        "type": "image",
+        "position": [
+          115,
+          399
+        ],
+        "size": [
+          34,
+          34
+        ],
+        "texture": "asset://dungeon/buttons",
+        "source_position": [
+          380,
+          224
+        ],
+        "source_size": [
+          24,
+          24
+        ],
+        "layer": 202
+      },
+      {
+        "id": "bag_slot_10_count",
+        "type": "label",
+        "position": [
+          142,
+          426
+        ],
+        "size": [
+          16,
+          16
+        ],
+        "text": "",
+        "font": "asset://dungeon/ui_font",
+        "font_size": 11,
+        "text_color": "#ffffff",
+        "layer": 203,
+        "text_wrap": "word"
+      },
+      {
+        "id": "bag_slot_10_equipped",
+        "type": "label",
+        "position": [
+          106,
+          444
+        ],
+        "size": [
+          56,
+          16
+        ],
+        "text": "",
+        "font": "asset://dungeon/ui_font",
+        "font_size": 10,
+        "text_color": "#f7d68f",
+        "layer": 202,
+        "text_wrap": "word"
+      },
+      {
+        "id": "bag_slot_11",
+        "prefab": "ui-prefab://kit/button",
+        "arguments": {
+          "label": "",
+          "action": "dungeon_item_select",
+          "size": [
+            52,
+            52
+          ],
+          "layer": 201
+        },
+        "overrides": {
+          "$root": {
+            "position": [
+              166,
+              390
+            ],
+            "nine_slice_scale": 1.5
+          },
+          "hit": {
+            "font_size": 16,
+            "font": "asset://dungeon/ui_bold"
+          }
+        }
+      },
+      {
+        "id": "bag_slot_11_icon",
+        "type": "image",
+        "position": [
+          175,
+          399
+        ],
+        "size": [
+          34,
+          34
+        ],
+        "texture": "asset://dungeon/buttons",
+        "source_position": [
+          380,
+          224
+        ],
+        "source_size": [
+          24,
+          24
+        ],
+        "layer": 202
+      },
+      {
+        "id": "bag_slot_11_count",
+        "type": "label",
+        "position": [
+          202,
+          426
+        ],
+        "size": [
+          16,
+          16
+        ],
+        "text": "",
+        "font": "asset://dungeon/ui_font",
+        "font_size": 11,
+        "text_color": "#ffffff",
+        "layer": 203,
+        "text_wrap": "word"
+      },
+      {
+        "id": "bag_slot_11_equipped",
+        "type": "label",
+        "position": [
+          166,
+          444
+        ],
+        "size": [
+          56,
+          16
+        ],
+        "text": "",
+        "font": "asset://dungeon/ui_font",
+        "font_size": 10,
+        "text_color": "#f7d68f",
+        "layer": 202,
+        "text_wrap": "word"
+      },
+      {
+        "id": "bag_slot_12",
+        "prefab": "ui-prefab://kit/button",
+        "arguments": {
+          "label": "",
+          "action": "dungeon_item_select",
+          "size": [
+            52,
+            52
+          ],
+          "layer": 201
+        },
+        "overrides": {
+          "$root": {
+            "position": [
+              226,
+              390
+            ],
+            "nine_slice_scale": 1.5
+          },
+          "hit": {
+            "font_size": 16,
+            "font": "asset://dungeon/ui_bold"
+          }
+        }
+      },
+      {
+        "id": "bag_slot_12_icon",
+        "type": "image",
+        "position": [
+          235,
+          399
+        ],
+        "size": [
+          34,
+          34
+        ],
+        "texture": "asset://dungeon/buttons",
+        "source_position": [
+          380,
+          224
+        ],
+        "source_size": [
+          24,
+          24
+        ],
+        "layer": 202
+      },
+      {
+        "id": "bag_slot_12_count",
+        "type": "label",
+        "position": [
+          262,
+          426
+        ],
+        "size": [
+          16,
+          16
+        ],
+        "text": "",
+        "font": "asset://dungeon/ui_font",
+        "font_size": 11,
+        "text_color": "#ffffff",
+        "layer": 203,
+        "text_wrap": "word"
+      },
+      {
+        "id": "bag_slot_12_equipped",
+        "type": "label",
+        "position": [
+          226,
+          444
+        ],
+        "size": [
+          56,
+          16
+        ],
+        "text": "",
+        "font": "asset://dungeon/ui_font",
+        "font_size": 10,
+        "text_color": "#f7d68f",
+        "layer": 202,
+        "text_wrap": "word"
+      },
+      {
+        "id": "journal_text",
+        "type": "label",
+        "position": [
+          46,
+          218
+        ],
+        "size": [
+          574,
+          270
+        ],
+        "text": "",
+        "font": "asset://dungeon/ui_font",
+        "font_size": 18,
+        "text_color": "#f0e2bd",
+        "text_wrap": "word",
+        "visible": false,
+        "layer": 202
+      }
+    ]
+  }
+}

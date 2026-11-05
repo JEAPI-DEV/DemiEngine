@@ -2,6 +2,8 @@
 -- Native module: require("demi.physics.rigidbody2d"). Annotations only.
 ---@class Rigidbody2DService
 local Rigidbody2D = {}
+---Nonzero velocity, impulse, force and torque commands wake a sleeping body.
+---Zero velocity commands preserve its sleeping state.
 ---@param entity_id string
 ---@return number|nil x
 ---@return number|nil y
@@ -58,11 +60,13 @@ function Rigidbody2D.set_report_contacts(entity_id, report_contacts) end
 ---@param y number
 ---@param fixed_dt? number Seconds; defaults to 1/60. Pass the actual fixed timestep explicitly.
 ---@return boolean
+---The target is world-space, including for bodies under a Transform2D parent.
 function Rigidbody2D.move_kinematic(entity_id, x, y, fixed_dt) end
 ---@param entity_id string
 ---@param motion_x number
 ---@param motion_y number
 ---@return number?, number?
+---Requested and returned motion are world-space displacements. Authored parent and scale are preserved.
 function Rigidbody2D.move_and_slide(entity_id, motion_x, motion_y) end
 
 return Rigidbody2D

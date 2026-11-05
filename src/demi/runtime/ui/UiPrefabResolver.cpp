@@ -2,6 +2,7 @@
 #include "demi/assets/PackageContent.h"
 #include "demi/filesystem/ProjectPaths.h"
 #include "demi/packages/PackageManifest.h"
+#include "demi/runtime/ui/UiImageSkin.h"
 #include "demi/runtime/ui/UiPrefabHierarchy.h"
 #include "demi/runtime/ui/UiPrefabOverrides.h"
 
@@ -567,6 +568,15 @@ void collectIds(const Json &node, std::unordered_set<std::string> &ids,
   if (!node.is_object())
     return;
   validateActions(node, path, diagnostics);
+  if (!parseUiImageSkin(node)) {
+    diagnostics.push_back(
+        {.severity = Severity::Error,
+         .code = "UI_IMAGE_SKIN_INVALID",
+         .message =
+             "nine_slice requires two nonnegative pixel pairs within "
+             "source_size; nine_slice_scale must be positive and finite.",
+         .path = path.string()});
+  }
   if (node.contains("id") && node["id"].is_string()) {
     const std::string id = node["id"].get<std::string>();
     if (!ids.insert(id).second)

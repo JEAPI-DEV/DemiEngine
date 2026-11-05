@@ -1,0 +1,14 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "generated_output": "../../../generated/assets/dungeon/frost_staff_icon/frost_staff_icon.svg",
+  "id": "asset://dungeon/frost_staff_icon",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {
+    "filter": "nearest"
+  },
+  "source": "frost_staff_icon.svg",
+  "source_hash": "fnv1a64:e5a358d807c09234",
+  "type": "SvgTexture2D"
+}

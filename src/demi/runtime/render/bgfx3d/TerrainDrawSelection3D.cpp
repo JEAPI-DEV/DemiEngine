@@ -1,33 +1,16 @@
 #include "demi/runtime/render/bgfx3d/TerrainDrawSelection3D.h"
 
+#include "demi/runtime/camera/Camera3DMath.h"
+#include "demi/runtime/math/VectorMath.h"
 #include "demi/runtime/terrain/TerrainRenderLod.h"
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
-#include <numbers>
 
 namespace demi::runtime::render {
 
 namespace {
-
-float dot(Vec3 first, Vec3 second) {
-  return first.x * second.x + first.y * second.y + first.z * second.z;
-}
-
-Vec3 cross(Vec3 first, Vec3 second) {
-  return {first.y * second.z - first.z * second.y,
-          first.z * second.x - first.x * second.z,
-          first.x * second.y - first.y * second.x};
-}
-
-std::optional<Vec3> normalized(Vec3 value) {
-  const float length = std::hypot(value.x, value.y, value.z);
-  if (!std::isfinite(length) || !(length > 0)) {
-    return std::nullopt;
-  }
-  return Vec3{value.x / length, value.y / length, value.z / length};
-}
 
 // Full and reduced terrain differ only in local height. The projected error
 // therefore follows transformed local Y, rather than an arbitrary displacement
@@ -35,29 +18,25 @@ std::optional<Vec3> normalized(Vec3 value) {
 float projectedPixelsPerHeight(const PreparedTerrainChunkLod &chunk,
                                const WorldTransform3D &transform, Vec3 meshSize,
                                const BgfxCameraFrame3D &camera) {
-  const auto forward = normalized(camera.forward);
-  if (!forward) {
+  const auto projection = cameraProjection3D(
+      camera.camera, camera.position, camera.forward, camera.up,
+      {float(camera.viewportWidth), float(camera.viewportHeight)});
+  if (!projection) {
     return std::numeric_limits<float>::infinity();
   }
-  const auto right = normalized(cross(camera.up, *forward));
-  if (!right) {
-    return std::numeric_limits<float>::infinity();
-  }
-  const auto up = cross(*forward, *right);
   auto scaled = transform;
   scaled.scale = {transform.scale.x * meshSize.x,
                   transform.scale.y * meshSize.y,
                   transform.scale.z * meshSize.z};
   const auto heightDirection =
       transformDirection3D(scaled, {0, scaled.scale.y, 0});
-  const float heightX = std::abs(dot(heightDirection, *right));
-  const float heightY = std::abs(dot(heightDirection, up));
+  const float heightX = std::abs(math::dot(heightDirection, projection->right));
+  const float heightY = std::abs(math::dot(heightDirection, projection->up));
   if (!camera.camera.perspective) {
     if (!(camera.camera.orthographicSize > 0)) {
       return std::numeric_limits<float>::infinity();
     }
-    return float(camera.viewportHeight) * std::hypot(heightX, heightY) /
-           (2.0F * camera.camera.orthographicSize);
+    return projection->pixelsPerUnit() * std::hypot(heightX, heightY);
   }
 
   float minimumDepth = std::numeric_limits<float>::infinity();
@@ -70,29 +49,29 @@ float projectedPixelsPerHeight(const PreparedTerrainChunkLod &chunk,
         const auto world = transformPoint3D(scaled, {x, y, z});
         const Vec3 relative{world.x - position.x, world.y - position.y,
                             world.z - position.z};
-        minimumDepth = std::min(minimumDepth, dot(relative, *forward));
-        maximumX = std::max(maximumX, std::abs(dot(relative, *right)));
-        maximumY = std::max(maximumY, std::abs(dot(relative, up)));
+        minimumDepth =
+            std::min(minimumDepth, math::dot(relative, projection->forward));
+        maximumX = std::max(maximumX,
+                            std::abs(math::dot(relative, projection->right)));
+        maximumY =
+            std::max(maximumY, std::abs(math::dot(relative, projection->up)));
       }
     }
   }
-  const float tangent =
-      std::tan(camera.camera.fov * std::numbers::pi_v<float> / 360.0F);
   if (!std::isfinite(minimumDepth) ||
-      !(minimumDepth > camera.camera.nearClip) || !std::isfinite(tangent) ||
-      !(tangent > 0)) {
+      !(minimumDepth > camera.camera.nearClip)) {
     return std::numeric_limits<float>::infinity();
   }
-  const float heightDepth = std::abs(dot(heightDirection, *forward));
+  const float heightDepth =
+      std::abs(math::dot(heightDirection, projection->forward));
   // Perspective projection is (f*x/z, f*y/z). Bound its directional
   // derivative over the transformed chunk box. Both terrain surfaces and the
   // height segment between them lie inside this convex box, so integrating
   // the bound also covers finite errors and tilted/nonuniform placements.
   const float horizontalBound = heightX + maximumX * heightDepth / minimumDepth;
   const float verticalBound = heightY + maximumY * heightDepth / minimumDepth;
-  const float focalPixels = float(camera.viewportHeight) / (2.0F * tangent);
-  return focalPixels * std::hypot(horizontalBound, verticalBound) /
-         minimumDepth;
+  return projection->pixelsPerUnit(minimumDepth) *
+         std::hypot(horizontalBound, verticalBound);
 }
 
 } // namespace

@@ -1,4 +1,5 @@
 #include "demi/runtime/animation/AnimationRuntime.h"
+#include "demi/runtime/math/VectorMath.h"
 
 #include <algorithm>
 #include <cmath>
@@ -77,24 +78,6 @@ AnimationPreview result{.state = machine.state,
 
 namespace {
 
-Vec3 subtract(const Vec3 &left, const Vec3 &right) {
-  return {.x = left.x - right.x,
-          .y = left.y - right.y,
-          .z = left.z - right.z};
-}
-
-Vec3 add(const Vec3 &left, const Vec3 &right) {
-  return {.x = left.x + right.x,
-          .y = left.y + right.y,
-          .z = left.z + right.z};
-}
-
-Vec3 scale(const Vec3 &value, const float amount) {
-  return {.x = value.x * amount,
-          .y = value.y * amount,
-          .z = value.z * amount};
-}
-
 Vec3 sampleRootMotion(const std::vector<Vec3> &track,
                       const float normalizedTime) {
   if (track.empty())
@@ -107,7 +90,9 @@ Vec3 sampleRootMotion(const std::vector<Vec3> &track,
   const auto lower = static_cast<std::size_t>(std::floor(position));
   const auto upper = std::min(lower + 1, track.size() - 1);
   const float amount = position - static_cast<float>(lower);
-  return add(track[lower], scale(subtract(track[upper], track[lower]), amount));
+  return math::add(
+      track[lower],
+      math::scale(math::subtract(track[upper], track[lower]), amount));
 }
 
 } // namespace
@@ -119,7 +104,7 @@ Vec3 extractRootMotion(const std::vector<Vec3> &track,
       currentTime <= previousTime)
     return {};
   if (!loop) {
-    return subtract(
+    return math::subtract(
         sampleRootMotion(track, std::clamp(currentTime / duration, 0.0F, 1.0F)),
         sampleRootMotion(track,
                          std::clamp(previousTime / duration, 0.0F, 1.0F)));
@@ -132,10 +117,11 @@ Vec3 extractRootMotion(const std::vector<Vec3> &track,
       std::fmod(std::max(previousTime, 0.0F), duration) / duration;
   const float currentLocal =
       std::fmod(std::max(currentTime, 0.0F), duration) / duration;
-  const Vec3 cycle = subtract(track.back(), track.front());
-  return add(subtract(sampleRootMotion(track, currentLocal),
-                      sampleRootMotion(track, previousLocal)),
-             scale(cycle, static_cast<float>(currentLoop - previousLoop)));
+  const Vec3 cycle = math::subtract(track.back(), track.front());
+  return math::add(
+      math::subtract(sampleRootMotion(track, currentLocal),
+                     sampleRootMotion(track, previousLocal)),
+      math::scale(cycle, static_cast<float>(currentLoop - previousLoop)));
 }
 
 std::vector<std::string>

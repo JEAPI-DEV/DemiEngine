@@ -1,0 +1,13 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "generated_output": "../../../generated/assets/dungeon/ui_bold/PixelifySans-Bold.ttf",
+  "id": "asset://dungeon/ui_bold",
+  "importer": "font",
+  "importer_version": 1,
+  "license": "OFL.txt",
+  "settings": {},
+  "source": "PixelifySans-Bold.ttf",
+  "source_hash": "fnv1a64:ac0589ffac378ebd",
+  "type": "Font2D"
+}

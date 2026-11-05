@@ -4,9 +4,11 @@
 
 #include <SDL3/SDL.h>
 
+#include <array>
 #include <cassert>
 #include <cstdlib>
 #include <filesystem>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -111,6 +113,86 @@ void lifecycleAndEventTranslationWorkWithoutAGpu() {
   host->shutdown();
 }
 
+void everyScancodePreservesTheEngineKeyContract() {
+  assert(setenv("SDL_VIDEODRIVER", "dummy", 1) == 0);
+  auto host = createSdlPlatformHost();
+  std::string error;
+  assert(host->initialize(
+      {.title = "Keyboard names", .width = 320, .height = 180}, error));
+  const std::array letters{
+      SDL_SCANCODE_A, SDL_SCANCODE_B, SDL_SCANCODE_C, SDL_SCANCODE_D,
+      SDL_SCANCODE_E, SDL_SCANCODE_F, SDL_SCANCODE_G, SDL_SCANCODE_H,
+      SDL_SCANCODE_I, SDL_SCANCODE_J, SDL_SCANCODE_K, SDL_SCANCODE_L,
+      SDL_SCANCODE_M, SDL_SCANCODE_N, SDL_SCANCODE_O, SDL_SCANCODE_P,
+      SDL_SCANCODE_Q, SDL_SCANCODE_R, SDL_SCANCODE_S, SDL_SCANCODE_T,
+      SDL_SCANCODE_U, SDL_SCANCODE_V, SDL_SCANCODE_W, SDL_SCANCODE_X,
+      SDL_SCANCODE_Y, SDL_SCANCODE_Z};
+  const std::array digits{SDL_SCANCODE_0, SDL_SCANCODE_1, SDL_SCANCODE_2,
+                          SDL_SCANCODE_3, SDL_SCANCODE_4, SDL_SCANCODE_5,
+                          SDL_SCANCODE_6, SDL_SCANCODE_7, SDL_SCANCODE_8,
+                          SDL_SCANCODE_9};
+  const std::array functions{
+      SDL_SCANCODE_F1, SDL_SCANCODE_F2,  SDL_SCANCODE_F3,  SDL_SCANCODE_F4,
+      SDL_SCANCODE_F5, SDL_SCANCODE_F6,  SDL_SCANCODE_F7,  SDL_SCANCODE_F8,
+      SDL_SCANCODE_F9, SDL_SCANCODE_F10, SDL_SCANCODE_F11, SDL_SCANCODE_F12};
+  std::map<int, std::string> expected{{SDL_SCANCODE_SPACE, "space"},
+                                      {SDL_SCANCODE_RETURN, "return"},
+                                      {SDL_SCANCODE_ESCAPE, "escape"},
+                                      {SDL_SCANCODE_AC_BACK, "back"},
+                                      {SDL_SCANCODE_TAB, "tab"},
+                                      {SDL_SCANCODE_BACKSPACE, "backspace"},
+                                      {SDL_SCANCODE_DELETE, "delete"},
+                                      {SDL_SCANCODE_HOME, "home"},
+                                      {SDL_SCANCODE_END, "end"},
+                                      {SDL_SCANCODE_UP, "up"},
+                                      {SDL_SCANCODE_DOWN, "down"},
+                                      {SDL_SCANCODE_LEFT, "left"},
+                                      {SDL_SCANCODE_RIGHT, "right"},
+                                      {SDL_SCANCODE_LSHIFT, "left shift"},
+                                      {SDL_SCANCODE_RSHIFT, "right shift"},
+                                      {SDL_SCANCODE_LCTRL, "left ctrl"},
+                                      {SDL_SCANCODE_RCTRL, "right ctrl"},
+                                      {SDL_SCANCODE_LALT, "left alt"},
+                                      {SDL_SCANCODE_RALT, "right alt"}};
+  for (std::size_t index = 0; index < letters.size(); ++index) {
+    expected[letters[index]] = std::string(1, static_cast<char>('a' + index));
+  }
+  for (std::size_t index = 0; index < digits.size(); ++index) {
+    expected[digits[index]] = std::to_string(index);
+  }
+  for (std::size_t index = 0; index < functions.size(); ++index) {
+    expected[functions[index]] = "f" + std::to_string(index + 1);
+  }
+  for (int key = -1; key <= static_cast<int>(SDL_SCANCODE_COUNT); ++key) {
+    InputState input;
+    SDL_Event event{};
+    event.type = SDL_EVENT_KEY_DOWN;
+    event.key.scancode = static_cast<SDL_Scancode>(key);
+    event.key.down = true;
+    assert(SDL_PushEvent(&event));
+    host->poll(input);
+    const auto name = expected.find(key);
+    if (name == expected.end()) {
+      assert(input.keysDown.empty() && input.keysPressed.empty());
+    } else {
+      assert(input.keysDown.size() == 1 &&
+             input.keysDown.contains(name->second));
+      assert(input.keysPressed.size() == 1 &&
+             input.keysPressed.contains(name->second));
+    }
+    event.type = SDL_EVENT_KEY_UP;
+    event.key.down = false;
+    assert(SDL_PushEvent(&event));
+    host->poll(input);
+    assert(input.keysDown.empty() && input.keysPressed.empty());
+    assert(input.keysReleased.size() == (name == expected.end() ? 0U : 1U));
+    if (name != expected.end()) {
+      assert(input.keysReleased.contains(name->second));
+    }
+  }
+  host->shutdown();
+}
+
 void maximizedConfigurationKeepsHeadlessLifecycleValid() {
   assert(!PlatformHostConfig{}.maximized);
   assert(setenv("SDL_VIDEODRIVER", "dummy", 1) == 0);
@@ -167,6 +249,7 @@ int main() {
   framePacingPolicyHandlesHighRefreshDisplays();
   invalidConfigurationIsRejected();
   lifecycleAndEventTranslationWorkWithoutAGpu();
+  everyScancodePreservesTheEngineKeyContract();
   maximizedConfigurationKeepsHeadlessLifecycleValid();
   authoredStartupModesAndSceneTitlesReachTheNativeWindow();
   return 0;

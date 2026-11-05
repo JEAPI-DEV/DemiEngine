@@ -1,10 +1,14 @@
 #pragma once
 
+#include <cstddef>
+#include <optional>
 #include <string>
+#include <vector>
 
 namespace demi::runtime {
 
 struct Entity;
+struct World;
 struct Transform2DComponent;
 struct Vec2;
 
@@ -23,11 +27,11 @@ struct Aabb {
                                     Vec2 point);
 [[nodiscard]] Vec2 absoluteScale(const Transform2DComponent &transform);
 [[nodiscard]] float circleScale(const Transform2DComponent &transform);
-[[nodiscard]] bool participatesInCollision(const Entity &entity);
-[[nodiscard]] Aabb colliderAabb(const Entity &entity);
+[[nodiscard]] std::optional<Aabb> solidColliderAabb(const World &world,
+                                                    const Entity &entity);
+[[nodiscard]] std::vector<std::size_t>
+physicsEntityIndices2D(const World &world);
 [[nodiscard]] std::string colliderLayer(const Entity &entity);
 [[nodiscard]] bool hasCollider(const Entity &entity);
-[[nodiscard]] bool queryIntersects(const Aabb &left, const Aabb &right);
-[[nodiscard]] Aabb makeAabb(Vec2 center, Vec2 size);
 
 } // namespace demi::runtime::physics2d_detail

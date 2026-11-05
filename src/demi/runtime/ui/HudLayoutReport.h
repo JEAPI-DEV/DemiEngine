@@ -18,6 +18,10 @@ struct HudNodeReport {
   bool focusable = false;
   bool blocksPointer = false;
   Rect resolved;
+  std::string texture;
+  Vec2 sourcePosition{};
+  Vec2 sourceSize{};
+  UiImageSkin imageSkin;
 };
 
 // Canvas size and resolved node rects for a HUD document. Computed with the

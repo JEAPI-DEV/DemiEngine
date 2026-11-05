@@ -1,4 +1,5 @@
 #include "demi/runtime/scripting/LuaScriptHost.h"
+#include "demi/runtime/platform/ProjectFileWatcher.h"
 #include "demi/runtime/scripting/LuaServiceModules.h"
 #include "demi/runtime/assets/RuntimeAssetService.h"
 #include "demi/runtime/scene/WorldQueries.h"
@@ -76,8 +77,35 @@ RuntimeAssetService *LuaScriptHost::runtimeAssetService() const {
   return runtimeAssets_;
 }
 
-void LuaScriptHost::setHotReloadEnabled(const bool enabled) {
+void LuaScriptHost::setHotReloadEnabled(const bool enabled,
+                                        const bool externallyDriven) {
+  if (hotReloadEnabled_ == enabled &&
+      externalScriptChanges_ == externallyDriven &&
+      (!enabled || externallyDriven || scriptWatcher_)) {
+    return;
+  }
   hotReloadEnabled_ = enabled;
+  externalScriptChanges_ = externallyDriven;
+  changedScripts_.clear();
+  scriptWatcher_.reset();
+  if (enabled && !externallyDriven && !projectDirectory_.empty()) {
+    scriptWatcher_ = std::make_unique<platform::ProjectFileWatcher>();
+    scriptWatcher_->reset(projectDirectory_);
+  }
+}
+
+void LuaScriptHost::notifyScriptChanges(
+    const std::span<const std::filesystem::path> paths) {
+  if (!hotReloadEnabled_) {
+    return;
+  }
+  for (const auto &path : paths) {
+    if (path.extension() == ".lua") {
+      const auto normalized =
+          std::filesystem::absolute(path).lexically_normal();
+      changedScripts_.insert(normalized.string());
+    }
+  }
 }
 
 bool LuaScriptHost::hotReloadEnabled() const { return hotReloadEnabled_; }
@@ -250,6 +278,8 @@ void LuaScriptHost::fixedUpdate(const float dt) {
 }
 
 void LuaScriptHost::destroy() {
+  scriptWatcher_.reset();
+  changedScripts_.clear();
   setScenePresentationPreparation({});
   e2eTestRunner_.shutdown();
   unloadScripts();

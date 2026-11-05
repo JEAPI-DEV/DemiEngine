@@ -1,3 +1,4 @@
+#include "demi/runtime/ui/UiLayoutEngine.h"
 #include "demi/runtime/ui/UiAccessibilityActions.h"
 
 #include "demi/runtime/ui/TextLayoutEngine.h"
@@ -38,6 +39,7 @@ bool available(const UiDocument &document, const UiNode &node) {
 
 UiAccessibilityActionResult UiAccessibilityActions::perform(
     UiDocument &document, const UiAccessibilityAction &request) const {
+  UiLayoutEngine{}.ensure(document, document.canvasSize);
   UiNode *node = UiStateController{}.find(document, request.nodeId);
   if (node == nullptr)
     return {.error = "Accessibility action targets a missing UI node."};

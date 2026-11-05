@@ -166,6 +166,12 @@ void pipeline(const std::filesystem::path &root) {
          "Compound upload failed");
   expect(!raycast3D(world, {0, 1, 5}, {0, 0, -1}, 10),
          "Cold query fabricated a hit against compound bounds");
+  const auto coldLeft = raycast3D(world, {-1.5F, 1, 5}, {0, 0, -1}, 10);
+  expect(coldLeft && coldLeft->entityId == "arch" &&
+             coldLeft->colliderPartId == "left",
+         "Cold compound query lost its leaf geometry or stable part ID");
+  expect(!overlapBoxAll3D(world, {-1.5F, 1, 0}, {0.2F, 0.2F, 0.2F}).empty(),
+         "Cold compound overlap skipped native part geometry");
   auto &physics = ensurePhysicsWorld3D(world);
   RuntimeProfiler::setEnabled(true);
   RuntimeProfiler::beginFrame();

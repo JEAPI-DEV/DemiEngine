@@ -1,4 +1,5 @@
 #include "editor/EditorHudCanvas.h"
+#include "demi/runtime/ui/UiLayoutEngine.h"
 #include "demi/runtime/ui/UiPresentation.h"
 
 #include <algorithm>
@@ -32,6 +33,7 @@ bool editorHudRectContains(const runtime::ui::Rect rect,
 const runtime::ui::UiNode *
 pickEditorHudNode(const runtime::ui::UiDocument &document,
                   const runtime::Vec2 authoredPoint) {
+  runtime::ui::UiLayoutEngine{}.ensure(document, document.canvasSize);
   const runtime::ui::UiNode *picked = nullptr;
   for (const auto &item : runtime::ui::buildUiPresentation(document)) {
     const auto &node = *item.node;
@@ -46,6 +48,7 @@ pickEditorHudNode(const runtime::ui::UiDocument &document,
 const runtime::ui::UiNode *
 pickEditorHudDropParent(const runtime::ui::UiDocument &document,
                         runtime::Vec2 point) {
+  runtime::ui::UiLayoutEngine{}.ensure(document, document.canvasSize);
   const runtime::ui::UiNode *picked = nullptr;
   for (const auto &item : runtime::ui::buildUiPresentation(document)) {
     const auto &node = *item.node;

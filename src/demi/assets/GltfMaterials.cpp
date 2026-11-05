@@ -1,13 +1,9 @@
 #include "demi/assets/GltfMaterials.h"
 #include "demi/assets/GltfMaterialImport.h"
 
-#include <algorithm>
-#include <cstdlib>
-#include <fstream>
-#include <iterator>
-#include <optional>
 #include <set>
-#include <string_view>
+#include <stdexcept>
+#include <utility>
 
 namespace demi::assets {
 namespace {
@@ -40,63 +36,6 @@ GltfFilter filterMode(cgltf_filter_type mode, GltfFilter fallback) {
   default:
     return fallback;
   }
-}
-
-std::optional<std::vector<std::byte>>
-readImage(const cgltf_image &image, const std::filesystem::path &source,
-          std::string &error) {
-  if (image.buffer_view != nullptr) {
-    const auto *data = cgltf_buffer_view_data(image.buffer_view);
-    if (data != nullptr) {
-      const auto *begin = reinterpret_cast<const std::byte *>(data);
-      return std::vector<std::byte>(begin, begin + image.buffer_view->size);
-    }
-  } else if (image.uri != nullptr) {
-    const std::string_view uri(image.uri);
-    if (uri.starts_with("data:")) {
-      const auto separator = uri.find(",");
-      if (separator != std::string_view::npos &&
-          uri.substr(0, separator).ends_with(";base64")) {
-        const auto payload = uri.substr(separator + 1);
-        if (payload.size() < 4 || payload.size() % 4 != 0) {
-          error = "Invalid base64 glTF image payload.";
-          return std::nullopt;
-        }
-        std::size_t size = payload.size() / 4 * 3;
-        if (payload.ends_with("==")) {
-          size -= 2;
-        } else if (payload.ends_with("=")) {
-          --size;
-        }
-        cgltf_options options{};
-        void *data = nullptr;
-        if (size != 0 &&
-            cgltf_load_buffer_base64(&options, size, payload.data(), &data) ==
-                cgltf_result_success) {
-          const auto *begin = static_cast<const std::byte *>(data);
-          const std::unique_ptr<void, decltype(&std::free)> allocation(
-              data, &std::free);
-          return std::vector<std::byte>(begin, begin + size);
-        }
-      }
-    } else {
-      std::string decoded(uri);
-      decoded.resize(cgltf_decode_uri(decoded.data()));
-      std::ifstream input(source.parent_path() / decoded, std::ios::binary);
-      if (input) {
-        const std::vector<char> contents(
-            (std::istreambuf_iterator<char>(input)), {});
-        std::vector<std::byte> result(contents.size());
-        std::transform(
-            contents.begin(), contents.end(), result.begin(), [](char value) {
-              return static_cast<std::byte>(static_cast<unsigned char>(value));
-            });
-        return result;
-      }
-    }
-  }
-  error = "Could not read glTF material image in " + source.string();
-  return std::nullopt;
 }
 
 } // namespace
@@ -193,15 +132,17 @@ bool importGltfMaterials(const cgltf_data &document,
       }
       auto found = images.find(image);
       if (found == images.end()) {
-        auto encoded = readImage(*image, source, error);
-        if (!encoded) {
+        try {
+          auto encoded = gltf::readImage(*image, source);
+          found = images
+                      .emplace(image,
+                               std::make_shared<const std::vector<std::byte>>(
+                                   std::move(encoded)))
+                      .first;
+        } catch (const std::runtime_error &failure) {
+          error = failure.what();
           return false;
         }
-        found =
-            images
-                .emplace(image, std::make_shared<const std::vector<std::byte>>(
-                                    std::move(*encoded)))
-                .first;
       }
       GltfMaterialTexture entry;
       entry.encoded = found->second;

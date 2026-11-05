@@ -1,0 +1,21 @@
+{
+  "format_version": 1,
+  "canvas_size": [
+    960,
+    640
+  ],
+  "children": [
+    {
+      "id": "game_ui",
+      "prefab": "ui-prefab://screens/gameplay",
+      "overrides": {
+        "floor": {
+          "text": "THE EMBER ARCHIVE"
+        },
+        "objective": {
+          "text": "Use the shelves for cover. The narrow gallery is a shortcut."
+        }
+      }
+    }
+  ]
+}

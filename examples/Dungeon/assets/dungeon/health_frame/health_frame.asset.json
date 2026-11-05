@@ -1,0 +1,14 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "generated_output": "../../../generated/assets/dungeon/health_frame/health_frame.svg",
+  "id": "asset://dungeon/health_frame",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {
+    "filter": "nearest"
+  },
+  "source": "health_frame.svg",
+  "source_hash": "fnv1a64:69010e92ad5500f6",
+  "type": "SvgTexture2D"
+}

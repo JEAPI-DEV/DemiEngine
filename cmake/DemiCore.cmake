@@ -8,6 +8,7 @@ set_target_properties(demi-mesh-simplification PROPERTIES POSITION_INDEPENDENT_C
 target_include_directories(demi-mesh-simplification PUBLIC
   "${bgfx_SOURCE_DIR}/bgfx/3rdparty/meshoptimizer/src")
 add_library(demi-core STATIC
+  src/demi/runtime/visibility/FogOfWar2D.cpp
   src/demi/graph/DependencyGraph.cpp
   src/demi/runtime/terrain/TerrainGraph.cpp
   src/demi/runtime/terrain/TerrainGraphRegistry.cpp
@@ -67,6 +68,7 @@ add_library(demi-core STATIC
   src/demi/runtime/profiling/RuntimeProfiler.cpp
   src/demi/runtime/profiling/ProcessResourceSampler.cpp
   src/demi/runtime/math/VectorMath.cpp
+  src/demi/runtime/camera/Camera3DMath.cpp
   src/demi/runtime/ui/FontRasterizer.cpp
   src/demi/runtime/geometry/MeshDeformation3D.cpp
   src/demi/runtime/geometry/MeshRefinement3D.cpp
@@ -163,6 +165,7 @@ add_library(demi-core STATIC
   src/demi/runtime/ui/UiEventQueue.cpp
   src/demi/runtime/ui/UiInteractionController.cpp
   src/demi/runtime/ui/UiDocumentParser.cpp
+  src/demi/runtime/ui/UiImageSkin.cpp
   src/demi/runtime/ui/UiPrefabResolver.cpp
   src/demi/runtime/ui/UiPrefabOverrides.cpp
   src/demi/runtime/ui/UiPrefabHierarchy.cpp
@@ -190,7 +193,7 @@ add_library(demi-core STATIC
   src/demi/runtime/network/NetworkContract.cpp
   src/demi/runtime/tilemap/TilemapAsset.cpp
   src/demi/runtime/physics/Box2DWorldState.cpp
-  src/demi/runtime/physics/SpatialQuery3D.cpp
+  src/demi/runtime/physics/Box2DJoints2D.cpp
   ${DEMI_COMPONENT_MODEL_SOURCES}
 )
 

@@ -1,0 +1,228 @@
+{
+  "format_version": 1,
+  "id": "ui-prefab://screens/talents",
+  "root": {
+    "id": "talents",
+    "type": "container",
+    "size": [
+      520,
+      320
+    ],
+    "visible": false,
+    "children": [
+      {
+        "id": "talent_frame",
+        "prefab": "ui-prefab://kit/frame",
+        "arguments": {
+          "size": [
+            520,
+            320
+          ],
+          "layer": 30
+        }
+      },
+      {
+        "id": "talent_title",
+        "type": "label",
+        "position": [
+          24,
+          20
+        ],
+        "size": [
+          470,
+          30
+        ],
+        "text": "WARDEN TALENTS",
+        "font": "asset://dungeon/ui_bold",
+        "font_size": 22,
+        "text_color": "#f5f0dc",
+        "layer": 32
+      },
+      {
+        "id": "talent_points",
+        "type": "label",
+        "position": [
+          24,
+          55
+        ],
+        "size": [
+          470,
+          24
+        ],
+        "text": "",
+        "font": "asset://dungeon/ui_bold",
+        "font_size": 16,
+        "text_color": "#f5f0dc",
+        "layer": 32
+      },
+      {
+        "id": "talent_help",
+        "type": "label",
+        "position": [
+          24,
+          278
+        ],
+        "size": [
+          470,
+          24
+        ],
+        "text": "Earn experience from discoveries, treasure and combat.",
+        "font": "asset://dungeon/ui_bold",
+        "font_size": 12,
+        "text_color": "#f5f0dc",
+        "layer": 32
+      },
+      {
+        "id": "talent_vigor_text",
+        "type": "label",
+        "position": [
+          24,
+          92
+        ],
+        "size": [
+          340,
+          20
+        ],
+        "text": "+2 vitality / rank. Rank 2 grants +1 armor.",
+        "font": "asset://dungeon/ui_bold",
+        "font_size": 12,
+        "text_color": "#f5f0dc",
+        "layer": 32
+      },
+      {
+        "id": "talent_vigor",
+        "prefab": "ui-prefab://kit/button",
+        "arguments": {
+          "label": "VIGOR",
+          "size": [
+            122,
+            40
+          ],
+          "layer": 32,
+          "action": "dungeon_talent_vigor"
+        },
+        "overrides": {
+          "$root": {
+            "position": [
+              374,
+              87
+            ],
+            "nine_slice_scale": 1.5
+          },
+          "hit": {
+            "font_size": 13
+          }
+        }
+      },
+      {
+        "id": "talent_blade_text",
+        "type": "label",
+        "position": [
+          24,
+          151
+        ],
+        "size": [
+          340,
+          20
+        ],
+        "text": "+1 melee power / rank. Rank 2 improves dodge recovery.",
+        "font": "asset://dungeon/ui_bold",
+        "font_size": 12,
+        "text_color": "#f5f0dc",
+        "layer": 32
+      },
+      {
+        "id": "talent_blade",
+        "prefab": "ui-prefab://kit/button",
+        "arguments": {
+          "label": "BLADE",
+          "size": [
+            122,
+            40
+          ],
+          "layer": 32,
+          "action": "dungeon_talent_blade"
+        },
+        "overrides": {
+          "$root": {
+            "position": [
+              374,
+              146
+            ],
+            "nine_slice_scale": 1.5
+          },
+          "hit": {
+            "font_size": 13
+          }
+        }
+      },
+      {
+        "id": "talent_arcana_text",
+        "type": "label",
+        "position": [
+          24,
+          210
+        ],
+        "size": [
+          340,
+          20
+        ],
+        "text": "+2 mana / rank. Rank 2 reduces spell costs by 1.",
+        "font": "asset://dungeon/ui_bold",
+        "font_size": 12,
+        "text_color": "#f5f0dc",
+        "layer": 32
+      },
+      {
+        "id": "talent_arcana",
+        "prefab": "ui-prefab://kit/button",
+        "arguments": {
+          "label": "ARCANA",
+          "size": [
+            122,
+            40
+          ],
+          "layer": 32,
+          "action": "dungeon_talent_arcana"
+        },
+        "overrides": {
+          "$root": {
+            "position": [
+              374,
+              205
+            ],
+            "nine_slice_scale": 1.5
+          },
+          "hit": {
+            "font_size": 13
+          }
+        }
+      },
+      {
+        "id": "talent_close",
+        "prefab": "ui-prefab://kit/button",
+        "arguments": {
+          "label": "X",
+          "action": "dungeon_character",
+          "size": [
+            30,
+            30
+          ],
+          "layer": 33
+        },
+        "overrides": {
+          "$root": {
+            "position": [
+              464,
+              16
+            ],
+            "nine_slice_scale": 1
+          },
+          "hit": {
+            "font_size": 16
+          }
+        }
+      }
+    ]
+  }
+}

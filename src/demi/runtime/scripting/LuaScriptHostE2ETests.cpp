@@ -1,4 +1,5 @@
 #include "demi/runtime/scripting/LuaScriptHost.h"
+#include "demi/runtime/ui/UiLayoutEngine.h"
 
 #include <algorithm>
 
@@ -13,6 +14,7 @@ void LuaScriptHost::initializeE2ETestRunner() {
             if (world_ == nullptr) {
               return std::nullopt;
             }
+            ui::UiLayoutEngine{}.ensure(world_->ui, world_->ui.canvasSize);
             const auto found =
                 std::ranges::find(world_->ui.nodes, nodeId, &ui::UiNode::id);
             if (found == world_->ui.nodes.end()) {

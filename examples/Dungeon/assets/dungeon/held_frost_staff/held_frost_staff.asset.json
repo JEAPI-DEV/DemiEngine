@@ -1,0 +1,14 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "generated_output": "../../../generated/assets/dungeon/held_frost_staff/held_frost_staff.svg",
+  "id": "asset://dungeon/held_frost_staff",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {
+    "filter": "nearest"
+  },
+  "source": "held_frost_staff.svg",
+  "source_hash": "fnv1a64:1981e0ddef0eb7ae",
+  "type": "SvgTexture2D"
+}

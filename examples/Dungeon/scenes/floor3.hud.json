@@ -1,0 +1,21 @@
+{
+  "format_version": 1,
+  "canvas_size": [
+    960,
+    640
+  ],
+  "children": [
+    {
+      "id": "game_ui",
+      "prefab": "ui-prefab://screens/gameplay",
+      "overrides": {
+        "floor": {
+          "text": "THE KING'S WATCH"
+        },
+        "objective": {
+          "text": "Flank the sword guards. The central crossing saves time, not blood."
+        }
+      }
+    }
+  ]
+}

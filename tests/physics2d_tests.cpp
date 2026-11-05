@@ -1,14 +1,14 @@
 #include "demi/runtime/physics/Box2DWorldState.h"
 #include "demi/runtime/physics/Physics2D.h"
+#include "demi/runtime/physics/RadialRaycast2D.h"
 #include "demi/runtime/scene/WorldQueries.h"
 #include "demi/runtime/scene/components/EngineComponents.h"
 
+#include <chrono>
 #include <cmath>
 #include <iostream>
 
-#if DEMI_HAS_BOX2D
 #include <box2d/box2d.h>
-#endif
 
 namespace {
 
@@ -43,6 +43,72 @@ demi::runtime::Entity makePlayer() {
       demi::runtime::BoxCollider2DComponent{.size = {1.0F, 1.0F},
                                             .layer = "player"});
   return player;
+}
+
+bool motionCommandsWakeSleepingBodies() {
+  for (int command = 0; command < 7; ++command) {
+    World world;
+    Entity player = makePlayer();
+    auto *body = player.component<Rigidbody2DComponent>();
+    body->velocity = {};
+    body->lockRotation = false;
+    player.component<Transform2DComponent>()->position = {};
+    world.entities.push_back(std::move(player));
+    for (int frame = 0; frame < 120; ++frame) {
+      stepPhysics2D(world, 1.0F / 60.0F);
+    }
+    body = world.entities.front().component<Rigidbody2DComponent>();
+    if (body->awake) {
+      std::cerr << "Idle native body did not reach natural sleep.\n";
+      return false;
+    }
+    if (!setRigidbodyVelocity(world, "player", {}) ||
+        !setRigidbodyVelocityX(world, "player", 0) ||
+        !setRigidbodyVelocityY(world, "player", 0) ||
+        !setRigidbodyAngularVelocity(world, "player", 0)) {
+      return false;
+    }
+    stepPhysics2D(world, 1.0F / 60.0F);
+    if (body->awake) {
+      std::cerr << "Zero velocity command spuriously woke a sleeping body.\n";
+      return false;
+    }
+    bool accepted = false;
+    switch (command) {
+    case 0:
+      accepted = setRigidbodyVelocity(world, "player", {2, 0});
+      break;
+    case 1:
+      accepted = setRigidbodyVelocityX(world, "player", 2);
+      break;
+    case 2:
+      accepted = setRigidbodyVelocityY(world, "player", 2);
+      break;
+    case 3:
+      accepted = setRigidbodyAngularVelocity(world, "player", 2);
+      break;
+    case 4:
+      accepted = addRigidbodyImpulse(world, "player", {2, 0});
+      break;
+    case 5:
+      accepted = addRigidbodyForce(world, "player", {20, 0});
+      break;
+    case 6:
+      accepted = addRigidbodyTorque(world, "player", 20);
+      break;
+    }
+    stepPhysics2D(world, 1.0F / 60.0F);
+    const auto *transform = world.entities.front().component<Transform2DComponent>();
+    const bool moved = std::abs(transform->position.x) > 0.0001F ||
+                       std::abs(transform->position.y) > 0.0001F ||
+                       std::abs(transform->rotation) > 0.0001F;
+    if (!accepted || !body->awake || !moved) {
+      std::cerr << "Motion command " << command
+                << " was overwritten by stale native sleeping state.\n";
+      return false;
+    }
+  }
+  return true;
 }
 
 bool capsuleStopsAtPolygonFromAllSides() {
@@ -92,9 +158,66 @@ bool capsuleStopsAtPolygonFromAllSides() {
   return true;
 }
 
+bool unchangedJointsRetainNativeState() {
+  World world;
+  constexpr int jointCount = 128;
+  constexpr int stepCount = 240;
+  for (int index = 0; index < jointCount; ++index) {
+    Entity anchor;
+    anchor.id = "retained_anchor_" + std::to_string(index);
+    anchor.setComponent(
+        Transform2DComponent{.position = {0, float(index) * 4}});
+    anchor.setComponent(CircleCollider2DComponent{.radius = 0.1F});
+    world.entities.push_back(std::move(anchor));
+    Entity bob;
+    bob.id = "retained_bob_" + std::to_string(index);
+    bob.setComponent(Transform2DComponent{.position = {1, float(index) * 4}});
+    bob.setComponent(
+        Rigidbody2DComponent{.bodyType = "dynamic", .gravityScale = 0});
+    bob.setComponent(CircleCollider2DComponent{.radius = 0.1F});
+    bob.setComponent(DistanceJoint2DComponent{
+        .otherEntity = "retained_anchor_" + std::to_string(index),
+        .length = 1});
+    world.entities.push_back(std::move(bob));
+  }
+  stepPhysics2D(world, 1.0F / 60, PhysicsSettings2D{.gravity = {}});
+  auto &native = *static_cast<b2World *>(world.box2dState->world);
+  for (auto *joint = native.GetJointList(); joint; joint = joint->GetNext()) {
+    joint->GetUserData().pointer = 1;
+  }
+  std::size_t recreated = 0;
+  const auto started = std::chrono::steady_clock::now();
+  for (int step = 0; step < stepCount; ++step) {
+    stepPhysics2D(world, 1.0F / 60, PhysicsSettings2D{.gravity = {}});
+    for (auto *joint = native.GetJointList(); joint; joint = joint->GetNext()) {
+      if (joint->GetUserData().pointer != 1) {
+        ++recreated;
+        joint->GetUserData().pointer = 1;
+      }
+    }
+  }
+  const auto milliseconds = std::chrono::duration<double, std::milli>(
+                                std::chrono::steady_clock::now() - started)
+                                .count();
+  std::cout << "2D joint retention: " << jointCount << " joints, " << stepCount
+            << " steps, " << recreated << " recreated native joints, "
+            << milliseconds << " ms CPU workload\n";
+  if (native.GetJointCount() != jointCount || recreated != 0) {
+    std::cerr << "Unchanged authored joints discarded native solver state.\n";
+    return false;
+  }
+  return true;
+}
+
 } // namespace
 
 int main() {
+  if (!unchangedJointsRetainNativeState()) {
+    return 1;
+  }
+  if (!motionCommandsWakeSleepingBodies()) {
+    return 1;
+  }
   demi::runtime::World world;
   world.entities.push_back(makePlayer());
   world.entities.push_back(makePlatform());
@@ -181,6 +304,46 @@ int main() {
     return 1;
   }
 
+  // Opening a gate by disabling its entity must stop every geometric query
+  // immediately, and re-enabling it must restore query participation.
+  World gateWorld;
+  gateWorld.entities.push_back(makePlatform());
+  gateWorld.entities.front().enabled = false;
+  const auto gateQueriesEmpty = [&] {
+    return !overlapBox(gateWorld, {}, {1, 1}) &&
+           overlapCircle(gateWorld, {}, 3).empty() &&
+           overlapBoxAll(gateWorld, {}, {1, 1}).empty() &&
+           overlapCircleAll(gateWorld, {}, 3).empty() &&
+           !raycast2D(gateWorld, {-5, 0}, {1, 0}, 10);
+  };
+  if (!gateQueriesEmpty()) {
+    std::cerr << "Disabled gate still participates in a 2D query.\n";
+    return 1;
+  }
+  gateWorld.entities.front().enabled = true;
+  if (!overlapBox(gateWorld, {}, {1, 1}) ||
+      overlapCircle(gateWorld, {}, 3).size() != 1 ||
+      overlapBoxAll(gateWorld, {}, {1, 1}).size() != 1 ||
+      overlapCircleAll(gateWorld, {}, 3).size() != 1 ||
+      !raycast2D(gateWorld, {-5, 0}, {1, 0}, 10)) {
+    std::cerr << "Re-enabled gate did not return to 2D queries.\n";
+    return 1;
+  }
+  gateWorld.entities.front().removeComponent<BoxCollider2DComponent>();
+  gateWorld.entities.front().setComponent(CircleCollider2DComponent{
+      .radius = 1.0F, .isTrigger = true, .layer = "sensor"});
+  if (overlapBox(gateWorld, {}, {1, 1}) ||
+      overlapCircle(gateWorld, {}, 3, "sensor").size() != 1 ||
+      !raycast2D(gateWorld, {-5, 0}, {1, 0}, 10, "sensor")) {
+    std::cerr << "Enabled trigger query semantics changed.\n";
+    return 1;
+  }
+  gateWorld.entities.front().enabled = false;
+  if (!gateQueriesEmpty()) {
+    std::cerr << "Disabled trigger still participates in a 2D query.\n";
+    return 1;
+  }
+
   World rotatedWallWorld;
   Entity rotatedWall;
   rotatedWall.id = "rotated_wall";
@@ -232,6 +395,100 @@ int main() {
       transformedCircleHit->normal.y > -0.99F) {
     std::cerr << "Rotated, scaled circle offset did not match its world "
                  "shape.\n";
+    return 1;
+  }
+
+  // Native queries must use the same capsule and polygon geometry as fixtures,
+  // including their empty bounding-box corners, before any simulation exists.
+  World nativeQueryWorld;
+  Entity capsuleTarget;
+  capsuleTarget.id = "capsule_target";
+  capsuleTarget.setComponent(Transform2DComponent{});
+  capsuleTarget.setComponent(
+      CapsuleCollider2DComponent{.size = {2.0F, 4.0F}, .layer = "capsule"});
+  nativeQueryWorld.entities.push_back(std::move(capsuleTarget));
+  if (raycast2D(nativeQueryWorld, {0.95F, 1.95F}, {1, 0}, 3, "capsule") ||
+      !overlapCircle(nativeQueryWorld, {0.95F, 1.95F}, 0.01F, "capsule")
+           .empty() ||
+      overlapCircle(nativeQueryWorld, {}, 0.1F, "capsule") !=
+          std::vector<std::string>{"capsule_target"}) {
+    std::cerr
+        << "Capsule queries used bounding boxes or duplicated fixtures.\n";
+    return 1;
+  }
+  const auto capsuleRay =
+      raycast2D(nativeQueryWorld, {-3, 1.5F}, {1, 0}, 6, "capsule");
+  if (!capsuleRay ||
+      std::abs(capsuleRay->distance - (3 - std::sqrt(0.75F))) > 0.001F) {
+    std::cerr << "Capsule ray did not hit its rounded cap.\n";
+    return 1;
+  }
+  Entity triangleTarget;
+  triangleTarget.id = "triangle_target";
+  triangleTarget.setComponent(Transform2DComponent{});
+  triangleTarget.setComponent(PolygonCollider2DComponent{
+      .points = {{0, 0}, {2, 0}, {0, 2}}, .layer = "triangle"});
+  nativeQueryWorld.entities.push_back(std::move(triangleTarget));
+  if (raycast2D(nativeQueryWorld, {1.5F, 1.5F}, {1, 0}, 3, "triangle") ||
+      !overlapBoxAll(nativeQueryWorld, {1.7F, 1.7F}, {0.1F, 0.1F}, "triangle")
+           .empty() ||
+      overlapCircleAll(nativeQueryWorld, {0.25F, 0.25F}, 0.1F, "triangle")
+              .size() != 1) {
+    std::cerr << "Polygon queries did not use native convex geometry.\n";
+    return 1;
+  }
+  Entity edgeTarget;
+  edgeTarget.id = "edge_target";
+  edgeTarget.setComponent(Transform2DComponent{});
+  edgeTarget.setComponent(
+      EdgeCollider2DComponent{.points = {{-2, 2}, {2, -2}}, .layer = "edge"});
+  nativeQueryWorld.entities.push_back(std::move(edgeTarget));
+  const auto edgeRay = raycast2D(nativeQueryWorld, {-3, 1}, {1, 0}, 6, "edge");
+  if (!edgeRay || std::abs(edgeRay->distance - 2.0F) > 0.001F) {
+    std::cerr << "Edge ray used chain bounds instead of its native segment.\n";
+    return 1;
+  }
+
+  World parentQueryWorld;
+  Entity queryParent;
+  queryParent.id = "query_parent";
+  queryParent.setComponent(Transform2DComponent{
+      .position = {10, 0}, .rotation = 1.57079632679F, .scale = {2, 2}});
+  parentQueryWorld.entities.push_back(std::move(queryParent));
+  Entity queryChild;
+  queryChild.id = "query_child";
+  queryChild.setComponent(
+      Transform2DComponent{.parent = "query_parent", .position = {1, 0}});
+  queryChild.setComponent(
+      BoxCollider2DComponent{.size = {1, 1}, .layer = "child"});
+  parentQueryWorld.entities.push_back(std::move(queryChild));
+  const RadialRaycast2D parentBatch(parentQueryWorld, {10, -3}, 10, "child");
+  const auto parentRay = parentBatch.cast({0, 1});
+  if (!parentRay || std::abs(parentRay->distance - 4) > 0.001F ||
+      parentBatch.silhouetteAngles().size() != 4 ||
+      overlapCircle(parentQueryWorld, {10, 2}, 0.1F, "child").size() != 1 ||
+      raycast2D(parentQueryWorld, {10, -3}, {0, 1}, 10, "child",
+                "query_child")) {
+    std::cerr
+        << "Queries did not resolve parented native collider transforms.\n";
+    return 1;
+  }
+  parentQueryWorld.entities.front()
+      .component<Transform2DComponent>()
+      ->position.x = 20;
+  if (raycast2D(parentQueryWorld, {10, -3}, {0, 1}, 10, "child") ||
+      !raycast2D(parentQueryWorld, {20, -3}, {0, 1}, 10, "child") ||
+      !parentBatch.cast({0, 1})) {
+    std::cerr << "New queries missed an immediate parent edit or mutated an "
+                 "existing batch.\n";
+    return 1;
+  }
+  const auto insideRay =
+      raycast2D(parentQueryWorld, {20, 2}, {1, 0}, 5, "child");
+  if (!insideRay || insideRay->distance != 0 || insideRay->normal.x != 0 ||
+      insideRay->normal.y != 0) {
+    std::cerr
+        << "A ray originating inside a collider lost its zero-distance hit.\n";
     return 1;
   }
 
@@ -389,14 +646,12 @@ int main() {
   for (int step = 0; step < 30; ++step)
     stepPhysics2D(jointWorld, 1.0F / 60.0F,
                   PhysicsSettings2D{.gravity = {0.0F, 0.0F}});
-#if DEMI_HAS_BOX2D
   if (jointWorld.box2dState == nullptr ||
       static_cast<b2World *>(jointWorld.box2dState->world)->GetJointCount() !=
           1) {
     std::cerr << "Persistent Box2D world accumulated distance joints.\n";
     return 1;
   }
-#endif
   const float jointDistance =
       jointWorld.entities.back().component<Transform2DComponent>()->position.x;
   if (std::abs(jointDistance - 1.0F) > 0.05F) {
@@ -478,14 +733,12 @@ int main() {
   shapeWorld.entities.push_back(std::move(chain));
   stepPhysics2D(shapeWorld, 1.0F / 60.0F,
                 PhysicsSettings2D{.gravity = {0.0F, 0.0F}});
-#if DEMI_HAS_BOX2D
   if (shapeWorld.box2dState == nullptr ||
       static_cast<b2World *>(shapeWorld.box2dState->world)->GetBodyCount() !=
           3) {
     std::cerr << "Capsule, polygon, and edge/chain fixtures were not built.\n";
     return 1;
   }
-#endif
 
   World kinematicWorld;
   Entity mover;

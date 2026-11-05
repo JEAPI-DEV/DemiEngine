@@ -3,7 +3,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <optional>
 #include <string>
 
 namespace demi::runtime {
@@ -25,8 +24,9 @@ public:
   struct Impl;
 
   [[nodiscard]] std::shared_ptr<AsyncCompletion> completion() const;
-  // Pending returns nullopt. Results are stable, independent copies.
-  [[nodiscard]] std::optional<TcpResponse> response() const;
+  // Pending returns nullptr. Completed snapshots are immutable and remain valid
+  // independently of the operation and client lifetimes.
+  [[nodiscard]] std::shared_ptr<const TcpResponse> response() const;
   // Logical settlement is immediate. Native cancellation/cleanup runs on the
   // reactor; an already submitted write may have reached the peer.
   void cancel();

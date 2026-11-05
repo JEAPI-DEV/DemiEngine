@@ -36,7 +36,7 @@ Clock::time_point deadlineFor(int timeoutMs) {
 
 struct TcpOperation::Impl {
   mutable std::mutex mutex;
-  std::optional<TcpResponse> result;
+  std::shared_ptr<const TcpResponse> result;
   std::shared_ptr<AsyncCompletion> signal = std::make_shared<AsyncCompletion>();
   std::function<void()> wake;
 
@@ -45,7 +45,7 @@ struct TcpOperation::Impl {
       std::lock_guard lock(mutex);
       if (result)
         return false;
-      result = std::move(response);
+      result = std::make_shared<const TcpResponse>(std::move(response));
     }
     signal->complete();
     return true;
@@ -53,7 +53,7 @@ struct TcpOperation::Impl {
 
   bool ready() const {
     std::lock_guard lock(mutex);
-    return result.has_value();
+    return result != nullptr;
   }
 };
 
@@ -64,7 +64,10 @@ std::shared_ptr<AsyncCompletion> TcpOperation::completion() const {
   return impl_->signal;
 }
 
-std::optional<TcpResponse> TcpOperation::response() const {
+std::shared_ptr<const TcpResponse> TcpOperation::response() const {
+  if (!impl_->signal->ready()) {
+    return nullptr;
+  }
   std::lock_guard lock(impl_->mutex);
   return impl_->result;
 }

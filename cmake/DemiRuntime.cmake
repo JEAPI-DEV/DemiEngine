@@ -7,6 +7,9 @@ target_compile_features(demi-destruction PUBLIC cxx_std_20)
 target_link_libraries(demi-destruction PRIVATE demi-blast-lowlevel)
 
 set(DEMI_RUNTIME_COMMON_SOURCES
+  src/demi/runtime/visibility/VisibilityQueries2D.cpp
+  src/demi/runtime/scripting/LuaScriptHostVisibilityServices.cpp
+  src/demi/runtime/scripting/bindings/navigation/LuaFog2DBindings.cpp
   src/demi/runtime/terrain/RegionalTerrainMorph.cpp
   src/demi/runtime/terrain/RegionalTerrainSystem.cpp
   src/demi/runtime/terrain/RegionalTerrainVegetation.cpp
@@ -52,7 +55,6 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/animation/AnimationCollision2DSystem.cpp
   src/demi/runtime/animation/SpriteAnimationSystem.cpp
   src/demi/runtime/camera/Camera2DSystem.cpp
-  src/demi/runtime/camera/Camera3DMath.cpp
   src/demi/runtime/camera/CameraRenderScheduler3D.cpp
   src/demi/runtime/data/DataAssetStore.cpp
   src/demi/runtime/diagnostics/RuntimeLog.cpp
@@ -81,14 +83,15 @@ set(DEMI_RUNTIME_COMMON_SOURCES
   src/demi/runtime/network/NetworkSystem.cpp
   src/demi/runtime/network/ReplicatedState.cpp
   src/demi/runtime/network/TlsMessaging.cpp
-  src/demi/runtime/physics/Box2DWorldState.cpp
   src/demi/runtime/physics/Physics2D.cpp
   src/demi/runtime/physics/PhysicsBody2D.cpp
   src/demi/runtime/physics/PhysicsGeometry2D.cpp
   src/demi/runtime/physics/PhysicsQueries2D.cpp
+  src/demi/runtime/physics/Box2DShapes2D.cpp
   src/demi/runtime/physics/Physics3D.cpp
   src/demi/runtime/physics/PhysicsContactPhases3D.cpp
   src/demi/runtime/physics/PhysicsWorld3D.cpp
+  src/demi/runtime/physics/SpatialQuery3D.cpp
   src/demi/runtime/physics/PhysicsBodyInputs3D.cpp
   src/demi/runtime/physics/JoltBodyShape3D.cpp
   src/demi/runtime/physics/JoltCompoundShape3D.cpp
@@ -187,11 +190,6 @@ function(configure_demi_runtime target with_renderer)
     nlohmann_json::nlohmann_json mbedtls mbedx509 mbedcrypto sol2::sol2
     CURL::libcurl Threads::Threads uv_a demi-sqlite)
   target_compile_definitions(${target} PRIVATE
-    DEMI_HAS_BOX2D=1
-    DEMI_HAS_JOLT=1
-    DEMI_HAS_MINIAUDIO=1
-    DEMI_HAS_MBEDTLS=1
-    DEMI_HAS_SOL2=1
     DEMI_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
   )
 

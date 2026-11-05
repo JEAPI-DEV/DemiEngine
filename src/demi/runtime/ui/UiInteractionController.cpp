@@ -1,3 +1,4 @@
+#include "demi/runtime/ui/UiLayoutEngine.h"
 #include "demi/runtime/ui/UiInteractionController.h"
 
 #include "demi/runtime/ui/UiEventQueue.h"
@@ -86,6 +87,7 @@ UiNode *find(UiDocument &document, const std::string_view id) {
 }
 
 UiNode *hitTest(UiDocument &document, const Vec2 position) {
+  UiLayoutEngine{}.ensure(document, document.canvasSize);
   const auto presentation = buildUiPresentation(document);
   const std::string modal = activeModal(document, presentation);
   for (auto item = presentation.rbegin(); item != presentation.rend(); ++item) {
@@ -99,6 +101,7 @@ UiNode *hitTest(UiDocument &document, const Vec2 position) {
 }
 
 UiNode *scrollTarget(UiDocument &document, const Vec2 position) {
+  UiLayoutEngine{}.ensure(document, document.canvasSize);
   const auto presentation = buildUiPresentation(document);
   const std::string modal = activeModal(document, presentation);
   for (auto item = presentation.rbegin(); item != presentation.rend(); ++item) {

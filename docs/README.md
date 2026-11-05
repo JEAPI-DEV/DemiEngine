@@ -7,6 +7,23 @@ are registered in `tools/package-store/src/Docs.php`.
 
 This directory keeps material that has a different job:
 
+
+- [UI migration rollback](ui-migration-rollback.md) records the restored visual
+  HUD workflow, preserved independent fixes and qualification evidence.
+
+- [Engine library boundaries](engine-library-boundaries.md) records what core
+  code was removed, what upstream libraries can replace, and adoption gates.
+
+- [Engine architecture and frame-time audit](engine-architecture-audit-2026-11-03.md)
+  distinguishes measured Dungeon CPU costs from subsystem ownership/contract findings.
+
+- [Dungeon design research](dungeon-design-notes.md) connects exploration and
+  resource-economy guidance to the current encounter and HUD decisions.
+
+- [Dungeon RPG and UI skins](dungeon-rpg-qualification.md) records body hitbox
+  alignment, shared nine-slice HUD support, inventory/save ownership and native
+  gameplay qualification.
+
 - [Ground-level terrain flight performance](terrain-ground-flight-performance.md)
   records a vegetation-resident route, whole-view terrain ordering and render
   request publication costs.

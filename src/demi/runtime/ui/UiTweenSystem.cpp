@@ -14,7 +14,13 @@ float read(const UiNode &node, UiTweenProperty property) {
   }
   return 0.0F;
 }
-void write(UiNode &node, UiTweenProperty property, float value) {
+void write(UiDocument &document, UiNode &node, UiTweenProperty property, float value) {
+  const bool positionChanged =
+      (property == UiTweenProperty::PositionX && node.layout.position.x != value) ||
+      (property == UiTweenProperty::PositionY && node.layout.position.y != value);
+  if (positionChanged) {
+    document.invalidateLayout();
+  }
   switch (property) {
   case UiTweenProperty::Opacity:
     value = std::clamp(value, 0.0F, 1.0F);
@@ -35,7 +41,7 @@ UiTweenHandle UiTweenSystem::start(UiDocument &document, UiNodeHandle node,
   UiNode *value = UiStateController{}.find(document, node.id);
   const UiTweenHandle handle{next_++};
   if (reducedMotion_ || duration <= 0.0F) {
-    write(*value, property, target);
+    write(document, *value, property, target);
     return handle;
   }
   std::erase_if(tweens_, [&](const Tween &tween) {
@@ -76,7 +82,7 @@ void UiTweenSystem::update(UiDocument &document, float dt) {
     if (!UiMutationQueue::alive(document, tween.node)) continue;
     tween.elapsed += dt;
     const float progress = reducedMotion_ ? 1.0F : std::clamp(tween.elapsed / tween.duration, 0.0F, 1.0F);
-    write(*UiStateController{}.find(document, tween.node.id), tween.property,
+    write(document, *UiStateController{}.find(document, tween.node.id), tween.property,
           tween.from + (tween.to - tween.from) * progress);
   }
   std::erase_if(tweens_, [&](const Tween &tween) {

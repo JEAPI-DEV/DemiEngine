@@ -157,6 +157,12 @@ void testLuaTcp() {
   awaitLua(host, "tcp_write:done()");
   execute(host, R"lua(
     assert(tcp_write:response().ok)
+    local cancelled = tcp_connection:read(2, {timeout_ms = 1000})
+    cancelled:cancel()
+    local cancelledResponse = cancelled:response()
+    assert(cancelledResponse.error_code == 'cancelled')
+    cancelledResponse.error_code = 'changed Lua copy'
+    assert(cancelled:response().error_code == 'cancelled')
     tcp_first_read = tcp_connection:read(2, {timeout_ms = 1000})
     tcp_second_read = tcp_connection:read(2, {timeout_ms = 1000})
   )lua");
@@ -166,7 +172,12 @@ void testLuaTcp() {
   )lua");
   awaitLua(host, "tcp_first_read:done()");
   execute(host, R"lua(
-    assert(tcp_first_read:response().data == "x\0")
+    local first = tcp_first_read:response()
+    assert(first.data == "x\0")
+    first.data = 'changed Lua copy'
+    first.ok = false
+    local second = tcp_first_read:response()
+    assert(first ~= second and second.ok and second.data == "x\0")
     tcp_tail = tcp_connection:read(8, {timeout_ms = 1000})
   )lua");
   awaitLua(host, "tcp_tail:done()");

@@ -1,17 +1,18 @@
 #include "demi/runtime/render/MaterialLibrary.h"
 #include "demi/runtime/render/backend/CookedShaderLibrary.h"
-#include "demi/runtime/render/bgfx3d/MeshSurface3D.h"
 #include "demi/runtime/render/bgfx3d/MeshDrawOrder3D.h"
 #include "demi/runtime/render/bgfx3d/MeshShadowSections3D.h"
+#include "demi/runtime/render/bgfx3d/MeshSurface3D.h"
 
 #ifdef NDEBUG
 #undef NDEBUG
 #endif
-#include <cassert>
 #include <algorithm>
+#include <cassert>
 #include <cmath>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 #include <numbers>
 #include <set>
 #include <string>
@@ -112,7 +113,7 @@ private:
 };
 
 std::string manifest(const std::string &entries) {
-  return "{\"format_version\":1,\"platform\":\"linux\"," \
+  return "{\"format_version\":1,\"platform\":\"linux\","
          "\"shader_programs\":[" +
          entries + "]}";
 }
@@ -236,6 +237,28 @@ int main() {
   assert(resolveMeshSurface3D(mesh, nullptr).blend == BlendMode::Opaque);
   mesh.roughness = 0.0F;
   assert(resolveMeshSurface3D(mesh, nullptr).roughness == 0.0F);
+  // Invalid final overrides use canonical defaults, rather than inheriting a
+  // valid material value; explicit fields still outrank material_properties.
+  MeshRendererComponent raw;
+  raw.materialNumbers = {{"roughness", std::numeric_limits<float>::quiet_NaN()},
+                         {"metallic", 2.0F},
+                         {"opacity", -1.0F}};
+  surface = resolveMeshSurface3D(raw, &inherited);
+  assert(surface.roughness == 0.8F && surface.metallic == 1.0F &&
+         surface.opacity == 0.0F);
+  raw.roughness = 0.1F;
+  raw.opacity = std::numeric_limits<float>::infinity();
+  raw.surfaceMode = "alpha"; // Not a valid MeshRenderer surface-mode spelling.
+  surface = resolveMeshSurface3D(raw, &inherited);
+  assert(surface.roughness == 0.1F && surface.opacity == 1.0F);
+  assert(surface.blend == BlendMode::Opaque);
+  assert(surface.state.cull == inherited.state.cull);
+  assert(surface.state.depthTest == inherited.state.depthTest);
+  raw.roughness.reset();
+  raw.materialNumbers.clear();
+  surface = resolveMeshSurface3D(raw, &inherited);
+  assert(surface.roughness == inherited.roughness);
+
   // Resolving per draw means editing a material property does not require a
   // geometry or batch cache invalidation.
   mesh.roughness = 0.35F;

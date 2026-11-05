@@ -1,3 +1,4 @@
+#include "cli/CommandLine.h"
 #include "editor/EditorShell.h"
 #include "editor/EditorTheme.h"
 #include "editor/EditorUiHost.h"
@@ -23,90 +24,35 @@ struct EditorOptions {
   int maximumFrames = 0;
   std::filesystem::path profileFrames;
   int maximumSeconds = 0;
-  bool showHelp = false;
   bool startPlay = false;
   bool terrainGraph = false;
   std::optional<std::string> terrainSettingsNode;
-  std::string optionError;
 };
-
-EditorOptions parseOptions(const int argc, char **argv) {
-  EditorOptions options;
-  for (int index = 1; index < argc; ++index) {
-    const std::string argument = argv[index];
-    if ((argument == "--project" || argument == "-p") && index + 1 < argc) {
-      options.projectPath = argv[++index];
-    } else if (argument == "--max-frames" && index + 1 < argc) {
-      try {
-        options.maximumFrames = std::max(0, std::stoi(argv[++index]));
-      } catch (const std::exception &) {
-        options.maximumFrames = 0;
-      }
-    } else if (argument == "--max-seconds" && index + 1 < argc) {
-      try {
-        options.maximumSeconds = std::max(0, std::stoi(argv[++index]));
-      } catch (const std::exception &) {
-        options.optionError = "--max-seconds requires a number.";
-      }
-    } else if (argument == "--profile-frames") {
-      if (index + 1 >= argc ||
-          std::string_view(argv[index + 1]).starts_with("--")) {
-        options.optionError = "--profile-frames requires a CSV path.";
-        return options;
-      }
-      options.profileFrames = argv[++index];
-    } else if (argument == "--open" && index + 1 < argc) {
-      options.openSource = argv[++index];
-    } else if (argument == "--play") {
-      options.startPlay = true;
-    } else if (argument == "--terrain-graph") {
-      options.terrainGraph = true;
-    } else if (argument == "--terrain-settings-node") {
-      if (index + 1 >= argc || std::string_view(argv[index + 1]).empty() ||
-          std::string_view(argv[index + 1]).starts_with("--")) {
-        options.optionError =
-            "--terrain-settings-node requires a stable terrain graph node ID.";
-        return options;
-      }
-      options.terrainSettingsNode = argv[++index];
-      options.terrainGraph = true;
-    } else if (argument == "--help" || argument == "-h") {
-      options.showHelp = true;
-    } else if (!argument.starts_with('-') && options.projectPath.empty()) {
-      options.projectPath = argument;
-    }
-  }
-  return options;
-}
-
-void printHelp() {
-  std::cout << "Usage: demi-editor [--project <demi.project.json|directory>]\n"
-               "                   [--open <authored-source>]\n"
-               "                   [--terrain-graph]\n"
-               "                   [--terrain-settings-node <stable-node-id>]\n"
-               "                   [--play] [--max-frames <count>]\n"
-               "                   [--profile-frames <csv>] [--max-seconds "
-               "<seconds>]\n\n"
-               "Without --project, the nearest parent demi.project.json is "
-               "opened.\n"
-               "--terrain-graph opens the graph for the selected terrain "
-               "after --open.\n"
-               "--terrain-settings-node opens that graph node's settings "
-               "and implies --terrain-graph.\n";
-}
 
 } // namespace
 
 int main(const int argc, char **argv) {
-  const EditorOptions options = parseOptions(argc, argv);
-  if (options.showHelp) {
-    printHelp();
-    return 0;
+  CLI::App command{"Open the nearest project or an explicit project path",
+                   "demi-editor"};
+  EditorOptions options;
+  command.add_option("project,--project,-p", options.projectPath);
+  command.add_option("--open", options.openSource);
+  command.add_option("--max-frames", options.maximumFrames)
+      ->check(CLI::NonNegativeNumber);
+  command.add_option("--max-seconds", options.maximumSeconds)
+      ->check(CLI::NonNegativeNumber);
+  command.add_option("--profile-frames", options.profileFrames);
+  command.add_flag("--play", options.startPlay);
+  command.add_flag("--terrain-graph", options.terrainGraph);
+  command.add_option("--terrain-settings-node", options.terrainSettingsNode,
+                     "Open node settings and the terrain graph");
+  const std::vector<std::string> arguments(argv + 1, argv + argc);
+  if (const auto status = demi::cli::parseCommand(command, arguments, 0,
+                                                  std::cout, std::cerr)) {
+    return *status;
   }
-  if (!options.optionError.empty()) {
-    std::cerr << options.optionError << '\n';
-    return 1;
-  }
+  options.terrainGraph =
+      options.terrainGraph || options.terrainSettingsNode.has_value();
 
   std::filesystem::path projectPath = options.projectPath;
   if (projectPath.empty())
@@ -218,7 +164,8 @@ int main(const int argc, char **argv) {
     ui->setUiScale(shell.uiScale());
     if (!ui->beginFrame(error)) {
       std::cerr << "Editor frame failed: " << error << '\n';
-      // Runtime host callbacks borrow the Game renderer; stop before UI teardown.
+      // Runtime host callbacks borrow the Game renderer; stop before UI
+      // teardown.
       shell.playSession().stop();
       shell.releaseUiResources();
       ui->shutdown();

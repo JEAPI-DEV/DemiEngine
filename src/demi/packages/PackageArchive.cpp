@@ -1,16 +1,12 @@
 #include "demi/packages/PackageArchive.h"
 
-#include <mbedtls/sha256.h>
 #include <nlohmann/json.hpp>
 
-#include <array>
 #include <cstdint>
 #include <fstream>
 #include <functional>
-#include <iomanip>
 #include <map>
 #include <set>
-#include <sstream>
 #include <vector>
 
 namespace demi::packages {
@@ -52,20 +48,6 @@ bool readU64(std::istream &input, std::uint64_t &value) {
              << shift;
   }
   return true;
-}
-
-std::string encodeHash(const std::array<unsigned char, 32> &hash) {
-  std::ostringstream output;
-  output << "sha256:" << std::hex << std::setfill('0');
-  for (const unsigned char byte : hash)
-    output << std::setw(2) << static_cast<int>(byte);
-  return output.str();
-}
-
-std::string sha256Bytes(const std::vector<unsigned char> &bytes) {
-  std::array<unsigned char, 32> hash{};
-  mbedtls_sha256(bytes.data(), bytes.size(), hash.data(), 0);
-  return encodeHash(hash);
 }
 
 std::optional<std::vector<unsigned char>>

@@ -1,0 +1,21 @@
+{
+  "format_version": 1,
+  "canvas_size": [
+    960,
+    640
+  ],
+  "children": [
+    {
+      "id": "game_ui",
+      "prefab": "ui-prefab://screens/gameplay",
+      "overrides": {
+        "floor": {
+          "text": "THE FORGOTTEN CELLS"
+        },
+        "objective": {
+          "text": "Find the stairs. The armory is optional; its lever is in the drill yard."
+        }
+      }
+    }
+  ]
+}

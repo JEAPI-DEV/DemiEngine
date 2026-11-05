@@ -1,0 +1,14 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "generated_output": "../../../generated/assets/dungeon/portrait_frame/portrait_frame.svg",
+  "id": "asset://dungeon/portrait_frame",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {
+    "filter": "nearest"
+  },
+  "source": "portrait_frame.svg",
+  "source_hash": "fnv1a64:572b4be6e960a5f5",
+  "type": "SvgTexture2D"
+}

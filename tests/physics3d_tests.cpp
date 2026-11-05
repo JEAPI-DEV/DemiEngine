@@ -13,6 +13,7 @@
 #include <cmath>
 #include <future>
 #include <iostream>
+#include <limits>
 #include <utility>
 
 namespace {
@@ -931,6 +932,168 @@ bool testAirborneJumpRequestIsNotBufferedByPhysics() {
   return true;
 }
 
+bool testColdNativeQueries() {
+  World world;
+  auto wall = box("rotated", {}, {4.0F, 0.2F, 0.2F}, "static");
+  wall.updateComponent<Transform3DComponent>(
+      [](Transform3DComponent &transform) {
+        transform.rotation.z = 0.785398163F;
+      });
+  world.entities.push_back(std::move(wall));
+  if (raycast3D(world, {1.2F, -1.2F, 2}, {0, 0, -1}, 4) ||
+      !overlapBoxAll3D(world, {1.2F, -1.2F, 0}, {0.1F, 0.1F, 0.1F}).empty()) {
+    std::cerr << "Cold queries replaced a rotated box with its bounds\n";
+    return false;
+  }
+  const auto solid = raycast3D(world, {1, 1, 2}, {0, 0, -1}, 4);
+  if (!solid || solid->entityId != "rotated") {
+    std::cerr << "Cold query missed the rotated collider\n";
+    return false;
+  }
+
+  world.entities.clear();
+  Entity target;
+  target.id = "small_sphere";
+  target.setComponent<Transform3DComponent>(
+      Transform3DComponent{.position = {0, 2, 0}});
+  target.setComponent<SphereCollider3DComponent>(
+      SphereCollider3DComponent{.radius = 0.05F});
+  world.entities.push_back(std::move(target));
+  const auto longCapsule = overlapCapsuleAll3D(world, {}, 0.1F, 10);
+  if (longCapsule.size() != 1 || longCapsule.front().entityId != "small_sphere") {
+    std::cerr << "Cold capsule overlap left gaps along its cylinder\n";
+    return false;
+  }
+
+  world.entities.clear();
+  world.entities.push_back(
+      box("thin_wall", {123.456F, 0, 0}, {0.001F, 2, 2}, "static"));
+  const auto sphere = sphereCast3D(world, {}, 0.001F, {1, 0, 0}, 1000);
+  const auto capsule = capsuleCast3D(world, {}, 0.001F, 1, {1, 0, 0}, 1000);
+  if (!sphere || sphere->entityId != "thin_wall" ||
+      !near(sphere->distance, 123.4545F, 0.005F) ||
+      !capsule || capsule->entityId != "thin_wall") {
+    std::cerr << "Cold native sweeps tunneled through thin geometry\n";
+    return false;
+  }
+  if (world.physicsWorld3D || !world.physicsContacts3D.empty()) {
+    std::cerr << "Cold queries created or advanced a simulation world\n";
+    return false;
+  }
+
+  auto &physics = ensurePhysicsWorld3D(world);
+  if (physics.hasSynchronizedBodies(world) ||
+      !raycast3D(world, {}, {1, 0, 0}, 200)) {
+    std::cerr << "Allocated unsynchronized world hid authored colliders\n";
+    return false;
+  }
+  physics.step(world, 0);
+  if (physics.hasSynchronizedBodies(world)) {
+    std::cerr << "Zero-duration step marked empty native bodies as synchronized\n";
+    return false;
+  }
+  const float nan = std::numeric_limits<float>::quiet_NaN();
+  const float infinity = std::numeric_limits<float>::infinity();
+  const auto rejectsNonfiniteQueries = [&] {
+    return !raycast3D(world, {nan, 0, 0}, {1, 0, 0}, 200) &&
+           !raycast3D(world, {}, {infinity, 0, 0}, 200) &&
+           !sphereCast3D(world, {}, nan, {1, 0, 0}, 200) &&
+           !sphereCast3D(world, {}, 1, {1, 0, 0}, infinity) &&
+           !capsuleCast3D(world, {}, 1, infinity, {1, 0, 0}, 200) &&
+           overlapSphereAll3D(world, {}, infinity).empty() &&
+           overlapBoxAll3D(world, {}, {nan, 1, 1}).empty() &&
+           overlapCapsuleAll3D(world, {infinity, 0, 0}, 1, 2).empty();
+  };
+  if (!rejectsNonfiniteQueries()) {
+    std::cerr << "Cold queries accepted nonfinite arguments\n";
+    return false;
+  }
+  physics.step(world, 1.0F / 60.0F, {});
+  if (!physics.hasSynchronizedBodies(world) || !rejectsNonfiniteQueries()) {
+    std::cerr << "Live native query readiness or finite validation failed\n";
+    return false;
+  }
+  return true;
+}
+
+bool testNativePairQueryOverride() {
+  World world;
+  Entity parent;
+  parent.id = "parent";
+  parent.setComponent<Transform3DComponent>(
+      Transform3DComponent{.position = {10, 0, 0}});
+  world.entities.push_back(std::move(parent));
+  auto moving = box("moving", {}, {1, 1, 1}, "dynamic");
+  moving.updateComponent<Transform3DComponent>(
+      [](Transform3DComponent &transform) { transform.parent = "parent"; });
+  moving.component<BoxCollider3DComponent>()->offset = {2, 0, 0};
+  moving.component<Rigidbody3DComponent>()->accumulatedImpulse = {3, 0, 0};
+  world.entities.push_back(std::move(moving));
+  world.entities.push_back(box("target", {15, 0, 0}, {1, 1, 1}, "static"));
+  const auto &left = world.entities[1];
+  const auto &right = world.entities[2];
+  auto proposed = *left.component<Transform3DComponent>();
+  proposed.position = {3, 0, 0};
+  if (collidersOverlap3D(world, left, nullptr, right) ||
+      !collidersOverlap3D(world, left, &proposed, right) ||
+      left.component<Transform3DComponent>()->position.x != 0 ||
+      left.component<Rigidbody3DComponent>()->accumulatedImpulse.x != 3) {
+    std::cerr << "Native pair query lost its hierarchy, offset, or override isolation\n";
+    return false;
+  }
+  return true;
+}
+
+bool testNativePairQueryEligibility() {
+  World world;
+  ColliderAsset3D surface;
+  surface.triangles = {
+      {{-3, -3, 0}, {3, -3, 0}, {-3, 3, 0}},
+      {{3, -3, 0}, {3, 3, 0}, {-3, 3, 0}}};
+  world.colliderAssets3D.emplace("asset://surface", std::move(surface));
+  ColliderAsset3D compound;
+  for (const float centerX : {-1.0F, 1.0F}) {
+    ColliderPart3D part;
+    part.id = centerX < 0 ? "left" : "right";
+    for (const float x : {-0.4F, 0.4F}) {
+      for (const float y : {-0.4F, 0.4F}) {
+        for (const float z : {-0.4F, 0.4F}) {
+          part.points.push_back({centerX + x, y, z});
+        }
+      }
+    }
+    compound.parts.push_back(std::move(part));
+  }
+  world.colliderAssets3D.emplace("asset://compound", std::move(compound));
+  const auto addModel = [&](const std::string &id, const std::string &asset,
+                            const Transform3DComponent &transform) {
+    Entity entity;
+    entity.id = id;
+    entity.setComponent(transform);
+    entity.setComponent<ModelCollider3DComponent>(
+        ModelCollider3DComponent{.asset = asset});
+    world.entities.push_back(std::move(entity));
+  };
+  addModel("surface", "asset://surface", {});
+  addModel("crossing_surface", "asset://surface",
+           Transform3DComponent{.rotation = {0, 1.570796327F, 0}});
+  addModel("compound", "asset://compound", {});
+  addModel("other_compound", "asset://compound",
+           Transform3DComponent{.position = {0, 0, 0.25F}});
+  if (collidersOverlap3D(world, world.entities[0], nullptr, world.entities[1]) ||
+      collidersOverlap3D(world, world.entities[1], nullptr, world.entities[0])) {
+    std::cerr << "Unsupported triangle-mesh pair was reported as overlapping\n";
+    return false;
+  }
+  if (!collidersOverlap3D(world, world.entities[2], nullptr, world.entities[0]) ||
+      !collidersOverlap3D(world, world.entities[0], nullptr, world.entities[2]) ||
+      !collidersOverlap3D(world, world.entities[2], nullptr, world.entities[3])) {
+    std::cerr << "Native pair eligibility rejected convex compound geometry\n";
+    return false;
+  }
+  return true;
+}
+
 bool testShapeQueriesAndColliderKinds() {
   World world;
   Entity capsule;
@@ -1602,6 +1765,8 @@ int main() {
       !testCharacterUsesSelectedBoxCollider() ||
       !testOffsetCharacterRetainsSupportAfterMoving() ||
       !testAirborneJumpRequestIsNotBufferedByPhysics() ||
+      !testColdNativeQueries() || !testNativePairQueryOverride() ||
+      !testNativePairQueryEligibility() ||
       !testShapeQueriesAndColliderKinds() || !testSolidOnlySphereCast() ||
       !testCharacterStepAndMovingPlatform() ||
       !testRepeatedLifetimeAndInterpolation() || !testDeterministicReplay() ||

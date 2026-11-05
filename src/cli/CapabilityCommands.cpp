@@ -1,5 +1,5 @@
 #include "cli/CapabilityCommands.h"
-#include "cli/CliArguments.h"
+#include "cli/CommandLine.h"
 
 #include "demi/capabilities/CapabilityManifest.h"
 #include "demi/diagnostics/Diagnostic.h"
@@ -51,7 +51,7 @@ std::optional<Json> currentManifest(std::ostream &error) {
   return capabilities::buildManifest(host.publicLuaApi());
 }
 
-int exportManifest(const std::vector<std::string> &args, std::ostream &out,
+int exportManifest(const std::string &outputValue, std::ostream &out,
                    std::ostream &error) {
   const auto manifest = currentManifest(error);
   if (!manifest.has_value()) {
@@ -64,7 +64,6 @@ int exportManifest(const std::vector<std::string> &args, std::ostream &out,
     error << "Failed to encode capability manifest: " << failure.what() << '\n';
     return Failure;
   }
-  const std::string outputValue = valueAfter(args, "--output");
   if (outputValue.empty()) {
     out << content;
     return Success;
@@ -81,10 +80,10 @@ int exportManifest(const std::vector<std::string> &args, std::ostream &out,
   return Success;
 }
 
-int checkCompatibility(const std::vector<std::string> &args,
+int checkCompatibility(const std::string &baselineValue,
+                       const std::string &format,
                        const CapabilityCommandContext &context,
                        std::ostream &out, std::ostream &error) {
-  const std::string baselineValue = valueAfter(args, "--baseline");
   const std::filesystem::path baselinePath =
       baselineValue.empty()
           ? context.sourceRoot / "capabilities" / "public_api.baseline.json"
@@ -97,7 +96,7 @@ int checkCompatibility(const std::vector<std::string> &args,
 
   const Diagnostics diagnostics =
       capabilities::comparePublicApi(*baseline, *current);
-  if (valueAfter(args, "--format") == "json") {
+  if (format == "json") {
     printDiagnosticsJson(out, diagnostics);
   } else {
     printDiagnosticsText(out, diagnostics);
@@ -105,10 +104,9 @@ int checkCompatibility(const std::vector<std::string> &args,
   return hasErrors(diagnostics) ? Failure : Success;
 }
 
-int verifyGates(const std::vector<std::string> &args,
+int verifyGates(const std::string &manifestValue,
                 const CapabilityCommandContext &context, std::ostream &out,
                 std::ostream &error) {
-  const std::string manifestValue = valueAfter(args, "--manifest");
   const std::filesystem::path manifestPath =
       manifestValue.empty()
           ? context.sourceRoot / "capabilities" / "reference_gates.json"
@@ -131,21 +129,30 @@ int verifyGates(const std::vector<std::string> &args,
 int runCapabilityCommand(const std::vector<std::string> &args,
                          const CapabilityCommandContext &context,
                          std::ostream &out, std::ostream &error) {
-  if (args.size() < 2) {
-    error << "capabilities requires export, check, or verify-gates.\n";
-    return UsageError;
+  CLI::App command{"Inspect the public capability contract",
+                   "demi capabilities"};
+  command.require_subcommand(1, 1);
+  std::string path;
+  std::string format = "text";
+  int result = UsageError;
+  auto *exportCommand =
+      command.add_subcommand("export", "Export the current manifest");
+  exportCommand->add_option("--output", path);
+  exportCommand->callback([&] { result = exportManifest(path, out, error); });
+  auto *check =
+      command.add_subcommand("check", "Compare against the public baseline");
+  check->add_option("--baseline", path);
+  check->add_option("--format", format)->check(CLI::IsMember({"text", "json"}));
+  check->callback(
+      [&] { result = checkCompatibility(path, format, context, out, error); });
+  auto *verify =
+      command.add_subcommand("verify-gates", "Verify qualification gates");
+  verify->add_option("--manifest", path);
+  verify->callback([&] { result = verifyGates(path, context, out, error); });
+  if (const auto status = parseCommand(command, args, 1, out, error)) {
+    return *status;
   }
-  if (args[1] == "export") {
-    return exportManifest(args, out, error);
-  }
-  if (args[1] == "check") {
-    return checkCompatibility(args, context, out, error);
-  }
-  if (args[1] == "verify-gates") {
-    return verifyGates(args, context, out, error);
-  }
-  error << "Unknown capabilities subcommand: " << args[1] << '\n';
-  return UsageError;
+  return result;
 }
 
 } // namespace demi::cli

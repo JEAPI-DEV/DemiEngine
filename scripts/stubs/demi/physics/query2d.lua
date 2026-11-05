@@ -50,6 +50,20 @@ function Physics2D.overlap_circle_all(x, y, radius, layer, ignored_entity_id) en
 ---@return PhysicsRaycastHit2D|nil
 function Physics2D.raycast(origin_x, origin_y, direction_x, direction_y, distance, layer, ignored_entity_id) end
 
+---@alias PhysicsRay2D {[1]: number, [2]: number, [3]: number} Direction x/y and maximum distance.
+---@alias RaycastBatchHit2D PhysicsRaycastHit2D|false
+---Cast up to 4096 rays from one origin using one candidate selection.
+---Each result matches its input index; a miss is false, never a hole.
+---Malformed arrays/non-finite values/negative distances return nil and an error.
+---@param origin_x number
+---@param origin_y number
+---@param rays PhysicsRay2D[]
+---@param layer? string
+---@param ignored_entity_id? string
+---@return RaycastBatchHit2D[]|nil hits
+---@return string|nil error
+function Physics2D.raycast_batch(origin_x, origin_y, rays, layer, ignored_entity_id) end
+
 ---@class PhysicsContact2D
 ---@field entity_id string
 ---@field other_entity_id string

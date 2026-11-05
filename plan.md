@@ -1,5 +1,39 @@
 # DemiEngine Roadmap
 
+## Current architectural work
+
+The RmlUi migration was reverted at the user's request. Keep the existing JSON
+HUD authoring, visual HUD editor, event annotations and localization workflow.
+Do not resume that replacement without an explicit new decision. Independent
+fog/raycast/layout/font performance work and gameplay fixes remain in scope.
+
+The desktop performance target is 165 Hz (6.06 ms per frame), with game behavior
+preserved through engine-level refactoring and explicit example migrations.
+Library adoption must transfer responsibility upstream and delete redundant
+engine code, rather than add another supported implementation. See
+[engine library boundaries](docs/engine-library-boundaries.md) and the
+[architecture audit](docs/engine-architecture-audit-2026-11-03.md).
+
+Recent qualified work includes: GPU fog shading, call-scoped native ray
+batches, document-owned UI geometry resolution, and immutable HarfBuzz font
+resource ownership. Native Box2D/Jolt query consolidation and CLI11 command parsing now remove
+722 production-source lines, with qualification recorded in the library
+boundaries document above. Follow-up camera/material rule consolidation, no-op
+destruction staging and existing UTF-8/hash library reuse are also qualified there
+(39 additional production lines removed). The 165 Hz target still requires repeatable qualification;
+the abandoned UI replacement is not evidence of achieving it.
+
+The follow-up runtime/preparation pass now retains native 2D joints, shares 2D
+world poses/step selection, retains staged asset state, reuses model preparation
+work, consumes native reload events and shares immutable network responses.
+Required-backend fallback solvers/compile flags are removed. Counts, timing limits
+and qualification are recorded in the engine library boundaries document.
+
+A direct deduplication pass reuses glTF image loading, native solid bounds, editor
+projection, vector math, quad vertex layouts and compact SDL key mappings. It
+removes 294 production-source lines without new dependencies or persistent state;
+qualification and preserved edge-case policies are recorded in the same report.
+
 Ground-level traversal now has a repeatable vegetation-resident profiling route.
 Terrain draws sort across regional owners, and render-request refresh uses the
 shared entity index without duplicate split demand. See

@@ -1,4 +1,3 @@
-#include "cli/CliArguments.h"
 #include "cli/project/ProjectDiscovery.h"
 #include "cli/project/ProjectTemplates.h"
 
@@ -32,14 +31,6 @@ bool hasCode(const demi::Diagnostics &diagnostics, const std::string &code) {
 int main() {
   namespace fs = std::filesystem;
   using namespace demi::cli::project;
-  const std::vector<std::string> arguments{"demi", "--project",
-                                           "fixture.project.json", "--watch"};
-  assert(demi::cli::hasArg(arguments, "--watch"));
-  assert(!demi::cli::hasArg(arguments, "--missing"));
-  assert(demi::cli::valueAfter(arguments, "--project") ==
-         "fixture.project.json");
-  assert(demi::cli::valueAfter(arguments, "--watch").empty());
-
   const fs::path sourceRoot = DEMI_SOURCE_DIR;
   demi::Diagnostics catalogDiagnostics;
   ProjectTemplateCatalog catalog(sourceRoot / "templates");
@@ -57,10 +48,9 @@ int main() {
   fs::create_directories(root / "discovery" / "scenes" / "nested");
   assert(demi::cli::findProjectFile(root / "discovery" / "scenes" / "nested") ==
          discoveredProject);
-  assert(demi::cli::projectFileFromArgs(
-             {"dev"}, root / "discovery" / "scenes") == discoveredProject);
-  assert(demi::cli::projectFileFromArgs(
-             {"dev", "--project", (root / "discovery").string()}, root) ==
+  assert(demi::cli::resolveProjectFile({}, root / "discovery" / "scenes") ==
+         discoveredProject);
+  assert(demi::cli::resolveProjectFile((root / "discovery").string(), root) ==
          discoveredProject);
 
   auto item = catalog.find("visual-novel", catalogDiagnostics);

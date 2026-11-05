@@ -1,4 +1,5 @@
 #include "demi/runtime/animation/ProceduralIk.h"
+#include "demi/runtime/math/VectorMath.h"
 
 #include <algorithm>
 #include <cmath>
@@ -17,36 +18,16 @@ bool finite(const Vec3 value) {
          std::isfinite(value.z);
 }
 
-float dot(const Vec3 left, const Vec3 right) {
-  return left.x * right.x + left.y * right.y + left.z * right.z;
-}
-
-Vec3 subtract(const Vec3 left, const Vec3 right) {
-  return {left.x - right.x, left.y - right.y, left.z - right.z};
-}
-
-Vec3 scale(const Vec3 value, const float amount) {
-  return {value.x * amount, value.y * amount, value.z * amount};
-}
-
-Vec3 add(const Vec3 left, const Vec3 right) {
-  return {left.x + right.x, left.y + right.y, left.z + right.z};
-}
-
-Vec3 normalized(const Vec3 value) {
-  const float magnitude = std::sqrt(dot(value, value));
-  return magnitude > Epsilon ? scale(value, 1.0F / magnitude) : Vec3{};
-}
-
 Vec3 perpendicularTo(const Vec3 direction, const Vec3 poleOffset) {
-  Vec3 bend =
-      subtract(poleOffset, scale(direction, dot(poleOffset, direction)));
-  if (dot(bend, bend) <= Epsilon * Epsilon) {
+  Vec3 bend = math::subtract(
+      poleOffset, math::scale(direction, math::dot(poleOffset, direction)));
+  if (math::dot(bend, bend) <= Epsilon * Epsilon) {
     const Vec3 axis =
         std::abs(direction.y) < 0.9F ? Vec3{0, 1, 0} : Vec3{1, 0, 0};
-    bend = subtract(axis, scale(direction, dot(axis, direction)));
+    bend = math::subtract(axis,
+                          math::scale(direction, math::dot(axis, direction)));
   }
-  return normalized(bend);
+  return math::normalized(bend);
 }
 
 bool validLengths(const float upperLength, const float lowerLength) {
@@ -105,18 +86,19 @@ solveTwoBoneIk3D(const Vec3 root, const Vec3 target, const Vec3 pole,
       !validLengths(upperLength, lowerLength))
     return std::nullopt;
 
-  const Vec3 offset = subtract(target, root);
-  const float targetDistance = std::sqrt(dot(offset, offset));
+  const Vec3 offset = math::subtract(target, root);
+  const float targetDistance = std::sqrt(math::dot(offset, offset));
   const Vec3 direction = targetDistance > Epsilon
-                             ? scale(offset, 1.0F / targetDistance)
+                             ? math::scale(offset, 1.0F / targetDistance)
                              : Vec3{1.0F, 0.0F, 0.0F};
-  const Vec3 bend = perpendicularTo(direction, subtract(pole, root));
+  const Vec3 bend = perpendicularTo(direction, math::subtract(pole, root));
   const float minimum = std::abs(upperLength - lowerLength);
   const float maximum = upperLength + lowerLength;
   const float distance = std::clamp(targetDistance, minimum, maximum);
   const bool reached = targetDistance >= minimum - Epsilon &&
                        targetDistance <= maximum + Epsilon;
-  const Vec3 end = reached ? target : add(root, scale(direction, distance));
+  const Vec3 end =
+      reached ? target : math::add(root, math::scale(direction, distance));
   const float along = distance > Epsilon
                           ? (upperLength * upperLength + distance * distance -
                              lowerLength * lowerLength) /
@@ -125,7 +107,8 @@ solveTwoBoneIk3D(const Vec3 root, const Vec3 target, const Vec3 pole,
   const float height =
       std::sqrt(std::max(upperLength * upperLength - along * along, 0.0F));
   return TwoBoneIkResult3D{
-      .joint = add(root, add(scale(direction, along), scale(bend, height))),
+      .joint = math::add(root, math::add(math::scale(direction, along),
+                                         math::scale(bend, height))),
       .end = end,
       .reached = reached,
   };

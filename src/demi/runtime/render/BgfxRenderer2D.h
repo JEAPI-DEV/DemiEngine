@@ -22,6 +22,7 @@ namespace demi::runtime::render {
 // Runtime-facing composition root for the bgfx 2D path. Specialized
 // renderers remain independently testable; this class only sequences them and
 // owns their shared GPU resources.
+class FogCanvasRenderer;
 class BgfxRenderer2D {
 public:
   BgfxRenderer2D(GpuResources &resources, RenderCommands &commands);
@@ -90,6 +91,7 @@ private:
   std::unordered_map<std::string, TextureAnimation2D> textureAnimations_;
   class ParticleSimulation;
   std::unique_ptr<ParticleSimulation> particles_;
+  std::unique_ptr<FogCanvasRenderer> fog_;
   Camera2DComponent camera_;
   Vec2 cameraPosition_;
   std::uint16_t viewportWidth_ = 1;

@@ -3,9 +3,7 @@
 #include "demi/runtime/render/MaterialLibrary.h"
 #include "demi/runtime/scene/components/3dcomponents/MeshRendererComponent.h"
 
-#include <algorithm>
 #include <array>
-#include <cmath>
 #include <optional>
 #include <string_view>
 
@@ -15,8 +13,8 @@ namespace demi::runtime::render {
 // caches makes live material and entity edits visible on the next frame.
 struct MeshSurface3D {
   float metallic = 0.0F;
-  float roughness = 0.8F;
-  float opacity = 1.0F;
+  float roughness = assets::MaterialSurface::DefaultRoughness;
+  float opacity = assets::MaterialSurface::DefaultOpacity;
   std::array<float, 4> baseColor{1.0F, 1.0F, 1.0F, 1.0F};
   BlendMode blend = BlendMode::Opaque;
   DrawState state{.blend = BlendMode::Opaque,
@@ -46,23 +44,14 @@ resolveMeshSurface3D(const MeshRendererComponent &mesh,
   }
   if (const auto found = mesh.materialColors.find("base_color");
       found != mesh.materialColors.end())
-    surface.baseColor = {found->second.r, found->second.g,
-                         found->second.b, found->second.a};
-  if (const auto found = mesh.materialNumbers.find("metallic");
-      found != mesh.materialNumbers.end())
-    surface.metallic = found->second;
-  if (const auto found = mesh.materialNumbers.find("roughness");
-      found != mesh.materialNumbers.end())
-    surface.roughness = found->second;
-  if (const auto found = mesh.materialNumbers.find("opacity");
-      found != mesh.materialNumbers.end())
-    surface.opacity = found->second;
-  if (mesh.metallic)
-    surface.metallic = *mesh.metallic;
-  if (mesh.roughness)
-    surface.roughness = *mesh.roughness;
-  if (mesh.opacity)
-    surface.opacity = *mesh.opacity;
+    surface.baseColor = {found->second.r, found->second.g, found->second.b,
+                         found->second.a};
+  surface.metallic = assets::resolveMaterialSurfaceNumber(
+      "metallic", &mesh.materialNumbers, mesh.metallic, surface.metallic);
+  surface.roughness = assets::resolveMaterialSurfaceNumber(
+      "roughness", &mesh.materialNumbers, mesh.roughness, surface.roughness);
+  surface.opacity = assets::resolveMaterialSurfaceNumber(
+      "opacity", &mesh.materialNumbers, mesh.opacity, surface.opacity);
   if (mesh.surfaceMode) {
     const std::string_view mode = *mesh.surfaceMode;
     surface.blend = mode == "additive" ? BlendMode::Additive
@@ -71,12 +60,6 @@ resolveMeshSurface3D(const MeshRendererComponent &mesh,
   }
   if (fade)
     surface.blend = BlendMode::Alpha;
-  surface.metallic = std::isfinite(surface.metallic)
-                         ? std::clamp(surface.metallic, 0.0F, 1.0F) : 0.0F;
-  surface.roughness = std::isfinite(surface.roughness)
-                          ? std::clamp(surface.roughness, 0.0F, 1.0F) : 0.8F;
-  surface.opacity = std::isfinite(surface.opacity)
-                        ? std::clamp(surface.opacity, 0.0F, 1.0F) : 1.0F;
   surface.state.blend = surface.blend;
   if (surface.transparent())
     surface.state.writeDepth = false;

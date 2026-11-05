@@ -435,54 +435,62 @@ int main() {
                0.0001F;
       }));
 
-  // Imported locomotion must remain in place when a character controller owns
-  // translation. Raw Mixamo hip motion previously moved this visual several
-  // metres away from its entity as soon as any gameplay animation started.
+  // Original Blender-authored Z-up skin and in-place clips must remain upright
+  // and bounded after import, with real pose changes in every clip.
   error.clear();
-  auto knightProfile =
+  auto mannequinProfile =
       demi::assets::modelImportPreset("animated_character");
-  knightProfile.sourceUp = "+z";
-  knightProfile.sourceForward = "-y";
-  const auto knight = demi::assets::loadGltfSkinnedModel3D(
+  mannequinProfile.sourceUp = "+z";
+  mannequinProfile.sourceForward = "-y";
+  const auto mannequin = demi::assets::loadGltfSkinnedModel3D(
       std::filesystem::path(DEMI_SOURCE_DIR) /
-          "examples/souls_boss_arena/assets/models/cyberpunk_character/"
-          "cyberpunk_character.glb",
-      knightProfile, error);
-  assert(knight && error.empty());
-  std::vector<demi::runtime::Vec3> knightBind;
-  assert(knight->bindPosePositions(knightBind, error));
-  demi::runtime::Vec3 knightMinimum = knightBind.front();
-  demi::runtime::Vec3 knightMaximum = knightBind.front();
-  for (const auto position : knightBind) {
-    knightMinimum.x = std::min(knightMinimum.x, position.x);
-    knightMinimum.y = std::min(knightMinimum.y, position.y);
-    knightMinimum.z = std::min(knightMinimum.z, position.z);
-    knightMaximum.x = std::max(knightMaximum.x, position.x);
-    knightMaximum.y = std::max(knightMaximum.y, position.y);
-    knightMaximum.z = std::max(knightMaximum.z, position.z);
+          "tests/fixtures/animated_character/"
+          "mannequin.glb",
+      mannequinProfile, error);
+  assert(mannequin && error.empty());
+  std::vector<demi::runtime::Vec3> mannequinBind;
+  assert(mannequin->bindPosePositions(mannequinBind, error));
+  demi::runtime::Vec3 mannequinMinimum = mannequinBind.front();
+  demi::runtime::Vec3 mannequinMaximum = mannequinBind.front();
+  for (const auto position : mannequinBind) {
+    mannequinMinimum.x = std::min(mannequinMinimum.x, position.x);
+    mannequinMinimum.y = std::min(mannequinMinimum.y, position.y);
+    mannequinMinimum.z = std::min(mannequinMinimum.z, position.z);
+    mannequinMaximum.x = std::max(mannequinMaximum.x, position.x);
+    mannequinMaximum.y = std::max(mannequinMaximum.y, position.y);
+    mannequinMaximum.z = std::max(mannequinMaximum.z, position.z);
   }
-  const float knightHeight = knightMaximum.y - knightMinimum.y;
-  if (knightHeight <= knightMaximum.x - knightMinimum.x ||
-      knightHeight <= knightMaximum.z - knightMinimum.z)
-    std::cerr << "Cyberpunk character bind extents: "
-              << knightMaximum.x - knightMinimum.x << ", " << knightHeight
-              << ", " << knightMaximum.z - knightMinimum.z << '\n';
-  assert(knightHeight > knightMaximum.x - knightMinimum.x);
-  assert(knightHeight > knightMaximum.z - knightMinimum.z);
+  const float mannequinHeight = mannequinMaximum.y - mannequinMinimum.y;
+  if (mannequinHeight <= mannequinMaximum.x - mannequinMinimum.x ||
+      mannequinHeight <= mannequinMaximum.z - mannequinMinimum.z) {
+    std::cerr << "Mannequin bind extents: "
+              << mannequinMaximum.x - mannequinMinimum.x << ", " << mannequinHeight
+              << ", " << mannequinMaximum.z - mannequinMinimum.z << '\n';
+  }
+  assert(mannequinHeight > mannequinMaximum.x - mannequinMinimum.x);
+  assert(mannequinHeight > mannequinMaximum.z - mannequinMinimum.z);
   for (const std::string_view clipName : {"Idle", "CombatRun", "DodgeRoll",
                                           "SwordAttack", "ShieldBlock"}) {
-    const int clip = knight->clipIndex(clipName, -1);
+    const int clip = mannequin->clipIndex(clipName, -1);
     assert(clip >= 0);
-    const float duration = knight->clips[static_cast<std::size_t>(clip)].duration;
+    const float duration = mannequin->clips[static_cast<std::size_t>(clip)].duration;
+    bool clipDeformsMesh = false;
     for (const float time : {0.0F, duration * 0.5F, duration}) {
       std::vector<demi::runtime::Vec3> pose;
-      assert(knight->samplePositions(clip, time, false, pose, error));
+      assert(mannequin->samplePositions(clip, time, false, pose, error));
+      assert(pose.size() == mannequinBind.size());
+      for (std::size_t index = 0; index < pose.size(); ++index) {
+        const bool vertexMoved =
+            distanceSquared(pose[index], mannequinBind[index]) > 0.0001F;
+        clipDeformsMesh = clipDeformsMesh || vertexMoved;
+      }
       assert(largestExtent(pose) < 5.0F);
       assert(std::ranges::all_of(pose, [](const demi::runtime::Vec3 position) {
         return finite(position) && std::abs(position.x) < 5.0F &&
                std::abs(position.y) < 5.0F && std::abs(position.z) < 5.0F;
       }));
     }
+    assert(clipDeformsMesh);
   }
 
   std::cout << "gltf skinned model tests passed\n";

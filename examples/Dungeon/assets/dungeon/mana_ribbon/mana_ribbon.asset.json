@@ -1,0 +1,14 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "generated_output": "../../../generated/assets/dungeon/mana_ribbon/mana_ribbon.svg",
+  "id": "asset://dungeon/mana_ribbon",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {
+    "filter": "nearest"
+  },
+  "source": "mana_ribbon.svg",
+  "source_hash": "fnv1a64:1e1eb28ccdf5de4c",
+  "type": "SvgTexture2D"
+}

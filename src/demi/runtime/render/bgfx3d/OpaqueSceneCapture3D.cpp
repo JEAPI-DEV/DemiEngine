@@ -293,24 +293,13 @@ bool OpaqueSceneCapture3D::resolveDepth(Target &target,
        {.x = width, .y = height, .u = 1, .v = 1, .rgba = 0xffffffffU},
        {.x = 0, .y = height, .u = 0, .v = 1, .rgba = 0xffffffffU}}};
   constexpr std::array<std::uint16_t, 6> indices{0, 1, 2, 0, 2, 3};
-  const VertexLayout layout{
-      .attributes = {{.semantic = VertexSemantic::Position,
-                      .components = 2,
-                      .type = VertexElementType::Float},
-                     {.semantic = VertexSemantic::TexCoord0,
-                      .components = 2,
-                      .type = VertexElementType::Float},
-                     {.semantic = VertexSemantic::Color0,
-                      .components = 4,
-                      .type = VertexElementType::UInt8,
-                      .normalized = true}}};
   const std::array<float, 4> sampleCount{
       static_cast<float>(target.requestedSamples), 0, 0, 0};
   const std::array uniforms{
       DrawUniformValue{.handle = resolveSamples_, .values = sampleCount}};
   return commands.submit({.viewId = view,
                           .vertices = std::as_bytes(std::span(vertices)),
-                          .vertexLayout = layout,
+                          .vertexLayout = quadVertexLayout(),
                           .indices = indices,
                           .program = resolveProgram_,
                           .texture = target.analyticDepth,

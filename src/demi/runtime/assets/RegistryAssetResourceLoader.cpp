@@ -89,33 +89,51 @@ std::size_t RegistryAssetResourceLoader::uploadBatch(
     requestedIds.push_back(upload.asset.id);
   }
   const bool staged = backend_.applyStep && budgetMilliseconds >= 0.0;
-  if (!pendingUploadIds_.empty() && pendingUploadIds_ != requestedIds) {
+  if (!pendingUploadIds_.empty() &&
+      (!staged || pendingUploadIds_ != requestedIds)) {
     if (staged) {
       return 0;
     }
     const auto cancelledIds = pendingUploadIds_;
     cancelUploadBatch(cancelledIds);
   }
-  std::set<std::string> candidateIds = residentIds_;
   for (const auto &upload : uploads) {
     if (!upload.decoded.payload) {
       error = "Backend upload received an empty verified-source payload.";
+      cancelUploadBatch(requestedIds);
       return 0;
     }
-    candidateIds.insert(upload.asset.id);
   }
-  // Registry replacement is indivisible. Publish one union of ready resources
-  // rather than rebuilding every native object for each individual asset.
-  const AssetRegistry candidate = snapshot(candidateIds, error);
-  if (!error.empty()) {
-    return 0;
+  if (staged && !pendingUploadIds_.empty() && !pendingSourceMatches()) {
+    const auto cancelledIds = pendingUploadIds_;
+    cancelUploadBatch(cancelledIds);
+  }
+  if (staged && pendingUploadIds_.empty()) {
+    pendingResidentIds_ = residentIds_;
+    pendingResidentIds_.insert(requestedIds.begin(), requestedIds.end());
+    auto candidate = snapshot(pendingResidentIds_, error);
+    if (!error.empty()) {
+      clearPendingPublication();
+      return 0;
+    }
+    pendingRegistry_ = std::move(candidate);
+    pendingUploadIds_ = requestedIds;
+    pendingSourceCount_ = source_.assets.size();
+    std::size_t candidateIndex = 0;
+    for (std::size_t index = 0;
+         index < source_.assets.size() &&
+         candidateIndex < pendingRegistry_->assets.size();
+         ++index) {
+      if (source_.assets[index].id ==
+          pendingRegistry_->assets[candidateIndex].id) {
+        pendingSourceIndices_.push_back(index);
+        ++candidateIndex;
+      }
+    }
   }
   if (staged) {
-    if (pendingUploadIds_.empty()) {
-      pendingUploadIds_ = requestedIds;
-      pendingResidentIds_ = candidateIds;
-    }
-    const auto stage = backend_.applyStep(candidate, budgetMilliseconds, error);
+    const auto stage =
+        backend_.applyStep(*pendingRegistry_, budgetMilliseconds, error);
     if (stage == AssetPublicationStage::Pending) {
       return 0;
     }
@@ -127,8 +145,16 @@ std::size_t RegistryAssetResourceLoader::uploadBatch(
       return 0;
     }
     residentIds_ = std::move(pendingResidentIds_);
-    pendingUploadIds_.clear();
+    clearPendingPublication();
     return uploads.size();
+  }
+  std::set<std::string> candidateIds = residentIds_;
+  candidateIds.insert(requestedIds.begin(), requestedIds.end());
+  // Registry replacement is indivisible. Resolve the union once per operation,
+  // retaining that snapshot across budgeted backend continuation calls.
+  const AssetRegistry candidate = snapshot(candidateIds, error);
+  if (!error.empty()) {
+    return 0;
   }
   if (!backend_.apply || !backend_.apply(candidate, error)) {
     if (error.empty()) {
@@ -151,8 +177,31 @@ void RegistryAssetResourceLoader::cancelUploadBatch(
   if (backend_.cancelApply) {
     backend_.cancelApply();
   }
+  clearPendingPublication();
+}
+
+void RegistryAssetResourceLoader::clearPendingPublication() {
   pendingUploadIds_.clear();
   pendingResidentIds_.clear();
+  pendingRegistry_.reset();
+  pendingSourceIndices_.clear();
+  pendingSourceCount_ = 0;
+}
+
+bool RegistryAssetResourceLoader::pendingSourceMatches() const {
+  if (!pendingRegistry_ || pendingSourceCount_ != source_.assets.size() ||
+      pendingRegistry_->projectDirectory != source_.projectDirectory) {
+    return false;
+  }
+  // Only the captured dependency closure matters. Compare borrowed source
+  // values without reconstructing dependencies or copying manifests per poll.
+  for (std::size_t index = 0; index < pendingSourceIndices_.size(); ++index) {
+    if (pendingRegistry_->assets[index] !=
+        source_.assets[pendingSourceIndices_[index]]) {
+      return false;
+    }
+  }
+  return true;
 }
 
 double RegistryAssetResourceLoader::pendingUploadProgress(
@@ -174,6 +223,7 @@ void RegistryAssetResourceLoader::unload(const std::string_view assetId) {
 bool RegistryAssetResourceLoader::unloadBatch(
     const std::span<const std::string> assetIds, std::string &error) {
   error.clear();
+  cancelUploadBatch(assetIds);
   std::set<std::string> candidateIds = residentIds_;
   for (const auto &assetId : assetIds) {
     candidateIds.erase(assetId);
@@ -202,6 +252,8 @@ std::string_view RegistryAssetResourceLoader::backendName() const {
 }
 
 bool RegistryAssetResourceLoader::restore(std::string &error) {
+  const auto cancelledIds = pendingUploadIds_;
+  cancelUploadBatch(cancelledIds);
   const AssetRegistry candidate = snapshot(residentIds_, error);
   return error.empty() && backend_.apply && backend_.apply(candidate, error);
 }
@@ -209,6 +261,7 @@ bool RegistryAssetResourceLoader::restore(std::string &error) {
 AssetRegistry
 RegistryAssetResourceLoader::snapshot(const std::set<std::string> &roots,
                                       std::string &error) const {
+  ++snapshotBuilds_;
   std::set<std::string> included = roots;
   for (const std::string &root : roots) {
     const AssetManifest *asset = findAsset(source_, root);

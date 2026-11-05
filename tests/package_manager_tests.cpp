@@ -10,6 +10,7 @@
 #include <cassert>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <map>
 
 namespace {
@@ -304,6 +305,44 @@ void testArchiveRegistryInstallAndFailurePreservation(
   }));
 }
 
+void testBinaryArchiveHashes(const std::filesystem::path &root) {
+  const std::string emptyHash =
+      "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+  const std::string binaryHash =
+      "sha256:a37cc3026aae4d519e0b19c298fa913b4dccfdf0658cbccbb7deaa0226d5acdb";
+  const std::string binary("a\0b\xff", 4);
+  assert(sha256Bytes({}) == emptyHash);
+  assert(sha256Text({}) == emptyHash);
+  assert(sha256Bytes({reinterpret_cast<const unsigned char *>(binary.data()),
+                      binary.size()}) == binaryHash);
+  assert(sha256Text(binary) == binaryHash);
+
+  const auto source = root / "binary-source";
+  auto data = manifest("demi.binary", "1.0.0");
+  data.files.insert(data.files.end(), {"data/empty.bin", "data/binary.bin"});
+  write(source / PackageManifestFilename, packageManifestJson(data).dump(2));
+  write(source / data.files.front(), "return {}\n");
+  write(source / "data/empty.bin", {});
+  write(source / "data/binary.bin", binary);
+  assert(sha256File(source / "data/empty.bin") == emptyHash);
+  assert(sha256File(source / "data/binary.bin") == binaryHash);
+
+  const auto archive = root / "binary.demipkg";
+  Diagnostics diagnostics = createPackageArchive(source, archive);
+  assert(!hasErrors(diagnostics));
+  const auto inspected = inspectPackageArchive(archive, diagnostics);
+  assert(inspected && !hasErrors(diagnostics));
+  const auto destination = root / "binary-extracted";
+  const auto extracted =
+      extractPackageArchive(archive, destination, diagnostics);
+  assert(extracted && !hasErrors(diagnostics));
+  assert(inspected->archiveHash == extracted->archiveHash);
+  assert(std::filesystem::file_size(destination / "data/empty.bin") == 0);
+  std::ifstream input(destination / "data/binary.bin", std::ios::binary);
+  const std::string restored{std::istreambuf_iterator<char>(input), {}};
+  assert(restored == binary);
+}
+
 void testUndeclaredAndCorruptArchives(const std::filesystem::path &root) {
   const auto package = root / "bad-source";
   auto data = manifest("demi.bad", "1.0.0");
@@ -336,6 +375,7 @@ int main() {
   testResolverBacktracksAndRejectsCycles();
   testArchiveRegistryInstallAndFailurePreservation(root);
   testUndeclaredAndCorruptArchives(root);
+  testBinaryArchiveHashes(root);
   std::error_code error;
   std::filesystem::remove_all(root, error);
   return 0;

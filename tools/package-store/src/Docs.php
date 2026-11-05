@@ -93,6 +93,7 @@ final class Docs
             ['slug' => 'physics', 'title' => 'Physics', 'summary' => 'Box2D and Jolt bodies, colliders, joints, queries, contacts, and events.', 'children' => [
                 ['slug' => 'rigidbodies', 'title' => 'Rigidbodies', 'summary' => 'Static, kinematic, dynamic — forces, velocity, sleep.'],
                 ['slug' => 'colliders', 'title' => 'Colliders', 'summary' => '2D and 3D shapes, triggers, material, and filters.'],
+                ['slug' => 'fog-of-war-2d', 'title' => '2D fog of war', 'summary' => 'Smooth collider-occluded sight and persistent exploration presentation.'],
                 ['slug' => 'physics-queries', 'title' => 'Queries', 'summary' => 'Raycasts, overlaps, and contact checks.'],
                 ['slug' => 'physics-events', 'title' => 'Physics events', 'summary' => 'Collision, trigger, and contact payloads.'],
             ]],

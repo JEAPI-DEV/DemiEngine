@@ -35,9 +35,18 @@ return { tests = {
     local center = Entity.world_position("arch_lintel")
     Test.expect(center and center[2] < 2.5, "Detached beam's visual center must fall below its supports; y=" .. tostring(center and center[2]))
     Test.touch("reset")
-    Test.wait(0.3)
-    local x, reset_y = Transform3D.get_position("arch")
-    Test.expect(math.abs(x) < 0.1 and math.abs(reset_y) < 0.1, "Reset must restore the authored assembly")
-    Test.expect(Destruction3D.state("arch").bodies == 1, "Reset must clear fragment ownership")
+    local restored = false
+    for _ = 1, 600 do
+      Test.wait(0.05)
+      local x, reset_y = Transform3D.get_position("arch")
+      local reset = Destruction3D.state("arch")
+      if x and math.abs(x) < 0.1 and math.abs(reset_y) < 0.1 and
+          reset.bodies == 1 and reset.revision == 0 then
+        restored = true
+        break
+      end
+    end
+    Test.expect(restored, "Reset must restore the authored assembly and clear fragment ownership")
+
   end }
 } }

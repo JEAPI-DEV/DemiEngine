@@ -1,0 +1,14 @@
+{
+  "dependencies": [],
+  "format_version": 1,
+  "generated_output": "../../../generated/assets/dungeon/long_blade/long_blade.svg",
+  "id": "asset://dungeon/long_blade",
+  "importer": "svg",
+  "importer_version": 1,
+  "settings": {
+    "filter": "nearest"
+  },
+  "source": "long_blade.svg",
+  "source_hash": "fnv1a64:aa07073fa0f71c9b",
+  "type": "SvgTexture2D"
+}

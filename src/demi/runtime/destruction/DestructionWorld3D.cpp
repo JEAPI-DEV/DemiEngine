@@ -209,50 +209,87 @@ struct DestructionWorld3D::Impl {
   }
 
   bool fadeDetached(World &world, PhysicsWorld3D &physics, Assembly &assembly) {
-    const auto *root=findEntity(world,assembly.state.root);
-    const auto *config=root?root->component<Destructible3DComponent>():nullptr;
-    if(!config || config->fadingParts.empty()) return false;
+    const auto *root = findEntity(world, assembly.state.root);
+    const auto *config =
+        root ? root->component<Destructible3DComponent>() : nullptr;
+    if (!config || config->fadingParts.empty()) {
+      return false;
+    }
+    const auto shouldFade = [&](const GroupBody &group) {
+      const bool detached = !group.retired && !group.group.anchored &&
+                            group.body != assembly.state.root;
+      return detached && std::ranges::all_of(
+                             group.group.chunks, [&](const std::string &part) {
+                               return config->fadingParts.contains(part);
+                             });
+    };
+    // Partial damage often leaves every part attached. Do not copy unrelated
+    // scene entities or collider assets unless a fragment needs a transaction.
+    if (std::ranges::none_of(assembly.groups, shouldFade)) {
+      return false;
+    }
     World candidate;
-    candidate.entities=world.entities;
-    candidate.colliderAssets3D=world.colliderAssets3D;
+    candidate.entities = world.entities;
+    candidate.colliderAssets3D = world.colliderAssets3D;
     std::vector<std::string> removedBodies;
-    auto privateAssets=assembly.privateAssets;
-    for(const auto &group:assembly.groups) {
-      if(group.retired || group.group.anchored || group.body==assembly.state.root) continue;
-      if(!std::ranges::all_of(group.group.chunks,[&](const std::string &part){return config->fadingParts.contains(part);})) continue;
-      float lifetime=0,fade=0;
-      for(const auto &part:group.group.chunks) {
-        const auto settings=config->fadingParts.at(part);
-        lifetime=std::max(lifetime,settings.first);fade=std::max(fade,settings.second);
+    auto privateAssets = assembly.privateAssets;
+    for (const auto &group : assembly.groups) {
+      if (!shouldFade(group)) {
+        continue;
       }
-      auto *body=findEntity(candidate,group.body);
-      require(body && body->component<ModelCollider3DComponent>(),"Fading body unavailable");
-      const auto asset=body->component<ModelCollider3DComponent>()->asset;
-      const auto motion=physics.motionSnapshot(group.body);
-      require(bool(motion),"Fading body motion unavailable");
-      const auto pose=resolveWorldTransform3D(candidate,*body);
-      require(bool(pose),"Fading body pose unavailable");
+      float lifetime = 0;
+      float fade = 0;
+      for (const auto &part : group.group.chunks) {
+        const auto settings = config->fadingParts.at(part);
+        lifetime = std::max(lifetime, settings.first);
+        fade = std::max(fade, settings.second);
+      }
+      auto *body = findEntity(candidate, group.body);
+      require(body && body->component<ModelCollider3DComponent>(),
+              "Fading body unavailable");
+      const auto asset = body->component<ModelCollider3DComponent>()->asset;
+      const auto motion = physics.motionSnapshot(group.body);
+      require(bool(motion), "Fading body motion unavailable");
+      const auto pose = resolveWorldTransform3D(candidate, *body);
+      require(bool(pose), "Fading body pose unavailable");
       body->removeComponent<Rigidbody3DComponent>();
       body->removeComponent<ModelCollider3DComponent>();
-      body->serializedComponents.erase("Rigidbody3D");body->serializedComponents.erase("ModelCollider3D");
-      body->setComponent(DetachedFragmentFade3D{.lifetime=lifetime,.fade=fade,.velocity=motion->velocity,
-        .angularVelocity=motion->angularVelocity,.center=motion->center,.localCenter=inverseTransformPoint3D(*pose,motion->center)});
-      candidate.colliderAssets3D.erase(asset);privateAssets.erase(asset);
+      body->serializedComponents.erase("Rigidbody3D");
+      body->serializedComponents.erase("ModelCollider3D");
+      body->setComponent(DetachedFragmentFade3D{
+          .lifetime = lifetime,
+          .fade = fade,
+          .velocity = motion->velocity,
+          .angularVelocity = motion->angularVelocity,
+          .center = motion->center,
+          .localCenter = inverseTransformPoint3D(*pose, motion->center)});
+      candidate.colliderAssets3D.erase(asset);
+      privateAssets.erase(asset);
       std::set<std::string> descendants{group.body};
-      for(bool changed=true;changed;) {
-        changed=false;
-        for(const auto &e:candidate.entities) if(const auto *t=e.component<Transform3DComponent>();t && descendants.contains(t->parent))
-          changed=descendants.insert(e.id).second || changed;
+      for (bool changed = true; changed;) {
+        changed = false;
+        for (const auto &entity : candidate.entities) {
+          const auto *transform = entity.component<Transform3DComponent>();
+          if (transform && descendants.contains(transform->parent)) {
+            changed = descendants.insert(entity.id).second || changed;
+          }
+        }
       }
-      for(auto &e:candidate.entities) if(e.id!=group.body && descendants.contains(e.id))
-        e.setComponent(FragmentOpacity3D{.body=group.body});
+      for (auto &entity : candidate.entities) {
+        if (entity.id != group.body && descendants.contains(entity.id)) {
+          entity.setComponent(FragmentOpacity3D{.body = group.body});
+        }
+      }
       removedBodies.push_back(group.body);
     }
-    if(removedBodies.empty()) return false;
     std::string error;
-    require(physics.replaceBodies(world,candidate,removedBodies,{},error),error);
-    for(auto &group:assembly.groups) if(std::ranges::find(removedBodies,group.body)!=removedBodies.end()) {
-      group.retired=true;group.body.clear();
+    require(physics.replaceBodies(world, candidate, removedBodies, {}, error),
+            error);
+    for (auto &group : assembly.groups) {
+      if (std::ranges::find(removedBodies, group.body) != removedBodies.end()) {
+        group.retired = true;
+        group.body.clear();
+      }
     }
     assembly.privateAssets.swap(privateAssets);
     return true;

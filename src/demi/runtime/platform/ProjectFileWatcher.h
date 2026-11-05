@@ -1,7 +1,10 @@
 #pragma once
 
+#include <chrono>
 #include <cstdint>
 #include <filesystem>
+#include <memory>
+#include <optional>
 #include <unordered_map>
 #include <vector>
 
@@ -21,6 +24,12 @@ struct ProjectFileChangeBatch {
 // increasing generations. Runtime subsystems decide what a path means.
 class ProjectFileWatcher {
 public:
+  ProjectFileWatcher();
+  ~ProjectFileWatcher();
+  ProjectFileWatcher(ProjectFileWatcher &&) noexcept;
+  ProjectFileWatcher &operator=(ProjectFileWatcher &&) noexcept;
+  ProjectFileWatcher(const ProjectFileWatcher &) = delete;
+  ProjectFileWatcher &operator=(const ProjectFileWatcher &) = delete;
   void reset(const std::filesystem::path &projectDirectory);
   [[nodiscard]] ProjectFileChangeBatch poll();
 
@@ -31,8 +40,13 @@ private:
     bool operator==(const Signature &) const = default;
   };
 
-  [[nodiscard]] std::unordered_map<std::string, Signature> scan() const;
+  [[nodiscard]] static std::optional<Signature>
+  signatureFor(const std::filesystem::path &path);
+  [[nodiscard]] std::unordered_map<std::string, Signature> scan();
 
+  class NativeEvents;
+  std::unique_ptr<NativeEvents> events_;
+  std::chrono::steady_clock::time_point nextFallbackScan_{};
   std::filesystem::path projectDirectory_;
   std::unordered_map<std::string, Signature> snapshot_;
   std::uint64_t generation_ = 0;

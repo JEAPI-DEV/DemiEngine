@@ -23,6 +23,30 @@ constexpr std::array slots{
 };
 } // namespace
 
+float resolveMaterialSurfaceNumber(
+    const std::string_view field,
+    const std::unordered_map<std::string, float> *properties,
+    const std::optional<float> explicitValue,
+    const std::optional<float> inherited) {
+  const float fallback = field == "roughness"
+                             ? MaterialSurface::DefaultRoughness
+                         : field == "opacity" ? MaterialSurface::DefaultOpacity
+                                              : 0.0F;
+  float value = inherited.value_or(fallback);
+  if (properties != nullptr) {
+    if (const auto found = properties->find(std::string(field));
+        found != properties->end()) {
+      value = found->second;
+    }
+  }
+  value = explicitValue.value_or(value);
+  return std::isfinite(value) ? std::clamp(value, 0.0F, 1.0F) : fallback;
+}
+
+std::string_view materialSurfaceMode(const std::string_view blend) {
+  return blend == "alpha" ? "transparent" : blend;
+}
+
 std::string_view materialMapSlotName(MaterialMapSlot slot) {
   for (const auto &entry : slots) {
     if (entry.slot == slot) {
@@ -53,6 +77,7 @@ MaterialSurface materialSurface(const MaterialAsset &material) {
   }
   surface.roughness = number("roughness", surface.roughness);
   surface.metallic = number("metallic", surface.metallic);
+  surface.opacity = number("opacity", surface.opacity);
   surface.normalStrength = number("normal_strength", surface.normalStrength);
   surface.tiling = number("tiling", surface.tiling);
   surface.detailStrength = number("detail_strength", surface.detailStrength);

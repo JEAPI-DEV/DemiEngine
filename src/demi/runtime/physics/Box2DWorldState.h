@@ -1,6 +1,9 @@
 #pragma once
 
+#include "demi/runtime/physics/Box2DJoints2D.h"
+
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -16,7 +19,7 @@ struct Box2DWorldState {
   std::unordered_map<std::string, void *> bodies;
   std::unordered_map<std::string, std::uint64_t> shapeSignatures;
   std::unordered_map<std::string, int> bodyTypes;
-  std::vector<void *> joints;
+  std::unique_ptr<Box2DJoints2D> joints;
   float gravityX = 0.0F;
   float gravityY = -18.0F;
   bool initialised = false;

@@ -595,6 +595,12 @@ std::vector<PhysicsQueryHit2D> LuaScriptHost::physicsOverlapCircleAll(
              : std::vector<PhysicsQueryHit2D>{};
 }
 
+PhysicsRaycastBatch2DResult LuaScriptHost::physicsRaycastBatch(Vec2 origin,
+    const std::vector<PhysicsRay2D> &rays, const std::string &layer, const std::string &ignoredEntityId) const {
+  return world_ ? raycastBatch2D(*world_, origin, rays, layer, ignoredEntityId)
+                : PhysicsRaycastBatch2DResult{{}, "World is unavailable."};
+}
+
 std::optional<PhysicsRaycastHit2D>
 LuaScriptHost::physicsRaycast(const float originX, const float originY,
                               const float directionX, const float directionY,

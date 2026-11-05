@@ -49,6 +49,8 @@ struct QuadVertex {
   std::uint32_t rgba = 0xffffffffU;
 };
 
+[[nodiscard]] VertexLayout quadVertexLayout();
+
 struct Triangle2D {
   QuadVertex a;
   QuadVertex b;

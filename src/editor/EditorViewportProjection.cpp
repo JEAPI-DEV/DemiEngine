@@ -2,6 +2,8 @@
 
 #include "editor/EditorEntityBounds3D.h"
 
+#include "demi/runtime/camera/Camera3DMath.h"
+#include "demi/runtime/math/VectorMath.h"
 #include "demi/runtime/scene/model/World.h"
 #include "demi/runtime/terrain/TerrainWorld.h"
 
@@ -14,82 +16,52 @@ namespace {
 
 using Ray = EditorViewportRay;
 
-float dot(const runtime::Vec3 left, const runtime::Vec3 right) {
-  return left.x * right.x + left.y * right.y + left.z * right.z;
+using runtime::math::add;
+using runtime::math::dot;
+using runtime::math::scale;
+using runtime::math::subtract;
+
+runtime::Vec3 normalizedOr(runtime::Vec3 value, runtime::Vec3 fallback) {
+  const float magnitude = runtime::math::length(value);
+  return magnitude > 0.00001F ? scale(value, 1.0F / magnitude) : fallback;
 }
 
-runtime::Vec3 add(const runtime::Vec3 left, const runtime::Vec3 right) {
-  return {left.x + right.x, left.y + right.y, left.z + right.z};
-}
-
-runtime::Vec3 subtract(const runtime::Vec3 left, const runtime::Vec3 right) {
-  return {left.x - right.x, left.y - right.y, left.z - right.z};
-}
-
-runtime::Vec3 multiply(const runtime::Vec3 value, const float scalar) {
-  return {value.x * scalar, value.y * scalar, value.z * scalar};
-}
-
-runtime::Vec3 cross(const runtime::Vec3 left, const runtime::Vec3 right) {
-  return {left.y * right.z - left.z * right.y,
-          left.z * right.x - left.x * right.z,
-          left.x * right.y - left.y * right.x};
-}
-
-float length(const runtime::Vec3 value) { return std::sqrt(dot(value, value)); }
-
-runtime::Vec3 normalized(const runtime::Vec3 value,
-                         const runtime::Vec3 fallback = {}) {
-  const float magnitude = length(value);
-  return magnitude > 0.00001F ? multiply(value, 1.0F / magnitude) : fallback;
-}
-
-struct CameraBasis {
-  runtime::Vec3 forward;
-  runtime::Vec3 right;
-  runtime::Vec3 up;
-};
-
-CameraBasis cameraBasis(const EditorSceneViewCamera &camera) {
-  const runtime::Vec3 forward = normalized(camera.forward, {0.0F, 0.0F, 1.0F});
-  // Bgfx uses a right-handed look-at matrix. Its view direction is the
-  // inverse of the gameplay-facing forward vector, so screen-right is
-  // forward x up (not up x forward).
-  const runtime::Vec3 right =
-      normalized(cross(forward, camera.up), {-1.0F, 0.0F, 0.0F});
-  const runtime::Vec3 up =
-      normalized(cross(right, forward), {0.0F, 1.0F, 0.0F});
-  return {.forward = forward, .right = right, .up = up};
-}
-
-Ray cameraRay(const EditorSceneViewCamera &camera, const runtime::Vec2 position,
-              const runtime::Vec2 viewport) {
-  const float width = std::max(viewport.x, 1.0F);
-  const float height = std::max(viewport.y, 1.0F);
-  const float ndcX = position.x * 2.0F / width - 1.0F;
-  const float ndcY = 1.0F - position.y * 2.0F / height;
-  const CameraBasis basis = cameraBasis(camera);
-  const runtime::Vec3 forward = basis.forward;
-  const runtime::Vec3 right = basis.right;
-  const runtime::Vec3 up = basis.up;
-  if (!camera.projection.perspective) {
-    const float halfHeight =
-        std::max(camera.projection.orthographicSize * 0.5F, 0.01F);
-    const float halfWidth = halfHeight * width / height;
-    return {.origin =
-                add(camera.position, add(multiply(right, ndcX * halfWidth),
-                                         multiply(up, ndcY * halfHeight))),
-            .direction = forward};
+std::optional<runtime::CameraProjection3D>
+editorProjection(const EditorSceneViewCamera &camera, runtime::Vec2 viewport) {
+  // Only projection scalars are needed; do not copy asset IDs or render masks
+  // for every overlay point and picking ray.
+  runtime::Camera3DComponent settings;
+  settings.fov = camera.projection.fov;
+  settings.perspective = camera.projection.perspective;
+  // Authoring overlays reject the exact near plane and project beyond far_clip.
+  settings.nearClip = std::nextafter(std::max(camera.projection.nearClip, 0.001F),
+                                     std::numeric_limits<float>::infinity());
+  settings.farClip = std::numeric_limits<float>::max();
+  settings.orthographicSize = std::max(camera.projection.orthographicSize, 0.02F);
+  const auto forward = normalizedOr(camera.forward, {0, 0, 1});
+  auto projection = runtime::cameraProjection3D(settings, camera.position,
+                                                forward, camera.up, viewport);
+  if (projection && runtime::math::length(
+                        runtime::math::cross(forward, camera.up)) > 0.00001F) {
+    return projection;
   }
-  constexpr float DegreesToRadians = 0.01745329251994329577F;
-  const float tangent =
-      std::tan(std::clamp(camera.projection.fov, 1.0F, 179.0F) *
-               DegreesToRadians * 0.5F);
-  return {.origin = camera.position,
-          .direction = normalized(
-              add(forward, add(multiply(right, ndcX * tangent * width / height),
-                               multiply(up, ndcY * tangent))),
-              forward)};
+  // Preserve the editor's established basis when up and forward are collinear.
+  auto fallback = runtime::cameraProjection3D(settings, camera.position,
+                                              {0, 0, 1}, {0, 1, 0}, viewport);
+  if (!fallback) {
+    return std::nullopt;
+  }
+  fallback->forward = forward;
+  fallback->right = {-1, 0, 0};
+  fallback->up =
+      normalizedOr(runtime::math::cross(fallback->right, forward), {0, 1, 0});
+  return fallback;
+}
+
+Ray editorRay(const runtime::CameraProjection3D &projection,
+              runtime::Vec2 position) {
+  const auto ray = projection.ray(position);
+  return {ray.origin, normalizedOr(ray.direction, projection.forward)};
 }
 
 struct RayBoxInterval {
@@ -126,61 +98,50 @@ std::optional<RayBoxInterval> rayBox(const Ray &ray,
 EditorViewportRay sceneViewportRay(const EditorSceneViewCamera &camera,
                                    const runtime::Vec2 viewportPosition,
                                    const runtime::Vec2 viewportSize) {
-  return cameraRay(camera, viewportPosition, viewportSize);
+  const auto projection = editorProjection(camera, viewportSize);
+  return projection
+             ? editorRay(*projection, viewportPosition)
+             : Ray{camera.position, normalizedOr(camera.forward, {0, 0, 1})};
 }
 
 std::optional<runtime::Vec2>
 projectScenePoint3D(const EditorSceneViewCamera &camera,
                     const runtime::Vec3 worldPoint,
                     const runtime::Vec2 viewportSize) {
-  const float width = std::max(viewportSize.x, 1.0F);
-  const float height = std::max(viewportSize.y, 1.0F);
-  const CameraBasis basis = cameraBasis(camera);
-  const runtime::Vec3 forward = basis.forward;
-  const runtime::Vec3 right = basis.right;
-  const runtime::Vec3 up = basis.up;
-  const runtime::Vec3 offset = subtract(worldPoint, camera.position);
-  const float depth = dot(offset, forward);
-  if (depth <= std::max(camera.projection.nearClip, 0.001F))
-    return std::nullopt;
-  float ndcX = 0.0F;
-  float ndcY = 0.0F;
-  if (camera.projection.perspective) {
-    constexpr float DegreesToRadians = 0.01745329251994329577F;
-    const float tangent =
-        std::tan(std::clamp(camera.projection.fov, 1.0F, 179.0F) *
-                 DegreesToRadians * 0.5F);
-    ndcX = dot(offset, right) / (depth * tangent * width / height);
-    ndcY = dot(offset, up) / (depth * tangent);
-  } else {
-    const float halfHeight =
-        std::max(camera.projection.orthographicSize * 0.5F, 0.01F);
-    ndcX = dot(offset, right) / (halfHeight * width / height);
-    ndcY = dot(offset, up) / halfHeight;
-  }
-  return runtime::Vec2{(ndcX + 1.0F) * width * 0.5F,
-                       (1.0F - ndcY) * height * 0.5F};
+  const auto projection = editorProjection(camera, viewportSize);
+  const auto point =
+      projection ? projection->project(worldPoint) : std::nullopt;
+  return point ? std::optional(point->screen) : std::nullopt;
 }
 
 runtime::Vec2 projectSceneDirection3D(const EditorSceneViewCamera &camera,
                                       const runtime::Vec3 worldDirection) {
-  const CameraBasis basis = cameraBasis(camera);
-  return {dot(worldDirection, basis.right), -dot(worldDirection, basis.up)};
+  const auto projection = editorProjection(camera, {1, 1});
+  return projection ? runtime::Vec2{dot(worldDirection, projection->right),
+                                    -dot(worldDirection, projection->up)}
+                    : runtime::Vec2{};
 }
 
 float sceneWorldUnitsPerPixel(const EditorSceneViewCamera &camera,
                               runtime::Vec3 worldPoint,
                               runtime::Vec2 viewportSize) {
-  if (viewportSize.y <= 0)
+  if (viewportSize.y <= 0) {
     return 0;
-  if (!camera.projection.perspective)
-    return std::max(camera.projection.orthographicSize, 0.01F) / viewportSize.y;
-  const float depth =
-      dot(subtract(worldPoint, camera.position), cameraBasis(camera).forward);
-  constexpr float DegreesToRadians = 0.01745329251994329577F;
-  const float halfFov =
-      std::clamp(camera.projection.fov, 1.0F, 179.0F) * DegreesToRadians * 0.5F;
-  return 2.0F * std::max(depth, 0.0F) * std::tan(halfFov) / viewportSize.y;
+  }
+  if (!camera.projection.perspective) {
+    // Gizmo scaling retains its smaller minimum than point/ray projection.
+    return std::isfinite(camera.projection.orthographicSize)
+               ? std::max(camera.projection.orthographicSize, 0.01F) /
+                     viewportSize.y
+               : 0.0F;
+  }
+  const auto projection = editorProjection(camera, viewportSize);
+  if (!projection) {
+    return 0;
+  }
+  const float depth = std::max(
+      dot(subtract(worldPoint, camera.position), projection->forward), 0.0F);
+  return 1.0F / projection->pixelsPerUnit(depth);
 }
 
 std::optional<runtime::Vec3>
@@ -195,15 +156,18 @@ intersectSceneGroundPlane3D(const EditorSceneViewCamera &camera,
   const float distance = -ray.origin.y / ray.direction.y;
   if (distance < 0.0F)
     return std::nullopt;
-  return add(ray.origin, multiply(ray.direction, distance));
+  return add(ray.origin, scale(ray.direction, distance));
 }
 
 std::optional<std::string> pickSceneEntity3D(
     const runtime::World &world, const EditorSceneViewCamera &camera,
     const runtime::Vec2 viewportPosition, const runtime::Vec2 viewportSize) {
-  const Ray ray = sceneViewportRay(camera, viewportPosition, viewportSize);
-  const float viewDepthPerUnit =
-      dot(ray.direction, cameraBasis(camera).forward);
+  const auto projection = editorProjection(camera, viewportSize);
+  if (!projection) {
+    return std::nullopt;
+  }
+  const Ray ray = editorRay(*projection, viewportPosition);
+  const float viewDepthPerUnit = dot(ray.direction, projection->forward);
   if (viewDepthPerUnit <= 0)
     return std::nullopt;
   const float nearDistance =
@@ -221,8 +185,7 @@ std::optional<std::string> pickSceneEntity3D(
     const auto considerTransform = [&](const runtime::WorldTransform3D &pose) {
       // Camera/light/empty markers behind the near plane are not drawn. Their
       // proxy bounds must not steal clicks while the camera is inside them.
-      if (!bounds->isSceneGeometry &&
-          !projectScenePoint3D(camera, pose.position, viewportSize))
+      if (!bounds->isSceneGeometry && !projection->project(pose.position))
         return;
       const Ray local{
           .origin = runtime::inverseTransformPoint3D(pose, ray.origin),

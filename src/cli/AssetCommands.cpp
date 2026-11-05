@@ -1,5 +1,5 @@
 #include "cli/AssetCommands.h"
-#include "cli/CliArguments.h"
+#include "cli/CommandLine.h"
 
 #include "demi/assets/AssetImporter.h"
 #include "demi/assets/AssetPackage.h"
@@ -28,20 +28,7 @@ constexpr int ExitSuccess = 0;
 constexpr int ExitValidationFailure = 1;
 constexpr int ExitUsageError = 2;
 
-std::optional<float> floatAfter(const std::vector<std::string> &args,
-                                const std::string &key) {
-  const std::string value = valueAfter(args, key);
-  if (value.empty())
-    return std::nullopt;
-  try {
-    return std::stof(value);
-  } catch (...) {
-    return std::nullopt;
-  }
-}
-
-std::filesystem::path projectDirectory(const std::vector<std::string> &args) {
-  const std::string value = valueAfter(args, "--project");
+std::filesystem::path projectDirectory(const std::string &value) {
   if (value.empty())
     return std::filesystem::current_path();
   const std::filesystem::path path(value);
@@ -49,10 +36,10 @@ std::filesystem::path projectDirectory(const std::vector<std::string> &args) {
 }
 
 std::filesystem::path
-projectDirectoryForManifest(const std::vector<std::string> &args,
+projectDirectoryForManifest(const std::string &requestedProject,
                             const std::filesystem::path &manifestPath) {
-  if (!valueAfter(args, "--project").empty())
-    return projectDirectory(args);
+  if (!requestedProject.empty())
+    return projectDirectory(requestedProject);
   auto directory = std::filesystem::absolute(manifestPath).parent_path();
   while (!directory.empty()) {
     if (std::filesystem::is_regular_file(directory / "demi.project.json"))
@@ -62,35 +49,13 @@ projectDirectoryForManifest(const std::vector<std::string> &args,
       break;
     directory = parent;
   }
-  return projectDirectory(args);
+  return projectDirectory(requestedProject);
 }
 
 int printDiagnostics(const Diagnostics &diagnostics, std::ostream &error) {
   if (!diagnostics.empty())
     printDiagnosticsText(error, diagnostics);
   return hasErrors(diagnostics) ? ExitValidationFailure : ExitSuccess;
-}
-
-std::vector<std::string> selectedAssets(const std::vector<std::string> &args) {
-  std::vector<std::string> ids;
-  for (std::size_t index = 0; index + 1 < args.size(); ++index)
-    if (args[index] == "--asset")
-      ids.push_back(args[index + 1]);
-  return ids;
-}
-
-std::set<std::string> sectionsAfter(const std::vector<std::string> &args) {
-  std::set<std::string> sections;
-  const std::string value = valueAfter(args, "--section");
-  std::size_t start = 0;
-  while (start < value.size()) {
-    const std::size_t end = value.find(',', start);
-    sections.insert(value.substr(start, end - start));
-    if (end == std::string::npos)
-      break;
-    start = end + 1;
-  }
-  return sections;
 }
 
 nlohmann::json diagnosticsJson(const Diagnostics &diagnostics) {
@@ -108,17 +73,91 @@ nlohmann::json diagnosticsJson(const Diagnostics &diagnostics) {
 
 int runAssetCommand(const std::vector<std::string> &args, std::ostream &output,
                     std::ostream &error) {
-  if (args.size() < 2) {
-    error << "asset requires a subcommand.\n";
-    return ExitUsageError;
+  CLI::App app{"Import, inspect and package assets", "demi asset"};
+  app.require_subcommand(1, 1);
+  std::string path;
+  std::string requestedProject;
+  std::string id;
+  std::string type;
+  std::string importer;
+  std::string contentType;
+  std::string license;
+  std::string preset;
+  std::string up;
+  std::string forward;
+  std::string format = "text";
+  std::string body = "static";
+  std::string preview;
+  std::string outputPath;
+  std::string platform = "android";
+  std::optional<float> metersPerUnit;
+  float detail = 0;
+  bool recommend = false;
+  bool replace = false;
+  bool overwrite = false;
+  std::vector<std::string> ids;
+  std::set<std::string> sections;
+  assets::ModelLodGenerationRequest lodRequest;
+  for (const auto *name :
+       {"fracture", "import", "reimport", "register-generated", "lod",
+        "collider", "import-package", "budget", "inspect", "deps"}) {
+    app.add_subcommand(name)->add_option("path", path)->required();
   }
-  const std::string &command = args[1];
+  app.add_subcommand("export");
+  for (const auto *name : {"import", "register-generated", "lod", "collider",
+                           "export", "import-package", "deps"}) {
+    app.get_subcommand(name)->add_option("--project", requestedProject);
+  }
+  for (const auto *name : {"lod", "collider", "budget", "inspect"}) {
+    app.get_subcommand(name)
+        ->add_option("--format", format)
+        ->check(CLI::IsMember({"text", "json"}));
+  }
+  for (const auto *name : {"import", "register-generated"}) {
+    auto *command = app.get_subcommand(name);
+    command->add_option("--id", id)->required();
+    command->add_option("--type", type);
+  }
+  auto *importCommand = app.get_subcommand("import");
+  importCommand->add_option("--importer", importer);
+  auto *contentTypeOption =
+      importCommand->add_option("--content-type", contentType);
+  importCommand->add_option("--license", license);
+  importCommand->add_option("--preset", preset);
+  importCommand->add_option("--up", up);
+  importCommand->add_option("--forward", forward);
+  importCommand->add_option("--meters-per-unit", metersPerUnit);
+  auto *lod = app.get_subcommand("lod");
+  lod->add_option("--medium-ratio", lodRequest.mediumRatio);
+  lod->add_option("--low-ratio", lodRequest.lowRatio);
+  lod->add_option("--max-error", lodRequest.maxError);
+  auto *collider = app.get_subcommand("collider");
+  auto *identity = collider->add_option_group(
+      "Output", "Generate an ID or request a recommendation");
+  identity->add_option("--id", id);
+  identity->add_flag("--recommend", recommend);
+  identity->require_option(1);
+  collider->add_option("--body", body)
+      ->check(CLI::IsMember({"static", "dynamic", "trigger", "character"}));
+  collider->add_option("--detail", detail)->check(CLI::Range(0.0F, 1.0F));
+  collider->add_option("--preview", preview);
+  collider->add_flag("--replace", replace);
+  auto *exportCommand = app.get_subcommand("export");
+  exportCommand->add_option("--asset", ids)->required()->expected(1);
+  exportCommand->add_option("--output", outputPath)->required();
+  app.get_subcommand("import-package")->add_flag("--overwrite", overwrite);
+  app.get_subcommand("budget")
+      ->add_option("--platform", platform)
+      ->check(CLI::IsMember({"android", "linux"}));
+  app.get_subcommand("inspect")
+      ->add_option("--section", sections)
+      ->delimiter(',');
+  if (const auto status = parseCommand(app, args, 1, output, error)) {
+    return *status;
+  }
+  const std::string command = app.get_subcommands().front()->get_name();
   if (command == "fracture") {
-    if (args.size() != 3) {
-      error << "Usage: demi asset fracture <prefab.prefab.json>\n";
-      return ExitUsageError;
-    }
-    const auto result = runtime::composition::bakeFracturePrefab(args[2]);
+    const auto result = runtime::composition::bakeFracturePrefab(path);
     if (!result.document)
       return printDiagnostics(result.diagnostics, error);
     std::size_t chunks = 0, bonds = 0, anchors = 0;
@@ -142,79 +181,56 @@ int runAssetCommand(const std::vector<std::string> &args, std::ostream &output,
     return ExitSuccess;
   }
   if (command == "import") {
-    if (args.size() < 3 || valueAfter(args, "--id").empty()) {
-      error << "Usage: demi asset import <source> --project <project> --id "
-               "asset://id [--type type] [--importer id] [--content-type type] "
-               "[--license file]\n";
-      return ExitUsageError;
-    }
-    const std::string license = valueAfter(args, "--license");
     std::optional<assets::ModelImportProfile> profile;
-    if (!valueAfter(args, "--preset").empty() ||
-        !valueAfter(args, "--up").empty() ||
-        !valueAfter(args, "--forward").empty() ||
-        !valueAfter(args, "--meters-per-unit").empty()) {
-      profile = assets::modelImportPreset(valueAfter(args, "--preset").empty()
-                                              ? "static_prop"
-                                              : valueAfter(args, "--preset"));
-      if (!valueAfter(args, "--up").empty())
-        profile->sourceUp = valueAfter(args, "--up");
-      if (!valueAfter(args, "--forward").empty())
-        profile->sourceForward = valueAfter(args, "--forward");
-      if (!valueAfter(args, "--meters-per-unit").empty()) {
-        const auto scale = floatAfter(args, "--meters-per-unit");
-        if (!scale) {
-          error << "asset import --meters-per-unit must be a number.\n";
-          return ExitUsageError;
-        }
-        profile->metersPerUnit = *scale;
+    if (!preset.empty() || !up.empty() || !forward.empty() ||
+        metersPerUnit.has_value()) {
+      profile =
+          assets::modelImportPreset(preset.empty() ? "static_prop" : preset);
+      if (!up.empty())
+        profile->sourceUp = up;
+      if (!forward.empty())
+        profile->sourceForward = forward;
+      if (metersPerUnit.has_value()) {
+        profile->metersPerUnit = *metersPerUnit;
       }
       Diagnostics diagnostics;
       const auto checked = assets::parseModelImportProfile(
-          assets::modelImportProfileJson(*profile), &diagnostics, args[2]);
+          assets::modelImportProfileJson(*profile), &diagnostics, path);
       if (!checked)
         return printDiagnostics(diagnostics, error);
       profile = *checked;
     }
     const auto result = assets::importAsset(
-        {.projectDirectory = projectDirectory(args),
-         .source = args[2],
-         .id = valueAfter(args, "--id"),
-         .type = valueAfter(args, "--type"),
-         .importer = valueAfter(args, "--importer"),
+        {.projectDirectory = projectDirectory(requestedProject),
+         .source = path,
+         .id = id,
+         .type = type,
+         .importer = importer,
          .license = license.empty()
                         ? std::nullopt
                         : std::make_optional(std::filesystem::path(license)),
          .modelProfile = profile,
-         .dataContentType =
-             hasArg(args, "--content-type")
-                 ? std::make_optional(valueAfter(args, "--content-type"))
-                 : std::nullopt});
+         .dataContentType = contentTypeOption->count() != 0
+                                ? std::make_optional(contentType)
+                                : std::nullopt});
     const int status = printDiagnostics(result.diagnostics, error);
     if (status == ExitSuccess)
       output << "Imported asset: " << result.manifestPath.string() << '\n';
     return status;
   }
   if (command == "reimport") {
-    if (args.size() < 3)
-      return ExitUsageError;
-    const auto diagnostics = assets::reimportAsset(args[2]);
+    const auto diagnostics = assets::reimportAsset(path);
     const int status = printDiagnostics(diagnostics, error);
     if (status == ExitSuccess)
-      output << "Reimported asset: " << args[2] << '\n';
+      output << "Reimported asset: " << path << '\n';
     return status;
   }
   if (command == "register-generated") {
-    if (args.size() < 3 || valueAfter(args, "--id").empty()) {
-      error << "Usage: demi asset register-generated <source> --project "
-               "<project> --id asset://id [--type type]\n";
-      return ExitUsageError;
-    }
     const auto result = assets::registerGeneratedAsset(
-        {.projectDirectory = projectDirectory(args),
-         .source = args[2],
-         .id = valueAfter(args, "--id"),
-         .type = valueAfter(args, "--type")});
+        {.projectDirectory = projectDirectory(requestedProject),
+         .source = path,
+         .id = id,
+         .type = type});
     const int status = printDiagnostics(result.diagnostics, error);
     if (status == ExitSuccess)
       output << "Registered generated asset: " << result.manifestPath.string()
@@ -222,30 +238,11 @@ int runAssetCommand(const std::vector<std::string> &args, std::ostream &output,
     return status;
   }
   if (command == "lod") {
-    if (args.size() < 3) {
-      error << "Usage: demi asset lod <model.asset.json> [--project <project>] "
-               "[--medium-ratio 0.5] [--low-ratio 0.2] [--max-error 0.01] "
-               "[--format json]\n";
-      return ExitUsageError;
-    }
-    assets::ModelLodGenerationRequest request{
-        .projectDirectory = projectDirectoryForManifest(args, args[2]),
-        .modelManifestPath = args[2]};
-    for (const auto &[flag, value] :
-         std::array{std::pair{"--medium-ratio", &request.mediumRatio},
-                    std::pair{"--low-ratio", &request.lowRatio},
-                    std::pair{"--max-error", &request.maxError}}) {
-      if (hasArg(args, flag)) {
-        const auto parsed = floatAfter(args, flag);
-        if (!parsed) {
-          error << "asset lod " << flag << " requires a number.\n";
-          return ExitUsageError;
-        }
-        *value = *parsed;
-      }
-    }
-    const auto result = assets::generateModelLods(request);
-    if (valueAfter(args, "--format") == "json") {
+    lodRequest.projectDirectory =
+        projectDirectoryForManifest(requestedProject, path);
+    lodRequest.modelManifestPath = path;
+    const auto result = assets::generateModelLods(lodRequest);
+    if (format == "json") {
       auto variants = nlohmann::json::array();
       for (const auto &variant : result.variants) {
         variants.push_back({{"level", variant.level},
@@ -272,21 +269,10 @@ int runAssetCommand(const std::vector<std::string> &args, std::ostream &output,
     return printDiagnostics(result.diagnostics, error);
   }
   if (command == "collider") {
-    if (args.size() < 3 ||
-        (valueAfter(args, "--id").empty() && !hasArg(args, "--recommend"))) {
-      error << "Usage: demi asset collider <model.asset.json> --project "
-               "<project> [--recommend] [--body static|dynamic|trigger|"
-               "character] [--id asset://colliders/id] [--detail 0..1] "
-               "[--preview scene.json] [--replace]\n";
-      return ExitUsageError;
-    }
-    const std::string body = valueAfter(args, "--body").empty()
-                                 ? "static"
-                                 : valueAfter(args, "--body");
-    if (hasArg(args, "--recommend")) {
+    if (recommend) {
       Diagnostics diagnostics;
       const auto recommendation =
-          assets::recommendCollider(args[2], body, diagnostics);
+          assets::recommendCollider(path, body, diagnostics);
       if (recommendation) {
         const nlohmann::json document = {
             {"shape", recommendation->shape},
@@ -294,7 +280,7 @@ int runAssetCommand(const std::vector<std::string> &args, std::ostream &output,
             {"detail", recommendation->detail},
             {"reason", recommendation->reason},
             {"component", recommendation->component}};
-        if (valueAfter(args, "--format") == "json")
+        if (format == "json")
           output << nlohmann::json{{"recommendation", document},
                                    {"diagnostics",
                                     diagnosticsJson(diagnostics)}}
@@ -307,24 +293,17 @@ int runAssetCommand(const std::vector<std::string> &args, std::ostream &output,
                  << '\n';
       }
       const int status = printDiagnostics(diagnostics, error);
-      if (status != ExitSuccess || valueAfter(args, "--id").empty())
+      if (status != ExitSuccess || id.empty())
         return status;
     }
-    const std::string requestedDetail = valueAfter(args, "--detail");
-    const auto detail = requestedDetail.empty() ? std::make_optional(0.0F)
-                                                : floatAfter(args, "--detail");
-    if (!detail) {
-      error << "asset collider --detail must be a number between 0 and 1.\n";
-      return ExitUsageError;
-    }
     const auto result = assets::generateColliderAsset(
-        {.projectDirectory = projectDirectory(args),
-         .modelManifestPath = args[2],
-         .id = valueAfter(args, "--id"),
-         .detail = *detail,
+        {.projectDirectory = projectDirectory(requestedProject),
+         .modelManifestPath = path,
+         .id = id,
+         .detail = detail,
          .body = body,
-         .previewPath = valueAfter(args, "--preview"),
-         .replaceExisting = hasArg(args, "--replace")});
+         .previewPath = preview,
+         .replaceExisting = replace});
     const int status = printDiagnostics(result.diagnostics, error);
     if (status == ExitSuccess)
       output << "Generated collider asset: " << result.manifestPath.string()
@@ -332,56 +311,32 @@ int runAssetCommand(const std::vector<std::string> &args, std::ostream &output,
     return status;
   }
   if (command == "export") {
-    const auto ids = selectedAssets(args);
-    const std::string outputPath = valueAfter(args, "--output");
-    if (ids.empty() || outputPath.empty()) {
-      error << "Usage: demi asset export --project <project> --output "
-               "<file.demipack> --asset asset://id [--asset ...]\n";
-      return ExitUsageError;
-    }
-    const auto diagnostics =
-        assets::exportAssetPackage({.projectDirectory = projectDirectory(args),
-                                    .outputPath = outputPath,
-                                    .assetIds = ids});
+    const auto diagnostics = assets::exportAssetPackage(
+        {.projectDirectory = projectDirectory(requestedProject),
+         .outputPath = outputPath,
+         .assetIds = ids});
     const int status = printDiagnostics(diagnostics, error);
     if (status == ExitSuccess)
       output << "Exported asset package: " << outputPath << '\n';
     return status;
   }
   if (command == "import-package") {
-    if (args.size() < 3) {
-      error << "Usage: demi asset import-package <file.demipack> --project "
-               "<project> [--overwrite]\n";
-      return ExitUsageError;
-    }
     std::vector<std::string> conflicts;
-    const auto diagnostics =
-        assets::importAssetPackage({.projectDirectory = projectDirectory(args),
-                                    .packagePath = args[2],
-                                    .overwrite = hasArg(args, "--overwrite")},
-                                   &conflicts);
+    const auto diagnostics = assets::importAssetPackage(
+        {.projectDirectory = projectDirectory(requestedProject),
+         .packagePath = path,
+         .overwrite = overwrite},
+        &conflicts);
     for (const auto &conflict : conflicts)
       error << "conflict: " << conflict << '\n';
     const int status = printDiagnostics(diagnostics, error);
     if (status == ExitSuccess)
-      output << "Imported asset package: " << args[2] << '\n';
+      output << "Imported asset package: " << path << '\n';
     return status;
   }
   if (command == "budget") {
-    if (args.size() < 3) {
-      error << "Usage: demi asset budget <demi.project.json> "
-               "[--platform android|linux] [--format json]\n";
-      return ExitUsageError;
-    }
-    const std::string platform = valueAfter(args, "--platform").empty()
-                                     ? "android"
-                                     : valueAfter(args, "--platform");
-    if (platform != "android" && platform != "linux") {
-      error << "asset budget --platform must be android or linux.\n";
-      return ExitUsageError;
-    }
-    const auto report = assets::inspectSceneBudget3D(args[2], platform);
-    if (valueAfter(args, "--format") == "json")
+    const auto report = assets::inspectSceneBudget3D(path, platform);
+    if (format == "json")
       output << nlohmann::json{{"report", report.document},
                                {"diagnostics",
                                 diagnosticsJson(report.diagnostics)}}
@@ -396,12 +351,8 @@ int runAssetCommand(const std::vector<std::string> &args, std::ostream &output,
     }
     return hasErrors(report.diagnostics) ? ExitValidationFailure : ExitSuccess;
   }
-  if (args.size() < 3) {
-    error << "asset " << command << " requires a manifest path.\n";
-    return ExitUsageError;
-  }
   Diagnostic diagnostic;
-  const auto manifest = loadAssetManifest(args[2], &diagnostic);
+  const auto manifest = loadAssetManifest(path, &diagnostic);
   if (!manifest) {
     printDiagnosticsText(error, Diagnostics{diagnostic});
     return ExitValidationFailure;
@@ -445,7 +396,7 @@ int runAssetCommand(const std::vector<std::string> &args, std::ostream &output,
         report["fracture"] = {{"bonds", std::move(bonds)},
                               {"anchors", collider->fracture->anchors}};
       }
-      if (valueAfter(args, "--format") == "json")
+      if (format == "json")
         output << nlohmann::json{{"report", report},
                                  {"diagnostics", nlohmann::json::array()}}
                       .dump(2)
@@ -455,9 +406,9 @@ int runAssetCommand(const std::vector<std::string> &args, std::ostream &output,
       return ExitSuccess;
     }
     if (manifest->type == "Model3D") {
-      const auto report = assets::inspectModel(
-          {.asset = &*manifest, .sections = sectionsAfter(args)});
-      if (valueAfter(args, "--format") == "json") {
+      const auto report =
+          assets::inspectModel({.asset = &*manifest, .sections = sections});
+      if (format == "json") {
         output << nlohmann::json{{"report", report.document},
                                  {"diagnostics",
                                   diagnosticsJson(report.diagnostics)}}
@@ -493,19 +444,15 @@ int runAssetCommand(const std::vector<std::string> &args, std::ostream &output,
                ? ExitSuccess
                : ExitValidationFailure;
   }
-  if (command == "deps") {
-    const AssetRegistry registry =
-        loadAssetRegistry(projectDirectoryForManifest(args, args[2]));
-    Diagnostics diagnostics;
-    for (const auto *dependency :
-         assetDependencies(registry, *manifest, &diagnostics))
-      output << dependency->id << '\n';
-    for (const auto &file : assets::collectAssetFiles(*manifest))
-      output << file.string() << '\n';
-    return printDiagnostics(diagnostics, error);
-  }
-  error << "Unknown asset subcommand: " << command << '\n';
-  return ExitUsageError;
+  const AssetRegistry registry =
+      loadAssetRegistry(projectDirectoryForManifest(requestedProject, path));
+  Diagnostics diagnostics;
+  for (const auto *dependency :
+       assetDependencies(registry, *manifest, &diagnostics))
+    output << dependency->id << '\n';
+  for (const auto &file : assets::collectAssetFiles(*manifest))
+    output << file.string() << '\n';
+  return printDiagnostics(diagnostics, error);
 }
 
 } // namespace demi::cli

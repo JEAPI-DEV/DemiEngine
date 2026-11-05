@@ -16,10 +16,8 @@
 #include <unordered_map>
 #include <vector>
 
-#if DEMI_HAS_MINIAUDIO
 #define MINIAUDIO_IMPLEMENTATION
 #include <miniaudio.h>
-#endif
 
 namespace demi::runtime {
 
@@ -56,7 +54,6 @@ namespace {
   return 512;
 }
 
-#if DEMI_HAS_MINIAUDIO
 [[nodiscard]] std::optional<ma_backend> requestedBackend() {
   const char* value = std::getenv("DEMI_AUDIO_BACKEND");
   if (value == nullptr || std::string(value).empty() || std::string(value) == "default") {
@@ -432,16 +429,11 @@ void MiniaudioAudioBackend::audioProcessDebug(void* userData, float* framesOut, 
   const double callbackMs = static_cast<double>(steadyNowNs() - startedNs) / 1'000'000.0;
   std::cerr << "Audio debug: first mix callback after play in " << callbackMs << " ms.\n";
 }
-#endif
 
 } // namespace
 
 std::unique_ptr<AudioBackend> createMiniaudioAudioBackend() {
-#if DEMI_HAS_MINIAUDIO
   return std::make_unique<MiniaudioAudioBackend>();
-#else
-  return nullptr;
-#endif
 }
 
 } // namespace demi::runtime

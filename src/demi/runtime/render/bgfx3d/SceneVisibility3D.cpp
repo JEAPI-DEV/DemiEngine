@@ -1,5 +1,6 @@
 #include "demi/runtime/render/bgfx3d/SceneVisibility3D.h"
 #include "demi/runtime/geometry/MeshDeformation3D.h"
+#include "demi/runtime/math/VectorMath.h"
 #include "demi/runtime/profiling/RuntimeProfiler.h"
 #include "demi/runtime/render/MaterialLibrary.h"
 #include "demi/runtime/render/bgfx3d/MeshInstancePreparation3D.h"
@@ -32,18 +33,8 @@
 namespace demi::runtime::render {
 namespace {
 
-float dot(const Vec3 left, const Vec3 right) {
-  return left.x * right.x + left.y * right.y + left.z * right.z;
-}
-
-Vec3 cross(const Vec3 left, const Vec3 right) {
-  return {left.y * right.z - left.z * right.y,
-          left.z * right.x - left.x * right.z,
-          left.x * right.y - left.y * right.x};
-}
-
 Vec3 normalized(const Vec3 value, const Vec3 fallback) {
-  const float lengthSquared = dot(value, value);
+  const float lengthSquared = math::dot(value, value);
   if (lengthSquared <= 0.000001F) {
     return fallback;
   }
@@ -85,7 +76,7 @@ Sphere worldBounds(const MeshRendererComponent &mesh,
   // Rotation preserves this circumsphere's radius. Transforming eight corners
   // only to enclose the resulting AABB repeats trigonometry and enlarges it.
   return {transformPoint3D(transform, center),
-          std::sqrt(dot(scaledExtent, scaledExtent))};
+          std::sqrt(math::dot(scaledExtent, scaledExtent))};
 }
 
 void recordInstanceCullingStatistics(const SceneVisibility3D &result,
@@ -137,8 +128,8 @@ struct ViewFrustum {
   explicit ViewFrustum(const BgfxCameraFrame3D &frame)
       : position(frame.position),
         forward(normalized(frame.forward, {0.F, 0.F, 1.F})),
-        right(normalized(cross(frame.up, forward), {1.F, 0.F, 0.F})),
-        up(normalized(cross(forward, right), {0.F, 1.F, 0.F})),
+        right(normalized(math::cross(frame.up, forward), {1.F, 0.F, 0.F})),
+        up(normalized(math::cross(forward, right), {0.F, 1.F, 0.F})),
         nearClip(frame.camera.nearClip), farClip(frame.camera.farClip),
         perspective(frame.camera.perspective), hull(frame.shadowCasterHull) {
     const float aspect =
@@ -166,14 +157,14 @@ struct ViewFrustum {
     const Vec3 relative{sphere.center.x - position.x,
                         sphere.center.y - position.y,
                         sphere.center.z - position.z};
-    const float depth = dot(relative, forward);
+    const float depth = math::dot(relative, forward);
     if (depth + sphere.radius < nearClip || depth - sphere.radius > farClip) {
       return false;
     }
     const float depthScale = perspective ? std::max(depth, 0.F) : 1.F;
-    return std::abs(dot(relative, right)) <=
+    return std::abs(math::dot(relative, right)) <=
                halfWidth * depthScale + sphere.radius * horizontalRadiusScale &&
-           std::abs(dot(relative, up)) <=
+           std::abs(math::dot(relative, up)) <=
                halfHeight * depthScale + sphere.radius * verticalRadiusScale;
   }
 };
@@ -313,8 +304,9 @@ void appendVisibleInstances(
   const Vec3 scaledExtent{prepared.localExtent.x * mesh.size.x,
                           prepared.localExtent.y * mesh.size.y,
                           prepared.localExtent.z * mesh.size.z};
-  const float geometryExpansion = std::sqrt(dot(scaledCenter, scaledCenter)) +
-                                  std::sqrt(dot(scaledExtent, scaledExtent));
+  const float geometryExpansion =
+      std::sqrt(math::dot(scaledCenter, scaledCenter)) +
+      std::sqrt(math::dot(scaledExtent, scaledExtent));
   result.instanceNodesTested += prepared.spatialIndex.query(
       [&](const InstanceSpatialIndex3D::Node &node) {
         const Vec3 distance{std::max({node.minimum.x - lodPosition.x, 0.F,
@@ -324,7 +316,7 @@ void appendVisibleInstances(
                             std::max({node.minimum.z - lodPosition.z, 0.F,
                                       lodPosition.z - node.maximum.z})};
         if (mesh.cullDistance > 0 &&
-            dot(distance, distance) >= cullDistanceSquared) {
+            math::dot(distance, distance) >= cullDistanceSquared) {
           return false;
         }
         if (!prepared.localBounds) {
@@ -336,7 +328,7 @@ void appendVisibleInstances(
         const Vec3 extent{(node.maximum.x - node.minimum.x) * .5F,
                           (node.maximum.y - node.minimum.y) * .5F,
                           (node.maximum.z - node.minimum.z) * .5F};
-        const float radius = std::sqrt(dot(extent, extent)) +
+        const float radius = std::sqrt(math::dot(extent, extent)) +
                              node.maximumScale * geometryExpansion +
                              prepared.windExpansion;
         if (!frustum.projectionVisible({center, radius})) {
@@ -364,7 +356,7 @@ void appendVisibleInstances(
                         copy.position.y - lodPosition.y,
                         copy.position.z - lodPosition.z};
     if (mesh.cullDistance > 0 &&
-        dot(distance, distance) >= cullDistanceSquared) {
+        math::dot(distance, distance) >= cullDistanceSquared) {
       ++result.culled;
       continue;
     }
@@ -390,7 +382,7 @@ void appendVisibleInstances(
                           prepared.localExtent.z * transform.scale.z};
         copy.bounds = MeshInstancePreparation3D::Sphere{
             transformPoint3D(transform, prepared.localCenter),
-            std::sqrt(dot(extent, extent)) + prepared.windExpansion};
+            std::sqrt(math::dot(extent, extent)) + prepared.windExpansion};
       }
       if (!frustum.projectionVisible(
               {copy.bounds->center, copy.bounds->radius})) {

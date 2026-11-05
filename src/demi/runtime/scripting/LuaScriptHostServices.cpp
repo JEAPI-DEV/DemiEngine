@@ -36,10 +36,18 @@ void LuaScriptHost::setViewport(const int width, const int height) {
                          static_cast<float>(viewportWidth_);
     const float scaleY = std::max(world_->hudCanvasSize.y, 1.0F) /
                          static_cast<float>(viewportHeight_);
-    world_->ui.safeArea = {.left = safe.left * scaleX,
-                           .top = safe.top * scaleY,
-                           .right = safe.right * scaleX,
-                           .bottom = safe.bottom * scaleY};
+    const ui::Insets nextSafeArea{.left = safe.left * scaleX,
+                                   .top = safe.top * scaleY,
+                                   .right = safe.right * scaleX,
+                                   .bottom = safe.bottom * scaleY};
+    const ui::Insets &previousSafeArea = world_->ui.safeArea;
+    if (previousSafeArea.left != nextSafeArea.left ||
+        previousSafeArea.top != nextSafeArea.top ||
+        previousSafeArea.right != nextSafeArea.right ||
+        previousSafeArea.bottom != nextSafeArea.bottom) {
+      world_->ui.safeArea = nextSafeArea;
+      world_->ui.invalidateLayout();
+    }
     const ui::Insets &applied = world_->ui.safeArea;
     if (applied.left != loggedSafeArea_.left ||
         applied.top != loggedSafeArea_.top ||
@@ -56,7 +64,7 @@ void LuaScriptHost::setViewport(const int width, const int height) {
         deviceLog(deviceLogMessage("ui", text.str()));
       }
     }
-    ui::UiLayoutEngine{}.layout(world_->ui, world_->ui.canvasSize);
+    ui::UiLayoutEngine{}.ensure(world_->ui, world_->ui.canvasSize);
   }
 }
 
@@ -320,6 +328,7 @@ void LuaScriptHost::dispatchHudEvents() {
   if (state == nullptr || world_ == nullptr || input_ == nullptr) {
     return;
   }
+  ui::UiLayoutEngine{}.ensure(world_->ui, world_->ui.canvasSize);
   const Vec2 mouse{
       .x = input_->mousePosition.x * std::max(world_->hudCanvasSize.x, 1.0F) /
            static_cast<float>(std::max(viewportWidth_, 1)),
@@ -372,7 +381,7 @@ void LuaScriptHost::dispatchHudEvents() {
           if (const auto action =
                   interaction.activateFocused(world_->ui, "touch"))
             (void)ui::UiActionController{}.apply(world_->ui, *action);
-          ui::UiLayoutEngine{}.layout(world_->ui, world_->ui.canvasSize);
+          ui::UiLayoutEngine{}.ensure(world_->ui, world_->ui.canvasSize);
         } else if (touch.phase == TouchPhase::Ended ||
                    touch.phase == TouchPhase::Cancelled) {
           const auto capturedId = world_->ui.pointerCaptures.find(touch.id);
@@ -437,7 +446,7 @@ void LuaScriptHost::dispatchHudEvents() {
                       changed;
           }
           if (changed)
-            ui::UiLayoutEngine{}.layout(world_->ui, world_->ui.canvasSize);
+            ui::UiLayoutEngine{}.ensure(world_->ui, world_->ui.canvasSize);
         }
       }
     } else {
@@ -450,16 +459,16 @@ void LuaScriptHost::dispatchHudEvents() {
         if (const auto action =
                 interaction.activateFocused(world_->ui, "mouse"))
           (void)ui::UiActionController{}.apply(world_->ui, *action);
-        ui::UiLayoutEngine{}.layout(world_->ui, world_->ui.canvasSize);
+        ui::UiLayoutEngine{}.ensure(world_->ui, world_->ui.canvasSize);
       } else if (!mouseDown && previousUiMouseDown_) {
         interaction.releasePointer(world_->ui, 0, mouse, false, "mouse");
       }
       if (mouseDown && interaction.updatePointer(world_->ui, mouse))
-        ui::UiLayoutEngine{}.layout(world_->ui, world_->ui.canvasSize);
+        ui::UiLayoutEngine{}.ensure(world_->ui, world_->ui.canvasSize);
       if ((input_->mouseScroll.x != 0.0F || input_->mouseScroll.y != 0.0F) &&
           interaction.scrollPointer(world_->ui, 0, mouse, input_->mouseScroll,
                                     "mouse"))
-        ui::UiLayoutEngine{}.layout(world_->ui, world_->ui.canvasSize);
+        ui::UiLayoutEngine{}.ensure(world_->ui, world_->ui.canvasSize);
     }
 
     const auto focused = std::ranges::find(
@@ -519,7 +528,7 @@ void LuaScriptHost::dispatchHudEvents() {
                                                        focused->textEdit) ||
                   changed;
       if (changed || presentationChanged)
-        ui::UiLayoutEngine{}.layout(world_->ui, world_->ui.canvasSize);
+        ui::UiLayoutEngine{}.ensure(world_->ui, world_->ui.canvasSize);
       if (changed)
         ui::UiEventQueue::valueChanged(world_->ui, *focused, "keyboard");
     }
@@ -533,7 +542,7 @@ void LuaScriptHost::dispatchHudEvents() {
               interaction.activateFocused(world_->ui, "keyboard")) {
         clickedButtonId = world_->ui.focusedId;
         (void)ui::UiActionController{}.apply(world_->ui, *action);
-        ui::UiLayoutEngine{}.layout(world_->ui, world_->ui.canvasSize);
+        ui::UiLayoutEngine{}.ensure(world_->ui, world_->ui.canvasSize);
       }
     }
     if (input_->keysPressed.contains("escape") ||
@@ -554,30 +563,50 @@ void LuaScriptHost::dispatchHudEvents() {
     }
   }
 
-  for (ui::UiNode &node : world_->ui.nodes) {
-    if (node.type != "button" && node.type != "toggle" &&
-        node.type != "text_input")
-      continue;
-    const bool clicked =
-        clickedButtonId.has_value() && *clickedButtonId == node.id;
-    if (!node.visible || (!node.hovered && !clicked)) {
-      continue;
+  // Lua actions may rebuild the HUD or unload scripts. Keep the click payload
+  // and callback metadata alive independently of their mutable owner vectors.
+  std::optional<ui::UiNode> clickedNode;
+  if (clickedButtonId) {
+    const auto found = std::ranges::find(world_->ui.nodes, *clickedButtonId,
+                                         &ui::UiNode::id);
+    if (found != world_->ui.nodes.end() && found->visible) {
+      clickedNode = *found;
     }
-    if (clicked && !node.action.empty()) {
-      for (const ScriptInstance &script : scripts_) {
-        for (const LuaActionHandler &handler : script.actionHandlers) {
-          if (handler.action == node.action) {
-            luaCallActionEvent(state, script.tableRef, handler.functionName,
-                               node, mouse, script.path);
-          }
+  }
+  std::vector<ScriptInstance> callbackScripts;
+  std::vector<ModuleActionHandler> callbackModules;
+  struct CallbackReferences {
+    lua_State *state;
+    std::vector<int> references;
+    ~CallbackReferences() {
+      for (const int reference : references) {
+        luaL_unref(state, LUA_REGISTRYINDEX, reference);
+      }
+    }
+  } callbackReferences{state, {}};
+  if (clickedNode || !world_->ui.events.empty()) {
+    callbackScripts = scripts_;
+    callbackModules = moduleActionHandlers_;
+    for (ScriptInstance &script : callbackScripts) {
+      lua_rawgeti(state, LUA_REGISTRYINDEX, script.tableRef);
+      script.tableRef = luaL_ref(state, LUA_REGISTRYINDEX);
+      callbackReferences.references.push_back(script.tableRef);
+    }
+  }
+  if (clickedNode && !clickedNode->action.empty()) {
+    for (const ScriptInstance &script : callbackScripts) {
+      for (const LuaActionHandler &handler : script.actionHandlers) {
+        if (handler.action == clickedNode->action) {
+          luaCallActionEvent(state, script.tableRef, handler.functionName,
+                             *clickedNode, mouse, script.path);
         }
       }
-      for (const ModuleActionHandler &module : moduleActionHandlers_) {
-        for (const LuaActionHandler &handler : module.actionHandlers) {
-          if (handler.action == node.action) {
-            luaCallModuleActionEvent(state, module.module, handler.functionName,
-                                     node, mouse, module.path);
-          }
+    }
+    for (const ModuleActionHandler &module : callbackModules) {
+      for (const LuaActionHandler &handler : module.actionHandlers) {
+        if (handler.action == clickedNode->action) {
+          luaCallModuleActionEvent(state, module.module, handler.functionName,
+                                   *clickedNode, mouse, module.path);
         }
       }
     }
@@ -585,7 +614,7 @@ void LuaScriptHost::dispatchHudEvents() {
   for (const ui::UiEvent &event : ui::UiEventQueue::take(world_->ui)) {
     const std::string callback =
         "on_ui_" + std::string(ui::uiEventTypeName(event.type));
-    for (const ScriptInstance &script : scripts_) {
+    for (const ScriptInstance &script : callbackScripts) {
       if (script.entityId != event.id)
         continue;
       luaCallTypedUiEvent(state, script.tableRef, "on_ui_event", event,

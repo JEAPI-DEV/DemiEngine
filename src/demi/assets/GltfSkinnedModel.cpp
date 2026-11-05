@@ -1,6 +1,7 @@
 #include "demi/assets/GltfSkinnedModel.h"
 #include "demi/assets/GltfDocument.h"
 #include "demi/assets/GltfMaterialImport.h"
+#include "demi/runtime/math/VectorMath.h"
 
 #include <algorithm>
 #include <cmath>
@@ -12,6 +13,8 @@
 
 namespace demi::assets {
 namespace {
+
+namespace math = runtime::math;
 
 using Matrix = std::array<float, 16>;
 
@@ -65,44 +68,22 @@ std::optional<runtime::Vec3> inverseTransformPoint(const Matrix &matrix,
            inverse};
 }
 
-float dot(const runtime::Vec3 left, const runtime::Vec3 right) {
-  return left.x * right.x + left.y * right.y + left.z * right.z;
-}
-
-runtime::Vec3 subtract(const runtime::Vec3 left, const runtime::Vec3 right) {
-  return {left.x - right.x, left.y - right.y, left.z - right.z};
-}
-
-runtime::Vec3 scale(const runtime::Vec3 value, const float amount) {
-  return {value.x * amount, value.y * amount, value.z * amount};
-}
-
-runtime::Vec3 cross(const runtime::Vec3 left, const runtime::Vec3 right) {
-  return {left.y * right.z - left.z * right.y,
-          left.z * right.x - left.x * right.z,
-          left.x * right.y - left.y * right.x};
-}
-
-runtime::Vec3 normalized(const runtime::Vec3 value) {
-  const float magnitude = std::sqrt(dot(value, value));
-  return magnitude > 0.000001F ? scale(value, 1.0F / magnitude)
-                               : runtime::Vec3{};
-}
-
 std::optional<Matrix>
 segmentMatrix(const GltfSkinnedModel3D::BoneSegment &segment) {
-  const runtime::Vec3 y = normalized(subtract(segment.end, segment.start));
-  if (dot(y, y) <= 0.000001F)
+  const runtime::Vec3 y =
+      math::normalized(math::subtract(segment.end, segment.start));
+  if (math::dot(y, y) <= 0.000001F)
     return std::nullopt;
-  runtime::Vec3 pole = subtract(segment.pole, segment.start);
-  pole = subtract(pole, scale(y, dot(pole, y)));
-  if (dot(pole, pole) <= 0.000001F) {
+  runtime::Vec3 pole = math::subtract(segment.pole, segment.start);
+  pole = math::subtract(pole, math::scale(y, math::dot(pole, y)));
+  if (math::dot(pole, pole) <= 0.000001F) {
     const runtime::Vec3 fallback =
         std::abs(y.y) < 0.9F ? runtime::Vec3{0, 1, 0} : runtime::Vec3{1, 0, 0};
-    pole = subtract(fallback, scale(y, dot(fallback, y)));
+    pole = math::subtract(fallback, math::scale(y, math::dot(fallback, y)));
   }
-  const runtime::Vec3 x = normalized(cross(y, normalized(pole)));
-  const runtime::Vec3 z = normalized(cross(x, y));
+  const runtime::Vec3 x =
+      math::normalized(math::cross(y, math::normalized(pole)));
+  const runtime::Vec3 z = math::normalized(math::cross(x, y));
   return Matrix{x.x,
                 x.y,
                 x.z,
@@ -454,21 +435,23 @@ bool GltfSkinnedModel3D::posePositions(const Pose &pose,
 bool GltfSkinnedModel3D::bindPoseNormals(std::vector<runtime::Vec3> &out,
                                          std::string &error) const {
   Pose pose;
-  if (!bindPose(pose, error)) {
+  return bindPose(pose, error) && poseNormals(pose, out, error);
+}
+
+bool GltfSkinnedModel3D::poseNormals(const Pose &pose,
+                                     std::vector<runtime::Vec3> &out,
+                                     std::string &error) const {
+  if (pose.nodes.size() != nodes.size() || pose.skins.size() != skins.size()) {
+    error = "GLB pose data does not match its node or skin count.";
     return false;
   }
   const auto transformNormal = [](const Matrix &matrix, runtime::Vec3 normal) {
     const runtime::Vec3 a{matrix[0], matrix[1], matrix[2]};
     const runtime::Vec3 b{matrix[4], matrix[5], matrix[6]};
     const runtime::Vec3 c{matrix[8], matrix[9], matrix[10]};
-    const auto cross = [](runtime::Vec3 left, runtime::Vec3 right) {
-      return runtime::Vec3{left.y * right.z - left.z * right.y,
-                           left.z * right.x - left.x * right.z,
-                           left.x * right.y - left.y * right.x};
-    };
-    const auto x = cross(b, c);
-    const auto y = cross(c, a);
-    const auto z = cross(a, b);
+    const auto x = math::cross(b, c);
+    const auto y = math::cross(c, a);
+    const auto z = math::cross(a, b);
     const float determinant = a.x * x.x + a.y * x.y + a.z * x.z;
     if (std::abs(determinant) < 1e-12F) {
       return runtime::Vec3{};

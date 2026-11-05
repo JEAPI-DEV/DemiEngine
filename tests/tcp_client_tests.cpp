@@ -13,6 +13,8 @@
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <type_traits>
+#include <vector>
 
 namespace {
 
@@ -34,7 +36,7 @@ TcpResponse await(const std::shared_ptr<TcpOperation> &operation,
     std::this_thread::sleep_for(1ms);
   require(operation->completion()->ready(), "TCP operation never completed");
   auto result = operation->response();
-  require(result.has_value(), "completion preceded response");
+  require(result != nullptr, "completion preceded response");
   return *result;
 }
 
@@ -114,6 +116,87 @@ void testBinaryAndDelayedRead() {
   require(!connection->open(), "connection remained open after shutdown");
 }
 
+void testImmutableResponseSnapshots() {
+  static_assert(
+      std::is_same_v<decltype(std::declval<TcpOperation>().response()),
+                     std::shared_ptr<const TcpResponse>>);
+  std::string payload(1024U * 1024U, '\0');
+  for (std::size_t index = 0; index < payload.size(); ++index) {
+    payload[index] = static_cast<char>(index & 0xffU);
+  }
+  std::atomic<bool> release = false;
+  std::atomic<bool> sendFailed = false;
+  Server server([&](int peer) {
+    const auto deadline = std::chrono::steady_clock::now() + 3s;
+    while (!release.load() && std::chrono::steady_clock::now() < deadline) {
+      std::this_thread::sleep_for(1ms);
+    }
+    std::size_t sent = 0;
+    while (sent < payload.size()) {
+      const auto count = send(peer, payload.data() + sent,
+                              payload.size() - sent, MSG_NOSIGNAL);
+      if (count <= 0) {
+        sendFailed = true;
+        return;
+      }
+      sent += static_cast<std::size_t>(count);
+    }
+  });
+  std::vector<std::shared_ptr<const TcpResponse>> retained;
+  {
+    TcpClient client;
+    auto connection =
+        await(client.connect("127.0.0.1", server.port(), 1000)).connection;
+    require(connection != nullptr, "snapshot fixture connect failed");
+    auto operation = connection->read(payload.size(), 2000);
+    require(!operation->response(), "pending TCP read published a response");
+    const auto callbackSawResponse = std::make_shared<std::atomic<bool>>(false);
+    auto subscription =
+        operation->completion()->subscribe([callbackSawResponse, first = operation] {
+          const auto response = first->response();
+          callbackSawResponse->store(
+              response && response->ok && first->completion()->ready());
+        });
+    release = true;
+    std::size_t received = 0;
+    while (received < payload.size()) {
+      require(operation->completion()->wait({}, 3s) ==
+                  demi::runtime::AsyncWaitResult::Ready,
+              "large TCP operation did not complete");
+      auto snapshot = operation->response();
+      require(snapshot && snapshot->ok && !snapshot->data.empty(),
+              "large TCP read failed");
+      const auto again = operation->response();
+      require(again == snapshot && again->data.data() == snapshot->data.data(),
+              "TCP response copied its completed payload");
+      operation->cancel();
+      require(operation->response() == snapshot,
+              "late cancellation replaced a completed TCP snapshot");
+      received += snapshot->data.size();
+      retained.push_back(std::move(snapshot));
+      if (received < payload.size()) {
+        operation = connection->read(payload.size() - received, 2000);
+      }
+    }
+    const auto deadline = std::chrono::steady_clock::now() + 3s;
+    while (!callbackSawResponse->load() &&
+           std::chrono::steady_clock::now() < deadline) {
+      std::this_thread::sleep_for(1ms);
+    }
+    require(callbackSawResponse->load(),
+            "TCP completion callback could not inspect its response");
+    client.shutdown();
+    operation.reset();
+    connection.reset();
+  }
+  std::string restored;
+  for (const auto &snapshot : retained) {
+    restored += snapshot->data;
+  }
+  require(!sendFailed && restored == payload,
+          "TCP snapshots did not retain binary bytes after shutdown");
+}
+
 void testTimeoutAndCancellation() {
   Server server([](int peer) {
     std::this_thread::sleep_for(80ms);
@@ -134,6 +217,10 @@ void testTimeoutAndCancellation() {
   auto pending = connection->read(32, 1000);
   pending->cancel();
   require(await(pending).errorCode == "cancelled", "read cancellation failed");
+  const auto cancelledSnapshot = pending->response();
+  pending->cancel();
+  require(cancelledSnapshot && pending->response() == cancelledSnapshot,
+          "TCP repeated cancellation replaced its snapshot");
   auto next = connection->read(32, 1000);
   connection->close();
   require(await(next).errorCode == "closed",
@@ -209,6 +296,7 @@ void testLastConnectionOwnerClosesSocket() {
 int main() {
   try {
     testBinaryAndDelayedRead();
+    testImmutableResponseSnapshots();
     testTimeoutAndCancellation();
     testShutdownAndDnsLifecycle();
     testBufferedByteCap();

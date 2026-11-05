@@ -1,4 +1,5 @@
 #include "demi/runtime/ui/UiLayoutEngine.h"
+#include "demi/runtime/profiling/RuntimeProfiler.h"
 
 #include <algorithm>
 #include <cmath>
@@ -40,8 +41,17 @@ Rect anchoredRect(const UiNode &node, const Rect &parent) {
 
 } // namespace
 
-void UiLayoutEngine::layout(UiDocument &document,
+void UiLayoutEngine::ensure(const UiDocument &document,
+                            Vec2 viewportSize) const {
+  if (document.layoutDirty_ || document.layoutViewport_.x != viewportSize.x ||
+      document.layoutViewport_.y != viewportSize.y) {
+    layout(document, viewportSize);
+  }
+}
+
+void UiLayoutEngine::layout(const UiDocument &document,
                             const Vec2 viewportSize) const {
+  ProfileScope layoutScope("UI.layout");
   std::unordered_map<std::string, std::vector<std::size_t>> children;
   for (std::size_t index = 0; index < document.nodes.size(); ++index) {
     children[document.nodes[index].parent].push_back(index);
@@ -58,7 +68,7 @@ void UiLayoutEngine::layout(UiDocument &document,
                                    1.0F)};
   std::function<void(std::size_t, const Rect &)> resolve =
       [&](const std::size_t index, const Rect &parentRect) {
-        UiNode &node = document.nodes[index];
+        const UiNode &node = document.nodes[index];
         const Rect &layoutBounds =
             node.respectsSafeArea ? parentRect : fullViewport;
         node.resolved = anchoredRect(node, layoutBounds);
@@ -78,7 +88,7 @@ void UiLayoutEngine::layout(UiDocument &document,
         std::size_t flowOrder = 0;
         float flowOffset = 0.0F;
         for (const std::size_t childIndex : childIndexes) {
-          UiNode &child = document.nodes[childIndex];
+          const UiNode &child = document.nodes[childIndex];
           if (!child.visible)
             continue;
           Rect slot = content;
@@ -129,6 +139,9 @@ void UiLayoutEngine::layout(UiDocument &document,
   for (const std::size_t rootIndex : children[""]) {
     resolve(rootIndex, safeViewport);
   }
+  document.layoutDirty_ = false;
+  document.layoutViewport_ = viewportSize;
+  ++document.layoutRevision_;
 }
 
 } // namespace demi::runtime::ui

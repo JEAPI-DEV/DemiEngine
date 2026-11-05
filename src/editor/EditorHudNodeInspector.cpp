@@ -568,6 +568,39 @@ void drawContentSection(EditorWorkspace &workspace,
                         "HUD texture modified", notice);
         },
         "asset:// texture ID");
+    float sourcePosition[2]{node.sourcePosition.x, node.sourcePosition.y};
+    grid.row("Source position", [&] {
+      if (ImGui::InputFloat2("##image-source-position", sourcePosition)) {
+        (void)setField(workspace, node, "source_position",
+                       Json::array({sourcePosition[0], sourcePosition[1]}),
+                       "HUD source position modified", notice);
+      }
+    });
+    float sourceSize[2]{node.sourceSize.x, node.sourceSize.y};
+    grid.row("Source size", [&] {
+      if (ImGui::InputFloat2("##image-source-size", sourceSize)) {
+        (void)setField(workspace, node, "source_size",
+                       Json::array({sourceSize[0], sourceSize[1]}),
+                       "HUD source size modified", notice);
+      }
+    });
+    float borders[4]{node.imageSkin.start.x, node.imageSkin.start.y,
+                     node.imageSkin.end.x, node.imageSkin.end.y};
+    grid.row("Nine-slice L/T/R/B", [&] {
+      if (ImGui::InputFloat4("##image-slices", borders)) {
+        (void)setField(workspace, node, "nine_slice",
+                       Json::array({Json::array({borders[0], borders[1]}),
+                                    Json::array({borders[2], borders[3]})}),
+                       "HUD image slices modified", notice);
+      }
+    });
+    float sliceScale = node.imageSkin.scale;
+    grid.row("Border pixel scale", [&] {
+      if (ImGui::InputFloat("##image-slice-scale", &sliceScale)) {
+        (void)setField(workspace, node, "nine_slice_scale", sliceScale,
+                       "HUD image border scale modified", notice);
+      }
+    });
   }
   if (!isTextNode(node.type) && node.type != "image")
     ImGui::TextDisabled("This element has no direct text or image content.");

@@ -81,6 +81,10 @@ function Hud.apply_action(action) end
 ---@field action? string
 ---@field style? string
 ---@field texture? string
+---@field source_position? number[] Atlas origin in pixels.
+---@field source_size? number[] Atlas region in pixels.
+---@field nine_slice? number[][] Image source borders: {{left, top}, {right, bottom}} in pixels.
+---@field nine_slice_scale? number Positive canvas-pixel multiplier for fixed image borders; defaults to 1.
 ---@field accessibility_label? string
 ---@field accessibility_description? string
 ---@field accessibility_hidden? boolean
